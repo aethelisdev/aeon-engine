@@ -1,0 +1,12 @@
+[package]
+name = "ae_plugin_api"
+version = "0.6.0"
+edition = "2024"
+description = "Aeon Engine - Plugin API shared types for FFI boundary"
+
+[dependencies]
+hecs = "0.11.0"
+serde = { version = "1.0.228", features = ["derive"] }
+cgmath = "0.18"
+slotmap = { version = "1.1.1", features = ["serde"] }
+

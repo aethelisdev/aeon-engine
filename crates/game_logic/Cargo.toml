@@ -1,0 +1,13 @@
+[package]
+name = "game_logic"
+version = "0.6.0"
+edition = "2024"
+description = "Aeon Engine - Example hot-reloadable gameplay plugin"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ae_plugin_api = { path = "../ae_plugin_api" }
+hecs = "0.11.0"
+

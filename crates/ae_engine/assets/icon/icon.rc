@@ -1,0 +1,6 @@
+﻿// Aeon Engine Resource Script
+// This file embeds the application icon into the Windows executable.
+// The icon value '1' is the standard ID for the main application icon.
+
+1 ICON "aeicon.ico"
+

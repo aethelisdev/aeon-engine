@@ -1,0 +1,14 @@
+[package]
+name = "ae_physics"
+version = "0.6.0"
+edition = "2024"
+description = "Aeon Engine - Decoupled Rapier3D physics simulation system"
+
+[dependencies]
+rapier3d = "0.34.0"
+glam = "0.33"
+hecs = "0.11.0"
+cgmath = "0.18"
+log = "0.4.33"
+ae_core = { path = "../ae_core" }
+ae_plugin_api = { path = "../ae_plugin_api" }

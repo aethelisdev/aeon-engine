@@ -1,0 +1,12 @@
+﻿[Desktop Entry]
+Name=Aeon Engine
+Comment=Advanced cross-platform game engine editor
+Exec=cargo run --release
+Icon=ae-engine
+Terminal=false
+Type=Application
+Categories=Development;GameDevelopment;
+StartupNotify=true
+StartupWMClass=com.aeengine.Editor
+Keywords=engine;gamedev;3d;rust;
+

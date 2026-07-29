@@ -1,0 +1,26 @@
+# Rust/Cargo Build Outputs
+target/
+**/*.rs.bk
+*.pdb
+
+# Local crash logs and diagnostic dumps
+*.log
+crash.log
+build_log.txt
+check_error.txt
+check.json
+
+# Downloaded tools and intermediate archives
+fb_tool.zip
+temp_fbx/
+python_installer.exe
+
+# IDE and System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+.cargo/
+dist/
+

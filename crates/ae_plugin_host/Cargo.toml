@@ -1,0 +1,12 @@
+[package]
+name = "ae_plugin_host"
+version = "0.6.0"
+edition = "2024"
+description = "Aeon Engine - Dynamic plugin loader with hot reload support"
+
+[dependencies]
+ae_plugin_api = { path = "../ae_plugin_api" }
+libloading = "0.8"
+log = "0.4.33"
+hecs = "0.11.0"
+

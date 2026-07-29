@@ -1,0 +1,22 @@
+[package]
+name = "ae_editor"
+version = "0.6.0"
+edition = "2024"
+description = "Aeon Engine - Editor utilities, camera, gizmo, snapping, and undo/redo"
+
+[dependencies]
+hecs = "0.11.0"
+cgmath = "0.18"
+winit = { version = "0.30.13", features = ["serde"] }
+log = "0.4.33"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+rfd = "0.17.2"
+wgpu = "29.0.4"
+bytemuck = { version = "1.25.0", features = ["derive"] }
+egui = "0.35.0"
+ae_core = { path = "../ae_core" }
+ae_renderer = { path = "../ae_renderer" }
+chrono = "0.4.45"
+
+

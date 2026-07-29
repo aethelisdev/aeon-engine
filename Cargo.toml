@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "crates/ae_core",
+    "crates/ae_renderer",
+    "crates/ae_plugin_api",
+    "crates/ae_plugin_host",
+    "crates/ae_editor",
+    "crates/ae_editor_ui",
+    "crates/game_logic",
+    "crates/ae_physics",
+    "crates/ae_audio",
+    "crates/ae_engine",
+]
+resolver = "2"
