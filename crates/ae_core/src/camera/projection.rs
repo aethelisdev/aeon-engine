@@ -34,8 +34,10 @@ impl PerspectiveProjection {
     /// Builds a perspective projection matrix with the given parameters.
     /// Applies the OpenGL-to-WGPU coordinate correction automatically.
     /// `fovy` is in degrees, `aspect` is width/height ratio.
+    /// Uses safe_aspect `max(0.0001)` to prevent panics when viewport aspect is zero.
     pub fn build_matrix(fovy: f32, aspect: f32, znear: f32, zfar: f32) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * cgmath::perspective(Deg(fovy), aspect, znear, zfar)
+        let safe_aspect = aspect.max(0.0001);
+        OPENGL_TO_WGPU_MATRIX * cgmath::perspective(Deg(fovy), safe_aspect, znear, zfar)
     }
 }
 
@@ -49,9 +51,12 @@ impl OrthographicProjection {
     /// Builds an orthographic projection matrix from scale, aspect ratio, and depth range.
     /// The `ortho_scale` controls the visible world-space height. Width is
     /// derived as `ortho_scale * aspect`. Near/far define the depth clipping range.
+    /// Uses safe_aspect `max(0.0001)` to prevent degenerate projection panics.
     pub fn build_matrix(ortho_scale: f32, aspect: f32, znear: f32, zfar: f32) -> Matrix4<f32> {
-        let half_height = ortho_scale * 0.5;
-        let half_width = half_height * aspect;
+        let safe_aspect = aspect.max(0.0001);
+        let safe_ortho_scale = ortho_scale.max(0.0001);
+        let half_height = safe_ortho_scale * 0.5;
+        let half_width = half_height * safe_aspect;
         OPENGL_TO_WGPU_MATRIX
             * cgmath::ortho(
                 -half_width,

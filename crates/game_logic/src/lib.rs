@@ -19,9 +19,9 @@ use ae_plugin_api::PluginContextFFI;
 #[unsafe(no_mangle)]
 pub extern "C" fn plugin_abi_hash() -> *const std::ffi::c_char {
     if cfg!(debug_assertions) {
-        "ae-abi-v0.6.0-debug\0".as_ptr() as *const std::ffi::c_char
+        "ae-abi-v0.7.0-debug\0".as_ptr() as *const std::ffi::c_char
     } else {
-        "ae-abi-v0.6.0-release\0".as_ptr() as *const std::ffi::c_char
+        "ae-abi-v0.7.0-release\0".as_ptr() as *const std::ffi::c_char
     }
 }
 

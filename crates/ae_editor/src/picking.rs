@@ -110,23 +110,29 @@ pub fn intersect_aabb(ray: &Ray, min: [f32; 3], max: [f32; 3]) -> Option<f32> {
 }
 
 /// Utility to generate a Model Matrix from ECS components.
-/// This is used for ray-casting and intersection tests to move from World Space to Local Space.
+/// Prioritizes `GlobalTransform` if present (ensuring correct world-space raycasting for parent-child hierarchies),
+/// falling back to local `Position`, `Rotation`, and `Scale` components.
 pub fn compute_model_matrix(
+    gt: Option<&ae_core::ecs::GlobalTransform>,
     pos: Option<&ae_core::ecs::Position>,
     rot: Option<&ae_core::ecs::Rotation>,
     scale: Option<&ae_core::ecs::Scale>,
 ) -> Matrix4<f32> {
-    let mut model = Matrix4::identity();
-    if let Some(p) = pos {
-        model = model * Matrix4::from_translation(Vector3::new(p.x, p.y, p.z));
+    if let Some(global_tf) = gt {
+        global_tf.0
+    } else {
+        let mut model = Matrix4::identity();
+        if let Some(p) = pos {
+            model = model * Matrix4::from_translation(Vector3::new(p.x, p.y, p.z));
+        }
+        if let Some(r) = rot {
+            model = model * Matrix4::from(cgmath::Quaternion::new(r.w, r.x, r.y, r.z));
+        }
+        if let Some(s) = scale {
+            model = model * Matrix4::from_nonuniform_scale(s.x, s.y, s.z);
+        }
+        model
     }
-    if let Some(r) = rot {
-        model = model * Matrix4::from(cgmath::Quaternion::new(r.w, r.x, r.y, r.z));
-    }
-    if let Some(s) = scale {
-        model = model * Matrix4::from_nonuniform_scale(s.x, s.y, s.z);
-    }
-    model
 }
 
 /// Ray vs Bounding Sphere intersection test for 3D Viewport Billboard Icons.
@@ -211,4 +217,25 @@ pub fn intersect_mesh(ray: &Ray, vertices: &[[f32; 3]], indices: &[u32]) -> Opti
     }
 
     min_t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Tests that compute_model_matrix prioritizes GlobalTransform over local position/rotation/scale.
+    #[test]
+    fn test_compute_model_matrix_global_transform_priority() {
+        let gt_matrix = cgmath::Matrix4::from_translation(cgmath::Vector3::new(100.0, 50.0, 0.0));
+        let gt = ae_core::ecs::GlobalTransform(gt_matrix);
+        let pos = ae_core::ecs::Position {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+
+        let result = compute_model_matrix(Some(&gt), Some(&pos), None, None);
+        assert_eq!(result.w.x, 100.0);
+        assert_eq!(result.w.y, 50.0);
+    }
 }

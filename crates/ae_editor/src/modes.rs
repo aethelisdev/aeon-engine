@@ -74,20 +74,22 @@ pub fn update_play_mode(
 
     // Locate active player target position (check CharacterController first, then PlayerTag)
     let mut player_pos = None;
-    for (_ctrl, pos) in ecs
+    if let Some((_ctrl, pos)) = ecs
         .world
         .query_mut::<(&ae_core::ecs::CharacterController, &ae_core::ecs::Position)>()
+        .into_iter()
+        .next()
     {
         player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
-        break;
     }
     if player_pos.is_none() {
-        for (_tag, pos) in ecs
+        if let Some((_tag, pos)) = ecs
             .world
             .query_mut::<(&PlayerTag, &ae_core::ecs::Position)>()
+            .into_iter()
+            .next()
         {
             player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
-            break;
         }
     }
 

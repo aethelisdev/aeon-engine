@@ -14,9 +14,9 @@
 /// and verified on dynamic library load to prevent severe memory corruption and
 /// segmentation faults caused by Rust ABI mismatch.
 pub const ENGINE_ABI_HASH: &str = if cfg!(debug_assertions) {
-    "ae-abi-v0.6.0-debug"
+    "ae-abi-v0.7.0-debug"
 } else {
-    "ae-abi-v0.6.0-release"
+    "ae-abi-v0.7.0-release"
 };
 
 /// Returns the platform-specific dynamic library extension.

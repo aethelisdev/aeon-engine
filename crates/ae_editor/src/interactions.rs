@@ -533,11 +533,7 @@ pub fn try_select_entity(
             )>(ent);
 
             if let Ok((gt, pos, rot, scale, bbox)) = q.get() {
-                let model = if let Some(global_tf) = gt {
-                    global_tf.0
-                } else {
-                    picking::compute_model_matrix(pos, rot, scale)
-                };
+                let model = picking::compute_model_matrix(gt, pos, rot, scale);
 
                 if let Some(inv_model) = model.invert() {
                     let l_org_v4 = inv_model * ray.origin.to_homogeneous();
@@ -587,11 +583,7 @@ pub fn try_select_entity(
         )>();
 
         for (ent, gt, pos, rot, scale, shape_opt, col_opt, bbox) in query.iter() {
-            let model = if let Some(global_tf) = gt {
-                global_tf.0
-            } else {
-                picking::compute_model_matrix(pos, rot, scale)
-            };
+            let model = picking::compute_model_matrix(gt, pos, rot, scale);
 
             if let Some(inv_model) = model.invert() {
                 let l_org_v4 = inv_model * ray.origin.to_homogeneous();

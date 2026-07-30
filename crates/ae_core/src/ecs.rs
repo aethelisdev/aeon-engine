@@ -55,7 +55,8 @@ impl Default for EcsManager {
     }
 }
 
-/// Updates the world-space GlobalTransform matrices of all entities in parent-child relationships.
+/// Updates the world-space GlobalTransform matrices of all entities in parent-child relationships,
+/// and synchronizes standalone entities possessing GlobalTransform components with their local transform.
 pub fn update_hierarchy_transforms(world: &mut hecs::World) {
     use cgmath::SquareMatrix;
 
@@ -63,7 +64,7 @@ pub fn update_hierarchy_transforms(world: &mut hecs::World) {
     let mut parent_to_children =
         std::collections::HashMap::<hecs::Entity, Vec<hecs::Entity>>::new();
 
-    // 1. Query only Parent components to collect active hierarchy relationships.
+    // 1. Query Parent components to collect active hierarchy relationships.
     for (entity, parent_ref) in world.query::<(hecs::Entity, &Parent)>().iter() {
         if world.contains(parent_ref.0) {
             all_entities_with_parent.push((entity, parent_ref.0));
@@ -74,72 +75,98 @@ pub fn update_hierarchy_transforms(world: &mut hecs::World) {
         }
     }
 
-    // Early exit if there are no hierarchical relations in the scene (O(1) fast path)
-    if all_entities_with_parent.is_empty() {
-        return;
-    }
-
-    // 2. Identify root parent entities
-    let mut root_entities = std::collections::HashSet::new();
-    for &parent in parent_to_children.keys() {
-        if world.get::<&Parent>(parent).is_err() {
-            root_entities.insert(parent);
-        }
-    }
-
-    // 3. Keep track of visited entities to abort early if cycles are detected
     let mut visited = std::collections::HashSet::new();
 
-    // 4. Recursive DFS helper to compute and insert/update GlobalTransform components
-    fn propagate(
-        world: &mut hecs::World,
-        entity: hecs::Entity,
-        parent_transform: &cgmath::Matrix4<f32>,
-        parent_to_children: &std::collections::HashMap<hecs::Entity, Vec<hecs::Entity>>,
-        visited: &mut std::collections::HashSet<hecs::Entity>,
-    ) {
-        if !visited.insert(entity) {
-            return; // Cycle detected — stop recursion to prevent stack overflow
-        }
-
-        let pos = world
-            .get::<&Position>(entity)
-            .ok()
-            .map(|p| cgmath::Vector3::new(p.x, p.y, p.z))
-            .unwrap_or_else(|| cgmath::Vector3::new(0.0, 0.0, 0.0));
-        let rot = world
-            .get::<&Rotation>(entity)
-            .ok()
-            .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-            .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
-        let scale = world
-            .get::<&Scale>(entity)
-            .ok()
-            .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
-            .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
-
-        let local_matrix = cgmath::Matrix4::from_translation(pos)
-            * cgmath::Matrix4::from(rot)
-            * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z);
-
-        let global_matrix = parent_transform * local_matrix;
-
-        if let Ok(mut gt) = world.get::<&mut GlobalTransform>(entity) {
-            gt.0 = global_matrix;
-        } else {
-            let _ = world.insert_one(entity, GlobalTransform(global_matrix));
-        }
-
-        if let Some(children) = parent_to_children.get(&entity) {
-            for &child in children {
-                propagate(world, child, &global_matrix, parent_to_children, visited);
+    if !all_entities_with_parent.is_empty() {
+        // 2. Identify root parent entities
+        let mut root_entities = std::collections::HashSet::new();
+        for &parent in parent_to_children.keys() {
+            if world.get::<&Parent>(parent).is_err() {
+                root_entities.insert(parent);
             }
+        }
+
+        // 3. Recursive DFS helper to compute and insert/update GlobalTransform components for hierarchies
+        fn propagate(
+            world: &mut hecs::World,
+            entity: hecs::Entity,
+            parent_transform: &cgmath::Matrix4<f32>,
+            parent_to_children: &std::collections::HashMap<hecs::Entity, Vec<hecs::Entity>>,
+            visited: &mut std::collections::HashSet<hecs::Entity>,
+        ) {
+            if !visited.insert(entity) {
+                return; // Cycle detected — stop recursion to prevent stack overflow
+            }
+
+            let pos = world
+                .get::<&Position>(entity)
+                .ok()
+                .map(|p| cgmath::Vector3::new(p.x, p.y, p.z))
+                .unwrap_or_else(|| cgmath::Vector3::new(0.0, 0.0, 0.0));
+            let rot = world
+                .get::<&Rotation>(entity)
+                .ok()
+                .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
+                .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
+            let scale = world
+                .get::<&Scale>(entity)
+                .ok()
+                .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
+                .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
+
+            let local_matrix = cgmath::Matrix4::from_translation(pos)
+                * cgmath::Matrix4::from(rot)
+                * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z);
+
+            let global_matrix = parent_transform * local_matrix;
+
+            if let Ok(mut gt) = world.get::<&mut GlobalTransform>(entity) {
+                gt.0 = global_matrix;
+            } else {
+                let _ = world.insert_one(entity, GlobalTransform(global_matrix));
+            }
+
+            if let Some(children) = parent_to_children.get(&entity) {
+                for &child in children {
+                    propagate(world, child, &global_matrix, parent_to_children, visited);
+                }
+            }
+        }
+
+        let identity = cgmath::Matrix4::identity();
+        for root in root_entities {
+            propagate(world, root, &identity, &parent_to_children, &mut visited);
         }
     }
 
-    let identity = cgmath::Matrix4::identity();
-    for root in root_entities {
-        propagate(world, root, &identity, &parent_to_children, &mut visited);
+    // 4. Synchronize standalone entities holding GlobalTransform components not updated by hierarchy traversal
+    for (entity, (gt, pos_opt, rot_opt, scale_opt)) in world
+        .query_mut::<(
+            hecs::Entity,
+            (
+                &mut GlobalTransform,
+                Option<&Position>,
+                Option<&Rotation>,
+                Option<&Scale>,
+            ),
+        )>()
+        .into_iter()
+    {
+        if !visited.contains(&entity) {
+            let pos = pos_opt
+                .map(|p| cgmath::Vector3::new(p.x, p.y, p.z))
+                .unwrap_or_else(|| cgmath::Vector3::new(0.0, 0.0, 0.0));
+            let rot = rot_opt
+                .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
+                .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
+            let scale = scale_opt
+                .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
+                .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
+
+            gt.0 = cgmath::Matrix4::from_translation(pos)
+                * cgmath::Matrix4::from(rot)
+                * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z);
+        }
     }
 }
 
@@ -156,4 +183,37 @@ pub struct LodGroup {
     pub threshold_1: f32,
     /// Distance threshold between LOD 1 and LOD 2
     pub threshold_2: f32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cgmath::SquareMatrix;
+
+    /// Tests that update_hierarchy_transforms synchronizes GlobalTransform for standalone entities.
+    #[test]
+    fn test_update_hierarchy_transforms_standalone_sync() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Position {
+                x: 10.0,
+                y: 5.0,
+                z: -2.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            GlobalTransform(cgmath::Matrix4::identity()),
+        ));
+
+        update_hierarchy_transforms(&mut world);
+
+        let gt = world.get::<&GlobalTransform>(entity).unwrap();
+        assert_eq!(gt.0.w.x, 10.0);
+        assert_eq!(gt.0.w.y, 5.0);
+        assert_eq!(gt.0.w.z, -2.0);
+    }
 }

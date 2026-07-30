@@ -330,7 +330,7 @@ impl ShadowSystem {
         light_dir: cgmath::Vector3<f32>,
     ) {
         use cgmath::InnerSpace;
-        let cascades = graphics_settings.shadow_cascades.max(1).min(4) as usize;
+        let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
         let splits = [4.0, 15.0, 50.0, 150.0]; // View-Z distances
 
         let cam_pos = cgmath::Vector3::new(camera.position.x, camera.position.y, camera.position.z);
@@ -367,10 +367,15 @@ impl ShadowSystem {
             } * 1.5;
 
             let light_pos_target = cascade_center + light_dir * radius * 2.0;
+            let up_vector = if light_dir.y.abs() > 0.99 {
+                cgmath::Vector3::unit_z()
+            } else {
+                cgmath::Vector3::unit_y()
+            };
             let light_view = cgmath::Matrix4::look_at_rh(
                 cgmath::Point3::new(light_pos_target.x, light_pos_target.y, light_pos_target.z),
                 cgmath::Point3::new(cascade_center.x, cascade_center.y, cascade_center.z),
-                cgmath::Vector3::unit_y(),
+                up_vector,
             );
 
             let light_proj = cgmath::ortho(-radius, radius, -radius, radius, 0.1, radius * 5.0);
@@ -433,7 +438,7 @@ impl ShadowSystem {
             return;
         }
 
-        let cascades = graphics_settings.shadow_cascades.max(1).min(4) as usize;
+        let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
         for cascade_idx in 0..cascades {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(&format!("Shadow Pass {}", cascade_idx)),
@@ -538,6 +543,37 @@ impl ShadowSystem {
                     pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     pass.draw_indexed(0..m.num_indices, 0, 0..c);
                 }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Tests that computing shadow cascades with a vertical light vector does not generate NaN values.
+    #[test]
+    fn test_shadow_cascade_vertical_light_no_nan() {
+        let light_dir: cgmath::Vector3<f32> = cgmath::Vector3::new(0.0, 1.0, 0.0);
+        let up_vector = if light_dir.y.abs() > 0.99 {
+            cgmath::Vector3::unit_z()
+        } else {
+            cgmath::Vector3::unit_y()
+        };
+
+        let cascade_center = cgmath::Vector3::new(0.0, 0.0, 0.0);
+        let radius = 10.0_f32;
+        let light_pos_target = cascade_center + light_dir * radius * 2.0;
+
+        let light_view = cgmath::Matrix4::look_at_rh(
+            cgmath::Point3::new(light_pos_target.x, light_pos_target.y, light_pos_target.z),
+            cgmath::Point3::new(cascade_center.x, cascade_center.y, cascade_center.z),
+            up_vector,
+        );
+
+        let mat_arr: [[f32; 4]; 4] = light_view.into();
+        for row in &mat_arr {
+            for val in row {
+                assert!(!val.is_nan(), "Light view matrix element is NaN!");
             }
         }
     }
