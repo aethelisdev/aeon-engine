@@ -72,45 +72,30 @@ impl PhysicsWorld {
     /// Force-resets all Rapier3D rigid body positions and velocities from current ECS transforms.
     /// Useful when toggling Play/Edit mode or restoring scene backups.
     pub fn reset_simulation_poses(&mut self, world: &mut World) {
-        use glam::{Quat, Vec3};
+        use glam::Vec3;
         use rapier3d::math::Pose;
 
         // Recompute world-space transforms for all entities in scene before resetting physics poses
         ae_core::ecs::update_hierarchy_transforms(world);
 
         for (&entity, &handle) in &self.entity_to_body {
-            let (world_pos, world_rot) =
-                if let Ok(gt) = world.get::<&ae_core::ecs::GlobalTransform>(entity) {
-                    let mat = gt.0;
-                    let trans = Vec3::new(mat.w.x, mat.w.y, mat.w.z);
-                    let sx = Vec3::new(mat.x.x, mat.x.y, mat.x.z).length().max(1e-4);
-                    let sy = Vec3::new(mat.y.x, mat.y.y, mat.y.z).length().max(1e-4);
-                    let sz = Vec3::new(mat.z.x, mat.z.y, mat.z.z).length().max(1e-4);
-                    let rot_mat3 = glam::Mat3::from_cols(
-                        Vec3::new(mat.x.x / sx, mat.x.y / sx, mat.x.z / sx),
-                        Vec3::new(mat.y.x / sy, mat.y.y / sy, mat.y.z / sy),
-                        Vec3::new(mat.z.x / sz, mat.z.y / sz, mat.z.z / sz),
-                    );
-                    let rot = Quat::from_mat3(&rot_mat3);
-                    (trans, rot)
-                } else {
-                    let pos_comp = world
-                        .get::<&Position>(entity)
-                        .map(|p| *p)
-                        .unwrap_or(Position {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                        });
-                    let rot_comp = world
-                        .get::<&Rotation>(entity)
-                        .map(|r| *r)
-                        .unwrap_or_else(|_| Rotation::identity());
-                    (
-                        Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z),
-                        Quat::from_xyzw(rot_comp.x, rot_comp.y, rot_comp.z, rot_comp.w),
-                    )
-                };
+            let (world_pos, world_rot) = if let Ok(gt) =
+                world.get::<&ae_core::ecs::GlobalTransform>(entity)
+            {
+                let (trans, rot, _scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);
+                (trans, rot)
+            } else {
+                use ae_core::math::conversions::ToGlam;
+                let pos_comp = world
+                    .get::<&Position>(entity)
+                    .map(|p| p.to_glam())
+                    .unwrap_or(glam::Vec3::ZERO);
+                let rot_comp = world
+                    .get::<&Rotation>(entity)
+                    .map(|r| r.to_glam())
+                    .unwrap_or(glam::Quat::IDENTITY);
+                (pos_comp, rot_comp)
+            };
 
             let vel_comp = world
                 .get::<&Velocity>(entity)

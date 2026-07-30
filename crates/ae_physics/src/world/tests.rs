@@ -1181,4 +1181,89 @@ mod tests {
             player_y
         );
     }
+
+    /// Tests that setting is_sensor=true on a CharacterController's OWN collider puts the character in ghost mode, passing through solid walls.
+    #[test]
+    fn test_character_controller_own_trigger_sensor_pass_through() {
+        let mut physics = PhysicsWorld::new();
+        let mut world = hecs::World::new();
+
+        // Solid static wall at x = 2.0
+        world.spawn((
+            Position {
+                x: 2.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 5.0,
+                z: 5.0,
+            },
+            RigidBody {
+                body_type: RigidBodyType::Static,
+                mass: 0.0,
+                gravity_scale: 0.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [0.5, 2.5, 2.5],
+                },
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        // Player with CharacterController AND Collider with is_sensor=true (ghost character)
+        let player = world.spawn((
+            Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            CharacterController::default(),
+            Collider {
+                shape: ColliderShape::Capsule {
+                    half_height: 0.5,
+                    radius: 0.3,
+                },
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: true, // Own collider is a trigger / ghost sensor!
+            },
+        ));
+
+        physics.sync_ecs_to_physics(&mut world, |_| None);
+        physics.reset_simulation_poses(&mut world);
+
+        // Verify that Rapier collider was built with is_sensor = true
+        let body_h = physics.entity_to_body.get(&player).unwrap();
+        let body = physics.rigid_body_set.get(*body_h).unwrap();
+        let col_h = body.colliders().first().unwrap();
+        let col = physics.collider_set.get(*col_h).unwrap();
+        assert!(
+            col.is_sensor(),
+            "Character's own Rapier collider must have is_sensor() == true"
+        );
+
+        // Move character forward through the solid wall at x = 2.0
+        for _ in 0..60 {
+            physics.move_character(&mut world, player, Vec3::new(0.1, 0.0, 0.0), 0.016);
+        }
+
+        let player_x = world.get::<&Position>(player).unwrap().x;
+        assert!(
+            player_x > 2.0,
+            "Ghost CharacterController (is_sensor=true) must pass through solid wall, got x = {}",
+            player_x
+        );
+    }
 }

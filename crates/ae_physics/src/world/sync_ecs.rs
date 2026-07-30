@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use glam::{Quat, Vec3};
+use glam::Vec3;
 use hecs::{Entity, World};
 use rapier3d::prelude::*;
 /// AE Physics — ECS to Rapier3D synchronization module.
@@ -66,40 +66,23 @@ impl PhysicsWorld {
         for (entity, (rb_comp, col_comp)) in active_entities {
             let (world_pos, world_rot, scale_comp) =
                 if let Ok(gt) = world.get::<&ae_core::ecs::GlobalTransform>(entity) {
-                    let mat = gt.0;
-                    let trans = Vec3::new(mat.w.x, mat.w.y, mat.w.z);
-                    let sx = Vec3::new(mat.x.x, mat.x.y, mat.x.z).length().max(1e-4);
-                    let sy = Vec3::new(mat.y.x, mat.y.y, mat.y.z).length().max(1e-4);
-                    let sz = Vec3::new(mat.z.x, mat.z.y, mat.z.z).length().max(1e-4);
-                    let rot_mat3 = glam::Mat3::from_cols(
-                        Vec3::new(mat.x.x / sx, mat.x.y / sx, mat.x.z / sx),
-                        Vec3::new(mat.y.x / sy, mat.y.y / sy, mat.y.z / sy),
-                        Vec3::new(mat.z.x / sz, mat.z.y / sz, mat.z.z / sz),
-                    );
-                    let rot = Quat::from_mat3(&rot_mat3);
-                    (trans, rot, [sx, sy, sz])
+                    let (trans, rot, scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);
+                    (trans, rot, [scale.x, scale.y, scale.z])
                 } else {
+                    use ae_core::math::conversions::ToGlam;
                     let pos_comp = world
                         .get::<&Position>(entity)
-                        .map(|p| *p)
-                        .unwrap_or(Position {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                        });
+                        .map(|p| p.to_glam())
+                        .unwrap_or(glam::Vec3::ZERO);
                     let rot_comp = world
                         .get::<&Rotation>(entity)
-                        .map(|r| *r)
-                        .unwrap_or_else(|_| Rotation::identity());
+                        .map(|r| r.to_glam())
+                        .unwrap_or(glam::Quat::IDENTITY);
                     let scale_comp = world
                         .get::<&Scale>(entity)
                         .map(|s| [s.x, s.y, s.z])
                         .unwrap_or([1.0, 1.0, 1.0]);
-                    (
-                        Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z),
-                        Quat::from_xyzw(rot_comp.x, rot_comp.y, rot_comp.z, rot_comp.w),
-                        scale_comp,
-                    )
+                    (pos_comp, rot_comp, scale_comp)
                 };
 
             let vel_comp = world
@@ -171,7 +154,11 @@ impl PhysicsWorld {
                     let col_builder = if is_kcc {
                         if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
                             let capsule_half_height = (ctrl.height * 0.5 - ctrl.radius).max(0.05);
-                            Some(ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius))
+                            let is_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
+                            Some(
+                                ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
+                                    .sensor(is_sensor),
+                            )
                         } else {
                             None
                         }
@@ -380,7 +367,11 @@ impl PhysicsWorld {
                 let col_builder = if is_kcc {
                     if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
                         let capsule_half_height = (ctrl.height * 0.5 - ctrl.radius).max(0.05);
-                        Some(ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius))
+                        let is_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
+                        Some(
+                            ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
+                                .sensor(is_sensor),
+                        )
                     } else {
                         None
                     }

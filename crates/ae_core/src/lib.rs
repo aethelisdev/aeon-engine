@@ -6,6 +6,7 @@ pub mod camera;
 /// borrow checker conflicts between modular subsystems.
 pub mod ecs;
 pub mod events;
+pub mod math;
 pub mod modules;
 pub mod spatial;
 pub mod time;

@@ -49,6 +49,85 @@ pub struct RenderScene {
 }
 
 impl RenderScene {
+    /// Helper method to collect candidate visible entities using SpatialGrid cell-frustum culling,
+    /// player tag guarantees, and ground safeguards.
+    fn collect_visible_entities(
+        world: &hecs::World,
+        camera: &crate::camera::Camera,
+        selected_entities: &std::collections::HashSet<hecs::Entity>,
+        spatial_grid: &ae_core::spatial::SpatialGrid,
+        frustum: &crate::math::frustum::Frustum,
+    ) -> Vec<hecs::Entity> {
+        let mut visible_entities = Vec::new();
+        if spatial_grid.cells.is_empty() {
+            return visible_entities;
+        }
+
+        let cam_pos_vec =
+            cgmath::Vector3::new(camera.position.x, camera.position.y, camera.position.z);
+        let view_distance = 450.0_f32;
+        let cell_size = spatial_grid.cell_size;
+        let mut visible_set: std::collections::HashSet<hecs::Entity> =
+            std::collections::HashSet::with_capacity(1024);
+
+        for (cx, cy, cz, entities) in
+            spatial_grid.query_cells_near_camera(cam_pos_vec, view_distance)
+        {
+            let cell_min = cgmath::Vector3::new(
+                cx as f32 * cell_size,
+                cy as f32 * cell_size,
+                cz as f32 * cell_size,
+            );
+            let cell_max = cgmath::Vector3::new(
+                (cx as f32 + 1.0) * cell_size,
+                (cy as f32 + 1.0) * cell_size,
+                (cz as f32 + 1.0) * cell_size,
+            );
+
+            if frustum.is_aabb_visible(cell_min, cell_max) {
+                for &e in entities {
+                    if visible_set.insert(e) {
+                        visible_entities.push(e);
+                    }
+                }
+            }
+        }
+
+        for &selected in selected_entities {
+            if visible_set.insert(selected) {
+                visible_entities.push(selected);
+            }
+        }
+
+        // Guaranteed Player Visibility: Controlled entities are never culled by SpatialGrid
+        for (ent, _ctrl) in world
+            .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
+            .iter()
+        {
+            if visible_set.insert(ent) {
+                visible_entities.push(ent);
+            }
+        }
+        for (ent, _tag) in world
+            .query::<(hecs::Entity, &ae_core::ecs::PlayerTag)>()
+            .iter()
+        {
+            if visible_set.insert(ent) {
+                visible_entities.push(ent);
+            }
+        }
+
+        // Ground & Large Entity Safeguard: Ensures Ground Plane and large environment platforms are ALWAYS visible
+        let mut ground_query = world.query::<(hecs::Entity, &ae_core::ecs::Name)>();
+        for (ent, name) in ground_query.iter() {
+            let s = name.0.as_bytes();
+            if s.windows(6).any(|w| w.eq_ignore_ascii_case(b"ground")) && visible_set.insert(ent) {
+                visible_entities.push(ent);
+            }
+        }
+
+        visible_entities
+    }
     /// Extracts visible entities from the ECS World into GPU-ready instance data.
     /// Applies high-performance AABB cell-frustum spatial partitioning culling using the SpatialGrid.
     /// Each grid cell is tested as a precise axis-aligned bounding box against the 6 frustum planes,
@@ -90,76 +169,16 @@ impl RenderScene {
         // Use dedicated culling matrix (shorter zfar=400) to aggressively cull distant objects
         // on the CPU. The actual render matrix uses zfar=2000 for visual depth quality.
         let frustum = crate::math::frustum::Frustum::from_matrix(camera.build_culling_matrix());
-        let mut visible_entities = Vec::new();
-
         let use_fallback = spatial_grid.cells.is_empty();
 
-        if !use_fallback {
-            let cam_pos_vec =
-                cgmath::Vector3::new(camera.position.x, camera.position.y, camera.position.z);
-            let view_distance = 450.0_f32;
-            let cell_size = spatial_grid.cell_size;
-            let mut visible_set: std::collections::HashSet<hecs::Entity> =
-                std::collections::HashSet::with_capacity(1024);
-
-            for (cx, cy, cz, entities) in
-                spatial_grid.query_cells_near_camera(cam_pos_vec, view_distance)
-            {
-                let cell_min = cgmath::Vector3::new(
-                    cx as f32 * cell_size,
-                    cy as f32 * cell_size,
-                    cz as f32 * cell_size,
-                );
-                let cell_max = cgmath::Vector3::new(
-                    (cx as f32 + 1.0) * cell_size,
-                    (cy as f32 + 1.0) * cell_size,
-                    (cz as f32 + 1.0) * cell_size,
-                );
-
-                if frustum.is_aabb_visible(cell_min, cell_max) {
-                    for &e in entities {
-                        if visible_set.insert(e) {
-                            visible_entities.push(e);
-                        }
-                    }
-                }
-            }
-
-            for &selected in selected_entities {
-                if visible_set.insert(selected) {
-                    visible_entities.push(selected);
-                }
-            }
-
-            // Guaranteed Player Visibility: Controlled entities are never culled by SpatialGrid
-            for (ent, _ctrl) in world
-                .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
-                .iter()
-            {
-                if visible_set.insert(ent) {
-                    visible_entities.push(ent);
-                }
-            }
-            for (ent, _tag) in world
-                .query::<(hecs::Entity, &ae_core::ecs::PlayerTag)>()
-                .iter()
-            {
-                if visible_set.insert(ent) {
-                    visible_entities.push(ent);
-                }
-            }
-
-            // Ground & Large Entity Safeguard: Ensures Ground Plane and large environment platforms are ALWAYS visible
-            // Runs only on named entities (e.g. Ground Plane) to bypass iterating millions of unnamed stress test blocks!
-            let mut ground_query = world.query::<(hecs::Entity, &ae_core::ecs::Name)>();
-            for (ent, name) in ground_query.iter() {
-                let s = name.0.as_bytes();
-                if s.windows(6).any(|w| w.eq_ignore_ascii_case(b"ground")) {
-                    if visible_set.insert(ent) {
-                        visible_entities.push(ent);
-                    }
-                }
-            }
+        let visible_entities = if !use_fallback {
+            let visible_entities = Self::collect_visible_entities(
+                world,
+                camera,
+                selected_entities,
+                spatial_grid,
+                &frustum,
+            );
 
             let cap = visible_entities.len().min(65536);
             cube_instances.reserve(cap);
@@ -325,6 +344,7 @@ impl RenderScene {
                     }
                 }
             }
+            visible_entities
         } else {
             // Contiguous SOA archetype iteration path:
             // High-throughput frustum culling with instant early exit for 10M+ objects.
@@ -343,7 +363,7 @@ impl RenderScene {
                 Option<&ae_core::ecs::CharacterController>,
                 Option<&ae_core::ecs::PlayerTag>,
             )>();
-
+            let mut fallback_visible = Vec::new();
             for (
                 entity,
                 pos,
@@ -402,7 +422,7 @@ impl RenderScene {
                     }
                 }
 
-                visible_entities.push(entity);
+                fallback_visible.push(entity);
 
                 let model_matrix = if let Some(gt) = global_transform {
                     gt.0
@@ -491,7 +511,8 @@ impl RenderScene {
                     }
                 }
             }
-        }
+            fallback_visible
+        };
 
         Self {
             light_uniform,

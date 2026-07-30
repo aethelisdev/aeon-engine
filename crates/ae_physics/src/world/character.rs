@@ -76,30 +76,41 @@ impl PhysicsWorld {
                 .exclude_sensors(),
         );
 
+        let is_character_sensor = world
+            .get::<&ae_core::ecs::Collider>(entity)
+            .map(|c| c.is_sensor)
+            .unwrap_or(false);
+
         // Depenetration check: if starting pose overlaps any static collider, push character out to nearest surface
         let mut depenetrated = false;
         let mut fixed_pos = Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z);
 
-        for (_col_handle, col) in query_pipeline.intersect_shape(character_pos, shape.as_ref()) {
-            if let Some(parent_handle) = col.parent() {
-                if parent_handle == body_handle {
+        if !is_character_sensor {
+            for (_col_handle, col) in query_pipeline.intersect_shape(character_pos, shape.as_ref())
+            {
+                if col.is_sensor() {
                     continue;
                 }
-            }
+                if let Some(parent_handle) = col.parent() {
+                    if parent_handle == body_handle {
+                        continue;
+                    }
+                }
 
-            let cur_pose = Pose::from_translation(fixed_pos);
-            if let Ok(Some(contact)) = rapier3d::parry::query::contact(
-                &cur_pose,
-                shape.as_ref(),
-                col.position(),
-                col.shape(),
-                0.05,
-            ) {
-                if contact.dist < 0.0 {
-                    let push_dist = contact.dist.abs() + 0.01;
-                    let push_dir = contact.normal1;
-                    fixed_pos -= push_dir * push_dist;
-                    depenetrated = true;
+                let cur_pose = Pose::from_translation(fixed_pos);
+                if let Ok(Some(contact)) = rapier3d::parry::query::contact(
+                    &cur_pose,
+                    shape.as_ref(),
+                    col.position(),
+                    col.shape(),
+                    0.05,
+                ) {
+                    if contact.dist < 0.0 {
+                        let push_dist = contact.dist.abs() + 0.01;
+                        let push_dir = contact.normal1;
+                        fixed_pos -= push_dir * push_dist;
+                        depenetrated = true;
+                    }
                 }
             }
         }
@@ -125,14 +136,20 @@ impl PhysicsWorld {
             |_| {},
         );
 
-        let is_grounded = if desired_translation.y > 0.0 {
+        let final_translation = if is_character_sensor {
+            desired_translation
+        } else {
+            movement.translation
+        };
+
+        let is_grounded = if desired_translation.y > 0.0 || is_character_sensor {
             false
         } else {
             movement.grounded
         };
-        let new_x = pos_comp.x + movement.translation.x;
-        let new_y = pos_comp.y + movement.translation.y;
-        let new_z = pos_comp.z + movement.translation.z;
+        let new_x = pos_comp.x + final_translation.x;
+        let new_y = pos_comp.y + final_translation.y;
+        let new_z = pos_comp.z + final_translation.z;
 
         // Update position in ECS
         if let Ok(mut pos) = world.get::<&mut Position>(entity) {

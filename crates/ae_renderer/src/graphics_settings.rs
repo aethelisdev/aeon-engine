@@ -107,6 +107,7 @@ pub struct GraphicsSettings {
     pub shadow_pcf: PcfQuality,
     pub shadow_bias: f32,
     pub shadow_cascades: u32,
+    pub shadow_cascade_splits: [f32; 4],
 
     pub msaa_samples: u32, // 1, 2, or 4
 
@@ -135,6 +136,7 @@ impl Default for GraphicsSettings {
             shadow_pcf: PcfQuality::Soft,
             shadow_bias: 0.005,
             shadow_cascades: 4,
+            shadow_cascade_splits: [4.0, 15.0, 50.0, 150.0],
 
             msaa_samples: 4,
 

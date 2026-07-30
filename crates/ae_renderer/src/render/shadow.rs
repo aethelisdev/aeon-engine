@@ -331,7 +331,7 @@ impl ShadowSystem {
     ) {
         use cgmath::InnerSpace;
         let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
-        let splits = [4.0, 15.0, 50.0, 150.0]; // View-Z distances
+        let splits = graphics_settings.shadow_cascade_splits; // Configurable View-Z distances
 
         let cam_pos = cgmath::Vector3::new(camera.position.x, camera.position.y, camera.position.z);
         let cam_forward = cgmath::Vector3::new(
