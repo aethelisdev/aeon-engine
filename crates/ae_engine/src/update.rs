@@ -125,8 +125,12 @@ impl AeEngine {
             while self.time.consume_fixed_step() {}
         }
 
-        // Ensure Rapier simulation is synced with editor spawns/moves/deletions
-        if self.mode == EngineMode::Edit {
+        // Ensure Rapier simulation is synced with editor spawns/moves/deletions.
+        // Throttled by `physics_sync_dirty`: only runs when the scene has actually changed
+        // (spawn, delete, inspector transform edit). Prevents O(N) ECS scans every frame
+        // for scenes with 100K+ static entities.
+        if self.mode == EngineMode::Edit && self.physics_sync_dirty {
+            self.physics_sync_dirty = false;
             self.physics_world
                 .sync_ecs_to_physics(&mut self.ecs.world, |handle| {
                     self.asset_manager
@@ -343,14 +347,19 @@ impl AeEngine {
         };
         ae_editor_ui::ui_processor::process_ui_actions(&mut ctx, actions);
         self.profiler.end_ui();
+        // Any UI action (spawn, delete, transform edit) may have changed ECS state.
+        // Mark physics dirty so sync_ecs_to_physics runs once on the next frame.
+        self.physics_sync_dirty = true;
     }
 
     pub fn undo(&mut self) {
         ae_editor::history::undo(&mut self.editor, &mut self.ecs.world);
+        self.physics_sync_dirty = true;
     }
 
     pub fn redo(&mut self) {
         ae_editor::history::redo(&mut self.editor, &mut self.ecs.world);
+        self.physics_sync_dirty = true;
     }
 
     pub fn focus_selected(&mut self) {
