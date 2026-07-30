@@ -247,7 +247,7 @@ impl RenderScene {
                             1.0
                         };
 
-                        let scale_extent = (sx * sx + sy * sy + sz * sz).sqrt().max(1.0);
+                        let scale_extent = sx.max(sy).max(sz).max(1.0);
                         let raw_radius = base_radius * scale_extent;
                         let culling_radius = (raw_radius * 1.25 + 0.5).max(1.5);
 
@@ -413,7 +413,7 @@ impl RenderScene {
                         1.0
                     };
 
-                    let scale_extent = (sx * sx + sy * sy + sz * sz).sqrt().max(1.0);
+                    let scale_extent = sx.max(sy).max(sz).max(1.0);
                     let raw_radius = base_radius * scale_extent;
                     let culling_radius = (raw_radius * 1.25 + 0.5).max(1.5);
 
@@ -747,20 +747,22 @@ pub struct ModelAsset {
 }
 
 impl ModelAsset {
-    /// Computes the true maximum 3D bounding radius from local AABB min and max extents.
-    /// Ensures 3D mesh assets (e.g. cabinets, houses, props) resolve their exact local
-    /// bounding radius rather than defaulting to 1.0, preventing premature camera culling.
+    /// Computes the bounding sphere radius from AABB center and half-diagonal.
+    /// Uses the distance from AABB center to any corner (half-diagonal), which
+    /// correctly handles off-center models where `min`/`max` are far from origin.
+    /// Falls back to `max(origin_distances)` for backward compatibility with
+    /// origin-centered models. Minimum clamped to `1.0` to prevent zero-radius culling.
     pub fn bounding_radius(&self) -> f32 {
-        let r_min =
-            (self.min[0] * self.min[0] + self.min[1] * self.min[1] + self.min[2] * self.min[2])
-                .sqrt();
-        let r_max =
-            (self.max[0] * self.max[0] + self.max[1] * self.max[1] + self.max[2] * self.max[2])
-                .sqrt();
-        let dx = self.max[0] - self.min[0];
-        let dy = self.max[1] - self.min[1];
-        let dz = self.max[2] - self.min[2];
-        let r_extent = (dx * dx + dy * dy + dz * dz).sqrt() * 0.5;
-        r_min.max(r_max).max(r_extent).max(1.0)
+        // AABB center-to-corner half-diagonal: correct for all model origins
+        let cx = (self.min[0] + self.max[0]) * 0.5;
+        let cy = (self.min[1] + self.max[1]) * 0.5;
+        let cz = (self.min[2] + self.max[2]) * 0.5;
+        let hx = self.max[0] - cx;
+        let hy = self.max[1] - cy;
+        let hz = self.max[2] - cz;
+        let r_half_diag = (hx * hx + hy * hy + hz * hz).sqrt();
+        // Distance from origin to AABB center + half-diagonal covers the full extent
+        let center_dist = (cx * cx + cy * cy + cz * cz).sqrt();
+        (center_dist + r_half_diag).max(1.0)
     }
 }

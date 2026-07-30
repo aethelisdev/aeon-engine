@@ -46,26 +46,21 @@ pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
     };
 
     // ===== GAMEPLAY CODE GOES HERE =====
-    // High-Performance Update: Only update entities that are currently visible to the camera
-    // utilizing the VisibleEntities resource populated by the engine's culling system.
+    // Note: Standard linear velocity integration (pos += vel * dt) is performed
+    // by EcsManager::update in the engine core. This plugin implements custom,
+    // hot-reloadable gameplay logic (e.g., custom rotation or gameplay behavior).
     if let Some(visible) = &visible_ents {
         for &entity in visible {
-            if let Ok(mut pos) = _world.get::<&mut ae_plugin_api::Position>(entity) {
-                if let Ok(vel) = _world.get::<&ae_plugin_api::Velocity>(entity) {
-                    pos.x += vel.x * _dt;
-                    pos.y += vel.y * _dt;
-                    pos.z += vel.z * _dt;
+            if let Ok(mut rot) = _world.get::<&mut ae_plugin_api::Rotation>(entity) {
+                if _world.get::<&ae_plugin_api::PlayerTag>(entity).is_ok() {
+                    // Example hot-reloadable gameplay logic: smooth Y-axis spin for player entities
+                    let half_angle = 0.5 * _dt;
+                    let (sin, cos) = half_angle.sin_cos();
+                    let (w, y) = (rot.w, rot.y);
+                    rot.w = w * cos - y * sin;
+                    rot.y = y * cos + w * sin;
                 }
             }
-        }
-    } else {
-        // Fallback Path: Update all entities in the world (if no visibility data exists yet)
-        for (pos, vel) in
-            _world.query_mut::<(&mut ae_plugin_api::Position, &ae_plugin_api::Velocity)>()
-        {
-            pos.x += vel.x * _dt;
-            pos.y += vel.y * _dt;
-            pos.z += vel.z * _dt;
         }
     }
     // ====================================

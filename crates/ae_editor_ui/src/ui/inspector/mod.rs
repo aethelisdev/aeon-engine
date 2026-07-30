@@ -554,6 +554,9 @@ impl EngineUi {
                                 });
                             }
 
+                            // --- PLAYER TAG SECTION ---
+                            Self::draw_player_tag_section(ui, world, entity, ui_actions);
+
                             // --- HIERARCHY / PARENTING SECTION ---
                             Self::draw_parenting_section(ui, world, entity, ui_actions);
 

@@ -140,6 +140,12 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::RemoveAudioListener(ent) => {
                 components::handle_remove_audio_listener(ctx, ent)
             }
+            crate::ui::EngineUiAction::AddPlayerTag(ent) => {
+                components::handle_add_player_tag(ctx, ent)
+            }
+            crate::ui::EngineUiAction::RemovePlayerTag(ent) => {
+                components::handle_remove_player_tag(ctx, ent)
+            }
 
             // --- CAMERA & SETTINGS ACTIONS ---
             crate::ui::EngineUiAction::SetCameraMode(mode) => {

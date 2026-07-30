@@ -231,3 +231,15 @@ pub fn handle_remove_audio_listener(ctx: &mut UiContext, entity: hecs::Entity) {
     let _ = ctx.world.remove_one::<ae_audio::AudioListener>(entity);
     log::info!("👂 Removed AudioListener from entity {:?}", entity);
 }
+
+/// Handles adding PlayerTag component to an entity.
+pub fn handle_add_player_tag(ctx: &mut UiContext, entity: hecs::Entity) {
+    let _ = ctx.world.insert_one(entity, ae_core::ecs::PlayerTag);
+    log::info!("🎮 Added PlayerTag to entity {:?}", entity);
+}
+
+/// Handles removing PlayerTag component from an entity.
+pub fn handle_remove_player_tag(ctx: &mut UiContext, entity: hecs::Entity) {
+    let _ = ctx.world.remove_one::<ae_core::ecs::PlayerTag>(entity);
+    log::info!("🎮 Removed PlayerTag from entity {:?}", entity);
+}

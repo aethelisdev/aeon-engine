@@ -441,7 +441,44 @@ impl EngineUi {
                         ui.close();
                     }
                 }
+                if world.get::<&ae_core::ecs::PlayerTag>(entity).is_err() {
+                    if ui.button("🎮 PlayerTag").clicked() {
+                        ui_actions.push(EngineUiAction::AddPlayerTag(entity));
+                        ui.close();
+                    }
+                }
             });
         });
+    }
+
+    /// Draws the PlayerTag component section if the entity has one.
+    pub(super) fn draw_player_tag_section(
+        ui: &mut egui::Ui,
+        world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        if world.get::<&ae_core::ecs::PlayerTag>(entity).is_ok() {
+            ui.group(|ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new("🎮 PlayerTag")
+                            .strong()
+                            .color(egui::Color32::from_rgb(255, 180, 80)),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("🗑").on_hover_text("Remove PlayerTag").clicked() {
+                            ui_actions.push(EngineUiAction::RemovePlayerTag(entity));
+                        }
+                    });
+                });
+                ui.label(
+                    egui::RichText::new("Designates this entity as the active Player target for gameplay logic and camera tracking.")
+                        .small()
+                        .weak(),
+                );
+            });
+        }
     }
 }

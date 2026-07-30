@@ -71,8 +71,11 @@ impl ToCgmath for glam::Quat {
     }
 }
 
-/// Decomposes a 4x4 cgmath Matrix into `glam` translation, rotation, and scale tuple.
-/// Handles non-uniform scaling magnitudes and orthonormal rotation extraction cleanly.
+/// Decomposes a 4×4 cgmath Matrix into `glam` translation, rotation, and scale tuple.
+/// Handles non-uniform scaling magnitudes, orthonormal rotation extraction, and
+/// negative (mirrored) scale detection via rotation sub-matrix determinant sign.
+/// When the determinant is negative, the X-axis scale is negated to preserve a
+/// proper (right-handed) rotation quaternion.
 pub fn matrix4_to_glam_trs(mat: cgmath::Matrix4<f32>) -> (glam::Vec3, glam::Quat, glam::Vec3) {
     let trans = glam::Vec3::new(mat.w.x, mat.w.y, mat.w.z);
 
@@ -80,9 +83,15 @@ pub fn matrix4_to_glam_trs(mat: cgmath::Matrix4<f32>) -> (glam::Vec3, glam::Quat
     let col1 = glam::Vec3::new(mat.y.x, mat.y.y, mat.y.z);
     let col2 = glam::Vec3::new(mat.z.x, mat.z.y, mat.z.z);
 
-    let sx = col0.length().max(1e-5);
+    let mut sx = col0.length().max(1e-5);
     let sy = col1.length().max(1e-5);
     let sz = col2.length().max(1e-5);
+
+    // Detect mirrored (negative) scale via 3×3 sub-matrix determinant sign
+    let det = col0.dot(col1.cross(col2));
+    if det < 0.0 {
+        sx = -sx;
+    }
 
     let rot_mat3 = glam::Mat3::from_cols(col0 / sx, col1 / sy, col2 / sz);
     let rot = glam::Quat::from_mat3(&rot_mat3);

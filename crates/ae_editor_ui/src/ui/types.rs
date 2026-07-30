@@ -84,6 +84,8 @@ pub enum EngineUiAction {
     AddAudioListener(hecs::Entity),
     RemoveAudioListener(hecs::Entity),
     ModifyAudioSource(hecs::Entity, ae_audio::AudioSource),
+    AddPlayerTag(hecs::Entity),
+    RemovePlayerTag(hecs::Entity),
 }
 
 /// Lightweight snapshot of a single log entry – owned, no Mutex dependency.

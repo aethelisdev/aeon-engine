@@ -360,10 +360,12 @@ impl ShadowSystem {
             };
             let cascade_center = cam_pos + cam_forward * center_dist;
 
+            // Cascade bounding sphere radius: half the cascade depth range, scaled by 1.5×
+            // safety margin to prevent shadow edge clipping during camera rotation.
             let radius = if i == 0 {
                 splits[i]
             } else {
-                splits[i] - splits[i - 1] * 0.5
+                (splits[i] - splits[i - 1]) * 0.5
             } * 1.5;
 
             let light_pos_target = cascade_center + light_dir * radius * 2.0;
