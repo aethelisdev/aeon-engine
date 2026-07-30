@@ -170,8 +170,8 @@ impl AeEngine {
             self.camera.position.y,
             self.camera.position.z,
         );
-        let (sin_yaw, cos_yaw) = self.camera.yaw.0.sin_cos();
-        let cam_right = ae_audio::Vec3::new(cos_yaw, 0.0, -sin_yaw);
+        let right_vec = self.camera.get_right();
+        let cam_right = ae_audio::Vec3::new(right_vec.x, right_vec.y, right_vec.z);
         self.audio_manager
             .update(&self.ecs.world, cam_pos, cam_right, is_audio_enabled);
 
@@ -201,9 +201,10 @@ impl AeEngine {
             use ae_physics::glam::Vec3;
 
             // Calculate camera-relative forward and right vectors on the XZ ground plane
-            let (sin_yaw, cos_yaw) = self.camera.yaw.0.sin_cos();
-            let cam_fwd_xz = Vec3::new(cos_yaw, 0.0, sin_yaw).normalize();
-            let cam_right_xz = Vec3::new(-sin_yaw, 0.0, cos_yaw).normalize();
+            let fwd_vec = self.camera.get_forward();
+            let right_vec = self.camera.get_right();
+            let cam_fwd_xz = Vec3::new(fwd_vec.x, 0.0, fwd_vec.z).normalize();
+            let cam_right_xz = Vec3::new(right_vec.x, 0.0, right_vec.z).normalize();
 
             let fwd_axis = self.input.get_axis("MoveForward");
             let right_axis = self.input.get_axis("MoveRight");
