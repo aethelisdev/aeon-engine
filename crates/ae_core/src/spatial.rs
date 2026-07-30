@@ -37,6 +37,8 @@ pub struct SpatialGrid {
     pub entity_to_cell: HashMap<Entity, (i32, i32, i32)>,
     /// Tracks the entity count from the last rebuild phase.
     pub last_entity_count: usize,
+    /// Explicit dirty flag to trigger a full rebuild on the next `sync()` call.
+    pub needs_rebuild: bool,
 }
 
 impl SpatialGrid {
@@ -47,7 +49,13 @@ impl SpatialGrid {
             cells: HashMap::new(),
             entity_to_cell: HashMap::new(),
             last_entity_count: usize::MAX, // Force rebuild on the first frame
+            needs_rebuild: true,
         }
+    }
+
+    /// Marks the SpatialGrid as needing a full rebuild on the next `sync()` call.
+    pub fn mark_dirty(&mut self) {
+        self.needs_rebuild = true;
     }
 
     /// Converts world coordinates to grid cell coordinates.
@@ -82,18 +90,26 @@ impl SpatialGrid {
         self.cells.clear();
         self.entity_to_cell.clear();
         self.last_entity_count = usize::MAX;
+        self.needs_rebuild = true;
     }
 
     /// Synchronizes spatial grid with world entities.
     /// Rebuilds full grid on entity count changes, and performs fast delta updates for moving dynamic entities.
     pub fn sync(&mut self, world: &hecs::World) {
         let current_count = world.len() as usize;
-        let untracked_entities_exist = world
-            .query::<(hecs::Entity, &crate::ecs::Position)>()
-            .iter()
-            .any(|(e, _)| !self.entity_to_cell.contains_key(&e));
 
-        if current_count != self.last_entity_count || untracked_entities_exist {
+        // High-performance topology check:
+        // 1. Explicit rebuild requested via mark_dirty()
+        // 2. Total ECS entity count changed (spawn/despawn)
+        // 3. SpatialGrid is empty but world has entities
+        // 4. Any registered entity in entity_to_cell is no longer alive in world
+        let needs_rebuild = self.needs_rebuild
+            || current_count != self.last_entity_count
+            || (self.entity_to_cell.is_empty() && current_count > 0)
+            || self.entity_to_cell.keys().any(|&e| !world.contains(e));
+
+        if needs_rebuild {
+            self.needs_rebuild = false;
             // Entity topology changed or new untracked entities present: perform full grid rebuild
             self.cells.clear();
             self.entity_to_cell.clear();
