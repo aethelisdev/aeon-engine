@@ -42,6 +42,8 @@ pub struct RenderScene {
     pub torus_instances: Vec<Instance>,
     pub transparent_objs: Vec<(f32, crate::asset::AssetHandle, Instance)>,
     pub model_instance_data: std::collections::HashMap<crate::asset::AssetHandle, Vec<Instance>>,
+    pub selected_primitive_instances: Vec<(ae_core::ecs::Shape, Instance)>,
+    pub selected_model_instances: Vec<(crate::asset::AssetHandle, Instance)>,
     /// List of entity IDs that were determined to be visible within the camera's frustum during the culling pass.
     pub visible_entities: Vec<hecs::Entity>,
 }
@@ -82,6 +84,8 @@ impl RenderScene {
             crate::asset::AssetHandle,
             Vec<Instance>,
         > = std::collections::HashMap::new();
+        let mut selected_primitive_instances = Vec::new();
+        let mut selected_model_instances = Vec::new();
 
         // Use dedicated culling matrix (shorter zfar=400) to aggressively cull distant objects
         // on the CPU. The actual render matrix uses zfar=2000 for visual depth quality.
@@ -287,6 +291,14 @@ impl RenderScene {
                         }
                     }
 
+                    if selected_entities.contains(&entity) {
+                        if let Some(m_handle) = active_model_handle {
+                            selected_model_instances.push((m_handle, instance));
+                        } else if let Some(s) = shape {
+                            selected_primitive_instances.push((*s, instance));
+                        }
+                    }
+
                     if let Some(m_handle) = active_model_handle {
                         model_instance_data
                             .entry(m_handle)
@@ -446,6 +458,14 @@ impl RenderScene {
                     }
                 }
 
+                if selected_entities.contains(&entity) {
+                    if let Some(m_handle) = active_model_handle {
+                        selected_model_instances.push((m_handle, instance));
+                    } else if let Some(s) = shape {
+                        selected_primitive_instances.push((*s, instance));
+                    }
+                }
+
                 if let Some(m_handle) = active_model_handle {
                     model_instance_data
                         .entry(m_handle)
@@ -483,6 +503,8 @@ impl RenderScene {
             torus_instances,
             transparent_objs,
             model_instance_data,
+            selected_primitive_instances,
+            selected_model_instances,
             visible_entities,
         }
     }

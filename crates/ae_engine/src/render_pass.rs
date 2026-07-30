@@ -11,11 +11,17 @@ impl AeEngine {
     /// Extracts a snapshot of the current ECS state for the render pipeline.
     /// Passes the spatial grid reference to leverage high-performance culling.
     pub fn extract_render_scene(&self) -> ae_renderer::render::types::RenderScene {
+        let empty_set = std::collections::HashSet::new();
+        let selected_set = if self.mode == EngineMode::Edit {
+            &self.editor.selected_entities_set
+        } else {
+            &empty_set
+        };
         ae_renderer::render::types::RenderScene::extract(
             &self.ecs.world,
             &self.camera,
             &self.asset_manager,
-            &self.editor.selected_entities_set,
+            selected_set,
             &self.spatial_grid,
         )
     }
@@ -140,28 +146,23 @@ impl AeEngine {
                 None
             };
 
-        // Prepare debug wireframe overlay: collect collider lines and 3D selection outline highlights.
-        if render_enabled {
-            let selected_slice = if self.mode == EngineMode::Edit {
-                &self.editor.selected_entities[..]
-            } else {
-                &[]
-            };
+        // Prepare debug wireframe overlay: collect collider lines when in Edit Mode.
+        if render_enabled && self.mode == EngineMode::Edit {
             self.debug_renderer.collect_lines(
                 &self.render_state.device,
                 &self.render_state.queue,
                 &self.ecs.world,
                 &self.asset_manager,
                 self.camera.build_view_projection_matrix(),
-                selected_slice,
+                &self.editor.selected_entities[..],
             );
         }
 
         // Build overlay list (Vec<&dyn OverlayRenderer>)
         let mut overlays: Vec<&dyn ae_renderer::render::OverlayRenderer> = Vec::new();
-        if render_enabled {
-            if overlay.is_some() {
-                overlays.push(overlay.unwrap());
+        if render_enabled && self.mode == EngineMode::Edit {
+            if let Some(ov) = overlay {
+                overlays.push(ov);
             }
             overlays.push(&self.debug_renderer);
         }
@@ -187,6 +188,8 @@ impl AeEngine {
                 torus_instances: Vec::new(),
                 transparent_objs: Vec::new(),
                 model_instance_data: std::collections::HashMap::new(),
+                selected_primitive_instances: Vec::new(),
+                selected_model_instances: Vec::new(),
                 visible_entities: Vec::new(),
             }
         };

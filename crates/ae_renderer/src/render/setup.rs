@@ -175,6 +175,12 @@ impl RenderState {
             initial_msaa,
         );
 
+        let outline = crate::render::pipelines::outline::SelectionOutlinePass::new(
+            &device,
+            post_process.scene_format,
+            &uniforms.camera_bind_group_layout,
+        );
+
         let state = Self {
             surface,
             device,
@@ -188,6 +194,7 @@ impl RenderState {
             geometry,
             post_process,
             shadow,
+            outline,
             graphics_settings,
             last_viewport_rect: super::ViewportRect::default(),
             supported_present_modes,

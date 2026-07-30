@@ -607,8 +607,8 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                     },
                     ae_core::ecs::Collider {
                         shape: ae_core::ecs::ColliderShape::Capsule {
-                            half_height: 0.5,
-                            radius: 0.4,
+                            half_height: 0.15,
+                            radius: 0.35,
                         },
                         friction: 0.5,
                         restitution: 0.0,

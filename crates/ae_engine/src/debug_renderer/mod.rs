@@ -11,7 +11,6 @@
 pub mod shapes;
 pub mod vertex;
 
-use cgmath::SquareMatrix;
 use shapes::DebugShapes;
 use vertex::DebugLineVertex;
 
@@ -217,7 +216,7 @@ impl DebugRenderer {
         world: &hecs::World,
         asset_manager: &ae_renderer::asset::AssetManager,
         view_proj: cgmath::Matrix4<f32>,
-        selected_entities: &[hecs::Entity],
+        _selected_entities: &[hecs::Entity],
     ) {
         let vp: [[f32; 4]; 4] = view_proj.into();
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&vp));
@@ -327,199 +326,6 @@ impl DebugRenderer {
                             color,
                         );
                     }
-                }
-            }
-        }
-
-        // --- 3D Viewport Selected Entity Shape-Specific Outline Highlight ---
-        let outline_color = [1.0, 0.78, 0.05]; // High-contrast glowing gold/yellow
-        for &selected_ent in selected_entities {
-            let mut sel_query = world.query_one::<(
-                Option<&ae_core::ecs::GlobalTransform>,
-                Option<&ae_core::ecs::Position>,
-                Option<&ae_core::ecs::Rotation>,
-                Option<&ae_core::ecs::Scale>,
-                Option<&ae_core::ecs::Shape>,
-                Option<&ae_core::ecs::Collider>,
-                Option<&ae_core::ecs::ModelId>,
-                Option<&ae_core::ecs::BoundingBox>,
-            )>(selected_ent);
-
-            if let Ok((gt, pos, rot, scale, shape_opt, col_opt, model_id_opt, bbox_opt)) =
-                sel_query.get()
-            {
-                let model = if let Some(gt_val) = gt {
-                    gt_val.0
-                } else if let Some(p) = pos {
-                    let position = cgmath::Vector3::new(p.x, p.y, p.z);
-                    let q = rot
-                        .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-                        .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
-                    let s = scale
-                        .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
-                        .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
-
-                    cgmath::Matrix4::from_translation(position)
-                        * cgmath::Matrix4::from(q)
-                        * cgmath::Matrix4::from_nonuniform_scale(s.x, s.y, s.z)
-                } else {
-                    cgmath::Matrix4::identity()
-                };
-
-                let mut rendered = false;
-
-                // Priority 1: 3D Asset / Imported Mesh Surface Wireframe (GLTF/FBX Models)
-                if let Some(m_id) = model_id_opt {
-                    if let Some((raw_vertices, raw_indices)) =
-                        asset_manager.get_physics_mesh_data(m_id.0)
-                    {
-                        DebugShapes::generate_mesh_lines(
-                            &mut vertices,
-                            &model,
-                            raw_vertices,
-                            raw_indices,
-                            outline_color,
-                        );
-                        rendered = true;
-                    }
-                }
-
-                // Priority 2: Exact ECS Primitive Shape
-                if !rendered {
-                    if let Some(shape) = shape_opt {
-                        match shape {
-                            ae_core::ecs::Shape::Cube => {
-                                DebugShapes::generate_box_lines(
-                                    &mut vertices,
-                                    &model,
-                                    [0.5, 0.5, 0.5],
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::Shape::Sphere => {
-                                DebugShapes::generate_sphere_lines(
-                                    &mut vertices,
-                                    &model,
-                                    0.5,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::Shape::Cylinder => {
-                                DebugShapes::generate_cylinder_lines(
-                                    &mut vertices,
-                                    &model,
-                                    0.5,
-                                    0.5,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::Shape::Capsule => {
-                                DebugShapes::generate_capsule_lines(
-                                    &mut vertices,
-                                    &model,
-                                    0.15,
-                                    0.35,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::Shape::Torus => {
-                                DebugShapes::generate_torus_lines(
-                                    &mut vertices,
-                                    &model,
-                                    0.35,
-                                    0.15,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::Shape::Triangle => {
-                                DebugShapes::generate_triangle_lines(
-                                    &mut vertices,
-                                    &model,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                        }
-                    }
-                }
-
-                // Priority 2: Collider Shape if Shape component is absent
-                if !rendered {
-                    if let Some(col) = col_opt {
-                        match col.shape {
-                            ae_core::ecs::ColliderShape::Box { half_extents } => {
-                                DebugShapes::generate_box_lines(
-                                    &mut vertices,
-                                    &model,
-                                    half_extents,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::ColliderShape::Sphere { radius } => {
-                                DebugShapes::generate_sphere_lines(
-                                    &mut vertices,
-                                    &model,
-                                    radius,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            ae_core::ecs::ColliderShape::Capsule {
-                                half_height,
-                                radius,
-                            } => {
-                                DebugShapes::generate_capsule_lines(
-                                    &mut vertices,
-                                    &model,
-                                    half_height,
-                                    radius,
-                                    outline_color,
-                                );
-                                rendered = true;
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                // Priority 3: Bounding Box Fallback Outline
-                if !rendered {
-                    let (min, max) = if let Some(b) = bbox_opt {
-                        (b.min, b.max)
-                    } else {
-                        ([-0.5, -0.5, -0.5], [0.5, 0.5, 0.5])
-                    };
-
-                    let half_extents = [
-                        (max[0] - min[0]) * 0.5,
-                        (max[1] - min[1]) * 0.5,
-                        (max[2] - min[2]) * 0.5,
-                    ];
-                    let center_offset = [
-                        (min[0] + max[0]) * 0.5,
-                        (min[1] + max[1]) * 0.5,
-                        (min[2] + max[2]) * 0.5,
-                    ];
-
-                    let adjusted_model = model
-                        * cgmath::Matrix4::from_translation(cgmath::Vector3::new(
-                            center_offset[0],
-                            center_offset[1],
-                            center_offset[2],
-                        ));
-
-                    DebugShapes::generate_box_lines(
-                        &mut vertices,
-                        &adjusted_model,
-                        half_extents,
-                        outline_color,
-                    );
                 }
             }
         }

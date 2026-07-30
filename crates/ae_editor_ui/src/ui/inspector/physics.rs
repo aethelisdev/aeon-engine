@@ -342,8 +342,8 @@ impl EngineUi {
                                     ae_core::ecs::Shape::Cylinder
                                     | ae_core::ecs::Shape::Capsule => ae_core::ecs::Collider {
                                         shape: ae_core::ecs::ColliderShape::Capsule {
-                                            half_height: 0.5,
-                                            radius: 0.5,
+                                            half_height: 0.15,
+                                            radius: 0.35,
                                         },
                                         friction: 0.7,
                                         restitution: 0.0,
@@ -411,8 +411,8 @@ impl EngineUi {
                         if !has_col {
                             let col = ae_core::ecs::Collider {
                                 shape: ae_core::ecs::ColliderShape::Capsule {
-                                    half_height: 0.5,
-                                    radius: 0.4,
+                                    half_height: 0.15,
+                                    radius: 0.35,
                                 },
                                 friction: 0.5,
                                 restitution: 0.0,

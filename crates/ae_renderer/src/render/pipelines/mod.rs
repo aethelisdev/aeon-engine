@@ -2,6 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 pub mod bloom;
 pub mod grid;
+pub mod outline;
 pub mod pbr;
 pub mod shadow;
 pub mod sky;

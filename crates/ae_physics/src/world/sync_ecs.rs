@@ -218,8 +218,8 @@ impl PhysicsWorld {
                                 },
                                 Shape::Cylinder | Shape::Capsule => Collider {
                                     shape: ColliderShape::Capsule {
-                                        half_height: 0.5,
-                                        radius: 0.5,
+                                        half_height: 0.15,
+                                        radius: 0.35,
                                     },
                                     friction: 0.7,
                                     restitution: 0.0,
@@ -423,8 +423,8 @@ impl PhysicsWorld {
                         },
                         Shape::Cylinder | Shape::Capsule => Collider {
                             shape: ColliderShape::Capsule {
-                                half_height: 0.5,
-                                radius: 0.5,
+                                half_height: 0.15,
+                                radius: 0.35,
                             },
                             friction: 0.7,
                             restitution: 0.0,

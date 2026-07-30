@@ -581,10 +581,12 @@ pub fn try_select_entity(
             Option<&Position>,
             Option<&Rotation>,
             Option<&Scale>,
+            Option<&ae_core::ecs::Shape>,
+            Option<&ae_core::ecs::Collider>,
             Option<&ae_core::ecs::BoundingBox>,
         )>();
 
-        for (ent, gt, pos, rot, scale, bbox) in query.iter() {
+        for (ent, gt, pos, rot, scale, shape_opt, col_opt, bbox) in query.iter() {
             let model = if let Some(global_tf) = gt {
                 global_tf.0
             } else {
@@ -607,6 +609,30 @@ pub fn try_select_entity(
 
                 let (min, max) = if let Some(b) = bbox {
                     (b.min, b.max)
+                } else if let Some(shape) = shape_opt {
+                    match shape {
+                        ae_core::ecs::Shape::Capsule => ([-0.35, -0.5, -0.35], [0.35, 0.5, 0.35]),
+                        ae_core::ecs::Shape::Torus => ([-0.5, -0.15, -0.5], [0.5, 0.15, 0.5]),
+                        _ => ([-0.5; 3], [0.5; 3]),
+                    }
+                } else if let Some(col) = col_opt {
+                    match col.shape {
+                        ae_core::ecs::ColliderShape::Box { half_extents } => (
+                            [-half_extents[0], -half_extents[1], -half_extents[2]],
+                            [half_extents[0], half_extents[1], half_extents[2]],
+                        ),
+                        ae_core::ecs::ColliderShape::Sphere { radius } => {
+                            ([-radius, -radius, -radius], [radius, radius, radius])
+                        }
+                        ae_core::ecs::ColliderShape::Capsule {
+                            half_height,
+                            radius,
+                        } => (
+                            [-radius, -half_height - radius, -radius],
+                            [radius, half_height + radius, radius],
+                        ),
+                        _ => ([-0.5; 3], [0.5; 3]),
+                    }
                 } else {
                     ([-0.5; 3], [0.5; 3])
                 };

@@ -148,3 +148,67 @@ pub fn intersect_sphere(ray: &Ray, center: Point3<f32>, radius: f32) -> Option<f
         None
     }
 }
+
+/// Ray vs Triangle intersection test using Möller–Trumbore algorithm.
+pub fn intersect_triangle(ray: &Ray, v0: [f32; 3], v1: [f32; 3], v2: [f32; 3]) -> Option<f32> {
+    let p0 = Point3::new(v0[0], v0[1], v0[2]);
+    let p1 = Point3::new(v1[0], v1[1], v1[2]);
+    let p2 = Point3::new(v2[0], v2[1], v2[2]);
+
+    let edge1 = p1 - p0;
+    let edge2 = p2 - p0;
+    let h = ray.direction.cross(edge2);
+    let a = edge1.dot(h);
+
+    if a.abs() < 1e-7 {
+        return None;
+    }
+
+    let f = 1.0 / a;
+    let s = ray.origin - p0;
+    let u = f * s.dot(h);
+
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+
+    let q = s.cross(edge1);
+    let v = f * ray.direction.dot(q);
+
+    if v < 0.0 || u + v > 1.0 {
+        return None;
+    }
+
+    let t = f * edge2.dot(q);
+    if t > 1e-5 && t < ray.max_dist {
+        Some(t)
+    } else {
+        None
+    }
+}
+
+/// Ray vs Mesh Triangles intersection test for precise 3D Asset selection.
+pub fn intersect_mesh(ray: &Ray, vertices: &[[f32; 3]], indices: &[u32]) -> Option<f32> {
+    let mut min_t = None;
+
+    for chunk in indices.chunks_exact(3) {
+        let i0 = chunk[0] as usize;
+        let i1 = chunk[1] as usize;
+        let i2 = chunk[2] as usize;
+
+        if i0 < vertices.len() && i1 < vertices.len() && i2 < vertices.len() {
+            if let Some(t) = intersect_triangle(ray, vertices[i0], vertices[i1], vertices[i2]) {
+                match min_t {
+                    Some(curr_t) => {
+                        if t < curr_t {
+                            min_t = Some(t);
+                        }
+                    }
+                    None => min_t = Some(t),
+                }
+            }
+        }
+    }
+
+    min_t
+}

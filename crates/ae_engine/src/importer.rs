@@ -337,9 +337,20 @@ pub fn spawn_model(
         };
     }
 
+    let (bbox_min, bbox_max) = if let Some(model_asset) = engine.asset_manager.models.get(model_id)
+    {
+        (model_asset.min, model_asset.max)
+    } else {
+        ([-0.5; 3], [0.5; 3])
+    };
+
     let new_entity = engine.ecs.world.spawn((
         ae_core::ecs::Name(final_name),
         ae_core::ecs::ModelId(model_id),
+        ae_core::ecs::BoundingBox {
+            min: bbox_min,
+            max: bbox_max,
+        },
         ae_core::ecs::Position {
             x: 0.0,
             y: 0.0,
