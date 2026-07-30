@@ -35,7 +35,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "ae_audio"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_core",
  "glam 0.29.3",
@@ -47,7 +47,7 @@ dependencies = [
 
 [[package]]
 name = "ae_core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_plugin_api",
  "cgmath",
@@ -60,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "ae_editor"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_core",
  "ae_renderer",
@@ -79,7 +79,7 @@ dependencies = [
 
 [[package]]
 name = "ae_editor_ui"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_audio",
  "ae_core",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "ae_engine"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_audio",
  "ae_core",
@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "ae_physics"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_core",
  "ae_plugin_api",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "ae_plugin_api"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cgmath",
  "hecs",
@@ -160,7 +160,7 @@ dependencies = [
 
 [[package]]
 name = "ae_plugin_host"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_plugin_api",
  "hecs",
@@ -170,7 +170,7 @@ dependencies = [
 
 [[package]]
 name = "ae_renderer"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_core",
  "ae_plugin_api",
@@ -1419,7 +1419,7 @@ dependencies = [
 
 [[package]]
 name = "game_logic"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ae_plugin_api",
  "hecs",

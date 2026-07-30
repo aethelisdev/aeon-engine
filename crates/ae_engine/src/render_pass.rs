@@ -140,14 +140,20 @@ impl AeEngine {
                 None
             };
 
-        // Prepare debug wireframe overlay: collect collider lines from ECS.
+        // Prepare debug wireframe overlay: collect collider lines and 3D selection outline highlights.
         if render_enabled {
+            let selected_slice = if self.mode == EngineMode::Edit {
+                &self.editor.selected_entities[..]
+            } else {
+                &[]
+            };
             self.debug_renderer.collect_lines(
                 &self.render_state.device,
                 &self.render_state.queue,
                 &self.ecs.world,
                 &self.asset_manager,
                 self.camera.build_view_projection_matrix(),
+                selected_slice,
             );
         }
 

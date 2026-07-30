@@ -1,6 +1,6 @@
 [package]
 name = "ae_plugin_host"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 description = "Aeon Engine - Dynamic plugin loader with hot reload support"
 

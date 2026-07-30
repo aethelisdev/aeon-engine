@@ -1,6 +1,6 @@
 [package]
 name = "ae_audio"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 license = "GPL-3.0-only"
 description = "Spatial 3D Audio Subsystem for Aeon Engine"
