@@ -86,32 +86,44 @@ impl PhysicsWorld {
         let mut fixed_pos = Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z);
 
         if !is_character_sensor {
-            for (_col_handle, col) in query_pipeline.intersect_shape(character_pos, shape.as_ref())
-            {
-                if col.is_sensor() {
-                    continue;
-                }
-                if let Some(parent_handle) = col.parent() {
-                    if parent_handle == body_handle {
+            let max_depenetration_iterations = 4;
+            let mut iter = 0;
+            while iter < max_depenetration_iterations {
+                let mut shifted = false;
+                for (_col_handle, col) in query_pipeline
+                    .intersect_shape(Pose::from_translation(fixed_pos), shape.as_ref())
+                {
+                    if col.is_sensor() {
                         continue;
                     }
-                }
+                    if let Some(parent_handle) = col.parent() {
+                        if parent_handle == body_handle {
+                            continue;
+                        }
+                    }
 
-                let cur_pose = Pose::from_translation(fixed_pos);
-                if let Ok(Some(contact)) = rapier3d::parry::query::contact(
-                    &cur_pose,
-                    shape.as_ref(),
-                    col.position(),
-                    col.shape(),
-                    0.05,
-                ) {
-                    if contact.dist < 0.0 {
-                        let push_dist = contact.dist.abs() + 0.01;
-                        let push_dir = contact.normal1;
-                        fixed_pos -= push_dir * push_dist;
-                        depenetrated = true;
+                    let cur_pose = Pose::from_translation(fixed_pos);
+                    if let Ok(Some(contact)) = rapier3d::parry::query::contact(
+                        &cur_pose,
+                        shape.as_ref(),
+                        col.position(),
+                        col.shape(),
+                        0.05,
+                    ) {
+                        if contact.dist < 0.0 {
+                            let push_dist = (contact.dist.abs() + 0.01).min(0.5);
+                            let push_dir = contact.normal1;
+                            fixed_pos -= push_dir * push_dist;
+                            depenetrated = true;
+                            shifted = true;
+                            break;
+                        }
                     }
                 }
+                if !shifted {
+                    break;
+                }
+                iter += 1;
             }
         }
 

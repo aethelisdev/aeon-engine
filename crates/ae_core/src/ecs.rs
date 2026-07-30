@@ -28,16 +28,30 @@ impl EcsManager {
 
     /// Runs parallel velocity integration for moving entities not simulated by the physics solver.
     pub fn update(&mut self, delta_time: f32) {
-        self.world
-            .query_mut::<(
-                &mut Position,
-                &Velocity,
-                Option<&RigidBody>,
-                Option<&Collider>,
-            )>()
-            .into_iter()
-            .par_bridge()
-            .for_each(|(pos, vel, rb, col)| {
+        let total_entities = self.world.len();
+
+        let query = self.world.query_mut::<(
+            &mut Position,
+            &Velocity,
+            Option<&RigidBody>,
+            Option<&Collider>,
+        )>();
+
+        if total_entities > 512 {
+            query
+                .into_iter()
+                .par_bridge()
+                .for_each(|(pos, vel, rb, col)| {
+                    if rb.is_none() && col.is_none() {
+                        if vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0 {
+                            pos.x += vel.x * delta_time;
+                            pos.y += vel.y * delta_time;
+                            pos.z += vel.z * delta_time;
+                        }
+                    }
+                });
+        } else {
+            for (pos, vel, rb, col) in query.into_iter() {
                 if rb.is_none() && col.is_none() {
                     if vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0 {
                         pos.x += vel.x * delta_time;
@@ -45,7 +59,8 @@ impl EcsManager {
                         pos.z += vel.z * delta_time;
                     }
                 }
-            });
+            }
+        }
     }
 }
 

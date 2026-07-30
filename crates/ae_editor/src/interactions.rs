@@ -535,7 +535,12 @@ pub fn try_select_entity(
             if let Ok((gt, pos, rot, scale, bbox)) = q.get() {
                 let model = picking::compute_model_matrix(gt, pos, rot, scale);
 
-                if let Some(inv_model) = model.invert() {
+                let inv_model = model.invert().unwrap_or_else(|| {
+                    cgmath::Matrix4::from_translation(Vector3::new(model.w.x, model.w.y, model.w.z))
+                        .invert()
+                        .unwrap_or(cgmath::Matrix4::identity())
+                });
+                {
                     let l_org_v4 = inv_model * ray.origin.to_homogeneous();
                     let l_dir_v4 = inv_model
                         * cgmath::Vector4::new(
@@ -585,7 +590,12 @@ pub fn try_select_entity(
         for (ent, gt, pos, rot, scale, shape_opt, col_opt, bbox) in query.iter() {
             let model = picking::compute_model_matrix(gt, pos, rot, scale);
 
-            if let Some(inv_model) = model.invert() {
+            let inv_model = model.invert().unwrap_or_else(|| {
+                cgmath::Matrix4::from_translation(Vector3::new(model.w.x, model.w.y, model.w.z))
+                    .invert()
+                    .unwrap_or(cgmath::Matrix4::identity())
+            });
+            {
                 let l_org_v4 = inv_model * ray.origin.to_homogeneous();
                 let l_dir_v4 = inv_model
                     * cgmath::Vector4::new(ray.direction.x, ray.direction.y, ray.direction.z, 0.0);

@@ -129,7 +129,10 @@ pub fn compute_model_matrix(
             model = model * Matrix4::from(cgmath::Quaternion::new(r.w, r.x, r.y, r.z));
         }
         if let Some(s) = scale {
-            model = model * Matrix4::from_nonuniform_scale(s.x, s.y, s.z);
+            let sx = if s.x.abs() < 1e-4 { 0.001 } else { s.x };
+            let sy = if s.y.abs() < 1e-4 { 0.001 } else { s.y };
+            let sz = if s.z.abs() < 1e-4 { 0.001 } else { s.z };
+            model = model * Matrix4::from_nonuniform_scale(sx, sy, sz);
         }
         model
     }

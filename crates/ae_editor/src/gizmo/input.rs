@@ -302,6 +302,8 @@ impl GizmoSystem {
                     self.active_axis,
                     current_hit,
                     self.drag_start_world,
+                    self.space,
+                    Some(self.entity_rotation),
                 )
             }
         }

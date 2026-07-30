@@ -89,9 +89,13 @@ impl SpatialGrid {
     /// Rebuilds full grid on entity count changes, and performs fast delta updates for moving dynamic entities.
     pub fn sync(&mut self, world: &hecs::World) {
         let current_count = world.len() as usize;
+        let untracked_entities_exist = world
+            .query::<(hecs::Entity, &crate::ecs::Position)>()
+            .iter()
+            .any(|(e, _)| !self.entity_to_cell.contains_key(&e));
 
-        if current_count != self.last_entity_count {
-            // Entity topology changed: perform full grid rebuild
+        if current_count != self.last_entity_count || untracked_entities_exist {
+            // Entity topology changed or new untracked entities present: perform full grid rebuild
             self.cells.clear();
             self.entity_to_cell.clear();
             self.last_entity_count = current_count;
