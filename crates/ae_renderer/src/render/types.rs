@@ -117,11 +117,29 @@ impl RenderScene {
             }
         }
 
-        // Ground & Large Entity Safeguard: Ensures Ground Plane and large environment platforms are ALWAYS visible
-        let mut ground_query = world.query::<(hecs::Entity, &ae_core::ecs::Name)>();
-        for (ent, name) in ground_query.iter() {
-            let s = name.0.as_bytes();
-            if s.windows(6).any(|w| w.eq_ignore_ascii_case(b"ground")) && visible_set.insert(ent) {
+        // Ground & Large Entity Safeguard: Ensures Ground Plane and large environment platforms (Static RigidBody, large scale, or Ground/Floor/Zemin/Plane names) are ALWAYS visible
+        let mut ground_query = world.query::<(
+            hecs::Entity,
+            Option<&ae_core::ecs::Name>,
+            Option<&ae_core::ecs::RigidBody>,
+            Option<&ae_core::ecs::Scale>,
+        )>();
+        for (ent, name, rb, scale) in ground_query.iter() {
+            let is_static_body = rb
+                .map(|r| r.body_type == ae_core::ecs::RigidBodyType::Static)
+                .unwrap_or(false);
+            let is_large_scale = scale.map(|s| s.x >= 20.0 || s.z >= 20.0).unwrap_or(false);
+            let is_ground_name = name
+                .map(|n| {
+                    let s = n.0.as_bytes();
+                    s.windows(6).any(|w| w.eq_ignore_ascii_case(b"ground"))
+                        || s.windows(5).any(|w| w.eq_ignore_ascii_case(b"floor"))
+                        || s.windows(5).any(|w| w.eq_ignore_ascii_case(b"zemin"))
+                        || s.windows(5).any(|w| w.eq_ignore_ascii_case(b"plane"))
+                })
+                .unwrap_or(false);
+
+            if (is_static_body || is_large_scale || is_ground_name) && visible_set.insert(ent) {
                 visible_entities.push(ent);
             }
         }
@@ -172,210 +190,27 @@ impl RenderScene {
         let use_fallback = spatial_grid.cells.is_empty();
 
         let visible_entities = if !use_fallback {
-            let visible_entities = Self::collect_visible_entities(
-                world,
-                camera,
-                selected_entities,
-                spatial_grid,
-                &frustum,
-            );
-
-            let cap = visible_entities.len().min(65536);
-            cube_instances.reserve(cap);
-
-            for &entity in &visible_entities {
-                let mut q = world.query_one::<(
-                    &ae_core::ecs::Position,
-                    Option<&ae_core::ecs::Rotation>,
-                    Option<&ae_core::ecs::Scale>,
-                    Option<&ae_core::ecs::Color>,
-                    Option<&ae_core::ecs::ModelId>,
-                    Option<&ae_core::ecs::Shape>,
-                    Option<&ae_core::ecs::SpriteId>,
-                    Option<&ae_core::ecs::BoundingRadius>,
-                    Option<&ae_core::ecs::GlobalTransform>,
-                    Option<&ae_core::ecs::LodGroup>,
-                    Option<&ae_core::ecs::CharacterController>,
-                    Option<&ae_core::ecs::PlayerTag>,
-                )>(entity);
-
-                if let Ok((
-                    pos,
-                    rot,
-                    scale,
-                    color,
-                    model_id,
-                    shape,
-                    sprite_id,
-                    bounding_radius,
-                    global_transform,
-                    lod_group,
-                    kcc,
-                    player_tag,
-                )) = q.get()
-                {
-                    let p_world = if let Some(gt) = global_transform {
-                        cgmath::Vector3::new(gt.0.w.x, gt.0.w.y, gt.0.w.z)
-                    } else {
-                        cgmath::Vector3::new(pos.x, pos.y, pos.z)
-                    };
-
-                    let (sx, sy, sz) = if let Some(s) = scale {
-                        (s.x.abs(), s.y.abs(), s.z.abs())
-                    } else if let Some(gt) = global_transform {
-                        use cgmath::InnerSpace;
-                        let sx = cgmath::Vector3::new(gt.0.x.x, gt.0.x.y, gt.0.x.z).magnitude();
-                        let sy = cgmath::Vector3::new(gt.0.y.x, gt.0.y.y, gt.0.y.z).magnitude();
-                        let sz = cgmath::Vector3::new(gt.0.z.x, gt.0.z.y, gt.0.z.z).magnitude();
-                        (sx, sy, sz)
-                    } else {
-                        (1.0, 1.0, 1.0)
-                    };
-
-                    let is_exempt = kcc.is_some() || player_tag.is_some() || sx > 10.0 || sz > 10.0;
-
-                    if !is_exempt {
-                        let base_radius = if let Some(r) = bounding_radius {
-                            r.0
-                        } else if let Some(m_handle) = model_id.map(|m| m.0) {
-                            _asset_manager
-                                .models
-                                .get(m_handle)
-                                .map(|asset| asset.bounding_radius())
-                                .unwrap_or(1.0)
-                        } else {
-                            1.0
-                        };
-
-                        let scale_extent = sx.max(sy).max(sz).max(1.0);
-                        let raw_radius = base_radius * scale_extent;
-                        let culling_radius = (raw_radius * 1.25 + 0.5).max(1.5);
-
-                        if !frustum.is_sphere_visible(p_world, culling_radius) {
-                            continue;
-                        }
-                    }
-
-                    let model_matrix = if let Some(gt) = global_transform {
-                        gt.0
-                    } else {
-                        cgmath::Matrix4::from_translation(p_world)
-                            * cgmath::Matrix4::from(
-                                rot.map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-                                    .unwrap_or(cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0)),
-                            )
-                            * cgmath::Matrix4::from_nonuniform_scale(
-                                scale.map(|s| s.x).unwrap_or(1.0),
-                                scale.map(|s| s.y).unwrap_or(1.0),
-                                scale.map(|s| s.z).unwrap_or(1.0),
-                            )
-                    };
-
-                    let base_color = color
-                        .map(|c| [c.r, c.g, c.b, c.a])
-                        .unwrap_or([0.3, 0.3, 0.3, 1.0]);
-                    let final_color = if selected_entities.contains(&entity) {
-                        [
-                            (base_color[0] * 1.1 + 0.1).min(1.0),
-                            (base_color[1] * 1.1 + 0.15).min(1.0),
-                            (base_color[2] * 1.1 + 0.2).min(1.0),
-                            base_color[3],
-                        ]
-                    } else {
-                        base_color
-                    };
-
-                    let instance = Instance {
-                        model_matrix: Into::<[[f32; 4]; 4]>::into(model_matrix),
-                        color: final_color,
-                    };
-
-                    let mut active_model_handle = model_id.map(|m| m.0);
-
-                    if let Some(lod) = lod_group {
-                        use cgmath::InnerSpace;
-                        let cam_pos = cgmath::Vector3::new(
-                            camera.position.x,
-                            camera.position.y,
-                            camera.position.z,
-                        );
-                        let dist = (p_world - cam_pos).magnitude();
-
-                        if dist < lod.threshold_1 {
-                            active_model_handle = Some(lod.lod_0);
-                        } else if dist < lod.threshold_2 {
-                            active_model_handle = lod.lod_1.or(Some(lod.lod_0));
-                        } else {
-                            active_model_handle = lod.lod_2.or(lod.lod_1).or(Some(lod.lod_0));
-                        }
-                    }
-
-                    if selected_entities.contains(&entity) {
-                        if let Some(m_handle) = active_model_handle {
-                            selected_model_instances.push((m_handle, instance));
-                        } else if let Some(s) = shape {
-                            selected_primitive_instances.push((*s, instance));
-                        }
-                    }
-
-                    if let Some(m_handle) = active_model_handle {
-                        model_instance_data
-                            .entry(m_handle)
-                            .or_default()
-                            .push(instance);
-                    } else if let Some(s_id) = sprite_id {
-                        use cgmath::InnerSpace;
-                        let cam_pos = cgmath::Vector3::new(
-                            camera.position.x,
-                            camera.position.y,
-                            camera.position.z,
-                        );
-                        let dist = (p_world - cam_pos).magnitude();
-                        transparent_objs.push((dist, s_id.0, instance));
-                    } else if let Some(s) = shape {
-                        match s {
-                            ae_core::ecs::Shape::Cube => cube_instances.push(instance),
-                            ae_core::ecs::Shape::Triangle => triangle_instances.push(instance),
-                            ae_core::ecs::Shape::Sphere => sphere_instances.push(instance),
-                            ae_core::ecs::Shape::Cylinder => cylinder_instances.push(instance),
-                            ae_core::ecs::Shape::Capsule => capsule_instances.push(instance),
-                            ae_core::ecs::Shape::Torus => torus_instances.push(instance),
-                        }
-                    }
-                }
-            }
-            visible_entities
+            Self::collect_visible_entities(world, camera, selected_entities, spatial_grid, &frustum)
         } else {
-            // Contiguous SOA archetype iteration path:
-            // High-throughput frustum culling with instant early exit for 10M+ objects.
+            // Fallback path: iterate all entities in World when SpatialGrid is not populated
+            let mut fallback_visible = Vec::new();
             let mut query = world.query::<(
                 hecs::Entity,
                 &ae_core::ecs::Position,
-                Option<&ae_core::ecs::Rotation>,
-                Option<&ae_core::ecs::Scale>,
-                Option<&ae_core::ecs::Color>,
                 Option<&ae_core::ecs::ModelId>,
-                Option<&ae_core::ecs::Shape>,
-                Option<&ae_core::ecs::SpriteId>,
                 Option<&ae_core::ecs::BoundingRadius>,
                 Option<&ae_core::ecs::GlobalTransform>,
-                Option<&ae_core::ecs::LodGroup>,
+                Option<&ae_core::ecs::Scale>,
                 Option<&ae_core::ecs::CharacterController>,
                 Option<&ae_core::ecs::PlayerTag>,
             )>();
-            let mut fallback_visible = Vec::new();
             for (
                 entity,
                 pos,
-                rot,
-                scale,
-                color,
                 model_id,
-                shape,
-                sprite_id,
                 bounding_radius,
                 global_transform,
-                lod_group,
+                scale,
                 kcc,
                 player_tag,
             ) in query.iter()
@@ -421,8 +256,51 @@ impl RenderScene {
                         continue;
                     }
                 }
-
                 fallback_visible.push(entity);
+            }
+            fallback_visible
+        };
+
+        let cap = visible_entities.len().min(65536);
+        cube_instances.reserve(cap);
+
+        // Unified Instance Processing Loop
+        for &entity in &visible_entities {
+            let mut q = world.query_one::<(
+                &ae_core::ecs::Position,
+                Option<&ae_core::ecs::Rotation>,
+                Option<&ae_core::ecs::Scale>,
+                Option<&ae_core::ecs::Color>,
+                Option<&ae_core::ecs::ModelId>,
+                Option<&ae_core::ecs::Shape>,
+                Option<&ae_core::ecs::SpriteId>,
+                Option<&ae_core::ecs::BoundingRadius>,
+                Option<&ae_core::ecs::GlobalTransform>,
+                Option<&ae_core::ecs::LodGroup>,
+                Option<&ae_core::ecs::CharacterController>,
+                Option<&ae_core::ecs::PlayerTag>,
+            )>(entity);
+
+            if let Ok((
+                pos,
+                rot,
+                scale,
+                color,
+                model_id,
+                shape,
+                sprite_id,
+                _bounding_radius,
+                global_transform,
+                lod_group,
+                _kcc,
+                _player_tag,
+            )) = q.get()
+            {
+                let p_world = if let Some(gt) = global_transform {
+                    cgmath::Vector3::new(gt.0.w.x, gt.0.w.y, gt.0.w.z)
+                } else {
+                    cgmath::Vector3::new(pos.x, pos.y, pos.z)
+                };
 
                 let model_matrix = if let Some(gt) = global_transform {
                     gt.0
@@ -462,11 +340,7 @@ impl RenderScene {
 
                 if let Some(lod) = lod_group {
                     use cgmath::InnerSpace;
-                    let cam_pos = cgmath::Vector3::new(
-                        camera.position.x,
-                        camera.position.y,
-                        camera.position.z,
-                    );
+                    let cam_pos = camera.position_vec3();
                     let dist = (p_world - cam_pos).magnitude();
 
                     if dist < lod.threshold_1 {
@@ -493,11 +367,7 @@ impl RenderScene {
                         .push(instance);
                 } else if let Some(s_id) = sprite_id {
                     use cgmath::InnerSpace;
-                    let cam_pos = cgmath::Vector3::new(
-                        camera.position.x,
-                        camera.position.y,
-                        camera.position.z,
-                    );
+                    let cam_pos = camera.position_vec3();
                     let dist = (p_world - cam_pos).magnitude();
                     transparent_objs.push((dist, s_id.0, instance));
                 } else if let Some(s) = shape {
@@ -511,8 +381,7 @@ impl RenderScene {
                     }
                 }
             }
-            fallback_visible
-        };
+        }
 
         Self {
             light_uniform,

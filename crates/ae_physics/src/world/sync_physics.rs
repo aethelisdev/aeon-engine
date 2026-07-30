@@ -34,18 +34,10 @@ impl PhysicsWorld {
                         rot.w = rotation.w;
                     }
                     if let Ok(mut gt) = world.get::<&mut ae_core::ecs::GlobalTransform>(entity) {
-                        let sx = world
+                        let (sx, sy, sz) = world
                             .get::<&ae_core::ecs::Scale>(entity)
-                            .map(|s| s.x)
-                            .unwrap_or(1.0);
-                        let sy = world
-                            .get::<&ae_core::ecs::Scale>(entity)
-                            .map(|s| s.y)
-                            .unwrap_or(1.0);
-                        let sz = world
-                            .get::<&ae_core::ecs::Scale>(entity)
-                            .map(|s| s.z)
-                            .unwrap_or(1.0);
+                            .map(|s| (s.x, s.y, s.z))
+                            .unwrap_or((1.0, 1.0, 1.0));
 
                         let mat = cgmath::Matrix4::from_translation(cgmath::Vector3::new(
                             translation.x,

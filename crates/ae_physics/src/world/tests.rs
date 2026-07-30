@@ -1266,4 +1266,88 @@ mod tests {
             player_x
         );
     }
+
+    #[test]
+    fn test_character_controller_depenetration_direction_verification() {
+        let mut world = World::new();
+        let mut physics = PhysicsWorld::new();
+
+        // Spawn a static wall at x = 2.0 (width 1.0m, extends x = 1.5..2.5)
+        let _wall = world.spawn((
+            Position {
+                x: 2.0,
+                y: 1.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            RigidBody {
+                body_type: RigidBodyType::Static,
+                mass: 1.0,
+                gravity_scale: 0.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [0.5, 2.0, 5.0],
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        // Spawn character deliberately penetrating the wall (center at x = 1.4, radius 0.4 -> right edge at x = 1.8, inside wall x=1.5..2.5)
+        let player = world.spawn((
+            Position {
+                x: 1.4,
+                y: 1.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            RigidBody {
+                body_type: RigidBodyType::Kinematic,
+                mass: 1.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Capsule {
+                    half_height: 0.5,
+                    radius: 0.4,
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+            CharacterController::default(),
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+        // Perform zero-displacement move_character to trigger contact depenetration
+        physics.move_character(&mut world, player, Vec3::ZERO, 0.016);
+
+        let ejected_x = world.get::<&Position>(player).unwrap().x;
+        // Wall front face is at x = 1.5. Player radius is 0.4.
+        // Depenetration must eject character to the LEFT (x <= 1.10), NOT deeper right (x > 1.4).
+        assert!(
+            ejected_x <= 1.10,
+            "Depenetration direction failed! Expected character to be ejected left (x <= 1.10), got x = {}",
+            ejected_x
+        );
+    }
 }

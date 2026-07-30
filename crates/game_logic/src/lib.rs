@@ -18,11 +18,7 @@ use ae_plugin_api::PluginContextFFI;
 /// preventing memory corruption due to Rust ABI mismatch.
 #[unsafe(no_mangle)]
 pub extern "C" fn plugin_abi_hash() -> *const std::ffi::c_char {
-    if cfg!(debug_assertions) {
-        "ae-abi-v0.7.0-debug\0".as_ptr() as *const std::ffi::c_char
-    } else {
-        "ae-abi-v0.7.0-release\0".as_ptr() as *const std::ffi::c_char
-    }
+    ae_plugin_api::ENGINE_ABI_HASH_C_STR.as_ptr()
 }
 
 /// Main update function called by the engine every frame.

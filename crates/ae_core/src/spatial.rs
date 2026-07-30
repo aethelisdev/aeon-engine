@@ -28,7 +28,6 @@ impl AABB {
     }
 }
 
-/// Uniform Grid for spatial partitioning.
 /// Uniform Grid for spatial partitioning with high-performance delta updates.
 pub struct SpatialGrid {
     pub cell_size: f32,

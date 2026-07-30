@@ -28,7 +28,9 @@ impl PhysicsWorld {
         for (&entity, _) in &self.entity_to_body {
             let is_active = world.get::<&RigidBody>(entity).is_ok()
                 || world.get::<&Collider>(entity).is_ok()
-                || world.get::<&CharacterController>(entity).is_ok();
+                || world.get::<&CharacterController>(entity).is_ok()
+                || world.get::<&Shape>(entity).is_ok()
+                || world.get::<&ModelId>(entity).is_ok();
             if !world.contains(entity) || !is_active {
                 to_remove.push(entity);
             }
@@ -60,6 +62,12 @@ impl PhysicsWorld {
                 .or_insert((None, Some(*col)));
         }
         for (entity, _ctrl) in world.query::<(Entity, &CharacterController)>().iter() {
+            active_entities.entry(entity).or_insert((None, None));
+        }
+        for (entity, _shape) in world.query::<(Entity, &Shape)>().iter() {
+            active_entities.entry(entity).or_insert((None, None));
+        }
+        for (entity, _model) in world.query::<(Entity, &ModelId)>().iter() {
             active_entities.entry(entity).or_insert((None, None));
         }
 
@@ -162,99 +170,15 @@ impl PhysicsWorld {
                         } else {
                             None
                         }
-                    } else if let Some(col) = col_comp {
-                        // Dynamic bodies cannot use Trimesh in Rapier3D; convert to ConvexHull / Box
-                        let effective_col =
-                            if matches!(rb_comp.map(|r| r.body_type), Some(RigidBodyType::Dynamic))
-                                && matches!(col.shape, ColliderShape::Trimesh)
-                            {
-                                Collider {
-                                    shape: ColliderShape::ConvexHull,
-                                    friction: col.friction,
-                                    restitution: col.restitution,
-                                    is_sensor: col.is_sensor,
-                                }
-                            } else {
-                                col
-                            };
-                        Some(Self::create_collider_builder(
-                            &effective_col,
+                    } else {
+                        Self::build_collider_for_entity(
+                            col_comp,
+                            rb_comp,
                             scale_comp,
                             entity,
                             world,
                             &get_mesh_data,
-                        ))
-                    } else if rb_comp.is_some() {
-                        // RigidBody is present, but no explicit Collider component attached.
-                        // Infer default collider shape from Shape or ModelId component.
-                        if let Ok(shape) = world.get::<&Shape>(entity) {
-                            let fallback_col = match *shape {
-                                Shape::Cube => Collider {
-                                    shape: ColliderShape::Box {
-                                        half_extents: [0.5, 0.5, 0.5],
-                                    },
-                                    friction: 0.7,
-                                    restitution: 0.0,
-                                    is_sensor: false,
-                                },
-                                Shape::Sphere => Collider {
-                                    shape: ColliderShape::Sphere { radius: 0.5 },
-                                    friction: 0.7,
-                                    restitution: 0.0,
-                                    is_sensor: false,
-                                },
-                                Shape::Cylinder | Shape::Capsule => Collider {
-                                    shape: ColliderShape::Capsule {
-                                        half_height: 0.15,
-                                        radius: 0.35,
-                                    },
-                                    friction: 0.7,
-                                    restitution: 0.0,
-                                    is_sensor: false,
-                                },
-                                _ => Collider {
-                                    shape: ColliderShape::Box {
-                                        half_extents: [0.5, 0.5, 0.5],
-                                    },
-                                    friction: 0.7,
-                                    restitution: 0.0,
-                                    is_sensor: false,
-                                },
-                            };
-                            Some(Self::create_collider_builder(
-                                &fallback_col,
-                                scale_comp,
-                                entity,
-                                world,
-                                &get_mesh_data,
-                            ))
-                        } else if world.get::<&ModelId>(entity).is_ok() {
-                            let fallback_shape = if matches!(
-                                rb_comp.map(|r| r.body_type),
-                                Some(RigidBodyType::Dynamic)
-                            ) {
-                                ColliderShape::ConvexHull
-                            } else {
-                                ColliderShape::Trimesh
-                            };
-                            let fallback_col = Collider {
-                                shape: fallback_shape,
-                                friction: 0.7,
-                                restitution: 0.0,
-                                is_sensor: false,
-                            };
-                            Some(Self::create_collider_builder(
-                                &fallback_col,
-                                scale_comp,
-                                entity,
-                                world,
-                                &get_mesh_data,
-                            ))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
+                        )
                     };
 
                     if let Some(cb) = col_builder {
@@ -311,11 +235,13 @@ impl PhysicsWorld {
                             } else {
                                 needs_rebuild = true;
                             }
+                        } else {
+                            needs_rebuild = true;
                         }
 
                         if needs_rebuild {
-                            let attached: Vec<_> = body.colliders().to_vec();
-                            for c_h in attached {
+                            let old_colliders: Vec<_> = body.colliders().to_vec();
+                            for c_h in old_colliders {
                                 self.collider_set.remove(
                                     c_h,
                                     &mut self.island_manager,
@@ -324,7 +250,7 @@ impl PhysicsWorld {
                                 );
                             }
                             self.collider_set.insert_with_parent(
-                                cb,
+                                new_collider,
                                 handle,
                                 &mut self.rigid_body_set,
                             );
@@ -349,13 +275,15 @@ impl PhysicsWorld {
                                 RigidBodyBuilder::kinematic_position_based()
                             }
                         },
-                        None => RigidBodyBuilder::fixed(), // Entities with colliders/shapes but no RigidBody default to static fixed bodies
+                        None => RigidBodyBuilder::fixed(),
                     }
                 };
 
-                builder = builder.pose(pose);
+                let pose = Pose::from_parts(world_pos, world_rot);
+                builder = builder.pose(pose).user_data(entity.to_bits().get() as u128);
+
                 if is_kcc {
-                    builder = builder.linvel(Vec3::ZERO);
+                    builder = builder.lock_rotations();
                 } else {
                     builder = builder.linvel(Vec3::new(vel_comp.x, vel_comp.y, vel_comp.z));
                 }
@@ -375,90 +303,15 @@ impl PhysicsWorld {
                     } else {
                         None
                     }
-                } else if let Some(col) = col_comp {
-                    let effective_col =
-                        if matches!(rb_comp.map(|r| r.body_type), Some(RigidBodyType::Dynamic))
-                            && matches!(col.shape, ColliderShape::Trimesh)
-                        {
-                            Collider {
-                                shape: ColliderShape::ConvexHull,
-                                friction: col.friction,
-                                restitution: col.restitution,
-                                is_sensor: col.is_sensor,
-                            }
-                        } else {
-                            col
-                        };
-                    Some(Self::create_collider_builder(
-                        &effective_col,
-                        scale_comp,
-                        entity,
-                        world,
-                        &get_mesh_data,
-                    ))
-                } else if let Ok(shape) = world.get::<&Shape>(entity) {
-                    let fallback_col = match *shape {
-                        Shape::Cube => Collider {
-                            shape: ColliderShape::Box {
-                                half_extents: [0.5, 0.5, 0.5],
-                            },
-                            friction: 0.7,
-                            restitution: 0.0,
-                            is_sensor: false,
-                        },
-                        Shape::Sphere => Collider {
-                            shape: ColliderShape::Sphere { radius: 0.5 },
-                            friction: 0.7,
-                            restitution: 0.0,
-                            is_sensor: false,
-                        },
-                        Shape::Cylinder | Shape::Capsule => Collider {
-                            shape: ColliderShape::Capsule {
-                                half_height: 0.15,
-                                radius: 0.35,
-                            },
-                            friction: 0.7,
-                            restitution: 0.0,
-                            is_sensor: false,
-                        },
-                        _ => Collider {
-                            shape: ColliderShape::Box {
-                                half_extents: [0.5, 0.5, 0.5],
-                            },
-                            friction: 0.7,
-                            restitution: 0.0,
-                            is_sensor: false,
-                        },
-                    };
-                    Some(Self::create_collider_builder(
-                        &fallback_col,
-                        scale_comp,
-                        entity,
-                        world,
-                        &get_mesh_data,
-                    ))
-                } else if world.get::<&ModelId>(entity).is_ok() {
-                    let fallback_shape =
-                        if matches!(rb_comp.map(|r| r.body_type), Some(RigidBodyType::Dynamic)) {
-                            ColliderShape::ConvexHull
-                        } else {
-                            ColliderShape::Trimesh
-                        };
-                    let fallback_col = Collider {
-                        shape: fallback_shape,
-                        friction: 0.7,
-                        restitution: 0.0,
-                        is_sensor: false,
-                    };
-                    Some(Self::create_collider_builder(
-                        &fallback_col,
-                        scale_comp,
-                        entity,
-                        world,
-                        &get_mesh_data,
-                    ))
                 } else {
-                    None
+                    Self::build_collider_for_entity(
+                        col_comp,
+                        rb_comp,
+                        scale_comp,
+                        entity,
+                        world,
+                        &get_mesh_data,
+                    )
                 };
 
                 if let Some(cb) = col_builder {
@@ -469,6 +322,106 @@ impl PhysicsWorld {
 
             // Remove TransformDirty flag after successfully syncing
             let _ = world.remove_one::<TransformDirty>(entity);
+        }
+    }
+
+    /// Helper method that constructs a Rapier `ColliderBuilder` for an entity based on its explicit `Collider` component
+    /// or fallback inferred `Shape` / `ModelId` components.
+    fn build_collider_for_entity<'a, F>(
+        col_comp: Option<Collider>,
+        rb_comp: Option<RigidBody>,
+        scale_comp: [f32; 3],
+        entity: Entity,
+        world: &World,
+        get_mesh_data: &F,
+    ) -> Option<ColliderBuilder>
+    where
+        F: Fn(AssetHandle) -> Option<(&'a [[f32; 3]], &'a [u32])>,
+    {
+        if let Some(col) = col_comp {
+            let effective_col =
+                if matches!(rb_comp.map(|r| r.body_type), Some(RigidBodyType::Dynamic))
+                    && matches!(col.shape, ColliderShape::Trimesh)
+                {
+                    Collider {
+                        shape: ColliderShape::ConvexHull,
+                        friction: col.friction,
+                        restitution: col.restitution,
+                        is_sensor: col.is_sensor,
+                    }
+                } else {
+                    col
+                };
+            Some(Self::create_collider_builder(
+                &effective_col,
+                scale_comp,
+                entity,
+                world,
+                get_mesh_data,
+            ))
+        } else if let Ok(shape) = world.get::<&Shape>(entity) {
+            let fallback_col = match *shape {
+                Shape::Cube => Collider {
+                    shape: ColliderShape::Box {
+                        half_extents: [0.5, 0.5, 0.5],
+                    },
+                    friction: 0.7,
+                    restitution: 0.0,
+                    is_sensor: false,
+                },
+                Shape::Sphere => Collider {
+                    shape: ColliderShape::Sphere { radius: 0.5 },
+                    friction: 0.7,
+                    restitution: 0.0,
+                    is_sensor: false,
+                },
+                Shape::Cylinder | Shape::Capsule => Collider {
+                    shape: ColliderShape::Capsule {
+                        half_height: 0.15,
+                        radius: 0.35,
+                    },
+                    friction: 0.7,
+                    restitution: 0.0,
+                    is_sensor: false,
+                },
+                _ => Collider {
+                    shape: ColliderShape::Box {
+                        half_extents: [0.5, 0.5, 0.5],
+                    },
+                    friction: 0.7,
+                    restitution: 0.0,
+                    is_sensor: false,
+                },
+            };
+            Some(Self::create_collider_builder(
+                &fallback_col,
+                scale_comp,
+                entity,
+                world,
+                get_mesh_data,
+            ))
+        } else if world.get::<&ModelId>(entity).is_ok() {
+            let fallback_shape =
+                if matches!(rb_comp.map(|r| r.body_type), Some(RigidBodyType::Dynamic)) {
+                    ColliderShape::ConvexHull
+                } else {
+                    ColliderShape::Trimesh
+                };
+            let fallback_col = Collider {
+                shape: fallback_shape,
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: false,
+            };
+            Some(Self::create_collider_builder(
+                &fallback_col,
+                scale_comp,
+                entity,
+                world,
+                get_mesh_data,
+            ))
+        } else {
+            None
         }
     }
 

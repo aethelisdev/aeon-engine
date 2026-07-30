@@ -5,7 +5,19 @@ use super::UiContext;
 
 /// Handles switching active engine execution mode (Edit, Play, Pause).
 pub fn handle_change_mode(ctx: &mut UiContext, mode: ae_core::modules::EngineMode) {
-    *ctx.mode = mode;
+    if *ctx.mode != mode {
+        if mode == ae_core::modules::EngineMode::Play {
+            // Backup scene before starting play mode
+            ctx.editor.backup_scene(ctx.world);
+        } else if *ctx.mode == ae_core::modules::EngineMode::Play
+            && mode == ae_core::modules::EngineMode::Edit
+        {
+            // Exiting Play mode back to Edit mode -> Restore scene
+            ctx.editor.restore_scene(ctx.world);
+        }
+        *ctx.mode = mode;
+        log::info!("🎮 Engine mode changed to {:?}", mode);
+    }
 }
 
 /// Handles undoing the last command in editor history.

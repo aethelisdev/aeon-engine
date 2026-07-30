@@ -111,6 +111,9 @@ impl PhysicsWorld {
                         0.05,
                     ) {
                         if contact.dist < 0.0 {
+                            // Parry 3D contact.normal1 points OUT of shape 1 (character) towards shape 2 (obstacle).
+                            // Shifting by `-= contact.normal1 * push_dist` moves the character in the direction
+                            // OPPOSITE to normal1, correctly ejecting the character OUT of the obstacle.
                             let push_dist = (contact.dist.abs() + 0.01).min(0.5);
                             let push_dir = contact.normal1;
                             fixed_pos -= push_dir * push_dist;

@@ -108,3 +108,23 @@ impl Default for EditorState {
         }
     }
 }
+
+impl EditorState {
+    /// Backs up all entity snapshots in the ECS World before entering Play Mode.
+    pub fn backup_scene(&mut self, world: &hecs::World) {
+        self.scene_backup.clear();
+        for entity in world.iter().map(|e| e.entity()) {
+            let snapshot = EntitySnapshot::capture(world, entity);
+            self.scene_backup.insert(entity, snapshot);
+        }
+    }
+
+    /// Restores all backed-up entity snapshots when returning from Play Mode to Edit Mode.
+    pub fn restore_scene(&self, world: &mut hecs::World) {
+        for (entity, snapshot) in &self.scene_backup {
+            if world.contains(*entity) {
+                snapshot.apply(world, *entity);
+            }
+        }
+    }
+}

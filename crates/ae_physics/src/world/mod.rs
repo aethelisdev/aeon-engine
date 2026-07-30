@@ -12,6 +12,7 @@ use ae_core::ecs::{AssetHandle, RaycastHit};
 pub mod character;
 pub mod sync_ecs;
 pub mod sync_physics;
+#[cfg(test)]
 pub mod tests;
 
 /// Decoupled wrapper managing Rapier3D simulation datasets.

@@ -38,6 +38,11 @@ impl Camera {
         Matrix4::look_to_rh(self.position, self.get_forward(), Vector3::unit_y())
     }
 
+    /// Returns the camera position as a `cgmath::Vector3<f32>` for vector arithmetic.
+    pub fn position_vec3(&self) -> Vector3<f32> {
+        Vector3::new(self.position.x, self.position.y, self.position.z)
+    }
+
     /// Combines projection and view matrices into a single view-projection matrix.
     /// Used by the render pipeline for standard scene rendering. The multiplication
     /// order is `projection * view` following the right-handed convention.
