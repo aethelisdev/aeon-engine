@@ -3,7 +3,6 @@
 /// AE Core - ECS Manager and Hierarchical Transform System.
 /// Manages the `hecs::World` database and hierarchical transform updates.
 use hecs::World;
-use rayon::prelude::*;
 
 pub use ae_plugin_api::{
     AssetHandle, BoundingBox, BoundingRadius, CharacterController, Children, Collider,
@@ -13,7 +12,7 @@ pub use ae_plugin_api::{
 };
 
 /// Central ECS manager.
-/// The `update()` method runs parallel velocity integration using Rayon's `par_bridge()`.
+/// The `update()` method runs linear velocity integration over non-physics entities.
 pub struct EcsManager {
     pub world: World,
 }
@@ -26,38 +25,21 @@ impl EcsManager {
         }
     }
 
-    /// Runs parallel velocity integration for moving entities not simulated by the physics solver.
+    /// Runs velocity integration for moving entities not simulated by the physics solver.
+    /// Iterates sequentially over contiguous archetype storage in `hecs::World` to ensure 100%
+    /// thread-safe, deterministic execution across all `hecs` library releases.
     pub fn update(&mut self, delta_time: f32) {
-        let total_entities = self.world.len();
-
-        let query = self.world.query_mut::<(
+        for (pos, vel, rb, col) in self.world.query_mut::<(
             &mut Position,
             &Velocity,
             Option<&RigidBody>,
             Option<&Collider>,
-        )>();
-
-        if total_entities > 512 {
-            query
-                .into_iter()
-                .par_bridge()
-                .for_each(|(pos, vel, rb, col)| {
-                    if rb.is_none() && col.is_none() {
-                        if vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0 {
-                            pos.x += vel.x * delta_time;
-                            pos.y += vel.y * delta_time;
-                            pos.z += vel.z * delta_time;
-                        }
-                    }
-                });
-        } else {
-            for (pos, vel, rb, col) in query.into_iter() {
-                if rb.is_none() && col.is_none() {
-                    if vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0 {
-                        pos.x += vel.x * delta_time;
-                        pos.y += vel.y * delta_time;
-                        pos.z += vel.z * delta_time;
-                    }
+        )>() {
+            if rb.is_none() && col.is_none() {
+                if vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0 {
+                    pos.x += vel.x * delta_time;
+                    pos.y += vel.y * delta_time;
+                    pos.z += vel.z * delta_time;
                 }
             }
         }

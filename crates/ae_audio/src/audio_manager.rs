@@ -73,25 +73,25 @@ impl AudioManager {
     }
 
     /// Triggers sound playback for a specific entity's `AudioSource`.
-    pub fn play_sound(&mut self, entity: hecs::Entity, source: &mut AudioSource) {
+    pub fn play_sound(&mut self, entity: hecs::Entity, source: &AudioSource) -> bool {
         if self.is_muted || self.stream_handle.is_none() {
-            return;
+            return false;
         }
 
         let handle = match &self.stream_handle {
             Some(h) => h,
-            None => return,
+            None => return false,
         };
 
         if source.sound_path.trim().is_empty() {
-            return;
+            return false;
         }
 
         let file = match File::open(&source.sound_path) {
             Ok(f) => f,
             Err(e) => {
                 log::warn!("Failed to open sound file '{:?}': {}", source.sound_path, e);
-                return;
+                return false;
             }
         };
 
@@ -104,7 +104,7 @@ impl AudioManager {
                     source.sound_path,
                     e
                 );
-                return;
+                return false;
             }
         };
 
@@ -112,7 +112,7 @@ impl AudioManager {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Failed to create audio sink: {}", e);
-                return;
+                return false;
             }
         };
 
@@ -125,21 +125,20 @@ impl AudioManager {
             sink.append(decoder);
         }
 
-        source.is_playing = true;
         self.sinks.insert(entity, sink);
         log::info!(
             "🔊 Playing sound {:?} on entity {:?}",
             source.sound_path,
             entity
         );
+        true
     }
 
     /// Stops sound playback for a specific entity's `AudioSource`.
-    pub fn stop_sound(&mut self, entity: hecs::Entity, source: &mut AudioSource) {
+    pub fn stop_sound(&mut self, entity: hecs::Entity) {
         if let Some(sink) = self.sinks.remove(&entity) {
             sink.stop();
         }
-        source.is_playing = false;
     }
 
     /// Per-frame 3D Spatial Audio and ECS update loop.
@@ -201,7 +200,9 @@ impl AudioManager {
         {
             // Auto-play on start or resume if is_playing is true but sink is missing
             if (source.play_on_start || source.is_playing) && !self.sinks.contains_key(&entity) {
-                self.play_sound(entity, source);
+                let success = self.play_sound(entity, source);
+                source.is_playing = success;
+                source.play_on_start = false;
             }
 
             // Update spatial 3D volume & attenuation

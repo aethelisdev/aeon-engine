@@ -216,12 +216,31 @@ impl SpatialGrid {
             cam_pos.z + view_distance,
         ]);
 
-        let mut matching_cells = Vec::with_capacity(256);
-        for cx in min_cell.0..=max_cell.0 {
-            for cy in min_cell.1..=max_cell.1 {
-                for cz in min_cell.2..=max_cell.2 {
-                    if let Some(entities) = self.cells.get(&(cx, cy, cz)) {
-                        matching_cells.push((cx, cy, cz, entities.as_slice()));
+        let volume_x = (max_cell.0 - min_cell.0 + 1).max(0) as usize;
+        let volume_y = (max_cell.1 - min_cell.1 + 1).max(0) as usize;
+        let volume_z = (max_cell.2 - min_cell.2 + 1).max(0) as usize;
+        let total_volume = volume_x.saturating_mul(volume_y).saturating_mul(volume_z);
+
+        let mut matching_cells = Vec::with_capacity(self.cells.len().min(total_volume).min(256));
+
+        if total_volume > self.cells.len() {
+            // O(M) Hash map iteration (when search space is larger than active cells)
+            for (&(cx, cy, cz), entities) in self.cells.iter() {
+                if cx >= min_cell.0 && cx <= max_cell.0
+                    && cy >= min_cell.1 && cy <= max_cell.1
+                    && cz >= min_cell.2 && cz <= max_cell.2
+                {
+                    matching_cells.push((cx, cy, cz, entities.as_slice()));
+                }
+            }
+        } else {
+            // O(N³) Cubic volume iteration (when search space is small)
+            for cx in min_cell.0..=max_cell.0 {
+                for cy in min_cell.1..=max_cell.1 {
+                    for cz in min_cell.2..=max_cell.2 {
+                        if let Some(entities) = self.cells.get(&(cx, cy, cz)) {
+                            matching_cells.push((cx, cy, cz, entities.as_slice()));
+                        }
                     }
                 }
             }

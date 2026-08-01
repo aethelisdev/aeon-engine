@@ -342,9 +342,7 @@ impl ShadowSystem {
         .normalize();
 
         // WGPU depth correction
-        let corr = cgmath::Matrix4::new(
-            1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
-        );
+        let corr = ae_core::camera::OPENGL_TO_WGPU_MATRIX;
 
         for i in 0..4 {
             if i >= cascades {
