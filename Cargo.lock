@@ -142,7 +142,6 @@ version = "0.7.0"
 dependencies = [
  "ae_core",
  "ae_plugin_api",
- "cgmath",
  "glam 0.33.2",
  "hecs",
  "log",

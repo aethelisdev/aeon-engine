@@ -600,6 +600,13 @@ pub struct CharacterController {
     pub is_grounded: bool,
 }
 
+impl CharacterController {
+    /// Returns the computed capsule half-height ensuring a safe positive minimum bound `0.05`.
+    pub fn capsule_half_height(&self) -> f32 {
+        (self.height * 0.5 - self.radius).max(0.05)
+    }
+}
+
 impl Default for CharacterController {
     fn default() -> Self {
         Self {

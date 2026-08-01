@@ -12,3 +12,4 @@ pub mod spatial;
 pub mod time;
 
 pub use ae_plugin_api::Resources;
+pub use cgmath;

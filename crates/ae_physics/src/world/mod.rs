@@ -47,11 +47,21 @@ pub struct PhysicsWorld {
     pub body_to_entity: HashMap<RigidBodyHandle, Entity>,
 }
 
+/// Default solver and material constants for `PhysicsWorld`.
+pub const DEFAULT_PHYSICS_SOLVER_ITERATIONS: usize = 12;
+pub const DEFAULT_DYNAMIC_DAMPING: f32 = 0.5;
+pub const DEFAULT_COLLIDER_FRICTION: f32 = 0.7;
+pub const DEFAULT_COLLIDER_CONTACT_SKIN: f32 = 0.02;
+pub const DEFAULT_KCC_OFFSET: f32 = 0.01;
+pub const DEFAULT_GROUND_SNAP_DISTANCE: f32 = 0.05;
+
 impl PhysicsWorld {
     /// Creates a new `PhysicsWorld` with standard gravity and simulation settings.
     pub fn new() -> Self {
-        let mut integration_parameters = IntegrationParameters::default();
-        integration_parameters.num_solver_iterations = 12;
+        let integration_parameters = IntegrationParameters {
+            num_solver_iterations: DEFAULT_PHYSICS_SOLVER_ITERATIONS,
+            ..Default::default()
+        };
 
         Self {
             gravity: Vec3::new(0.0, -9.81, 0.0),

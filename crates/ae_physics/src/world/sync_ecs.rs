@@ -50,8 +50,8 @@ impl PhysicsWorld {
         }
 
         // 2. Add or update active bodies
-        // Pre-allocate map capacity to avoid re-allocations
-        let mut active_entities = HashMap::with_capacity(world.len() as usize);
+        // Pre-allocate map capacity to avoid re-allocations based on active physics bodies
+        let mut active_entities = HashMap::with_capacity(self.entity_to_body.len().max(16));
         for (entity, rb) in world.query::<(Entity, &RigidBody)>().iter() {
             active_entities.insert(entity, (Some(*rb), None));
         }
@@ -151,17 +151,12 @@ impl PhysicsWorld {
                         if (body.gravity_scale() - rb.gravity_scale).abs() > 1e-4 {
                             body.set_gravity_scale(rb.gravity_scale, true);
                         }
-                        if rb.body_type == RigidBodyType::Dynamic {
-                            body.set_linear_damping(0.5);
-                            body.set_angular_damping(0.5);
-                            body.enable_ccd(true);
-                        }
                     }
 
                     // Dynamically update existing colliders or rebuild if scale/shape changed
                     let col_builder = if is_kcc {
                         if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
-                            let capsule_half_height = (ctrl.height * 0.5 - ctrl.radius).max(0.05);
+                            let capsule_half_height = ctrl.capsule_half_height();
                             let is_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
                             Some(
                                 ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
@@ -294,7 +289,7 @@ impl PhysicsWorld {
 
                 let col_builder = if is_kcc {
                     if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
-                        let capsule_half_height = (ctrl.height * 0.5 - ctrl.radius).max(0.05);
+                        let capsule_half_height = ctrl.capsule_half_height();
                         let is_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
                         Some(
                             ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)

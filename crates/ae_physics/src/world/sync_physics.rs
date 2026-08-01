@@ -39,14 +39,12 @@ impl PhysicsWorld {
                             .map(|s| (s.x, s.y, s.z))
                             .unwrap_or((1.0, 1.0, 1.0));
 
-                        let mat = cgmath::Matrix4::from_translation(cgmath::Vector3::new(
-                            translation.x,
-                            translation.y,
-                            translation.z,
-                        )) * cgmath::Matrix4::from(cgmath::Quaternion::new(
-                            rotation.w, rotation.x, rotation.y, rotation.z,
-                        )) * cgmath::Matrix4::from_nonuniform_scale(sx, sy, sz);
-                        gt.0 = mat;
+                        let glam_mat = glam::Mat4::from_scale_rotation_translation(
+                            glam::Vec3::new(sx, sy, sz),
+                            glam::Quat::from_xyzw(rotation.x, rotation.y, rotation.z, rotation.w),
+                            glam::Vec3::new(translation.x, translation.y, translation.z),
+                        );
+                        gt.0 = ae_core::cgmath::Matrix4::from(glam_mat.to_cols_array_2d());
                     }
                     if body.is_dynamic() {
                         if let Ok(mut vel) = world.get::<&mut Velocity>(entity) {

@@ -4,7 +4,7 @@
 use glam::Vec3;
 /// AE Physics — Kinematic Character Controller (KCC) module.
 use hecs::{Entity, World};
-use rapier3d::control::{CharacterLength, KinematicCharacterController};
+use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
 use rapier3d::math::Pose;
 use rapier3d::prelude::*;
 
@@ -32,7 +32,7 @@ impl PhysicsWorld {
             None => return false,
         };
 
-        let capsule_half_height = (controller.height * 0.5 - controller.radius).max(0.05);
+        let capsule_half_height = controller.capsule_half_height();
         let shape = SharedShape::capsule_y(capsule_half_height, controller.radius);
 
         let mut pos_comp = world
@@ -46,9 +46,16 @@ impl PhysicsWorld {
         let mut character_pos =
             Pose::from_translation(Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z));
 
-        // Option 1: Pure solid kinematic shape sweep (autostep = None).
-        // Disabling autostep guarantees 100% solid, impenetrable wall and box collisions with 0% penetration.
-        let autostep = None;
+        // Connect step_height from CharacterController component if specified (> 0.0)
+        let autostep = if controller.step_height > 0.0 {
+            Some(CharacterAutostep {
+                max_height: CharacterLength::Absolute(controller.step_height),
+                min_width: CharacterLength::Absolute(controller.radius * 0.5),
+                include_dynamic_bodies: false,
+            })
+        } else {
+            None
+        };
 
         let snap_to_ground = if desired_translation.y > 0.0 {
             None
