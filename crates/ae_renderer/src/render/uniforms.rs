@@ -129,8 +129,8 @@ impl SceneUniforms {
             horizon_color: [0.5, 0.6, 0.7, 0.0],
             zenith_color: [0.1, 0.2, 0.4, 0.0],
             atmosphere_density: 1.0,
-            sun_disc_size: 0.02,
-            sun_glow_strength: 0.1,
+            sun_disc_size: 1.0,
+            sun_glow_strength: 1.0,
             sky_quality_mode: 2,
         };
 

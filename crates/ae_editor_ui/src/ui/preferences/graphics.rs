@@ -254,11 +254,11 @@ pub fn draw(ui: &mut egui::Ui, gs: &mut GraphicsSettings) {
                         ui.end_row();
 
                         ui.label("Sun Disc Size");
-                        ui.add(egui::Slider::new(&mut gs.sun_disc_size, 0.001..=0.1));
+                        ui.add(egui::Slider::new(&mut gs.sun_disc_size, 0.1..=5.0));
                         ui.end_row();
 
                         ui.label("Sun Glow Strength");
-                        ui.add(egui::Slider::new(&mut gs.sun_glow_strength, 0.01..=1.0));
+                        ui.add(egui::Slider::new(&mut gs.sun_glow_strength, 0.0..=5.0));
                         ui.end_row();
                     });
             }

@@ -55,18 +55,18 @@ fn calculate_low_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
     let t = clamp(pow(zenith_angle, 0.7), 0.0, 1.0);
     var color = mix(sky.horizon_color.rgb, sky.zenith_color.rgb, t);
     
-    // Smooth anti-aliased sun disc with limb darkening
+    // Sun disc — matches High/Medium visual size: tight core + corona shell
     let sun_dot = dot(dir, sun_dir);
-    let disc_radius = sky.sun_disc_size * 0.005;
-    let disc_threshold = 1.0 - disc_radius;
-    let delta = max(0.0008, fwidth(sun_dot) * 2.0);
-    let disc_smooth = smoothstep(disc_threshold - delta, disc_threshold, sun_dot);
-    if disc_smooth > 0.0 {
-        let disc_dist = clamp((1.0 - sun_dot) / max(1e-5, disc_radius), 0.0, 1.0);
-        let limb = 1.0 - disc_dist;
-        let limb_dark = pow(limb, 0.35);
-        let sun_c = mix(vec3<f32>(1.0, 0.5, 0.1), sky.sun_color.rgb, limb);
-        color += sun_c * (sky.sun_color.w * limb_dark * disc_smooth);
+    let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
+    let core_r   = sky.sun_disc_size * 0.022; // 2x of High's 0.011 core
+    let corona_r = sky.sun_disc_size * 0.05;  // 2x of High's 0.025 corona
+    let sun_core   = exp(-pow(angular_dist / max(1e-5, core_r),   4.0));
+    let sun_corona = exp(-pow(angular_dist / max(1e-5, corona_r), 2.0)) * 0.6;
+    let disc = clamp(sun_core + sun_corona, 0.0, 1.0) * step(0.0, dir.y);
+    if disc > 0.0 {
+        let limb_dark = pow(clamp(1.0 - angular_dist / max(1e-5, core_r), 0.0, 1.0), 0.35);
+        let sun_c = mix(vec3<f32>(1.0, 0.5, 0.1), sky.sun_color.rgb, limb_dark);
+        color += sun_c * disc;
     }
     
     return color;
@@ -87,16 +87,16 @@ fn calculate_medium_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
     // Horizon haze blending with sun color if sun is low, ONLY above the horizon
     let horizon_haze = pow(1.0 - zenith_angle, 16.0) * step(0.0, dir.y);
     let sun_haze = pow(sun_dot, 16.0) * horizon_haze; 
-    color = mix(color, sky.sun_color.rgb, sun_haze * 0.1 * sky.atmosphere_density * sunset_fade);
+    color = mix(color, sky.sun_color.rgb, sun_haze * 0.08 * sky.atmosphere_density * sunset_fade);
     
     // Soft sun halo ONLY above horizon (scaled down to prevent over-exposure dome)
     let glow_power = 256.0 / max(0.01, sky.sun_glow_strength); 
     let glow = pow(sun_dot, glow_power);
-    color += sky.sun_color.rgb * glow * 0.05 * sky.atmosphere_density * step(0.0, dir.y) * sunset_fade;
+    color += sky.sun_color.rgb * glow * 0.04 * sky.atmosphere_density * step(0.0, dir.y) * sunset_fade;
 
     // Smooth sun disc with C-infinity exponential falloff
     let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
-    let sun_core = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.22), 4.0));
+    let sun_core = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.011), 4.0));
     color += sky.sun_color.rgb * (sky.sun_color.w * 8.0 * sun_core) * step(0.0, dir.y);
     
     return color;
@@ -127,7 +127,7 @@ fn calculate_high_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
     let horizon_haze = pow(1.0 - zenith_angle, 10.0) * horizon_blend;
     let haze_color = mix(vec3<f32>(0.55, 0.7, 0.85), sunset_tint, sunset_factor);
     
-    let density = sky.atmosphere_density * 0.2; // Reduced to prevent sun-facing wash
+    let density = sky.atmosphere_density * 0.15; // Natural atmospheric horizon haze
     base_sky = mix(base_sky, haze_color, horizon_haze * density * rayleigh);
 
     // Mie scattering — tighter and dimmer
@@ -135,15 +135,15 @@ fn calculate_high_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
     let mie_denom = 1.0 + g * g - 2.0 * g * sun_dot;
     let mie = (1.0 - g * g) / (mie_denom * sqrt(mie_denom));
     
-    let halo_intensity = mie * 0.00005 * sky.atmosphere_density * horizon_blend;
+    let halo_intensity = mie * 0.0002 * sky.atmosphere_density * horizon_blend;
     base_sky += mix(vec3<f32>(1.0), sunset_tint, sunset_factor) * halo_intensity;
 
     //  5 Style HDR Sun Disc & Solar Corona (Natural Photorealistic Sunlight)
     let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
     
-    let sun_core = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.22), 4.0));
-    let sun_corona = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.50), 2.0));
-    let sun_halo = exp(-angular_dist * (10.0 / max(0.01, sky.sun_disc_size)));
+    let sun_core = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.011), 4.0));
+    let sun_corona = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.025), 2.0));
+    let sun_halo = exp(-angular_dist * (200.0 / max(0.01, sky.sun_disc_size)));
     
     // Natural sunlight colors (prevents blue+red=magenta neon artifact)
     let core_color = mix(vec3<f32>(10.0, 9.8, 9.2), vec3<f32>(12.0, 4.5, 1.0), sunset_factor);
@@ -151,8 +151,8 @@ fn calculate_high_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
     let halo_color = mix(vec3<f32>(0.5, 0.48, 0.42), vec3<f32>(1.0, 0.4, 0.1), sunset_factor);
 
     let hdr_sun = (core_color * sun_core * sky.sun_color.w) 
-                + (corona_color * sun_corona * sky.sun_glow_strength * 1.0)
-                + (halo_color * sun_halo * sky.sun_glow_strength * 0.5);
+                + (corona_color * sun_corona * sky.sun_glow_strength * 0.3)
+                + (halo_color * sun_halo * sky.sun_glow_strength * 0.15);
                 
     base_sky += hdr_sun * horizon_blend;
 

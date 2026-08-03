@@ -149,9 +149,9 @@ impl Default for GraphicsSettings {
             sky_quality: SkyQuality::High,
             sun_pitch: 0.5,
             sun_yaw: 0.5,
-            atmosphere_density: 0.08, // Subtle but visible horizon atmosphere
-            sun_disc_size: 0.05,
-            sun_glow_strength: 0.15,
+            atmosphere_density: 1.0, // Standard Earth atmosphere multiplier (1.0 = Default)
+            sun_disc_size: 1.0,      // Standard natural sun size multiplier (1.0 = Default)
+            sun_glow_strength: 1.0,  // Standard sun glow halo multiplier (1.0 = Default)
 
             fog_enabled: true,
             fog_distance: 800.0,
