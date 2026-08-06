@@ -111,6 +111,7 @@ dependencies = [
  "ae_plugin_api",
  "ae_plugin_host",
  "ae_renderer",
+ "ae_texture",
  "bytemuck",
  "cgmath",
  "chrono",

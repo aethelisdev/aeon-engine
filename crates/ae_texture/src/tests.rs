@@ -138,4 +138,50 @@ mod tests {
         assert_eq!(sampler.wrap_u, WrapMode::ClampToEdge);
         assert_eq!(sampler.wrap_v, WrapMode::ClampToEdge);
     }
+
+    #[test]
+    fn test_sampler_config_tiling_builder() {
+        let config = SamplerConfig {
+            min_filter: FilterMode::Linear,
+            mag_filter: FilterMode::Linear,
+            mipmap_filter: FilterMode::Linear,
+            wrap_u: WrapMode::Repeat,
+            wrap_v: WrapMode::Repeat,
+            anisotropy_clamp: 16,
+        };
+        let tex = FallbackTextureGenerator::white_1x1().with_sampler_config(config);
+        assert_eq!(tex.sampler_config.wrap_u, WrapMode::Repeat);
+        assert_eq!(tex.sampler_config.wrap_v, WrapMode::Repeat);
+        assert_eq!(tex.sampler_config.anisotropy_clamp, 16);
+    }
+
+    #[test]
+    fn test_texture_file_watcher() {
+        use crate::watcher::TextureFileWatcher;
+        use std::io::Write;
+        use std::time::{Duration, SystemTime};
+
+        let temp_dir = std::env::temp_dir();
+        let test_file = temp_dir.join("ae_texture_watcher_test.tmp");
+        {
+            let mut f = std::fs::File::create(&test_file).unwrap();
+            let _ = f.write_all(b"test data");
+        }
+
+        let mut watcher = TextureFileWatcher::new();
+        let old_time = SystemTime::now() - Duration::from_secs(10);
+        watcher.track_file(test_file.clone(), Some(old_time));
+        assert_eq!(watcher.tracked_count(), 1);
+
+        // Calling track_file again must NOT overwrite stored old_time
+        watcher.track_file(test_file.clone(), None);
+
+        let modified = watcher.check_modified_files();
+        assert!(
+            modified.contains(&test_file),
+            "File modified after old_time must be detected!"
+        );
+
+        let _ = std::fs::remove_file(&test_file);
+    }
 }

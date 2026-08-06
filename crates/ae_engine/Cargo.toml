@@ -31,6 +31,7 @@ ae_plugin_host = { path = "../ae_plugin_host" }
 ae_core = { path = "../ae_core" }
 ae_physics = { path = "../ae_physics" }
 ae_audio = { path = "../ae_audio" }
+ae_texture = { path = "../ae_texture" }
 ae_renderer = { path = "../ae_renderer" }
 ae_editor = { path = "../ae_editor" }
 ae_editor_ui = { path = "../ae_editor_ui" }

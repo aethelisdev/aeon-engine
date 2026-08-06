@@ -18,6 +18,28 @@ impl AeEngine {
         self.time.tick();
         crate::importer::process_async_imports(self);
 
+        // Track loaded texture files for live hot-reloading
+        for path in self.asset_manager.texture_path_map.keys() {
+            self.texture_watcher.track_file(path.clone(), None);
+        }
+
+        // Live Texture Hot-Reloading: Check disk modifications every 15 frames (~250ms)
+        if self.time.frame_count > 0 && (self.time.frame_count % 15 == 0) {
+            let modified_files = self.texture_watcher.check_modified_files();
+            for path in modified_files {
+                let path_str = path.to_string_lossy();
+                if let Ok(cpu_data) =
+                    ae_texture::parse_texture_file(&path_str, ae_texture::ColorSpace::Srgb)
+                {
+                    self.render_state.reload_cpu_texture_data(
+                        &mut self.asset_manager,
+                        &path,
+                        cpu_data,
+                    );
+                }
+            }
+        }
+
         // Purge stale entity references (entities deleted by plugins, play mode, etc.)
         self.editor
             .selected_entities

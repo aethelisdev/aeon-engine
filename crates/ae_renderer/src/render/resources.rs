@@ -121,12 +121,13 @@ impl RenderState {
                 return crate::asset::AssetHandle::default();
             }
         };
-
-        if let Some(&id) = assets.texture_path_map.get(&canonical_path) {
-            log::info!(
-                "Texture already loaded, returning existing ID: {:?}",
-                canonical_path
-            );
+        let is_loaded = assets.texture_path_map.get(&canonical_path).copied();
+        if let Some(id) = is_loaded {
+            // When load_texture is explicitly called on an existing path, re-read disk pixels and update GPU VRAM
+            if let Ok(cpu_data) = ae_texture::parse_texture_file(path, ae_texture::ColorSpace::Srgb)
+            {
+                self.reload_cpu_texture_data(assets, &canonical_path, cpu_data);
+            }
             return id;
         }
 
@@ -142,20 +143,13 @@ impl RenderState {
         self.upload_cpu_texture_data(assets, canonical_path, cpu_data, path)
     }
 
-    /// Uploads CPU texture pixel data (`ae_texture::CpuTextureData`) into a newly created WGPU texture.
-    /// Creates the `wgpu::Texture`, writes texture bytes, creates a `wgpu::Sampler` and `wgpu::BindGroup`,
-    /// and registers the asset in `AssetManager`.
-    pub fn upload_cpu_texture_data(
+    /// Constructs a WGPU GPU `TextureAsset` (Texture, Sampler, BindGroup) from CPU texture data.
+    /// Writes all mipmap levels to VRAM and configures sampling according to `SamplerConfig`.
+    pub fn build_gpu_texture_asset(
         &self,
-        assets: &mut crate::asset::AssetManager,
-        canonical_path: std::path::PathBuf,
         mut cpu_data: ae_texture::CpuTextureData,
         original_path: &str,
-    ) -> crate::asset::AssetHandle {
-        if let Some(&id) = assets.texture_path_map.get(&canonical_path) {
-            return id;
-        }
-
+    ) -> TextureAsset {
         if cpu_data.mipmaps.is_empty() {
             cpu_data.generate_mipmaps();
         }
@@ -208,14 +202,38 @@ impl RenderState {
             );
         }
 
+        let wrap_u = match cpu_data.sampler_config.wrap_u {
+            ae_texture::WrapMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+            ae_texture::WrapMode::Repeat => wgpu::AddressMode::Repeat,
+            ae_texture::WrapMode::MirrorRepeat => wgpu::AddressMode::MirrorRepeat,
+        };
+        let wrap_v = match cpu_data.sampler_config.wrap_v {
+            ae_texture::WrapMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+            ae_texture::WrapMode::Repeat => wgpu::AddressMode::Repeat,
+            ae_texture::WrapMode::MirrorRepeat => wgpu::AddressMode::MirrorRepeat,
+        };
+        let mag_filter = match cpu_data.sampler_config.mag_filter {
+            ae_texture::FilterMode::Nearest => wgpu::FilterMode::Nearest,
+            ae_texture::FilterMode::Linear => wgpu::FilterMode::Linear,
+        };
+        let min_filter = match cpu_data.sampler_config.min_filter {
+            ae_texture::FilterMode::Nearest => wgpu::FilterMode::Nearest,
+            ae_texture::FilterMode::Linear => wgpu::FilterMode::Linear,
+        };
+        let mipmap_filter = match cpu_data.sampler_config.mipmap_filter {
+            ae_texture::FilterMode::Nearest => wgpu::MipmapFilterMode::Nearest,
+            ae_texture::FilterMode::Linear => wgpu::MipmapFilterMode::Linear,
+        };
+
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::MipmapFilterMode::Linear,
+            address_mode_u: wrap_u,
+            address_mode_v: wrap_v,
+            address_mode_w: wrap_u,
+            mag_filter,
+            min_filter,
+            mipmap_filter,
+            anisotropy_clamp: cpu_data.sampler_config.anisotropy_clamp.min(16).max(1),
             ..Default::default()
         });
 
@@ -234,16 +252,56 @@ impl RenderState {
             label: Some(original_path),
         });
 
-        let source_path_str = canonical_path.to_string_lossy().to_string();
-        let handle = assets.textures.insert(TextureAsset {
+        TextureAsset {
             bind_group,
-            source_path: source_path_str,
+            source_path: original_path.to_string(),
             width: cpu_data.width,
             height: cpu_data.height,
-        });
-        assets.texture_path_map.insert(canonical_path, handle);
+        }
+    }
 
+    /// Uploads CPU texture pixel data (`ae_texture::CpuTextureData`) into a newly created WGPU texture.
+    /// Registers the texture asset in `AssetManager` with path deduplication.
+    pub fn upload_cpu_texture_data(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        canonical_path: std::path::PathBuf,
+        cpu_data: ae_texture::CpuTextureData,
+        original_path: &str,
+    ) -> crate::asset::AssetHandle {
+        if let Some(&id) = assets.texture_path_map.get(&canonical_path) {
+            return id;
+        }
+
+        let asset = self.build_gpu_texture_asset(cpu_data, original_path);
+        let handle = assets.textures.insert(asset);
+        assets.texture_path_map.insert(canonical_path, handle);
         handle
+    }
+
+    /// Reloads a modified texture asset from disk live on VRAM.
+    /// Re-parses CPU data via `ae_texture`, updates the GPU texture bind group in-place, and preserves the handle.
+    pub fn reload_cpu_texture_data(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        canonical_path: &std::path::Path,
+        cpu_data: ae_texture::CpuTextureData,
+    ) -> bool {
+        if let Some(&handle) = assets.texture_path_map.get(canonical_path) {
+            let path_str = canonical_path.to_string_lossy();
+            let new_asset = self.build_gpu_texture_asset(cpu_data, &path_str);
+            if let Some(existing) = assets.textures.get_mut(handle) {
+                existing.bind_group = new_asset.bind_group;
+                existing.width = new_asset.width;
+                existing.height = new_asset.height;
+                log::info!(
+                    "[HOT-RELOAD] Live updated GPU VRAM for texture: {:?}",
+                    canonical_path
+                );
+                return true;
+            }
+        }
+        false
     }
 
     /// Legacy wrapper for uploading raw `image::RgbaImage` data to the GPU.

@@ -5,8 +5,8 @@
 //!
 //! Provides uncompressed texture pixel storage (`CpuTextureData`), CPU mipmap chain generation
 //! (`CpuMipmapLevel`, `generate_mipmap_chain`), procedural fallback generation (`FallbackTextureGenerator`),
-//! semantic texture map types (`TextureMapType`), path sanitization (`is_safe_path`),
-//! image file loading (`parse_texture_file`), sampler configurations (`SamplerConfig`),
+//! semantic texture map types (`TextureMapType`), live file modification watching (`TextureFileWatcher`),
+//! path sanitization (`is_safe_path`), image file loading (`parse_texture_file`), sampler configurations (`SamplerConfig`),
 //! and generational asset handle storage (`TextureStorage`).
 //!
 
@@ -15,6 +15,7 @@ pub mod data;
 pub mod fallback;
 pub mod loader;
 pub mod mipmap;
+pub mod watcher;
 
 #[cfg(test)]
 mod tests;
@@ -24,3 +25,4 @@ pub use data::{ColorSpace, CpuTextureData, FilterMode, SamplerConfig, TextureMap
 pub use fallback::FallbackTextureGenerator;
 pub use loader::{MAX_TEXTURE_DIMENSION, is_safe_path, parse_texture_file};
 pub use mipmap::{CpuMipmapLevel, generate_mipmap_chain};
+pub use watcher::TextureFileWatcher;

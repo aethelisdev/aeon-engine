@@ -52,6 +52,11 @@ pub fn parse_texture_file(path: &str, color_space: ColorSpace) -> Result<CpuText
         ));
     }
 
+    let last_mod = std::fs::metadata(path).and_then(|m| m.modified()).ok();
     let rgba = img.to_rgba8();
-    Ok(CpuTextureData::new(width, height, rgba.into_raw(), color_space, path).with_mipmaps())
+    Ok(
+        CpuTextureData::new(width, height, rgba.into_raw(), color_space, path)
+            .with_last_modified(last_mod)
+            .with_mipmaps(),
+    )
 }

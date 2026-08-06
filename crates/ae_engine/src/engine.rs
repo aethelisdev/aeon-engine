@@ -54,6 +54,8 @@ pub struct AeEngine {
     pub physics_world: PhysicsWorld,
     /// Hardware-accelerated 3D spatial audio engine manager.
     pub audio_manager: ae_audio::AudioManager,
+    /// Live texture file modification watcher for hot-reloading.
+    pub texture_watcher: ae_texture::TextureFileWatcher,
     /// Dirty flag to throttle `sync_ecs_to_physics` in Edit mode.
     /// Set to `true` whenever the ECS scene changes (spawn, delete, transform edit).
     /// Cleared after the sync runs. Prevents O(N) ECS scans every frame when nothing changed.
@@ -209,6 +211,7 @@ impl AeEngine {
             profiler: crate::profiler::Profiler::new(),
             physics_world: PhysicsWorld::new(),
             audio_manager: ae_audio::AudioManager::new(),
+            texture_watcher: ae_texture::TextureFileWatcher::new(),
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
         };
 

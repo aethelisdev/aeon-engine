@@ -563,7 +563,10 @@ mod tests {
                 entities.err()
             );
             let entities = entities.unwrap();
-            assert!(!entities.is_empty(), "texture_test_suite.aee must contain entities");
+            assert!(
+                !entities.is_empty(),
+                "texture_test_suite.aee must contain entities"
+            );
         }
     }
 }

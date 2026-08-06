@@ -132,6 +132,10 @@ pub struct CpuTextureData {
     pub bytes: Vec<u8>,
     /// Target color space (sRGB or Linear).
     pub color_space: ColorSpace,
+    /// Sampler configuration (wrapping, filtering, anisotropy).
+    pub sampler_config: SamplerConfig,
+    /// Last modification timestamp on disk for live hot-reloading.
+    pub last_modified: Option<std::time::SystemTime>,
     /// Pre-generated CPU mipmap level chain (Level 0 = base image).
     pub mipmaps: Vec<CpuMipmapLevel>,
     /// Canonical local disk source path or label if procedurally generated.
@@ -162,9 +166,23 @@ impl CpuTextureData {
             height,
             bytes,
             color_space,
+            sampler_config: SamplerConfig::default(),
+            last_modified: None,
             mipmaps: Vec::new(),
             label: label.into(),
         }
+    }
+
+    /// Builder pattern helper to set custom sampler configuration (wrapping, filtering).
+    pub fn with_sampler_config(mut self, config: SamplerConfig) -> Self {
+        self.sampler_config = config;
+        self
+    }
+
+    /// Builder pattern helper to set modification timestamp for hot-reloading tracking.
+    pub fn with_last_modified(mut self, time: Option<std::time::SystemTime>) -> Self {
+        self.last_modified = time;
+        self
     }
 
     /// Automatically generates and stores the CPU mipmap level chain down to 1x1.
