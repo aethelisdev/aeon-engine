@@ -25,12 +25,10 @@ impl PhysicsWorld {
     {
         // 1. Remove deleted entities from simulation
         let mut to_remove = Vec::new();
-        for (&entity, _) in &self.entity_to_body {
+        for &entity in self.entity_to_body.keys() {
             let is_active = world.get::<&RigidBody>(entity).is_ok()
                 || world.get::<&Collider>(entity).is_ok()
-                || world.get::<&CharacterController>(entity).is_ok()
-                || world.get::<&Shape>(entity).is_ok()
-                || world.get::<&ModelId>(entity).is_ok();
+                || world.get::<&CharacterController>(entity).is_ok();
             if !world.contains(entity) || !is_active {
                 to_remove.push(entity);
             }
@@ -62,12 +60,6 @@ impl PhysicsWorld {
                 .or_insert((None, Some(*col)));
         }
         for (entity, _ctrl) in world.query::<(Entity, &CharacterController)>().iter() {
-            active_entities.entry(entity).or_insert((None, None));
-        }
-        for (entity, _shape) in world.query::<(Entity, &Shape)>().iter() {
-            active_entities.entry(entity).or_insert((None, None));
-        }
-        for (entity, _model) in world.query::<(Entity, &ModelId)>().iter() {
             active_entities.entry(entity).or_insert((None, None));
         }
 
