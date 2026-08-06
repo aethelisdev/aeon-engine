@@ -68,7 +68,9 @@ impl PhysicsWorld {
             autostep,
             snap_to_ground,
             max_slope_climb_angle: controller.max_slope_climb_angle.to_radians(),
-            min_slope_slide_angle: (controller.max_slope_climb_angle - 5.0).max(0.0).to_radians(),
+            min_slope_slide_angle: (controller.max_slope_climb_angle - 5.0)
+                .max(0.0)
+                .to_radians(),
             offset: CharacterLength::Absolute(0.01),
             slide: true,
             ..Default::default()

@@ -66,6 +66,7 @@ impl RenderState {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                ..Default::default()
             })
             .await;
 
@@ -129,6 +130,7 @@ impl RenderState {
             // Frame latency: 2 for all modes — enables double-buffered CPU-GPU pipelining.
             // CPU prepares frame N while GPU renders frame N-1, maximizing throughput.
             desired_maximum_frame_latency: choose_frame_latency(graphics_settings.fps_limit),
+            color_space: wgpu::SurfaceColorSpace::Srgb,
         };
         surface.configure(&device, &config);
 

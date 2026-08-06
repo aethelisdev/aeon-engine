@@ -119,8 +119,8 @@ impl PhysicsWorld {
                         let r2 = pose.rotation;
                         // Dot-product quaternion distance: handles double-cover (q and -q represent
                         // the same rotation), so .abs() prevents false positives on sign flips.
-                        let rot_diff = 1.0
-                            - (r1.w * r2.w + r1.x * r2.x + r1.y * r2.y + r1.z * r2.z).abs();
+                        let rot_diff =
+                            1.0 - (r1.w * r2.w + r1.x * r2.x + r1.y * r2.y + r1.z * r2.z).abs();
                         if pos_diff > 1e-4 || rot_diff > 1e-5 {
                             body.set_position(pose, false);
                         }

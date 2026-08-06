@@ -6,7 +6,7 @@ description = "Aeon Engine - WGPU rendering pipeline"
 
 [dependencies]
 winit = "0.30.13"
-wgpu = "29.0.4"
+wgpu = "30.0.0"
 log = "0.4.33"
 bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"

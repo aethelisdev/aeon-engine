@@ -21,8 +21,8 @@ pub(crate) fn create_shadow_pipeline(
             module: &shader,
             entry_point: Some("vs_shadow"),
             buffers: &[
-                crate::render::types::Vertex::desc(),
-                crate::render::types::Instance::desc(),
+                Some(crate::render::types::Vertex::desc()),
+                Some(crate::render::types::Instance::desc()),
             ],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },

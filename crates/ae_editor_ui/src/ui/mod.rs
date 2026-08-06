@@ -563,9 +563,11 @@ impl EngineUi {
             pixels_per_point: window.scale_factor() as f32,
         };
 
-        for (id, image_delta) in &full_output.textures_delta.set {
-            self.renderer
-                .update_texture(device, queue, *id, image_delta);
+        for (id, image_deltas) in &full_output.textures_delta.set {
+            for image_delta in image_deltas {
+                self.renderer
+                    .update_texture(device, queue, *id, image_delta);
+            }
         }
         self.renderer.update_buffers(
             device,

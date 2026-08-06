@@ -7,9 +7,9 @@ description = "Aeon Engine - Editor Egui UI panels and categories"
 [dependencies]
 hecs = "0.11.0"
 log = "0.4.33"
-egui = "0.35.0"
-egui-wgpu = "0.35.0"
-egui-winit = "0.35.0"
+egui = "0.36.0"
+egui-wgpu = "0.36.0"
+egui-winit = "0.36.0"
 rfd = "0.17.2"
 serde = { version = "1.0.228", features = ["derive"] }
 ae_core = { path = "../ae_core" }
@@ -17,7 +17,7 @@ ae_editor = { path = "../ae_editor" }
 ae_audio = { path = "../ae_audio" }
 ae_renderer = { path = "../ae_renderer" }
 winit = "0.30.13"
-wgpu = "29.0.4"
+wgpu = "30.0.0"
 cgmath = "0.18"
 rayon = "1.12.0"
 

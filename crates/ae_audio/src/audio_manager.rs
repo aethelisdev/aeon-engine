@@ -171,13 +171,13 @@ impl AudioManager {
         let mut listener_pos = fallback_listener_pos;
         let mut listener_right = fallback_listener_right;
 
-        for (_ent, pos, _listener) in world
+        if let Some((_ent, pos, _listener)) = world
             .query::<(hecs::Entity, &Position, &AudioListener)>()
             .iter()
+            .next()
         {
             listener_pos = Vec3::new(pos.x, pos.y, pos.z);
             listener_right = Vec3::X; // Default listener right axis
-            break;
         }
 
         // 2. Remove stopped/finished sinks OR sinks whose AudioSource component was removed (Trash Icon)

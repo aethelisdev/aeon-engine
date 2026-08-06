@@ -6,16 +6,16 @@ description = "Aeon Engine - Cross-platform game engine"
 
 [dependencies]
 winit = "0.30.13"
-wgpu = "29.0.4"
+wgpu = "30.0.0"
 pollster = "0.4.0"
 env_logger = "0.11.11"
 log = "0.4.33"
 hecs = "0.11.0"
 bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
-egui = "0.35.0"
-egui-wgpu = "0.35.0"
-egui-winit = "0.35.0"
+egui = "0.36.0"
+egui-wgpu = "0.36.0"
+egui-winit = "0.36.0"
 image = "0.25.10"
 gltf = "1.4.1"
 

@@ -203,7 +203,7 @@ impl RenderState {
 
             self.queue.submit(std::iter::once(encoder.finish()));
             let present_start = std::time::Instant::now();
-            output.present();
+            self.queue.present(output);
             let present_wait = present_start.elapsed();
 
             self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
@@ -770,7 +770,7 @@ impl RenderState {
 
         self.queue.submit(std::iter::once(encoder.finish()));
         let present_start = std::time::Instant::now();
-        output.present();
+        self.queue.present(output);
         let present_wait = present_start.elapsed();
 
         // Store total VSync blocking time for FPS counter correction

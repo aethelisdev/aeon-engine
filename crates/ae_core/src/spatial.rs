@@ -226,9 +226,12 @@ impl SpatialGrid {
         if total_volume > self.cells.len() {
             // O(M) Hash map iteration (when search space is larger than active cells)
             for (&(cx, cy, cz), entities) in self.cells.iter() {
-                if cx >= min_cell.0 && cx <= max_cell.0
-                    && cy >= min_cell.1 && cy <= max_cell.1
-                    && cz >= min_cell.2 && cz <= max_cell.2
+                if cx >= min_cell.0
+                    && cx <= max_cell.0
+                    && cy >= min_cell.1
+                    && cy <= max_cell.1
+                    && cz >= min_cell.2
+                    && cz <= max_cell.2
                 {
                     matching_cells.push((cx, cy, cz, entities.as_slice()));
                 }

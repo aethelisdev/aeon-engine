@@ -29,7 +29,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Vertex::desc(), Instance::desc()],
+            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -69,7 +69,7 @@ pub(crate) fn create_pbr_pipelines(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Vertex::desc(), Instance::desc()],
+            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {

@@ -124,7 +124,7 @@ impl GizmoSystem {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[GizmoVertex::layout()],
+                    buffers: &[Some(GizmoVertex::layout())],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {

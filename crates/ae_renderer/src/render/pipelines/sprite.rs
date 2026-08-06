@@ -31,7 +31,7 @@ pub(crate) fn create_sprite_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[SpriteVertex::desc(), Instance::desc()],
+            buffers: &[Some(SpriteVertex::desc()), Some(Instance::desc())],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
