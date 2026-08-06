@@ -18,6 +18,7 @@ rayon = "1.12.0"
 hecs = "0.11.0"
 ae_core = { path = "../ae_core" }
 ae_plugin_api = { path = "../ae_plugin_api" }
+ae_texture = { path = "../ae_texture" }
 
 
 

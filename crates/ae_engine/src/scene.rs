@@ -551,4 +551,19 @@ mod tests {
             assert!(!entities.is_empty(), "test_suite.aee must contain entities");
         }
     }
+
+    #[test]
+    fn test_deserialize_texture_test_suite_scene() {
+        if let Ok(file) = File::open("assets/scenes/texture_test_suite.aee") {
+            let reader = BufReader::new(file);
+            let entities: Result<Vec<SavedEntity>, _> = serde_json::from_reader(reader);
+            assert!(
+                entities.is_ok(),
+                "texture_test_suite.aee must deserialize cleanly into Vec<SavedEntity>: {:?}",
+                entities.err()
+            );
+            let entities = entities.unwrap();
+            assert!(!entities.is_empty(), "texture_test_suite.aee must contain entities");
+        }
+    }
 }

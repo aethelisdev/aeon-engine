@@ -91,12 +91,15 @@ impl RenderState {
     /// size guards (max 8192×8192), and GPU upload.
     /// Loads a texture from disk with path deduplication, size guards, and GPU upload.
     /// Internally uses `parse_texture_file` for CPU parsing and `upload_texture_data` for GPU upload.
+    /// Loads a texture from disk using `ae_texture` CPU parsing and uploads it to the GPU.
+    /// Checks path security, deduplicates paths, parses RGBA pixels on CPU via `ae_texture`,
+    /// and constructs the WGPU texture, sampler, and bind group.
     pub fn load_texture(
         &self,
         assets: &mut crate::asset::AssetManager,
         path: &str,
     ) -> crate::asset::AssetHandle {
-        if !crate::asset::is_safe_path(path) {
+        if !ae_texture::is_safe_path(path) {
             core::hint::cold_path();
             log::error!(
                 "[SECURITY ERROR] Blocked unsafe texture load path: {}",
@@ -127,8 +130,8 @@ impl RenderState {
             return id;
         }
 
-        let rgba = match parse_texture_file(path) {
-            Ok(img) => img,
+        let cpu_data = match ae_texture::parse_texture_file(path, ae_texture::ColorSpace::Srgb) {
+            Ok(data) => data,
             Err(e) => {
                 core::hint::cold_path();
                 log::error!("{}", e);
@@ -136,56 +139,74 @@ impl RenderState {
             }
         };
 
-        self.upload_texture_data(assets, canonical_path, rgba, path)
+        self.upload_cpu_texture_data(assets, canonical_path, cpu_data, path)
     }
 
-    /// Uploads raw texture pixel data (RGBA) directly into a newly created WGPU texture on the GPU.
-    /// Registers the texture asset in the asset manager with path deduplication.
-    /// Must be called from the main thread or a thread with valid GPU context access.
-    pub fn upload_texture_data(
+    /// Uploads CPU texture pixel data (`ae_texture::CpuTextureData`) into a newly created WGPU texture.
+    /// Creates the `wgpu::Texture`, writes texture bytes, creates a `wgpu::Sampler` and `wgpu::BindGroup`,
+    /// and registers the asset in `AssetManager`.
+    pub fn upload_cpu_texture_data(
         &self,
         assets: &mut crate::asset::AssetManager,
         canonical_path: std::path::PathBuf,
-        rgba: image::RgbaImage,
+        mut cpu_data: ae_texture::CpuTextureData,
         original_path: &str,
     ) -> crate::asset::AssetHandle {
         if let Some(&id) = assets.texture_path_map.get(&canonical_path) {
             return id;
         }
 
-        let dimensions = rgba.dimensions();
+        if cpu_data.mipmaps.is_empty() {
+            cpu_data.generate_mipmaps();
+        }
+
+        let mip_level_count = cpu_data.mipmaps.len().max(1) as u32;
+
         let texture_size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
+            width: cpu_data.width,
+            height: cpu_data.height,
             depth_or_array_layers: 1,
+        };
+
+        let format = match cpu_data.color_space {
+            ae_texture::ColorSpace::Srgb => wgpu::TextureFormat::Rgba8UnormSrgb,
+            ae_texture::ColorSpace::Linear => wgpu::TextureFormat::Rgba8Unorm,
         };
 
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             size: texture_size,
-            mip_level_count: 1,
+            mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             label: Some(original_path),
             view_formats: &[],
         });
 
-        self.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &rgba,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * dimensions.0),
-                rows_per_image: Some(dimensions.1),
-            },
-            texture_size,
-        );
+        for (level_idx, mip_level) in cpu_data.mipmaps.iter().enumerate() {
+            let mip_size = wgpu::Extent3d {
+                width: mip_level.width,
+                height: mip_level.height,
+                depth_or_array_layers: 1,
+            };
+
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: level_idx as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &mip_level.bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * mip_level.width),
+                    rows_per_image: Some(mip_level.height),
+                },
+                mip_size,
+            );
+        }
 
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
@@ -193,8 +214,8 @@ impl RenderState {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
 
@@ -217,39 +238,40 @@ impl RenderState {
         let handle = assets.textures.insert(TextureAsset {
             bind_group,
             source_path: source_path_str,
-            width: dimensions.0,
-            height: dimensions.1,
+            width: cpu_data.width,
+            height: cpu_data.height,
         });
         assets.texture_path_map.insert(canonical_path, handle);
 
         handle
     }
+
+    /// Legacy wrapper for uploading raw `image::RgbaImage` data to the GPU.
+    /// Delegates internally to `upload_cpu_texture_data`.
+    pub fn upload_texture_data(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        canonical_path: std::path::PathBuf,
+        rgba: image::RgbaImage,
+        original_path: &str,
+    ) -> crate::asset::AssetHandle {
+        let (w, h) = rgba.dimensions();
+        let cpu_data = ae_texture::CpuTextureData::new(
+            w,
+            h,
+            rgba.into_raw(),
+            ae_texture::ColorSpace::Srgb,
+            original_path,
+        );
+        self.upload_cpu_texture_data(assets, canonical_path, cpu_data, original_path)
+    }
 }
 
+/// Parses a texture file from disk using `ae_texture` CPU parser and returns an `image::RgbaImage`.
 pub fn parse_texture_file(path: &str) -> Result<image::RgbaImage, String> {
-    if !crate::asset::is_safe_path(path) {
-        return Err(format!(
-            "Security Error: Blocked unsafe texture path: {}",
-            path
-        ));
-    }
-
-    let img = image::open(path).map_err(|e| format!("Failed to open image '{}': {:?}", path, e))?;
-    let rgba = img.to_rgba8();
-    let dimensions = rgba.dimensions();
-
-    if dimensions.0 == 0 || dimensions.1 == 0 {
-        return Err(format!("Image size of '{}' cannot be 0!", path));
-    }
-    if dimensions.0 > RenderState::MAX_TEXTURE_SIZE || dimensions.1 > RenderState::MAX_TEXTURE_SIZE
-    {
-        return Err(format!(
-            "Image '{}' is too large! Max: {}",
-            path,
-            RenderState::MAX_TEXTURE_SIZE
-        ));
-    }
-    Ok(rgba)
+    let cpu_data = ae_texture::parse_texture_file(path, ae_texture::ColorSpace::Srgb)?;
+    image::RgbaImage::from_raw(cpu_data.width, cpu_data.height, cpu_data.bytes)
+        .ok_or_else(|| format!("Failed to create RgbaImage from raw bytes for '{}'", path))
 }
 
 impl RenderState {

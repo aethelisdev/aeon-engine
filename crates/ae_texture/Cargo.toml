@@ -1,0 +1,13 @@
+[package]
+name = "ae_texture"
+version = "0.7.0"
+edition = "2024"
+authors = ["AethelisDEV <contact@aethelis.dev>"]
+description = "CPU-side texture loading, processing, fallback generation, and asset management for Aeon Engine."
+license = "MPL-2.0"
+
+[dependencies]
+image = "0.25"
+log = "0.4"
+slotmap = "1.0"
+ae_plugin_api = { path = "../ae_plugin_api" }
