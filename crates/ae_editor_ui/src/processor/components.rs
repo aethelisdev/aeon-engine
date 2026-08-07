@@ -243,3 +243,16 @@ pub fn handle_remove_player_tag(ctx: &mut UiContext, entity: hecs::Entity) {
     let _ = ctx.world.remove_one::<ae_core::ecs::PlayerTag>(entity);
     log::info!("🎮 Removed PlayerTag from entity {:?}", entity);
 }
+
+/// Handles loading a texture file from disk and assigning a `SpriteId` component to an entity.
+pub fn handle_assign_texture(ctx: &mut UiContext, entity: hecs::Entity, path: String) {
+    let handle = ctx.render_state.load_texture(ctx.asset_manager, &path);
+    let _ = ctx.world.insert_one(entity, ae_core::ecs::SpriteId(handle));
+    log::info!("🖼️ Assigned texture '{}' to entity {:?}", path, entity);
+}
+
+/// Handles removing `SpriteId` texture component from an entity.
+pub fn handle_remove_texture(ctx: &mut UiContext, entity: hecs::Entity) {
+    let _ = ctx.world.remove_one::<ae_core::ecs::SpriteId>(entity);
+    log::info!("🖼️ Removed SpriteId texture from entity {:?}", entity);
+}

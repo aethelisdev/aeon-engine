@@ -436,6 +436,7 @@ impl EngineUi {
                 editor_state,
                 camera,
                 models,
+                textures,
             );
             if let Some(rect) = inspector_resp {
                 ui_rects_collector.borrow_mut().push(rect);

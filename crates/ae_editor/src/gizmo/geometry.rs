@@ -272,7 +272,7 @@ impl GizmoSystem {
             let offset = radius * 8.0; // Moved further out (was 4.0)
             let p_size = radius * 6.0; // Larger for easier grabbing (was 3.0)
 
-            // Note:  colors the planes by their missing axis.
+            // Planar handles are colored by their normal's orthogonal axis.
             // XY Plane ignores Z, so it is blue.
             vertices.extend(Self::build_plane_quad(
                 offset,

@@ -7,7 +7,8 @@
 mod tests {
     use crate::asset::{TexturePathMap, TextureStorage};
     use crate::data::{
-        ColorSpace, CpuTextureData, FilterMode, SamplerConfig, TextureMapType, WrapMode,
+        ColorSpace, CompressedTextureFormat, CpuTextureData, FilterMode, SamplerConfig,
+        TextureMapType, WrapMode,
     };
     use crate::fallback::FallbackTextureGenerator;
     use crate::loader::is_safe_path;
@@ -183,5 +184,27 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&test_file);
+    }
+
+    #[test]
+    fn test_compressed_texture_formats() {
+        assert_eq!(CompressedTextureFormat::Bc1Unorm.block_size(), 8);
+        assert_eq!(CompressedTextureFormat::Bc3Unorm.block_size(), 16);
+        assert_eq!(CompressedTextureFormat::Bc7Unorm.block_size(), 16);
+        assert!(CompressedTextureFormat::Bc1Srgb.is_srgb());
+        assert!(!CompressedTextureFormat::Bc1Unorm.is_srgb());
+    }
+
+    #[test]
+    fn test_pbr_material_textures_fallbacks() {
+        let mr = FallbackTextureGenerator::default_metallic_roughness_1x1();
+        assert_eq!(mr.bytes, vec![0, 255, 0, 255]);
+        assert_eq!(mr.color_space, ColorSpace::Linear);
+
+        let ao = FallbackTextureGenerator::default_ao_1x1();
+        assert_eq!(ao.bytes, vec![255, 255, 255, 255]);
+
+        let emissive = FallbackTextureGenerator::black_emissive_1x1();
+        assert_eq!(emissive.bytes, vec![0, 0, 0, 255]);
     }
 }

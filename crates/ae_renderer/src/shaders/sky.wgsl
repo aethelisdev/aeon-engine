@@ -138,7 +138,7 @@ fn calculate_high_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
     let halo_intensity = mie * 0.0002 * sky.atmosphere_density * horizon_blend;
     base_sky += mix(vec3<f32>(1.0), sunset_tint, sunset_factor) * halo_intensity;
 
-    //  5 Style HDR Sun Disc & Solar Corona (Natural Photorealistic Sunlight)
+    // HDR Sun Disc & Solar Corona (Natural Photorealistic Sunlight)
     let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
     
     let sun_core = exp(-pow(angular_dist / max(1e-5, sky.sun_disc_size * 0.011), 4.0));

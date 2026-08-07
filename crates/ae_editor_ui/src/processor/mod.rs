@@ -86,6 +86,12 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::ModifyLightColor(ent, _, color) => {
                 components::handle_modify_light_color(ctx, ent, color)
             }
+            crate::ui::EngineUiAction::AssignTextureToEntity(ent, path) => {
+                components::handle_assign_texture(ctx, ent, path)
+            }
+            crate::ui::EngineUiAction::RemoveTextureFromEntity(ent) => {
+                components::handle_remove_texture(ctx, ent)
+            }
             crate::ui::EngineUiAction::AddRigidBody(ent, rb) => {
                 components::handle_add_rigid_body(ctx, ent, rb)
             }

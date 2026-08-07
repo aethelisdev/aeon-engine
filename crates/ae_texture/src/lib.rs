@@ -21,7 +21,10 @@ pub mod watcher;
 mod tests;
 
 pub use asset::{AssetHandle, TextureAssetData, TexturePathMap, TextureStorage};
-pub use data::{ColorSpace, CpuTextureData, FilterMode, SamplerConfig, TextureMapType, WrapMode};
+pub use data::{
+    ColorSpace, CompressedTextureData, CompressedTextureFormat, CpuTextureData, FilterMode,
+    PbrMaterialTextures, SamplerConfig, TextureMapType, WrapMode,
+};
 pub use fallback::FallbackTextureGenerator;
 pub use loader::{MAX_TEXTURE_DIMENSION, is_safe_path, parse_texture_file};
 pub use mipmap::{CpuMipmapLevel, generate_mipmap_chain};

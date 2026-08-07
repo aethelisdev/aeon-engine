@@ -304,6 +304,105 @@ impl RenderState {
         false
     }
 
+    /// Uploads BC1/BC3/BC7 block-compressed texture pixel data (`ae_texture::CompressedTextureData`)
+    /// directly into a WGPU compressed texture format.
+    /// Achieves 75-80% VRAM bandwidth and memory savings for  material textures.
+    pub fn upload_compressed_texture_data(
+        &self,
+        assets: &mut crate::asset::AssetManager,
+        canonical_path: std::path::PathBuf,
+        data: ae_texture::CompressedTextureData,
+        original_path: &str,
+    ) -> crate::asset::AssetHandle {
+        if let Some(&id) = assets.texture_path_map.get(&canonical_path) {
+            return id;
+        }
+
+        let format = match data.format {
+            ae_texture::CompressedTextureFormat::Bc1Unorm => wgpu::TextureFormat::Bc1RgbaUnorm,
+            ae_texture::CompressedTextureFormat::Bc1Srgb => wgpu::TextureFormat::Bc1RgbaUnormSrgb,
+            ae_texture::CompressedTextureFormat::Bc3Unorm => wgpu::TextureFormat::Bc3RgbaUnorm,
+            ae_texture::CompressedTextureFormat::Bc3Srgb => wgpu::TextureFormat::Bc3RgbaUnormSrgb,
+            ae_texture::CompressedTextureFormat::Bc7Unorm => wgpu::TextureFormat::Bc7RgbaUnorm,
+            ae_texture::CompressedTextureFormat::Bc7Srgb => wgpu::TextureFormat::Bc7RgbaUnormSrgb,
+        };
+
+        let texture_size = wgpu::Extent3d {
+            width: data.width,
+            height: data.height,
+            depth_or_array_layers: 1,
+        };
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            label: Some(original_path),
+            view_formats: &[],
+        });
+
+        let blocks_x = (data.width + 3) / 4;
+        let blocks_y = (data.height + 3) / 4;
+        let bytes_per_row = blocks_x * data.format.block_size();
+
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &data.bytes,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(blocks_y),
+            },
+            texture_size,
+        );
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Linear,
+            anisotropy_clamp: 16,
+            ..Default::default()
+        });
+
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &self.uniforms.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+            ],
+            label: Some(original_path),
+        });
+
+        let source_path_str = canonical_path.to_string_lossy().to_string();
+        let handle = assets.textures.insert(TextureAsset {
+            bind_group,
+            source_path: source_path_str,
+            width: data.width,
+            height: data.height,
+        });
+        assets.texture_path_map.insert(canonical_path, handle);
+
+        handle
+    }
+
     /// Legacy wrapper for uploading raw `image::RgbaImage` data to the GPU.
     /// Delegates internally to `upload_cpu_texture_data`.
     pub fn upload_texture_data(
@@ -322,6 +421,78 @@ impl RenderState {
             original_path,
         );
         self.upload_cpu_texture_data(assets, canonical_path, cpu_data, original_path)
+    }
+}
+
+/// Uploads raw CPU texture data to GPU and returns a `TextureAsset` with bind group.
+pub fn upload_raw_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture_bgl: &wgpu::BindGroupLayout,
+    cpu_data: &ae_texture::CpuTextureData,
+) -> crate::render::TextureAsset {
+    let size = wgpu::Extent3d {
+        width: cpu_data.width,
+        height: cpu_data.height,
+        depth_or_array_layers: 1,
+    };
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("Fallback White Texture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &cpu_data.bytes,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * cpu_data.width),
+            rows_per_image: Some(cpu_data.height),
+        },
+        size,
+    );
+
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        address_mode_u: wgpu::AddressMode::Repeat,
+        address_mode_v: wgpu::AddressMode::Repeat,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
+        ..Default::default()
+    });
+
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: texture_bgl,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&sampler),
+            },
+        ],
+        label: Some("Fallback White Bind Group"),
+    });
+
+    crate::render::TextureAsset {
+        bind_group,
+        source_path: "internal://white_fallback.png".to_string(),
+        width: cpu_data.width,
+        height: cpu_data.height,
     }
 }
 
@@ -449,6 +620,7 @@ impl RenderState {
                 };
                 let mut norm_iter = reader.read_normals();
                 let mut col_iter = reader.read_colors(0).map(|c| c.into_rgb_f32());
+                let mut tex_coord_iter = reader.read_tex_coords(0).map(|tc| tc.into_f32());
 
                 let start_vertex = all_vertices.len() as u32;
 
@@ -461,6 +633,10 @@ impl RenderState {
                         .as_mut()
                         .and_then(|c| c.next())
                         .unwrap_or([1.0, 1.0, 1.0]);
+                    let uv = tex_coord_iter
+                        .as_mut()
+                        .and_then(|tc| tc.next())
+                        .unwrap_or([0.0, 0.0]);
 
                     for i in 0..3 {
                         if pos[i] < min[i] {
@@ -475,6 +651,7 @@ impl RenderState {
                         position: pos,
                         color,
                         normal,
+                        uv,
                     });
                     raw_positions.push(pos);
                 }
@@ -555,6 +732,7 @@ pub fn parse_gltf_file(
             };
             let mut norm_iter = reader.read_normals();
             let mut col_iter = reader.read_colors(0).map(|c| c.into_rgb_f32());
+            let mut tex_coord_iter = reader.read_tex_coords(0).map(|tc| tc.into_f32());
 
             let start_vertex = all_vertices.len() as u32;
 
@@ -567,6 +745,10 @@ pub fn parse_gltf_file(
                     .as_mut()
                     .and_then(|c| c.next())
                     .unwrap_or([1.0, 1.0, 1.0]);
+                let uv = tex_coord_iter
+                    .as_mut()
+                    .and_then(|tc| tc.next())
+                    .unwrap_or([0.0, 0.0]);
 
                 for i in 0..3 {
                     if pos[i] < min[i] {
@@ -581,6 +763,7 @@ pub fn parse_gltf_file(
                     position: pos,
                     color,
                     normal,
+                    uv,
                 });
                 raw_positions.push(pos);
             }

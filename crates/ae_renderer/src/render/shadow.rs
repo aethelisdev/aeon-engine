@@ -430,7 +430,10 @@ impl ShadowSystem {
         asset_manager: &crate::asset::AssetManager,
         model_instance_data: &HashMap<
             crate::asset::AssetHandle,
-            Vec<crate::render::types::Instance>,
+            Vec<(
+                crate::render::types::Instance,
+                Option<crate::asset::AssetHandle>,
+            )>,
         >,
         model_starts: &HashMap<crate::asset::AssetHandle, usize>,
     ) {

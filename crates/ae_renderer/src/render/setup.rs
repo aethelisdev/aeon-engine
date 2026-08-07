@@ -183,6 +183,14 @@ impl RenderState {
             &uniforms.camera_bind_group_layout,
         );
 
+        let default_white_cpu = ae_texture::FallbackTextureGenerator::white_1x1();
+        let default_white_texture = crate::render::resources::upload_raw_texture(
+            &device,
+            &queue,
+            &uniforms.texture_bind_group_layout,
+            &default_white_cpu,
+        );
+
         let state = Self {
             surface,
             device,
@@ -194,6 +202,7 @@ impl RenderState {
             pipelines,
             uniforms,
             geometry,
+            default_white_texture,
             post_process,
             shadow,
             outline,

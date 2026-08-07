@@ -198,3 +198,102 @@ impl CpuTextureData {
         self
     }
 }
+
+/// Supported GPU Block Compression (BC) texture formats.
+/// Block compression reduces VRAM footprint by 75-80% using 4x4 texel block encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompressedTextureFormat {
+    /// BC1 (DXT1) RGB/RGBA compression without alpha or 1-bit punchthrough alpha (8 bytes per 4x4 block).
+    Bc1Unorm,
+    /// BC1 (DXT1) sRGB encoded color space.
+    Bc1Srgb,
+    /// BC3 (DXT5) RGBA compression with full 8-bit interpolated alpha channel (16 bytes per 4x4 block).
+    Bc3Unorm,
+    /// BC3 (DXT5) sRGB encoded color space.
+    Bc3Srgb,
+    /// BC7 High-quality ARGB compression for  PBR materials (16 bytes per 4x4 block).
+    Bc7Unorm,
+    /// BC7 sRGB encoded color space.
+    Bc7Srgb,
+}
+
+impl CompressedTextureFormat {
+    /// Returns the block size in bytes for a 4x4 texel block.
+    pub fn block_size(&self) -> u32 {
+        match self {
+            Self::Bc1Unorm | Self::Bc1Srgb => 8,
+            Self::Bc3Unorm | Self::Bc3Srgb | Self::Bc7Unorm | Self::Bc7Srgb => 16,
+        }
+    }
+
+    /// Returns whether this format uses sRGB encoding.
+    pub fn is_srgb(&self) -> bool {
+        matches!(self, Self::Bc1Srgb | Self::Bc3Srgb | Self::Bc7Srgb)
+    }
+}
+
+/// Container for GPU block-compressed texture pixel data (BC1/BC3/BC7).
+#[derive(Debug, Clone)]
+pub struct CompressedTextureData {
+    /// Width of the texture image in pixels.
+    pub width: u32,
+    /// Height of the texture image in pixels.
+    pub height: u32,
+    /// Block compression format (BC1/BC3/BC7).
+    pub format: CompressedTextureFormat,
+    /// Raw block-compressed bytes.
+    pub bytes: Vec<u8>,
+    /// Sampler configuration.
+    pub sampler_config: SamplerConfig,
+    /// Canonical disk source path or label.
+    pub label: String,
+}
+
+impl CompressedTextureData {
+    /// Creates a new compressed texture container.
+    pub fn new(
+        width: u32,
+        height: u32,
+        format: CompressedTextureFormat,
+        bytes: Vec<u8>,
+        label: impl Into<String>,
+    ) -> Self {
+        Self {
+            width,
+            height,
+            format,
+            bytes,
+            sampler_config: SamplerConfig::default(),
+            label: label.into(),
+        }
+    }
+}
+
+/// Grouping container for multi-map PBR material texture asset handles.
+/// Combines Albedo, Normal Map, Metallic-Roughness Map, Ambient Occlusion, and Emissive handles.
+#[derive(Debug, Clone, Default)]
+pub struct PbrMaterialTextures<H> {
+    /// Base color / Albedo map handle (sRGB).
+    pub albedo: H,
+    /// Tangent-space normal map handle (Linear, optional).
+    pub normal: Option<H>,
+    /// Combined metallic and roughness map handle (Linear, optional).
+    pub metallic_roughness: Option<H>,
+    /// Ambient occlusion map handle (Linear, optional).
+    pub ambient_occlusion: Option<H>,
+    /// Self-emissive light map handle (sRGB, optional).
+    pub emissive: Option<H>,
+}
+
+impl<H> PbrMaterialTextures<H> {
+    /// Creates a new PBR material texture set with base albedo map.
+    pub fn new(albedo: H) -> Self {
+        Self {
+            albedo,
+            normal: None,
+            metallic_roughness: None,
+            ambient_occlusion: None,
+            emissive: None,
+        }
+    }
+}

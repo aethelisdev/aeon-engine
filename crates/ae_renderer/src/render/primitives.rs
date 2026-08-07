@@ -9,16 +9,19 @@ pub const VERTICES: &[Vertex] = &[
         position: [0.0, 0.5, 0.0],
         color: [1.0, 0.0, 0.2],
         normal: [0.0, 0.0, 1.0],
+        uv: [0.5, 0.0],
     },
     Vertex {
         position: [-0.5, -0.5, 0.0],
         color: [0.0, 1.0, 0.5],
         normal: [0.0, 0.0, 1.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [0.5, -0.5, 0.0],
         color: [0.2, 0.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [1.0, 1.0],
     },
 ];
 
@@ -29,186 +32,222 @@ pub const CUBE_VERTICES: &[Vertex] = &[
         position: [-0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, 1.0],
+        uv: [0.0, 0.0],
     },
     // Back (Z-)
     Vertex {
         position: [-0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, -1.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [-0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, -1.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, -1.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [-0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, -1.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, -1.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 0.0, -1.0],
+        uv: [0.0, 1.0],
     },
     // Top (Y+)
     Vertex {
         position: [-0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 1.0, 0.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [-0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 1.0, 0.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 1.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [-0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 1.0, 0.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 1.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, 1.0, 0.0],
+        uv: [1.0, 0.0],
     },
     // Bottom (Y-)
     Vertex {
         position: [-0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, -1.0, 0.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, -1.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, -1.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, -1.0, 0.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, -1.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [0.0, -1.0, 0.0],
+        uv: [0.0, 0.0],
     },
     // Right (X+)
     Vertex {
         position: [0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [1.0, 0.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [1.0, 0.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [1.0, 0.0, 0.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [1.0, 0.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [1.0, 0.0, 0.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [1.0, 0.0, 0.0],
+        uv: [0.0, 1.0],
     },
     // Left (X-)
     Vertex {
         position: [-0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [-1.0, 0.0, 0.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [-0.5, -0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [-1.0, 0.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [-0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [-1.0, 0.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-0.5, -0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [-1.0, 0.0, 0.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [-0.5, 0.5, 0.5],
         color: [1.0, 1.0, 1.0],
         normal: [-1.0, 0.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-0.5, 0.5, -0.5],
         color: [1.0, 1.0, 1.0],
         normal: [-1.0, 0.0, 0.0],
+        uv: [0.0, 0.0],
     },
 ];
 
@@ -252,31 +291,37 @@ pub const GRID_QUAD_VERTICES: &[Vertex] = &[
         position: [-2000.0, 0.0, -2000.0],
         color: [0.0; 3],
         normal: [0.0, 1.0, 0.0],
+        uv: [0.0, 0.0],
     },
     Vertex {
         position: [2000.0, 0.0, -2000.0],
         color: [0.0; 3],
         normal: [0.0, 1.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [-2000.0, 0.0, 2000.0],
         color: [0.0; 3],
         normal: [0.0, 1.0, 0.0],
+        uv: [0.0, 1.0],
     },
     Vertex {
         position: [2000.0, 0.0, -2000.0],
         color: [0.0; 3],
         normal: [0.0, 1.0, 0.0],
+        uv: [1.0, 0.0],
     },
     Vertex {
         position: [2000.0, 0.0, 2000.0],
         color: [0.0; 3],
         normal: [0.0, 1.0, 0.0],
+        uv: [1.0, 1.0],
     },
     Vertex {
         position: [-2000.0, 0.0, 2000.0],
         color: [0.0; 3],
         normal: [0.0, 1.0, 0.0],
+        uv: [0.0, 1.0],
     },
 ];
 
@@ -488,11 +533,15 @@ pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex>
             let y = cos_theta;
             let z = sin_phi * sin_theta;
 
+            let u = lon as f32 / longitude_bands as f32;
+            let v = lat as f32 / latitude_bands as f32;
+
             // Sphere radius is 0.5 (to fit a unit bounding box of size 1x1x1)
             raw_vertices.push(Vertex {
                 position: [x * 0.5, y * 0.5, z * 0.5],
                 color: [1.0, 1.0, 1.0],
                 normal: [x, y, z],
+                uv: [u, v],
             });
         }
     }
@@ -537,21 +586,27 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
         let n0 = [x0 * 2.0, 0.0, z0 * 2.0];
         let n1 = [x1 * 2.0, 0.0, z1 * 2.0];
 
+        let u0 = i as f32 / segments as f32;
+        let u1 = (i + 1) as f32 / segments as f32;
+
         // Side Triangle 1
         vertices.push(Vertex {
             position: [x0, 0.5, z0],
             color: [1.0; 3],
             normal: n0,
+            uv: [u0, 0.0],
         });
         vertices.push(Vertex {
             position: [x0, -0.5, z0],
             color: [1.0; 3],
             normal: n0,
+            uv: [u0, 1.0],
         });
         vertices.push(Vertex {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
             normal: n1,
+            uv: [u1, 0.0],
         });
 
         // Side Triangle 2
@@ -559,16 +614,19 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
             normal: n1,
+            uv: [u1, 0.0],
         });
         vertices.push(Vertex {
             position: [x0, -0.5, z0],
             color: [1.0; 3],
             normal: n0,
+            uv: [u0, 1.0],
         });
         vertices.push(Vertex {
             position: [x1, -0.5, z1],
             color: [1.0; 3],
             normal: n1,
+            uv: [u1, 1.0],
         });
 
         // Top cap
@@ -576,16 +634,19 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             position: top_center,
             color: [1.0; 3],
             normal: [0.0, 1.0, 0.0],
+            uv: [0.5, 0.5],
         });
         vertices.push(Vertex {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
             normal: [0.0, 1.0, 0.0],
+            uv: [x1 + 0.5, z1 + 0.5],
         });
         vertices.push(Vertex {
             position: [x0, 0.5, z0],
             color: [1.0; 3],
             normal: [0.0, 1.0, 0.0],
+            uv: [x0 + 0.5, z0 + 0.5],
         });
 
         // Bottom cap
@@ -593,16 +654,19 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             position: bottom_center,
             color: [1.0; 3],
             normal: [0.0, -1.0, 0.0],
+            uv: [0.5, 0.5],
         });
         vertices.push(Vertex {
             position: [x0, -0.5, z0],
             color: [1.0; 3],
             normal: [0.0, -1.0, 0.0],
+            uv: [x0 + 0.5, z0 + 0.5],
         });
         vertices.push(Vertex {
             position: [x1, -0.5, z1],
             color: [1.0; 3],
             normal: [0.0, -1.0, 0.0],
+            uv: [x1 + 0.5, z1 + 0.5],
         });
     }
 
@@ -632,10 +696,14 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
             let y = cylinder_half_height + radius * cos_theta;
             let z = radius * sin_phi * sin_theta;
 
+            let u = seg as f32 / segments as f32;
+            let v = ring as f32 / (rings * 2) as f32;
+
             raw_vertices.push(Vertex {
                 position: [x, y, z],
                 color: [1.0; 3],
                 normal: [x / radius, (y - cylinder_half_height) / radius, z / radius],
+                uv: [u, v],
             });
         }
     }
@@ -657,10 +725,14 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
             let y = -cylinder_half_height + radius * cos_theta;
             let z = radius * sin_phi * sin_theta;
 
+            let u = seg as f32 / segments as f32;
+            let v = 0.5 + (ring as f32 / (rings * 2) as f32);
+
             raw_vertices.push(Vertex {
                 position: [x, y, z],
                 color: [1.0; 3],
                 normal: [x / radius, (y + cylinder_half_height) / radius, z / radius],
+                uv: [u, v],
             });
         }
     }
@@ -744,10 +816,14 @@ pub fn generate_torus(radial_segments: u32, tubular_segments: u32) -> Vec<Vertex
             let ny = sin_v;
             let nz = cos_v * sin_u;
 
+            let tex_u = r_seg as f32 / radial_segments as f32;
+            let tex_v = t_seg as f32 / tubular_segments as f32;
+
             raw_vertices.push(Vertex {
                 position: [x, y, z],
                 color: [1.0; 3],
                 normal: [nx, ny, nz],
+                uv: [tex_u, tex_v],
             });
         }
     }

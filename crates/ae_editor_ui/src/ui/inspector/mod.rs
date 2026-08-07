@@ -77,6 +77,7 @@ impl EngineUi {
         editor_state: &ae_editor::editor_state::EditorState,
         camera: &ae_renderer::camera::Camera,
         models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     ) -> Option<egui::Rect> {
         let ctx = ui.ctx().clone();
         let response = egui::Panel::right("inspector_panel")
@@ -437,6 +438,9 @@ impl EngineUi {
                                 }
                             });
 
+                            // --- TEXTURE & MATERIAL SECTION ---
+                            Self::draw_texture_section(ui, world, entity, textures, ui_actions);
+
                             if let Ok(light) = world.get::<&ae_core::ecs::Light>(entity) {
                                 ui.group(|ui| {
                                     ui.set_width(ui.available_width());
@@ -711,5 +715,158 @@ impl EngineUi {
                 });
             });
         Some(response.response.rect)
+    }
+
+    /// Renders the Texture & Material inspector panel section.
+    /// Shows active sprite/texture reference, handle metadata, and provides interactive buttons
+    /// for picking a texture file from disk or removing/assigning a texture.
+    pub fn draw_texture_section(
+        ui: &mut egui::Ui,
+        world: &hecs::World,
+        entity: hecs::Entity,
+        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui.group(|ui| {
+            ui.set_width(ui.available_width());
+            ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 8.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("🖼️ Texture & Material")
+                        .strong()
+                        .color(egui::Color32::WHITE),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok() {
+                        if ui
+                            .button("🗑")
+                            .on_hover_text("Remove Texture from Entity")
+                            .clicked()
+                        {
+                            ui_actions.push(EngineUiAction::RemoveTextureFromEntity(entity));
+                        }
+                    }
+                });
+            });
+            ui.separator();
+
+            if let Ok(sprite_ref) = world.get::<&ae_core::ecs::SpriteId>(entity) {
+                if let Some(asset) = textures.get(sprite_ref.0) {
+                    let file_name = std::path::Path::new(&asset.source_path)
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| asset.source_path.clone());
+
+                    ui.horizontal(|ui| {
+                        ui.label("Path:");
+                        ui.label(
+                            egui::RichText::new(&file_name)
+                                .color(egui::Color32::LIGHT_BLUE)
+                                .strong(),
+                        )
+                        .on_hover_text(&asset.source_path);
+                    });
+
+                    let max_dim = asset.width.max(asset.height);
+                    let mip_levels = if max_dim > 0 { max_dim.ilog2() + 1 } else { 1 };
+                    ui.horizontal(|ui| {
+                        ui.label("Info:");
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "{} x {} px | sRGB | Mipmaps: {}",
+                                asset.width, asset.height, mip_levels
+                            ))
+                            .color(egui::Color32::GREEN)
+                            .strong(),
+                        );
+                    });
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label("Status:");
+                        ui.label(
+                            egui::RichText::new("Texture Attached")
+                                .color(egui::Color32::GREEN)
+                                .strong(),
+                        );
+                    });
+                }
+
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("📁 Change Texture")
+                        .on_hover_text("Browse disk for .png, .jpg, .tga file to change texture")
+                        .clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+                            .pick_file()
+                        {
+                            ui_actions.push(EngineUiAction::AssignTextureToEntity(
+                                entity,
+                                path.to_string_lossy().to_string(),
+                            ));
+                        }
+                    }
+                });
+
+                // --- TILING & SAMPLER CONTROLS ---
+                ui.separator();
+                ui.label(
+                    egui::RichText::new("🧱 Tiling & Sampler Settings")
+                        .strong()
+                        .color(egui::Color32::WHITE),
+                );
+
+                ui.horizontal(|ui| {
+                    ui.label("Wrap U:");
+                    ui.label(
+                        egui::RichText::new("Repeat")
+                            .color(egui::Color32::LIGHT_GREEN)
+                            .strong(),
+                    )
+                    .on_hover_text("Horizontal texture coordinate repeating");
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Wrap V:");
+                    ui.label(
+                        egui::RichText::new("Repeat")
+                            .color(egui::Color32::LIGHT_GREEN)
+                            .strong(),
+                    )
+                    .on_hover_text("Vertical texture coordinate repeating");
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Anisotropy:");
+                    ui.label(
+                        egui::RichText::new("16x")
+                            .color(egui::Color32::GOLD)
+                            .strong(),
+                    )
+                    .on_hover_text("16x Anisotropic filtering for oblique surface clarity");
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label("No Texture Assigned");
+                    if ui
+                        .button("➕ Add Texture")
+                        .on_hover_text("Browse disk for .png, .jpg file to assign texture")
+                        .clicked()
+                    {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+                            .pick_file()
+                        {
+                            ui_actions.push(EngineUiAction::AssignTextureToEntity(
+                                entity,
+                                path.to_string_lossy().to_string(),
+                            ));
+                        }
+                    }
+                });
+            }
+        });
     }
 }

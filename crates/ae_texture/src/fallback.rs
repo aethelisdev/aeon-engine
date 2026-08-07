@@ -33,6 +33,42 @@ impl FallbackTextureGenerator {
         .with_mipmaps()
     }
 
+    /// Generates a 1x1 default Metallic-Roughness texture `[0, 255, 0, 255]` (Metallic=0.0, Roughness=1.0).
+    pub fn default_metallic_roughness_1x1() -> CpuTextureData {
+        CpuTextureData::new(
+            1,
+            1,
+            vec![0, 255, 0, 255],
+            ColorSpace::Linear,
+            "fallback_metallic_roughness_1x1",
+        )
+        .with_mipmaps()
+    }
+
+    /// Generates a 1x1 default Ambient Occlusion texture `[255, 255, 255, 255]` (AO=1.0).
+    pub fn default_ao_1x1() -> CpuTextureData {
+        CpuTextureData::new(
+            1,
+            1,
+            vec![255, 255, 255, 255],
+            ColorSpace::Linear,
+            "fallback_ao_1x1",
+        )
+        .with_mipmaps()
+    }
+
+    /// Generates a 1x1 black Emissive texture `[0, 0, 0, 255]` (Emissive=0.0).
+    pub fn black_emissive_1x1() -> CpuTextureData {
+        CpuTextureData::new(
+            1,
+            1,
+            vec![0, 0, 0, 255],
+            ColorSpace::Srgb,
+            "fallback_emissive_1x1",
+        )
+        .with_mipmaps()
+    }
+
     /// Generates a magenta-black checkerboard pattern texture for missing or corrupted assets.
     /// # Arguments
     /// * `width` - Target width in pixels.

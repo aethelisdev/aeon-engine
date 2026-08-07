@@ -41,6 +41,8 @@ pub enum EngineUiAction {
     ModifyScale(hecs::Entity, ae_core::ecs::Scale, ae_core::ecs::Scale),
     ModifyColor(hecs::Entity, ae_core::ecs::Color, ae_core::ecs::Color),
     ModifyLightColor(hecs::Entity, [f32; 3], [f32; 3]),
+    AssignTextureToEntity(hecs::Entity, String),
+    RemoveTextureFromEntity(hecs::Entity),
 
     // --- DYNAMIC COMPONENT ACTIONS (Physics) ---
     AddRigidBody(hecs::Entity, ae_core::ecs::RigidBody),

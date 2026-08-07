@@ -4,6 +4,7 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) color: vec3<f32>,
     @location(6) normal: vec3<f32>,
+    @location(8) uv: vec2<f32>,
 }
 
 struct InstanceInput {
@@ -48,12 +49,17 @@ struct LightSpaceUniform {
 @group(2) @binding(1) var shadow_sampler: sampler_comparison;
 @group(2) @binding(2) var<uniform> light_space: LightSpaceUniform;
 
+// --- 3D Diffuse Texture ---
+@group(3) @binding(0) var t_diffuse: texture_2d<f32>;
+@group(3) @binding(1) var s_diffuse: sampler;
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
     @location(1) world_pos: vec3<f32>,
     @location(2) world_normal: vec3<f32>,
     @location(3) frag_pos_light_space: vec4<f32>, // unused explicitly now
+    @location(4) uv: vec2<f32>,
 }
 
 @vertex
@@ -67,7 +73,7 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     var out: VertexOutput;
     let world_p = model_matrix * vec4<f32>(model.position, 1.0);
     out.clip_position = camera.view_proj * world_p;
-    out.color = vec4<f32>(model.color, 1.0) * instance.color;
+    out.color = instance.color;
     out.world_pos = world_p.xyz;
     // Extract pure 3D rotation matrix (removes non-uniform scale distortion on cylinder/sphere normals)
     let rot_matrix = mat3x3<f32>(
@@ -76,6 +82,7 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
         normalize(model_matrix[2].xyz)
     );
     out.world_normal = rot_matrix * model.normal;
+    out.uv = model.uv;
     return out;
 }
 
@@ -148,8 +155,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // 3. Shadow factor [0.0 = full shadow, 1.0 = lit]
     let shadow = sample_shadow_pcf(in.world_pos);
 
+    // 4. Sample Albedo / Diffuse Texture Map
+    let tex_color = textureSample(t_diffuse, s_diffuse, in.uv);
+
     // Combine lighting
-    var color_out = (ambient_color + diffuse_color * shadow) * in.color.rgb;
+    var color_out = (ambient_color + diffuse_color * shadow) * in.color.rgb * tex_color.rgb;
 
     // 4. Atmospheric Depth Fog
     let fog_distance = light.fog_params.w;

@@ -189,7 +189,7 @@ impl SelectionOutlinePass {
     }
 }
 
-/// Creates the Selection Outline pipelines for  5 &  style
+/// Creates the Selection Outline pipelines for high-quality
 /// screen-space silhouette edge detection.
 pub(crate) fn create_outline_pipelines(
     device: &wgpu::Device,

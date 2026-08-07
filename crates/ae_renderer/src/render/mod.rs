@@ -37,6 +37,7 @@ pub struct RenderState {
     pub pipelines: crate::render::pipelines::PipelineManager,
     pub uniforms: crate::render::uniforms::SceneUniforms,
     pub geometry: crate::render::primitives::GeometrySystem,
+    pub default_white_texture: crate::render::TextureAsset,
 
     pub post_process: crate::render::post_process::PostProcessSystem,
     pub shadow: crate::render::shadow::ShadowSystem,
@@ -227,17 +228,29 @@ impl RenderState {
         // Buffer Prep
         let mut all_instances = Vec::new();
         let tri_start = 0;
-        all_instances.extend_from_slice(&triangle_instances);
+        for (inst, _) in &triangle_instances {
+            all_instances.push(*inst);
+        }
         let cube_start = all_instances.len();
-        all_instances.extend_from_slice(&cube_instances);
+        for (inst, _) in &cube_instances {
+            all_instances.push(*inst);
+        }
         let sphere_start = all_instances.len();
-        all_instances.extend_from_slice(&sphere_instances);
+        for (inst, _) in &sphere_instances {
+            all_instances.push(*inst);
+        }
         let cylinder_start = all_instances.len();
-        all_instances.extend_from_slice(&cylinder_instances);
+        for (inst, _) in &cylinder_instances {
+            all_instances.push(*inst);
+        }
         let capsule_start = all_instances.len();
-        all_instances.extend_from_slice(&capsule_instances);
+        for (inst, _) in &capsule_instances {
+            all_instances.push(*inst);
+        }
         let torus_start = all_instances.len();
-        all_instances.extend_from_slice(&torus_instances);
+        for (inst, _) in &torus_instances {
+            all_instances.push(*inst);
+        }
         let sprite_start = all_instances.len();
         for (_, _, i) in &transparent_objs {
             all_instances.push(*i);
@@ -248,7 +261,9 @@ impl RenderState {
             );
         for (handle, insts) in &model_instance_data {
             model_starts.insert(*handle, all_instances.len());
-            all_instances.extend_from_slice(insts);
+            for (inst, _) in insts {
+                all_instances.push(*inst);
+            }
         }
 
         self.geometry
@@ -388,99 +403,127 @@ impl RenderState {
 
             if !all_instances.is_empty() {
                 pass.set_pipeline(&self.pipelines.render_pipeline);
+
+                let draw_primitive_batch =
+                    |pass: &mut wgpu::RenderPass,
+                     instances: &[(Instance, Option<crate::asset::AssetHandle>)],
+                     buf_start: usize,
+                     v_buf: &wgpu::Buffer,
+                     num_verts: u32| {
+                        let mut cur = 0;
+                        while cur < instances.len() {
+                            let start = cur;
+                            let tex_h = instances[cur].1;
+                            while cur < instances.len() && instances[cur].1 == tex_h {
+                                cur += 1;
+                            }
+                            let bg = tex_h
+                                .and_then(|h| asset_manager.textures.get(h))
+                                .map(|t| &t.bind_group)
+                                .unwrap_or(&self.default_white_texture.bind_group);
+                            pass.set_bind_group(3, bg, &[]);
+                            pass.set_vertex_buffer(0, v_buf.slice(..));
+                            pass.set_vertex_buffer(
+                                1,
+                                self.geometry
+                                    .instance_buffer
+                                    .slice(((buf_start + start) * INSTANCE_SIZE) as u64..),
+                            );
+                            pass.draw(0..num_verts, 0..(cur - start) as u32);
+                        }
+                    };
+
                 if !triangle_instances.is_empty() {
-                    pass.set_vertex_buffer(0, self.geometry.vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice((tri_start * INSTANCE_SIZE) as u64..),
+                    draw_primitive_batch(
+                        &mut pass,
+                        &triangle_instances,
+                        tri_start,
+                        &self.geometry.vertex_buffer,
+                        3,
                     );
-                    pass.draw(0..3, 0..triangle_instances.len() as u32);
                 }
                 if !cube_instances.is_empty() {
-                    pass.set_vertex_buffer(0, self.geometry.cube_vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice((cube_start * INSTANCE_SIZE) as u64..),
+                    draw_primitive_batch(
+                        &mut pass,
+                        &cube_instances,
+                        cube_start,
+                        &self.geometry.cube_vertex_buffer,
+                        36,
                     );
-                    pass.draw(0..36, 0..cube_instances.len() as u32);
                 }
                 if !sphere_instances.is_empty() {
-                    pass.set_vertex_buffer(0, self.geometry.sphere_vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice((sphere_start * INSTANCE_SIZE) as u64..),
-                    );
-                    pass.draw(
-                        0..self.geometry.sphere_num_vertices,
-                        0..sphere_instances.len() as u32,
+                    draw_primitive_batch(
+                        &mut pass,
+                        &sphere_instances,
+                        sphere_start,
+                        &self.geometry.sphere_vertex_buffer,
+                        self.geometry.sphere_num_vertices,
                     );
                 }
                 if !cylinder_instances.is_empty() {
-                    pass.set_vertex_buffer(0, self.geometry.cylinder_vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice((cylinder_start * INSTANCE_SIZE) as u64..),
-                    );
-                    pass.draw(
-                        0..self.geometry.cylinder_num_vertices,
-                        0..cylinder_instances.len() as u32,
+                    draw_primitive_batch(
+                        &mut pass,
+                        &cylinder_instances,
+                        cylinder_start,
+                        &self.geometry.cylinder_vertex_buffer,
+                        self.geometry.cylinder_num_vertices,
                     );
                 }
                 if !capsule_instances.is_empty() {
-                    pass.set_vertex_buffer(0, self.geometry.capsule_vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice((capsule_start * INSTANCE_SIZE) as u64..),
-                    );
-                    pass.draw(
-                        0..self.geometry.capsule_num_vertices,
-                        0..capsule_instances.len() as u32,
+                    draw_primitive_batch(
+                        &mut pass,
+                        &capsule_instances,
+                        capsule_start,
+                        &self.geometry.capsule_vertex_buffer,
+                        self.geometry.capsule_num_vertices,
                     );
                 }
                 if !torus_instances.is_empty() {
-                    pass.set_vertex_buffer(0, self.geometry.torus_vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice((torus_start * INSTANCE_SIZE) as u64..),
-                    );
-                    pass.draw(
-                        0..self.geometry.torus_num_vertices,
-                        0..torus_instances.len() as u32,
+                    draw_primitive_batch(
+                        &mut pass,
+                        &torus_instances,
+                        torus_start,
+                        &self.geometry.torus_vertex_buffer,
+                        self.geometry.torus_num_vertices,
                     );
                 }
                 for (handle, m) in asset_manager.models.iter() {
-                    let c = model_instance_data
-                        .get(&handle)
-                        .map(|v| v.len())
-                        .unwrap_or(0) as u32;
-                    if c > 0 {
-                        pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                        pass.set_vertex_buffer(
-                            1,
-                            self.geometry.instance_buffer.slice(
-                                ((*model_starts.get(&handle).unwrap_or(&0)) * INSTANCE_SIZE)
-                                    as u64..,
-                            ),
-                        );
-                        pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                        pass.draw_indexed(0..m.num_indices, 0, 0..c);
+                    if let Some(insts) = model_instance_data.get(&handle) {
+                        if !insts.is_empty() {
+                            let start_offset = *model_starts.get(&handle).unwrap_or(&0);
+                            let mut cur = 0;
+                            while cur < insts.len() {
+                                let start = cur;
+                                let tex_h = insts[cur].1;
+                                while cur < insts.len() && insts[cur].1 == tex_h {
+                                    cur += 1;
+                                }
+                                let bg = tex_h
+                                    .and_then(|h| asset_manager.textures.get(h))
+                                    .map(|t| &t.bind_group)
+                                    .unwrap_or(&self.default_white_texture.bind_group);
+
+                                pass.set_bind_group(3, bg, &[]);
+                                pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                                pass.set_vertex_buffer(
+                                    1,
+                                    self.geometry
+                                        .instance_buffer
+                                        .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
+                                );
+                                pass.set_index_buffer(
+                                    m.index_buffer.slice(..),
+                                    wgpu::IndexFormat::Uint32,
+                                );
+                                pass.draw_indexed(0..m.num_indices, 0, 0..(cur - start) as u32);
+                            }
+                        }
                     }
                 }
 
                 if options.wireframe_enabled {
                     pass.set_pipeline(&self.pipelines.wireframe_pipeline);
+                    pass.set_bind_group(3, &self.default_white_texture.bind_group, &[]);
                     if !cube_instances.is_empty() {
                         pass.set_vertex_buffer(0, self.geometry.cube_vertex_buffer.slice(..));
                         pass.set_vertex_buffer(
@@ -610,7 +653,7 @@ impl RenderState {
             self.graphics_settings.bloom_enabled,
         );
 
-        // --- UNREAL ENGINE & BLENDER STYLE SCREEN-SPACE SILHOUETTE OUTLINE PASS ---
+        // --- SCREEN-SPACE SILHOUETTE OUTLINE PASS ---
         let selected_prims = &scene.selected_primitive_instances;
         let selected_models = &scene.selected_model_instances;
 

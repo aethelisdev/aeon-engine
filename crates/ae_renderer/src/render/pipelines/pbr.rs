@@ -8,6 +8,7 @@ pub(crate) fn create_pbr_pipelines(
     camera_bind_group_layout: &wgpu::BindGroupLayout,
     light_bind_group_layout: &wgpu::BindGroupLayout,
     shadow_bind_group_layout: &wgpu::BindGroupLayout,
+    texture_bind_group_layout: &wgpu::BindGroupLayout,
     scene_format: wgpu::TextureFormat,
     msaa_samples: u32,
 ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
@@ -19,6 +20,7 @@ pub(crate) fn create_pbr_pipelines(
             Some(camera_bind_group_layout),
             Some(light_bind_group_layout),
             Some(shadow_bind_group_layout),
+            Some(texture_bind_group_layout),
         ],
         immediate_size: 0,
     });

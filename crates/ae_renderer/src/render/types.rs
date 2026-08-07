@@ -34,14 +34,17 @@ impl Default for Viewport {
 /// sorts transparent objects back-to-front for correct alpha blending.
 pub struct RenderScene {
     pub light_uniform: LightUniform,
-    pub triangle_instances: Vec<Instance>,
-    pub cube_instances: Vec<Instance>,
-    pub sphere_instances: Vec<Instance>,
-    pub cylinder_instances: Vec<Instance>,
-    pub capsule_instances: Vec<Instance>,
-    pub torus_instances: Vec<Instance>,
+    pub triangle_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    pub cube_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    pub sphere_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    pub cylinder_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    pub capsule_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    pub torus_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
     pub transparent_objs: Vec<(f32, crate::asset::AssetHandle, Instance)>,
-    pub model_instance_data: std::collections::HashMap<crate::asset::AssetHandle, Vec<Instance>>,
+    pub model_instance_data: std::collections::HashMap<
+        crate::asset::AssetHandle,
+        Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    >,
     pub selected_primitive_instances: Vec<(ae_core::ecs::Shape, Instance)>,
     pub selected_model_instances: Vec<(crate::asset::AssetHandle, Instance)>,
     /// List of entity IDs that were determined to be visible within the camera's frustum during the culling pass.
@@ -179,7 +182,7 @@ impl RenderScene {
         let mut transparent_objs: Vec<(f32, crate::asset::AssetHandle, Instance)> = Vec::new();
         let mut model_instance_data: std::collections::HashMap<
             crate::asset::AssetHandle,
-            Vec<Instance>,
+            Vec<(Instance, Option<crate::asset::AssetHandle>)>,
         > = std::collections::HashMap::new();
         let mut selected_primitive_instances = Vec::new();
         let mut selected_model_instances = Vec::new();
@@ -319,7 +322,7 @@ impl RenderScene {
 
                 let base_color = color
                     .map(|c| [c.r, c.g, c.b, c.a])
-                    .unwrap_or([0.3, 0.3, 0.3, 1.0]);
+                    .unwrap_or([1.0, 1.0, 1.0, 1.0]);
                 let final_color = if selected_entities.contains(&entity) {
                     [
                         (base_color[0] * 1.1 + 0.1).min(1.0),
@@ -361,24 +364,34 @@ impl RenderScene {
                 }
 
                 if let Some(m_handle) = active_model_handle {
+                    let tex_handle = sprite_id.map(|s_id| s_id.0);
                     model_instance_data
                         .entry(m_handle)
                         .or_default()
-                        .push(instance);
+                        .push((instance, tex_handle));
+                } else if let Some(s) = shape {
+                    let tex_handle = sprite_id.map(|s_id| s_id.0);
+                    match s {
+                        ae_core::ecs::Shape::Cube => cube_instances.push((instance, tex_handle)),
+                        ae_core::ecs::Shape::Triangle => {
+                            triangle_instances.push((instance, tex_handle))
+                        }
+                        ae_core::ecs::Shape::Sphere => {
+                            sphere_instances.push((instance, tex_handle))
+                        }
+                        ae_core::ecs::Shape::Cylinder => {
+                            cylinder_instances.push((instance, tex_handle))
+                        }
+                        ae_core::ecs::Shape::Capsule => {
+                            capsule_instances.push((instance, tex_handle))
+                        }
+                        ae_core::ecs::Shape::Torus => torus_instances.push((instance, tex_handle)),
+                    }
                 } else if let Some(s_id) = sprite_id {
                     use cgmath::InnerSpace;
                     let cam_pos = camera.position_vec3();
                     let dist = (p_world - cam_pos).magnitude();
                     transparent_objs.push((dist, s_id.0, instance));
-                } else if let Some(s) = shape {
-                    match s {
-                        ae_core::ecs::Shape::Cube => cube_instances.push(instance),
-                        ae_core::ecs::Shape::Triangle => triangle_instances.push(instance),
-                        ae_core::ecs::Shape::Sphere => sphere_instances.push(instance),
-                        ae_core::ecs::Shape::Cylinder => cylinder_instances.push(instance),
-                        ae_core::ecs::Shape::Capsule => capsule_instances.push(instance),
-                        ae_core::ecs::Shape::Torus => torus_instances.push(instance),
-                    }
                 }
             }
         }
@@ -407,6 +420,7 @@ pub struct Vertex {
     pub position: [f32; 3],
     pub color: [f32; 3],
     pub normal: [f32; 3],
+    pub uv: [f32; 2],
 }
 
 impl Vertex {
@@ -429,6 +443,11 @@ impl Vertex {
                     offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
                     shader_location: 6,
                     format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 9]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x2,
                 },
             ],
         }

@@ -36,6 +36,7 @@ impl PipelineManager {
             camera_bgl,
             light_bgl,
             shadow_bgl,
+            texture_bgl,
             scene_format,
             msaa_samples,
         );
@@ -84,6 +85,7 @@ impl PipelineManager {
             camera_bgl,
             light_bgl,
             shadow_bgl,
+            texture_bgl,
             scene_format,
             msaa_samples,
         );
