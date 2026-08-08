@@ -10,6 +10,7 @@ members = [
     "crates/ae_physics",
     "crates/ae_audio",
     "crates/ae_texture",
+    "crates/ae_animation",
     "crates/ae_engine",
 ]
 resolver = "2"

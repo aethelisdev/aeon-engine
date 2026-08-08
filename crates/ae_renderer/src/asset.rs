@@ -216,11 +216,14 @@ pub struct ParsedModelData {
     pub all_vertices: Vec<crate::render::types::Vertex>,
     pub all_indices: Vec<u32>,
     pub raw_positions: Vec<[f32; 3]>,
+    pub raw_skin_vertices: Vec<crate::render::types::SkinVertex>,
     pub min: [f32; 3],
     pub max: [f32; 3],
     pub canonical_path: std::path::PathBuf,
     pub original_path: String,
     pub final_name: String,
+    pub skeleton: Option<ae_animation::Skeleton>,
+    pub animations: Vec<ae_animation::AnimationClip>,
 }
 
 /// Verifies if a given file path is secure for the engine to load.

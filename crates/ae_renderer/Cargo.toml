@@ -16,9 +16,11 @@ serde = { version = "1.0.228", features = ["derive"] }
 slotmap = { version = "1.1.1", features = ["serde"] }
 rayon = "1.12.0"
 hecs = "0.11.0"
+glam = "0.33.0"
 ae_core = { path = "../ae_core" }
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_texture = { path = "../ae_texture" }
+ae_animation = { path = "../ae_animation" }
 
 
 

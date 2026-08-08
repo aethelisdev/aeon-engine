@@ -88,6 +88,11 @@ pub enum EngineUiAction {
     ModifyAudioSource(hecs::Entity, ae_audio::AudioSource),
     AddPlayerTag(hecs::Entity),
     RemovePlayerTag(hecs::Entity),
+
+    // --- ANIMATION ACTIONS ---
+    AddAnimationPlayer(hecs::Entity),
+    RemoveAnimationPlayer(hecs::Entity),
+    ModifyAnimationPlayer(hecs::Entity, ae_animation::AnimationPlayer),
 }
 
 /// Lightweight snapshot of a single log entry – owned, no Mutex dependency.

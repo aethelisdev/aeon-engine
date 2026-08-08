@@ -152,6 +152,15 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::RemovePlayerTag(ent) => {
                 components::handle_remove_player_tag(ctx, ent)
             }
+            crate::ui::EngineUiAction::AddAnimationPlayer(ent) => {
+                components::handle_add_animation_player(ctx, ent)
+            }
+            crate::ui::EngineUiAction::RemoveAnimationPlayer(ent) => {
+                components::handle_remove_animation_player(ctx, ent)
+            }
+            crate::ui::EngineUiAction::ModifyAnimationPlayer(ent, player) => {
+                components::handle_modify_animation_player(ctx, ent, player)
+            }
 
             // --- CAMERA & SETTINGS ACTIONS ---
             crate::ui::EngineUiAction::SetCameraMode(mode) => {

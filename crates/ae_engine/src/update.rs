@@ -201,6 +201,77 @@ impl AeEngine {
         self.audio_manager
             .update(&self.ecs.world, cam_pos, cam_right, is_audio_enabled);
 
+        // --- SKELETAL ANIMATION PLAYER SYSTEM UPDATE ---
+        let dt = self.time.delta_time;
+        let mut candidate_entities = Vec::new();
+
+        for (entity, player, model_id) in self
+            .ecs
+            .world
+            .query_mut::<(
+                hecs::Entity,
+                &mut ae_animation::AnimationPlayer,
+                &ae_core::ecs::ModelId,
+            )>()
+            .into_iter()
+        {
+            candidate_entities.push((entity, model_id.0, player.current_clip.is_none()));
+        }
+
+        for (entity, model_id, needs_clip) in candidate_entities {
+            if self
+                .ecs
+                .world
+                .get::<&ae_animation::Skeleton>(entity)
+                .is_err()
+            {
+                if let Some(asset) = self.asset_manager.models.get(model_id) {
+                    if let Some(ref skel) = asset.skeleton {
+                        let _ = self.ecs.world.insert_one(entity, skel.clone());
+                    }
+                    if needs_clip && !asset.animations.is_empty() {
+                        if let Ok(mut player) = self
+                            .ecs
+                            .world
+                            .get::<&mut ae_animation::AnimationPlayer>(entity)
+                        {
+                            player.play(asset.animations[0].clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut skinning_updates = Vec::new();
+
+        for (_entity, player, skeleton, model_id) in self
+            .ecs
+            .world
+            .query_mut::<(
+                hecs::Entity,
+                &mut ae_animation::AnimationPlayer,
+                &ae_animation::Skeleton,
+                &ae_core::ecs::ModelId,
+            )>()
+            .into_iter()
+        {
+            player.update(dt);
+            if player.state == ae_animation::AnimationState::Playing {
+                let local_poses = player.evaluate_pose(skeleton);
+                let globals = skeleton.evaluate_global_transforms(&local_poses);
+                let palette = ae_animation::compute_skinning_matrices(skeleton, &globals);
+                skinning_updates.push((model_id.0, palette));
+            }
+        }
+
+        for (model_handle, palette) in skinning_updates {
+            self.render_state.update_model_skinning(
+                &mut self.asset_manager,
+                model_handle,
+                &palette,
+            );
+        }
+
         self.profiler.end_ecs();
     }
 

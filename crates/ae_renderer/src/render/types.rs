@@ -619,6 +619,15 @@ pub struct TextureAsset {
     pub height: u32,
 }
 
+/// Vertex skinning bind information (bind position, normal, joint indices and weights).
+#[derive(Debug, Clone, Copy)]
+pub struct SkinVertex {
+    pub bind_position: [f32; 3],
+    pub bind_normal: [f32; 3],
+    pub joint_indices: [u32; 4],
+    pub joint_weights: [f32; 4],
+}
+
 /// GPU-uploaded 3D model asset with vertex/index buffers, AABB bounds,
 /// and raw mesh data for physics shape generation.
 pub struct ModelAsset {
@@ -632,6 +641,14 @@ pub struct ModelAsset {
     pub raw_vertices: Vec<[f32; 3]>,
     /// Raw indices extracted for physics shape generation (Trimesh / ConvexHull)
     pub raw_indices: Vec<u32>,
+    /// Raw skinning vertex data for CPU animation matrix evaluation
+    pub raw_skin_vertices: Vec<SkinVertex>,
+    /// CPU mirror of GPU vertices for real-time WGPU queue.write_buffer updates
+    pub gpu_vertices: Vec<Vertex>,
+    /// Skeleton hierarchy (if model contains bones/skinning)
+    pub skeleton: Option<ae_animation::Skeleton>,
+    /// Animation clips embedded in the 3D model
+    pub animations: Vec<ae_animation::AnimationClip>,
 }
 
 impl ModelAsset {

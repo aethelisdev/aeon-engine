@@ -15,6 +15,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 ae_core = { path = "../ae_core" }
 ae_editor = { path = "../ae_editor" }
 ae_audio = { path = "../ae_audio" }
+ae_animation = { path = "../ae_animation" }
 ae_renderer = { path = "../ae_renderer" }
 winit = "0.30.13"
 wgpu = "30.0.0"

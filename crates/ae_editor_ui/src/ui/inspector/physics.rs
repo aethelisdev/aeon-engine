@@ -447,6 +447,12 @@ impl EngineUi {
                         ui.close();
                     }
                 }
+                if world.get::<&ae_animation::AnimationPlayer>(entity).is_err() {
+                    if ui.button("🎬 AnimationPlayer").clicked() {
+                        ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
+                        ui.close();
+                    }
+                }
             });
         });
     }

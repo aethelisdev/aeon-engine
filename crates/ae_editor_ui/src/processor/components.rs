@@ -244,6 +244,29 @@ pub fn handle_remove_player_tag(ctx: &mut UiContext, entity: hecs::Entity) {
     log::info!("🎮 Removed PlayerTag from entity {:?}", entity);
 }
 
+/// Handles adding AnimationPlayer component to an entity.
+pub fn handle_add_animation_player(ctx: &mut UiContext, entity: hecs::Entity) {
+    let _ = ctx
+        .world
+        .insert_one(entity, ae_animation::AnimationPlayer::new());
+}
+
+/// Handles removing AnimationPlayer component from an entity.
+pub fn handle_remove_animation_player(ctx: &mut UiContext, entity: hecs::Entity) {
+    let _ = ctx
+        .world
+        .remove_one::<ae_animation::AnimationPlayer>(entity);
+}
+
+/// Handles modifying AnimationPlayer component on an entity.
+pub fn handle_modify_animation_player(
+    ctx: &mut UiContext,
+    entity: hecs::Entity,
+    player: ae_animation::AnimationPlayer,
+) {
+    let _ = ctx.world.insert_one(entity, player);
+}
+
 /// Handles loading a texture file from disk and assigning a `SpriteId` component to an entity.
 pub fn handle_assign_texture(ctx: &mut UiContext, entity: hecs::Entity, path: String) {
     let handle = ctx.render_state.load_texture(ctx.asset_manager, &path);

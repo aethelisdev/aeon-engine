@@ -34,6 +34,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "ae_animation"
+version = "0.7.0"
+dependencies = [
+ "ae_core",
+ "bytemuck",
+ "glam 0.33.2",
+ "hecs",
+ "log",
+ "serde",
+]
+
+[[package]]
 name = "ae_audio"
 version = "0.7.0"
 dependencies = [
@@ -82,6 +94,7 @@ dependencies = [
 name = "ae_editor_ui"
 version = "0.7.0"
 dependencies = [
+ "ae_animation",
  "ae_audio",
  "ae_core",
  "ae_editor",
@@ -103,6 +116,7 @@ dependencies = [
 name = "ae_engine"
 version = "0.7.0"
 dependencies = [
+ "ae_animation",
  "ae_audio",
  "ae_core",
  "ae_editor",
@@ -173,11 +187,13 @@ dependencies = [
 name = "ae_renderer"
 version = "0.7.0"
 dependencies = [
+ "ae_animation",
  "ae_core",
  "ae_plugin_api",
  "ae_texture",
  "bytemuck",
  "cgmath",
+ "glam 0.33.2",
  "gltf",
  "hecs",
  "image",
@@ -1518,6 +1534,7 @@ checksum = "7f22fb22f065b308be0d8724e3706c7fa3fc2a6c7d6899df4cad7860e7a75436"
 dependencies = [
  "approx 0.5.1",
  "libm",
+ "serde_core",
 ]
 
 [[package]]
