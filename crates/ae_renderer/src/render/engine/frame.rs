@@ -1,0 +1,763 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+use super::state::{RenderOptions, RenderState};
+use crate::render::types::{INSTANCE_SIZE, Instance, OverlayRenderer, RenderError, ViewportRect};
+use crate::render::viewport_texture::ViewportTexture;
+use winit::window::Window;
+
+impl RenderState {
+    /// Executes the full frame render pipeline: shadow pass → main pass (sky, grid,
+    /// opaque geometry, wireframe, sprites, overlays) → bloom/post-process → egui UI.
+    pub fn render(
+        &mut self,
+        _world: &hecs::World,
+        scene: crate::render::types::RenderScene,
+        camera: &ae_core::camera::Camera,
+        overlays: &[&dyn OverlayRenderer],
+        asset_manager: &crate::asset::AssetManager,
+        enabled_modules: &std::collections::HashSet<ae_core::modules::EngineModule>,
+        options: &RenderOptions,
+        ui_renderer: Option<
+            &mut dyn FnMut(
+                &wgpu::Device,
+                &wgpu::Queue,
+                &mut wgpu::CommandEncoder,
+                &Window,
+                &wgpu::TextureView,
+                Option<&wgpu::TextureView>,
+            ) -> ViewportRect,
+        >,
+    ) -> Result<(), RenderError> {
+        if self.size.width == 0 || self.size.height == 0 {
+            return Ok(());
+        }
+
+        // Resize viewport texture and post-process systems if the last known viewport rect size changed or is not yet initialized
+        let scale = self.window.scale_factor() as f32;
+        let vp_w = ((self.last_viewport_rect.max_x - self.last_viewport_rect.min_x) * scale)
+            .max(0.0) as u32;
+        let vp_h = ((self.last_viewport_rect.max_y - self.last_viewport_rect.min_y) * scale)
+            .max(0.0) as u32;
+        if vp_w > 0 && vp_h > 0 {
+            let needs_resize = match &self.viewport_texture {
+                Some(vt) => vt.width != vp_w || vt.height != vp_h,
+                None => true,
+            };
+            if needs_resize {
+                self.viewport_texture = Some(ViewportTexture::new(
+                    &self.device,
+                    vp_w,
+                    vp_h,
+                    self.config.format,
+                    "Viewport Texture",
+                ));
+
+                // Re-configure post-process pipeline intermediate targets to viewport size
+                let mut vp_config = self.config.clone();
+                vp_config.width = vp_w;
+                vp_config.height = vp_h;
+                self.post_process.resize(
+                    &self.device,
+                    &vp_config,
+                    self.graphics_settings.msaa_samples,
+                );
+            }
+            if self.outline.width != vp_w || self.outline.height != vp_h {
+                self.outline.resize(&self.device, &self.queue, vp_w, vp_h);
+            }
+        }
+
+        let render_enabled = enabled_modules.contains(&ae_core::modules::EngineModule::Render);
+
+        if !render_enabled {
+            let acquire_start = std::time::Instant::now();
+            let output = match self.surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(tex)
+                | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
+                wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                    self.surface.configure(&self.device, &self.config);
+                    return Err(RenderError::SurfaceLost);
+                }
+                other => return Err(RenderError::Other(format!("{:?}", other))),
+            };
+            let acquire_wait = acquire_start.elapsed();
+            let surface_view = output
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Encoder"),
+                });
+
+            let env_color = self.graphics_settings.environment_color;
+            let clear_rgb = wgpu::Color {
+                r: (env_color[0] as f64).powf(2.2),
+                g: (env_color[1] as f64).powf(2.2),
+                b: (env_color[2] as f64).powf(2.2),
+                a: 1.0,
+            };
+            {
+                // Pass 1: Clear OS Surface View
+                let _clear_surface_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Clear OS Surface Pass (Render Disabled)"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &surface_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear_rgb),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+            }
+
+            if let Some(vt) = &self.viewport_texture {
+                // Pass 2: Clear 3D Viewport Texture (different dimensions from surface_view)
+                let _clear_vp_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Clear Viewport Texture Pass (Render Disabled)"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &vt.view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(clear_rgb),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+            }
+
+            if let Some(render_ui) = ui_renderer {
+                let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.egui_view);
+                self.last_viewport_rect = render_ui(
+                    &self.device,
+                    &self.queue,
+                    &mut encoder,
+                    &self.window,
+                    &surface_view,
+                    vt_view,
+                );
+            }
+
+            self.queue.submit(std::iter::once(encoder.finish()));
+            let present_start = std::time::Instant::now();
+            self.queue.present(output);
+            let present_wait = present_start.elapsed();
+
+            self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
+
+            return Ok(());
+        }
+
+        let triangle_instances = scene.triangle_instances;
+        let cube_instances = scene.cube_instances;
+        let sphere_instances = scene.sphere_instances;
+        let cylinder_instances = scene.cylinder_instances;
+        let capsule_instances = scene.capsule_instances;
+        let torus_instances = scene.torus_instances;
+        let mut transparent_objs = scene.transparent_objs;
+        let model_instance_data = scene.model_instance_data;
+
+        transparent_objs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Buffer Prep
+        let mut all_instances = Vec::new();
+        let tri_start = 0;
+        for (inst, _) in &triangle_instances {
+            all_instances.push(*inst);
+        }
+        let cube_start = all_instances.len();
+        for (inst, _) in &cube_instances {
+            all_instances.push(*inst);
+        }
+        let sphere_start = all_instances.len();
+        for (inst, _) in &sphere_instances {
+            all_instances.push(*inst);
+        }
+        let cylinder_start = all_instances.len();
+        for (inst, _) in &cylinder_instances {
+            all_instances.push(*inst);
+        }
+        let capsule_start = all_instances.len();
+        for (inst, _) in &capsule_instances {
+            all_instances.push(*inst);
+        }
+        let torus_start = all_instances.len();
+        for (inst, _) in &torus_instances {
+            all_instances.push(*inst);
+        }
+        let sprite_start = all_instances.len();
+        for (_, _, i) in &transparent_objs {
+            all_instances.push(*i);
+        }
+        let mut model_starts =
+            std::collections::HashMap::<crate::asset::AssetHandle, usize>::with_capacity(
+                asset_manager.models.capacity(),
+            );
+        for (handle, insts) in &model_instance_data {
+            model_starts.insert(*handle, all_instances.len());
+            for (inst, _) in insts {
+                all_instances.push(*inst);
+            }
+        }
+
+        self.geometry
+            .update_instances(&self.device, &self.queue, &all_instances);
+
+        self.uniforms.update(&self.queue, camera);
+        self.uniforms
+            .update_environment(&self.queue, &self.graphics_settings);
+
+        // Shadow Cascades share the sun vector
+        self.shadow.update_cascades(
+            &self.queue,
+            &self.graphics_settings,
+            camera,
+            cgmath::Vector3::new(
+                self.uniforms.light_uniform.direction[0],
+                self.uniforms.light_uniform.direction[1],
+                self.uniforms.light_uniform.direction[2],
+            ),
+        );
+
+        // Write bloom intensity uniform
+        self.queue.write_buffer(
+            &self.post_process.bloom_params_buffer,
+            0,
+            bytemuck::cast_slice(&[self.graphics_settings.bloom_intensity]),
+        );
+
+        let acquire_start = std::time::Instant::now();
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(tex)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                return Err(RenderError::SurfaceLost);
+            }
+            other => return Err(RenderError::Other(format!("{:?}", other))),
+        };
+        let acquire_wait = acquire_start.elapsed();
+        let surface_view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Encoder"),
+            });
+
+        self.shadow.execute_pass(
+            &mut encoder,
+            &self.graphics_settings,
+            &self.geometry,
+            &self.geometry.instance_buffer,
+            all_instances.len(),
+            triangle_instances.len(),
+            tri_start,
+            cube_instances.len(),
+            cube_start,
+            sphere_instances.len(),
+            sphere_start,
+            cylinder_instances.len(),
+            cylinder_start,
+            capsule_instances.len(),
+            capsule_start,
+            torus_instances.len(),
+            torus_start,
+            asset_manager,
+            &model_instance_data,
+            &model_starts,
+        );
+
+        // PASS 1: MAIN
+        {
+            let (color_view, resolve_target) = if self.post_process.msaa_samples > 1 {
+                (
+                    &self.post_process.multisampled_framebuffer,
+                    Some(&self.post_process.scene_texture_view),
+                )
+            } else {
+                (&self.post_process.scene_texture_view, None)
+            };
+
+            let env_color = self.graphics_settings.environment_color;
+            let clear_rgb = wgpu::Color {
+                r: (env_color[0] as f64).powf(2.2),
+                g: (env_color[1] as f64).powf(2.2),
+                b: (env_color[2] as f64).powf(2.2),
+                a: 1.0,
+            };
+
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Main Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: color_view,
+                    resolve_target,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_rgb),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.post_process.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_bind_group(0, &self.uniforms.camera_bind_group, &[]);
+            pass.set_bind_group(1, &self.uniforms.light_bind_group, &[]);
+            pass.set_bind_group(2, &self.shadow.shadow_bind_group, &[]);
+
+            // --- SKY ---
+            pass.set_pipeline(&self.pipelines.sky_pipeline);
+            pass.set_bind_group(1, &self.uniforms.sky_bind_group, &[]);
+            pass.draw(0..3, 0..1);
+
+            // Restore light group for opaque geometry
+            pass.set_bind_group(1, &self.uniforms.light_bind_group, &[]);
+
+            // --- GRID ---
+            if options.grid_enabled {
+                pass.set_pipeline(&self.pipelines.grid_pipeline);
+                pass.set_vertex_buffer(0, self.geometry.grid_vertex_buffer.slice(..));
+                pass.draw(0..6, 0..1);
+            }
+
+            if !all_instances.is_empty() {
+                pass.set_pipeline(&self.pipelines.render_pipeline);
+
+                let draw_primitive_batch =
+                    |pass: &mut wgpu::RenderPass,
+                     instances: &[(Instance, Option<crate::asset::AssetHandle>)],
+                     buf_start: usize,
+                     v_buf: &wgpu::Buffer,
+                     num_verts: u32| {
+                        let mut cur = 0;
+                        while cur < instances.len() {
+                            let start = cur;
+                            let tex_h = instances[cur].1;
+                            while cur < instances.len() && instances[cur].1 == tex_h {
+                                cur += 1;
+                            }
+                            let bg = tex_h
+                                .and_then(|h| asset_manager.textures.get(h))
+                                .map(|t| &t.bind_group)
+                                .unwrap_or(&self.default_white_texture.bind_group);
+                            pass.set_bind_group(3, bg, &[]);
+                            pass.set_vertex_buffer(0, v_buf.slice(..));
+                            pass.set_vertex_buffer(
+                                1,
+                                self.geometry
+                                    .instance_buffer
+                                    .slice(((buf_start + start) * INSTANCE_SIZE) as u64..),
+                            );
+                            pass.draw(0..num_verts, 0..(cur - start) as u32);
+                        }
+                    };
+
+                if !triangle_instances.is_empty() {
+                    draw_primitive_batch(
+                        &mut pass,
+                        &triangle_instances,
+                        tri_start,
+                        &self.geometry.vertex_buffer,
+                        3,
+                    );
+                }
+                if !cube_instances.is_empty() {
+                    draw_primitive_batch(
+                        &mut pass,
+                        &cube_instances,
+                        cube_start,
+                        &self.geometry.cube_vertex_buffer,
+                        36,
+                    );
+                }
+                if !sphere_instances.is_empty() {
+                    draw_primitive_batch(
+                        &mut pass,
+                        &sphere_instances,
+                        sphere_start,
+                        &self.geometry.sphere_vertex_buffer,
+                        self.geometry.sphere_num_vertices,
+                    );
+                }
+                if !cylinder_instances.is_empty() {
+                    draw_primitive_batch(
+                        &mut pass,
+                        &cylinder_instances,
+                        cylinder_start,
+                        &self.geometry.cylinder_vertex_buffer,
+                        self.geometry.cylinder_num_vertices,
+                    );
+                }
+                if !capsule_instances.is_empty() {
+                    draw_primitive_batch(
+                        &mut pass,
+                        &capsule_instances,
+                        capsule_start,
+                        &self.geometry.capsule_vertex_buffer,
+                        self.geometry.capsule_num_vertices,
+                    );
+                }
+                if !torus_instances.is_empty() {
+                    draw_primitive_batch(
+                        &mut pass,
+                        &torus_instances,
+                        torus_start,
+                        &self.geometry.torus_vertex_buffer,
+                        self.geometry.torus_num_vertices,
+                    );
+                }
+                for (handle, m) in asset_manager.models.iter() {
+                    if let Some(insts) = model_instance_data.get(&handle) {
+                        if !insts.is_empty() {
+                            let start_offset = *model_starts.get(&handle).unwrap_or(&0);
+                            let mut cur = 0;
+                            while cur < insts.len() {
+                                let start = cur;
+                                let tex_h = insts[cur].1;
+                                while cur < insts.len() && insts[cur].1 == tex_h {
+                                    cur += 1;
+                                }
+                                let bg = tex_h
+                                    .and_then(|h| asset_manager.textures.get(h))
+                                    .map(|t| &t.bind_group)
+                                    .unwrap_or(&self.default_white_texture.bind_group);
+
+                                pass.set_bind_group(3, bg, &[]);
+                                pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                                pass.set_vertex_buffer(
+                                    1,
+                                    self.geometry
+                                        .instance_buffer
+                                        .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
+                                );
+                                pass.set_index_buffer(
+                                    m.index_buffer.slice(..),
+                                    wgpu::IndexFormat::Uint32,
+                                );
+                                pass.draw_indexed(0..m.num_indices, 0, 0..(cur - start) as u32);
+                            }
+                        }
+                    }
+                }
+
+                if options.wireframe_enabled {
+                    pass.set_pipeline(&self.pipelines.wireframe_pipeline);
+                    pass.set_bind_group(3, &self.default_white_texture.bind_group, &[]);
+                    if !cube_instances.is_empty() {
+                        pass.set_vertex_buffer(0, self.geometry.cube_vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice((cube_start * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.draw(0..36, 0..cube_instances.len() as u32);
+                    }
+                    if !sphere_instances.is_empty() {
+                        pass.set_vertex_buffer(0, self.geometry.sphere_vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice((sphere_start * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.draw(
+                            0..self.geometry.sphere_num_vertices,
+                            0..sphere_instances.len() as u32,
+                        );
+                    }
+                    if !cylinder_instances.is_empty() {
+                        pass.set_vertex_buffer(0, self.geometry.cylinder_vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice((cylinder_start * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.draw(
+                            0..self.geometry.cylinder_num_vertices,
+                            0..cylinder_instances.len() as u32,
+                        );
+                    }
+                    if !capsule_instances.is_empty() {
+                        pass.set_vertex_buffer(0, self.geometry.capsule_vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice((capsule_start * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.draw(
+                            0..self.geometry.capsule_num_vertices,
+                            0..capsule_instances.len() as u32,
+                        );
+                    }
+                    if !torus_instances.is_empty() {
+                        pass.set_vertex_buffer(0, self.geometry.torus_vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice((torus_start * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.draw(
+                            0..self.geometry.torus_num_vertices,
+                            0..torus_instances.len() as u32,
+                        );
+                    }
+                    for (handle, m) in asset_manager.models.iter() {
+                        let c = model_instance_data
+                            .get(&handle)
+                            .map(|v| v.len())
+                            .unwrap_or(0) as u32;
+                        if c > 0 {
+                            pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                            pass.set_vertex_buffer(
+                                1,
+                                self.geometry.instance_buffer.slice(
+                                    ((*model_starts.get(&handle).unwrap_or(&0)) * INSTANCE_SIZE)
+                                        as u64..,
+                                ),
+                            );
+                            pass.set_index_buffer(
+                                m.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint32,
+                            );
+                            pass.draw_indexed(0..m.num_indices, 0, 0..c);
+                        }
+                    }
+                }
+
+                if !transparent_objs.is_empty() {
+                    pass.set_pipeline(&self.pipelines.sprite_pipeline);
+                    pass.set_bind_group(2, &self.uniforms.light_bind_group, &[]);
+                    pass.set_vertex_buffer(0, self.geometry.quad_vertex_buffer.slice(..));
+                    let mut cur = 0;
+                    while cur < transparent_objs.len() {
+                        let start = cur;
+                        let tid = transparent_objs[cur].1;
+                        while cur < transparent_objs.len() && transparent_objs[cur].1 == tid {
+                            cur += 1;
+                        }
+                        if let Some(t) = asset_manager.textures.get(tid) {
+                            pass.set_bind_group(1, &t.bind_group, &[]);
+                            pass.set_vertex_buffer(
+                                1,
+                                self.geometry
+                                    .instance_buffer
+                                    .slice(((sprite_start + start) * INSTANCE_SIZE) as u64..),
+                            );
+                            pass.draw(0..6, 0..(cur - start) as u32);
+                        }
+                    }
+                }
+            }
+
+            // Editor Overlays (gizmo, debug lines, etc.)
+            for ov in overlays {
+                ov.draw_overlay(&self.queue, &mut pass);
+            }
+        }
+
+        // BLOOM & POST PROCESS
+        let target_view = self
+            .viewport_texture
+            .as_ref()
+            .map(|vt| &vt.view)
+            .unwrap_or(&surface_view);
+        self.post_process.execute(
+            &mut encoder,
+            target_view,
+            &self.queue,
+            self.graphics_settings.bloom_enabled,
+        );
+
+        // --- SCREEN-SPACE SILHOUETTE OUTLINE PASS ---
+        let selected_prims = &scene.selected_primitive_instances;
+        let selected_models = &scene.selected_model_instances;
+
+        if let (Some(mask_view), Some(depth_view), Some(composite_bg)) = (
+            self.outline.mask_view.as_ref(),
+            self.outline.mask_depth_view.as_ref(),
+            self.outline.composite_bind_group.as_ref(),
+        ) {
+            if !selected_prims.is_empty() || !selected_models.is_empty() {
+                use wgpu::util::DeviceExt;
+
+                {
+                    let mut mask_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("Selection Mask Pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: mask_view,
+                            resolve_target: None,
+                            depth_slice: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: depth_view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+
+                    mask_pass.set_pipeline(&self.outline.mask_pipeline);
+                    mask_pass.set_bind_group(0, &self.uniforms.camera_bind_group, &[]);
+
+                    for (shape, inst) in selected_prims {
+                        let single_inst_buf =
+                            self.device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: Some("Selected Single Instance Buffer"),
+                                    contents: bytemuck::cast_slice(&[*inst]),
+                                    usage: wgpu::BufferUsages::VERTEX,
+                                });
+                        mask_pass.set_vertex_buffer(1, single_inst_buf.slice(..));
+
+                        match shape {
+                            ae_core::ecs::Shape::Cube => {
+                                mask_pass.set_vertex_buffer(
+                                    0,
+                                    self.geometry.cube_vertex_buffer.slice(..),
+                                );
+                                mask_pass.draw(0..36, 0..1);
+                            }
+                            ae_core::ecs::Shape::Sphere => {
+                                mask_pass.set_vertex_buffer(
+                                    0,
+                                    self.geometry.sphere_vertex_buffer.slice(..),
+                                );
+                                mask_pass.draw(0..self.geometry.sphere_num_vertices, 0..1);
+                            }
+                            ae_core::ecs::Shape::Cylinder => {
+                                mask_pass.set_vertex_buffer(
+                                    0,
+                                    self.geometry.cylinder_vertex_buffer.slice(..),
+                                );
+                                mask_pass.draw(0..self.geometry.cylinder_num_vertices, 0..1);
+                            }
+                            ae_core::ecs::Shape::Capsule => {
+                                mask_pass.set_vertex_buffer(
+                                    0,
+                                    self.geometry.capsule_vertex_buffer.slice(..),
+                                );
+                                mask_pass.draw(0..self.geometry.capsule_num_vertices, 0..1);
+                            }
+                            ae_core::ecs::Shape::Torus => {
+                                mask_pass.set_vertex_buffer(
+                                    0,
+                                    self.geometry.torus_vertex_buffer.slice(..),
+                                );
+                                mask_pass.draw(0..self.geometry.torus_num_vertices, 0..1);
+                            }
+                            ae_core::ecs::Shape::Triangle => {
+                                mask_pass
+                                    .set_vertex_buffer(0, self.geometry.vertex_buffer.slice(..));
+                                mask_pass.draw(0..3, 0..1);
+                            }
+                        }
+                    }
+
+                    for (m_handle, inst) in selected_models {
+                        if let Some(m) = asset_manager.models.get(*m_handle) {
+                            let single_inst_buf =
+                                self.device
+                                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                        label: Some("Selected Model Instance Buffer"),
+                                        contents: bytemuck::cast_slice(&[*inst]),
+                                        usage: wgpu::BufferUsages::VERTEX,
+                                    });
+                            mask_pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                            mask_pass.set_vertex_buffer(1, single_inst_buf.slice(..));
+                            mask_pass.set_index_buffer(
+                                m.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint32,
+                            );
+                            mask_pass.draw_indexed(0..m.num_indices, 0, 0..1);
+                        }
+                    }
+                }
+
+                {
+                    let target_view = self
+                        .viewport_texture
+                        .as_ref()
+                        .map(|vt| &vt.view)
+                        .unwrap_or(&surface_view);
+
+                    let mut composite_pass =
+                        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                            label: Some("Outline Composite Pass"),
+                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                view: target_view,
+                                resolve_target: None,
+                                depth_slice: None,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Load,
+                                    store: wgpu::StoreOp::Store,
+                                },
+                            })],
+                            depth_stencil_attachment: None,
+                            timestamp_writes: None,
+                            occlusion_query_set: None,
+                            multiview_mask: None,
+                        });
+
+                    composite_pass.set_pipeline(&self.outline.composite_pipeline);
+                    composite_pass.set_bind_group(0, composite_bg, &[]);
+                    composite_pass.draw(0..3, 0..1);
+                }
+            }
+        }
+
+        if let Some(render_ui) = ui_renderer {
+            let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.egui_view);
+            self.last_viewport_rect = render_ui(
+                &self.device,
+                &self.queue,
+                &mut encoder,
+                &self.window,
+                &surface_view,
+                vt_view,
+            );
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        let present_start = std::time::Instant::now();
+        self.queue.present(output);
+        let present_wait = present_start.elapsed();
+
+        self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
+
+        Ok(())
+    }
+}
