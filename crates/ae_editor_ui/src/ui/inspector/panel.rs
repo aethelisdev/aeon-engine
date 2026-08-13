@@ -556,7 +556,7 @@ impl EngineUi {
                                         ui.label("Lighting Settings");
                                         ui.horizontal(|ui| {
                                             ui.label("Color:");
-                                            let mut edit_color = light.color.clone();
+                                            let mut edit_color = light.color;
                                             let res = ui.color_edit_button_rgb(&mut edit_color);
                                             if res.changed() {
                                                 ui_actions.push(EngineUiAction::ModifyLightColor(

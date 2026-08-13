@@ -115,7 +115,7 @@ impl RenderState {
             .copied()
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
-        let supported_present_modes = surface_caps.present_modes.clone();
+        let supported_present_modes = surface_caps.present_modes;
         let present_mode =
             choose_present_mode(graphics_settings.fps_limit, &supported_present_modes);
 

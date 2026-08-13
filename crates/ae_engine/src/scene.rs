@@ -251,10 +251,10 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
         // 1. Parallel parse GLTF/GLB models using Rayon
         let parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)> =
             models_list
-                .par_iter()
+                .into_par_iter()
                 .map(|path| {
-                    let res = ae_renderer::render::resources::parse_gltf_file(path, String::new());
-                    (path.clone(), res)
+                    let res = ae_renderer::render::resources::parse_gltf_file(&path, String::new());
+                    (path, res)
                 })
                 .collect();
 
@@ -263,15 +263,15 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
             String,
             Result<(std::path::PathBuf, image::RgbaImage), String>,
         )> = textures_list
-            .par_iter()
+            .into_par_iter()
             .map(|path| {
-                let canonical = std::fs::canonicalize(path)
+                let canonical = std::fs::canonicalize(&path)
                     .map_err(|e| format!("Failed to canonicalize texture path '{}': {}", path, e));
                 let res = canonical.and_then(|c_path| {
-                    ae_renderer::render::resources::parse_texture_file(path)
+                    ae_renderer::render::resources::parse_texture_file(&path)
                         .map(|rgba| (c_path, rgba))
                 });
-                (path.clone(), res)
+                (path, res)
             })
             .collect();
 

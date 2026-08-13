@@ -38,13 +38,12 @@ pub fn paste_clipboard(
     }
 
     let mut batch = Vec::new();
-    let clipboard_snapshots = editor.clipboard.clone();
 
     // Clear existing selection and select the newly spawned copies
     editor.selected_entities.clear();
     editor.selected_entities_set.clear();
 
-    for snap in clipboard_snapshots {
+    for snap in &editor.clipboard {
         let new_ent = snap.spawn(world);
 
         // Apply slight offset to avoid exact position overlap

@@ -20,7 +20,7 @@ pub fn delete_selected(
     }
 
     let mut batch = Vec::new();
-    let to_delete = editor.selected_entities.clone();
+    let to_delete = std::mem::take(&mut editor.selected_entities);
 
     for ent in to_delete {
         if world.contains(ent) {
@@ -106,10 +106,9 @@ pub fn duplicate_selected(
     }
 
     let mut batch = Vec::new();
-    let to_duplicate = editor.selected_entities.clone();
+    let to_duplicate = std::mem::take(&mut editor.selected_entities);
 
     // Prepare new selection
-    editor.selected_entities.clear();
     editor.selected_entities_set.clear();
 
     for ent in to_duplicate {

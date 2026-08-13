@@ -61,9 +61,9 @@ pub fn generate_mipmap_chain(
 
     let mut cur_w = base_width;
     let mut cur_h = base_height;
-    let mut cur_bytes = base_bytes.to_vec();
 
     while cur_w > 1 || cur_h > 1 {
+        let cur_bytes = &chain.last().unwrap().bytes;
         let next_w = (cur_w / 2).max(1);
         let next_h = (cur_h / 2).max(1);
         let mut next_bytes = Vec::with_capacity((next_w * next_h * 4) as usize);
@@ -92,10 +92,9 @@ pub fn generate_mipmap_chain(
             }
         }
 
-        chain.push(CpuMipmapLevel::new(next_w, next_h, next_bytes.clone()));
+        chain.push(CpuMipmapLevel::new(next_w, next_h, next_bytes));
         cur_w = next_w;
         cur_h = next_h;
-        cur_bytes = next_bytes;
     }
 
     chain

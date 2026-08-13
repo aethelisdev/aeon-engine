@@ -41,14 +41,14 @@ pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex>
             let second = first + (longitude_bands + 1) as usize;
 
             // Triangle 1
-            vertices.push(raw_vertices[first].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[first + 1].clone());
+            vertices.push(raw_vertices[first]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[first + 1]);
 
             // Triangle 2
-            vertices.push(raw_vertices[first + 1].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[second + 1].clone());
+            vertices.push(raw_vertices[first + 1]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[second + 1]);
         }
     }
     vertices
@@ -232,13 +232,13 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
             let first = (ring * (segments + 1) + seg) as usize;
             let second = first + (segments + 1) as usize;
 
-            vertices.push(raw_vertices[first].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[first + 1].clone());
+            vertices.push(raw_vertices[first]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[first + 1]);
 
-            vertices.push(raw_vertices[first + 1].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[second + 1].clone());
+            vertices.push(raw_vertices[first + 1]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[second + 1]);
         }
     }
 
@@ -248,13 +248,13 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
             let first = (base_idx + (ring * (segments + 1) + seg) as usize) as usize;
             let second = first + (segments + 1) as usize;
 
-            vertices.push(raw_vertices[first].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[first + 1].clone());
+            vertices.push(raw_vertices[first]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[first + 1]);
 
-            vertices.push(raw_vertices[first + 1].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[second + 1].clone());
+            vertices.push(raw_vertices[first + 1]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[second + 1]);
         }
     }
 
@@ -267,13 +267,13 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
         let b0 = bottom_rim_start + seg as usize;
         let b1 = b0 + 1;
 
-        vertices.push(raw_vertices[t0].clone());
-        vertices.push(raw_vertices[b0].clone());
-        vertices.push(raw_vertices[t1].clone());
+        vertices.push(raw_vertices[t0]);
+        vertices.push(raw_vertices[b0]);
+        vertices.push(raw_vertices[t1]);
 
-        vertices.push(raw_vertices[t1].clone());
-        vertices.push(raw_vertices[b0].clone());
-        vertices.push(raw_vertices[b1].clone());
+        vertices.push(raw_vertices[t1]);
+        vertices.push(raw_vertices[b0]);
+        vertices.push(raw_vertices[b1]);
     }
 
     vertices
@@ -322,13 +322,13 @@ pub fn generate_torus(radial_segments: u32, tubular_segments: u32) -> Vec<Vertex
             let first = (r_seg * (tubular_segments + 1) + t_seg) as usize;
             let second = first + (tubular_segments + 1) as usize;
 
-            vertices.push(raw_vertices[first].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[first + 1].clone());
+            vertices.push(raw_vertices[first]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[first + 1]);
 
-            vertices.push(raw_vertices[first + 1].clone());
-            vertices.push(raw_vertices[second].clone());
-            vertices.push(raw_vertices[second + 1].clone());
+            vertices.push(raw_vertices[first + 1]);
+            vertices.push(raw_vertices[second]);
+            vertices.push(raw_vertices[second + 1]);
         }
     }
 

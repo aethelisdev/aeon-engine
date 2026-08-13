@@ -91,7 +91,7 @@ impl AeEngine {
                 }
             });
         } else if shortcut_res.trigger_save_scene {
-            if let Some(ref path) = self.editor.active_scene_path.clone() {
+            if let Some(path) = self.editor.active_scene_path.as_ref() {
                 self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::SaveSceneToPath(
                     path.clone(),
                 )]);

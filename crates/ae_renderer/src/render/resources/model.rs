@@ -17,18 +17,20 @@ impl RenderState {
             return (id, data.min, data.max);
         }
 
+        let v_label = format!("{} Vertex Buffer", data.original_path);
         let vertex_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&(data.original_path.clone() + " Vertex Buffer")),
+                label: Some(&v_label),
                 contents: bytemuck::cast_slice(&data.all_vertices),
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             });
 
+        let i_label = format!("{} Index Buffer", data.original_path);
         let index_buffer = self
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&(data.original_path.clone() + " Index Buffer")),
+                label: Some(&i_label),
                 contents: bytemuck::cast_slice(&data.all_indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
@@ -45,8 +47,8 @@ impl RenderState {
             raw_indices: data.all_indices,
             raw_skin_vertices: data.raw_skin_vertices,
             gpu_vertices: data.all_vertices,
-            skeleton: data.skeleton.clone(),
-            animations: data.animations.clone(),
+            skeleton: data.skeleton,
+            animations: data.animations,
         });
 
         assets.model_path_map.insert(data.canonical_path, handle);
@@ -200,7 +202,7 @@ impl RenderState {
 
         let data = crate::asset::ParsedModelData {
             all_vertices,
-            all_indices: all_indices.clone(),
+            all_indices,
             raw_positions,
             raw_skin_vertices,
             min,
