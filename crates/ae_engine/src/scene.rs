@@ -358,7 +358,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                         let new_ent = engine.ecs.world.spawn(());
 
                         // Track parenting link for hierarchy reconstruction
-                        let parent_name_opt = se.parent_name.clone();
+                        let parent_name_opt = se.parent_name;
                         if let Some(ref n) = se.name {
                             name_to_entity.insert(n.0.clone(), new_ent);
                         }

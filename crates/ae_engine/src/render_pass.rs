@@ -167,7 +167,7 @@ impl AeEngine {
             overlays.push(&self.debug_renderer);
         }
 
-        let scene = if render_enabled {
+        let mut scene = if render_enabled {
             self.extract_render_scene()
         } else {
             ae_renderer::render::types::RenderScene {
@@ -196,7 +196,7 @@ impl AeEngine {
 
         if render_enabled {
             self.resources.insert(ae_plugin_api::VisibleEntities {
-                entities: scene.visible_entities.clone(),
+                entities: std::mem::take(&mut scene.visible_entities),
             });
         }
 

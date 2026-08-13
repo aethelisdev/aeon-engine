@@ -20,7 +20,7 @@ impl AeEngine {
 
         // Track loaded texture files for live hot-reloading
         for path in self.asset_manager.texture_path_map.keys() {
-            self.texture_watcher.track_file(path.clone(), None);
+            self.texture_watcher.track_file(path, None);
         }
 
         // Live Texture Hot-Reloading: Check disk modifications every 15 frames (~250ms)

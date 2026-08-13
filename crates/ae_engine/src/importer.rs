@@ -76,7 +76,8 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                             .into_owned();
 
                         // Calculate Auto Scaling & Spawn
-                        spawn_model(engine, base_name.clone(), model_id, min, max, path_str);
+                        log::info!("Asset loaded and spawned entity: {:?}", base_name);
+                        spawn_model(engine, base_name, model_id, min, max, path_str);
                         engine.ui.status_message = Some((
                             vec![(
                                 "Asset loaded successfully!".to_string(),
@@ -85,7 +86,6 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                             std::time::Instant::now(),
                         ));
                         engine.ui.is_loading_assets = false;
-                        log::info!("Asset loaded and spawned entity: {:?}", base_name);
                 }
             }
             Err(e) => {
@@ -123,7 +123,6 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                     .render_state
                     .upload_model_data(&mut engine.asset_manager, parsed_data);
 
-                spawn_model(engine, final_name.clone(), model_id, min, max, &path_str);
                 engine.ui.status_message = Some((
                     vec![(
                         format!("{} loaded successfully!", final_name),
@@ -133,6 +132,7 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                 ));
                 engine.ui.is_loading_assets = false;
                 log::info!("Async GLTF loaded and spawned entity: {:?}", final_name);
+                spawn_model(engine, final_name, model_id, min, max, &path_str);
             }
             Err(e) => {
                 log::error!("Async model import failed: {}", e);
@@ -203,9 +203,9 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                 let texture_id = engine
                     .render_state
                     .load_texture(&mut engine.asset_manager, path_str);
-                spawn_sprite(engine, final_name.clone(), texture_id);
                 engine.ui.is_loading_assets = false;
                 log::info!("Image loaded and spawned entity: {:?}", final_name);
+                spawn_sprite(engine, final_name, texture_id);
             }
         } else if ext_str == "gltf" || ext_str == "glb" {
             engine.ui.is_loading_assets = true;
@@ -221,12 +221,11 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                 engine.model_receivers.push(rx);
 
                 let path_str_clone = path_str.to_string();
-                let name_clone = final_name.clone();
 
                 rayon::spawn(move || {
                     let result = ae_renderer::render::resources::parse_gltf_file(
                         &path_str_clone,
-                        name_clone,
+                        final_name,
                     );
                     let _ = tx.send(result);
                 });

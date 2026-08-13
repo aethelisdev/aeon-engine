@@ -171,11 +171,11 @@ mod tests {
 
         let mut watcher = TextureFileWatcher::new();
         let old_time = SystemTime::now() - Duration::from_secs(10);
-        watcher.track_file(test_file.clone(), Some(old_time));
+        watcher.track_file(&test_file, Some(old_time));
         assert_eq!(watcher.tracked_count(), 1);
 
         // Calling track_file again must NOT overwrite stored old_time
-        watcher.track_file(test_file.clone(), None);
+        watcher.track_file(&test_file, None);
 
         let modified = watcher.check_modified_files();
         assert!(

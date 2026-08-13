@@ -25,16 +25,16 @@ impl TextureFileWatcher {
     /// Registers or updates a tracked texture path with an initial timestamp.
     /// Uses `entry().or_insert_with()` so existing file timestamps are preserved
     /// and not overwritten on every frame check.
-    pub fn track_file(&mut self, path: PathBuf, initial_modified: Option<SystemTime>) {
-        if let std::collections::hash_map::Entry::Vacant(entry) = self.tracked_files.entry(path) {
+    pub fn track_file(&mut self, path: &Path, initial_modified: Option<SystemTime>) {
+        if !self.tracked_files.contains_key(path) {
             let time = initial_modified
                 .or_else(|| {
-                    std::fs::metadata(entry.key())
+                    std::fs::metadata(path)
                         .and_then(|m| m.modified())
                         .ok()
                 })
                 .unwrap_or_else(SystemTime::now);
-            entry.insert(time);
+            self.tracked_files.insert(path.to_path_buf(), time);
         }
     }
 
