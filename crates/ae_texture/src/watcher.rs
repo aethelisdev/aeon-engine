@@ -28,11 +28,7 @@ impl TextureFileWatcher {
     pub fn track_file(&mut self, path: &Path, initial_modified: Option<SystemTime>) {
         if !self.tracked_files.contains_key(path) {
             let time = initial_modified
-                .or_else(|| {
-                    std::fs::metadata(path)
-                        .and_then(|m| m.modified())
-                        .ok()
-                })
+                .or_else(|| std::fs::metadata(path).and_then(|m| m.modified()).ok())
                 .unwrap_or_else(SystemTime::now);
             self.tracked_files.insert(path.to_path_buf(), time);
         }

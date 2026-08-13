@@ -300,241 +300,237 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
     {
         engine.scene_rx = None; // Reset the receiver immediately
 
-            match result {
-                Ok(scene_data) => {
-                    log::info!("Scene parsing finished, starting GPU upload of scene assets.");
+        match result {
+            Ok(scene_data) => {
+                log::info!("Scene parsing finished, starting GPU upload of scene assets.");
 
-                    // 1. Upload Models to GPU
-                    for (orig_path, model_res) in scene_data.parsed_models {
-                        match model_res {
-                            Ok(parsed_data) => {
-                                engine
-                                    .render_state
-                                    .upload_model_data(&mut engine.asset_manager, parsed_data);
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to parse model '{}' during scene load: {}",
-                                    orig_path,
-                                    e
-                                );
-                            }
-                        }
-                    }
-
-                    // 2. Upload Textures to GPU
-                    for (orig_path, tex_res) in scene_data.parsed_textures {
-                        match tex_res {
-                            Ok((c_path, rgba)) => {
-                                engine.render_state.upload_texture_data(
-                                    &mut engine.asset_manager,
-                                    c_path,
-                                    rgba,
-                                    &orig_path,
-                                );
-                            }
-                            Err(e) => {
-                                log::error!(
-                                    "Failed to parse texture '{}' during scene load: {}",
-                                    orig_path,
-                                    e
-                                );
-                            }
-                        }
-                    }
-
-                    // 3. Destruct and Clear old world resources completely
-                    engine.ecs.world = World::new();
-                    engine.physics_world.clear();
-                    engine.editor.selected_entities.clear();
-                    engine.editor.undo_stack.clear();
-                    engine.editor.redo_stack.clear();
-
-                    let mut name_to_entity = std::collections::HashMap::new();
-                    let mut entity_parent_links = Vec::new();
-
-                    // 4. Instantiation of new entities
-                    for se in scene_data.entities {
-                        let new_ent = engine.ecs.world.spawn(());
-
-                        // Track parenting link for hierarchy reconstruction
-                        let parent_name_opt = se.parent_name;
-                        if let Some(ref n) = se.name {
-                            name_to_entity.insert(n.0.clone(), new_ent);
-                        }
-                        if let Some(pn) = parent_name_opt {
-                            entity_parent_links.push((new_ent, pn));
-                        }
-
-                        if let Some(n) = se.name {
-                            let _ = engine.ecs.world.insert_one(new_ent, n);
-                        }
-                        if let Some(p) = se.position {
-                            let _ = engine.ecs.world.insert_one(new_ent, p);
-                        }
-                        if let Some(r) = se.rotation {
-                            let _ = engine.ecs.world.insert_one(new_ent, r);
-                        }
-                        if let Some(s) = se.scale {
-                            let _ = engine.ecs.world.insert_one(new_ent, s);
-                        }
-                        if let Some(c) = se.color {
-                            let _ = engine.ecs.world.insert_one(new_ent, c);
-                        }
-                        if let Some(l) = se.light {
-                            let _ = engine.ecs.world.insert_one(new_ent, l);
-                        }
-                        if let Some(v) = se.velocity {
-                            let _ = engine.ecs.world.insert_one(new_ent, v);
-                        }
-                        if let Some(sh) = se.shape {
-                            let _ = engine.ecs.world.insert_one(new_ent, sh);
-                        }
-                        if let Some(b) = se.bounding_radius {
-                            let _ = engine.ecs.world.insert_one(new_ent, b);
-                        }
-                        if let Some(bbox) = se.bounding_box {
-                            let _ = engine.ecs.world.insert_one(new_ent, bbox);
-                        }
-                        if se.is_player {
-                            let _ = engine.ecs.world.insert_one(new_ent, PlayerTag);
-                        }
-                        if let Some(rb) = se.rigid_body {
-                            let _ = engine.ecs.world.insert_one(new_ent, rb);
-                        }
-                        if let Some(col) = se.collider {
-                            let _ = engine.ecs.world.insert_one(new_ent, col);
-                        }
-                        if let Some(ctrl) = se.character_controller {
-                            let _ = engine.ecs.world.insert_one(new_ent, ctrl);
-                        }
-
-                        if se.rigid_body.is_some()
-                            || se.collider.is_some()
-                            || se.character_controller.is_some()
-                        {
-                            let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
-                        }
-
-                        if let Some(lg) = se.lod_group {
-                            let l0_h = std::fs::canonicalize(&lg.lod_0_path)
-                                .ok()
-                                .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-                            let l1_h = lg
-                                .lod_1_path
-                                .as_ref()
-                                .and_then(|p| std::fs::canonicalize(p).ok())
-                                .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-                            let l2_h = lg
-                                .lod_2_path
-                                .as_ref()
-                                .and_then(|p| std::fs::canonicalize(p).ok())
-                                .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-
-                            if let Some(l0) = l0_h {
-                                let lod_comp = LodGroup {
-                                    lod_0: l0,
-                                    lod_1: l1_h,
-                                    lod_2: l2_h,
-                                    threshold_1: lg.threshold_1,
-                                    threshold_2: lg.threshold_2,
-                                };
-                                let _ = engine.ecs.world.insert_one(new_ent, lod_comp);
-                            }
-                        }
-
-                        // Assign GPU assets
-                        if let Some(mp) = se.model_path {
-                            let canonical_path = std::fs::canonicalize(&mp).ok();
-                            let handle = canonical_path
-                                .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
-                            if let Some(mid) = handle {
-                                let _ = engine.ecs.world.insert_one(new_ent, ModelId(mid));
-
-                                // Reconstruct bounding sphere if missing
-                                if se.bounding_radius.is_none()
-                                    && let Some(m) = engine.asset_manager.models.get(mid)
-                                {
-                                    let size_x = m.max[0] - m.min[0];
-                                    let size_y = m.max[1] - m.min[1];
-                                    let size_z = m.max[2] - m.min[2];
-                                    let max_dim = size_x.max(size_y).max(size_z);
-                                    let radius = max_dim / 2.0;
-                                    let _ = engine
-                                        .ecs
-                                        .world
-                                        .insert_one(new_ent, BoundingRadius(radius));
-                                }
-                            }
-                        }
-
-                        if let Some(sp) = se.sprite_path {
-                            let canonical_path = std::fs::canonicalize(&sp).ok();
-                            let handle = canonical_path.and_then(|c| {
-                                engine.asset_manager.texture_path_map.get(&c).copied()
-                            });
-                            if let Some(tid) = handle {
-                                let _ = engine.ecs.world.insert_one(new_ent, SpriteId(tid));
-                            }
-                        }
-                    }
-
-                    // Reconstruct parent-child hierarchy links
-                    for (child_ent, parent_name) in entity_parent_links {
-                        if let Some(&parent_ent) = name_to_entity.get(&parent_name) {
-                            let _ = engine.ecs.world.insert_one(child_ent, Parent(parent_ent));
-
-                            if let Ok(mut children) =
-                                engine.ecs.world.get::<&mut Children>(parent_ent)
-                            {
-                                if !children.0.contains(&child_ent) {
-                                    children.0.push(child_ent);
-                                }
-                            } else {
-                                let _ = engine
-                                    .ecs
-                                    .world
-                                    .insert_one(parent_ent, Children(vec![child_ent]));
-                            }
-                        }
-                    }
-
-                    // Force calculate transforms after loaded scene setup
-                    ae_core::ecs::update_hierarchy_transforms(&mut engine.ecs.world);
-
-                    // Sync newly loaded scene colliders and rigidbodies into Rapier3D physics world
-                    engine
-                        .physics_world
-                        .sync_ecs_to_physics(&mut engine.ecs.world, |handle| {
+                // 1. Upload Models to GPU
+                for (orig_path, model_res) in scene_data.parsed_models {
+                    match model_res {
+                        Ok(parsed_data) => {
                             engine
-                                .asset_manager
-                                .get_physics_mesh_data(handle)
-                                .map(|(v, i)| (v.as_slice(), i.as_slice()))
-                        });
+                                .render_state
+                                .upload_model_data(&mut engine.asset_manager, parsed_data);
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Failed to parse model '{}' during scene load: {}",
+                                orig_path,
+                                e
+                            );
+                        }
+                    }
+                }
 
-                    engine.ui.is_loading_assets = false;
-                    engine.ui.status_message = Some((
-                        vec![(
-                            "Scene loaded successfully!".to_string(),
-                            egui::Color32::LIGHT_BLUE,
-                        )],
-                        std::time::Instant::now(),
-                    ));
-                    log::info!("Async scene load fully processed. Active world rebuilt.");
+                // 2. Upload Textures to GPU
+                for (orig_path, tex_res) in scene_data.parsed_textures {
+                    match tex_res {
+                        Ok((c_path, rgba)) => {
+                            engine.render_state.upload_texture_data(
+                                &mut engine.asset_manager,
+                                c_path,
+                                rgba,
+                                &orig_path,
+                            );
+                        }
+                        Err(e) => {
+                            log::error!(
+                                "Failed to parse texture '{}' during scene load: {}",
+                                orig_path,
+                                e
+                            );
+                        }
+                    }
                 }
-                Err(e) => {
-                    engine.ui.is_loading_assets = false;
-                    engine.ui.status_message = Some((
-                        vec![(
-                            format!("Async scene load failed: {}", e),
-                            egui::Color32::RED,
-                        )],
-                        std::time::Instant::now(),
-                    ));
+
+                // 3. Destruct and Clear old world resources completely
+                engine.ecs.world = World::new();
+                engine.physics_world.clear();
+                engine.editor.selected_entities.clear();
+                engine.editor.undo_stack.clear();
+                engine.editor.redo_stack.clear();
+
+                let mut name_to_entity = std::collections::HashMap::new();
+                let mut entity_parent_links = Vec::new();
+
+                // 4. Instantiation of new entities
+                for se in scene_data.entities {
+                    let new_ent = engine.ecs.world.spawn(());
+
+                    // Track parenting link for hierarchy reconstruction
+                    let parent_name_opt = se.parent_name;
+                    if let Some(ref n) = se.name {
+                        name_to_entity.insert(n.0.clone(), new_ent);
+                    }
+                    if let Some(pn) = parent_name_opt {
+                        entity_parent_links.push((new_ent, pn));
+                    }
+
+                    if let Some(n) = se.name {
+                        let _ = engine.ecs.world.insert_one(new_ent, n);
+                    }
+                    if let Some(p) = se.position {
+                        let _ = engine.ecs.world.insert_one(new_ent, p);
+                    }
+                    if let Some(r) = se.rotation {
+                        let _ = engine.ecs.world.insert_one(new_ent, r);
+                    }
+                    if let Some(s) = se.scale {
+                        let _ = engine.ecs.world.insert_one(new_ent, s);
+                    }
+                    if let Some(c) = se.color {
+                        let _ = engine.ecs.world.insert_one(new_ent, c);
+                    }
+                    if let Some(l) = se.light {
+                        let _ = engine.ecs.world.insert_one(new_ent, l);
+                    }
+                    if let Some(v) = se.velocity {
+                        let _ = engine.ecs.world.insert_one(new_ent, v);
+                    }
+                    if let Some(sh) = se.shape {
+                        let _ = engine.ecs.world.insert_one(new_ent, sh);
+                    }
+                    if let Some(b) = se.bounding_radius {
+                        let _ = engine.ecs.world.insert_one(new_ent, b);
+                    }
+                    if let Some(bbox) = se.bounding_box {
+                        let _ = engine.ecs.world.insert_one(new_ent, bbox);
+                    }
+                    if se.is_player {
+                        let _ = engine.ecs.world.insert_one(new_ent, PlayerTag);
+                    }
+                    if let Some(rb) = se.rigid_body {
+                        let _ = engine.ecs.world.insert_one(new_ent, rb);
+                    }
+                    if let Some(col) = se.collider {
+                        let _ = engine.ecs.world.insert_one(new_ent, col);
+                    }
+                    if let Some(ctrl) = se.character_controller {
+                        let _ = engine.ecs.world.insert_one(new_ent, ctrl);
+                    }
+
+                    if se.rigid_body.is_some()
+                        || se.collider.is_some()
+                        || se.character_controller.is_some()
+                    {
+                        let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
+                    }
+
+                    if let Some(lg) = se.lod_group {
+                        let l0_h = std::fs::canonicalize(&lg.lod_0_path)
+                            .ok()
+                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
+                        let l1_h = lg
+                            .lod_1_path
+                            .as_ref()
+                            .and_then(|p| std::fs::canonicalize(p).ok())
+                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
+                        let l2_h = lg
+                            .lod_2_path
+                            .as_ref()
+                            .and_then(|p| std::fs::canonicalize(p).ok())
+                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
+
+                        if let Some(l0) = l0_h {
+                            let lod_comp = LodGroup {
+                                lod_0: l0,
+                                lod_1: l1_h,
+                                lod_2: l2_h,
+                                threshold_1: lg.threshold_1,
+                                threshold_2: lg.threshold_2,
+                            };
+                            let _ = engine.ecs.world.insert_one(new_ent, lod_comp);
+                        }
+                    }
+
+                    // Assign GPU assets
+                    if let Some(mp) = se.model_path {
+                        let canonical_path = std::fs::canonicalize(&mp).ok();
+                        let handle = canonical_path
+                            .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
+                        if let Some(mid) = handle {
+                            let _ = engine.ecs.world.insert_one(new_ent, ModelId(mid));
+
+                            // Reconstruct bounding sphere if missing
+                            if se.bounding_radius.is_none()
+                                && let Some(m) = engine.asset_manager.models.get(mid)
+                            {
+                                let size_x = m.max[0] - m.min[0];
+                                let size_y = m.max[1] - m.min[1];
+                                let size_z = m.max[2] - m.min[2];
+                                let max_dim = size_x.max(size_y).max(size_z);
+                                let radius = max_dim / 2.0;
+                                let _ =
+                                    engine.ecs.world.insert_one(new_ent, BoundingRadius(radius));
+                            }
+                        }
+                    }
+
+                    if let Some(sp) = se.sprite_path {
+                        let canonical_path = std::fs::canonicalize(&sp).ok();
+                        let handle = canonical_path
+                            .and_then(|c| engine.asset_manager.texture_path_map.get(&c).copied());
+                        if let Some(tid) = handle {
+                            let _ = engine.ecs.world.insert_one(new_ent, SpriteId(tid));
+                        }
+                    }
                 }
+
+                // Reconstruct parent-child hierarchy links
+                for (child_ent, parent_name) in entity_parent_links {
+                    if let Some(&parent_ent) = name_to_entity.get(&parent_name) {
+                        let _ = engine.ecs.world.insert_one(child_ent, Parent(parent_ent));
+
+                        if let Ok(mut children) = engine.ecs.world.get::<&mut Children>(parent_ent)
+                        {
+                            if !children.0.contains(&child_ent) {
+                                children.0.push(child_ent);
+                            }
+                        } else {
+                            let _ = engine
+                                .ecs
+                                .world
+                                .insert_one(parent_ent, Children(vec![child_ent]));
+                        }
+                    }
+                }
+
+                // Force calculate transforms after loaded scene setup
+                ae_core::ecs::update_hierarchy_transforms(&mut engine.ecs.world);
+
+                // Sync newly loaded scene colliders and rigidbodies into Rapier3D physics world
+                engine
+                    .physics_world
+                    .sync_ecs_to_physics(&mut engine.ecs.world, |handle| {
+                        engine
+                            .asset_manager
+                            .get_physics_mesh_data(handle)
+                            .map(|(v, i)| (v.as_slice(), i.as_slice()))
+                    });
+
+                engine.ui.is_loading_assets = false;
+                engine.ui.status_message = Some((
+                    vec![(
+                        "Scene loaded successfully!".to_string(),
+                        egui::Color32::LIGHT_BLUE,
+                    )],
+                    std::time::Instant::now(),
+                ));
+                log::info!("Async scene load fully processed. Active world rebuilt.");
+            }
+            Err(e) => {
+                engine.ui.is_loading_assets = false;
+                engine.ui.status_message = Some((
+                    vec![(
+                        format!("Async scene load failed: {}", e),
+                        egui::Color32::RED,
+                    )],
+                    std::time::Instant::now(),
+                ));
             }
         }
     }
+}
 
 #[cfg(test)]
 mod tests {

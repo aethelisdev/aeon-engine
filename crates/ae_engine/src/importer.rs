@@ -69,23 +69,23 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                     let (model_id, min, max) = engine
                         .render_state
                         .load_model(&mut engine.asset_manager, path_str);
-                        let base_name = glb_path
-                            .file_name()
-                            .unwrap_or(std::ffi::OsStr::new("Model"))
-                            .to_string_lossy()
-                            .into_owned();
+                    let base_name = glb_path
+                        .file_name()
+                        .unwrap_or(std::ffi::OsStr::new("Model"))
+                        .to_string_lossy()
+                        .into_owned();
 
-                        // Calculate Auto Scaling & Spawn
-                        log::info!("Asset loaded and spawned entity: {:?}", base_name);
-                        spawn_model(engine, base_name, model_id, min, max, path_str);
-                        engine.ui.status_message = Some((
-                            vec![(
-                                "Asset loaded successfully!".to_string(),
-                                egui::Color32::LIGHT_BLUE,
-                            )],
-                            std::time::Instant::now(),
-                        ));
-                        engine.ui.is_loading_assets = false;
+                    // Calculate Auto Scaling & Spawn
+                    log::info!("Asset loaded and spawned entity: {:?}", base_name);
+                    spawn_model(engine, base_name, model_id, min, max, path_str);
+                    engine.ui.status_message = Some((
+                        vec![(
+                            "Asset loaded successfully!".to_string(),
+                            egui::Color32::LIGHT_BLUE,
+                        )],
+                        std::time::Instant::now(),
+                    ));
+                    engine.ui.is_loading_assets = false;
                 }
             }
             Err(e) => {
