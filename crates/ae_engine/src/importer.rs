@@ -63,11 +63,12 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                     ));
                 } else if path_str == "PYTHON_DONE" {
                     engine.ui.status_message = Some((vec![("Python installed successfully! You may need to restart the engine for changes to take effect.".to_string(), egui::Color32::LIGHT_BLUE)], std::time::Instant::now()));
-                } else if glb_path.exists() {
-                    if let Some(path_str) = glb_path.to_str() {
-                        let (model_id, min, max) = engine
-                            .render_state
-                            .load_model(&mut engine.asset_manager, path_str);
+                } else if glb_path.exists()
+                    && let Some(path_str) = glb_path.to_str()
+                {
+                    let (model_id, min, max) = engine
+                        .render_state
+                        .load_model(&mut engine.asset_manager, path_str);
                         let base_name = glb_path
                             .file_name()
                             .unwrap_or(std::ffi::OsStr::new("Model"))
@@ -85,7 +86,6 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                         ));
                         engine.ui.is_loading_assets = false;
                         log::info!("Asset loaded and spawned entity: {:?}", base_name);
-                    }
                 }
             }
             Err(e) => {
@@ -184,11 +184,10 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                     .ecs
                     .world
                     .get::<&ae_core::ecs::Name>(ent_ref.entity())
+                    && name.0 == final_name
                 {
-                    if name.0 == final_name {
-                        exists = true;
-                        break;
-                    }
+                    exists = true;
+                    break;
                 }
             }
             if !exists {
@@ -330,10 +329,10 @@ pub fn spawn_model(
     let mut rotation = ae_core::ecs::Rotation::identity();
     if path_str.contains(".fbx") || path_str.contains("temp_fbx") {
         rotation = ae_core::ecs::Rotation {
-            x: -0.7071068,
+            x: -std::f32::consts::FRAC_1_SQRT_2,
             y: 0.0,
             z: 0.0,
-            w: 0.7071068,
+            w: std::f32::consts::FRAC_1_SQRT_2,
         };
     }
 

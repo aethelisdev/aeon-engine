@@ -158,11 +158,11 @@ impl AeEngine {
 
     /// Handles raw device events (such as hardware un-clamped MouseMotion) for rock solid cross-platform camera control.
     pub fn handle_device_event(&mut self, event: &winit::event::DeviceEvent) {
-        if let winit::event::DeviceEvent::MouseMotion { delta: (dx, dy) } = event {
-            if self.editor.right_mouse_pressed || self.mode == EngineMode::Play {
-                self.editor.mouse_delta.0 += *dx as f32;
-                self.editor.mouse_delta.1 += *dy as f32;
-            }
+        if let winit::event::DeviceEvent::MouseMotion { delta: (dx, dy) } = event
+            && (self.editor.right_mouse_pressed || self.mode == EngineMode::Play)
+        {
+            self.editor.mouse_delta.0 += *dx as f32;
+            self.editor.mouse_delta.1 += *dy as f32;
         }
     }
 }

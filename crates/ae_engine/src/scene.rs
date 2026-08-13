@@ -49,16 +49,18 @@ pub struct SavedEntity {
 
 /// A structured container representing fully parsed but not yet GPU-uploaded model and texture data.
 /// Sent from the background parallel parsing thread to the main thread for instant GPU registration.
+pub type ParsedTextureItem = (
+    String,
+    Result<(std::path::PathBuf, image::RgbaImage), String>,
+);
+
 pub struct PendingSceneData {
     /// Saved entities blueprint deserialized from the JSON scene file.
     pub entities: Vec<SavedEntity>,
     /// Thread-safe pre-parsed GLTF model data ready for GPU upload.
     pub parsed_models: Vec<(String, Result<ae_renderer::asset::ParsedModelData, String>)>,
     /// Thread-safe pre-parsed RGBA textures and their canonical paths.
-    pub parsed_textures: Vec<(
-        String,
-        Result<(std::path::PathBuf, image::RgbaImage), String>,
-    )>,
+    pub parsed_textures: Vec<ParsedTextureItem>,
 }
 
 /// Serialize the current engine ECS state to a JSON file on disk.
@@ -70,17 +72,17 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
         let w = &engine.ecs.world;
 
         let mut model_p = None;
-        if let Ok(model_ref) = w.get::<&ModelId>(entity) {
-            if let Some(asset) = engine.asset_manager.models.get(model_ref.0) {
-                model_p = Some(asset.source_path.clone());
-            }
+        if let Ok(model_ref) = w.get::<&ModelId>(entity)
+            && let Some(asset) = engine.asset_manager.models.get(model_ref.0)
+        {
+            model_p = Some(asset.source_path.clone());
         }
 
         let mut sprite_p = None;
-        if let Ok(sprite_ref) = w.get::<&SpriteId>(entity) {
-            if let Some(asset) = engine.asset_manager.textures.get(sprite_ref.0) {
-                sprite_p = Some(asset.source_path.clone());
-            }
+        if let Ok(sprite_ref) = w.get::<&SpriteId>(entity)
+            && let Some(asset) = engine.asset_manager.textures.get(sprite_ref.0)
+        {
+            sprite_p = Some(asset.source_path.clone());
         }
 
         let mut parent_n = None;
@@ -218,15 +220,15 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
             if ae_renderer::asset::is_safe_path(&lg.lod_0_path) {
                 unique_models.insert(lg.lod_0_path.clone());
             }
-            if let Some(ref p1) = lg.lod_1_path {
-                if ae_renderer::asset::is_safe_path(p1) {
-                    unique_models.insert(p1.clone());
-                }
+            if let Some(ref p1) = lg.lod_1_path
+                && ae_renderer::asset::is_safe_path(p1)
+            {
+                unique_models.insert(p1.clone());
             }
-            if let Some(ref p2) = lg.lod_2_path {
-                if ae_renderer::asset::is_safe_path(p2) {
-                    unique_models.insert(p2.clone());
-                }
+            if let Some(ref p2) = lg.lod_2_path
+                && ae_renderer::asset::is_safe_path(p2)
+            {
+                unique_models.insert(p2.clone());
             }
         }
     }
@@ -259,10 +261,11 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
                 .collect();
 
         // 2. Parallel parse texture files using Rayon
-        let parsed_textures: Vec<(
+        type ParsedTextureItem = (
             String,
             Result<(std::path::PathBuf, image::RgbaImage), String>,
-        )> = textures_list
+        );
+        let parsed_textures: Vec<ParsedTextureItem> = textures_list
             .into_par_iter()
             .map(|path| {
                 let canonical = std::fs::canonicalize(&path)
@@ -292,9 +295,10 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
 /// Checks the asynchronous scene load channel and uploads completed asset data to the GPU.
 /// Reconstructs the ECS hierarchy and finishes the scene swap on the main thread.
 pub fn process_async_scene_load(engine: &mut AeEngine) {
-    if let Some(ref rx) = engine.scene_rx {
-        if let Ok(result) = rx.try_recv() {
-            engine.scene_rx = None; // Reset the receiver immediately
+    if let Some(ref rx) = engine.scene_rx
+        && let Ok(result) = rx.try_recv()
+    {
+        engine.scene_rx = None; // Reset the receiver immediately
 
             match result {
                 Ok(scene_data) => {
@@ -448,18 +452,18 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                                 let _ = engine.ecs.world.insert_one(new_ent, ModelId(mid));
 
                                 // Reconstruct bounding sphere if missing
-                                if se.bounding_radius.is_none() {
-                                    if let Some(m) = engine.asset_manager.models.get(mid) {
-                                        let size_x = m.max[0] - m.min[0];
-                                        let size_y = m.max[1] - m.min[1];
-                                        let size_z = m.max[2] - m.min[2];
-                                        let max_dim = size_x.max(size_y).max(size_z);
-                                        let radius = max_dim / 2.0;
-                                        let _ = engine
-                                            .ecs
-                                            .world
-                                            .insert_one(new_ent, BoundingRadius(radius));
-                                    }
+                                if se.bounding_radius.is_none()
+                                    && let Some(m) = engine.asset_manager.models.get(mid)
+                                {
+                                    let size_x = m.max[0] - m.min[0];
+                                    let size_y = m.max[1] - m.min[1];
+                                    let size_z = m.max[2] - m.min[2];
+                                    let max_dim = size_x.max(size_y).max(size_z);
+                                    let radius = max_dim / 2.0;
+                                    let _ = engine
+                                        .ecs
+                                        .world
+                                        .insert_one(new_ent, BoundingRadius(radius));
                                 }
                             }
                         }
@@ -531,7 +535,6 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
             }
         }
     }
-}
 
 #[cfg(test)]
 mod tests {

@@ -230,13 +230,13 @@ impl AeEngine {
         let mut target_base_opt = None;
 
         // 1. Try current executable's folder (handles custom cargo target-dir redirection)
-        if let Ok(current_exe) = std::env::current_exe() {
-            if let Some(exe_dir) = current_exe.parent() {
-                let plugin_exe_dir = exe_dir.join(format!("game_logic.{}", ext));
-                if plugin_exe_dir.exists() {
-                    plugin_path_opt = std::fs::canonicalize(&plugin_exe_dir).ok();
-                    target_base_opt = std::fs::canonicalize(exe_dir).ok();
-                }
+        if let Ok(current_exe) = std::env::current_exe()
+            && let Some(exe_dir) = current_exe.parent()
+        {
+            let plugin_exe_dir = exe_dir.join(format!("game_logic.{}", ext));
+            if plugin_exe_dir.exists() {
+                plugin_path_opt = std::fs::canonicalize(&plugin_exe_dir).ok();
+                target_base_opt = std::fs::canonicalize(exe_dir).ok();
             }
         }
 

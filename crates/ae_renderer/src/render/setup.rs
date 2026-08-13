@@ -37,10 +37,16 @@ pub(crate) fn choose_present_mode(
     selected
 }
 
+/// Default swap-chain frame latency (number of frames queued ahead on GPU).
+/// Uses `2` to enable double-buffered CPU-GPU pipelining. CPU prepares frame N
+/// while GPU renders frame N-1, maximizing throughput without input lag.
+pub(crate) const DEFAULT_FRAME_LATENCY: u32 = 2;
+
 /// Determines the swap-chain frame latency (number of frames buffered ahead of display).
-/// Uses `2` for all modes to allow double-buffered CPU-GPU pipelining.
+/// Returns `DEFAULT_FRAME_LATENCY` (`2`) to allow double-buffered CPU-GPU pipelining.
+#[inline]
 pub(crate) fn choose_frame_latency(_limit: FpsLimit) -> u32 {
-    2
+    DEFAULT_FRAME_LATENCY
 }
 
 impl RenderState {

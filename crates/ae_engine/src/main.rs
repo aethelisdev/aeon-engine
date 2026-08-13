@@ -129,7 +129,6 @@ impl ApplicationHandler for AeApp {
                 // would crash if the GPU resources are still partially alive.
                 self.engine = None;
                 event_loop.exit();
-                return;
             }
             WindowEvent::Resized(physical_size) => engine.resize(*physical_size),
             WindowEvent::KeyboardInput {
@@ -177,7 +176,7 @@ impl ApplicationHandler for AeApp {
 
             // All other events pass through normally
             other_event => {
-                engine.handle_window_event(&other_event, consumed);
+                engine.handle_window_event(other_event, consumed);
             }
         }
     }

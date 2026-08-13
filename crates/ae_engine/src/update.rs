@@ -24,7 +24,7 @@ impl AeEngine {
         }
 
         // Live Texture Hot-Reloading: Check disk modifications every 15 frames (~250ms)
-        if self.time.frame_count > 0 && (self.time.frame_count % 15 == 0) {
+        if self.time.frame_count > 0 && self.time.frame_count.is_multiple_of(15) {
             let modified_files = self.texture_watcher.check_modified_files();
             for path in modified_files {
                 let path_str = path.to_string_lossy();
@@ -90,12 +90,12 @@ impl AeEngine {
                     let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::SaveTo(path));
                 }
             });
-        } else if shortcut_res.trigger_save_scene {
-            if let Some(path) = self.editor.active_scene_path.as_ref() {
-                self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::SaveSceneToPath(
-                    path.clone(),
-                )]);
-            }
+        } else if shortcut_res.trigger_save_scene
+            && let Some(path) = self.editor.active_scene_path.as_ref()
+        {
+            self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::SaveSceneToPath(
+                path.clone(),
+            )]);
         }
         if shortcut_res.trigger_focus_selected {
             self.focus_selected();
@@ -115,10 +115,10 @@ impl AeEngine {
         // Sync gizmo space + entity rotation early so input handlers use correct orientation
         self.gizmo_system.mode = self.ui.gizmo_mode;
         self.gizmo_system.space = self.ui.gizmo_space;
-        if let Some(ent) = self.ui.selected_entity {
-            if let Ok(r) = self.ecs.world.get::<&ae_core::ecs::Rotation>(ent) {
-                self.gizmo_system.entity_rotation = cgmath::Quaternion::new(r.w, r.x, r.y, r.z);
-            }
+        if let Some(ent) = self.ui.selected_entity
+            && let Ok(r) = self.ecs.world.get::<&ae_core::ecs::Rotation>(ent)
+        {
+            self.gizmo_system.entity_rotation = cgmath::Quaternion::new(r.w, r.x, r.y, r.z);
         }
 
         self.profiler.begin_ecs();
@@ -224,20 +224,19 @@ impl AeEngine {
                 .world
                 .get::<&ae_animation::Skeleton>(entity)
                 .is_err()
+                && let Some(asset) = self.asset_manager.models.get(model_id)
             {
-                if let Some(asset) = self.asset_manager.models.get(model_id) {
-                    if let Some(ref skel) = asset.skeleton {
-                        let _ = self.ecs.world.insert_one(entity, skel.clone());
-                    }
-                    if needs_clip && !asset.animations.is_empty() {
-                        if let Ok(mut player) = self
-                            .ecs
-                            .world
-                            .get::<&mut ae_animation::AnimationPlayer>(entity)
-                        {
-                            player.play(asset.animations[0].clone());
-                        }
-                    }
+                if let Some(ref skel) = asset.skeleton {
+                    let _ = self.ecs.world.insert_one(entity, skel.clone());
+                }
+                if needs_clip
+                    && !asset.animations.is_empty()
+                    && let Ok(mut player) = self
+                        .ecs
+                        .world
+                        .get::<&mut ae_animation::AnimationPlayer>(entity)
+                {
+                    player.play(asset.animations[0].clone());
                 }
             }
         }
