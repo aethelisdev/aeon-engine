@@ -224,9 +224,7 @@ pub struct ParsedModelData {
     pub final_name: String,
     pub skeleton: Option<ae_animation::Skeleton>,
     pub animations: Vec<ae_animation::AnimationClip>,
-    pub default_texture: Option<ae_texture::CpuTextureData>,
-    pub embedded_textures: Vec<ae_texture::CpuTextureData>,
-    pub submeshes: Vec<crate::render::types::ModelSubmesh>,
+    pub embedded_texture: Option<ae_texture::CpuTextureData>,
 }
 
 /// Verifies if a given file path is secure for the engine to load.

@@ -57,9 +57,5 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: SpriteVertexOutput) -> @location(0) vec4<f32> {
-    let color = textureSample(t_diffuse, s_diffuse, in.uv);
-    if (color.a < 0.1) {
-        discard;
-    }
-    return color;
+    return textureSample(t_diffuse, s_diffuse, in.uv);
 }

@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-
-//! Aeon Engine Icon Loader Module
-//!
-//! This module provides cross-platform functionality to load and convert
-//! image assets into winit-compatible Window Icons.
-//!
-//! It supports various file formats (PNG, JPG, etc.) through the `image` crate.
-//!
-
 use image::GenericImageView;
 use winit::window::Icon;
+
+/// Aeon Engine Icon Loader Module
+/// This module provides cross-platform functionality to load and convert
+/// image assets into winit-compatible Window Icons.
+/// It supports various file formats (PNG, JPG, etc.) through the `image` crate.
 
 /// Loads a window icon from the specified file path.
 /// # Arguments

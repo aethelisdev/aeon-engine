@@ -13,7 +13,6 @@ pub mod sprite;
 /// rebuild when MSAA sample count changes at runtime.
 pub struct PipelineManager {
     pub render_pipeline: wgpu::RenderPipeline,
-    pub transparent_pipeline: wgpu::RenderPipeline,
     pub wireframe_pipeline: wgpu::RenderPipeline,
     pub sprite_pipeline: wgpu::RenderPipeline,
     pub grid_pipeline: wgpu::RenderPipeline,
@@ -32,7 +31,7 @@ impl PipelineManager {
         scene_format: wgpu::TextureFormat,
         msaa_samples: u32,
     ) -> Self {
-        let (render_pipeline, transparent_pipeline, wireframe_pipeline) = pbr::create_pbr_pipelines(
+        let (render_pipeline, wireframe_pipeline) = pbr::create_pbr_pipelines(
             device,
             camera_bgl,
             light_bgl,
@@ -62,7 +61,6 @@ impl PipelineManager {
 
         Self {
             render_pipeline,
-            transparent_pipeline,
             wireframe_pipeline,
             sprite_pipeline,
             grid_pipeline,
@@ -82,7 +80,7 @@ impl PipelineManager {
         scene_format: wgpu::TextureFormat,
         msaa_samples: u32,
     ) {
-        let (rp, tp, wp) = pbr::create_pbr_pipelines(
+        let (rp, wp) = pbr::create_pbr_pipelines(
             device,
             camera_bgl,
             light_bgl,
@@ -92,7 +90,6 @@ impl PipelineManager {
             msaa_samples,
         );
         self.render_pipeline = rp;
-        self.transparent_pipeline = tp;
         self.wireframe_pipeline = wp;
         self.grid_pipeline = grid::create_grid_pipeline(
             device,
