@@ -134,10 +134,10 @@ mod tests {
     #[test]
     fn test_sampler_config_defaults() {
         let sampler = SamplerConfig::default();
-        assert_eq!(sampler.min_filter, FilterMode::Nearest);
+        assert_eq!(sampler.min_filter, FilterMode::Linear);
         assert_eq!(sampler.mag_filter, FilterMode::Linear);
-        assert_eq!(sampler.wrap_u, WrapMode::ClampToEdge);
-        assert_eq!(sampler.wrap_v, WrapMode::ClampToEdge);
+        assert_eq!(sampler.wrap_u, WrapMode::Repeat);
+        assert_eq!(sampler.wrap_v, WrapMode::Repeat);
     }
 
     #[test]

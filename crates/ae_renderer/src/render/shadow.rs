@@ -10,6 +10,7 @@ use wgpu::util::DeviceExt;
 /// and the shadow rendering pipeline.
 pub struct ShadowSystem {
     pub shadow_pipeline: wgpu::RenderPipeline,
+    pub shadow_cutout_pipeline: wgpu::RenderPipeline,
 
     pub shadow_depth_texture: wgpu::Texture,
     pub shadow_cascade_views: [wgpu::TextureView; 4],
@@ -30,6 +31,7 @@ impl ShadowSystem {
     pub fn new(
         device: &wgpu::Device,
         graphics_settings: &crate::graphics_settings::GraphicsSettings,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
     ) -> Self {
         let shadow_res = graphics_settings.shadow_resolution.as_u32();
 
@@ -209,9 +211,16 @@ impl ShadowSystem {
 
         let shadow_pipeline =
             crate::render::pipelines::shadow::create_shadow_pipeline(device, &light_space_bgl_vs);
+        let shadow_cutout_pipeline =
+            crate::render::pipelines::shadow::create_shadow_cutout_pipeline(
+                device,
+                &light_space_bgl_vs,
+                texture_bind_group_layout,
+            );
 
         Self {
             shadow_pipeline,
+            shadow_cutout_pipeline,
             shadow_depth_texture,
             shadow_cascade_views,
             shadow_bind_group_layout,
@@ -430,6 +439,7 @@ impl ShadowSystem {
             )>,
         >,
         model_starts: &HashMap<crate::asset::AssetHandle, usize>,
+        default_white_texture: &crate::render::TextureAsset,
     ) {
         if !graphics_settings.shadow_enabled || all_instances_count == 0 {
             return;
@@ -522,6 +532,8 @@ impl ShadowSystem {
                     0..torus_instances_count as u32,
                 );
             }
+
+            // 1. Opaque Models (Fast depth-only)
             for (handle, m) in asset_manager.models.iter() {
                 let c = model_instance_data
                     .get(&handle)
@@ -538,7 +550,81 @@ impl ShadowSystem {
                         ),
                     );
                     pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.draw_indexed(0..m.num_indices, 0, 0..c);
+                    if m.submeshes.is_empty() {
+                        pass.draw_indexed(0..m.num_indices, 0, 0..c);
+                    } else {
+                        for submesh in &m.submeshes {
+                            if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Opaque
+                            {
+                                pass.draw_indexed(
+                                    submesh.start_index
+                                        ..(submesh.start_index + submesh.index_count),
+                                    0,
+                                    0..c,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Cutout / Mask Models (Alpha-tested with discard in shadow map)
+            let has_any_cutout = asset_manager.models.iter().any(|(handle, m)| {
+                model_instance_data.get(&handle).map_or(0, |v| v.len()) > 0
+                    && m.submeshes
+                        .iter()
+                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+            });
+
+            if has_any_cutout {
+                pass.set_pipeline(&self.shadow_cutout_pipeline);
+                for (handle, m) in asset_manager.models.iter() {
+                    let c = model_instance_data
+                        .get(&handle)
+                        .map(|v| v.len())
+                        .unwrap_or(0) as u32;
+                    if c > 0
+                        && m.submeshes
+                            .iter()
+                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+                    {
+                        pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            instance_buffer.slice(
+                                ((*model_starts.get(&handle).unwrap_or(&0))
+                                    * crate::render::types::INSTANCE_SIZE)
+                                    as u64..,
+                            ),
+                        );
+                        pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        for submesh in &m.submeshes {
+                            if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask {
+                                let bg = if let Some(tex_idx) = submesh.texture_index {
+                                    m.embedded_textures
+                                        .get(tex_idx)
+                                        .and_then(|&h| asset_manager.textures.get(h))
+                                        .map(|t| &t.bind_group)
+                                } else if m.embedded_textures.len() == 1 {
+                                    m.embedded_textures
+                                        .first()
+                                        .and_then(|&h| asset_manager.textures.get(h))
+                                        .map(|t| &t.bind_group)
+                                } else {
+                                    None
+                                }
+                                .unwrap_or(&default_white_texture.bind_group);
+
+                                pass.set_bind_group(1, bg, &[]);
+                                pass.draw_indexed(
+                                    submesh.start_index
+                                        ..(submesh.start_index + submesh.index_count),
+                                    0,
+                                    0..c,
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }

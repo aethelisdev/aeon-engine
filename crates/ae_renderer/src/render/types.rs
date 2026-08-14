@@ -628,6 +628,28 @@ pub struct SkinVertex {
     pub joint_weights: [f32; 4],
 }
 
+/// Submesh alpha blending and testing mode (glTF 2.0 standard).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubmeshAlphaMode {
+    /// Fully opaque rendering with depth writes enabled (no discard).
+    Opaque,
+    /// Masked/Cutout rendering with depth writes enabled (discards pixels where alpha < cutoff).
+    Mask,
+    /// Alpha-blended rendering over background geometry (depth writes disabled).
+    Blend,
+}
+
+/// Submesh index range with its material and texture binding information.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelSubmesh {
+    pub start_index: u32,
+    pub index_count: u32,
+    pub texture_index: Option<usize>,
+    pub base_color: [f32; 4],
+    pub alpha_mode: SubmeshAlphaMode,
+    pub alpha_cutoff: f32,
+}
+
 /// GPU-uploaded 3D model asset with vertex/index buffers, AABB bounds,
 /// and raw mesh data for physics shape generation.
 pub struct ModelAsset {
@@ -651,6 +673,10 @@ pub struct ModelAsset {
     pub animations: Vec<ae_animation::AnimationClip>,
     /// Default embedded texture handle extracted from GLTF/GLB/FBX materials
     pub default_texture: Option<crate::asset::AssetHandle>,
+    /// All textures embedded in the model mapped by image index
+    pub embedded_textures: Vec<crate::asset::AssetHandle>,
+    /// Submesh index ranges with their corresponding material/texture bindings
+    pub submeshes: Vec<ModelSubmesh>,
 }
 
 impl ModelAsset {

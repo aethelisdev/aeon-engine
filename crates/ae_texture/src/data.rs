@@ -109,12 +109,12 @@ pub struct SamplerConfig {
 impl Default for SamplerConfig {
     fn default() -> Self {
         Self {
-            min_filter: FilterMode::Nearest,
+            min_filter: FilterMode::Linear,
             mag_filter: FilterMode::Linear,
             mipmap_filter: FilterMode::Linear,
-            wrap_u: WrapMode::ClampToEdge,
-            wrap_v: WrapMode::ClampToEdge,
-            anisotropy_clamp: 1,
+            wrap_u: WrapMode::Repeat,
+            wrap_v: WrapMode::Repeat,
+            anisotropy_clamp: 16,
         }
     }
 }

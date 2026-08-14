@@ -35,13 +35,17 @@ impl RenderState {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
-        let default_texture = if let Some(cpu_tex) = data.embedded_texture {
-            let tex_path = data.canonical_path.with_extension("embedded_tex");
-            let tex_label = format!("{}_tex", data.original_path);
-            Some(self.upload_cpu_texture_data(assets, tex_path, cpu_tex, &tex_label))
-        } else {
-            None
-        };
+        let mut embedded_textures = Vec::new();
+        for (i, cpu_tex) in data.embedded_textures.into_iter().enumerate() {
+            let tex_path = data
+                .canonical_path
+                .with_extension(format!("embedded_tex_{}", i));
+            let tex_label = format!("{}_tex_{}", data.original_path, i);
+            embedded_textures
+                .push(self.upload_cpu_texture_data(assets, tex_path, cpu_tex, &tex_label));
+        }
+
+        let default_texture = embedded_textures.first().copied();
 
         let source_path_str = data.canonical_path.to_string_lossy().to_string();
         let handle = assets.models.insert(ModelAsset {
@@ -58,6 +62,8 @@ impl RenderState {
             skeleton: data.skeleton,
             animations: data.animations,
             default_texture,
+            embedded_textures,
+            submeshes: data.submeshes,
         });
 
         assets.model_path_map.insert(data.canonical_path, handle);
@@ -116,10 +122,11 @@ impl RenderState {
         };
 
         let (skeleton, animations) = parse_gltf_skin_and_animations(&document, &buffers);
-        let embedded_texture = extract_gltf_embedded_texture(&document, &images);
+        let embedded_textures = extract_gltf_all_embedded_textures(&document, &images);
+        let default_texture = embedded_textures.first().cloned();
 
-        let (all_vertices, all_indices, raw_positions, raw_skin_vertices, min, max) =
-            parse_gltf_scene_geometry(&document, &buffers, skeleton.is_some());
+        let (all_vertices, all_indices, raw_positions, raw_skin_vertices, submeshes, min, max) =
+            parse_gltf_scene_geometry(&document, &buffers, &images, skeleton.is_some());
 
         let data = crate::asset::ParsedModelData {
             all_vertices,
@@ -133,7 +140,9 @@ impl RenderState {
             final_name: String::new(),
             skeleton,
             animations,
-            embedded_texture,
+            default_texture,
+            embedded_textures,
+            submeshes,
         };
 
         self.upload_model_data(assets, data)
@@ -175,10 +184,11 @@ pub fn parse_gltf_file(
     };
 
     let (skeleton, animations) = parse_gltf_skin_and_animations(&document, &buffers);
-    let embedded_texture = extract_gltf_embedded_texture(&document, &images);
+    let embedded_textures = extract_gltf_all_embedded_textures(&document, &images);
+    let default_texture = embedded_textures.first().cloned();
 
-    let (all_vertices, all_indices, raw_positions, raw_skin_vertices, min, max) =
-        parse_gltf_scene_geometry(&document, &buffers, skeleton.is_some());
+    let (all_vertices, all_indices, raw_positions, raw_skin_vertices, submeshes, min, max) =
+        parse_gltf_scene_geometry(&document, &buffers, &images, skeleton.is_some());
 
     Ok(crate::asset::ParsedModelData {
         all_vertices,
@@ -192,7 +202,9 @@ pub fn parse_gltf_file(
         final_name,
         skeleton,
         animations,
-        embedded_texture,
+        default_texture,
+        embedded_textures,
+        submeshes,
     })
 }
 
@@ -200,12 +212,14 @@ pub fn parse_gltf_file(
 pub fn parse_gltf_scene_geometry(
     document: &gltf::Document,
     buffers: &[gltf::buffer::Data],
+    images: &[gltf::image::Data],
     has_skeleton: bool,
 ) -> (
     Vec<Vertex>,
     Vec<u32>,
     Vec<[f32; 3]>,
     Vec<SkinVertex>,
+    Vec<crate::render::types::ModelSubmesh>,
     [f32; 3],
     [f32; 3],
 ) {
@@ -213,19 +227,21 @@ pub fn parse_gltf_scene_geometry(
     let mut all_indices = Vec::new();
     let mut raw_positions = Vec::new();
     let mut raw_skin_vertices = Vec::new();
+    let mut submeshes = Vec::new();
 
     let mut min = [f32::MAX; 3];
     let mut max = [f32::MIN; 3];
 
-    let mut root_nodes: Vec<gltf::Node> = if let Some(scene) = document.default_scene() {
-        scene.nodes().collect()
-    } else {
-        document.scenes().flat_map(|s| s.nodes()).collect()
-    };
+    let has_real_skin = document.skins().next().is_some();
+    let is_node_hierarchy = !has_real_skin && document.animations().next().is_some();
 
-    if root_nodes.is_empty() {
-        root_nodes = document.nodes().collect();
-    }
+    let root_nodes: Vec<gltf::Node> = if let Some(default_scene) = document.default_scene() {
+        default_scene.nodes().collect()
+    } else if let Some(first_scene) = document.scenes().next() {
+        first_scene.nodes().collect()
+    } else {
+        document.nodes().collect()
+    };
 
     if !root_nodes.is_empty() {
         for root in &root_nodes {
@@ -233,28 +249,37 @@ pub fn parse_gltf_scene_geometry(
                 root,
                 glam::Mat4::IDENTITY,
                 buffers,
+                images,
                 &mut all_vertices,
                 &mut all_indices,
                 &mut raw_positions,
                 &mut raw_skin_vertices,
+                &mut submeshes,
                 &mut min,
                 &mut max,
                 has_skeleton,
+                has_real_skin,
+                is_node_hierarchy,
             );
         }
     } else {
         for mesh in document.meshes() {
             process_gltf_primitive_mesh(
                 &mesh,
+                mesh.index(),
                 glam::Mat4::IDENTITY,
                 buffers,
+                images,
                 &mut all_vertices,
                 &mut all_indices,
                 &mut raw_positions,
                 &mut raw_skin_vertices,
+                &mut submeshes,
                 &mut min,
                 &mut max,
                 has_skeleton,
+                has_real_skin,
+                is_node_hierarchy,
             );
         }
     }
@@ -269,6 +294,7 @@ pub fn parse_gltf_scene_geometry(
         all_indices,
         raw_positions,
         raw_skin_vertices,
+        submeshes,
         min,
         max,
     )
@@ -278,13 +304,17 @@ fn traverse_gltf_node(
     node: &gltf::Node,
     parent_transform: glam::Mat4,
     buffers: &[gltf::buffer::Data],
+    images: &[gltf::image::Data],
     all_vertices: &mut Vec<Vertex>,
     all_indices: &mut Vec<u32>,
     raw_positions: &mut Vec<[f32; 3]>,
     raw_skin_vertices: &mut Vec<SkinVertex>,
+    submeshes: &mut Vec<crate::render::types::ModelSubmesh>,
     min: &mut [f32; 3],
     max: &mut [f32; 3],
     has_skeleton: bool,
+    has_real_skin: bool,
+    is_node_hierarchy: bool,
 ) {
     let local_transform = glam::Mat4::from_cols_array_2d(&node.transform().matrix());
     let world_transform = parent_transform * local_transform;
@@ -292,15 +322,20 @@ fn traverse_gltf_node(
     if let Some(mesh) = node.mesh() {
         process_gltf_primitive_mesh(
             &mesh,
+            node.index(),
             world_transform,
             buffers,
+            images,
             all_vertices,
             all_indices,
             raw_positions,
             raw_skin_vertices,
+            submeshes,
             min,
             max,
             has_skeleton,
+            has_real_skin,
+            is_node_hierarchy,
         );
     }
 
@@ -309,32 +344,59 @@ fn traverse_gltf_node(
             &child,
             world_transform,
             buffers,
+            images,
             all_vertices,
             all_indices,
             raw_positions,
             raw_skin_vertices,
+            submeshes,
             min,
             max,
             has_skeleton,
+            has_real_skin,
+            is_node_hierarchy,
         );
     }
 }
 
 fn process_gltf_primitive_mesh(
     mesh: &gltf::Mesh,
+    node_index: usize,
     world_transform: glam::Mat4,
     buffers: &[gltf::buffer::Data],
+    images: &[gltf::image::Data],
     all_vertices: &mut Vec<Vertex>,
     all_indices: &mut Vec<u32>,
     raw_positions: &mut Vec<[f32; 3]>,
     raw_skin_vertices: &mut Vec<SkinVertex>,
+    submeshes: &mut Vec<crate::render::types::ModelSubmesh>,
     min: &mut [f32; 3],
     max: &mut [f32; 3],
     has_skeleton: bool,
+    has_real_skin: bool,
+    is_node_hierarchy: bool,
 ) {
     let normal_matrix = glam::Mat3::from_mat4(world_transform);
 
     for primitive in mesh.primitives() {
+        let mat = primitive.material();
+        let pbr = mat.pbr_metallic_roughness();
+        let base_color = pbr.base_color_factor();
+        let texture_index = pbr
+            .base_color_texture()
+            .map(|t| t.texture().source().index());
+
+        let has_transparent_pixels =
+            texture_index
+                .and_then(|idx| images.get(idx))
+                .map_or(false, |img| {
+                    if img.format == gltf::image::Format::R8G8B8A8 {
+                        img.pixels.chunks_exact(4).any(|c| c[3] < 245)
+                    } else {
+                        false
+                    }
+                });
+
         let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
         let mut pos_iter = match reader.read_positions() {
             Some(iter) => iter,
@@ -347,19 +409,47 @@ fn process_gltf_primitive_mesh(
         let mut joint_iter = reader.read_joints(0).map(|j| j.into_u16());
         let mut weight_iter = reader.read_weights(0).map(|w| w.into_f32());
 
-        let is_skinned = joint_iter.is_some() && weight_iter.is_some() && has_skeleton;
+        let has_explicit_skin = joint_iter.is_some() && weight_iter.is_some();
+        let is_skinned = has_explicit_skin && has_real_skin;
+
+        let alpha_mode = match mat.alpha_mode() {
+            gltf::material::AlphaMode::Opaque => {
+                if has_transparent_pixels && !is_skinned {
+                    crate::render::types::SubmeshAlphaMode::Mask
+                } else {
+                    crate::render::types::SubmeshAlphaMode::Opaque
+                }
+            }
+            gltf::material::AlphaMode::Mask => crate::render::types::SubmeshAlphaMode::Mask,
+            gltf::material::AlphaMode::Blend => {
+                if is_skinned && !has_transparent_pixels {
+                    crate::render::types::SubmeshAlphaMode::Opaque
+                } else if has_transparent_pixels {
+                    crate::render::types::SubmeshAlphaMode::Mask
+                } else {
+                    crate::render::types::SubmeshAlphaMode::Blend
+                }
+            }
+        };
+        let alpha_cutoff = mat.alpha_cutoff().unwrap_or(0.5);
 
         let start_vertex = all_vertices.len() as u32;
+        let start_index = all_indices.len() as u32;
 
         while let Some(raw_pos) = pos_iter.next() {
             let raw_norm = norm_iter
                 .as_mut()
                 .and_then(|n| n.next())
                 .unwrap_or([0.0, 1.0, 0.0]);
-            let color = col_iter
+            let raw_col = col_iter
                 .as_mut()
                 .and_then(|c| c.next())
                 .unwrap_or([1.0, 1.0, 1.0]);
+            let color = [
+                raw_col[0] * base_color[0],
+                raw_col[1] * base_color[1],
+                raw_col[2] * base_color[2],
+            ];
             let uv = tex_coord_iter
                 .as_mut()
                 .and_then(|tc| tc.next())
@@ -374,7 +464,7 @@ fn process_gltf_primitive_mesh(
                 ([p4.x, p4.y, p4.z], [n3.x, n3.y, n3.z])
             };
 
-            let (j_indices, j_weights, has_skin) =
+            let (j_indices, j_weights) = if is_skinned {
                 if let (Some(j_it), Some(w_it)) = (joint_iter.as_mut(), weight_iter.as_mut()) {
                     let raw_j = j_it.next().unwrap_or([0, 0, 0, 0]);
                     let raw_w = w_it.next().unwrap_or([0.0, 0.0, 0.0, 0.0]);
@@ -386,11 +476,15 @@ fn process_gltf_primitive_mesh(
                             raw_j[3] as u32,
                         ],
                         raw_w,
-                        true,
                     )
                 } else {
-                    ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0], false)
-                };
+                    ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0])
+                }
+            } else if is_node_hierarchy {
+                ([node_index as u32, 0, 0, 0], [1.0, 0.0, 0.0, 0.0])
+            } else {
+                ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0])
+            };
 
             for i in 0..3 {
                 if final_pos[i] < min[i] {
@@ -409,10 +503,15 @@ fn process_gltf_primitive_mesh(
             });
             raw_positions.push(final_pos);
 
-            if has_skin && has_skeleton {
+            if has_skeleton {
+                let (bind_pos, bind_norm) = if is_skinned {
+                    (raw_pos, raw_norm)
+                } else {
+                    (final_pos, final_norm)
+                };
                 raw_skin_vertices.push(SkinVertex {
-                    bind_position: final_pos,
-                    bind_normal: final_norm,
+                    bind_position: bind_pos,
+                    bind_normal: bind_norm,
                     joint_indices: j_indices,
                     joint_weights: j_weights,
                 });
@@ -424,7 +523,111 @@ fn process_gltf_primitive_mesh(
                 all_indices.push(start_vertex + idx);
             }
         }
+
+        let index_count = (all_indices.len() as u32) - start_index;
+        if index_count > 0 {
+            submeshes.push(crate::render::types::ModelSubmesh {
+                start_index,
+                index_count,
+                texture_index,
+                base_color,
+                alpha_mode,
+                alpha_cutoff,
+            });
+        }
     }
+}
+
+/// Extracts all embedded RGBA textures from a glTF document and image buffers.
+pub fn extract_gltf_all_embedded_textures(
+    document: &gltf::Document,
+    images: &[gltf::image::Data],
+) -> Vec<ae_texture::CpuTextureData> {
+    let mut list = Vec::with_capacity(images.len());
+    for (i, img) in images.iter().enumerate() {
+        let rgba_bytes = match img.format {
+            gltf::image::Format::R8G8B8A8 => img.pixels.clone(),
+            gltf::image::Format::R8G8B8 => {
+                let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
+                for chunk in img.pixels.chunks_exact(3) {
+                    out.push(chunk[0]);
+                    out.push(chunk[1]);
+                    out.push(chunk[2]);
+                    out.push(255);
+                }
+                out
+            }
+            gltf::image::Format::R8 => {
+                let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
+                for &b in &img.pixels {
+                    out.push(b);
+                    out.push(b);
+                    out.push(b);
+                    out.push(255);
+                }
+                out
+            }
+            gltf::image::Format::R8G8 => {
+                let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
+                for chunk in img.pixels.chunks_exact(2) {
+                    out.push(chunk[0]);
+                    out.push(chunk[1]);
+                    out.push(0);
+                    out.push(255);
+                }
+                out
+            }
+            _ => img.pixels.clone(),
+        };
+
+        let mut sampler_config = ae_texture::SamplerConfig::default();
+        for tex in document.textures() {
+            if tex.source().index() == i {
+                let sampler = tex.sampler();
+                sampler_config.wrap_u = match sampler.wrap_s() {
+                    gltf::texture::WrappingMode::ClampToEdge => ae_texture::WrapMode::ClampToEdge,
+                    gltf::texture::WrappingMode::MirroredRepeat => {
+                        ae_texture::WrapMode::MirrorRepeat
+                    }
+                    gltf::texture::WrappingMode::Repeat => ae_texture::WrapMode::Repeat,
+                };
+                sampler_config.wrap_v = match sampler.wrap_t() {
+                    gltf::texture::WrappingMode::ClampToEdge => ae_texture::WrapMode::ClampToEdge,
+                    gltf::texture::WrappingMode::MirroredRepeat => {
+                        ae_texture::WrapMode::MirrorRepeat
+                    }
+                    gltf::texture::WrappingMode::Repeat => ae_texture::WrapMode::Repeat,
+                };
+                break;
+            }
+        }
+
+        if rgba_bytes.len() == (img.width * img.height * 4) as usize
+            && img.width > 0
+            && img.height > 0
+        {
+            let mut cpu_tex = ae_texture::CpuTextureData::new(
+                img.width,
+                img.height,
+                rgba_bytes,
+                ae_texture::ColorSpace::Srgb,
+                format!("embedded_model_texture_{}", i),
+            );
+            cpu_tex.sampler_config = sampler_config;
+            list.push(cpu_tex);
+        } else {
+            let mut cpu_tex = ae_texture::CpuTextureData::new(
+                1,
+                1,
+                vec![255, 255, 255, 255],
+                ae_texture::ColorSpace::Srgb,
+                format!("fallback_model_texture_{}", i),
+            );
+            cpu_tex.sampler_config = sampler_config;
+            list.push(cpu_tex);
+        }
+    }
+    list
 }
 
 /// Extracts primary RGBA diffuse texture from glTF embedded images, prioritizing materials with base_color_texture.
@@ -432,74 +635,9 @@ pub fn extract_gltf_embedded_texture(
     document: &gltf::Document,
     images: &[gltf::image::Data],
 ) -> Option<ae_texture::CpuTextureData> {
-    if images.is_empty() {
-        return None;
-    }
-
-    let mut target_image_idx = None;
-    for material in document.materials() {
-        if let Some(pbr) = material.pbr_metallic_roughness().base_color_texture() {
-            let src_idx = pbr.texture().source().index();
-            if src_idx < images.len() {
-                target_image_idx = Some(src_idx);
-                break;
-            }
-        }
-    }
-
-    let img = if let Some(idx) = target_image_idx {
-        &images[idx]
-    } else {
-        images.iter().max_by_key(|img| img.width * img.height)?
-    };
-
-    let rgba_bytes = match img.format {
-        gltf::image::Format::R8G8B8A8 => img.pixels.clone(),
-        gltf::image::Format::R8G8B8 => {
-            let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
-            for chunk in img.pixels.chunks_exact(3) {
-                out.push(chunk[0]);
-                out.push(chunk[1]);
-                out.push(chunk[2]);
-                out.push(255);
-            }
-            out
-        }
-        gltf::image::Format::R8 => {
-            let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
-            for &b in &img.pixels {
-                out.push(b);
-                out.push(b);
-                out.push(b);
-                out.push(255);
-            }
-            out
-        }
-        gltf::image::Format::R8G8 => {
-            let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
-            for chunk in img.pixels.chunks_exact(2) {
-                out.push(chunk[0]);
-                out.push(chunk[1]);
-                out.push(0);
-                out.push(255);
-            }
-            out
-        }
-        _ => img.pixels.clone(),
-    };
-
-    if rgba_bytes.len() == (img.width * img.height * 4) as usize && img.width > 0 && img.height > 0
-    {
-        Some(ae_texture::CpuTextureData::new(
-            img.width,
-            img.height,
-            rgba_bytes,
-            ae_texture::ColorSpace::Srgb,
-            "embedded_model_texture",
-        ))
-    } else {
-        None
-    }
+    extract_gltf_all_embedded_textures(document, images)
+        .into_iter()
+        .next()
 }
 
 /// Helper to extract skeleton joints and animation clips from glTF document.
@@ -514,7 +652,7 @@ pub fn parse_gltf_skin_and_animations(
     let mut animations = Vec::new();
     let mut node_indices = std::collections::HashMap::new();
 
-    // 1. Parse Skins
+    // 1. Parse Skins (Skeletal Armatures)
     if let Some(skin) = document.skins().next() {
         let reader = skin.reader(|b| Some(&buffers[b.index()]));
         let ibms: Vec<glam::Mat4> = reader
@@ -555,6 +693,87 @@ pub fn parse_gltf_skin_and_animations(
         if !joints.is_empty() {
             skeleton = Some(ae_animation::Skeleton::from_joints(joints));
         }
+    } else if document.animations().next().is_some() {
+        // 1b. Node Hierarchy Animation (Scene nodes animated without skin armature)
+        let all_nodes: Vec<gltf::Node> = document.nodes().collect();
+        node_indices = all_nodes
+            .iter()
+            .enumerate()
+            .map(|(idx, node)| (node.index(), idx))
+            .collect();
+
+        // Build child_node_index -> parent_joint_index map
+        let mut child_to_parent = std::collections::HashMap::new();
+        for (parent_joint_idx, node) in all_nodes.iter().enumerate() {
+            for child in node.children() {
+                child_to_parent.insert(child.index(), parent_joint_idx);
+            }
+        }
+
+        // Calculate world bind matrices for each node to derive IBMs
+        let count = all_nodes.len();
+        let mut world_bind_matrices = vec![glam::Mat4::IDENTITY; count];
+        let mut evaluated = vec![false; count];
+
+        fn eval_world_bind(
+            idx: usize,
+            all_nodes: &[gltf::Node],
+            child_to_parent: &std::collections::HashMap<usize, usize>,
+            world_matrices: &mut [glam::Mat4],
+            evaluated: &mut [bool],
+        ) -> glam::Mat4 {
+            if evaluated[idx] {
+                return world_matrices[idx];
+            }
+            let local_pose = glam::Mat4::from_cols_array_2d(&all_nodes[idx].transform().matrix());
+            let world = if let Some(&parent_idx) = child_to_parent.get(&all_nodes[idx].index()) {
+                if parent_idx < all_nodes.len() && parent_idx != idx {
+                    eval_world_bind(
+                        parent_idx,
+                        all_nodes,
+                        child_to_parent,
+                        world_matrices,
+                        evaluated,
+                    ) * local_pose
+                } else {
+                    local_pose
+                }
+            } else {
+                local_pose
+            };
+            world_matrices[idx] = world;
+            evaluated[idx] = true;
+            world
+        }
+
+        for i in 0..count {
+            eval_world_bind(
+                i,
+                &all_nodes,
+                &child_to_parent,
+                &mut world_bind_matrices,
+                &mut evaluated,
+            );
+        }
+
+        let mut joints = Vec::with_capacity(all_nodes.len());
+        for (i, node) in all_nodes.iter().enumerate() {
+            let name = node.name().unwrap_or(&format!("Node_{}", i)).to_string();
+            let parent_index = child_to_parent.get(&node.index()).copied();
+            let local_bind_pose = glam::Mat4::from_cols_array_2d(&node.transform().matrix());
+            let ibm = world_bind_matrices[i].inverse();
+
+            joints.push(ae_animation::Joint::new(
+                name,
+                parent_index,
+                local_bind_pose,
+                ibm,
+            ));
+        }
+
+        if !joints.is_empty() {
+            skeleton = Some(ae_animation::Skeleton::from_joints(joints));
+        }
     }
 
     // 2. Parse Animations
@@ -568,7 +787,10 @@ pub fn parse_gltf_skin_and_animations(
 
         for channel in anim.channels() {
             let target_node = channel.target().node().index();
-            let joint_index = *node_indices.get(&target_node).unwrap_or(&target_node);
+            let joint_index = match node_indices.get(&target_node) {
+                Some(&idx) => idx,
+                None => continue,
+            };
             let reader = channel.reader(|b| Some(&buffers[b.index()]));
             let timestamps: Vec<f32> = match reader.read_inputs() {
                 Some(iter) => iter.collect(),

@@ -13,6 +13,8 @@ pub mod sprite;
 /// rebuild when MSAA sample count changes at runtime.
 pub struct PipelineManager {
     pub render_pipeline: wgpu::RenderPipeline,
+    pub cutout_pipeline: wgpu::RenderPipeline,
+    pub transparent_pipeline: wgpu::RenderPipeline,
     pub wireframe_pipeline: wgpu::RenderPipeline,
     pub sprite_pipeline: wgpu::RenderPipeline,
     pub grid_pipeline: wgpu::RenderPipeline,
@@ -31,15 +33,16 @@ impl PipelineManager {
         scene_format: wgpu::TextureFormat,
         msaa_samples: u32,
     ) -> Self {
-        let (render_pipeline, wireframe_pipeline) = pbr::create_pbr_pipelines(
-            device,
-            camera_bgl,
-            light_bgl,
-            shadow_bgl,
-            texture_bgl,
-            scene_format,
-            msaa_samples,
-        );
+        let (render_pipeline, cutout_pipeline, transparent_pipeline, wireframe_pipeline) =
+            pbr::create_pbr_pipelines(
+                device,
+                camera_bgl,
+                light_bgl,
+                shadow_bgl,
+                texture_bgl,
+                scene_format,
+                msaa_samples,
+            );
         let grid_pipeline = grid::create_grid_pipeline(
             device,
             camera_bgl,
@@ -61,6 +64,8 @@ impl PipelineManager {
 
         Self {
             render_pipeline,
+            cutout_pipeline,
+            transparent_pipeline,
             wireframe_pipeline,
             sprite_pipeline,
             grid_pipeline,
@@ -80,7 +85,7 @@ impl PipelineManager {
         scene_format: wgpu::TextureFormat,
         msaa_samples: u32,
     ) {
-        let (rp, wp) = pbr::create_pbr_pipelines(
+        let (rp, cp, tp, wp) = pbr::create_pbr_pipelines(
             device,
             camera_bgl,
             light_bgl,
@@ -90,6 +95,8 @@ impl PipelineManager {
             msaa_samples,
         );
         self.render_pipeline = rp;
+        self.cutout_pipeline = cp;
+        self.transparent_pipeline = tp;
         self.wireframe_pipeline = wp;
         self.grid_pipeline = grid::create_grid_pipeline(
             device,

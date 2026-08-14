@@ -382,6 +382,18 @@ pub fn spawn_model(
             .world
             .insert_one(new_entity, ae_core::ecs::SpriteId(tex));
     }
+
+    if let Some(model_asset) = engine.asset_manager.models.get(model_id)
+        && let Some(ref skel) = model_asset.skeleton
+    {
+        let _ = engine.ecs.world.insert_one(new_entity, skel.clone());
+        if !model_asset.animations.is_empty() {
+            let mut player = ae_animation::AnimationPlayer::default();
+            player.play(model_asset.animations[0].clone());
+            let _ = engine.ecs.world.insert_one(new_entity, player);
+        }
+    }
+
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(&engine.ecs.world, new_entity);
     engine
         .editor

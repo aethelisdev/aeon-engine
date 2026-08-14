@@ -163,7 +163,11 @@ impl RenderState {
         let uniforms = crate::render::uniforms::SceneUniforms::new(&device, &camera);
         let geometry = crate::render::primitives::GeometrySystem::new(&device);
 
-        let shadow = crate::render::shadow::ShadowSystem::new(&device, &graphics_settings);
+        let shadow = crate::render::shadow::ShadowSystem::new(
+            &device,
+            &graphics_settings,
+            &uniforms.texture_bind_group_layout,
+        );
 
         let post_process = crate::render::post_process::PostProcessSystem::new(
             &device,

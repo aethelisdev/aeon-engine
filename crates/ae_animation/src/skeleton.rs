@@ -98,19 +98,41 @@ impl Skeleton {
     pub fn evaluate_global_transforms(&self, local_poses: &[Mat4]) -> Vec<Mat4> {
         let count = self.joints.len();
         let mut global_transforms = vec![Mat4::IDENTITY; count];
+        let mut evaluated = vec![false; count];
 
-        for i in 0..count {
-            let local_pose = local_poses.get(i).copied().unwrap_or(Mat4::IDENTITY);
-            if let Some(parent_idx) = self.joints[i].parent_index {
-                if parent_idx < i {
-                    global_transforms[i] = global_transforms[parent_idx] * local_pose;
+        fn eval_joint(
+            idx: usize,
+            joints: &[Joint],
+            local_poses: &[Mat4],
+            globals: &mut [Mat4],
+            evaluated: &mut [bool],
+        ) -> Mat4 {
+            if evaluated[idx] {
+                return globals[idx];
+            }
+            let local_pose = local_poses.get(idx).copied().unwrap_or(Mat4::IDENTITY);
+            let global = if let Some(parent_idx) = joints[idx].parent_index {
+                if parent_idx < joints.len() && parent_idx != idx {
+                    eval_joint(parent_idx, joints, local_poses, globals, evaluated) * local_pose
                 } else {
-                    // Fallback for unexpected non-topological indexing
-                    global_transforms[i] = local_pose;
+                    local_pose
                 }
             } else {
-                global_transforms[i] = local_pose;
-            }
+                local_pose
+            };
+            globals[idx] = global;
+            evaluated[idx] = true;
+            global
+        }
+
+        for i in 0..count {
+            eval_joint(
+                i,
+                &self.joints,
+                local_poses,
+                &mut global_transforms,
+                &mut evaluated,
+            );
         }
 
         global_transforms

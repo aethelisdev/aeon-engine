@@ -173,3 +173,65 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     return vec4<f32>(color_out, in.color.a);
 }
+
+@fragment
+fn fs_cutout(in: VertexOutput) -> @location(0) vec4<f32> {
+    // 1. Sample Albedo / Diffuse Texture Map & discard transparent cutout background
+    let tex_color = textureSample(t_diffuse, s_diffuse, in.uv);
+    let alpha = in.color.a * tex_color.a;
+    if (alpha < 0.1) {
+        discard;
+    }
+
+    // 2. Scene Ambient & Direct Lighting
+    let ambient_color = light.ambient_color;
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(light.direction);
+    let diff = max(dot(normal, light_dir), 0.0);
+    let diffuse_color = light.color * diff;
+    let shadow = sample_shadow_pcf(in.world_pos);
+
+    var color_out = (ambient_color + diffuse_color * shadow) * in.color.rgb * tex_color.rgb;
+
+    // 3. Atmospheric Depth Fog
+    let fog_distance = light.fog_params.w;
+    if (fog_distance > 0.0) {
+        let dist = distance(in.world_pos, camera.camera_pos.xyz);
+        let fog_factor = clamp((dist - 50.0) / (fog_distance - 50.0), 0.0, 1.0);
+        let fog_color = light.fog_params.xyz;
+        color_out = mix(color_out, fog_color, fog_factor);
+    }
+
+    return vec4<f32>(color_out, 1.0);
+}
+
+@fragment
+fn fs_transparent(in: VertexOutput) -> @location(0) vec4<f32> {
+    // 1. Sample Albedo / Diffuse Texture Map & discard transparent background
+    let tex_color = textureSample(t_diffuse, s_diffuse, in.uv);
+    let alpha = in.color.a * tex_color.a;
+    if (alpha < 0.05) {
+        discard;
+    }
+
+    // 2. Scene Ambient & Direct Lighting
+    let ambient_color = light.ambient_color;
+    let normal = normalize(in.world_normal);
+    let light_dir = normalize(light.direction);
+    let diff = max(dot(normal, light_dir), 0.0);
+    let diffuse_color = light.color * diff;
+    let shadow = sample_shadow_pcf(in.world_pos);
+
+    var color_out = (ambient_color + diffuse_color * shadow) * in.color.rgb * tex_color.rgb;
+
+    // 3. Atmospheric Depth Fog
+    let fog_distance = light.fog_params.w;
+    if (fog_distance > 0.0) {
+        let dist = distance(in.world_pos, camera.camera_pos.xyz);
+        let fog_factor = clamp((dist - 50.0) / (fog_distance - 50.0), 0.0, 1.0);
+        let fog_color = light.fog_params.xyz;
+        color_out = mix(color_out, fog_color, fog_factor);
+    }
+
+    return vec4<f32>(color_out, alpha);
+}
