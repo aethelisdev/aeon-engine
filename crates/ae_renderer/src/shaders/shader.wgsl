@@ -157,6 +157,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // 4. Sample Albedo / Diffuse Texture Map
     let tex_color = textureSample(t_diffuse, s_diffuse, in.uv);
+    let alpha = in.color.a * tex_color.a;
+    if (alpha < 0.005) {
+        discard;
+    }
 
     // Combine lighting
     var color_out = (ambient_color + diffuse_color * shadow) * in.color.rgb * tex_color.rgb;
@@ -171,5 +175,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color_out = mix(color_out, fog_color, fog_factor);
     }
 
-    return vec4<f32>(color_out, in.color.a);
+    return vec4<f32>(color_out, alpha);
 }

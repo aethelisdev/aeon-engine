@@ -434,16 +434,12 @@ impl RenderState {
                             let mut cur = 0;
                             while cur < insts.len() {
                                 let start = cur;
-                                let tex_h = insts[cur].1;
-                                while cur < insts.len() && insts[cur].1 == tex_h {
+                                let override_tex = insts[cur].1;
+                                while cur < insts.len() && insts[cur].1 == override_tex {
                                     cur += 1;
                                 }
-                                let bg = tex_h
-                                    .and_then(|h| asset_manager.textures.get(h))
-                                    .map(|t| &t.bind_group)
-                                    .unwrap_or(&self.default_white_texture.bind_group);
+                                let count = (cur - start) as u32;
 
-                                pass.set_bind_group(3, bg, &[]);
                                 pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
                                 pass.set_vertex_buffer(
                                     1,
@@ -455,7 +451,44 @@ impl RenderState {
                                     m.index_buffer.slice(..),
                                     wgpu::IndexFormat::Uint32,
                                 );
-                                pass.draw_indexed(0..m.num_indices, 0, 0..(cur - start) as u32);
+
+                                if m.submeshes.is_empty() {
+                                    let bg = override_tex
+                                        .and_then(|h| asset_manager.textures.get(h))
+                                        .map(|t| &t.bind_group)
+                                        .unwrap_or(&self.default_white_texture.bind_group);
+
+                                    pass.set_bind_group(3, bg, &[]);
+                                    pass.draw_indexed(0..m.num_indices, 0, 0..count);
+                                } else {
+                                    for submesh in &m.submeshes {
+                                        if submesh.is_transparent {
+                                            continue;
+                                        }
+                                        let bg = if let Some(tex_idx) = submesh.texture_index {
+                                            m.embedded_textures
+                                                .get(tex_idx)
+                                                .and_then(|&h| asset_manager.textures.get(h))
+                                                .map(|t| &t.bind_group)
+                                        } else if let Some(custom_tex) = override_tex {
+                                            asset_manager
+                                                .textures
+                                                .get(custom_tex)
+                                                .map(|t| &t.bind_group)
+                                        } else {
+                                            None
+                                        }
+                                        .unwrap_or(&self.default_white_texture.bind_group);
+
+                                        pass.set_bind_group(3, bg, &[]);
+                                        pass.draw_indexed(
+                                            submesh.start_index
+                                                ..(submesh.start_index + submesh.index_count),
+                                            0,
+                                            0..count,
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
@@ -545,6 +578,77 @@ impl RenderState {
                                 wgpu::IndexFormat::Uint32,
                             );
                             pass.draw_indexed(0..m.num_indices, 0, 0..c);
+                        }
+                    }
+                }
+
+                // --- PASS 2: TRANSPARENT SUBMESHES (ALPHA BLENDING) ---
+                let mut has_any_transparent_submesh = false;
+                for (handle, m) in asset_manager.models.iter() {
+                    if let Some(insts) = model_instance_data.get(&handle) {
+                        if !insts.is_empty() && m.submeshes.iter().any(|s| s.is_transparent) {
+                            has_any_transparent_submesh = true;
+                            break;
+                        }
+                    }
+                }
+
+                if has_any_transparent_submesh {
+                    pass.set_pipeline(&self.pipelines.transparent_pipeline);
+                    for (handle, m) in asset_manager.models.iter() {
+                        if let Some(insts) = model_instance_data.get(&handle) {
+                            if !insts.is_empty() && m.submeshes.iter().any(|s| s.is_transparent) {
+                                let start_offset = *model_starts.get(&handle).unwrap_or(&0);
+                                let mut cur = 0;
+                                while cur < insts.len() {
+                                    let start = cur;
+                                    let override_tex = insts[cur].1;
+                                    while cur < insts.len() && insts[cur].1 == override_tex {
+                                        cur += 1;
+                                    }
+                                    let count = (cur - start) as u32;
+
+                                    pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                                    pass.set_vertex_buffer(
+                                        1,
+                                        self.geometry.instance_buffer.slice(
+                                            ((start_offset + start) * INSTANCE_SIZE) as u64..,
+                                        ),
+                                    );
+                                    pass.set_index_buffer(
+                                        m.index_buffer.slice(..),
+                                        wgpu::IndexFormat::Uint32,
+                                    );
+
+                                    for submesh in &m.submeshes {
+                                        if !submesh.is_transparent {
+                                            continue;
+                                        }
+                                        let bg = if let Some(tex_idx) = submesh.texture_index {
+                                            m.embedded_textures
+                                                .get(tex_idx)
+                                                .and_then(|&h| asset_manager.textures.get(h))
+                                                .map(|t| &t.bind_group)
+                                        } else if let Some(custom_tex) = override_tex {
+                                            asset_manager
+                                                .textures
+                                                .get(custom_tex)
+                                                .map(|t| &t.bind_group)
+                                        } else {
+                                            None
+                                        }
+                                        .unwrap_or(&self.default_white_texture.bind_group);
+
+                                        pass.set_bind_group(3, bg, &[]);
+                                        pass.draw_indexed(
+                                            submesh.start_index
+                                                ..(submesh.start_index + submesh.index_count),
+                                            0,
+                                            0..count,
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 }
