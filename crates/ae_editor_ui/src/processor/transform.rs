@@ -53,9 +53,15 @@ pub fn decompose_matrix(
     let col1 = Vector3::new(mat.y.x, mat.y.y, mat.y.z);
     let col2 = Vector3::new(mat.z.x, mat.z.y, mat.z.z);
 
-    let scale_x = col0.magnitude();
-    let scale_y = col1.magnitude();
-    let scale_z = col2.magnitude();
+    let mut scale_x = col0.magnitude().max(0.00001);
+    let scale_y = col1.magnitude().max(0.00001);
+    let scale_z = col2.magnitude().max(0.00001);
+
+    // Detect mirrored (negative) scale via 3×3 sub-matrix determinant sign
+    let det = col0.dot(col1.cross(col2));
+    if det < 0.0 {
+        scale_x = -scale_x;
+    }
 
     let scale = ae_core::ecs::Scale {
         x: scale_x,
@@ -63,21 +69,9 @@ pub fn decompose_matrix(
         z: scale_z,
     };
 
-    let rot_col0 = if scale_x > 0.00001 {
-        col0 / scale_x
-    } else {
-        Vector3::unit_x()
-    };
-    let rot_col1 = if scale_y > 0.00001 {
-        col1 / scale_y
-    } else {
-        Vector3::unit_y()
-    };
-    let rot_col2 = if scale_z > 0.00001 {
-        col2 / scale_z
-    } else {
-        Vector3::unit_z()
-    };
+    let rot_col0 = col0 / scale_x;
+    let rot_col1 = col1 / scale_y;
+    let rot_col2 = col2 / scale_z;
 
     let rot_mat3 = Matrix3::from_cols(rot_col0, rot_col1, rot_col2);
     let q: Quaternion<f32> = Quaternion::from(rot_mat3);

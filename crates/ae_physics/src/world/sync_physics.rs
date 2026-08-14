@@ -22,16 +22,46 @@ impl PhysicsWorld {
                     let translation = pose.translation;
                     let rotation = pose.rotation;
 
+                    let (local_translation, local_rotation) =
+                        if let Ok(parent_ref) = world.get::<&ae_core::ecs::Parent>(entity) {
+                            if let Ok(parent_gt) =
+                                world.get::<&ae_core::ecs::GlobalTransform>(parent_ref.0)
+                            {
+                                use ae_core::cgmath::SquareMatrix;
+                                if let Some(inv_parent) = parent_gt.0.invert() {
+                                    let p_world = ae_core::cgmath::Vector4::new(
+                                        translation.x,
+                                        translation.y,
+                                        translation.z,
+                                        1.0,
+                                    );
+                                    let p_local = inv_parent * p_world;
+                                    let (_, inv_r, _) =
+                                        ae_core::math::conversions::matrix4_to_glam_trs(inv_parent);
+                                    (
+                                        glam::Vec3::new(p_local.x, p_local.y, p_local.z),
+                                        inv_r * rotation,
+                                    )
+                                } else {
+                                    (translation, rotation)
+                                }
+                            } else {
+                                (translation, rotation)
+                            }
+                        } else {
+                            (translation, rotation)
+                        };
+
                     if let Ok(mut pos) = world.get::<&mut Position>(entity) {
-                        pos.x = translation.x;
-                        pos.y = translation.y;
-                        pos.z = translation.z;
+                        pos.x = local_translation.x;
+                        pos.y = local_translation.y;
+                        pos.z = local_translation.z;
                     }
                     if let Ok(mut rot) = world.get::<&mut Rotation>(entity) {
-                        rot.x = rotation.x;
-                        rot.y = rotation.y;
-                        rot.z = rotation.z;
-                        rot.w = rotation.w;
+                        rot.x = local_rotation.x;
+                        rot.y = local_rotation.y;
+                        rot.z = local_rotation.z;
+                        rot.w = local_rotation.w;
                     }
                     if let Ok(mut gt) = world.get::<&mut ae_core::ecs::GlobalTransform>(entity) {
                         let (sx, sy, sz) = world

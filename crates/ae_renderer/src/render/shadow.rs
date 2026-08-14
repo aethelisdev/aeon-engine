@@ -329,17 +329,11 @@ impl ShadowSystem {
         camera: &crate::camera::Camera,
         light_dir: cgmath::Vector3<f32>,
     ) {
-        use cgmath::InnerSpace;
         let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
         let splits = graphics_settings.shadow_cascade_splits; // Configurable View-Z distances
 
         let cam_pos = cgmath::Vector3::new(camera.position.x, camera.position.y, camera.position.z);
-        let cam_forward = cgmath::Vector3::new(
-            camera.yaw.0.cos() * camera.pitch.0.cos(),
-            camera.pitch.0.sin(),
-            camera.yaw.0.sin() * camera.pitch.0.cos(),
-        )
-        .normalize();
+        let cam_forward = camera.get_forward();
 
         // WGPU depth correction
         let corr = ae_core::camera::OPENGL_TO_WGPU_MATRIX;

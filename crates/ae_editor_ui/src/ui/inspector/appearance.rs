@@ -89,7 +89,12 @@ impl EngineUi {
                                     a: 1.0,
                                 }
                             };
-                            let new_color = ae_core::ecs::Color { r, g, b, a: 1.0 };
+                            let new_color = ae_core::ecs::Color {
+                                r,
+                                g,
+                                b,
+                                a: old_color.a,
+                            };
 
                             ui_actions
                                 .push(EngineUiAction::ModifyColor(entity, old_color, new_color));

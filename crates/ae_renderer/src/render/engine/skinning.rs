@@ -55,7 +55,9 @@ impl RenderState {
                 let skin_mat = m0 * w0 + m1 * w1 + m2 * w2 + m3 * w3;
 
                 let pos = skin_mat.transform_point3(glam::Vec3::from_array(skin_v.bind_position));
-                let norm = skin_mat.transform_vector3(glam::Vec3::from_array(skin_v.bind_normal));
+                let norm = skin_mat
+                    .transform_vector3(glam::Vec3::from_array(skin_v.bind_normal))
+                    .normalize_or_zero();
 
                 if i < model.gpu_vertices.len() {
                     model.gpu_vertices[i].position = pos.to_array();

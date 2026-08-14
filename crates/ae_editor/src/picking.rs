@@ -150,12 +150,18 @@ pub fn intersect_sphere(ray: &Ray, center: Point3<f32>, radius: f32) -> Option<f
         return None;
     }
 
-    let t = -b - discriminant.sqrt();
-    if t > 0.0 && t < ray.max_dist {
-        Some(t)
+    let t1 = -b - discriminant.sqrt();
+    let t2 = -b + discriminant.sqrt();
+
+    let hit_t = if t1 > 0.0 {
+        Some(t1)
+    } else if t2 > 0.0 {
+        Some(t2)
     } else {
         None
-    }
+    };
+
+    hit_t.filter(|&t| t < ray.max_dist)
 }
 
 /// Ray vs Triangle intersection test using Möller–Trumbore algorithm.

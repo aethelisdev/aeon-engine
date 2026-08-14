@@ -362,9 +362,6 @@ impl AeEngine {
                         vert_vel = 0.0; // Grounded: zero vertical velocity; snap_to_ground handles slopes/steps
                     }
                 } else {
-                    if vert_vel.abs() < 1e-3 {
-                        vert_vel = -3.0; // Initial drop velocity when stepping off a ledge
-                    }
                     vert_vel -= 20.0 * dt; // Gravity
                 }
 

@@ -23,14 +23,14 @@ pub fn handle_open_model_dialog(ctx: &mut UiContext) {
 /// Handles triggering save scene file dialog.
 pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();
-    ctx.dialog_receivers.push(rx);
+    ctx.ui.scene_dialog_receivers.push(rx);
     std::thread::spawn(move || {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Aeon Scene", &["aeon", "json"])
-            .set_file_name("scene.aeon")
+            .add_filter("Aeon Scene (*.aee)", &["aee"])
+            .set_file_name("scene.aee")
             .save_file()
         {
-            let _ = tx.send(path);
+            let _ = tx.send(crate::ui::SceneDialogAction::SaveTo(path));
         }
     });
 }
@@ -38,13 +38,13 @@ pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
 /// Handles triggering load scene file dialog.
 pub fn handle_open_load_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();
-    ctx.dialog_receivers.push(rx);
+    ctx.ui.scene_dialog_receivers.push(rx);
     std::thread::spawn(move || {
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Aeon Scene", &["aeon", "json"])
+            .add_filter("Aeon Scene (*.aee)", &["aee"])
             .pick_file()
         {
-            let _ = tx.send(path);
+            let _ = tx.send(crate::ui::SceneDialogAction::LoadFrom(path));
         }
     });
 }
@@ -61,16 +61,21 @@ pub fn handle_load_scene(ctx: &mut UiContext) {
 
 /// Handles saving scene directly to specified path.
 pub fn handle_save_scene_to_path(ctx: &mut UiContext, path: std::path::PathBuf) {
-    let _ = ctx;
-    let _ = path;
+    ctx.ui.active_scene_path = path.to_string_lossy().to_string();
+    ctx.ui.pending_save_path = Some(path.clone());
+    ctx.ui.should_save_scene = true;
+    ctx.editor.active_scene_path = Some(path.clone());
     log::info!("💾 Scene save request queued for path {:?}", path);
 }
 
 /// Handles loading scene directly from specified path.
 pub fn handle_load_scene_from_path(ctx: &mut UiContext, path: std::path::PathBuf) {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let _ = tx.send(path);
-    ctx.dialog_receivers.push(rx);
+    ctx.ui.active_scene_path = path.to_string_lossy().to_string();
+    ctx.ui.pending_load_path = Some(path.clone());
+    ctx.ui.should_load_scene = true;
+    ctx.ui.is_loading_assets = true;
+    ctx.editor.active_scene_path = Some(path.clone());
+    log::info!("📂 Scene load request queued for path {:?}", path);
 }
 
 /// Handles saving an entity as a prefab asset to specified path.

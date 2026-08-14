@@ -18,7 +18,11 @@ pub fn calculate_rotate_drag(
     current_vec: Vector3<f32>,
     drag_plane_normal: Vector3<f32>,
 ) -> Option<Vector3<f32>> {
-    if current_vec.magnitude2() < 0.001 || current_vec.x.is_nan() {
+    if current_vec.magnitude2() < 0.001
+        || !current_vec.x.is_finite()
+        || !current_vec.y.is_finite()
+        || !current_vec.z.is_finite()
+    {
         return None;
     }
 

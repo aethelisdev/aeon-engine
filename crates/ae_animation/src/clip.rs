@@ -53,26 +53,24 @@ impl VectorTrack {
             return self.keyframes[last_idx].value;
         }
 
-        // Find keyframe interval
-        for i in 0..last_idx {
-            let k0 = &self.keyframes[i];
-            let k1 = &self.keyframes[i + 1];
-            if time >= k0.time && time <= k1.time {
-                let duration = k1.time - k0.time;
-                if duration <= 1e-6 {
-                    return k0.value;
-                }
-                let t = (time - k0.time) / duration;
-                return match self.interpolation {
-                    Interpolation::Step => k0.value,
-                    Interpolation::Linear | Interpolation::CubicSpline => {
-                        k0.value.lerp(k1.value, t)
-                    }
-                };
-            }
+        // Find keyframe interval using O(log N) binary search
+        let idx = self.keyframes.partition_point(|k| k.time <= time);
+        let i = if idx == 0 {
+            0
+        } else {
+            (idx - 1).min(last_idx - 1)
+        };
+        let k0 = &self.keyframes[i];
+        let k1 = &self.keyframes[i + 1];
+        let duration = k1.time - k0.time;
+        if duration <= 1e-6 {
+            return k0.value;
         }
-
-        self.keyframes[last_idx].value
+        let t = (time - k0.time) / duration;
+        match self.interpolation {
+            Interpolation::Step => k0.value,
+            Interpolation::Linear | Interpolation::CubicSpline => k0.value.lerp(k1.value, t),
+        }
     }
 }
 
@@ -102,26 +100,26 @@ impl RotationTrack {
             return self.keyframes[last_idx].value.normalize();
         }
 
-        // Find keyframe interval
-        for i in 0..last_idx {
-            let k0 = &self.keyframes[i];
-            let k1 = &self.keyframes[i + 1];
-            if time >= k0.time && time <= k1.time {
-                let duration = k1.time - k0.time;
-                if duration <= 1e-6 {
-                    return k0.value.normalize();
-                }
-                let t = (time - k0.time) / duration;
-                return match self.interpolation {
-                    Interpolation::Step => k0.value.normalize(),
-                    Interpolation::Linear | Interpolation::CubicSpline => {
-                        k0.value.slerp(k1.value, t).normalize()
-                    }
-                };
+        // Find keyframe interval using O(log N) binary search
+        let idx = self.keyframes.partition_point(|k| k.time <= time);
+        let i = if idx == 0 {
+            0
+        } else {
+            (idx - 1).min(last_idx - 1)
+        };
+        let k0 = &self.keyframes[i];
+        let k1 = &self.keyframes[i + 1];
+        let duration = k1.time - k0.time;
+        if duration <= 1e-6 {
+            return k0.value.normalize();
+        }
+        let t = (time - k0.time) / duration;
+        match self.interpolation {
+            Interpolation::Step => k0.value.normalize(),
+            Interpolation::Linear | Interpolation::CubicSpline => {
+                k0.value.slerp(k1.value, t).normalize()
             }
         }
-
-        self.keyframes[last_idx].value.normalize()
     }
 }
 

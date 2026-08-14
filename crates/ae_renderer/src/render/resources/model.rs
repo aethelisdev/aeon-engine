@@ -387,12 +387,18 @@ pub fn parse_gltf_skin_and_animations(
             .map(|(idx, node)| (node.index(), idx))
             .collect();
 
+        // Build child_node_index -> parent_joint_index map
+        let mut child_to_parent = std::collections::HashMap::new();
+        for (parent_joint_idx, node) in joint_nodes.iter().enumerate() {
+            for child in node.children() {
+                child_to_parent.insert(child.index(), parent_joint_idx);
+            }
+        }
+
         let mut joints = Vec::with_capacity(joint_nodes.len());
         for (i, node) in joint_nodes.iter().enumerate() {
             let name = node.name().unwrap_or(&format!("Joint_{}", i)).to_string();
-            let parent_index = node
-                .children()
-                .find_map(|child| node_indices.get(&child.index()).copied());
+            let parent_index = child_to_parent.get(&node.index()).copied();
             let local_bind_pose = glam::Mat4::from_cols_array_2d(&node.transform().matrix());
             let ibm = ibms.get(i).copied().unwrap_or(glam::Mat4::IDENTITY);
 

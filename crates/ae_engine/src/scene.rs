@@ -353,67 +353,61 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                 let mut name_to_entity = std::collections::HashMap::new();
                 let mut entity_parent_links = Vec::new();
 
-                // 4. Instantiation of new entities
+                // 4. Instantiation of new entities using EntityBuilder (Single batch allocation)
                 for se in scene_data.entities {
-                    let new_ent = engine.ecs.world.spawn(());
+                    let mut builder = hecs::EntityBuilder::new();
 
-                    // Track parenting link for hierarchy reconstruction
                     let parent_name_opt = se.parent_name;
-                    if let Some(ref n) = se.name {
-                        name_to_entity.insert(n.0.clone(), new_ent);
-                    }
-                    if let Some(pn) = parent_name_opt {
-                        entity_parent_links.push((new_ent, pn));
-                    }
+                    let entity_name_opt = se.name.clone();
 
                     if let Some(n) = se.name {
-                        let _ = engine.ecs.world.insert_one(new_ent, n);
+                        builder.add(n);
                     }
                     if let Some(p) = se.position {
-                        let _ = engine.ecs.world.insert_one(new_ent, p);
+                        builder.add(p);
                     }
                     if let Some(r) = se.rotation {
-                        let _ = engine.ecs.world.insert_one(new_ent, r);
+                        builder.add(r);
                     }
                     if let Some(s) = se.scale {
-                        let _ = engine.ecs.world.insert_one(new_ent, s);
+                        builder.add(s);
                     }
                     if let Some(c) = se.color {
-                        let _ = engine.ecs.world.insert_one(new_ent, c);
+                        builder.add(c);
                     }
                     if let Some(l) = se.light {
-                        let _ = engine.ecs.world.insert_one(new_ent, l);
+                        builder.add(l);
                     }
                     if let Some(v) = se.velocity {
-                        let _ = engine.ecs.world.insert_one(new_ent, v);
+                        builder.add(v);
                     }
                     if let Some(sh) = se.shape {
-                        let _ = engine.ecs.world.insert_one(new_ent, sh);
+                        builder.add(sh);
                     }
                     if let Some(b) = se.bounding_radius {
-                        let _ = engine.ecs.world.insert_one(new_ent, b);
+                        builder.add(b);
                     }
                     if let Some(bbox) = se.bounding_box {
-                        let _ = engine.ecs.world.insert_one(new_ent, bbox);
+                        builder.add(bbox);
                     }
                     if se.is_player {
-                        let _ = engine.ecs.world.insert_one(new_ent, PlayerTag);
+                        builder.add(PlayerTag);
                     }
                     if let Some(rb) = se.rigid_body {
-                        let _ = engine.ecs.world.insert_one(new_ent, rb);
+                        builder.add(rb);
                     }
                     if let Some(col) = se.collider {
-                        let _ = engine.ecs.world.insert_one(new_ent, col);
+                        builder.add(col);
                     }
                     if let Some(ctrl) = se.character_controller {
-                        let _ = engine.ecs.world.insert_one(new_ent, ctrl);
+                        builder.add(ctrl);
                     }
 
                     if se.rigid_body.is_some()
                         || se.collider.is_some()
                         || se.character_controller.is_some()
                     {
-                        let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
+                        builder.add(TransformDirty);
                     }
 
                     if let Some(lg) = se.lod_group {
@@ -439,7 +433,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                                 threshold_1: lg.threshold_1,
                                 threshold_2: lg.threshold_2,
                             };
-                            let _ = engine.ecs.world.insert_one(new_ent, lod_comp);
+                            builder.add(lod_comp);
                         }
                     }
 
@@ -449,7 +443,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                         let handle = canonical_path
                             .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
                         if let Some(mid) = handle {
-                            let _ = engine.ecs.world.insert_one(new_ent, ModelId(mid));
+                            builder.add(ModelId(mid));
 
                             // Reconstruct bounding sphere if missing
                             if se.bounding_radius.is_none()
@@ -460,8 +454,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                                 let size_z = m.max[2] - m.min[2];
                                 let max_dim = size_x.max(size_y).max(size_z);
                                 let radius = max_dim / 2.0;
-                                let _ =
-                                    engine.ecs.world.insert_one(new_ent, BoundingRadius(radius));
+                                builder.add(BoundingRadius(radius));
                             }
                         }
                     }
@@ -471,8 +464,18 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                         let handle = canonical_path
                             .and_then(|c| engine.asset_manager.texture_path_map.get(&c).copied());
                         if let Some(tid) = handle {
-                            let _ = engine.ecs.world.insert_one(new_ent, SpriteId(tid));
+                            builder.add(SpriteId(tid));
                         }
+                    }
+
+                    let new_ent = engine.ecs.world.spawn(builder.build());
+
+                    // Track parenting link for hierarchy reconstruction
+                    if let Some(n) = entity_name_opt {
+                        name_to_entity.insert(n.0, new_ent);
+                    }
+                    if let Some(pn) = parent_name_opt {
+                        entity_parent_links.push((new_ent, pn));
                     }
                 }
 

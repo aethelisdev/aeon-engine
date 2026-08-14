@@ -628,17 +628,14 @@ pub struct RaycastHit {
     pub distance: f32,
 }
 
-/// Parent entity reference for hierarchical transforms (future use).
-#[allow(dead_code)]
+/// Parent entity reference for hierarchical transforms and scene graphs.
 #[derive(Debug, Clone, Copy)]
 pub struct Parent(pub hecs::Entity);
 
-/// Child entity list for hierarchical transforms (future use).
-#[allow(dead_code)]
+/// Child entity list for hierarchical transforms and scene graphs.
 #[derive(Debug, Clone)]
 pub struct Children(pub Vec<hecs::Entity>);
 
-/// Cached world-space transform matrix for hierarchical rendering (future use).
-#[allow(dead_code)]
+/// Cached world-space transform matrix for hierarchical transforms, picking, and rendering.
 #[derive(Debug, Clone, Copy)]
 pub struct GlobalTransform(pub cgmath::Matrix4<f32>);
