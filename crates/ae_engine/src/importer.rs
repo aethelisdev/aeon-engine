@@ -263,14 +263,19 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                     }
 
                     let output_path = path_clone.with_extension("glb");
-                    let output_path_str = output_path.to_string_lossy().to_string();
+                    let output_stem = path_clone.with_extension("");
+                    let output_stem_str = output_stem.to_string_lossy().to_string();
 
                     // Direct invocation of the local precompiled tool without Python
                     let output = std::process::Command::new(tool_path)
                         .arg("-i")
                         .arg(&path_str_clone)
                         .arg("-o")
-                        .arg(&output_path_str)
+                        .arg(&output_stem_str)
+                        .arg("-b")
+                        .arg("--pbr-metallic-roughness")
+                        .arg("--normalize-weights")
+                        .arg("1")
                         .output();
 
                     match output {
@@ -318,9 +323,9 @@ pub fn spawn_model(
     let size_z = max[2] - min[2];
     let max_dim = size_x.max(size_y).max(size_z);
     let mut auto_scale = 1.0;
-    if max_dim < 0.1 {
+    if max_dim < 0.05 {
         auto_scale = 100.0;
-        if max_dim < 0.01 {
+        if max_dim < 0.005 {
             auto_scale = 1000.0;
         }
     }
@@ -335,12 +340,16 @@ pub fn spawn_model(
         };
     }
 
-    let (bbox_min, bbox_max) = if let Some(model_asset) = engine.asset_manager.models.get(model_id)
-    {
-        (model_asset.min, model_asset.max)
-    } else {
-        ([-0.5; 3], [0.5; 3])
-    };
+    let (bbox_min, bbox_max, default_tex) =
+        if let Some(model_asset) = engine.asset_manager.models.get(model_id) {
+            (
+                model_asset.min,
+                model_asset.max,
+                model_asset.default_texture,
+            )
+        } else {
+            ([-0.5; 3], [0.5; 3], None)
+        };
 
     let new_entity = engine.ecs.world.spawn((
         ae_core::ecs::Name(final_name),
@@ -366,6 +375,13 @@ pub fn spawn_model(
             z: 0.0,
         },
     ));
+
+    if let Some(tex) = default_tex {
+        let _ = engine
+            .ecs
+            .world
+            .insert_one(new_entity, ae_core::ecs::SpriteId(tex));
+    }
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(&engine.ecs.world, new_entity);
     engine
         .editor

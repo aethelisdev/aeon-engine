@@ -162,17 +162,39 @@ impl EngineUi {
                         shape = ae_core::ecs::ColliderShape::Sphere { radius: r };
                     }
                     2 => {
-                        let (mut hh, mut r) = match shape {
-                            ae_core::ecs::ColliderShape::Capsule { half_height, radius } => (half_height, radius),
-                            _ => (0.5, 0.25),
+                        let (mut hh, mut r, mut cy) = match shape {
+                            ae_core::ecs::ColliderShape::Capsule {
+                                half_height,
+                                radius,
+                                center_y,
+                            } => (half_height, radius, center_y),
+                            _ => (0.5, 0.25, 0.0),
                         };
                         ui.horizontal(|ui| {
                             ui.label("Half H:");
-                            ui.add(egui::DragValue::new(&mut hh).speed(0.05).range(0.001..=1000.0));
+                            ui.add(
+                                egui::DragValue::new(&mut hh)
+                                    .speed(0.05)
+                                    .range(0.001..=1000.0),
+                            );
                             ui.label("R:");
-                            ui.add(egui::DragValue::new(&mut r).speed(0.05).range(0.001..=1000.0));
+                            ui.add(
+                                egui::DragValue::new(&mut r)
+                                    .speed(0.05)
+                                    .range(0.001..=1000.0),
+                            );
+                            ui.label("Center Y:");
+                            ui.add(
+                                egui::DragValue::new(&mut cy)
+                                    .speed(0.05)
+                                    .range(-100.0..=100.0),
+                            );
                         });
-                        shape = ae_core::ecs::ColliderShape::Capsule { half_height: hh, radius: r };
+                        shape = ae_core::ecs::ColliderShape::Capsule {
+                            half_height: hh,
+                            radius: r,
+                            center_y: cy,
+                        };
                     }
                     3 => {
                         ui.label("Trimesh (Static Mesh Collider)");
@@ -216,6 +238,7 @@ impl EngineUi {
         if let Ok(ctrl) = world.get::<&ae_core::ecs::CharacterController>(entity) {
             let mut height = ctrl.height;
             let mut radius = ctrl.radius;
+            let mut center_y = ctrl.center_y;
             let mut max_slope = ctrl.max_slope_climb_angle;
             let mut step_height = ctrl.step_height;
 
@@ -256,6 +279,14 @@ impl EngineUi {
                     );
                 });
                 ui.horizontal(|ui| {
+                    ui.label("Center Y:");
+                    ui.add(
+                        egui::DragValue::new(&mut center_y)
+                            .speed(0.02)
+                            .range(-10.0..=10.0),
+                    );
+                });
+                ui.horizontal(|ui| {
                     ui.label("Step Height:");
                     ui.add(
                         egui::DragValue::new(&mut step_height)
@@ -289,6 +320,7 @@ impl EngineUi {
             let new_ctrl = ae_core::ecs::CharacterController {
                 height,
                 radius,
+                center_y,
                 max_slope_climb_angle: max_slope,
                 step_height,
                 is_grounded: ctrl.is_grounded,
@@ -344,6 +376,7 @@ impl EngineUi {
                                         shape: ae_core::ecs::ColliderShape::Capsule {
                                             half_height: 0.15,
                                             radius: 0.35,
+                                            center_y: 0.0,
                                         },
                                         friction: 0.7,
                                         restitution: 0.0,
@@ -411,8 +444,9 @@ impl EngineUi {
                         if !has_col {
                             let col = ae_core::ecs::Collider {
                                 shape: ae_core::ecs::ColliderShape::Capsule {
-                                    half_height: 0.15,
-                                    radius: 0.35,
+                                    half_height: default_ctrl.capsule_half_height(),
+                                    radius: default_ctrl.radius,
+                                    center_y: default_ctrl.center_y,
                                 },
                                 friction: 0.5,
                                 restitution: 0.0,

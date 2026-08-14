@@ -231,9 +231,10 @@ impl DebugRenderer {
             Option<&ae_core::ecs::Scale>,
             Option<&ae_core::ecs::GlobalTransform>,
             Option<&ae_core::ecs::ModelId>,
+            Option<&ae_core::ecs::CharacterController>,
         )>();
 
-        for (col, pos, rot, scale, global_transform, model_id) in query.iter() {
+        for (col, pos, rot, scale, global_transform, model_id, kcc_opt) in query.iter() {
             let model = if let Some(gt) = global_transform {
                 gt.0
             } else {
@@ -260,10 +261,20 @@ impl DebugRenderer {
                 ae_core::ecs::ColliderShape::Capsule {
                     half_height,
                     radius,
+                    center_y,
                 } => {
+                    let offset_y = if let Some(ctrl) = kcc_opt {
+                        ctrl.center_y
+                    } else {
+                        center_y
+                    };
+                    let capsule_model = model
+                        * cgmath::Matrix4::from_translation(cgmath::Vector3::new(
+                            0.0, offset_y, 0.0,
+                        ));
                     DebugShapes::generate_capsule_lines(
                         &mut vertices,
-                        &model,
+                        &capsule_model,
                         half_height,
                         radius,
                         color,
@@ -328,6 +339,43 @@ impl DebugRenderer {
                     }
                 }
             }
+        }
+
+        let mut kcc_only_query = world
+            .query::<(
+                &ae_core::ecs::CharacterController,
+                &ae_core::ecs::Position,
+                Option<&ae_core::ecs::Rotation>,
+                Option<&ae_core::ecs::Scale>,
+                Option<&ae_core::ecs::GlobalTransform>,
+            )>()
+            .without::<&ae_core::ecs::Collider>();
+
+        for (ctrl, pos, rot, scale, global_transform) in kcc_only_query.iter() {
+            let model = if let Some(gt) = global_transform {
+                gt.0
+            } else {
+                let p = cgmath::Vector3::new(pos.x, pos.y, pos.z);
+                let q = rot
+                    .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
+                    .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
+                let s = scale
+                    .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
+                    .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
+
+                cgmath::Matrix4::from_translation(p)
+                    * cgmath::Matrix4::from(q)
+                    * cgmath::Matrix4::from_nonuniform_scale(s.x, s.y, s.z)
+            };
+            let capsule_model = model
+                * cgmath::Matrix4::from_translation(cgmath::Vector3::new(0.0, ctrl.center_y, 0.0));
+            DebugShapes::generate_capsule_lines(
+                &mut vertices,
+                &capsule_model,
+                ctrl.capsule_half_height(),
+                ctrl.radius,
+                color,
+            );
         }
 
         self.vertex_count = vertices.len() as u32;

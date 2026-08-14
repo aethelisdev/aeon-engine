@@ -649,6 +649,8 @@ pub struct ModelAsset {
     pub skeleton: Option<ae_animation::Skeleton>,
     /// Animation clips embedded in the 3D model
     pub animations: Vec<ae_animation::AnimationClip>,
+    /// Default embedded texture handle extracted from GLTF/GLB/FBX materials
+    pub default_texture: Option<crate::asset::AssetHandle>,
 }
 
 impl ModelAsset {

@@ -95,11 +95,11 @@ impl PhysicsWorld {
                 });
             let is_dirty = world.get::<&TransformDirty>(entity).is_ok();
 
+            let is_kcc = world.get::<&CharacterController>(entity).is_ok();
             let pose = Pose::from_parts(world_pos, world_rot);
 
             if let Some(&handle) = self.entity_to_body.get(&entity) {
                 // Body already exists - update it if dirty or if settings changed
-                let is_kcc = world.get::<&CharacterController>(entity).is_ok();
                 if let Some(body) = self.rigid_body_set.get_mut(handle) {
                     if is_kcc {
                         if is_dirty {
@@ -146,26 +146,27 @@ impl PhysicsWorld {
                     }
 
                     // Dynamically update existing colliders or rebuild if scale/shape changed
-                    let col_builder = if is_kcc {
+                    let col_builder = if let Some(cb) = Self::build_collider_for_entity(
+                        col_comp,
+                        rb_comp,
+                        scale_comp,
+                        entity,
+                        world,
+                        &get_mesh_data,
+                    ) {
+                        Some(cb)
+                    } else if is_kcc {
                         if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
                             let capsule_half_height = ctrl.capsule_half_height();
-                            let is_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
                             Some(
                                 ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
-                                    .sensor(is_sensor),
+                                    .translation(Vec3::new(0.0, ctrl.center_y, 0.0)),
                             )
                         } else {
                             None
                         }
                     } else {
-                        Self::build_collider_for_entity(
-                            col_comp,
-                            rb_comp,
-                            scale_comp,
-                            entity,
-                            world,
-                            &get_mesh_data,
-                        )
+                        None
                     };
 
                     if let Some(cb) = col_builder {
@@ -279,26 +280,27 @@ impl PhysicsWorld {
                 self.entity_to_body.insert(entity, handle);
                 self.body_to_entity.insert(handle, entity);
 
-                let col_builder = if is_kcc {
+                let col_builder = if let Some(cb) = Self::build_collider_for_entity(
+                    col_comp,
+                    rb_comp,
+                    scale_comp,
+                    entity,
+                    world,
+                    &get_mesh_data,
+                ) {
+                    Some(cb)
+                } else if is_kcc {
                     if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
                         let capsule_half_height = ctrl.capsule_half_height();
-                        let is_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
                         Some(
                             ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
-                                .sensor(is_sensor),
+                                .translation(Vec3::new(0.0, ctrl.center_y, 0.0)),
                         )
                     } else {
                         None
                     }
                 } else {
-                    Self::build_collider_for_entity(
-                        col_comp,
-                        rb_comp,
-                        scale_comp,
-                        entity,
-                        world,
-                        &get_mesh_data,
-                    )
+                    None
                 };
 
                 if let Some(cb) = col_builder {
@@ -366,6 +368,7 @@ impl PhysicsWorld {
                     shape: ColliderShape::Capsule {
                         half_height: 0.15,
                         radius: 0.35,
+                        center_y: 0.0,
                     },
                     friction: 0.7,
                     restitution: 0.0,
@@ -440,9 +443,19 @@ impl PhysicsWorld {
             ColliderShape::Capsule {
                 half_height,
                 radius,
+                center_y,
             } => {
                 let s_xz = sx.max(sz);
-                ColliderBuilder::capsule_y(half_height * sy, radius * s_xz)
+                let offset_y = if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
+                    ctrl.center_y
+                } else {
+                    center_y
+                };
+                ColliderBuilder::capsule_y(half_height * sy, radius * s_xz).translation(Vec3::new(
+                    0.0,
+                    offset_y * sy,
+                    0.0,
+                ))
             }
             ColliderShape::Trimesh => {
                 if let Ok(model_id) = world.get::<&ModelId>(entity) {

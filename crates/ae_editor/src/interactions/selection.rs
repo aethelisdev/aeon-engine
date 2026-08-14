@@ -278,9 +278,10 @@ pub fn try_select_entity(
                         ae_core::ecs::ColliderShape::Capsule {
                             half_height,
                             radius,
+                            center_y,
                         } => (
-                            [-radius, -half_height - radius, -radius],
-                            [radius, half_height + radius, radius],
+                            [-radius, -half_height - radius + center_y, -radius],
+                            [radius, half_height + radius + center_y, radius],
                         ),
                         _ => ([-0.5; 3], [0.5; 3]),
                     }

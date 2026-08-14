@@ -32,8 +32,33 @@ impl PhysicsWorld {
             None => return false,
         };
 
-        let capsule_half_height = controller.capsule_half_height();
-        let shape = SharedShape::capsule_y(capsule_half_height, controller.radius);
+        let body = match self.rigid_body_set.get(body_handle) {
+            Some(b) => b,
+            None => return false,
+        };
+
+        let (shape, center_y) = if let Some(&col_handle) = body.colliders().first() {
+            if let Some(rapier_col) = self.collider_set.get(col_handle) {
+                let s = rapier_col.shared_shape().clone();
+                let cy = rapier_col
+                    .position_wrt_parent()
+                    .map(|p| p.translation.y)
+                    .unwrap_or(controller.center_y);
+                (s, cy)
+            } else {
+                let capsule_half_height = controller.capsule_half_height();
+                (
+                    SharedShape::capsule_y(capsule_half_height, controller.radius),
+                    controller.center_y,
+                )
+            }
+        } else {
+            let capsule_half_height = controller.capsule_half_height();
+            (
+                SharedShape::capsule_y(capsule_half_height, controller.radius),
+                controller.center_y,
+            )
+        };
 
         let mut pos_comp = world
             .get::<&Position>(entity)
@@ -44,7 +69,7 @@ impl PhysicsWorld {
                 z: 0.0,
             });
         let mut character_pos =
-            Pose::from_translation(Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z));
+            Pose::from_translation(Vec3::new(pos_comp.x, pos_comp.y + center_y, pos_comp.z));
 
         // Connect step_height from CharacterController component if specified (> 0.0)
         let autostep = if controller.step_height > 0.0 {
@@ -92,7 +117,7 @@ impl PhysicsWorld {
 
         // Depenetration check: if starting pose overlaps any static collider, push character out to nearest surface
         let mut depenetrated = false;
-        let mut fixed_pos = Vec3::new(pos_comp.x, pos_comp.y, pos_comp.z);
+        let mut fixed_pos = Vec3::new(pos_comp.x, pos_comp.y + center_y, pos_comp.z);
 
         if !is_character_sensor {
             let max_depenetration_iterations = 4;
@@ -141,12 +166,12 @@ impl PhysicsWorld {
 
         if depenetrated {
             pos_comp.x = fixed_pos.x;
-            pos_comp.y = fixed_pos.y;
+            pos_comp.y = fixed_pos.y - center_y;
             pos_comp.z = fixed_pos.z;
             if let Ok(mut pos) = world.get::<&mut Position>(entity) {
-                pos.x = fixed_pos.x;
-                pos.y = fixed_pos.y;
-                pos.z = fixed_pos.z;
+                pos.x = pos_comp.x;
+                pos.y = pos_comp.y;
+                pos.z = pos_comp.z;
             }
             character_pos = Pose::from_translation(fixed_pos);
         }

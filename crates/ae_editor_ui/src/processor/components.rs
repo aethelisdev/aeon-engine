@@ -82,6 +82,25 @@ pub fn handle_modify_collider(
     } else {
         let _ = ctx.world.insert_one(entity, collider);
     }
+
+    // Synchronize CharacterController dimensions if present
+    if let ae_core::ecs::ColliderShape::Capsule {
+        half_height,
+        radius,
+        center_y,
+    } = collider.shape
+    {
+        if let Ok(mut ctrl) = ctx
+            .world
+            .get::<&mut ae_core::ecs::CharacterController>(entity)
+        {
+            ctrl.height = (half_height + radius) * 2.0;
+            ctrl.radius = radius;
+            ctrl.center_y = center_y;
+        }
+    }
+
+    let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
 }
 
 /// Handles adding a rigid body component to an entity.
@@ -142,6 +161,18 @@ pub fn handle_modify_character_controller(
     } else {
         let _ = ctx.world.insert_one(entity, cc);
     }
+
+    if let Ok(mut col) = ctx.world.get::<&mut ae_core::ecs::Collider>(entity) {
+        if matches!(col.shape, ae_core::ecs::ColliderShape::Capsule { .. }) {
+            col.shape = ae_core::ecs::ColliderShape::Capsule {
+                half_height: cc.capsule_half_height(),
+                radius: cc.radius,
+                center_y: cc.center_y,
+            };
+        }
+    }
+
+    let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
 }
 
 /// Handles adding LOD group component to an entity.

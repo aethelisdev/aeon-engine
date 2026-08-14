@@ -35,6 +35,14 @@ impl RenderState {
                 usage: wgpu::BufferUsages::INDEX,
             });
 
+        let default_texture = if let Some(cpu_tex) = data.embedded_texture {
+            let tex_path = data.canonical_path.with_extension("embedded_tex");
+            let tex_label = format!("{}_tex", data.original_path);
+            Some(self.upload_cpu_texture_data(assets, tex_path, cpu_tex, &tex_label))
+        } else {
+            None
+        };
+
         let source_path_str = data.canonical_path.to_string_lossy().to_string();
         let handle = assets.models.insert(ModelAsset {
             vertex_buffer,
@@ -49,6 +57,7 @@ impl RenderState {
             gpu_vertices: data.all_vertices,
             skeleton: data.skeleton,
             animations: data.animations,
+            default_texture,
         });
 
         assets.model_path_map.insert(data.canonical_path, handle);
@@ -97,7 +106,7 @@ impl RenderState {
         }
 
         let import_result = gltf::import(path);
-        let (document, buffers, _) = match import_result {
+        let (document, buffers, images) = match import_result {
             Ok(res) => res,
             Err(e) => {
                 core::hint::cold_path();
@@ -107,98 +116,10 @@ impl RenderState {
         };
 
         let (skeleton, animations) = parse_gltf_skin_and_animations(&document, &buffers);
+        let embedded_texture = extract_gltf_embedded_texture(&document, &images);
 
-        let mut all_vertices = Vec::new();
-        let mut all_indices = Vec::new();
-        let mut raw_positions = Vec::new();
-        let mut raw_skin_vertices = Vec::new();
-
-        let mut min = [f32::MAX; 3];
-        let mut max = [f32::MIN; 3];
-
-        for mesh in document.meshes() {
-            for primitive in mesh.primitives() {
-                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-                let mut pos_iter = match reader.read_positions() {
-                    Some(iter) => iter,
-                    None => continue,
-                };
-                let mut norm_iter = reader.read_normals();
-                let mut col_iter = reader.read_colors(0).map(|c| c.into_rgb_f32());
-                let mut tex_coord_iter = reader.read_tex_coords(0).map(|tc| tc.into_f32());
-
-                let mut joint_iter = reader.read_joints(0).map(|j| j.into_u16());
-                let mut weight_iter = reader.read_weights(0).map(|w| w.into_f32());
-
-                let start_vertex = all_vertices.len() as u32;
-
-                while let Some(pos) = pos_iter.next() {
-                    let normal = norm_iter
-                        .as_mut()
-                        .and_then(|n| n.next())
-                        .unwrap_or([0.0, 1.0, 0.0]);
-                    let color = col_iter
-                        .as_mut()
-                        .and_then(|c| c.next())
-                        .unwrap_or([1.0, 1.0, 1.0]);
-                    let uv = tex_coord_iter
-                        .as_mut()
-                        .and_then(|tc| tc.next())
-                        .unwrap_or([0.0, 0.0]);
-
-                    let (j_indices, j_weights, has_skin) = if let (Some(j_it), Some(w_it)) =
-                        (joint_iter.as_mut(), weight_iter.as_mut())
-                    {
-                        let raw_j = j_it.next().unwrap_or([0, 0, 0, 0]);
-                        let raw_w = w_it.next().unwrap_or([0.0, 0.0, 0.0, 0.0]);
-                        (
-                            [
-                                raw_j[0] as u32,
-                                raw_j[1] as u32,
-                                raw_j[2] as u32,
-                                raw_j[3] as u32,
-                            ],
-                            raw_w,
-                            true,
-                        )
-                    } else {
-                        ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0], false)
-                    };
-
-                    for i in 0..3 {
-                        if pos[i] < min[i] {
-                            min[i] = pos[i];
-                        }
-                        if pos[i] > max[i] {
-                            max[i] = pos[i];
-                        }
-                    }
-
-                    all_vertices.push(Vertex {
-                        position: pos,
-                        color,
-                        normal,
-                        uv,
-                    });
-                    raw_positions.push(pos);
-
-                    if has_skin && skeleton.is_some() {
-                        raw_skin_vertices.push(SkinVertex {
-                            bind_position: pos,
-                            bind_normal: normal,
-                            joint_indices: j_indices,
-                            joint_weights: j_weights,
-                        });
-                    }
-                }
-
-                if let Some(indices) = reader.read_indices() {
-                    for idx in indices.into_u32() {
-                        all_indices.push(start_vertex + idx);
-                    }
-                }
-            }
-        }
+        let (all_vertices, all_indices, raw_positions, raw_skin_vertices, min, max) =
+            parse_gltf_scene_geometry(&document, &buffers, skeleton.is_some());
 
         let data = crate::asset::ParsedModelData {
             all_vertices,
@@ -212,6 +133,7 @@ impl RenderState {
             final_name: String::new(),
             skeleton,
             animations,
+            embedded_texture,
         };
 
         self.upload_model_data(assets, data)
@@ -219,7 +141,7 @@ impl RenderState {
 }
 
 /// Thread-safe GLTF parser for async import pipeline. Extracts vertices, indices,
-/// normals, colors, and computes AABB bounds without GPU access.
+/// normals, colors, and computes AABB bounds with full scene graph node hierarchy transforms.
 pub fn parse_gltf_file(
     path: &str,
     final_name: String,
@@ -244,7 +166,7 @@ pub fn parse_gltf_file(
     };
 
     let import_result = gltf::import(path);
-    let (document, buffers, _) = match import_result {
+    let (document, buffers, images) = match import_result {
         Ok(res) => res,
         Err(e) => {
             core::hint::cold_path();
@@ -253,97 +175,10 @@ pub fn parse_gltf_file(
     };
 
     let (skeleton, animations) = parse_gltf_skin_and_animations(&document, &buffers);
+    let embedded_texture = extract_gltf_embedded_texture(&document, &images);
 
-    let mut all_vertices = Vec::new();
-    let mut all_indices = Vec::new();
-    let mut raw_positions = Vec::new();
-    let mut raw_skin_vertices = Vec::new();
-
-    let mut min = [f32::MAX; 3];
-    let mut max = [f32::MIN; 3];
-
-    for mesh in document.meshes() {
-        for primitive in mesh.primitives() {
-            let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-            let mut pos_iter = match reader.read_positions() {
-                Some(iter) => iter,
-                None => continue,
-            };
-            let mut norm_iter = reader.read_normals();
-            let mut col_iter = reader.read_colors(0).map(|c| c.into_rgb_f32());
-            let mut tex_coord_iter = reader.read_tex_coords(0).map(|tc| tc.into_f32());
-
-            let mut joint_iter = reader.read_joints(0).map(|j| j.into_u16());
-            let mut weight_iter = reader.read_weights(0).map(|w| w.into_f32());
-
-            let start_vertex = all_vertices.len() as u32;
-
-            while let Some(pos) = pos_iter.next() {
-                let normal = norm_iter
-                    .as_mut()
-                    .and_then(|n| n.next())
-                    .unwrap_or([0.0, 1.0, 0.0]);
-                let color = col_iter
-                    .as_mut()
-                    .and_then(|c| c.next())
-                    .unwrap_or([1.0, 1.0, 1.0]);
-                let uv = tex_coord_iter
-                    .as_mut()
-                    .and_then(|tc| tc.next())
-                    .unwrap_or([0.0, 0.0]);
-
-                let (j_indices, j_weights, has_skin) =
-                    if let (Some(j_it), Some(w_it)) = (joint_iter.as_mut(), weight_iter.as_mut()) {
-                        let raw_j = j_it.next().unwrap_or([0, 0, 0, 0]);
-                        let raw_w = w_it.next().unwrap_or([0.0, 0.0, 0.0, 0.0]);
-                        (
-                            [
-                                raw_j[0] as u32,
-                                raw_j[1] as u32,
-                                raw_j[2] as u32,
-                                raw_j[3] as u32,
-                            ],
-                            raw_w,
-                            true,
-                        )
-                    } else {
-                        ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0], false)
-                    };
-
-                for i in 0..3 {
-                    if pos[i] < min[i] {
-                        min[i] = pos[i];
-                    }
-                    if pos[i] > max[i] {
-                        max[i] = pos[i];
-                    }
-                }
-
-                all_vertices.push(Vertex {
-                    position: pos,
-                    color,
-                    normal,
-                    uv,
-                });
-                raw_positions.push(pos);
-
-                if has_skin && skeleton.is_some() {
-                    raw_skin_vertices.push(SkinVertex {
-                        bind_position: pos,
-                        bind_normal: normal,
-                        joint_indices: j_indices,
-                        joint_weights: j_weights,
-                    });
-                }
-            }
-
-            if let Some(indices) = reader.read_indices() {
-                for idx in indices.into_u32() {
-                    all_indices.push(start_vertex + idx);
-                }
-            }
-        }
-    }
+    let (all_vertices, all_indices, raw_positions, raw_skin_vertices, min, max) =
+        parse_gltf_scene_geometry(&document, &buffers, skeleton.is_some());
 
     Ok(crate::asset::ParsedModelData {
         all_vertices,
@@ -357,7 +192,314 @@ pub fn parse_gltf_file(
         final_name,
         skeleton,
         animations,
+        embedded_texture,
     })
+}
+
+/// Traverses GLTF scene node hierarchy and extracts all primitive geometry with world node transforms applied.
+pub fn parse_gltf_scene_geometry(
+    document: &gltf::Document,
+    buffers: &[gltf::buffer::Data],
+    has_skeleton: bool,
+) -> (
+    Vec<Vertex>,
+    Vec<u32>,
+    Vec<[f32; 3]>,
+    Vec<SkinVertex>,
+    [f32; 3],
+    [f32; 3],
+) {
+    let mut all_vertices = Vec::new();
+    let mut all_indices = Vec::new();
+    let mut raw_positions = Vec::new();
+    let mut raw_skin_vertices = Vec::new();
+
+    let mut min = [f32::MAX; 3];
+    let mut max = [f32::MIN; 3];
+
+    let mut root_nodes: Vec<gltf::Node> = if let Some(scene) = document.default_scene() {
+        scene.nodes().collect()
+    } else {
+        document.scenes().flat_map(|s| s.nodes()).collect()
+    };
+
+    if root_nodes.is_empty() {
+        root_nodes = document.nodes().collect();
+    }
+
+    if !root_nodes.is_empty() {
+        for root in &root_nodes {
+            traverse_gltf_node(
+                root,
+                glam::Mat4::IDENTITY,
+                buffers,
+                &mut all_vertices,
+                &mut all_indices,
+                &mut raw_positions,
+                &mut raw_skin_vertices,
+                &mut min,
+                &mut max,
+                has_skeleton,
+            );
+        }
+    } else {
+        for mesh in document.meshes() {
+            process_gltf_primitive_mesh(
+                &mesh,
+                glam::Mat4::IDENTITY,
+                buffers,
+                &mut all_vertices,
+                &mut all_indices,
+                &mut raw_positions,
+                &mut raw_skin_vertices,
+                &mut min,
+                &mut max,
+                has_skeleton,
+            );
+        }
+    }
+
+    if min[0] > max[0] {
+        min = [-0.5; 3];
+        max = [0.5; 3];
+    }
+
+    (
+        all_vertices,
+        all_indices,
+        raw_positions,
+        raw_skin_vertices,
+        min,
+        max,
+    )
+}
+
+fn traverse_gltf_node(
+    node: &gltf::Node,
+    parent_transform: glam::Mat4,
+    buffers: &[gltf::buffer::Data],
+    all_vertices: &mut Vec<Vertex>,
+    all_indices: &mut Vec<u32>,
+    raw_positions: &mut Vec<[f32; 3]>,
+    raw_skin_vertices: &mut Vec<SkinVertex>,
+    min: &mut [f32; 3],
+    max: &mut [f32; 3],
+    has_skeleton: bool,
+) {
+    let local_transform = glam::Mat4::from_cols_array_2d(&node.transform().matrix());
+    let world_transform = parent_transform * local_transform;
+
+    if let Some(mesh) = node.mesh() {
+        process_gltf_primitive_mesh(
+            &mesh,
+            world_transform,
+            buffers,
+            all_vertices,
+            all_indices,
+            raw_positions,
+            raw_skin_vertices,
+            min,
+            max,
+            has_skeleton,
+        );
+    }
+
+    for child in node.children() {
+        traverse_gltf_node(
+            &child,
+            world_transform,
+            buffers,
+            all_vertices,
+            all_indices,
+            raw_positions,
+            raw_skin_vertices,
+            min,
+            max,
+            has_skeleton,
+        );
+    }
+}
+
+fn process_gltf_primitive_mesh(
+    mesh: &gltf::Mesh,
+    world_transform: glam::Mat4,
+    buffers: &[gltf::buffer::Data],
+    all_vertices: &mut Vec<Vertex>,
+    all_indices: &mut Vec<u32>,
+    raw_positions: &mut Vec<[f32; 3]>,
+    raw_skin_vertices: &mut Vec<SkinVertex>,
+    min: &mut [f32; 3],
+    max: &mut [f32; 3],
+    has_skeleton: bool,
+) {
+    let normal_matrix = glam::Mat3::from_mat4(world_transform);
+
+    for primitive in mesh.primitives() {
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        let mut pos_iter = match reader.read_positions() {
+            Some(iter) => iter,
+            None => continue,
+        };
+        let mut norm_iter = reader.read_normals();
+        let mut col_iter = reader.read_colors(0).map(|c| c.into_rgb_f32());
+        let mut tex_coord_iter = reader.read_tex_coords(0).map(|tc| tc.into_f32());
+
+        let mut joint_iter = reader.read_joints(0).map(|j| j.into_u16());
+        let mut weight_iter = reader.read_weights(0).map(|w| w.into_f32());
+
+        let is_skinned = joint_iter.is_some() && weight_iter.is_some() && has_skeleton;
+
+        let start_vertex = all_vertices.len() as u32;
+
+        while let Some(raw_pos) = pos_iter.next() {
+            let raw_norm = norm_iter
+                .as_mut()
+                .and_then(|n| n.next())
+                .unwrap_or([0.0, 1.0, 0.0]);
+            let color = col_iter
+                .as_mut()
+                .and_then(|c| c.next())
+                .unwrap_or([1.0, 1.0, 1.0]);
+            let uv = tex_coord_iter
+                .as_mut()
+                .and_then(|tc| tc.next())
+                .unwrap_or([0.0, 0.0]);
+
+            let (final_pos, final_norm) = if is_skinned {
+                (raw_pos, raw_norm)
+            } else {
+                let p4 = world_transform * glam::Vec4::new(raw_pos[0], raw_pos[1], raw_pos[2], 1.0);
+                let n3 = (normal_matrix * glam::Vec3::new(raw_norm[0], raw_norm[1], raw_norm[2]))
+                    .normalize_or_zero();
+                ([p4.x, p4.y, p4.z], [n3.x, n3.y, n3.z])
+            };
+
+            let (j_indices, j_weights, has_skin) =
+                if let (Some(j_it), Some(w_it)) = (joint_iter.as_mut(), weight_iter.as_mut()) {
+                    let raw_j = j_it.next().unwrap_or([0, 0, 0, 0]);
+                    let raw_w = w_it.next().unwrap_or([0.0, 0.0, 0.0, 0.0]);
+                    (
+                        [
+                            raw_j[0] as u32,
+                            raw_j[1] as u32,
+                            raw_j[2] as u32,
+                            raw_j[3] as u32,
+                        ],
+                        raw_w,
+                        true,
+                    )
+                } else {
+                    ([0, 0, 0, 0], [0.0, 0.0, 0.0, 0.0], false)
+                };
+
+            for i in 0..3 {
+                if final_pos[i] < min[i] {
+                    min[i] = final_pos[i];
+                }
+                if final_pos[i] > max[i] {
+                    max[i] = final_pos[i];
+                }
+            }
+
+            all_vertices.push(Vertex {
+                position: final_pos,
+                color,
+                normal: final_norm,
+                uv,
+            });
+            raw_positions.push(final_pos);
+
+            if has_skin && has_skeleton {
+                raw_skin_vertices.push(SkinVertex {
+                    bind_position: final_pos,
+                    bind_normal: final_norm,
+                    joint_indices: j_indices,
+                    joint_weights: j_weights,
+                });
+            }
+        }
+
+        if let Some(indices) = reader.read_indices() {
+            for idx in indices.into_u32() {
+                all_indices.push(start_vertex + idx);
+            }
+        }
+    }
+}
+
+/// Extracts primary RGBA diffuse texture from glTF embedded images, prioritizing materials with base_color_texture.
+pub fn extract_gltf_embedded_texture(
+    document: &gltf::Document,
+    images: &[gltf::image::Data],
+) -> Option<ae_texture::CpuTextureData> {
+    if images.is_empty() {
+        return None;
+    }
+
+    let mut target_image_idx = None;
+    for material in document.materials() {
+        if let Some(pbr) = material.pbr_metallic_roughness().base_color_texture() {
+            let src_idx = pbr.texture().source().index();
+            if src_idx < images.len() {
+                target_image_idx = Some(src_idx);
+                break;
+            }
+        }
+    }
+
+    let img = if let Some(idx) = target_image_idx {
+        &images[idx]
+    } else {
+        images.iter().max_by_key(|img| img.width * img.height)?
+    };
+
+    let rgba_bytes = match img.format {
+        gltf::image::Format::R8G8B8A8 => img.pixels.clone(),
+        gltf::image::Format::R8G8B8 => {
+            let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
+            for chunk in img.pixels.chunks_exact(3) {
+                out.push(chunk[0]);
+                out.push(chunk[1]);
+                out.push(chunk[2]);
+                out.push(255);
+            }
+            out
+        }
+        gltf::image::Format::R8 => {
+            let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
+            for &b in &img.pixels {
+                out.push(b);
+                out.push(b);
+                out.push(b);
+                out.push(255);
+            }
+            out
+        }
+        gltf::image::Format::R8G8 => {
+            let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
+            for chunk in img.pixels.chunks_exact(2) {
+                out.push(chunk[0]);
+                out.push(chunk[1]);
+                out.push(0);
+                out.push(255);
+            }
+            out
+        }
+        _ => img.pixels.clone(),
+    };
+
+    if rgba_bytes.len() == (img.width * img.height * 4) as usize && img.width > 0 && img.height > 0
+    {
+        Some(ae_texture::CpuTextureData::new(
+            img.width,
+            img.height,
+            rgba_bytes,
+            ae_texture::ColorSpace::Srgb,
+            "embedded_model_texture",
+        ))
+    } else {
+        None
+    }
 }
 
 /// Helper to extract skeleton joints and animation clips from glTF document.

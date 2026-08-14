@@ -73,6 +73,7 @@ mod tests {
                 shape: ColliderShape::Capsule {
                     half_height: 0.5,
                     radius: 0.4,
+                    center_y: 0.0,
                 },
                 friction: 0.5,
                 restitution: 0.0,
@@ -151,6 +152,7 @@ mod tests {
                 shape: ColliderShape::Capsule {
                     half_height: 0.5,
                     radius: 0.4,
+                    center_y: 0.0,
                 },
                 friction: 0.5,
                 restitution: 0.0,
@@ -297,8 +299,8 @@ mod tests {
 
             let pos_y = world.get::<&Position>(player).unwrap().y;
             assert!(
-                pos_y >= 1.38,
-                "Frame {}: Character position y={} fell below ground surface (min expected 1.38)",
+                pos_y >= 0.48,
+                "Frame {}: Character position y={} fell below ground surface (min expected 0.48)",
                 step_idx,
                 pos_y
             );
@@ -368,11 +370,11 @@ mod tests {
             },
         ));
 
-        // Player starting at z = 0.0, resting on ground (y = 1.4)
+        // Player starting at z = 0.0, resting on ground (y = 0.5)
         let player = world.spawn((
             Position {
                 x: 0.0,
-                y: 1.4,
+                y: 0.5,
                 z: 0.0,
             },
             Rotation::identity(),
@@ -495,6 +497,7 @@ mod tests {
             CharacterController {
                 height: 1.8,
                 radius: 0.4,
+                center_y: 0.9,
                 max_slope_climb_angle: 45.0,
                 step_height: 0.3,
                 is_grounded: false,
@@ -571,6 +574,7 @@ mod tests {
             CharacterController {
                 height: 1.8,
                 radius: 0.4,
+                center_y: 0.9,
                 max_slope_climb_angle: 45.0,
                 step_height: 0.3,
                 is_grounded: false,
@@ -644,6 +648,7 @@ mod tests {
                 shape: ColliderShape::Capsule {
                     half_height: 0.5,
                     radius: 0.3,
+                    center_y: 0.0,
                 },
                 friction: 0.7,
                 restitution: 0.0,
@@ -737,6 +742,7 @@ mod tests {
                 shape: ColliderShape::Capsule {
                     half_height: 0.5,
                     radius: 0.4,
+                    center_y: 0.0,
                 },
                 friction: 0.5,
                 restitution: 0.0,

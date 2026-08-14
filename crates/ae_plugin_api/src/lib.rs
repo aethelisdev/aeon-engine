@@ -564,8 +564,13 @@ pub enum ColliderShape {
     Box { half_extents: [f32; 3] },
     /// A sphere shape defined by its radius.
     Sphere { radius: f32 },
-    /// A capsule shape aligned along the Y-axis defined by half-height and radius.
-    Capsule { half_height: f32, radius: f32 },
+    /// A capsule shape aligned along the Y-axis defined by half-height, radius, and local center Y offset.
+    Capsule {
+        half_height: f32,
+        radius: f32,
+        #[serde(default)]
+        center_y: f32,
+    },
     /// Triangle mesh shape for static environments. Resolves vertices/indices from ModelId component.
     Trimesh,
     /// Convex hull shape for dynamic/kinematic bodies. Resolves vertices from ModelId component.
@@ -595,6 +600,8 @@ pub struct Collider {
 pub struct CharacterController {
     pub height: f32,
     pub radius: f32,
+    #[serde(default)]
+    pub center_y: f32,
     pub max_slope_climb_angle: f32,
     pub step_height: f32,
     pub is_grounded: bool,
@@ -612,6 +619,7 @@ impl Default for CharacterController {
         Self {
             height: 1.8,
             radius: 0.4,
+            center_y: 0.0,
             max_slope_climb_angle: 45.0,
             step_height: 0.3,
             is_grounded: false,

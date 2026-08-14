@@ -320,8 +320,8 @@ impl AeEngine {
 
             // Rotate character entity transform to face movement direction if moving
             if move_dir.length_squared() > 0.001 {
-                let target_yaw = move_dir.z.atan2(move_dir.x);
-                let rot_quat = cgmath::Quaternion::from_angle_y(cgmath::Rad(-target_yaw));
+                let target_yaw = move_dir.x.atan2(move_dir.z);
+                let rot_quat = cgmath::Quaternion::from_angle_y(cgmath::Rad(target_yaw));
                 for &ent in &kcc_entities {
                     if let Ok(mut r) = self.ecs.world.get::<&mut ae_core::ecs::Rotation>(ent) {
                         r.x = rot_quat.v.x;
