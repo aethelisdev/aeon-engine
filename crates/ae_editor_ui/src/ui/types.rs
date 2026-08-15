@@ -21,6 +21,7 @@ pub enum EngineUiAction {
     Explode,
     ParentEntity(hecs::Entity, hecs::Entity),
     UnparentEntity(hecs::Entity),
+    ToggleVisibility(hecs::Entity),
 
     // --- UI/EDITOR STATE ACTIONS ---
     SelectEntity(Option<hecs::Entity>),

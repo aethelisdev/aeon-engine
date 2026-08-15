@@ -417,6 +417,11 @@ impl Scale {
     }
 }
 
+/// Marker component designating that an entity is currently hidden (not rendered).
+/// When present on an entity, the rendering pipeline skips instance generation.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+pub struct Hidden;
+
 /// RGBA color component for entity material tinting.
 /// All channels are in the `[0.0, 1.0]` linear range. Alpha `a` is used
 /// for transparency sorting when the render pipeline supports it.

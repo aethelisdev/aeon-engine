@@ -63,6 +63,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::UnparentEntity(child) => {
                 transform::handle_unparent_entity(ctx, child)
             }
+            crate::ui::EngineUiAction::ToggleVisibility(ent) => {
+                components::handle_toggle_visibility(ctx, ent)
+            }
 
             // --- COMPONENT MUTATION ACTIONS ---
             crate::ui::EngineUiAction::LiveUpdatePosition(ent, pos)

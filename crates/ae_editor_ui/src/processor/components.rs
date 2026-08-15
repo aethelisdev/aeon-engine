@@ -353,3 +353,14 @@ pub fn handle_set_model_submesh_texture(
         }
     }
 }
+
+/// Handles toggling the `Hidden` component on an entity (Show / Hide in Viewport).
+pub fn handle_toggle_visibility(ctx: &mut UiContext, entity: hecs::Entity) {
+    if ctx.world.get::<&ae_core::ecs::Hidden>(entity).is_ok() {
+        let _ = ctx.world.remove_one::<ae_core::ecs::Hidden>(entity);
+        log::info!("👁️ Entity {:?} made VISIBLE", entity);
+    } else {
+        let _ = ctx.world.insert_one(entity, ae_core::ecs::Hidden);
+        log::info!("🚫 Entity {:?} HIDDEN", entity);
+    }
+}

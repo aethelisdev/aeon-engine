@@ -416,9 +416,12 @@ impl EngineUi {
     }
 
     /// Renders a persistent thin bar at the absolute bottom for quick toggling and status info.
+    /// Renders a persistent thin bar at the absolute bottom for quick toggling and status info.
     pub(super) fn draw_utility_bar(
         show_workspace: &mut bool,
         workspace_tab: &mut usize,
+        show_left_panel: &mut bool,
+        left_panel_tab: &mut usize,
         status_message: &mut Option<(Vec<(String, egui::Color32)>, std::time::Instant)>,
         ui: &mut egui::Ui,
     ) -> Option<egui::Rect> {
@@ -433,9 +436,61 @@ impl EngineUi {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 12.0;
+                    ui.spacing_mut().item_spacing.x = 10.0;
 
-                    // 1. Toggles
+                    // 1. Left Panel Toggles (Hierarchy & Stats)
+                    let hier_btn = egui::RichText::new("🏗️ Hierarchy").size(11.5).strong();
+                    let stats_btn = egui::RichText::new("📊 Stats").size(11.5).strong();
+
+                    let cur_left = *show_left_panel;
+                    let cur_ltab = *left_panel_tab;
+
+                    let (hier_color, hier_bg) = if cur_left && cur_ltab == 0 {
+                        (egui::Color32::WHITE, egui::Color32::from_rgb(50, 80, 120))
+                    } else {
+                        (egui::Color32::from_gray(140), egui::Color32::TRANSPARENT)
+                    };
+                    let (stats_color, stats_bg) = if cur_left && cur_ltab == 1 {
+                        (egui::Color32::WHITE, egui::Color32::from_rgb(50, 80, 120))
+                    } else {
+                        (egui::Color32::from_gray(140), egui::Color32::TRANSPARENT)
+                    };
+
+                    if ui
+                        .add(
+                            egui::Button::new(hier_btn.color(hier_color))
+                                .fill(hier_bg)
+                                .small(),
+                        )
+                        .clicked()
+                    {
+                        if cur_left && cur_ltab == 0 {
+                            *show_left_panel = false;
+                        } else {
+                            *show_left_panel = true;
+                            *left_panel_tab = 0;
+                        }
+                    }
+
+                    if ui
+                        .add(
+                            egui::Button::new(stats_btn.color(stats_color))
+                                .fill(stats_bg)
+                                .small(),
+                        )
+                        .clicked()
+                    {
+                        if cur_left && cur_ltab == 1 {
+                            *show_left_panel = false;
+                        } else {
+                            *show_left_panel = true;
+                            *left_panel_tab = 1;
+                        }
+                    }
+
+                    ui.separator();
+
+                    // 2. Bottom Workspace Toggles
                     let console_btn = egui::RichText::new("📜 Console").size(11.5).strong();
                     let assets_btn = egui::RichText::new("📂 Assets").size(11.5).strong();
                     let anim_btn = egui::RichText::new("🎬 Timeline").size(11.5).strong();

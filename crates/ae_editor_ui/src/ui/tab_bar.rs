@@ -22,12 +22,27 @@ impl<'a> EditorTab<'a> {
 /// Returns `true` if the user clicked a different tab.
 pub fn draw_tab_bar(ui: &mut egui::Ui, current_tab: &mut usize, tabs: &[EditorTab]) -> bool {
     let mut changed = false;
-    let tab_height = 28.0;
+    let tab_height = 26.0;
     let tab_spacing = 3.0;
-    let total_width = ui.available_width();
+
+    // Calculate exact width needed by tabs
+    let font_id = egui::TextStyle::Button.resolve(ui.style());
+    let mut required_width = 8.0;
+    for tab in tabs {
+        let text = if tab.icon.is_empty() {
+            tab.title.to_string()
+        } else {
+            format!("{} {}", tab.icon, tab.title)
+        };
+        let text_layout = ui
+            .painter()
+            .layout_no_wrap(text, font_id.clone(), Color32::WHITE);
+        let tab_width = (text_layout.size().x + 22.0).max(75.0);
+        required_width += tab_width + tab_spacing;
+    }
 
     let (rect, _response) =
-        ui.allocate_exact_size(Vec2::new(total_width, tab_height), egui::Sense::hover());
+        ui.allocate_exact_size(Vec2::new(required_width, tab_height), egui::Sense::hover());
 
     let painter = ui.painter_at(rect);
 

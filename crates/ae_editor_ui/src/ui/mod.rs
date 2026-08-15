@@ -61,6 +61,9 @@ pub struct EngineUi {
     pub workspace_tab: usize,
     pub show_workspace: bool,
     pub inspector_tab: usize,
+    pub show_left_panel: bool,
+    pub left_panel_tab: usize,
+    pub hierarchy_search_query: String,
     /// Snapshot of log entries (updated at most once per frame, only when count changed).
     console_entries: Vec<ConsoleEntry>,
     /// The log count we last snapshotted from – used for change detection.
@@ -161,7 +164,10 @@ impl EngineUi {
             should_exit: false,
             workspace_tab: 1, // Default to Console
             show_workspace: false,
-            inspector_tab: 0, // Default to Inspector
+            inspector_tab: 0,       // Default to Inspector
+            show_left_panel: false, // Default to closed (clean spacious viewport)
+            left_panel_tab: 0,      // Default to Hierarchy
+            hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
             ui_rects: Vec::new(),
@@ -337,6 +343,9 @@ impl EngineUi {
         let gizmo_mode = &mut self.gizmo_mode;
         let gizmo_space = &mut self.gizmo_space;
         let status_message = &mut self.status_message;
+        let show_left_panel = &mut self.show_left_panel;
+        let left_panel_tab = &mut self.left_panel_tab;
+        let hierarchy_search_query = &mut self.hierarchy_search_query;
         let show_workspace = &mut self.show_workspace;
         let workspace_tab = &mut self.workspace_tab;
         let inspector_tab = &mut self.inspector_tab;
@@ -366,6 +375,8 @@ impl EngineUi {
                 should_load_scene,
                 show_workspace,
                 workspace_tab,
+                show_left_panel,
+                left_panel_tab,
                 ui,
                 world,
                 mode,
@@ -374,6 +385,7 @@ impl EngineUi {
                 is_editing,
                 ui_actions,
             );
+
             // 1.5 PREFERENCES WINDOW
             if *show_preferences {
                 let mut temp_gs = (*graphics_settings).clone();
@@ -408,14 +420,46 @@ impl EngineUi {
 
             // 2. Bottom Utility Bar (Toggle buttons + Status)
             // Call this first to anchor it to the absolute bottom of the window.
-            if let Some(rect) =
-                Self::draw_utility_bar(show_workspace, workspace_tab, status_message, ui)
-            {
+            if let Some(rect) = Self::draw_utility_bar(
+                show_workspace,
+                workspace_tab,
+                show_left_panel,
+                left_panel_tab,
+                status_message,
+                ui,
+            ) {
                 ui_rects_collector.borrow_mut().push(rect);
             }
 
-            // 2.1 Right Panel (Inspector Panel)
-            // Occupies the right side from top bar down to utility bar.
+            // 2.1 Left Docked Panel (Hierarchy & Stats Tabs)
+            // Occupies the left side from top menu bar down to bottom utility bar.
+            let left_panel_resp = Self::draw_left_panel(
+                show_left_panel,
+                left_panel_tab,
+                hierarchy_search_query,
+                selected_entity,
+                ui,
+                world,
+                is_editing,
+                ui_actions,
+                hierarchy_cache,
+                wireframe_enabled,
+                grid_enabled,
+                smoothed_fps,
+                profiler_ecs_ms,
+                profiler_render_ms,
+                profiler_present_ms,
+                profiler_ui_ms,
+                profiler_frame_ms,
+                memory_models_mb,
+                memory_textures_mb,
+            );
+            if let Some(rect) = left_panel_resp {
+                ui_rects_collector.borrow_mut().push(rect);
+            }
+
+            // 2.2 Right Panel (Inspector & Material Editor Tabs)
+            // Occupies the right side from top menu bar down to bottom utility bar.
             let mut inspector_snapshot: Option<ae_editor::undo_redo::EntitySnapshot> = None;
             let inspector_resp = Self::draw_inspector_panel(
                 selected_entity,
@@ -442,8 +486,8 @@ impl EngineUi {
                 ui_rects_collector.borrow_mut().push(rect);
             }
 
-            // 2.2 Bottom Workspace Panel (Console / Asset Browser / Animation Timeline)
-            // Docks at bottom of remaining central space (strictly to the left of inspector_panel).
+            // 2.3 Bottom Workspace Panel (Console / Asset Browser / Animation Timeline)
+            // Docks at bottom of remaining central space (between left_panel and inspector_panel).
             if let Some(rect) = Self::draw_workspace_panel(
                 show_workspace,
                 workspace_tab,
@@ -507,36 +551,6 @@ impl EngineUi {
                     *selected_entity,
                     ui_actions,
                 );
-            }
-
-            // 4. Decoupled Hierarchy and Stats Panels (Groundwork for Modular Placements)
-            let hierarchy_resp = Self::draw_hierarchy_panel(
-                selected_entity,
-                &ctx,
-                world,
-                is_editing,
-                ui_actions,
-                hierarchy_cache,
-            );
-            if let Some(rect) = hierarchy_resp {
-                ui_rects_collector.borrow_mut().push(rect);
-            }
-
-            let stats_resp = Self::draw_stats_panel(
-                wireframe_enabled,
-                grid_enabled,
-                &ctx,
-                smoothed_fps,
-                profiler_ecs_ms,
-                profiler_render_ms,
-                profiler_present_ms,
-                profiler_ui_ms,
-                profiler_frame_ms,
-                memory_models_mb,
-                memory_textures_mb,
-            );
-            if let Some(rect) = stats_resp {
-                ui_rects_collector.borrow_mut().push(rect);
             }
 
             // Loading Overlay and Dialogs

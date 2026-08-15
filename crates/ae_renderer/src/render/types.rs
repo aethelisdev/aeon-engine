@@ -147,6 +147,9 @@ impl RenderScene {
             }
         }
 
+        // Filter out explicitly hidden entities
+        visible_entities.retain(|&e| world.get::<&ae_core::ecs::Hidden>(e).is_err());
+
         visible_entities
     }
     /// Extracts visible entities from the ECS World into GPU-ready instance data.
@@ -218,6 +221,10 @@ impl RenderScene {
                 player_tag,
             ) in query.iter()
             {
+                if world.get::<&ae_core::ecs::Hidden>(entity).is_ok() {
+                    continue;
+                }
+
                 let p_world = if let Some(gt) = global_transform {
                     cgmath::Vector3::new(gt.0.w.x, gt.0.w.y, gt.0.w.z)
                 } else {
