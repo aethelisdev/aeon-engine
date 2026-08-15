@@ -14,16 +14,16 @@
 /// and verified on dynamic library load to prevent severe memory corruption and
 /// segmentation faults caused by Rust ABI mismatch.
 pub const ENGINE_ABI_HASH: &str = if cfg!(debug_assertions) {
-    "ae-abi-v0.7.0-debug"
+    "ae-abi-v0.8.0-debug"
 } else {
-    "ae-abi-v0.7.0-release"
+    "ae-abi-v0.8.0-release"
 };
 
 /// Null-terminated CStr version of `ENGINE_ABI_HASH` for safe FFI export across plugin boundaries.
 pub const ENGINE_ABI_HASH_C_STR: &std::ffi::CStr = if cfg!(debug_assertions) {
-    c"ae-abi-v0.7.0-debug"
+    c"ae-abi-v0.8.0-debug"
 } else {
-    c"ae-abi-v0.7.0-release"
+    c"ae-abi-v0.8.0-release"
 };
 
 /// Returns the platform-specific dynamic library extension.

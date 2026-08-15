@@ -21,6 +21,7 @@ pub struct SceneUniforms {
     pub sky_buffer: wgpu::Buffer,
     pub sky_bind_group_layout: wgpu::BindGroupLayout,
     pub sky_uniform: crate::render::types::SkyUniform,
+    pub start_time: std::time::Instant,
 }
 
 impl SceneUniforms {
@@ -132,6 +133,10 @@ impl SceneUniforms {
             sun_disc_size: 1.0,
             sun_glow_strength: 1.0,
             sky_quality_mode: 2,
+            time: 0.0,
+            cloud_coverage: 0.45,
+            cloud_speed: 0.02,
+            _pad: 0.0,
         };
 
         let sky_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -178,6 +183,7 @@ impl SceneUniforms {
             sky_buffer,
             sky_bind_group_layout,
             sky_uniform,
+            start_time: std::time::Instant::now(),
         }
     }
 
@@ -215,15 +221,19 @@ impl SceneUniforms {
         let env_g = settings.environment_color[1];
         let env_b = settings.environment_color[2];
 
-        // Horizon and zenith are close in tone — gradient should be subtle, not a visible band
-        self.sky_uniform.horizon_color = [env_r * 0.2, env_g * 0.4, env_b * 0.75, 1.0];
-        self.sky_uniform.zenith_color = [env_r * 0.1, env_g * 0.25, env_b * 0.9, 1.0];
+        // Atmospheric Rayleigh and Mie color balance
+        self.sky_uniform.horizon_color = [env_r * 0.55, env_g * 0.72, env_b * 0.90, 1.0];
+        self.sky_uniform.zenith_color = [env_r * 0.08, env_g * 0.22, env_b * 0.58, 1.0];
         self.sky_uniform.sun_color = [1.0, 0.95, 0.8, 100.0]; // HDR intensity in w
 
         self.sky_uniform.atmosphere_density = settings.atmosphere_density;
         self.sky_uniform.sun_disc_size = settings.sun_disc_size;
         self.sky_uniform.sun_glow_strength = settings.sun_glow_strength;
         self.sky_uniform.sky_quality_mode = settings.sky_quality as u32;
+        self.sky_uniform.time = self.start_time.elapsed().as_secs_f32();
+        self.sky_uniform.cloud_coverage = 0.45;
+        self.sky_uniform.cloud_speed = 0.02;
+        self.sky_uniform._pad = 0.0;
 
         queue.write_buffer(
             &self.sky_buffer,

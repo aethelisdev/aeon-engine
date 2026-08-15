@@ -591,6 +591,10 @@ pub struct SkyUniform {
     pub sun_disc_size: f32,
     pub sun_glow_strength: f32,
     pub sky_quality_mode: u32, // 0=Low, 1=Medium, 2=High
+    pub time: f32,
+    pub cloud_coverage: f32,
+    pub cloud_speed: f32,
+    pub _pad: f32,
 }
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
