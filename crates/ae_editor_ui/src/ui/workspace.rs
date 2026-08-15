@@ -14,6 +14,8 @@ impl EngineUi {
         models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
         textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
         ui_actions: &mut Vec<EngineUiAction>,
+        selected_entity: Option<hecs::Entity>,
+        world: &hecs::World,
     ) -> Option<egui::Rect> {
         if !*show_workspace {
             return None;
@@ -21,19 +23,25 @@ impl EngineUi {
 
         let resp = egui::Panel::bottom("workspace_panel")
             .resizable(true)
-            .show_separator_line(false)
             .min_size(100.0)
             .default_size(250.0)
             .frame(
                 egui::Frame::new()
                     .fill(egui::Color32::from_rgb(20, 20, 25))
                     .inner_margin(egui::Margin::symmetric(8, 6))
-                    .stroke(egui::Stroke::NONE),
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(workspace_tab, 0, "📂 Assets");
-                    ui.selectable_value(workspace_tab, 1, "📜 Console");
+                    crate::ui::tab_bar::draw_tab_bar(
+                        ui,
+                        workspace_tab,
+                        &[
+                            crate::ui::tab_bar::EditorTab::new(0, "📂", "Assets"),
+                            crate::ui::tab_bar::EditorTab::new(1, "📜", "Console"),
+                            crate::ui::tab_bar::EditorTab::new(2, "🎬", "Animation Timeline"),
+                        ],
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button("✕").clicked() {
                             *show_workspace = false;
@@ -200,6 +208,207 @@ impl EngineUi {
                                 ui.label(job);
                             }
                         });
+                } else if *workspace_tab == 2 {
+                    // --- 🎬 ANIMATION TIMELINE STUDIO ---
+                    ui.spacing_mut().item_spacing.y = 6.0;
+                    if let Some(entity) = selected_entity {
+                        if world.contains(entity) {
+                            if let Ok(player) = world.get::<&ae_animation::AnimationPlayer>(entity) {
+                                let mut updated = (*player).clone();
+                                let mut changed = false;
+
+                                let duration = updated
+                                    .current_clip
+                                    .as_ref()
+                                    .map_or(1.0, |c| c.duration.max(0.1));
+
+                                // 1. TRANSPORT CONTROLS BAR
+                                ui.horizontal(|ui| {
+                                    if ui
+                                        .button(if updated.state == ae_animation::AnimationState::Playing {
+                                            "⏸ Pause"
+                                        } else {
+                                            "▶ Play"
+                                        })
+                                        .clicked()
+                                    {
+                                        updated.state = if updated.state == ae_animation::AnimationState::Playing {
+                                            ae_animation::AnimationState::Paused
+                                        } else {
+                                            ae_animation::AnimationState::Playing
+                                        };
+                                        changed = true;
+                                    }
+                                    if ui.button("⏹ Stop").clicked() {
+                                        updated.state = ae_animation::AnimationState::Stopped;
+                                        updated.current_time = 0.0;
+                                        changed = true;
+                                    }
+
+                                    ui.separator();
+
+                                    let mut is_looping = updated.looping;
+                                    if ui.checkbox(&mut is_looping, "🔁 Loop").changed() {
+                                        updated.looping = is_looping;
+                                        changed = true;
+                                    }
+
+                                    ui.separator();
+
+                                    ui.label("Speed:");
+                                    if ui
+                                        .add(
+                                            egui::Slider::new(&mut updated.speed, 0.1..=3.0)
+                                                .text("x")
+                                                .fixed_decimals(1),
+                                        )
+                                        .changed()
+                                    {
+                                        changed = true;
+                                    }
+
+                                    ui.separator();
+
+                                    let model_anims = if let Ok(model_id) =
+                                        world.get::<&ae_core::ecs::ModelId>(entity)
+                                    {
+                                        models.get(model_id.0).map(|m| &m.animations)
+                                    } else {
+                                        None
+                                    };
+
+                                    let active_clip_name = updated
+                                        .current_clip
+                                        .as_ref()
+                                        .map_or("No Clip Loaded", |c| c.name.as_str());
+
+                                    ui.label("Clip:");
+                                    egui::ComboBox::from_id_salt("timeline_studio_clip_selector")
+                                        .selected_text(active_clip_name)
+                                        .show_ui(ui, |ui| {
+                                            if let Some(anims) = model_anims {
+                                                for clip in anims {
+                                                    let is_selected = updated
+                                                        .current_clip
+                                                        .as_ref()
+                                                        .is_some_and(|c| c.name == clip.name);
+                                                    if ui.selectable_label(is_selected, &clip.name).clicked() {
+                                                        updated.current_clip = Some(clip.clone());
+                                                        updated.current_time = 0.0;
+                                                        changed = true;
+                                                    }
+                                                }
+                                            }
+                                        });
+
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.label(
+                                            egui::RichText::new(format!(
+                                                "{:05.2}s / {:05.2}s",
+                                                updated.current_time, duration
+                                            ))
+                                            .color(egui::Color32::from_rgb(0, 220, 255))
+                                            .strong(),
+                                        );
+                                    });
+                                });
+
+                                ui.separator();
+
+                                // 2. HORIZONTAL SCRUBBER TIMELINE BAR
+                                let (timeline_rect, _resp) = ui.allocate_exact_size(
+                                    egui::Vec2::new(ui.available_width(), 32.0),
+                                    egui::Sense::click_and_drag(),
+                                );
+                                let painter = ui.painter_at(timeline_rect);
+
+                                painter.rect_filled(
+                                    timeline_rect,
+                                    egui::CornerRadius::same(4),
+                                    egui::Color32::from_rgb(14, 15, 18),
+                                );
+
+                                let scrubber_resp = ui.interact(
+                                    timeline_rect,
+                                    ui.make_persistent_id("timeline_scrubber_head"),
+                                    egui::Sense::click_and_drag(),
+                                );
+
+                                if scrubber_resp.dragged() || scrubber_resp.clicked() {
+                                    if let Some(mouse_pos) = scrubber_resp.interact_pointer_pos() {
+                                        let t = ((mouse_pos.x - timeline_rect.min.x)
+                                            / timeline_rect.width())
+                                        .clamp(0.0, 1.0);
+                                        updated.current_time = t * duration;
+                                        changed = true;
+                                    }
+                                }
+
+                                let progress_ratio = (updated.current_time / duration).clamp(0.0, 1.0);
+                                let fill_width = timeline_rect.width() * progress_ratio;
+                                if fill_width > 0.0 {
+                                    painter.rect_filled(
+                                        egui::Rect::from_min_size(
+                                            timeline_rect.min,
+                                            egui::Vec2::new(fill_width, timeline_rect.height()),
+                                        ),
+                                        egui::CornerRadius::same(4),
+                                        egui::Color32::from_rgba_unmultiplied(0, 150, 255, 60),
+                                    );
+                                }
+
+                                for i in 0..=10 {
+                                    let frac = i as f32 / 10.0;
+                                    let x = timeline_rect.min.x + timeline_rect.width() * frac;
+                                    let is_major = i % 2 == 0;
+                                    let tick_h = if is_major { 8.0 } else { 4.0 };
+                                    painter.line_segment(
+                                        [
+                                            egui::Pos2::new(x, timeline_rect.min.y),
+                                            egui::Pos2::new(x, timeline_rect.min.y + tick_h),
+                                        ],
+                                        egui::Stroke::new(1.0, egui::Color32::from_gray(80)),
+                                    );
+                                    if is_major {
+                                        painter.text(
+                                            egui::Pos2::new(x + 2.0, timeline_rect.min.y + 10.0),
+                                            egui::Align2::LEFT_TOP,
+                                            format!("{:.1}s", frac * duration),
+                                            egui::FontId::proportional(9.0),
+                                            egui::Color32::from_gray(120),
+                                        );
+                                    }
+                                }
+
+                                let needle_x = timeline_rect.min.x + fill_width;
+                                painter.line_segment(
+                                    [
+                                        egui::Pos2::new(needle_x, timeline_rect.min.y),
+                                        egui::Pos2::new(needle_x, timeline_rect.max.y),
+                                    ],
+                                    egui::Stroke::new(2.5, egui::Color32::from_rgb(0, 220, 255)),
+                                );
+
+                                if changed {
+                                    ui_actions.push(EngineUiAction::ModifyAnimationPlayer(
+                                        entity, updated,
+                                    ));
+                                }
+                            } else {
+                                ui.centered_and_justified(|ui| {
+                                    ui.label("Selected entity does not have an AnimationPlayer component.");
+                                });
+                            }
+                        } else {
+                            ui.centered_and_justified(|ui| {
+                                ui.label("No entity selected. Select a 3D animated model to inspect animation timeline.");
+                            });
+                        }
+                    } else {
+                        ui.centered_and_justified(|ui| {
+                            ui.label("No entity selected. Select a 3D animated model to inspect animation timeline.");
+                        });
+                    }
                 }
             });
 
@@ -216,12 +425,11 @@ impl EngineUi {
         let resp = egui::Panel::bottom("utility_bar")
             .exact_size(24.0)
             .resizable(false)
-            .show_separator_line(false)
             .frame(
                 egui::Frame::new()
                     .fill(egui::Color32::from_rgb(15, 15, 20))
                     .inner_margin(egui::Margin::symmetric(8, 4))
-                    .stroke(egui::Stroke::NONE),
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -230,6 +438,7 @@ impl EngineUi {
                     // 1. Toggles
                     let console_btn = egui::RichText::new("📜 Console").size(11.5).strong();
                     let assets_btn = egui::RichText::new("📂 Assets").size(11.5).strong();
+                    let anim_btn = egui::RichText::new("🎬 Timeline").size(11.5).strong();
 
                     let cur_workspace = *show_workspace;
                     let cur_tab = *workspace_tab;
@@ -241,6 +450,11 @@ impl EngineUi {
                         (egui::Color32::from_gray(140), egui::Color32::TRANSPARENT)
                     };
                     let (assets_color, assets_bg) = if cur_workspace && cur_tab == 0 {
+                        (egui::Color32::WHITE, egui::Color32::from_rgb(50, 80, 120))
+                    } else {
+                        (egui::Color32::from_gray(140), egui::Color32::TRANSPARENT)
+                    };
+                    let (anim_color, anim_bg) = if cur_workspace && cur_tab == 2 {
                         (egui::Color32::WHITE, egui::Color32::from_rgb(50, 80, 120))
                     } else {
                         (egui::Color32::from_gray(140), egui::Color32::TRANSPARENT)
@@ -275,6 +489,22 @@ impl EngineUi {
                         } else {
                             *show_workspace = true;
                             *workspace_tab = 0;
+                        }
+                    }
+
+                    if ui
+                        .add(
+                            egui::Button::new(anim_btn.color(anim_color))
+                                .fill(anim_bg)
+                                .small(),
+                        )
+                        .clicked()
+                    {
+                        if cur_workspace && cur_tab == 2 {
+                            *show_workspace = false;
+                        } else {
+                            *show_workspace = true;
+                            *workspace_tab = 2;
                         }
                     }
 

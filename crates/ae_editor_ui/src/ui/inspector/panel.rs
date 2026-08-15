@@ -22,15 +22,30 @@ impl EngineUi {
         camera: &ae_renderer::camera::Camera,
         models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
         textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+        inspector_tab: &mut usize,
+        workspace_tab: &mut usize,
+        show_workspace: &mut bool,
     ) -> Option<egui::Rect> {
         let ctx = ui.ctx().clone();
         let response = egui::Panel::right("inspector_panel")
             .resizable(true)
             .default_size(350.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgb(20, 20, 25))
+                    .inner_margin(egui::Margin::symmetric(8, 6))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
+            )
             .show(ui, |ui| {
                 ui.add_enabled_ui(is_editing, |ui| {
-                    ui.heading("Inspector");
-                    ui.separator();
+                    crate::ui::tab_bar::draw_tab_bar(
+                        ui,
+                        inspector_tab,
+                        &[
+                            crate::ui::tab_bar::EditorTab::new(0, "⚙️", "Inspector"),
+                            crate::ui::tab_bar::EditorTab::new(1, "🎨", "Material Editor"),
+                        ],
+                    );
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         if let Some(entity) = *selected_entity {
                             if world.contains(entity) {
@@ -536,96 +551,171 @@ impl EngineUi {
                                     });
                                 }
 
-                                // --- APPEARANCE (Color & Swatches) ---
-                                Self::draw_appearance_section(
-                                    ui,
-                                    world,
-                                    entity,
-                                    inspector_color_hex,
-                                    saved_swatches,
-                                    ui_actions,
-                                );
+                                if *inspector_tab == 0 {
+                                    // --- APPEARANCE (Color & Swatches) ---
+                                    Self::draw_appearance_section(
+                                        ui,
+                                        world,
+                                        entity,
+                                        inspector_color_hex,
+                                        saved_swatches,
+                                        ui_actions,
+                                    );
 
-                                // --- TEXTURE & MATERIAL SECTION ---
-                                Self::draw_texture_section(
-                                    ui, world, entity, textures, models, ui_actions,
-                                );
+                                    // --- MATERIAL EDITOR QUICK LINK ---
+                                    if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity) {
+                                        ui.group(|ui| {
+                                            ui.set_width(ui.available_width());
+                                            ui.horizontal(|ui| {
+                                                let submesh_count = models
+                                                    .get(model_id.0)
+                                                    .map_or(0, |m| m.submeshes.len());
+                                                ui.label(
+                                                    egui::RichText::new("🎨 Material:")
+                                                        .strong()
+                                                        .color(egui::Color32::WHITE),
+                                                );
+                                                if ui
+                                                    .button(format!(
+                                                        "🎨 Open Material Editor ({} slots) ↗",
+                                                        submesh_count
+                                                    ))
+                                                    .on_hover_text("Open dedicated Material & Submesh Editor tab")
+                                                    .clicked()
+                                                {
+                                                    *inspector_tab = 1;
+                                                }
+                                            });
+                                        });
+                                    } else if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok() {
+                                        ui.group(|ui| {
+                                            ui.set_width(ui.available_width());
+                                            ui.horizontal(|ui| {
+                                                ui.label(
+                                                    egui::RichText::new("🖼️ Texture:")
+                                                        .strong()
+                                                        .color(egui::Color32::WHITE),
+                                                );
+                                                if ui
+                                                    .button("🎨 Open Material Editor ↗")
+                                                    .clicked()
+                                                {
+                                                    *inspector_tab = 1;
+                                                }
+                                            });
+                                        });
+                                    }
 
-                                // --- LIGHTING SECTION ---
-                                if let Ok(light) = world.get::<&ae_core::ecs::Light>(entity) {
-                                    ui.group(|ui| {
-                                        ui.set_width(ui.available_width());
-                                        ui.label("Lighting Settings");
-                                        ui.horizontal(|ui| {
-                                            ui.label("Color:");
-                                            let mut edit_color = light.color;
-                                            let res = ui.color_edit_button_rgb(&mut edit_color);
-                                            if res.changed() {
-                                                ui_actions.push(EngineUiAction::ModifyLightColor(
-                                                    entity,
-                                                    light.color,
-                                                    edit_color,
+                                    // --- LIGHTING SECTION ---
+                                    if let Ok(light) = world.get::<&ae_core::ecs::Light>(entity) {
+                                        ui.group(|ui| {
+                                            ui.set_width(ui.available_width());
+                                            ui.label("Lighting Settings");
+                                            ui.horizontal(|ui| {
+                                                ui.label("Color:");
+                                                let mut edit_color = light.color;
+                                                let res = ui.color_edit_button_rgb(&mut edit_color);
+                                                if res.changed() {
+                                                    ui_actions.push(EngineUiAction::ModifyLightColor(
+                                                        entity,
+                                                        light.color,
+                                                        edit_color,
+                                                    ));
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    // --- RIGIDBODY SECTION ---
+                                    Self::draw_rigidbody_section(ui, world, entity, ui_actions);
+
+                                    // --- COLLIDER SECTION ---
+                                    Self::draw_collider_section(ui, world, entity, ui_actions);
+
+                                    // --- CHARACTER CONTROLLER SECTION ---
+                                    Self::draw_character_controller_section(
+                                        ui, world, entity, ui_actions,
+                                    );
+
+                                    // --- ANIMATION PLAYER QUICK LINK ---
+                                    if let Ok(player) = world.get::<&ae_animation::AnimationPlayer>(entity) {
+                                        ui.group(|ui| {
+                                            ui.set_width(ui.available_width());
+                                            ui.horizontal(|ui| {
+                                                let state_str = match player.state {
+                                                    ae_animation::AnimationState::Playing => "▶ Playing",
+                                                    ae_animation::AnimationState::Paused => "⏸ Paused",
+                                                    ae_animation::AnimationState::Stopped => "⏹ Stopped",
+                                                };
+                                                ui.label(
+                                                    egui::RichText::new("🎬 Animation:")
+                                                        .strong()
+                                                        .color(egui::Color32::WHITE),
+                                                );
+                                                ui.label(
+                                                    egui::RichText::new(state_str)
+                                                        .color(egui::Color32::GREEN)
+                                                        .strong(),
+                                                );
+                                                if ui
+                                                    .button("🎬 Open Timeline Studio ↗")
+                                                    .on_hover_text("Open bottom Animation Timeline Studio panel")
+                                                    .clicked()
+                                                {
+                                                    *show_workspace = true;
+                                                    *workspace_tab = 2;
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    // --- AUDIO SOURCE SECTION ---
+                                    Self::draw_audio_source_section(ui, world, entity, ui_actions);
+
+                                    // --- AUDIO LISTENER SECTION ---
+                                    Self::draw_audio_listener_section(ui, world, entity, ui_actions);
+
+                                    // --- PLAYER TAG SECTION ---
+                                    Self::draw_player_tag_section(ui, world, entity, ui_actions);
+
+                                    // --- HIERARCHY / PARENTING SECTION ---
+                                    Self::draw_parenting_section(ui, world, entity, ui_actions);
+
+                                    // --- LOD GROUP SECTION ---
+                                    Self::draw_lod_section(ui, world, entity, camera, models, ui_actions);
+
+                                    // --- BOTTOM ACTION BUTTONS ---
+                                    ui.add_space(8.0);
+                                    ui.horizontal(|ui| {
+                                        Self::draw_add_component_button(ui, world, entity, ui_actions);
+                                        if ui
+                                            .button("💾 Save as Prefab")
+                                            .on_hover_text(
+                                                "Save selected entity and its components as a reusable .aeprefab asset",
+                                            )
+                                            .clicked()
+                                        {
+                                            let ent_name = world
+                                                .get::<&ae_core::ecs::Name>(entity)
+                                                .map(|n| n.0.clone())
+                                                .unwrap_or_else(|_| "Entity".to_string());
+                                            if let Some(path) = rfd::FileDialog::new()
+                                                .add_filter("Aeon Prefab", &["aeprefab"])
+                                                .set_file_name(format!("{}.aeprefab", ent_name))
+                                                .save_file()
+                                            {
+                                                ui_actions.push(EngineUiAction::SaveEntityAsPrefab(
+                                                    entity, path,
                                                 ));
                                             }
-                                        });
-                                    });
-                                }
-
-                                // --- RIGIDBODY SECTION ---
-                                Self::draw_rigidbody_section(ui, world, entity, ui_actions);
-
-                                // --- COLLIDER SECTION ---
-                                Self::draw_collider_section(ui, world, entity, ui_actions);
-
-                                // --- CHARACTER CONTROLLER SECTION ---
-                                Self::draw_character_controller_section(
-                                    ui, world, entity, ui_actions,
-                                );
-
-                                // --- ANIMATION PLAYER SECTION ---
-                                Self::draw_animation_section(ui, world, entity, models, ui_actions);
-
-                                // --- AUDIO SOURCE SECTION ---
-                                Self::draw_audio_source_section(ui, world, entity, ui_actions);
-
-                                // --- AUDIO LISTENER SECTION ---
-                                Self::draw_audio_listener_section(ui, world, entity, ui_actions);
-
-                                // --- PLAYER TAG SECTION ---
-                                Self::draw_player_tag_section(ui, world, entity, ui_actions);
-
-                                // --- HIERARCHY / PARENTING SECTION ---
-                                Self::draw_parenting_section(ui, world, entity, ui_actions);
-
-                                // --- LOD GROUP SECTION ---
-                                Self::draw_lod_section(ui, world, entity, camera, models, ui_actions);
-
-                                // --- BOTTOM ACTION BUTTONS ---
-                                ui.add_space(8.0);
-                                ui.horizontal(|ui| {
-                                    Self::draw_add_component_button(ui, world, entity, ui_actions);
-                                    if ui
-                                        .button("💾 Save as Prefab")
-                                        .on_hover_text(
-                                            "Save selected entity and its components as a reusable .aeprefab asset",
-                                        )
-                                        .clicked()
-                                    {
-                                        let ent_name = world
-                                            .get::<&ae_core::ecs::Name>(entity)
-                                            .map(|n| n.0.clone())
-                                            .unwrap_or_else(|_| "Entity".to_string());
-                                        if let Some(path) = rfd::FileDialog::new()
-                                            .add_filter("Aeon Prefab", &["aeprefab"])
-                                            .set_file_name(format!("{}.aeprefab", ent_name))
-                                            .save_file()
-                                        {
-                                            ui_actions.push(EngineUiAction::SaveEntityAsPrefab(
-                                                entity, path,
-                                            ));
                                         }
-                                    }
-                                });
+                                    });
+                                } else {
+                                    // --- 🎨 MATERIAL & SUBMESH EDITOR VIEW ---
+                                    Self::draw_texture_section(
+                                        ui, world, entity, textures, models, ui_actions,
+                                    );
+                                }
                             } else {
                                 *selected_entity = None;
                             }

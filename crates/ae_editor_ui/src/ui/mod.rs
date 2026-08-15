@@ -14,6 +14,7 @@ mod workspace;
 // New modular submodules
 mod dialogs;
 mod style;
+pub mod tab_bar;
 mod types;
 mod viewport_hud;
 
@@ -59,6 +60,7 @@ pub struct EngineUi {
     pub should_exit: bool,
     pub workspace_tab: usize,
     pub show_workspace: bool,
+    pub inspector_tab: usize,
     /// Snapshot of log entries (updated at most once per frame, only when count changed).
     console_entries: Vec<ConsoleEntry>,
     /// The log count we last snapshotted from – used for change detection.
@@ -159,6 +161,7 @@ impl EngineUi {
             should_exit: false,
             workspace_tab: 1, // Default to Console
             show_workspace: false,
+            inspector_tab: 0, // Default to Inspector
             console_entries: Vec::new(),
             console_last_count: 0,
             ui_rects: Vec::new(),
@@ -334,9 +337,9 @@ impl EngineUi {
         let gizmo_mode = &mut self.gizmo_mode;
         let gizmo_space = &mut self.gizmo_space;
         let status_message = &mut self.status_message;
-
         let show_workspace = &mut self.show_workspace;
         let workspace_tab = &mut self.workspace_tab;
+        let inspector_tab = &mut self.inspector_tab;
         let console_entries = &self.console_entries;
         let profiler_ecs_ms = self.profiler_ecs_ms;
         let profiler_render_ms = self.profiler_render_ms;
@@ -371,11 +374,6 @@ impl EngineUi {
                 is_editing,
                 ui_actions,
             );
-            // Collect menu bar rect if visible
-            if let Some(menu_rect) = ctx.memory(|mem| mem.area_rect(egui::Id::new("menu_bar"))) {
-                ui_rects_collector.borrow_mut().push(menu_rect);
-            }
-
             // 1.5 PREFERENCES WINDOW
             if *show_preferences {
                 let mut temp_gs = (*graphics_settings).clone();
@@ -399,7 +397,6 @@ impl EngineUi {
                 if temp_gs != *graphics_settings {
                     ui_actions.push(EngineUiAction::UpdateGraphicsSettings(temp_gs));
                 }
-
                 ui_actions.push(EngineUiAction::UpdateSnapSettings(temp_snap));
                 ui_actions.push(EngineUiAction::SetLiveEditorUpdates(temp_live_updates));
                 ui_actions.push(EngineUiAction::UpdateEditorConfig(temp_cfg));
@@ -437,12 +434,15 @@ impl EngineUi {
                 camera,
                 models,
                 textures,
+                inspector_tab,
+                workspace_tab,
+                show_workspace,
             );
             if let Some(rect) = inspector_resp {
                 ui_rects_collector.borrow_mut().push(rect);
             }
 
-            // 2.2 Bottom Workspace Panel (Console / Asset Browser)
+            // 2.2 Bottom Workspace Panel (Console / Asset Browser / Animation Timeline)
             // Docks at bottom of remaining central space (strictly to the left of inspector_panel).
             if let Some(rect) = Self::draw_workspace_panel(
                 show_workspace,
@@ -452,6 +452,8 @@ impl EngineUi {
                 models,
                 textures,
                 ui_actions,
+                *selected_entity,
+                world,
             ) {
                 ui_rects_collector.borrow_mut().push(rect);
             }

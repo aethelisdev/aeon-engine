@@ -106,7 +106,7 @@ pub(crate) fn setup_custom_style(ctx: &Context) {
     // 6. Window transparency and Outlines
     style.visuals.window_fill = window_bg;
     style.visuals.window_stroke = egui::Stroke::new(1.0, border_color);
-    style.visuals.panel_fill = egui::Color32::from_rgb(25, 25, 25);
+    style.visuals.panel_fill = egui::Color32::from_rgb(20, 20, 25);
 
     ctx.set_global_style(style);
 }
