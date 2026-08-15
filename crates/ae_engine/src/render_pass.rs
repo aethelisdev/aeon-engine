@@ -213,7 +213,7 @@ impl AeEngine {
         self.ui.memory_textures_mb = textures_bytes as f32 / (1024.0 * 1024.0);
 
         let render_options = ae_renderer::render::RenderOptions {
-            grid_enabled: self.ui.grid_enabled,
+            grid_enabled: self.ui.grid_enabled && self.mode == EngineMode::Edit,
             wireframe_enabled: self.ui.wireframe_enabled,
         };
 
