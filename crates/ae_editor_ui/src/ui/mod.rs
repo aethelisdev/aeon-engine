@@ -379,7 +379,7 @@ impl EngineUi {
             // 1.5 PREFERENCES WINDOW
             if *show_preferences {
                 let mut temp_gs = (*graphics_settings).clone();
-                let mut temp_snap = (*snapping).clone();
+                let mut temp_snap = *snapping;
                 let mut temp_live_updates = editor_state.enable_live_editor_updates;
                 let mut temp_cfg = editor_state.config.clone();
 
@@ -539,8 +539,8 @@ impl EngineUi {
 
             // Loading Overlay and Dialogs
             let mut collected_rects = ui_rects_collector.borrow_mut();
-            dialogs::draw_dialogs(&ctx, is_loading_assets, &mut *collected_rects);
-            menubar::help::draw_about_dialog(&ctx, show_about, &mut *collected_rects);
+            dialogs::draw_dialogs(&ctx, is_loading_assets, &mut collected_rects);
+            menubar::help::draw_about_dialog(&ctx, show_about, &mut collected_rects);
 
             // Clean up status message if it should no longer be handled by caller
             // (The utility bar handles duration now)

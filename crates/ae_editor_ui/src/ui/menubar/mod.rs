@@ -36,8 +36,8 @@ impl EngineUi {
 
                     // Window Menu (kept localized in orchestrator due to extreme brevity)
                     ui.menu_button("Window", |ui| {
-                        if ui.button("Inspector").clicked() {}
-                        if ui.button("Hierarchy").clicked() {}
+                        let _ = ui.button("Inspector");
+                        let _ = ui.button("Hierarchy");
                         ui.separator();
                         if ui.button("📂 Assets").clicked() {
                             *show_workspace = true;

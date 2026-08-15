@@ -9,7 +9,7 @@ impl EngineUi {
     pub(super) fn draw_workspace_panel(
         show_workspace: &mut bool,
         workspace_tab: &mut usize,
-        console_entries: &Vec<ConsoleEntry>,
+        console_entries: &[ConsoleEntry],
         ui: &mut egui::Ui,
         models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
         textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,

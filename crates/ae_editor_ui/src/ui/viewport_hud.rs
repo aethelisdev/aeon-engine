@@ -402,7 +402,7 @@ pub(super) fn draw_billboard_icons(
         let ndc_x = clip_v4.x / clip_v4.w;
         let ndc_y = clip_v4.y / clip_v4.w;
 
-        if ndc_x < -1.2 || ndc_x > 1.2 || ndc_y < -1.2 || ndc_y > 1.2 {
+        if !(-1.2..=1.2).contains(&ndc_x) || !(-1.2..=1.2).contains(&ndc_y) {
             continue; // Outside viewport bounds
         }
 

@@ -92,6 +92,12 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::RemoveTextureFromEntity(ent) => {
                 components::handle_remove_texture(ctx, ent)
             }
+            crate::ui::EngineUiAction::SetModelSubmeshAlphaMode(model_h, idx, mode) => {
+                components::handle_set_model_submesh_alpha_mode(ctx, model_h, idx, mode)
+            }
+            crate::ui::EngineUiAction::SetModelSubmeshTexture(model_h, idx, path) => {
+                components::handle_set_model_submesh_texture(ctx, model_h, idx, path)
+            }
             crate::ui::EngineUiAction::AddRigidBody(ent, rb) => {
                 components::handle_add_rigid_body(ctx, ent, rb)
             }

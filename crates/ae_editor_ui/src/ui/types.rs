@@ -43,6 +43,12 @@ pub enum EngineUiAction {
     ModifyLightColor(hecs::Entity, [f32; 3], [f32; 3]),
     AssignTextureToEntity(hecs::Entity, String),
     RemoveTextureFromEntity(hecs::Entity),
+    SetModelSubmeshAlphaMode(
+        ae_renderer::asset::AssetHandle,
+        usize,
+        ae_renderer::render::types::SubmeshAlphaMode,
+    ),
+    SetModelSubmeshTexture(ae_renderer::asset::AssetHandle, usize, String),
 
     // --- DYNAMIC COMPONENT ACTIONS (Physics) ---
     AddRigidBody(hecs::Entity, ae_core::ecs::RigidBody),

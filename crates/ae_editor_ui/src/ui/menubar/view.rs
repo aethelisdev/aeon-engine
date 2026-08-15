@@ -5,7 +5,7 @@
 /// visibility of the bottom workspace panel.
 pub(super) fn draw_view_menu(ui: &mut egui::Ui, show_workspace: &mut bool) {
     ui.menu_button("View", |ui| {
-        if ui.button("Toggle Fullscreen").clicked() {}
+        let _ = ui.button("Toggle Fullscreen");
         ui.checkbox(show_workspace, "🖥 Workspace Panel");
     });
 }

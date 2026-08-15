@@ -310,3 +310,46 @@ pub fn handle_remove_texture(ctx: &mut UiContext, entity: hecs::Entity) {
     let _ = ctx.world.remove_one::<ae_core::ecs::SpriteId>(entity);
     log::info!("🖼️ Removed SpriteId texture from entity {:?}", entity);
 }
+
+/// Handles setting the alpha mode of a specific 3D model submesh.
+pub fn handle_set_model_submesh_alpha_mode(
+    ctx: &mut UiContext,
+    model_handle: ae_renderer::asset::AssetHandle,
+    submesh_index: usize,
+    mode: ae_renderer::render::types::SubmeshAlphaMode,
+) {
+    if let Some(model) = ctx.asset_manager.models.get_mut(model_handle) {
+        if let Some(submesh) = model.submeshes.get_mut(submesh_index) {
+            submesh.alpha_mode = mode;
+            log::info!(
+                "🎨 Set model {:?} submesh #{} alpha mode to {:?}",
+                model_handle,
+                submesh_index,
+                mode
+            );
+        }
+    }
+}
+
+/// Handles assigning a custom texture to a specific 3D model submesh slot.
+pub fn handle_set_model_submesh_texture(
+    ctx: &mut UiContext,
+    model_handle: ae_renderer::asset::AssetHandle,
+    submesh_index: usize,
+    path: String,
+) {
+    let texture_handle = ctx.render_state.load_texture(ctx.asset_manager, &path);
+    if let Some(model) = ctx.asset_manager.models.get_mut(model_handle) {
+        if let Some(submesh) = model.submeshes.get_mut(submesh_index) {
+            let new_tex_idx = model.embedded_textures.len();
+            model.embedded_textures.push(texture_handle);
+            submesh.texture_index = Some(new_tex_idx);
+            log::info!(
+                "🖼️ Set model {:?} submesh #{} texture to '{}'",
+                model_handle,
+                submesh_index,
+                path
+            );
+        }
+    }
+}

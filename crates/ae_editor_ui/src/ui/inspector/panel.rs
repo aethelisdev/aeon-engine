@@ -547,7 +547,9 @@ impl EngineUi {
                                 );
 
                                 // --- TEXTURE & MATERIAL SECTION ---
-                                Self::draw_texture_section(ui, world, entity, textures, ui_actions);
+                                Self::draw_texture_section(
+                                    ui, world, entity, textures, models, ui_actions,
+                                );
 
                                 // --- LIGHTING SECTION ---
                                 if let Ok(light) = world.get::<&ae_core::ecs::Light>(entity) {

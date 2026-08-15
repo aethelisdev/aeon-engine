@@ -185,6 +185,7 @@ impl EngineUi {
         world: &hecs::World,
         entity: hecs::Entity,
         textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         ui.group(|ui| {
@@ -326,6 +327,156 @@ impl EngineUi {
                         }
                     }
                 });
+            }
+
+            // --- 3D MODEL SUBMESHES & TRANSPARENCY SECTION ---
+            if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity) {
+                if let Some(model) = models.get(model_id.0) {
+                    if !model.submeshes.is_empty() {
+                        ui.separator();
+                        egui::CollapsingHeader::new(
+                            egui::RichText::new(format!(
+                                "🧩 Submesh Materials ({} slots)",
+                                model.submeshes.len()
+                            ))
+                            .strong()
+                            .color(egui::Color32::WHITE),
+                        )
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            egui::ScrollArea::vertical()
+                                .max_height(280.0)
+                                .show(ui, |ui| {
+                                    for (idx, submesh) in model.submeshes.iter().enumerate() {
+                                        ui.group(|ui| {
+                                            ui.set_width(ui.available_width());
+                                            ui.horizontal(|ui| {
+                                                ui.label(
+                                                    egui::RichText::new(format!(
+                                                        "Submesh #{} ({} tris)",
+                                                        idx,
+                                                        submesh.index_count / 3
+                                                    ))
+                                                    .strong()
+                                                    .color(egui::Color32::KHAKI),
+                                                );
+
+                                                let mut current_mode = submesh.alpha_mode;
+                                                egui::ComboBox::from_id_salt(format!(
+                                                    "submesh_alpha_{:?}_{}",
+                                                    model_id.0, idx
+                                                ))
+                                                .selected_text(match current_mode {
+                                                    ae_renderer::render::types::SubmeshAlphaMode::Opaque => {
+                                                        "🟫 Opaque"
+                                                    }
+                                                    ae_renderer::render::types::SubmeshAlphaMode::Mask => {
+                                                        "✂️ Cutout"
+                                                    }
+                                                    ae_renderer::render::types::SubmeshAlphaMode::Blend => {
+                                                        "💧 Transparent"
+                                                    }
+                                                })
+                                                .show_ui(ui, |ui| {
+                                                    if ui
+                                                        .selectable_value(
+                                                            &mut current_mode,
+                                                            ae_renderer::render::types::SubmeshAlphaMode::Opaque,
+                                                            "🟫 Opaque (Solid)",
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        ui_actions.push(
+                                                            EngineUiAction::SetModelSubmeshAlphaMode(
+                                                                model_id.0,
+                                                                idx,
+                                                                ae_renderer::render::types::SubmeshAlphaMode::Opaque,
+                                                            ),
+                                                        );
+                                                    }
+                                                    if ui
+                                                        .selectable_value(
+                                                            &mut current_mode,
+                                                            ae_renderer::render::types::SubmeshAlphaMode::Mask,
+                                                            "✂️ Cutout (Alpha Test)",
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        ui_actions.push(
+                                                            EngineUiAction::SetModelSubmeshAlphaMode(
+                                                                model_id.0,
+                                                                idx,
+                                                                ae_renderer::render::types::SubmeshAlphaMode::Mask,
+                                                            ),
+                                                        );
+                                                    }
+                                                    if ui
+                                                        .selectable_value(
+                                                            &mut current_mode,
+                                                            ae_renderer::render::types::SubmeshAlphaMode::Blend,
+                                                            "💧 Transparent (Alpha Blend)",
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        ui_actions.push(
+                                                            EngineUiAction::SetModelSubmeshAlphaMode(
+                                                                model_id.0,
+                                                                idx,
+                                                                ae_renderer::render::types::SubmeshAlphaMode::Blend,
+                                                            ),
+                                                        );
+                                                    }
+                                                });
+                                            });
+
+                                            ui.horizontal(|ui| {
+                                                let current_tex_name = submesh
+                                                    .texture_index
+                                                    .and_then(|t_idx| model.embedded_textures.get(t_idx))
+                                                    .and_then(|&t_h| textures.get(t_h))
+                                                    .map(|t| {
+                                                        std::path::Path::new(&t.source_path)
+                                                            .file_name()
+                                                            .map(|n| n.to_string_lossy().to_string())
+                                                            .unwrap_or_else(|| t.source_path.clone())
+                                                    })
+                                                    .unwrap_or_else(|| "Default Texture".to_string());
+
+                                                ui.label("Texture:");
+                                                ui.label(
+                                                    egui::RichText::new(&current_tex_name)
+                                                        .color(egui::Color32::LIGHT_BLUE)
+                                                        .italics(),
+                                                );
+
+                                                if ui
+                                                    .button("📁")
+                                                    .on_hover_text("Change this submesh texture")
+                                                    .clicked()
+                                                {
+                                                    if let Some(path) = rfd::FileDialog::new()
+                                                        .add_filter(
+                                                            "Texture Image",
+                                                            &["png", "jpg", "jpeg", "tga", "bmp"],
+                                                        )
+                                                        .pick_file()
+                                                    {
+                                                        ui_actions.push(
+                                                            EngineUiAction::SetModelSubmeshTexture(
+                                                                model_id.0,
+                                                                idx,
+                                                                path.to_string_lossy().to_string(),
+                                                            ),
+                                                        );
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+                                });
+                        });
+                    }
+                }
             }
         });
     }
