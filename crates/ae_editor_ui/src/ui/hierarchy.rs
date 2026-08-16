@@ -265,22 +265,265 @@ fn draw_row(
 // ─── EngineUi impl ──────────────────────────────────────────────────────────
 
 impl EngineUi {
-    /// Renders the modern docked Left Panel (Hierarchy Outliner & Stats Tabs).
-    /// Features:
-    /// - Live search & filter bar with clear button
-    /// - Collapsible `▼ ➕ Spawn 3D Shapes & Assets` section
-    /// - Collapsible `▼ ⚡ Stress Benchmarks` section
-    /// - Virtual scrolling DFS entity tree with component badges, tree branch lines, and working eye toggle
-    pub(super) fn draw_left_panel(
-        show_left_panel: &mut bool,
-        left_panel_tab: &mut usize,
-        hierarchy_search_query: &mut String,
-        selected_entity: &mut Option<hecs::Entity>,
+    /// Renders the internal content of the Scene Hierarchy (Outliner) panel.
+    pub fn draw_hierarchy_content(
         ui: &mut egui::Ui,
         world: &hecs::World,
+        cache: &mut HierarchyCache,
+        hierarchy_search_query: &mut String,
+        selected_entity: &mut Option<hecs::Entity>,
         is_editing: bool,
         ui_actions: &mut Vec<crate::ui::EngineUiAction>,
-        cache: &mut HierarchyCache,
+    ) {
+        cache.sync(world);
+
+        ui.add_enabled_ui(is_editing, |ui| {
+            // 1. Live Search Bar
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("🔍")
+                        .size(12.0)
+                        .color(egui::Color32::from_gray(140)),
+                );
+                let search_width = if !hierarchy_search_query.is_empty() {
+                    (ui.available_width() - 24.0).max(80.0)
+                } else {
+                    ui.available_width()
+                };
+                ui.add(
+                    egui::TextEdit::singleline(hierarchy_search_query)
+                        .hint_text("Search entities...")
+                        .desired_width(search_width),
+                );
+                if !hierarchy_search_query.is_empty() {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("✖")
+                                    .size(10.0)
+                                    .color(egui::Color32::from_gray(160)),
+                            )
+                            .fill(egui::Color32::TRANSPARENT)
+                            .frame(false),
+                        )
+                        .on_hover_text("Clear search query")
+                        .clicked()
+                    {
+                        hierarchy_search_query.clear();
+                    }
+                }
+            });
+
+            ui.add_space(4.0);
+
+            // 2. Collapsible: ➕ Spawn 3D Shapes & Assets
+            egui::CollapsingHeader::new("➕  Spawn Shapes & Assets")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        if ui.button("📦 Cube").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Cube,
+                            ));
+                        }
+                        if ui.button("🔮 Sphere").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Sphere,
+                            ));
+                        }
+                        if ui.button("🧪 Cylinder").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Cylinder,
+                            ));
+                        }
+                        if ui.button("💊 Capsule").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Capsule,
+                            ));
+                        }
+                        if ui.button("🍩 Torus").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Torus,
+                            ));
+                        }
+                        if ui.button("📐 Triangle").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Triangle,
+                            ));
+                        }
+                    });
+
+                    ui.add_space(2.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .button("📁 3D Model")
+                            .on_hover_text("Load 3D Model file (glTF, GLB, OBJ)")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
+                        }
+
+                        if ui
+                            .button("📦 Load Prefab")
+                            .on_hover_text("Load and instantiate a .aeprefab template")
+                            .clicked()
+                        {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Aeon Prefab", &["aeprefab"])
+                                .pick_file()
+                            {
+                                ui_actions.push(crate::ui::EngineUiAction::InstantiatePrefab(path));
+                            }
+                        }
+
+                        if ui
+                            .add_enabled(selected_entity.is_some(), egui::Button::new("🗑 Delete"))
+                            .on_hover_text("Delete selected entity from scene")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::DeleteSelected);
+                        }
+                    });
+                });
+
+            // 3. Collapsible: ⚡ Stress Benchmarks
+            egui::CollapsingHeader::new("⚡  Stress Benchmarks")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        if ui
+                            .button("🏰 OpenWorld (10km)")
+                            .on_hover_text("Generate 10km x 10km  Open World (50k entities)")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::AaaOpenWorldTest);
+                        }
+                        if ui
+                            .button("10k")
+                            .on_hover_text("Spawn 10,000 entities")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::StressTest(10_000));
+                        }
+                        if ui
+                            .button("100k")
+                            .on_hover_text("Spawn 100,000 entities")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::StressTest(100_000));
+                        }
+                        if ui
+                            .button("10M")
+                            .on_hover_text("Spawn 10,000,000 Universe entities")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::StressTest(10_000_000));
+                        }
+                        if ui
+                            .button("💥 BOOM!")
+                            .on_hover_text("Apply explosive velocities to dynamic rigid bodies")
+                            .clicked()
+                        {
+                            ui_actions.push(crate::ui::EngineUiAction::Explode);
+                        }
+                    });
+                });
+
+            ui.add_space(6.0);
+
+            // 4. Outliner Virtual Scroller Table Header
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new("🌲 Scene Hierarchy Tree")
+                        .strong()
+                        .size(12.0)
+                        .color(egui::Color32::from_gray(200)),
+                );
+            });
+            ui.separator();
+
+            let row_height = 18.0;
+            let search_query_lower = hierarchy_search_query.to_lowercase();
+
+            let filtered_indices: Vec<usize> = if search_query_lower.is_empty() {
+                (0..cache.rows.len()).collect()
+            } else {
+                cache
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, r)| r.name.to_lowercase().contains(&search_query_lower))
+                    .map(|(i, _)| i)
+                    .collect()
+            };
+
+            let total_visible = filtered_indices.len();
+            let footer_height = 36.0;
+            let available_scroll_h = (ui.available_height() - footer_height).max(40.0);
+
+            if total_visible == 0 {
+                if !search_query_lower.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(15.0);
+                        ui.label(
+                            egui::RichText::new("No matching entities found")
+                                .color(egui::Color32::from_gray(140))
+                                .italics(),
+                        );
+                    });
+                } else {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(15.0);
+                        ui.label(
+                            egui::RichText::new("Scene is empty")
+                                .color(egui::Color32::from_gray(140))
+                                .italics(),
+                        );
+                    });
+                }
+            } else {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .max_height(available_scroll_h)
+                    .show_rows(ui, row_height, total_visible, |ui, visible_range| {
+                        for idx in visible_range {
+                            if let Some(&row_idx) = filtered_indices.get(idx) {
+                                let row = &cache.rows[row_idx];
+                                let is_selected = *selected_entity == Some(row.entity);
+                                draw_row(ui, row, is_selected, ui_actions);
+                            }
+                        }
+                    });
+            }
+
+            // 5. Scene Summary Footer (Cleanly positioned below the scroll area)
+            ui.add_space(2.0);
+            ui.separator();
+            ui.add_space(2.0);
+            ui.horizontal(|ui| {
+                let total = world.len();
+                let sel_str = if selected_entity.is_some() {
+                    " • 1 Selected"
+                } else {
+                    ""
+                };
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} Object{}{}",
+                        total,
+                        if total == 1 { "" } else { "s" },
+                        sel_str
+                    ))
+                    .size(11.0)
+                    .color(egui::Color32::from_gray(140)),
+                );
+            });
+        });
+    }
+
+    /// Renders the internal content of the CPU, GPU, and Memory Stats / Profiler panel.
+    pub fn draw_stats_content(
+        ui: &mut egui::Ui,
         wireframe_enabled: &mut bool,
         grid_enabled: &mut bool,
         fps: f32,
@@ -291,367 +534,56 @@ impl EngineUi {
         profiler_frame_ms: f32,
         memory_models_mb: f32,
         memory_textures_mb: f32,
-    ) -> Option<egui::Rect> {
-        if !*show_left_panel {
-            return None;
-        }
+    ) {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            ui.heading("Performance");
+            ui.label(format!("FPS: {:.0}", fps));
+            ui.label(format!("Frame Time: {:.2} ms", 1000.0 / fps));
+            ui.separator();
 
-        let resp = egui::Panel::left("left_docked_panel")
-            .default_size(280.0)
-            .min_size(220.0)
-            .max_size(500.0)
-            .resizable(true)
-            .frame(
-                egui::Frame::new()
-                    .fill(egui::Color32::from_rgb(20, 20, 25))
-                    .inner_margin(egui::Margin::symmetric(8, 6))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
-            )
-            .show(ui, |ui| {
-                // 1. Tab Bar on top of Left Panel + Close Button
-                ui.horizontal(|ui| {
-                    crate::ui::tab_bar::draw_tab_bar(
-                        ui,
-                        left_panel_tab,
-                        &[
-                            crate::ui::tab_bar::EditorTab::new(0, "🏗️", "Hierarchy"),
-                            crate::ui::tab_bar::EditorTab::new(1, "📊", "Stats"),
-                        ],
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("✖")
-                                        .size(11.0)
-                                        .color(egui::Color32::from_gray(160)),
-                                )
-                                .fill(egui::Color32::TRANSPARENT)
-                                .frame(false),
-                            )
-                            .on_hover_text("Close Left Panel")
-                            .clicked()
-                        {
-                            *show_left_panel = false;
-                        }
-                    });
-                });
-
-                ui.add_space(6.0);
-
-                if *left_panel_tab == 0 {
-                    // ─────────────────────────────────────────────────────────────
-                    // TAB 0: Modern  Scene Hierarchy (Outliner)
-                    // ─────────────────────────────────────────────────────────────
-                    cache.sync(world);
-
-                    ui.add_enabled_ui(is_editing, |ui| {
-                        // 1. Live Search Bar
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("🔍")
-                                    .size(12.0)
-                                    .color(egui::Color32::from_gray(140)),
-                            );
-                            let search_width = if !hierarchy_search_query.is_empty() {
-                                (ui.available_width() - 24.0).max(80.0)
-                            } else {
-                                ui.available_width()
-                            };
-                            ui.add(
-                                egui::TextEdit::singleline(hierarchy_search_query)
-                                    .hint_text("Search entities...")
-                                    .desired_width(search_width),
-                            );
-                            if !hierarchy_search_query.is_empty() {
-                                if ui
-                                    .add(
-                                        egui::Button::new(
-                                            egui::RichText::new("✖")
-                                                .size(10.0)
-                                                .color(egui::Color32::from_gray(160)),
-                                        )
-                                        .fill(egui::Color32::TRANSPARENT)
-                                        .frame(false),
-                                    )
-                                    .on_hover_text("Clear search query")
-                                    .clicked()
-                                {
-                                    hierarchy_search_query.clear();
-                                }
-                            }
-                        });
-
-                        ui.add_space(4.0);
-
-                        // 2. Collapsible: ➕ Spawn 3D Shapes & Assets
-                        egui::CollapsingHeader::new("➕  Spawn Shapes & Assets")
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                ui.horizontal_wrapped(|ui| {
-                                    if ui.button("📦 Cube").clicked() {
-                                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                            ae_core::ecs::Shape::Cube,
-                                        ));
-                                    }
-                                    if ui.button("🔮 Sphere").clicked() {
-                                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                            ae_core::ecs::Shape::Sphere,
-                                        ));
-                                    }
-                                    if ui.button("🧪 Cylinder").clicked() {
-                                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                            ae_core::ecs::Shape::Cylinder,
-                                        ));
-                                    }
-                                    if ui.button("💊 Capsule").clicked() {
-                                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                            ae_core::ecs::Shape::Capsule,
-                                        ));
-                                    }
-                                    if ui.button("🍩 Torus").clicked() {
-                                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                            ae_core::ecs::Shape::Torus,
-                                        ));
-                                    }
-                                    if ui.button("📐 Triangle").clicked() {
-                                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                            ae_core::ecs::Shape::Triangle,
-                                        ));
-                                    }
-                                });
-
-                                ui.add_space(2.0);
-                                ui.horizontal(|ui| {
-                                    if ui
-                                        .button("📁 3D Model")
-                                        .on_hover_text("Load 3D Model file (glTF, GLB, OBJ)")
-                                        .clicked()
-                                    {
-                                        ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
-                                    }
-
-                                    if ui
-                                        .button("📦 Load Prefab")
-                                        .on_hover_text("Load and instantiate a .aeprefab template")
-                                        .clicked()
-                                    {
-                                        if let Some(path) = rfd::FileDialog::new()
-                                            .add_filter("Aeon Prefab", &["aeprefab"])
-                                            .pick_file()
-                                        {
-                                            ui_actions.push(
-                                                crate::ui::EngineUiAction::InstantiatePrefab(path),
-                                            );
-                                        }
-                                    }
-
-                                    if ui
-                                        .add_enabled(
-                                            selected_entity.is_some(),
-                                            egui::Button::new("🗑 Delete"),
-                                        )
-                                        .on_hover_text("Delete selected entity from scene")
-                                        .clicked()
-                                    {
-                                        ui_actions.push(crate::ui::EngineUiAction::DeleteSelected);
-                                    }
-                                });
-                            });
-
-                        // 3. Collapsible: ⚡ Stress Benchmarks
-                        egui::CollapsingHeader::new("⚡  Stress Benchmarks")
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                ui.horizontal_wrapped(|ui| {
-                                    if ui
-                                        .button("OpenWorld (10km)")
-                                        .on_hover_text("Spawn vast 10km open-world grid terrain")
-                                        .clicked()
-                                    {
-                                        ui_actions
-                                            .push(crate::ui::EngineUiAction::AaaOpenWorldTest);
-                                    }
-                                    if ui
-                                        .button("10k")
-                                        .on_hover_text("Spawn 10,000 dynamic physics cubes")
-                                        .clicked()
-                                    {
-                                        ui_actions
-                                            .push(crate::ui::EngineUiAction::StressTest(10000));
-                                    }
-                                    if ui
-                                        .button("100k")
-                                        .on_hover_text("Spawn 100,000 instanced ECS entities")
-                                        .clicked()
-                                    {
-                                        ui_actions
-                                            .push(crate::ui::EngineUiAction::StressTest(100000));
-                                    }
-                                    if ui
-                                        .button("10M")
-                                        .on_hover_text("Spawn 10,000,000 GPU batch stress test")
-                                        .clicked()
-                                    {
-                                        ui_actions
-                                            .push(crate::ui::EngineUiAction::StressTest(10000000));
-                                    }
-                                    if ui
-                                        .button("💥 BOOM!")
-                                        .on_hover_text("Trigger physics shockwave explosion")
-                                        .clicked()
-                                    {
-                                        ui_actions.push(crate::ui::EngineUiAction::ChangeMode(
-                                            ae_core::modules::EngineMode::Play,
-                                        ));
-                                        ui_actions.push(crate::ui::EngineUiAction::Explode);
-                                    }
-                                });
-                            });
-
-                        ui.separator();
-
-                        // 4. Virtual Scrolling Tree Header & Rows
-                        ui.label(
-                            egui::RichText::new("🌍  Scene Hierarchy Tree")
-                                .strong()
-                                .color(egui::Color32::from_gray(180)),
-                        );
-                        ui.add_space(2.0);
-
-                        let row_height = 22.0_f32;
-                        let search_query_lower = hierarchy_search_query.trim().to_lowercase();
-                        let filtered_indices: Vec<usize> = if search_query_lower.is_empty() {
-                            (0..cache.rows.len()).collect()
-                        } else {
-                            cache
-                                .rows
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, r)| {
-                                    r.name.to_lowercase().contains(&search_query_lower)
-                                })
-                                .map(|(i, _)| i)
-                                .collect()
-                        };
-
-                        let total_visible = filtered_indices.len();
-
-                        if total_visible == 0 {
-                            if !search_query_lower.is_empty() {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(15.0);
-                                    ui.label(
-                                        egui::RichText::new("No matching entities found")
-                                            .color(egui::Color32::from_gray(140))
-                                            .italics(),
-                                    );
-                                });
-                            } else {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(15.0);
-                                    ui.label(
-                                        egui::RichText::new("Scene is empty")
-                                            .color(egui::Color32::from_gray(140))
-                                            .italics(),
-                                    );
-                                });
-                            }
-                        } else {
-                            egui::ScrollArea::vertical()
-                                .auto_shrink([false, false])
-                                .max_height(ui.available_height() - 28.0)
-                                .show_rows(ui, row_height, total_visible, |ui, visible_range| {
-                                    for idx in visible_range {
-                                        if let Some(&row_idx) = filtered_indices.get(idx) {
-                                            let row = &cache.rows[row_idx];
-                                            let is_selected = *selected_entity == Some(row.entity);
-                                            draw_row(ui, row, is_selected, ui_actions);
-                                        }
-                                    }
-                                });
-                        }
-
-                        // 5. Scene Summary Footer
-                        ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                            ui.separator();
-                            ui.horizontal(|ui| {
-                                let total = world.len();
-                                let sel_str = if selected_entity.is_some() {
-                                    " • 1 Selected"
-                                } else {
-                                    ""
-                                };
-                                ui.label(
-                                    egui::RichText::new(format!(
-                                        "{} Object{}{}",
-                                        total,
-                                        if total == 1 { "" } else { "s" },
-                                        sel_str
-                                    ))
-                                    .size(11.0)
-                                    .color(egui::Color32::from_gray(140)),
-                                );
-                            });
-                        });
-                    });
-                } else {
-                    // ─────────────────────────────────────────────────────────────
-                    // TAB 1: Stats & Profiler
-                    // ─────────────────────────────────────────────────────────────
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.heading("Performance");
-                        ui.label(format!("FPS: {:.0}", fps));
-                        ui.label(format!("Frame Time: {:.2} ms", 1000.0 / fps));
-                        ui.separator();
-
-                        ui.heading("⏱ CPU Profiler");
-                        let bar_max = profiler_frame_ms.max(1.0);
-                        ui.horizontal(|ui| {
-                            ui.label("ECS/Logic:");
-                            ui.add(
-                                egui::ProgressBar::new(profiler_ecs_ms / bar_max)
-                                    .text(format!("{:.2} ms", profiler_ecs_ms)),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label("Render:   ");
-                            ui.add(
-                                egui::ProgressBar::new(profiler_render_ms / bar_max)
-                                    .text(format!("{:.2} ms", profiler_render_ms)),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label("Present:  ");
-                            ui.add(
-                                egui::ProgressBar::new(profiler_present_ms / bar_max)
-                                    .fill(egui::Color32::from_rgb(80, 80, 140))
-                                    .text(format!("{:.2} ms", profiler_present_ms)),
-                            );
-                        });
-                        ui.horizontal(|ui| {
-                            ui.label("UI:       ");
-                            ui.add(
-                                egui::ProgressBar::new(profiler_ui_ms / bar_max)
-                                    .text(format!("{:.2} ms", profiler_ui_ms)),
-                            );
-                        });
-                        ui.label(format!("Total Frame: {:.2} ms", profiler_frame_ms));
-                        ui.separator();
-
-                        ui.heading("💾 Memory");
-                        let total_mb = memory_models_mb + memory_textures_mb;
-                        ui.label(format!("Models (RAM+VRAM): {:.2} MB", memory_models_mb));
-                        ui.label(format!("Textures (VRAM):   {:.2} MB", memory_textures_mb));
-                        ui.label(format!("Total (Estimate):  {:.2} MB", total_mb));
-                        ui.separator();
-
-                        ui.checkbox(wireframe_enabled, "🕸 Wireframe Mode (Edges)");
-                        ui.checkbox(grid_enabled, "🔲 Show Grid");
-                    });
-                }
+            ui.heading("⏱ CPU Profiler");
+            let bar_max = profiler_frame_ms.max(1.0);
+            ui.horizontal(|ui| {
+                ui.label("ECS/Logic:");
+                ui.add(
+                    egui::ProgressBar::new(profiler_ecs_ms / bar_max)
+                        .text(format!("{:.2} ms", profiler_ecs_ms)),
+                );
             });
+            ui.horizontal(|ui| {
+                ui.label("Render:   ");
+                ui.add(
+                    egui::ProgressBar::new(profiler_render_ms / bar_max)
+                        .text(format!("{:.2} ms", profiler_render_ms)),
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label("Present:  ");
+                ui.add(
+                    egui::ProgressBar::new(profiler_present_ms / bar_max)
+                        .fill(egui::Color32::from_rgb(80, 80, 140))
+                        .text(format!("{:.2} ms", profiler_present_ms)),
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label("UI:       ");
+                ui.add(
+                    egui::ProgressBar::new(profiler_ui_ms / bar_max)
+                        .text(format!("{:.2} ms", profiler_ui_ms)),
+                );
+            });
+            ui.label(format!("Total Frame: {:.2} ms", profiler_frame_ms));
+            ui.separator();
 
-        Some(resp.response.rect)
+            ui.heading("💾 Memory");
+            let total_mb = memory_models_mb + memory_textures_mb;
+            ui.label(format!("Models (RAM+VRAM): {:.2} MB", memory_models_mb));
+            ui.label(format!("Textures (VRAM):   {:.2} MB", memory_textures_mb));
+            ui.label(format!("Total (Estimate):  {:.2} MB", total_mb));
+            ui.separator();
+
+            ui.checkbox(wireframe_enabled, "🕸 Wireframe Mode (Edges)");
+            ui.checkbox(grid_enabled, "🔲 Show Grid");
+        });
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::ui::EngineUi;
+use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 
 mod edit;
 mod file;
@@ -11,15 +12,13 @@ impl EngineUi {
     /// Renders the clean top menu bar panel of the engine editor.
     /// Manages file options, history/preferences configuration, view settings,
     /// modular panel anchors, and fast engine edit/play status toggling.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn draw_menu_bar(
         show_preferences: &mut bool,
         show_about: &mut bool,
         _should_save_scene: &mut bool,
         _should_load_scene: &mut bool,
-        show_workspace: &mut bool,
-        workspace_tab: &mut usize,
-        show_left_panel: &mut bool,
-        left_panel_tab: &mut usize,
+        layout_state: &mut PanelLayoutState,
         ui: &mut egui::Ui,
         _world: &hecs::World,
         _mode: &ae_core::modules::EngineMode,
@@ -34,32 +33,20 @@ impl EngineUi {
                     // Draw modular submenus
                     file::draw_file_menu(ui, ui_actions);
                     edit::draw_edit_menu(ui, undo_stack, redo_stack, show_preferences, ui_actions);
-                    view::draw_view_menu(ui, show_workspace);
+                    view::draw_view_menu(ui, layout_state);
 
-                    // Window Menu
+                    // Window Menu (Modular Panels & Reordering)
                     ui.menu_button("Window", |ui| {
-                        if ui.button("🏗️ Hierarchy").clicked() {
-                            *show_left_panel = true;
-                            *left_panel_tab = 0;
-                        }
-                        if ui.button("📊 Stats & Profiler").clicked() {
-                            *show_left_panel = true;
-                            *left_panel_tab = 1;
+                        for &panel in PanelId::all() {
+                            let is_open = layout_state.is_panel_visible(panel);
+                            let label = format!("{} {}", panel.icon(), panel.title());
+                            if ui.selectable_label(is_open, label).clicked() {
+                                layout_state.activate_or_open(panel);
+                            }
                         }
                         ui.separator();
-                        let _ = ui.button("⚙️ Inspector");
-                        ui.separator();
-                        if ui.button("📂 Assets").clicked() {
-                            *show_workspace = true;
-                            *workspace_tab = 0;
-                        }
-                        if ui.button("📜 Console").clicked() {
-                            *show_workspace = true;
-                            *workspace_tab = 1;
-                        }
-                        if ui.button("🎬 Timeline").clicked() {
-                            *show_workspace = true;
-                            *workspace_tab = 2;
+                        if ui.button("🔄 Reset Layout to Default").clicked() {
+                            layout_state.reset_to_default();
                         }
                     });
 

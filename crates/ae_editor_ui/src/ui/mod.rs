@@ -8,34 +8,36 @@ use winit::{event::WindowEvent, window::Window};
 mod hierarchy;
 mod inspector;
 mod menubar;
+pub mod panel_layout;
 mod preferences;
 mod workspace;
 
 // New modular submodules
 mod dialogs;
+mod docking;
 mod style;
 pub mod tab_bar;
 mod types;
 mod viewport_hud;
 
 // Re-exports
+pub use panel_layout::{PanelId, PanelLayoutState, PanelZone, TabDragState};
 pub use types::{ConsoleEntry, EngineUiAction};
 
-/// The main UI management system for the Aeon Engine.
-/// Owns the egui context, winit state adapter, WGPU renderer, and all
-/// persistent editor UI state (selection, inspector, preferences, console).
 /// Action payload sent from async native file dialog threads to the main UI thread.
 pub enum SceneDialogAction {
     SaveTo(std::path::PathBuf),
     LoadFrom(std::path::PathBuf),
 }
 
+/// The main UI management system for the Aeon Engine.
+/// Owns the egui context, winit state adapter, WGPU renderer, panel docking layout,
+/// and all persistent editor UI state (selection, inspector, preferences, console).
 pub struct EngineUi {
     pub context: Context,
     pub state: State,
     pub renderer: Renderer,
     pub selected_entity: Option<hecs::Entity>,
-    stress_cube_counter: usize,
     pub status_message: Option<(Vec<(String, egui::Color32)>, std::time::Instant)>,
     pub inspector_euler: [f32; 3],
     pub last_selected_entity: Option<hecs::Entity>,
@@ -58,11 +60,10 @@ pub struct EngineUi {
     pub pending_load_path: Option<std::path::PathBuf>,
     pub scene_dialog_receivers: Vec<std::sync::mpsc::Receiver<SceneDialogAction>>,
     pub should_exit: bool,
-    pub workspace_tab: usize,
-    pub show_workspace: bool,
-    pub inspector_tab: usize,
-    pub show_left_panel: bool,
-    pub left_panel_tab: usize,
+    /// Modular docking panel and tab layout state.
+    pub layout_state: PanelLayoutState,
+    /// Interactive mouse tab drag-and-drop state.
+    pub tab_drag_state: Option<TabDragState>,
     pub hierarchy_search_query: String,
     /// Snapshot of log entries (updated at most once per frame, only when count changed).
     console_entries: Vec<ConsoleEntry>,
@@ -116,7 +117,7 @@ impl EngineUi {
         let state = State::new(
             context.clone(),
             egui::ViewportId::ROOT,
-            &window,
+            window,
             Some(window.scale_factor() as f32),
             None,
             None,
@@ -133,7 +134,6 @@ impl EngineUi {
             state,
             renderer,
             selected_entity: None,
-            stress_cube_counter: 0,
             status_message: None,
             inspector_euler: [0.0; 3],
             last_selected_entity: None,
@@ -162,11 +162,8 @@ impl EngineUi {
             pending_load_path: None,
             scene_dialog_receivers: Vec::new(),
             should_exit: false,
-            workspace_tab: 1, // Default to Console
-            show_workspace: false,
-            inspector_tab: 0,       // Default to Inspector
-            show_left_panel: false, // Default to closed (clean spacious viewport)
-            left_panel_tab: 0,      // Default to Hierarchy
+            layout_state: PanelLayoutState::new_default(),
+            tab_drag_state: None,
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
@@ -224,8 +221,8 @@ impl EngineUi {
     /// Snapshots the global log buffer only when new entries exist.
     /// This avoids holding the Mutex during the Egui render pass.
     pub fn sync_console(&mut self) {
-        // Fast-path: skip any processing if panel is hidden
-        if !self.show_workspace || self.workspace_tab != 1 {
+        // Fast-path: skip any processing if Console is not currently visible
+        if !self.layout_state.is_panel_visible(PanelId::Console) {
             return;
         }
 
@@ -264,6 +261,7 @@ impl EngineUi {
 
     /// Orchestrates the drawing of all editor panels, toolbar menus, preference views,
     /// hierarchy snapshots, interactive HUD nodes, and overlay dialogs for the frame.
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         device: &wgpu::Device,
@@ -288,14 +286,9 @@ impl EngineUi {
         enabled_modules: &std::collections::HashSet<ae_core::modules::EngineModule>,
         ui_actions: &mut Vec<EngineUiAction>,
     ) -> egui::Rect {
-        // Calculate the exponential moving average (EMA) EVERY single frame at full engine throughput.
-        // Running EMA per-frame ensures instantaneous responsiveness (converges in milliseconds at 1000+ FPS)
-        // while filtering out sub-millisecond high-frequency noise.
         let alpha = 0.08f32;
         self.smoothed_fps = alpha * fps + (1.0 - alpha) * self.smoothed_fps;
 
-        // We also maintain a displayed FPS value that we update only every 100ms to prevent
-        // rapid numeric flickering in the UI text, making it highly readable.
         let now = std::time::Instant::now();
         if now.duration_since(self.last_fps_update).as_secs_f32() >= 0.10 {
             self.displayed_fps = self.smoothed_fps;
@@ -319,10 +312,8 @@ impl EngineUi {
                         .register_native_texture(device, view, wgpu::FilterMode::Linear);
                 self.viewport_texture_id = Some(id);
             }
-        } else {
-            if let Some(old_id) = self.viewport_texture_id.take() {
-                self.renderer.free_texture(&old_id);
-            }
+        } else if let Some(old_id) = self.viewport_texture_id.take() {
+            self.renderer.free_texture(&old_id);
         }
 
         // Destructure self fields to allow split borrows in the closure
@@ -336,19 +327,15 @@ impl EngineUi {
         let inspector_euler = &mut self.inspector_euler;
         let inspector_color_hex = &mut self.inspector_color_hex;
         let saved_swatches = &mut self.saved_swatches;
-        let _stress_cube_counter = &mut self.stress_cube_counter;
         let wireframe_enabled = &mut self.wireframe_enabled;
         let grid_enabled = &mut self.grid_enabled;
         let is_loading_assets = self.is_loading_assets;
         let gizmo_mode = &mut self.gizmo_mode;
         let gizmo_space = &mut self.gizmo_space;
         let status_message = &mut self.status_message;
-        let show_left_panel = &mut self.show_left_panel;
-        let left_panel_tab = &mut self.left_panel_tab;
+        let layout_state = &mut self.layout_state;
+        let tab_drag_state = &mut self.tab_drag_state;
         let hierarchy_search_query = &mut self.hierarchy_search_query;
-        let show_workspace = &mut self.show_workspace;
-        let workspace_tab = &mut self.workspace_tab;
-        let inspector_tab = &mut self.inspector_tab;
         let console_entries = &self.console_entries;
         let profiler_ecs_ms = self.profiler_ecs_ms;
         let profiler_render_ms = self.profiler_render_ms;
@@ -373,10 +360,7 @@ impl EngineUi {
                 show_about,
                 should_save_scene,
                 should_load_scene,
-                show_workspace,
-                workspace_tab,
-                show_left_panel,
-                left_panel_tab,
+                layout_state,
                 ui,
                 world,
                 mode,
@@ -419,30 +403,30 @@ impl EngineUi {
             }
 
             // 2. Bottom Utility Bar (Toggle buttons + Status)
-            // Call this first to anchor it to the absolute bottom of the window.
-            if let Some(rect) = Self::draw_utility_bar(
-                show_workspace,
-                workspace_tab,
-                show_left_panel,
-                left_panel_tab,
-                status_message,
-                ui,
-            ) {
+            if let Some(rect) = Self::draw_utility_bar(layout_state, status_message, ui) {
                 ui_rects_collector.borrow_mut().push(rect);
             }
 
-            // 2.1 Left Docked Panel (Hierarchy & Stats Tabs)
-            // Occupies the left side from top menu bar down to bottom utility bar.
-            let left_panel_resp = Self::draw_left_panel(
-                show_left_panel,
-                left_panel_tab,
+            // 2.1 Left Docked Panel (Draggable Tab Bar + Dynamic Panel Content)
+            Self::draw_left_dock(
+                ui,
+                layout_state,
+                tab_drag_state,
+                world,
+                hierarchy_cache,
                 hierarchy_search_query,
                 selected_entity,
-                ui,
-                world,
+                last_selected_entity,
+                inspector_euler,
+                inspector_color_hex,
+                saved_swatches,
                 is_editing,
                 ui_actions,
-                hierarchy_cache,
+                editor_state,
+                camera,
+                models,
+                textures,
+                console_entries,
                 wireframe_enabled,
                 grid_enabled,
                 smoothed_fps,
@@ -453,58 +437,78 @@ impl EngineUi {
                 profiler_frame_ms,
                 memory_models_mb,
                 memory_textures_mb,
+                &ui_rects_collector,
             );
-            if let Some(rect) = left_panel_resp {
-                ui_rects_collector.borrow_mut().push(rect);
-            }
 
-            // 2.2 Right Panel (Inspector & Material Editor Tabs)
-            // Occupies the right side from top menu bar down to bottom utility bar.
-            let mut inspector_snapshot: Option<ae_editor::undo_redo::EntitySnapshot> = None;
-            let inspector_resp = Self::draw_inspector_panel(
+            // 2.2 Right Docked Panel (Draggable Tab Bar + Dynamic Panel Content)
+            Self::draw_right_dock(
+                ui,
+                layout_state,
+                tab_drag_state,
+                world,
+                hierarchy_cache,
+                hierarchy_search_query,
                 selected_entity,
                 last_selected_entity,
                 inspector_euler,
                 inspector_color_hex,
                 saved_swatches,
-                &mut inspector_snapshot,
-                ui,
-                world,
-                undo_stack,
-                redo_stack,
                 is_editing,
                 ui_actions,
                 editor_state,
                 camera,
                 models,
                 textures,
-                inspector_tab,
-                workspace_tab,
-                show_workspace,
+                console_entries,
+                wireframe_enabled,
+                grid_enabled,
+                smoothed_fps,
+                profiler_ecs_ms,
+                profiler_render_ms,
+                profiler_present_ms,
+                profiler_ui_ms,
+                profiler_frame_ms,
+                memory_models_mb,
+                memory_textures_mb,
+                &ui_rects_collector,
             );
-            if let Some(rect) = inspector_resp {
-                ui_rects_collector.borrow_mut().push(rect);
-            }
 
-            // 2.7 Central Viewport Area (Render-to-Texture Display) & Bottom Workspace Panel
-            // Captured as a CentralPanel that consumes the remaining empty space in the middle.
+            // 2.3 Central Viewport Area & Bottom Docked Panel
             let central_rect = egui::CentralPanel::default()
                 .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
                 .show(ui, |ui| {
-                    // Docks bottom workspace strictly within the central panel (between left and right sidebars)
-                    if let Some(rect) = Self::draw_workspace_panel(
-                        show_workspace,
-                        workspace_tab,
-                        console_entries,
+                    // Docks bottom panel strictly within the central area
+                    Self::draw_bottom_dock(
                         ui,
+                        layout_state,
+                        tab_drag_state,
+                        world,
+                        hierarchy_cache,
+                        hierarchy_search_query,
+                        selected_entity,
+                        last_selected_entity,
+                        inspector_euler,
+                        inspector_color_hex,
+                        saved_swatches,
+                        is_editing,
+                        ui_actions,
+                        editor_state,
+                        camera,
                         models,
                         textures,
-                        ui_actions,
-                        *selected_entity,
-                        world,
-                    ) {
-                        ui_rects_collector.borrow_mut().push(rect);
-                    }
+                        console_entries,
+                        wireframe_enabled,
+                        grid_enabled,
+                        smoothed_fps,
+                        profiler_ecs_ms,
+                        profiler_render_ms,
+                        profiler_present_ms,
+                        profiler_ui_ms,
+                        profiler_frame_ms,
+                        memory_models_mb,
+                        memory_textures_mb,
+                        &ui_rects_collector,
+                    );
 
                     let rect = ui.available_rect_before_wrap();
                     if let Some(texture_id) = self.viewport_texture_id {
@@ -522,7 +526,7 @@ impl EngineUi {
                 .inner;
             viewport_rect.set(central_rect);
 
-            // 3. Viewport Toolbar, Scene Gizmo & Billboard Icons (Visible in Edit Mode & when Render module is ENABLED)
+            // 3. Viewport Toolbar, Scene Gizmo & Billboard Icons
             let is_render_active =
                 enabled_modules.contains(&ae_core::modules::EngineModule::Render);
             if is_editing && is_render_active {
@@ -537,11 +541,9 @@ impl EngineUi {
                     ui_actions,
                 );
 
-                // 3.6 Camera Position HUD & 3D Scene Navigation Gizmo
                 viewport_hud::draw_camera_hud(&ctx, available_rect, camera);
                 viewport_hud::draw_scene_navigation_gizmo(&ctx, available_rect, camera, ui_actions);
 
-                // 3.7 3D Viewport Billboard Icons (Light 💡, Audio 🔊, Ear 👂, Camera 🎥)
                 viewport_hud::draw_billboard_icons(
                     &ctx,
                     available_rect,
@@ -552,17 +554,19 @@ impl EngineUi {
                 );
             }
 
+            // 4. Finalize Tab Drag & Drop Interactions (Release drop commit & Floating preview badges)
+            Self::finalize_tab_drag_interaction(layout_state, tab_drag_state, ui);
+
             // Loading Overlay and Dialogs
             let mut collected_rects = ui_rects_collector.borrow_mut();
             dialogs::draw_dialogs(&ctx, is_loading_assets, &mut collected_rects);
             menubar::help::draw_about_dialog(&ctx, show_about, &mut collected_rects);
 
-            // Clean up status message if it should no longer be handled by caller
-            // (The utility bar handles duration now)
-            if let Some((_, start_time)) = status_message {
-                if start_time.elapsed().as_secs() >= 5 {
-                    *status_message = None;
-                }
+            // Clean up status message after duration
+            if let Some((_, start_time)) = status_message
+                && start_time.elapsed().as_secs() >= 5
+            {
+                *status_message = None;
             }
         });
 
