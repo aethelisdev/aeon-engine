@@ -74,17 +74,23 @@ pub(crate) fn setup_custom_style(ctx: &Context) {
     let mut style: egui::Style = (*ctx.global_style()).clone();
 
     // 1. Accent & Main Colors
-    let accent_color = egui::Color32::from_rgb(77, 163, 255);
+    let accent_color = egui::Color32::from_rgb(0, 229, 255);
     let hover_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 15);
-    let window_bg = egui::Color32::from_rgba_unmultiplied(30, 30, 30, 245);
-    let border_color = egui::Color32::from_gray(60);
+    let window_bg = egui::Color32::from_rgb(20, 20, 25);
+    let border_color = egui::Color32::from_rgb(45, 48, 60);
 
-    // 2. Visuals & Rounding (egui 0.34 uses CornerRadius)
-    style.visuals.window_corner_radius = egui::CornerRadius::same(6);
-    style.visuals.window_shadow.offset = [0, 4];
-    style.visuals.window_shadow.blur = 12;
+    // 2. Visuals & Rounding (egui CornerRadius)
+    style.visuals.window_corner_radius = egui::CornerRadius::same(8);
+    style.visuals.menu_corner_radius = egui::CornerRadius::same(6);
+    style.visuals.window_shadow.offset = [0, 8];
+    style.visuals.window_shadow.blur = 20;
     style.visuals.window_shadow.spread = 0;
-    style.visuals.window_shadow.color = egui::Color32::from_black_alpha(35);
+    style.visuals.window_shadow.color = egui::Color32::from_black_alpha(180);
+    style.visuals.popup_shadow.offset = [0, 6];
+    style.visuals.popup_shadow.blur = 16;
+    style.visuals.popup_shadow.spread = 0;
+    style.visuals.popup_shadow.color = egui::Color32::from_black_alpha(160);
+
     style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(4);
     style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(4);
     style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
@@ -92,16 +98,19 @@ pub(crate) fn setup_custom_style(ctx: &Context) {
     style.visuals.widgets.open.corner_radius = egui::CornerRadius::same(4);
 
     // 3. Selection & Accent Highlighting
-    style.visuals.selection.bg_fill = accent_color;
-    style.visuals.selection.stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+    style.visuals.selection.bg_fill = egui::Color32::from_rgb(0, 60, 80);
+    style.visuals.selection.stroke = egui::Stroke::new(1.0, accent_color);
 
-    // 4. Hover background for clickable items
+    // 4. Widget background fills
     style.visuals.widgets.hovered.bg_fill = hover_color;
+    style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(0, 60, 80);
+    style.visuals.widgets.open.bg_fill = egui::Color32::from_rgb(26, 28, 36);
 
     // 5. Spacing & Padding
     style.spacing.item_spacing = egui::vec2(6.0, 6.0);
     style.spacing.window_margin = egui::Margin::same(8);
     style.spacing.button_padding = egui::vec2(8.0, 4.0);
+    style.spacing.menu_margin = egui::Margin::symmetric(6, 6);
 
     // 6. Window transparency and Outlines
     style.visuals.window_fill = window_bg;

@@ -27,7 +27,14 @@ impl EngineUi {
         is_editing: bool,
         ui_actions: &mut Vec<crate::ui::EngineUiAction>,
     ) {
-        egui::Panel::top("top_menu_bar").show(ui, |ui| {
+        egui::Panel::top("top_menu_bar")
+            .frame(
+                egui::Frame::new()
+                    .fill(egui::Color32::from_rgb(15, 15, 20))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60)))
+                    .inner_margin(egui::Margin::symmetric(8, 4)),
+            )
+            .show(ui, |ui| {
             ui.horizontal(|ui| {
                 egui::MenuBar::new().ui(ui, |ui| {
                     // Draw modular submenus
