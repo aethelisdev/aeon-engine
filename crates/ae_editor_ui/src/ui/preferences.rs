@@ -8,6 +8,7 @@ pub mod modules;
 
 impl EngineUi {
     /// Renders the Preferences window of the engine editor.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn draw_preferences_window(
         show_preferences: &mut bool,
         preferences_tab: &mut u8,

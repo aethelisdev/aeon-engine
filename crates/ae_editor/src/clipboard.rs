@@ -53,10 +53,10 @@ pub fn paste_clipboard(
         }
 
         // Append (Copy) suffix to name
-        if let Ok(mut name) = world.get::<&mut Name>(new_ent) {
-            if !name.0.ends_with("(Copy)") {
-                name.0 = format!("{} (Copy)", name.0);
-            }
+        if let Ok(mut name) = world.get::<&mut Name>(new_ent)
+            && !name.0.ends_with("(Copy)")
+        {
+            name.0 = format!("{} (Copy)", name.0);
         }
 
         let new_snap = EntitySnapshot::capture(world, new_ent);

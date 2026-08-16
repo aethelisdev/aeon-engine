@@ -14,7 +14,7 @@ pub(crate) fn choose_present_mode(
     limit: FpsLimit,
     supported: &[wgpu::PresentMode],
 ) -> wgpu::PresentMode {
-    let selected = match limit {
+    match limit {
         FpsLimit::Uncapped | FpsLimit::Limit120 => {
             if supported.contains(&wgpu::PresentMode::Mailbox) {
                 wgpu::PresentMode::Mailbox
@@ -33,8 +33,7 @@ pub(crate) fn choose_present_mode(
                 wgpu::PresentMode::Fifo
             }
         }
-    };
-    selected
+    }
 }
 
 /// Default swap-chain frame latency (number of frames queued ahead on GPU).

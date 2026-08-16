@@ -186,7 +186,7 @@ fn process_gltf_primitive_mesh(
         let has_transparent_pixels =
             texture_index
                 .and_then(|idx| images.get(idx))
-                .map_or(false, |img| {
+                .is_some_and(|img| {
                     if img.format == gltf::image::Format::R8G8B8A8 {
                         img.pixels.chunks_exact(4).any(|c| c[3] < 245)
                     } else {
@@ -195,7 +195,7 @@ fn process_gltf_primitive_mesh(
                 });
 
         let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-        let mut pos_iter = match reader.read_positions() {
+        let pos_iter = match reader.read_positions() {
             Some(iter) => iter,
             None => continue,
         };
@@ -233,7 +233,7 @@ fn process_gltf_primitive_mesh(
         let start_vertex = all_vertices.len() as u32;
         let start_index = all_indices.len() as u32;
 
-        while let Some(raw_pos) = pos_iter.next() {
+        for raw_pos in pos_iter {
             let raw_norm = norm_iter
                 .as_mut()
                 .and_then(|n| n.next())

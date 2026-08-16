@@ -35,12 +35,10 @@ impl EcsManager {
             Option<&RigidBody>,
             Option<&Collider>,
         )>() {
-            if rb.is_none() && col.is_none() {
-                if vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0 {
-                    pos.x += vel.x * delta_time;
-                    pos.y += vel.y * delta_time;
-                    pos.z += vel.z * delta_time;
-                }
+            if rb.is_none() && col.is_none() && (vel.x != 0.0 || vel.y != 0.0 || vel.z != 0.0) {
+                pos.x += vel.x * delta_time;
+                pos.y += vel.y * delta_time;
+                pos.z += vel.z * delta_time;
             }
         }
     }

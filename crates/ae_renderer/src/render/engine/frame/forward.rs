@@ -190,8 +190,114 @@ impl RenderState {
 
             // --- PASS 1a: OPAQUE SUBMESHES ---
             for (handle, m) in ctx.asset_manager.models.iter() {
-                if let Some(insts) = ctx.model_instance_data.get(&handle) {
-                    if !insts.is_empty() {
+                if let Some(insts) = ctx.model_instance_data.get(&handle)
+                    && !insts.is_empty()
+                {
+                    let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
+                    let mut cur = 0;
+                    while cur < insts.len() {
+                        let start = cur;
+                        let override_tex = insts[cur].1;
+                        while cur < insts.len() && insts[cur].1 == override_tex {
+                            cur += 1;
+                        }
+                        let count = (cur - start) as u32;
+
+                        pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+                        if m.submeshes.is_empty() {
+                            let bg = override_tex
+                                .and_then(|h| ctx.asset_manager.textures.get(h))
+                                .map(|t| &t.bind_group)
+                                .unwrap_or(&self.default_white_texture.bind_group);
+
+                            pass.set_bind_group(3, bg, &[]);
+                            pass.draw_indexed(0..m.num_indices, 0, 0..count);
+                        } else {
+                            for submesh in &m.submeshes {
+                                if submesh.alpha_mode
+                                    != crate::render::types::SubmeshAlphaMode::Opaque
+                                {
+                                    continue;
+                                }
+                                let bg = if let Some(custom_tex) = override_tex {
+                                    if let Some(tex_idx) = submesh.texture_index {
+                                        if tex_idx > 0 && m.embedded_textures.len() > 1 {
+                                            m.embedded_textures
+                                                .get(tex_idx)
+                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
+                                                .map(|t| &t.bind_group)
+                                                .or_else(|| {
+                                                    ctx.asset_manager
+                                                        .textures
+                                                        .get(custom_tex)
+                                                        .map(|t| &t.bind_group)
+                                                })
+                                        } else if Some(custom_tex) == m.default_texture {
+                                            m.embedded_textures
+                                                .get(tex_idx)
+                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
+                                                .map(|t| &t.bind_group)
+                                        } else {
+                                            ctx.asset_manager
+                                                .textures
+                                                .get(custom_tex)
+                                                .map(|t| &t.bind_group)
+                                        }
+                                    } else {
+                                        ctx.asset_manager
+                                            .textures
+                                            .get(custom_tex)
+                                            .map(|t| &t.bind_group)
+                                    }
+                                } else {
+                                    None
+                                }
+                                .unwrap_or(&self.default_white_texture.bind_group);
+
+                                pass.set_bind_group(3, bg, &[]);
+                                pass.draw_indexed(
+                                    submesh.start_index
+                                        ..(submesh.start_index + submesh.index_count),
+                                    0,
+                                    0..count,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- PASS 1b: CUTOUT / MASK SUBMESHES (ALPHA TESTING WITH DEPTH WRITE) ---
+            let mut has_any_cutout_submesh = false;
+            for (handle, m) in ctx.asset_manager.models.iter() {
+                if let Some(insts) = ctx.model_instance_data.get(&handle)
+                    && !insts.is_empty()
+                    && m.submeshes
+                        .iter()
+                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+                {
+                    has_any_cutout_submesh = true;
+                    break;
+                }
+            }
+
+            if has_any_cutout_submesh {
+                pass.set_pipeline(&self.pipelines.cutout_pipeline);
+                for (handle, m) in ctx.asset_manager.models.iter() {
+                    if let Some(insts) = ctx.model_instance_data.get(&handle)
+                        && !insts.is_empty()
+                        && m.submeshes
+                            .iter()
+                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+                    {
                         let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
                         let mut cur = 0;
                         while cur < insts.len() {
@@ -214,173 +320,54 @@ impl RenderState {
                                 wgpu::IndexFormat::Uint32,
                             );
 
-                            if m.submeshes.is_empty() {
-                                let bg = override_tex
-                                    .and_then(|h| ctx.asset_manager.textures.get(h))
-                                    .map(|t| &t.bind_group)
-                                    .unwrap_or(&self.default_white_texture.bind_group);
+                            for submesh in &m.submeshes {
+                                if submesh.alpha_mode
+                                    != crate::render::types::SubmeshAlphaMode::Mask
+                                {
+                                    continue;
+                                }
+                                let bg = if let Some(custom_tex) = override_tex {
+                                    if let Some(tex_idx) = submesh.texture_index {
+                                        if tex_idx > 0 && m.embedded_textures.len() > 1 {
+                                            m.embedded_textures
+                                                .get(tex_idx)
+                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
+                                                .map(|t| &t.bind_group)
+                                                .or_else(|| {
+                                                    ctx.asset_manager
+                                                        .textures
+                                                        .get(custom_tex)
+                                                        .map(|t| &t.bind_group)
+                                                })
+                                        } else if Some(custom_tex) == m.default_texture {
+                                            m.embedded_textures
+                                                .get(tex_idx)
+                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
+                                                .map(|t| &t.bind_group)
+                                        } else {
+                                            ctx.asset_manager
+                                                .textures
+                                                .get(custom_tex)
+                                                .map(|t| &t.bind_group)
+                                        }
+                                    } else {
+                                        ctx.asset_manager
+                                            .textures
+                                            .get(custom_tex)
+                                            .map(|t| &t.bind_group)
+                                    }
+                                } else {
+                                    None
+                                }
+                                .unwrap_or(&self.default_white_texture.bind_group);
 
                                 pass.set_bind_group(3, bg, &[]);
-                                pass.draw_indexed(0..m.num_indices, 0, 0..count);
-                            } else {
-                                for submesh in &m.submeshes {
-                                    if submesh.alpha_mode
-                                        != crate::render::types::SubmeshAlphaMode::Opaque
-                                    {
-                                        continue;
-                                    }
-                                    let bg = if let Some(custom_tex) = override_tex {
-                                        if let Some(tex_idx) = submesh.texture_index {
-                                            if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                                m.embedded_textures
-                                                    .get(tex_idx)
-                                                    .and_then(|&h| {
-                                                        ctx.asset_manager.textures.get(h)
-                                                    })
-                                                    .map(|t| &t.bind_group)
-                                                    .or_else(|| {
-                                                        ctx.asset_manager
-                                                            .textures
-                                                            .get(custom_tex)
-                                                            .map(|t| &t.bind_group)
-                                                    })
-                                            } else if Some(custom_tex) == m.default_texture {
-                                                m.embedded_textures
-                                                    .get(tex_idx)
-                                                    .and_then(|&h| {
-                                                        ctx.asset_manager.textures.get(h)
-                                                    })
-                                                    .map(|t| &t.bind_group)
-                                            } else {
-                                                ctx.asset_manager
-                                                    .textures
-                                                    .get(custom_tex)
-                                                    .map(|t| &t.bind_group)
-                                            }
-                                        } else {
-                                            ctx.asset_manager
-                                                .textures
-                                                .get(custom_tex)
-                                                .map(|t| &t.bind_group)
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                    .unwrap_or(&self.default_white_texture.bind_group);
-
-                                    pass.set_bind_group(3, bg, &[]);
-                                    pass.draw_indexed(
-                                        submesh.start_index
-                                            ..(submesh.start_index + submesh.index_count),
-                                        0,
-                                        0..count,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // --- PASS 1b: CUTOUT / MASK SUBMESHES (ALPHA TESTING WITH DEPTH WRITE) ---
-            let mut has_any_cutout_submesh = false;
-            for (handle, m) in ctx.asset_manager.models.iter() {
-                if let Some(insts) = ctx.model_instance_data.get(&handle) {
-                    if !insts.is_empty()
-                        && m.submeshes
-                            .iter()
-                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
-                    {
-                        has_any_cutout_submesh = true;
-                        break;
-                    }
-                }
-            }
-
-            if has_any_cutout_submesh {
-                pass.set_pipeline(&self.pipelines.cutout_pipeline);
-                for (handle, m) in ctx.asset_manager.models.iter() {
-                    if let Some(insts) = ctx.model_instance_data.get(&handle) {
-                        if !insts.is_empty()
-                            && m.submeshes.iter().any(|s| {
-                                s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask
-                            })
-                        {
-                            let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
-                            let mut cur = 0;
-                            while cur < insts.len() {
-                                let start = cur;
-                                let override_tex = insts[cur].1;
-                                while cur < insts.len() && insts[cur].1 == override_tex {
-                                    cur += 1;
-                                }
-                                let count = (cur - start) as u32;
-
-                                pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                                pass.set_vertex_buffer(
-                                    1,
-                                    self.geometry
-                                        .instance_buffer
-                                        .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
+                                pass.draw_indexed(
+                                    submesh.start_index
+                                        ..(submesh.start_index + submesh.index_count),
+                                    0,
+                                    0..count,
                                 );
-                                pass.set_index_buffer(
-                                    m.index_buffer.slice(..),
-                                    wgpu::IndexFormat::Uint32,
-                                );
-
-                                for submesh in &m.submeshes {
-                                    if submesh.alpha_mode
-                                        != crate::render::types::SubmeshAlphaMode::Mask
-                                    {
-                                        continue;
-                                    }
-                                    let bg = if let Some(custom_tex) = override_tex {
-                                        if let Some(tex_idx) = submesh.texture_index {
-                                            if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                                m.embedded_textures
-                                                    .get(tex_idx)
-                                                    .and_then(|&h| {
-                                                        ctx.asset_manager.textures.get(h)
-                                                    })
-                                                    .map(|t| &t.bind_group)
-                                                    .or_else(|| {
-                                                        ctx.asset_manager
-                                                            .textures
-                                                            .get(custom_tex)
-                                                            .map(|t| &t.bind_group)
-                                                    })
-                                            } else if Some(custom_tex) == m.default_texture {
-                                                m.embedded_textures
-                                                    .get(tex_idx)
-                                                    .and_then(|&h| {
-                                                        ctx.asset_manager.textures.get(h)
-                                                    })
-                                                    .map(|t| &t.bind_group)
-                                            } else {
-                                                ctx.asset_manager
-                                                    .textures
-                                                    .get(custom_tex)
-                                                    .map(|t| &t.bind_group)
-                                            }
-                                        } else {
-                                            ctx.asset_manager
-                                                .textures
-                                                .get(custom_tex)
-                                                .map(|t| &t.bind_group)
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                    .unwrap_or(&self.default_white_texture.bind_group);
-
-                                    pass.set_bind_group(3, bg, &[]);
-                                    pass.draw_indexed(
-                                        submesh.start_index
-                                            ..(submesh.start_index + submesh.index_count),
-                                        0,
-                                        0..count,
-                                    );
-                                }
                             }
                         }
                     }
@@ -477,79 +464,67 @@ impl RenderState {
         // --- PASS 2: TRANSPARENT SUBMESHES (ALPHA BLENDING) ---
         let mut has_any_blend_submesh = false;
         for (handle, m) in ctx.asset_manager.models.iter() {
-            if let Some(insts) = ctx.model_instance_data.get(&handle) {
-                if !insts.is_empty()
-                    && m.submeshes
-                        .iter()
-                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend)
-                {
-                    has_any_blend_submesh = true;
-                    break;
-                }
+            if let Some(insts) = ctx.model_instance_data.get(&handle)
+                && !insts.is_empty()
+                && m.submeshes
+                    .iter()
+                    .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend)
+            {
+                has_any_blend_submesh = true;
+                break;
             }
         }
 
         if has_any_blend_submesh {
             pass.set_pipeline(&self.pipelines.transparent_pipeline);
             for (handle, m) in ctx.asset_manager.models.iter() {
-                if let Some(insts) = ctx.model_instance_data.get(&handle) {
-                    if !insts.is_empty()
-                        && m.submeshes
-                            .iter()
-                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend)
-                    {
-                        let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
-                        let mut cur = 0;
-                        while cur < insts.len() {
-                            let start = cur;
-                            let override_tex = insts[cur].1;
-                            while cur < insts.len() && insts[cur].1 == override_tex {
-                                cur += 1;
+                if let Some(insts) = ctx.model_instance_data.get(&handle)
+                    && !insts.is_empty()
+                    && m.submeshes
+                        .iter()
+                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend)
+                {
+                    let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
+                    let mut cur = 0;
+                    while cur < insts.len() {
+                        let start = cur;
+                        let override_tex = insts[cur].1;
+                        while cur < insts.len() && insts[cur].1 == override_tex {
+                            cur += 1;
+                        }
+                        let count = (cur - start) as u32;
+
+                        pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                        pass.set_vertex_buffer(
+                            1,
+                            self.geometry
+                                .instance_buffer
+                                .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
+                        );
+                        pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+                        for submesh in &m.submeshes {
+                            if submesh.alpha_mode != crate::render::types::SubmeshAlphaMode::Blend {
+                                continue;
                             }
-                            let count = (cur - start) as u32;
-
-                            pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                            pass.set_vertex_buffer(
-                                1,
-                                self.geometry
-                                    .instance_buffer
-                                    .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
-                            );
-                            pass.set_index_buffer(
-                                m.index_buffer.slice(..),
-                                wgpu::IndexFormat::Uint32,
-                            );
-
-                            for submesh in &m.submeshes {
-                                if submesh.alpha_mode
-                                    != crate::render::types::SubmeshAlphaMode::Blend
-                                {
-                                    continue;
-                                }
-                                let bg = if let Some(custom_tex) = override_tex {
-                                    if let Some(tex_idx) = submesh.texture_index {
-                                        if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                            m.embedded_textures
-                                                .get(tex_idx)
-                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                                .map(|t| &t.bind_group)
-                                                .or_else(|| {
-                                                    ctx.asset_manager
-                                                        .textures
-                                                        .get(custom_tex)
-                                                        .map(|t| &t.bind_group)
-                                                })
-                                        } else if Some(custom_tex) == m.default_texture {
-                                            m.embedded_textures
-                                                .get(tex_idx)
-                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                                .map(|t| &t.bind_group)
-                                        } else {
-                                            ctx.asset_manager
-                                                .textures
-                                                .get(custom_tex)
-                                                .map(|t| &t.bind_group)
-                                        }
+                            let bg = if let Some(custom_tex) = override_tex {
+                                if let Some(tex_idx) = submesh.texture_index {
+                                    if tex_idx > 0 && m.embedded_textures.len() > 1 {
+                                        m.embedded_textures
+                                            .get(tex_idx)
+                                            .and_then(|&h| ctx.asset_manager.textures.get(h))
+                                            .map(|t| &t.bind_group)
+                                            .or_else(|| {
+                                                ctx.asset_manager
+                                                    .textures
+                                                    .get(custom_tex)
+                                                    .map(|t| &t.bind_group)
+                                            })
+                                    } else if Some(custom_tex) == m.default_texture {
+                                        m.embedded_textures
+                                            .get(tex_idx)
+                                            .and_then(|&h| ctx.asset_manager.textures.get(h))
+                                            .map(|t| &t.bind_group)
                                     } else {
                                         ctx.asset_manager
                                             .textures
@@ -557,18 +532,22 @@ impl RenderState {
                                             .map(|t| &t.bind_group)
                                     }
                                 } else {
-                                    None
+                                    ctx.asset_manager
+                                        .textures
+                                        .get(custom_tex)
+                                        .map(|t| &t.bind_group)
                                 }
-                                .unwrap_or(&self.default_white_texture.bind_group);
-
-                                pass.set_bind_group(3, bg, &[]);
-                                pass.draw_indexed(
-                                    submesh.start_index
-                                        ..(submesh.start_index + submesh.index_count),
-                                    0,
-                                    0..count,
-                                );
+                            } else {
+                                None
                             }
+                            .unwrap_or(&self.default_white_texture.bind_group);
+
+                            pass.set_bind_group(3, bg, &[]);
+                            pass.draw_indexed(
+                                submesh.start_index..(submesh.start_index + submesh.index_count),
+                                0,
+                                0..count,
+                            );
                         }
                     }
                 }

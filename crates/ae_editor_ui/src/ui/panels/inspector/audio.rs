@@ -40,14 +40,12 @@ impl EngineUi {
                         .button("📁")
                         .on_hover_text("Pick sound file (.wav, .ogg, .mp3)")
                         .clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
+                        && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Audio File", &["wav", "ogg", "mp3", "flac"])
                             .pick_file()
-                        {
-                            updated.sound_path = path.to_string_lossy().to_string();
-                            changed = true;
-                        }
+                    {
+                        updated.sound_path = path.to_string_lossy().to_string();
+                        changed = true;
                     }
                 });
 

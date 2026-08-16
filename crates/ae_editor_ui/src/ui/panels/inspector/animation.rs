@@ -115,7 +115,7 @@ impl EngineUi {
                                     let is_selected = updated
                                         .current_clip
                                         .as_ref()
-                                        .map_or(false, |c| c.name == clip.name);
+                                        .is_some_and(|c| c.name == clip.name);
                                     if ui.selectable_label(is_selected, &clip.name).clicked() {
                                         updated.play(clip.clone());
                                         changed = true;

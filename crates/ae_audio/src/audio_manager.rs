@@ -154,14 +154,14 @@ impl AudioManager {
     ) {
         // --- MODULE ISOLATION: Pause all hardware audio sinks if disabled ---
         if !is_audio_enabled || self.is_muted {
-            for (_entity, sink) in self.sinks.iter() {
+            for sink in self.sinks.values() {
                 sink.pause();
             }
             return;
         }
 
         // Unpause any paused sinks when re-enabled
-        for (_entity, sink) in self.sinks.iter() {
+        for sink in self.sinks.values() {
             if sink.is_paused() {
                 sink.play();
             }
@@ -206,29 +206,29 @@ impl AudioManager {
             }
 
             // Update spatial 3D volume & attenuation
-            if source.is_playing {
-                if let Some(sink) = self.sinks.get(&entity) {
-                    if source.is_spatial {
-                        let emitter_pos = Vec3::new(pos.x, pos.y, pos.z);
-                        let attenuation = SpatialAudioMath::compute_distance_attenuation(
-                            emitter_pos,
-                            listener_pos,
-                            source.min_distance,
-                            source.max_distance,
-                        );
-                        let (left_gain, right_gain) = SpatialAudioMath::compute_stereo_panning(
-                            emitter_pos,
-                            listener_pos,
-                            listener_right,
-                        );
-                        let spatial_gain = attenuation * ((left_gain + right_gain) * 0.5);
+            if source.is_playing
+                && let Some(sink) = self.sinks.get(&entity)
+            {
+                if source.is_spatial {
+                    let emitter_pos = Vec3::new(pos.x, pos.y, pos.z);
+                    let attenuation = SpatialAudioMath::compute_distance_attenuation(
+                        emitter_pos,
+                        listener_pos,
+                        source.min_distance,
+                        source.max_distance,
+                    );
+                    let (left_gain, right_gain) = SpatialAudioMath::compute_stereo_panning(
+                        emitter_pos,
+                        listener_pos,
+                        listener_right,
+                    );
+                    let spatial_gain = attenuation * ((left_gain + right_gain) * 0.5);
 
-                        sink.set_volume(source.volume * spatial_gain * self.master_volume);
-                    } else {
-                        sink.set_volume(source.volume * self.master_volume);
-                    }
-                    sink.set_speed(source.pitch);
+                    sink.set_volume(source.volume * spatial_gain * self.master_volume);
+                } else {
+                    sink.set_volume(source.volume * self.master_volume);
                 }
+                sink.set_speed(source.pitch);
             }
         }
     }

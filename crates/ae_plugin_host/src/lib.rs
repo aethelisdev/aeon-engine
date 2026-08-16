@@ -289,7 +289,11 @@ impl PluginManager {
         self.frame_counter = self.frame_counter.wrapping_add(1);
 
         // Throttled hot reload check
-        if self.hot_reload_enabled && self.frame_counter % self.reload_check_interval == 0 {
+        if self.hot_reload_enabled
+            && self
+                .frame_counter
+                .is_multiple_of(self.reload_check_interval)
+        {
             for backend in &mut self.backends {
                 if backend.needs_reload() {
                     match backend.reload() {

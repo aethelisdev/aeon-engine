@@ -8,25 +8,21 @@ use crate::mipmap::{CpuMipmapLevel, generate_mipmap_chain};
 /// Color space specification for texture data.
 /// Defines whether a texture's pixel values are encoded in sRGB (e.g. Albedo/Diffuse maps)
 /// or Linear color space (e.g. Normal maps, Roughness, Metallic, Ambient Occlusion).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ColorSpace {
     /// sRGB color space for visual albedo and diffuse color textures.
+    #[default]
     Srgb,
     /// Linear color space for data textures like normal, roughness, or metallic maps.
     Linear,
 }
 
-impl Default for ColorSpace {
-    fn default() -> Self {
-        Self::Srgb
-    }
-}
-
 /// Semantic PBR texture map type classification.
 /// Used to automatically select the correct color space (sRGB vs Linear) and default sampler parameters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TextureMapType {
     /// Base color / Diffuse texture map (sRGB).
+    #[default]
     Albedo,
     /// Tangent-space normal map (Linear).
     Normal,
@@ -51,16 +47,11 @@ impl TextureMapType {
     }
 }
 
-impl Default for TextureMapType {
-    fn default() -> Self {
-        Self::Albedo
-    }
-}
-
 /// Texture address wrapping mode for texture coordinate sampling beyond [0.0, 1.0].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum WrapMode {
     /// Clamp texture coordinates to the edge pixels.
+    #[default]
     ClampToEdge,
     /// Repeat the texture infinitely across coordinates.
     Repeat,
@@ -68,25 +59,14 @@ pub enum WrapMode {
     MirrorRepeat,
 }
 
-impl Default for WrapMode {
-    fn default() -> Self {
-        Self::ClampToEdge
-    }
-}
-
 /// Texture filtering mode for magnification and minification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum FilterMode {
     /// Nearest-neighbor sampling (crisp, pixelated look).
     Nearest,
     /// Bilinear / Trilinear interpolation (smooth filtering).
+    #[default]
     Linear,
-}
-
-impl Default for FilterMode {
-    fn default() -> Self {
-        Self::Linear
-    }
 }
 
 /// Configuration descriptor for texture sampler parameters.

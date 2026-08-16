@@ -579,67 +579,56 @@ impl ShadowSystem {
             if has_any_cutout {
                 pass.set_pipeline(&self.shadow_cutout_pipeline);
                 for (handle, m) in asset_manager.models.iter() {
-                    if let Some(insts) = model_instance_data.get(&handle) {
-                        if !insts.is_empty()
-                            && m.submeshes.iter().any(|s| {
-                                s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask
-                            })
-                        {
-                            let start_offset = *model_starts.get(&handle).unwrap_or(&0);
-                            let mut cur = 0;
-                            while cur < insts.len() {
-                                let start = cur;
-                                let override_tex = insts[cur].1;
-                                while cur < insts.len() && insts[cur].1 == override_tex {
-                                    cur += 1;
-                                }
-                                let count = (cur - start) as u32;
+                    if let Some(insts) = model_instance_data.get(&handle)
+                        && !insts.is_empty()
+                        && m.submeshes
+                            .iter()
+                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
+                    {
+                        let start_offset = *model_starts.get(&handle).unwrap_or(&0);
+                        let mut cur = 0;
+                        while cur < insts.len() {
+                            let start = cur;
+                            let override_tex = insts[cur].1;
+                            while cur < insts.len() && insts[cur].1 == override_tex {
+                                cur += 1;
+                            }
+                            let count = (cur - start) as u32;
 
-                                pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                                pass.set_vertex_buffer(
-                                    1,
-                                    instance_buffer.slice(
-                                        ((start_offset + start)
-                                            * crate::render::types::INSTANCE_SIZE)
-                                            as u64..,
-                                    ),
-                                );
-                                pass.set_index_buffer(
-                                    m.index_buffer.slice(..),
-                                    wgpu::IndexFormat::Uint32,
-                                );
-                                for submesh in &m.submeshes {
-                                    if submesh.alpha_mode
-                                        == crate::render::types::SubmeshAlphaMode::Mask
-                                    {
-                                        let bg = if let Some(custom_tex) = override_tex {
-                                            if let Some(tex_idx) = submesh.texture_index {
-                                                if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                                    m.embedded_textures
-                                                        .get(tex_idx)
-                                                        .and_then(|&h| {
-                                                            asset_manager.textures.get(h)
-                                                        })
-                                                        .map(|t| &t.bind_group)
-                                                        .or_else(|| {
-                                                            asset_manager
-                                                                .textures
-                                                                .get(custom_tex)
-                                                                .map(|t| &t.bind_group)
-                                                        })
-                                                } else if Some(custom_tex) == m.default_texture {
-                                                    m.embedded_textures
-                                                        .get(tex_idx)
-                                                        .and_then(|&h| {
-                                                            asset_manager.textures.get(h)
-                                                        })
-                                                        .map(|t| &t.bind_group)
-                                                } else {
-                                                    asset_manager
-                                                        .textures
-                                                        .get(custom_tex)
-                                                        .map(|t| &t.bind_group)
-                                                }
+                            pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
+                            pass.set_vertex_buffer(
+                                1,
+                                instance_buffer.slice(
+                                    ((start_offset + start) * crate::render::types::INSTANCE_SIZE)
+                                        as u64..,
+                                ),
+                            );
+                            pass.set_index_buffer(
+                                m.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint32,
+                            );
+                            for submesh in &m.submeshes {
+                                if submesh.alpha_mode
+                                    == crate::render::types::SubmeshAlphaMode::Mask
+                                {
+                                    let bg = if let Some(custom_tex) = override_tex {
+                                        if let Some(tex_idx) = submesh.texture_index {
+                                            if tex_idx > 0 && m.embedded_textures.len() > 1 {
+                                                m.embedded_textures
+                                                    .get(tex_idx)
+                                                    .and_then(|&h| asset_manager.textures.get(h))
+                                                    .map(|t| &t.bind_group)
+                                                    .or_else(|| {
+                                                        asset_manager
+                                                            .textures
+                                                            .get(custom_tex)
+                                                            .map(|t| &t.bind_group)
+                                                    })
+                                            } else if Some(custom_tex) == m.default_texture {
+                                                m.embedded_textures
+                                                    .get(tex_idx)
+                                                    .and_then(|&h| asset_manager.textures.get(h))
+                                                    .map(|t| &t.bind_group)
                                             } else {
                                                 asset_manager
                                                     .textures
@@ -647,18 +636,23 @@ impl ShadowSystem {
                                                     .map(|t| &t.bind_group)
                                             }
                                         } else {
-                                            None
+                                            asset_manager
+                                                .textures
+                                                .get(custom_tex)
+                                                .map(|t| &t.bind_group)
                                         }
-                                        .unwrap_or(&default_white_texture.bind_group);
-
-                                        pass.set_bind_group(1, bg, &[]);
-                                        pass.draw_indexed(
-                                            submesh.start_index
-                                                ..(submesh.start_index + submesh.index_count),
-                                            0,
-                                            0..count,
-                                        );
+                                    } else {
+                                        None
                                     }
+                                    .unwrap_or(&default_white_texture.bind_group);
+
+                                    pass.set_bind_group(1, bg, &[]);
+                                    pass.draw_indexed(
+                                        submesh.start_index
+                                            ..(submesh.start_index + submesh.index_count),
+                                        0,
+                                        0..count,
+                                    );
                                 }
                             }
                         }

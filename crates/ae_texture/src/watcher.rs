@@ -53,13 +53,12 @@ impl TextureFileWatcher {
         let mut modified = Vec::new();
 
         for (path, last_time) in self.tracked_files.iter_mut() {
-            if let Ok(meta) = std::fs::metadata(path) {
-                if let Ok(current_time) = meta.modified() {
-                    if current_time > *last_time {
-                        *last_time = current_time;
-                        modified.push(path.clone());
-                    }
-                }
+            if let Ok(meta) = std::fs::metadata(path)
+                && let Ok(current_time) = meta.modified()
+                && current_time > *last_time
+            {
+                *last_time = current_time;
+                modified.push(path.clone());
             }
         }
 

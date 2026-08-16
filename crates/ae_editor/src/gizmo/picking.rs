@@ -49,13 +49,13 @@ impl GizmoSystem {
             }
         } else {
             let mut is_free_handle = false;
-            if self.mode == GizmoMode::Scale || self.mode == GizmoMode::Translate {
-                if let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, forward) {
-                    let dist_center_plane = (hit - gizmo_pos).magnitude();
-                    let o_ring_radius = axis_len_world * 0.15;
-                    if dist_center_plane < o_ring_radius + pick_radius_world * 3.0 {
-                        is_free_handle = true;
-                    }
+            if (self.mode == GizmoMode::Scale || self.mode == GizmoMode::Translate)
+                && let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, forward)
+            {
+                let dist_center_plane = (hit - gizmo_pos).magnitude();
+                let o_ring_radius = axis_len_world * 0.15;
+                if dist_center_plane < o_ring_radius + pick_radius_world * 3.0 {
+                    is_free_handle = true;
                 }
             }
 
@@ -114,14 +114,13 @@ impl GizmoSystem {
                                         in_quad = true;
                                     }
                                 }
-                                ActiveAxis::PlaneYZ => {
+                                ActiveAxis::PlaneYZ
                                     if local.y >= offset_world
                                         && local.y <= offset_world + size_world
                                         && local.z >= offset_world
-                                        && local.z <= offset_world + size_world
-                                    {
-                                        in_quad = true;
-                                    }
+                                        && local.z <= offset_world + size_world =>
+                                {
+                                    in_quad = true;
                                 }
                                 _ => {}
                             }

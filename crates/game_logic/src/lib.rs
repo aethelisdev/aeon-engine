@@ -47,15 +47,15 @@ pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
     // hot-reloadable gameplay logic (e.g., custom rotation or gameplay behavior).
     if let Some(visible) = &visible_ents {
         for &entity in visible {
-            if let Ok(mut rot) = _world.get::<&mut ae_plugin_api::Rotation>(entity) {
-                if _world.get::<&ae_plugin_api::PlayerTag>(entity).is_ok() {
-                    // Example hot-reloadable gameplay logic: smooth Y-axis spin for player entities
-                    let half_angle = 0.5 * _dt;
-                    let (sin, cos) = half_angle.sin_cos();
-                    let (w, y) = (rot.w, rot.y);
-                    rot.w = w * cos - y * sin;
-                    rot.y = y * cos + w * sin;
-                }
+            if let Ok(mut rot) = _world.get::<&mut ae_plugin_api::Rotation>(entity)
+                && _world.get::<&ae_plugin_api::PlayerTag>(entity).is_ok()
+            {
+                // Example hot-reloadable gameplay logic: smooth Y-axis spin for player entities
+                let half_angle = 0.5 * _dt;
+                let (sin, cos) = half_angle.sin_cos();
+                let (w, y) = (rot.w, rot.y);
+                rot.w = w * cos - y * sin;
+                rot.y = y * cos + w * sin;
             }
         }
     }

@@ -5,6 +5,7 @@ use crate::ui::{EngineUi, EngineUiAction};
 
 impl EngineUi {
     /// Renders the internal content of the Entity Component Inspector panel.
+    #[allow(clippy::too_many_arguments)]
     pub fn draw_inspector_content(
         ui: &mut egui::Ui,
         world: &hecs::World,
@@ -142,8 +143,8 @@ impl EngineUi {
                                     }
                                 }
                                 let pos_id = egui::Id::new(("drag_pos", entity));
-                                if drag_started {
-                                    if let Ok(old) = world.get::<&ae_core::ecs::Position>(entity) {
+                                if drag_started
+                                    && let Ok(old) = world.get::<&ae_core::ecs::Position>(entity) {
                                         ctx.data_mut(|d| {
                                             d.insert_temp(
                                                 pos_id,
@@ -151,7 +152,6 @@ impl EngineUi {
                                             )
                                         });
                                     }
-                                }
                                 if changed {
                                     let new_p = ae_core::ecs::Position {
                                         x: px,
@@ -248,8 +248,8 @@ impl EngineUi {
                                     }
                                 }
                                 let rot_id = egui::Id::new(("drag_rot", entity));
-                                if drag_started {
-                                    if let Ok(old) = world.get::<&ae_core::ecs::Rotation>(entity) {
+                                if drag_started
+                                    && let Ok(old) = world.get::<&ae_core::ecs::Rotation>(entity) {
                                         ctx.data_mut(|d| {
                                             d.insert_temp(
                                                 rot_id,
@@ -257,7 +257,6 @@ impl EngineUi {
                                             )
                                         });
                                     }
-                                }
                                 if changed {
                                     inspector_euler[0] = rx;
                                     inspector_euler[1] = ry;
@@ -370,8 +369,8 @@ impl EngineUi {
                                     }
                                 }
                                 let scale_id = egui::Id::new(("drag_scale", entity));
-                                if drag_started {
-                                    if let Ok(old) = world.get::<&ae_core::ecs::Scale>(entity) {
+                                if drag_started
+                                    && let Ok(old) = world.get::<&ae_core::ecs::Scale>(entity) {
                                         ctx.data_mut(|d| {
                                             d.insert_temp(
                                                 scale_id,
@@ -379,7 +378,6 @@ impl EngineUi {
                                             )
                                         });
                                     }
-                                }
                                 if changed {
                                     let new_s = ae_core::ecs::Scale {
                                         x: sx,
@@ -610,25 +608,5 @@ impl EngineUi {
                 }
             });
         });
-    }
-
-    /// Renders the internal content of the Material & Submesh Editor panel.
-    pub fn draw_material_editor_content(
-        ui: &mut egui::Ui,
-        world: &hecs::World,
-        selected_entity: Option<hecs::Entity>,
-        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        if let Some(entity) = selected_entity {
-            if world.contains(entity) {
-                Self::draw_texture_section(ui, world, entity, textures, models, ui_actions);
-            } else {
-                ui.label("Selected entity does not exist in world.");
-            }
-        } else {
-            ui.label("No object selected. Select a 3D model or sprite to edit materials.");
-        }
     }
 }

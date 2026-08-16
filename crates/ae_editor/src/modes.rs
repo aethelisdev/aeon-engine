@@ -82,15 +82,14 @@ pub fn update_play_mode(
     {
         player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
     }
-    if player_pos.is_none() {
-        if let Some((_tag, pos)) = ecs
+    if player_pos.is_none()
+        && let Some((_tag, pos)) = ecs
             .world
             .query_mut::<(&PlayerTag, &ae_core::ecs::Position)>()
             .into_iter()
             .next()
-        {
-            player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
-        }
+    {
+        player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
     }
 
     if let Some(mut target_pos) = player_pos {

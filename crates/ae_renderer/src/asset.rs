@@ -95,6 +95,12 @@ pub struct AssetManager {
     pub texture_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
 }
 
+impl Default for AssetManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AssetManager {
     pub fn new() -> Self {
         let mut physics_materials = AssetStorage::with_capacity(16);

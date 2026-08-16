@@ -245,7 +245,7 @@ pub fn generate_capsule(segments: u32, rings: u32) -> Vec<Vertex> {
     // Bottom hemisphere triangles
     for ring in 0..rings {
         for seg in 0..segments {
-            let first = (base_idx + (ring * (segments + 1) + seg) as usize) as usize;
+            let first = base_idx + (ring * (segments + 1) + seg) as usize;
             let second = first + (segments + 1) as usize;
 
             vertices.push(raw_vertices[first]);

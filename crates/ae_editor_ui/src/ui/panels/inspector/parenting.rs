@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::super::EngineUi;
+use crate::ui::EngineUi;
 use crate::ui::EngineUiAction;
 
 impl EngineUi {
@@ -67,16 +67,16 @@ impl EngineUi {
                                     break;
                                 }
                                 let candidate = ent_ref.entity();
-                                if candidate != entity && !is_descendant(world, candidate, entity) {
-                                    if let Ok(name) = world.get::<&ae_core::ecs::Name>(candidate) {
-                                        let name_str = name.0.clone();
-                                        count += 1;
-                                        if ui.button(name_str).clicked() {
-                                            ui_actions.push(EngineUiAction::ParentEntity(
-                                                entity, candidate,
-                                            ));
-                                            ui.close();
-                                        }
+                                if candidate != entity
+                                    && !is_descendant(world, candidate, entity)
+                                    && let Ok(name) = world.get::<&ae_core::ecs::Name>(candidate)
+                                {
+                                    let name_str = name.0.clone();
+                                    count += 1;
+                                    if ui.button(name_str).clicked() {
+                                        ui_actions
+                                            .push(EngineUiAction::ParentEntity(entity, candidate));
+                                        ui.close();
                                     }
                                 }
                             }

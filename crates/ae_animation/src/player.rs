@@ -174,26 +174,26 @@ impl AnimationPlayer {
         }
 
         // Sample and blend target clip if crossfading
-        if let Some(ref target) = self.target_clip {
-            if self.blend_factor > 0.0 {
-                let mut target_t = translations.clone();
-                let mut target_r = rotations.clone();
-                let mut target_s = scales.clone();
+        if let Some(ref target) = self.target_clip
+            && self.blend_factor > 0.0
+        {
+            let mut target_t = translations.clone();
+            let mut target_r = rotations.clone();
+            let mut target_s = scales.clone();
 
-                Self::sample_clip_into_pose(
-                    target,
-                    self.target_time,
-                    &mut target_t,
-                    &mut target_r,
-                    &mut target_s,
-                );
+            Self::sample_clip_into_pose(
+                target,
+                self.target_time,
+                &mut target_t,
+                &mut target_r,
+                &mut target_s,
+            );
 
-                let alpha = self.blend_factor.clamp(0.0, 1.0);
-                for i in 0..count {
-                    translations[i] = translations[i].lerp(target_t[i], alpha);
-                    rotations[i] = rotations[i].slerp(target_r[i], alpha);
-                    scales[i] = scales[i].lerp(target_s[i], alpha);
-                }
+            let alpha = self.blend_factor.clamp(0.0, 1.0);
+            for i in 0..count {
+                translations[i] = translations[i].lerp(target_t[i], alpha);
+                rotations[i] = rotations[i].slerp(target_r[i], alpha);
+                scales[i] = scales[i].lerp(target_s[i], alpha);
             }
         }
 

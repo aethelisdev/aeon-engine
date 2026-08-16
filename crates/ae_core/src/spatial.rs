@@ -76,12 +76,11 @@ impl SpatialGrid {
 
     /// Removes an entity from its current cell in the grid.
     pub fn remove(&mut self, entity: Entity) {
-        if let Some(old_cell) = self.entity_to_cell.remove(&entity) {
-            if let Some(vec) = self.cells.get_mut(&old_cell) {
-                if let Some(pos) = vec.iter().position(|&e| e == entity) {
-                    vec.swap_remove(pos);
-                }
-            }
+        if let Some(old_cell) = self.entity_to_cell.remove(&entity)
+            && let Some(vec) = self.cells.get_mut(&old_cell)
+            && let Some(pos) = vec.iter().position(|&e| e == entity)
+        {
+            vec.swap_remove(pos);
         }
     }
 
@@ -179,12 +178,11 @@ impl SpatialGrid {
                 let current_cell = self.entity_to_cell.get(&entity).copied();
 
                 if current_cell != Some(new_cell) {
-                    if let Some(old_cell) = current_cell {
-                        if let Some(vec) = self.cells.get_mut(&old_cell) {
-                            if let Some(idx) = vec.iter().position(|&e| e == entity) {
-                                vec.swap_remove(idx);
-                            }
-                        }
+                    if let Some(old_cell) = current_cell
+                        && let Some(vec) = self.cells.get_mut(&old_cell)
+                        && let Some(idx) = vec.iter().position(|&e| e == entity)
+                    {
+                        vec.swap_remove(idx);
                     }
                     self.cells.entry(new_cell).or_default().push(entity);
                     self.entity_to_cell.insert(entity, new_cell);

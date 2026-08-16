@@ -85,30 +85,27 @@ pub fn commit_undo_history(
     for (entity, old_snap) in editor.current_edit_snapshots.drain() {
         let new_snap = EntitySnapshot::capture(world, entity);
 
-        if let (Some(os), Some(ns)) = (old_snap.pos, new_snap.pos) {
-            if (os.x - ns.x).abs() > 0.001
+        if let (Some(os), Some(ns)) = (old_snap.pos, new_snap.pos)
+            && ((os.x - ns.x).abs() > 0.001
                 || (os.y - ns.y).abs() > 0.001
-                || (os.z - ns.z).abs() > 0.001
-            {
-                batch.push(Command::Modify(entity, Property::Position(os, ns)));
-            }
+                || (os.z - ns.z).abs() > 0.001)
+        {
+            batch.push(Command::Modify(entity, Property::Position(os, ns)));
         }
-        if let (Some(os), Some(ns)) = (old_snap.rot, new_snap.rot) {
-            if (os.x - ns.x).abs() > 0.0001
+        if let (Some(os), Some(ns)) = (old_snap.rot, new_snap.rot)
+            && ((os.x - ns.x).abs() > 0.0001
                 || (os.y - ns.y).abs() > 0.0001
                 || (os.z - ns.z).abs() > 0.0001
-                || (os.w - ns.w).abs() > 0.0001
-            {
-                batch.push(Command::Modify(entity, Property::Rotation(os, ns)));
-            }
+                || (os.w - ns.w).abs() > 0.0001)
+        {
+            batch.push(Command::Modify(entity, Property::Rotation(os, ns)));
         }
-        if let (Some(os), Some(ns)) = (old_snap.scale, new_snap.scale) {
-            if (os.x - ns.x).abs() > 0.001
+        if let (Some(os), Some(ns)) = (old_snap.scale, new_snap.scale)
+            && ((os.x - ns.x).abs() > 0.001
                 || (os.y - ns.y).abs() > 0.001
-                || (os.z - ns.z).abs() > 0.001
-            {
-                batch.push(Command::Modify(entity, Property::Scale(os, ns)));
-            }
+                || (os.z - ns.z).abs() > 0.001)
+        {
+            batch.push(Command::Modify(entity, Property::Scale(os, ns)));
         }
     }
 

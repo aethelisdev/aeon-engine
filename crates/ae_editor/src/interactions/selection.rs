@@ -304,11 +304,11 @@ pub fn try_select_entity(
     // Allows selecting Light, Audio, Camera, or empty entities by clicking their 3D billboard icons
     for (ent, pos) in ecs.world.query::<(hecs::Entity, &Position)>().iter() {
         let sphere_center = Point3::new(pos.x, pos.y, pos.z);
-        if let Some(t_world) = picking::intersect_sphere(ray, sphere_center, 0.75) {
-            if t_world < closest_dist {
-                closest_dist = t_world;
-                selected = Some(ent);
-            }
+        if let Some(t_world) = picking::intersect_sphere(ray, sphere_center, 0.75)
+            && t_world < closest_dist
+        {
+            closest_dist = t_world;
+            selected = Some(ent);
         }
     }
 

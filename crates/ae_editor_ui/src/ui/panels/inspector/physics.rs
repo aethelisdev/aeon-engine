@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::super::EngineUi;
+use crate::ui::EngineUi;
 use crate::ui::EngineUiAction;
 
 impl EngineUi {
@@ -351,19 +351,17 @@ impl EngineUi {
 
         ui.horizontal(|ui| {
             ui.menu_button("➕ Add Component", |ui| {
-                if !has_rb {
-                    if ui.button("⚙ RigidBody").clicked() {
-                        let default_rb = ae_core::ecs::RigidBody {
-                            body_type: ae_core::ecs::RigidBodyType::Dynamic,
-                            mass: 1.0,
-                            gravity_scale: 1.0,
-                        };
-                        ui_actions.push(EngineUiAction::AddRigidBody(entity, default_rb));
-                        // Automatically attach matching Collider if not present so dynamic objects collide with ground
-                        if !has_col {
-                            let default_col = if let Ok(shape) =
-                                world.get::<&ae_core::ecs::Shape>(entity)
-                            {
+                if !has_rb && ui.button("⚙ RigidBody").clicked() {
+                    let default_rb = ae_core::ecs::RigidBody {
+                        body_type: ae_core::ecs::RigidBodyType::Dynamic,
+                        mass: 1.0,
+                        gravity_scale: 1.0,
+                    };
+                    ui_actions.push(EngineUiAction::AddRigidBody(entity, default_rb));
+                    // Automatically attach matching Collider if not present so dynamic objects collide with ground
+                    if !has_col {
+                        let default_col =
+                            if let Ok(shape) = world.get::<&ae_core::ecs::Shape>(entity) {
                                 match *shape {
                                     ae_core::ecs::Shape::Sphere => ae_core::ecs::Collider {
                                         shape: ae_core::ecs::ColliderShape::Sphere { radius: 0.5 },
@@ -408,84 +406,76 @@ impl EngineUi {
                                     is_sensor: false,
                                 }
                             };
-                            ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
-                        }
-                        ui.close();
+                        ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
                     }
+                    ui.close();
                 }
-                if !has_col {
-                    if ui.button("🛡 Collider").clicked() {
-                        let default_col = ae_core::ecs::Collider {
-                            shape: ae_core::ecs::ColliderShape::Box {
-                                half_extents: [0.5, 0.5, 0.5],
+                if !has_col && ui.button("🛡 Collider").clicked() {
+                    let default_col = ae_core::ecs::Collider {
+                        shape: ae_core::ecs::ColliderShape::Box {
+                            half_extents: [0.5, 0.5, 0.5],
+                        },
+                        friction: 0.7,
+                        restitution: 0.0,
+                        is_sensor: false,
+                    };
+                    ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
+                    ui.close();
+                }
+                if !has_ctrl && ui.button("👤 CharacterController").clicked() {
+                    let default_ctrl = ae_core::ecs::CharacterController::default();
+                    ui_actions.push(EngineUiAction::AddCharacterController(entity, default_ctrl));
+                    // Automatically attach Kinematic rigid body and Capsule collider for character physics if not present
+                    if !has_rb {
+                        let rb = ae_core::ecs::RigidBody {
+                            body_type: ae_core::ecs::RigidBodyType::Kinematic,
+                            mass: 1.0,
+                            gravity_scale: 1.0,
+                        };
+                        ui_actions.push(EngineUiAction::AddRigidBody(entity, rb));
+                    }
+                    if !has_col {
+                        let col = ae_core::ecs::Collider {
+                            shape: ae_core::ecs::ColliderShape::Capsule {
+                                half_height: default_ctrl.capsule_half_height(),
+                                radius: default_ctrl.radius,
+                                center_y: default_ctrl.center_y,
                             },
-                            friction: 0.7,
+                            friction: 0.5,
                             restitution: 0.0,
                             is_sensor: false,
                         };
-                        ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
-                        ui.close();
+                        ui_actions.push(EngineUiAction::AddCollider(entity, col));
                     }
+                    ui.close();
                 }
-                if !has_ctrl {
-                    if ui.button("👤 CharacterController").clicked() {
-                        let default_ctrl = ae_core::ecs::CharacterController::default();
-                        ui_actions
-                            .push(EngineUiAction::AddCharacterController(entity, default_ctrl));
-                        // Automatically attach Kinematic rigid body and Capsule collider for character physics if not present
-                        if !has_rb {
-                            let rb = ae_core::ecs::RigidBody {
-                                body_type: ae_core::ecs::RigidBodyType::Kinematic,
-                                mass: 1.0,
-                                gravity_scale: 1.0,
-                            };
-                            ui_actions.push(EngineUiAction::AddRigidBody(entity, rb));
-                        }
-                        if !has_col {
-                            let col = ae_core::ecs::Collider {
-                                shape: ae_core::ecs::ColliderShape::Capsule {
-                                    half_height: default_ctrl.capsule_half_height(),
-                                    radius: default_ctrl.radius,
-                                    center_y: default_ctrl.center_y,
-                                },
-                                friction: 0.5,
-                                restitution: 0.0,
-                                is_sensor: false,
-                            };
-                            ui_actions.push(EngineUiAction::AddCollider(entity, col));
-                        }
-                        ui.close();
-                    }
+                if !has_lod && ui.button("📊 LodGroup").clicked() {
+                    ui_actions.push(EngineUiAction::AddLodGroup(entity));
+                    ui.close();
                 }
-                if !has_lod {
-                    if ui.button("📊 LodGroup").clicked() {
-                        ui_actions.push(EngineUiAction::AddLodGroup(entity));
-                        ui.close();
-                    }
+                if world.get::<&ae_audio::AudioSource>(entity).is_err()
+                    && ui.button("🔊 AudioSource").clicked()
+                {
+                    ui_actions.push(EngineUiAction::AddAudioSource(entity));
+                    ui.close();
                 }
-                if world.get::<&ae_audio::AudioSource>(entity).is_err() {
-                    if ui.button("🔊 AudioSource").clicked() {
-                        ui_actions.push(EngineUiAction::AddAudioSource(entity));
-                        ui.close();
-                    }
+                if world.get::<&ae_audio::AudioListener>(entity).is_err()
+                    && ui.button("👂 AudioListener").clicked()
+                {
+                    ui_actions.push(EngineUiAction::AddAudioListener(entity));
+                    ui.close();
                 }
-                if world.get::<&ae_audio::AudioListener>(entity).is_err() {
-                    if ui.button("👂 AudioListener").clicked() {
-                        ui_actions.push(EngineUiAction::AddAudioListener(entity));
-                        ui.close();
-                    }
+                if world.get::<&ae_core::ecs::PlayerTag>(entity).is_err()
+                    && ui.button("🎮 PlayerTag").clicked()
+                {
+                    ui_actions.push(EngineUiAction::AddPlayerTag(entity));
+                    ui.close();
                 }
-                if world.get::<&ae_core::ecs::PlayerTag>(entity).is_err() {
-                    if ui.button("🎮 PlayerTag").clicked() {
-                        ui_actions.push(EngineUiAction::AddPlayerTag(entity));
-                        ui.close();
-                    }
-                }
-                if world.get::<&ae_animation::AnimationPlayer>(entity).is_err() {
-                    if ui.button("🎬 AnimationPlayer").clicked() {
-                        ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
-                        ui.close();
-                    }
+                if world.get::<&ae_animation::AnimationPlayer>(entity).is_err()
+                    && ui.button("🎬 AnimationPlayer").clicked()
+                {
+                    ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
+                    ui.close();
                 }
             });
         });

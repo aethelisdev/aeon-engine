@@ -89,15 +89,13 @@ pub fn handle_modify_collider(
         radius,
         center_y,
     } = collider.shape
-    {
-        if let Ok(mut ctrl) = ctx
+        && let Ok(mut ctrl) = ctx
             .world
             .get::<&mut ae_core::ecs::CharacterController>(entity)
-        {
-            ctrl.height = (half_height + radius) * 2.0;
-            ctrl.radius = radius;
-            ctrl.center_y = center_y;
-        }
+    {
+        ctrl.height = (half_height + radius) * 2.0;
+        ctrl.radius = radius;
+        ctrl.center_y = center_y;
     }
 
     let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
@@ -162,14 +160,14 @@ pub fn handle_modify_character_controller(
         let _ = ctx.world.insert_one(entity, cc);
     }
 
-    if let Ok(mut col) = ctx.world.get::<&mut ae_core::ecs::Collider>(entity) {
-        if matches!(col.shape, ae_core::ecs::ColliderShape::Capsule { .. }) {
-            col.shape = ae_core::ecs::ColliderShape::Capsule {
-                half_height: cc.capsule_half_height(),
-                radius: cc.radius,
-                center_y: cc.center_y,
-            };
-        }
+    if let Ok(mut col) = ctx.world.get::<&mut ae_core::ecs::Collider>(entity)
+        && matches!(col.shape, ae_core::ecs::ColliderShape::Capsule { .. })
+    {
+        col.shape = ae_core::ecs::ColliderShape::Capsule {
+            half_height: cc.capsule_half_height(),
+            radius: cc.radius,
+            center_y: cc.center_y,
+        };
     }
 
     let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
@@ -318,16 +316,16 @@ pub fn handle_set_model_submesh_alpha_mode(
     submesh_index: usize,
     mode: ae_renderer::render::types::SubmeshAlphaMode,
 ) {
-    if let Some(model) = ctx.asset_manager.models.get_mut(model_handle) {
-        if let Some(submesh) = model.submeshes.get_mut(submesh_index) {
-            submesh.alpha_mode = mode;
-            log::info!(
-                "🎨 Set model {:?} submesh #{} alpha mode to {:?}",
-                model_handle,
-                submesh_index,
-                mode
-            );
-        }
+    if let Some(model) = ctx.asset_manager.models.get_mut(model_handle)
+        && let Some(submesh) = model.submeshes.get_mut(submesh_index)
+    {
+        submesh.alpha_mode = mode;
+        log::info!(
+            "🎨 Set model {:?} submesh #{} alpha mode to {:?}",
+            model_handle,
+            submesh_index,
+            mode
+        );
     }
 }
 
@@ -339,18 +337,18 @@ pub fn handle_set_model_submesh_texture(
     path: String,
 ) {
     let texture_handle = ctx.render_state.load_texture(ctx.asset_manager, &path);
-    if let Some(model) = ctx.asset_manager.models.get_mut(model_handle) {
-        if let Some(submesh) = model.submeshes.get_mut(submesh_index) {
-            let new_tex_idx = model.embedded_textures.len();
-            model.embedded_textures.push(texture_handle);
-            submesh.texture_index = Some(new_tex_idx);
-            log::info!(
-                "🖼️ Set model {:?} submesh #{} texture to '{}'",
-                model_handle,
-                submesh_index,
-                path
-            );
-        }
+    if let Some(model) = ctx.asset_manager.models.get_mut(model_handle)
+        && let Some(submesh) = model.submeshes.get_mut(submesh_index)
+    {
+        let new_tex_idx = model.embedded_textures.len();
+        model.embedded_textures.push(texture_handle);
+        submesh.texture_index = Some(new_tex_idx);
+        log::info!(
+            "🖼️ Set model {:?} submesh #{} texture to '{}'",
+            model_handle,
+            submesh_index,
+            path
+        );
     }
 }
 

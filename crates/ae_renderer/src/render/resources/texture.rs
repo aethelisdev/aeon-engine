@@ -258,8 +258,8 @@ impl RenderState {
             view_formats: &[],
         });
 
-        let blocks_x = (data.width + 3) / 4;
-        let blocks_y = (data.height + 3) / 4;
+        let blocks_x = data.width.div_ceil(4);
+        let blocks_y = data.height.div_ceil(4);
         let bytes_per_row = blocks_x * data.format.block_size();
 
         self.queue.write_texture(

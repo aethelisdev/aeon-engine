@@ -161,10 +161,10 @@ pub fn parse_gltf_skin_and_animations(
                 None => continue,
             };
 
-            if let Some(&last_t) = timestamps.last() {
-                if last_t > max_duration {
-                    max_duration = last_t;
-                }
+            if let Some(&last_t) = timestamps.last()
+                && last_t > max_duration
+            {
+                max_duration = last_t;
             }
 
             let interp = match channel.sampler().interpolation() {

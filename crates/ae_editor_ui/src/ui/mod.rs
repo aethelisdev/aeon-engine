@@ -5,16 +5,14 @@ use egui_wgpu::{Renderer, ScreenDescriptor};
 use egui_winit::State;
 use winit::{event::WindowEvent, window::Window};
 
-mod hierarchy;
-mod inspector;
+pub mod panels;
+
+mod dialogs;
+mod docking;
 mod menubar;
 pub mod panel_layout;
 mod preferences;
-mod workspace;
-
-// New modular submodules
-mod dialogs;
-mod docking;
+mod status_bar;
 mod style;
 pub mod tab_bar;
 mod types;
@@ -22,6 +20,7 @@ mod viewport_hud;
 
 // Re-exports
 pub use panel_layout::{PanelId, PanelLayoutState, PanelZone, TabDragState};
+pub use panels::hierarchy::{HierarchyCache, HierarchyRow};
 pub use types::{ConsoleEntry, EngineUiAction};
 
 /// Action payload sent from async native file dialog threads to the main UI thread.
@@ -90,7 +89,7 @@ pub struct EngineUi {
     /// Pre-built flat snapshot of the scene hierarchy, rebuilt only when entity count changes.
     /// Avoids O(N × k) random hecs lookups every frame; replaced by a single O(N) pass
     /// on change, then zero-cost virtual-scrolled drawing on subsequent frames.
-    pub hierarchy_cache: crate::ui::hierarchy::HierarchyCache,
+    pub hierarchy_cache: crate::ui::panels::hierarchy::HierarchyCache,
     /// Egui texture ID of the registered WGPU viewport texture.
     pub viewport_texture_id: Option<egui::TextureId>,
     /// Last registered viewport texture width.
@@ -175,7 +174,7 @@ impl EngineUi {
             profiler_frame_ms: 0.0,
             memory_models_mb: 0.0,
             memory_textures_mb: 0.0,
-            hierarchy_cache: crate::ui::hierarchy::HierarchyCache::new(),
+            hierarchy_cache: crate::ui::panels::hierarchy::HierarchyCache::new(),
             smoothed_fps: 60.0,
             displayed_fps: 60.0,
             last_fps_update: std::time::Instant::now(),

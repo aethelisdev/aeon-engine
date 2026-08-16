@@ -82,7 +82,7 @@ impl FallbackTextureGenerator {
 
         for y in 0..h {
             for x in 0..w {
-                let is_magenta = ((x / size) + (y / size)) % 2 == 0;
+                let is_magenta = ((x / size) + (y / size)).is_multiple_of(2);
                 if is_magenta {
                     pixels.extend_from_slice(&[255, 0, 255, 255]); // Magenta
                 } else {

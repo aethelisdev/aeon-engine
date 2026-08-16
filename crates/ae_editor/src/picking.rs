@@ -211,16 +211,18 @@ pub fn intersect_mesh(ray: &Ray, vertices: &[[f32; 3]], indices: &[u32]) -> Opti
         let i1 = chunk[1] as usize;
         let i2 = chunk[2] as usize;
 
-        if i0 < vertices.len() && i1 < vertices.len() && i2 < vertices.len() {
-            if let Some(t) = intersect_triangle(ray, vertices[i0], vertices[i1], vertices[i2]) {
-                match min_t {
-                    Some(curr_t) => {
-                        if t < curr_t {
-                            min_t = Some(t);
-                        }
+        if i0 < vertices.len()
+            && i1 < vertices.len()
+            && i2 < vertices.len()
+            && let Some(t) = intersect_triangle(ray, vertices[i0], vertices[i1], vertices[i2])
+        {
+            match min_t {
+                Some(curr_t) => {
+                    if t < curr_t {
+                        min_t = Some(t);
                     }
-                    None => min_t = Some(t),
                 }
+                None => min_t = Some(t),
             }
         }
     }

@@ -76,13 +76,13 @@ impl PhysicsWorld {
                         );
                         gt.0 = ae_core::cgmath::Matrix4::from(glam_mat.to_cols_array_2d());
                     }
-                    if body.is_dynamic() {
-                        if let Ok(mut vel) = world.get::<&mut Velocity>(entity) {
-                            let linvel = body.linvel();
-                            vel.x = linvel.x;
-                            vel.y = linvel.y;
-                            vel.z = linvel.z;
-                        }
+                    if body.is_dynamic()
+                        && let Ok(mut vel) = world.get::<&mut Velocity>(entity)
+                    {
+                        let linvel = body.linvel();
+                        vel.x = linvel.x;
+                        vel.y = linvel.y;
+                        vel.z = linvel.z;
                     }
                 }
             }

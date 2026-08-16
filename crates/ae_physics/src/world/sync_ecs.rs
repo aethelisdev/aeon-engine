@@ -139,10 +139,10 @@ impl PhysicsWorld {
                         body.set_body_type(expected_type, true);
                     }
 
-                    if let Some(rb) = rb_comp {
-                        if (body.gravity_scale() - rb.gravity_scale).abs() > 1e-4 {
-                            body.set_gravity_scale(rb.gravity_scale, true);
-                        }
+                    if let Some(rb) = rb_comp
+                        && (body.gravity_scale() - rb.gravity_scale).abs() > 1e-4
+                    {
+                        body.set_gravity_scale(rb.gravity_scale, true);
                     }
 
                     // Dynamically update existing colliders or rebuild if scale/shape changed
@@ -202,21 +202,18 @@ impl PhysicsWorld {
                                         }
                                         if let (Some(old_s), Some(new_s)) =
                                             (c.shape().as_ball(), new_collider.shape().as_ball())
+                                            && (old_s.radius - new_s.radius).abs() > 1e-3
                                         {
-                                            if (old_s.radius - new_s.radius).abs() > 1e-3 {
-                                                needs_rebuild = true;
-                                            }
+                                            needs_rebuild = true;
                                         }
                                         if let (Some(old_c), Some(new_c)) = (
                                             c.shape().as_capsule(),
                                             new_collider.shape().as_capsule(),
-                                        ) {
-                                            if (old_c.radius - new_c.radius).abs() > 1e-3
-                                                || (old_c.half_height() - new_c.half_height()).abs()
-                                                    > 1e-3
-                                            {
-                                                needs_rebuild = true;
-                                            }
+                                        ) && ((old_c.radius - new_c.radius).abs() > 1e-3
+                                            || (old_c.half_height() - new_c.half_height()).abs()
+                                                > 1e-3)
+                                        {
+                                            needs_rebuild = true;
                                         }
                                     }
                                 }

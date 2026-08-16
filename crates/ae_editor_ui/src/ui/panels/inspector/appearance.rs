@@ -72,33 +72,31 @@ impl EngineUi {
                     );
                 } else if hex_res.changed() {
                     let clean_hex = inspector_color_hex.trim_start_matches('#');
-                    if clean_hex.len() == 6 {
-                        if let Ok(rgb) = u32::from_str_radix(clean_hex, 16) {
-                            let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
-                            let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
-                            let b = (rgb & 0xFF) as f32 / 255.0;
+                    if clean_hex.len() == 6
+                        && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
+                    {
+                        let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
+                        let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
+                        let b = (rgb & 0xFF) as f32 / 255.0;
 
-                            let old_color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity)
-                            {
-                                *c
-                            } else {
-                                ae_core::ecs::Color {
-                                    r: 0.3,
-                                    g: 0.3,
-                                    b: 0.3,
-                                    a: 1.0,
-                                }
-                            };
-                            let new_color = ae_core::ecs::Color {
-                                r,
-                                g,
-                                b,
-                                a: old_color.a,
-                            };
+                        let old_color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity) {
+                            *c
+                        } else {
+                            ae_core::ecs::Color {
+                                r: 0.3,
+                                g: 0.3,
+                                b: 0.3,
+                                a: 1.0,
+                            }
+                        };
+                        let new_color = ae_core::ecs::Color {
+                            r,
+                            g,
+                            b,
+                            a: old_color.a,
+                        };
 
-                            ui_actions
-                                .push(EngineUiAction::ModifyColor(entity, old_color, new_color));
-                        }
+                        ui_actions.push(EngineUiAction::ModifyColor(entity, old_color, new_color));
                     }
                 }
             });
@@ -110,10 +108,10 @@ impl EngineUi {
                     .button("✚")
                     .on_hover_text("Save selected color to palette")
                     .clicked()
+                    && !saved_swatches.contains(&color)
+                    && saved_swatches.len() < 22
                 {
-                    if !saved_swatches.contains(&color) && saved_swatches.len() < 22 {
-                        saved_swatches.push(color);
-                    }
+                    saved_swatches.push(color);
                 }
                 if ui.button("🗑").on_hover_text("Clear palette").clicked() {
                     saved_swatches.clear();
@@ -198,15 +196,14 @@ impl EngineUi {
                         .color(egui::Color32::WHITE),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok() {
-                        if ui
+                    if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok()
+                        && ui
                             .button("🗑")
                             .on_hover_text("Remove Texture from Entity")
                             .clicked()
                         {
                             ui_actions.push(EngineUiAction::RemoveTextureFromEntity(entity));
                         }
-                    }
                 });
             });
             ui.separator();
@@ -258,8 +255,7 @@ impl EngineUi {
                         .button("📁 Change Texture")
                         .on_hover_text("Browse disk for .png, .jpg, .tga file to change texture")
                         .clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
+                        && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
                             .pick_file()
                         {
@@ -268,7 +264,6 @@ impl EngineUi {
                                 path.to_string_lossy().to_string(),
                             ));
                         }
-                    }
                 });
 
                 // --- TILING & SAMPLER CONTROLS ---
@@ -315,8 +310,7 @@ impl EngineUi {
                         .button("➕ Add Texture")
                         .on_hover_text("Browse disk for .png, .jpg file to assign texture")
                         .clicked()
-                    {
-                        if let Some(path) = rfd::FileDialog::new()
+                        && let Some(path) = rfd::FileDialog::new()
                             .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
                             .pick_file()
                         {
@@ -325,14 +319,13 @@ impl EngineUi {
                                 path.to_string_lossy().to_string(),
                             ));
                         }
-                    }
                 });
             }
 
             // --- 3D MODEL SUBMESHES & TRANSPARENCY SECTION ---
-            if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity) {
-                if let Some(model) = models.get(model_id.0) {
-                    if !model.submeshes.is_empty() {
+            if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity)
+                && let Some(model) = models.get(model_id.0)
+                    && !model.submeshes.is_empty() {
                         ui.separator();
                         egui::CollapsingHeader::new(
                             egui::RichText::new(format!(
@@ -453,8 +446,7 @@ impl EngineUi {
                                                     .button("📁")
                                                     .on_hover_text("Change this submesh texture")
                                                     .clicked()
-                                                {
-                                                    if let Some(path) = rfd::FileDialog::new()
+                                                    && let Some(path) = rfd::FileDialog::new()
                                                         .add_filter(
                                                             "Texture Image",
                                                             &["png", "jpg", "jpeg", "tga", "bmp"],
@@ -469,15 +461,12 @@ impl EngineUi {
                                                             ),
                                                         );
                                                     }
-                                                }
                                             });
                                         });
                                     }
                                 });
                         });
                     }
-                }
-            }
         });
     }
 }

@@ -63,121 +63,121 @@ pub fn handle_gizmo_drag(
             match ui_gizmo_mode {
                 crate::gizmo::GizmoMode::Translate => {
                     for &ent in &editor.selected_entities {
-                        if let Some(start) = editor.multi_start_positions.get(&ent) {
-                            if let Ok(mut p) = ecs.world.get::<&mut Position>(ent) {
-                                // Project the world drag delta d into parent's local space if the entity has a parent
-                                let local_delta = if let Ok(parent_ref) =
-                                    ecs.world.get::<&ae_core::ecs::Parent>(ent)
+                        if let Some(start) = editor.multi_start_positions.get(&ent)
+                            && let Ok(mut p) = ecs.world.get::<&mut Position>(ent)
+                        {
+                            // Project the world drag delta d into parent's local space if the entity has a parent
+                            let local_delta = if let Ok(parent_ref) =
+                                ecs.world.get::<&ae_core::ecs::Parent>(ent)
+                            {
+                                if let Ok(parent_gt) = ecs
+                                    .world
+                                    .get::<&ae_core::ecs::GlobalTransform>(parent_ref.0)
                                 {
-                                    if let Ok(parent_gt) = ecs
-                                        .world
-                                        .get::<&ae_core::ecs::GlobalTransform>(parent_ref.0)
-                                    {
-                                        use cgmath::SquareMatrix;
-                                        if let Some(inv_parent) = parent_gt.0.invert() {
-                                            let d_vec = cgmath::Vector4::new(d.x, d.y, d.z, 0.0);
-                                            let local_d = inv_parent * d_vec;
-                                            cgmath::Vector3::new(local_d.x, local_d.y, local_d.z)
-                                        } else {
-                                            d
-                                        }
+                                    use cgmath::SquareMatrix;
+                                    if let Some(inv_parent) = parent_gt.0.invert() {
+                                        let d_vec = cgmath::Vector4::new(d.x, d.y, d.z, 0.0);
+                                        let local_d = inv_parent * d_vec;
+                                        cgmath::Vector3::new(local_d.x, local_d.y, local_d.z)
                                     } else {
                                         d
                                     }
                                 } else {
                                     d
-                                };
-
-                                let mut target = cgmath::Vector3::new(
-                                    start.x + local_delta.x,
-                                    start.y + local_delta.y,
-                                    start.z + local_delta.z,
-                                );
-                                if editor.snapping.current_enabled {
-                                    target = crate::snapping::translate::snap_translation(
-                                        target,
-                                        editor.snapping.grid_size,
-                                    );
                                 }
-                                p.x = target.x;
-                                p.y = target.y;
-                                p.z = target.z;
-                                dirtied_entities.push(ent);
+                            } else {
+                                d
+                            };
+
+                            let mut target = cgmath::Vector3::new(
+                                start.x + local_delta.x,
+                                start.y + local_delta.y,
+                                start.z + local_delta.z,
+                            );
+                            if editor.snapping.current_enabled {
+                                target = crate::snapping::translate::snap_translation(
+                                    target,
+                                    editor.snapping.grid_size,
+                                );
                             }
+                            p.x = target.x;
+                            p.y = target.y;
+                            p.z = target.z;
+                            dirtied_entities.push(ent);
                         }
                     }
                 }
                 crate::gizmo::GizmoMode::Rotate => {
                     for &ent in &editor.selected_entities {
-                        if let Some(start_rot) = editor.multi_start_rotations.get(&ent) {
-                            if let Ok(mut r) = ecs.world.get::<&mut Rotation>(ent) {
-                                let step = 15.0;
-                                let rx = if editor.snapping.current_enabled {
-                                    crate::snapping::rotate::snap_rotation(d.x, step)
-                                } else {
-                                    d.x
-                                };
-                                let ry = if editor.snapping.current_enabled {
-                                    crate::snapping::rotate::snap_rotation(d.y, step)
-                                } else {
-                                    d.y
-                                };
-                                let rz = if editor.snapping.current_enabled {
-                                    crate::snapping::rotate::snap_rotation(d.z, step)
-                                } else {
-                                    d.z
-                                };
+                        if let Some(start_rot) = editor.multi_start_rotations.get(&ent)
+                            && let Ok(mut r) = ecs.world.get::<&mut Rotation>(ent)
+                        {
+                            let step = 15.0;
+                            let rx = if editor.snapping.current_enabled {
+                                crate::snapping::rotate::snap_rotation(d.x, step)
+                            } else {
+                                d.x
+                            };
+                            let ry = if editor.snapping.current_enabled {
+                                crate::snapping::rotate::snap_rotation(d.y, step)
+                            } else {
+                                d.y
+                            };
+                            let rz = if editor.snapping.current_enabled {
+                                crate::snapping::rotate::snap_rotation(d.z, step)
+                            } else {
+                                d.z
+                            };
 
-                                let q_delta = Quaternion::from(Euler {
-                                    x: Rad(rx),
-                                    y: Rad(ry),
-                                    z: Rad(rz),
-                                });
-                                let q_new =
-                                    if ui_gizmo_space == crate::gizmo::space::GizmoSpace::Local {
-                                        start_rot * q_delta
-                                    } else {
-                                        q_delta * start_rot
-                                    };
-                                r.x = q_new.v.x;
-                                r.y = q_new.v.y;
-                                r.z = q_new.v.z;
-                                r.w = q_new.s;
-                                dirtied_entities.push(ent);
-                            }
+                            let q_delta = Quaternion::from(Euler {
+                                x: Rad(rx),
+                                y: Rad(ry),
+                                z: Rad(rz),
+                            });
+                            let q_new = if ui_gizmo_space == crate::gizmo::space::GizmoSpace::Local
+                            {
+                                start_rot * q_delta
+                            } else {
+                                q_delta * start_rot
+                            };
+                            r.x = q_new.v.x;
+                            r.y = q_new.v.y;
+                            r.z = q_new.v.z;
+                            r.w = q_new.s;
+                            dirtied_entities.push(ent);
                         }
                     }
                 }
                 crate::gizmo::GizmoMode::Scale => {
                     for &ent in &editor.selected_entities {
-                        if let Some(start) = editor.multi_start_scales.get(&ent) {
-                            if let Ok(mut s) = ecs.world.get::<&mut Scale>(ent) {
-                                let mut target = cgmath::Vector3::new(
-                                    start.x * (1.0 + d.x),
-                                    start.y * (1.0 + d.y),
-                                    start.z * (1.0 + d.z),
-                                );
-                                if editor.snapping.current_enabled {
-                                    target = crate::snapping::scale::snap_scale(target, 0.25);
-                                }
-                                let min = 0.001;
-                                s.x = if target.x.abs() < min {
-                                    f32::copysign(min, target.x)
-                                } else {
-                                    target.x
-                                };
-                                s.y = if target.y.abs() < min {
-                                    f32::copysign(min, target.y)
-                                } else {
-                                    target.y
-                                };
-                                s.z = if target.z.abs() < min {
-                                    f32::copysign(min, target.z)
-                                } else {
-                                    target.z
-                                };
-                                dirtied_entities.push(ent);
+                        if let Some(start) = editor.multi_start_scales.get(&ent)
+                            && let Ok(mut s) = ecs.world.get::<&mut Scale>(ent)
+                        {
+                            let mut target = cgmath::Vector3::new(
+                                start.x * (1.0 + d.x),
+                                start.y * (1.0 + d.y),
+                                start.z * (1.0 + d.z),
+                            );
+                            if editor.snapping.current_enabled {
+                                target = crate::snapping::scale::snap_scale(target, 0.25);
                             }
+                            let min = 0.001;
+                            s.x = if target.x.abs() < min {
+                                f32::copysign(min, target.x)
+                            } else {
+                                target.x
+                            };
+                            s.y = if target.y.abs() < min {
+                                f32::copysign(min, target.y)
+                            } else {
+                                target.y
+                            };
+                            s.z = if target.z.abs() < min {
+                                f32::copysign(min, target.z)
+                            } else {
+                                target.z
+                            };
+                            dirtied_entities.push(ent);
                         }
                     }
                 }
