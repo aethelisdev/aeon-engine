@@ -29,7 +29,7 @@ impl EngineUi {
                 egui::Frame::new()
                     .fill(egui::Color32::from_rgb(20, 20, 25))
                     .inner_margin(egui::Margin::symmetric(8, 6))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
+                    .stroke(egui::Stroke::NONE),
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {

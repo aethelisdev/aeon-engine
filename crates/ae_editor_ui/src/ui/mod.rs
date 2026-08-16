@@ -486,27 +486,26 @@ impl EngineUi {
                 ui_rects_collector.borrow_mut().push(rect);
             }
 
-            // 2.3 Bottom Workspace Panel (Console / Asset Browser / Animation Timeline)
-            // Docks at bottom of remaining central space (between left_panel and inspector_panel).
-            if let Some(rect) = Self::draw_workspace_panel(
-                show_workspace,
-                workspace_tab,
-                console_entries,
-                ui,
-                models,
-                textures,
-                ui_actions,
-                *selected_entity,
-                world,
-            ) {
-                ui_rects_collector.borrow_mut().push(rect);
-            }
-
-            // 2.7 Central Viewport Area (Render-to-Texture Display)
+            // 2.7 Central Viewport Area (Render-to-Texture Display) & Bottom Workspace Panel
             // Captured as a CentralPanel that consumes the remaining empty space in the middle.
             let central_rect = egui::CentralPanel::default()
                 .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
                 .show(ui, |ui| {
+                    // Docks bottom workspace strictly within the central panel (between left and right sidebars)
+                    if let Some(rect) = Self::draw_workspace_panel(
+                        show_workspace,
+                        workspace_tab,
+                        console_entries,
+                        ui,
+                        models,
+                        textures,
+                        ui_actions,
+                        *selected_entity,
+                        world,
+                    ) {
+                        ui_rects_collector.borrow_mut().push(rect);
+                    }
+
                     let rect = ui.available_rect_before_wrap();
                     if let Some(texture_id) = self.viewport_texture_id {
                         ui.image(egui::load::SizedTexture {
