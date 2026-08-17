@@ -19,7 +19,7 @@ I was interested in Rust’s security and performance, and I wanted a lightweigh
 ## What is the goal of the Aeon Engine?
 The goals I’ve set during the development process are as follows:
 
- - **100% Modularity**: the ability to disassemble and replace any system in the engine whether I want to remove it or replace it without being subject to too many dependencies 
+ - **Modularity**: the ability to disassemble and replace any system in the engine whether I want to remove it or replace it without being subject to too many dependencies 
  
  - **A system that adapts to the user's preferences**: initially, the system will start up with no load, and modules such as rendering, physics, and sound will be enabled or disabled based on the user's needs. I'm also considering adding a button for low end computers that allows them to clear RAM in the long term
  
