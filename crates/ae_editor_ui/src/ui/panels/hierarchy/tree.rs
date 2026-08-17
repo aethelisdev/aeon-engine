@@ -229,6 +229,17 @@ fn draw_row(
         if name_resp.clicked() {
             ui_actions.push(crate::ui::EngineUiAction::SelectEntity(Some(row.entity)));
         }
+        name_resp.context_menu(|ui| {
+            if ui.button("🗑 Delete Entity").clicked() {
+                ui_actions.push(crate::ui::EngineUiAction::SelectEntity(Some(row.entity)));
+                ui_actions.push(crate::ui::EngineUiAction::DeleteSelected);
+                ui.close();
+            }
+            if ui.button("👁 Toggle Visibility").clicked() {
+                ui_actions.push(crate::ui::EngineUiAction::ToggleVisibility(row.entity));
+                ui.close();
+            }
+        });
 
         // 5. Eye Visibility Toggle Button (Dedicated, isolated hitbox)
         let (eye_icon, eye_color, tooltip) = if row.is_visible {
@@ -276,21 +287,22 @@ impl EngineUi {
         cache.sync(world);
 
         ui.add_enabled_ui(is_editing, |ui| {
-            // 1. Live Search Bar
+            // 1. Sleek Search Bar & ➕ Add Menu Header
             ui.horizontal(|ui| {
                 ui.label(
                     egui::RichText::new("🔍")
-                        .size(12.0)
+                        .size(11.0)
                         .color(egui::Color32::from_gray(140)),
                 );
-                let search_width = if !hierarchy_search_query.is_empty() {
-                    (ui.available_width() - 24.0).max(80.0)
+                let btn_reserved = if selected_entity.is_some() {
+                    68.0
                 } else {
-                    ui.available_width()
+                    42.0
                 };
+                let search_width = (ui.available_width() - btn_reserved).max(50.0);
                 ui.add(
                     egui::TextEdit::singleline(hierarchy_search_query)
-                        .hint_text("Search entities...")
+                        .hint_text("Search...")
                         .desired_width(search_width),
                 );
                 if !hierarchy_search_query.is_empty()
@@ -309,132 +321,108 @@ impl EngineUi {
                 {
                     hierarchy_search_query.clear();
                 }
-            });
 
-            ui.add_space(4.0);
-
-            // 2. Collapsible: ➕ Spawn 3D Shapes & Assets
-            egui::CollapsingHeader::new("➕  Spawn Shapes & Assets")
-                .default_open(true)
-                .show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        if ui.button("📦 Cube").clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                ae_core::ecs::Shape::Cube,
-                            ));
-                        }
-                        if ui.button("🔮 Sphere").clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                ae_core::ecs::Shape::Sphere,
-                            ));
-                        }
-                        if ui.button("🧪 Cylinder").clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                ae_core::ecs::Shape::Cylinder,
-                            ));
-                        }
-                        if ui.button("💊 Capsule").clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                ae_core::ecs::Shape::Capsule,
-                            ));
-                        }
-                        if ui.button("🍩 Torus").clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                ae_core::ecs::Shape::Torus,
-                            ));
-                        }
-                        if ui.button("📐 Triangle").clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                                ae_core::ecs::Shape::Triangle,
-                            ));
-                        }
-                    });
-
-                    ui.add_space(2.0);
-                    ui.horizontal(|ui| {
-                        if ui
-                            .button("📁 3D Model")
-                            .on_hover_text("Load 3D Model file (glTF, GLB, OBJ)")
-                            .clicked()
-                        {
-                            ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
-                        }
-
-                        if ui
-                            .button("📦 Load Prefab")
-                            .on_hover_text("Load and instantiate a .aeprefab template")
-                            .clicked()
-                            && let Some(path) = rfd::FileDialog::new()
-                                .add_filter("Aeon Prefab", &["aeprefab"])
-                                .pick_file()
+                // ➕ Add Dropdown Menu
+                ui.menu_button("➕", |ui| {
+                    ui.set_min_width(160.0);
+                    ui.label(
+                        egui::RichText::new("3D Shapes")
+                            .size(11.0)
+                            .strong()
+                            .color(egui::Color32::from_gray(160)),
+                    );
+                    if ui.button("📦 Cube").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                            ae_core::ecs::Shape::Cube,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🔮 Sphere").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                            ae_core::ecs::Shape::Sphere,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🧪 Cylinder").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                            ae_core::ecs::Shape::Cylinder,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("💊 Capsule").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                            ae_core::ecs::Shape::Capsule,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🍩 Torus").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                            ae_core::ecs::Shape::Torus,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("📐 Triangle").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                            ae_core::ecs::Shape::Triangle,
+                        ));
+                        ui.close();
+                    }
+                    ui.separator();
+                    ui.label(
+                        egui::RichText::new("Assets & Prefabs")
+                            .size(11.0)
+                            .strong()
+                            .color(egui::Color32::from_gray(160)),
+                    );
+                    if ui.button("📁 3D Model...").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
+                        ui.close();
+                    }
+                    if ui.button("📦 Load Prefab...").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Aeon Prefab", &["aeprefab"])
+                            .pick_file()
                         {
                             ui_actions.push(crate::ui::EngineUiAction::InstantiatePrefab(path));
                         }
-
-                        if ui
-                            .add_enabled(selected_entity.is_some(), egui::Button::new("🗑 Delete"))
-                            .on_hover_text("Delete selected entity from scene")
-                            .clicked()
-                        {
-                            ui_actions.push(crate::ui::EngineUiAction::DeleteSelected);
-                        }
-                    });
-                });
-
-            // 3. Collapsible: ⚡ Stress Benchmarks
-            egui::CollapsingHeader::new("⚡  Stress Benchmarks")
-                .default_open(true)
-                .show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        if ui
-                            .button("🏰 OpenWorld (10km)")
-                            .on_hover_text("Generate 10km x 10km  Open World (50k entities)")
-                            .clicked()
-                        {
+                        ui.close();
+                    }
+                    ui.separator();
+                    ui.menu_button("⚡ Stress Benchmarks", |ui| {
+                        ui.set_min_width(170.0);
+                        if ui.button("🏰 OpenWorld (10km)").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::AaaOpenWorldTest);
+                            ui.close();
                         }
-                        if ui
-                            .button("10k")
-                            .on_hover_text("Spawn 10,000 entities")
-                            .clicked()
-                        {
+                        if ui.button("⚡ 10,000 Entities").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::StressTest(10_000));
+                            ui.close();
                         }
-                        if ui
-                            .button("100k")
-                            .on_hover_text("Spawn 100,000 entities")
-                            .clicked()
-                        {
+                        if ui.button("⚡ 100,000 Entities").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::StressTest(100_000));
+                            ui.close();
                         }
-                        if ui
-                            .button("10M")
-                            .on_hover_text("Spawn 10,000,000 Universe entities")
-                            .clicked()
-                        {
+                        if ui.button("⚡ 10,000,000 Universe").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::StressTest(10_000_000));
+                            ui.close();
                         }
-                        if ui
-                            .button("💥 BOOM!")
-                            .on_hover_text("Apply explosive velocities to dynamic rigid bodies")
-                            .clicked()
-                        {
+                        if ui.button("💥 Explode!").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::Explode);
+                            ui.close();
                         }
                     });
                 });
 
-            ui.add_space(6.0);
-
-            // 4. Outliner Virtual Scroller Table Header
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("🌲 Scene Hierarchy Tree")
-                        .strong()
-                        .size(12.0)
-                        .color(egui::Color32::from_gray(200)),
-                );
+                if selected_entity.is_some()
+                    && ui
+                        .button("🗑")
+                        .on_hover_text("Delete selected entity")
+                        .clicked()
+                {
+                    ui_actions.push(crate::ui::EngineUiAction::DeleteSelected);
+                }
             });
+
             ui.separator();
 
             let row_height = 18.0;

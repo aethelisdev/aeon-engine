@@ -11,117 +11,106 @@ impl EngineUi {
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         if let Ok(source) = world.get::<&ae_audio::AudioSource>(entity) {
-            ui.group(|ui| {
-                ui.set_width(ui.available_width());
-                ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 8.0);
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("🔊 AudioSource")
-                            .strong()
-                            .color(egui::Color32::WHITE),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("🗑").on_hover_text("Remove AudioSource").clicked() {
-                            ui_actions.push(EngineUiAction::RemoveAudioSource(entity));
-                        }
-                    });
-                });
-                ui.separator();
+            let mut updated = (*source).clone();
+            let mut changed = false;
 
-                let mut updated = (*source).clone();
-                let mut changed = false;
-
-                ui.horizontal(|ui| {
-                    ui.label("Sound Path:");
-                    if ui.text_edit_singleline(&mut updated.sound_path).changed() {
-                        changed = true;
-                    }
-                    if ui
-                        .button("📁")
-                        .on_hover_text("Pick sound file (.wav, .ogg, .mp3)")
-                        .clicked()
-                        && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Audio File", &["wav", "ogg", "mp3", "flac"])
-                            .pick_file()
-                    {
-                        updated.sound_path = path.to_string_lossy().to_string();
-                        changed = true;
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Volume:");
-                    if ui
-                        .add(egui::Slider::new(&mut updated.volume, 0.0..=2.0).text("Gain"))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Pitch:");
-                    if ui
-                        .add(egui::Slider::new(&mut updated.pitch, 0.1..=3.0).text("Speed"))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                });
-
-                if ui
-                    .checkbox(&mut updated.is_spatial, "3D Spatial Audio")
-                    .on_hover_text("Enable 3D distance falloff & stereo panning")
-                    .changed()
-                {
-                    changed = true;
-                }
-                if ui
-                    .checkbox(&mut updated.looping, "Loop Sound")
-                    .on_hover_text("Repeat sound when reaching EOF")
-                    .changed()
-                {
-                    changed = true;
-                }
-                if ui
-                    .checkbox(&mut updated.play_on_start, "Play on Start")
-                    .on_hover_text("Auto-start sound playback when spawned")
-                    .changed()
-                {
-                    changed = true;
-                }
-
-                if updated.is_spatial {
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "Audio Source",
+                "🔊",
+                egui::Color32::from_rgb(150, 220, 255),
+                true,
+                |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Min Dist:");
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut updated.min_distance)
-                                    .speed(0.5)
-                                    .range(0.1..=100.0),
-                            )
-                            .changed()
-                        {
+                        ui.label("Sound Path:");
+                        if ui.text_edit_singleline(&mut updated.sound_path).changed() {
                             changed = true;
                         }
-                        ui.label("Max Dist:");
                         if ui
-                            .add(
-                                egui::DragValue::new(&mut updated.max_distance)
-                                    .speed(1.0)
-                                    .range(1.0..=1000.0),
-                            )
+                            .button("📁")
+                            .on_hover_text("Pick sound file (.wav, .ogg, .mp3)")
+                            .clicked()
+                            && let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Audio File", &["wav", "ogg", "mp3", "flac"])
+                                .pick_file()
+                        {
+                            updated.sound_path = path.to_string_lossy().to_string();
+                            changed = true;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Volume:");
+                        if ui
+                            .add(egui::Slider::new(&mut updated.volume, 0.0..=2.0).text("Gain"))
                             .changed()
                         {
                             changed = true;
                         }
                     });
-                }
 
-                if changed {
-                    ui_actions.push(EngineUiAction::ModifyAudioSource(entity, updated));
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.label("Pitch:");
+                        if ui
+                            .add(egui::Slider::new(&mut updated.pitch, 0.1..=3.0).text("Speed"))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        if ui.checkbox(&mut updated.looping, "Looping").changed() {
+                            changed = true;
+                        }
+                        if ui
+                            .checkbox(&mut updated.is_spatial, "Spatial (3D)")
+                            .on_hover_text("Calculates 3D attenuation and panning based on entity and listener transforms")
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                    });
+
+                    if updated.is_spatial {
+                        ui.separator();
+                        ui.horizontal(|ui| {
+                            ui.label("Min Dist:");
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut updated.min_distance)
+                                        .speed(0.1)
+                                        .range(0.1..=100.0),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Max Dist:");
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut updated.max_distance)
+                                        .speed(1.0)
+                                        .range(1.0..=1000.0),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                        });
+                    }
+                },
+            );
+
+            if remove_clicked {
+                ui_actions.push(EngineUiAction::RemoveAudioSource(entity));
+            }
+
+            if changed {
+                ui_actions.push(EngineUiAction::ModifyAudioSource(entity, updated));
+            }
         }
     }
 
@@ -133,26 +122,19 @@ impl EngineUi {
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         if world.get::<&ae_audio::AudioListener>(entity).is_ok() {
-            ui.group(|ui| {
-                ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("👂 AudioListener")
-                            .strong()
-                            .color(egui::Color32::WHITE),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .button("🗑")
-                            .on_hover_text("Remove AudioListener")
-                            .clicked()
-                        {
-                            ui_actions.push(EngineUiAction::RemoveAudioListener(entity));
-                        }
-                    });
-                });
-                ui.label("Active 3D spatial ear position.");
-            });
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "Audio Listener",
+                "👂",
+                egui::Color32::from_rgb(150, 220, 255),
+                true,
+                |ui| {
+                    ui.label("Active 3D spatial ear position.");
+                },
+            );
+            if remove_clicked {
+                ui_actions.push(EngineUiAction::RemoveAudioListener(entity));
+            }
         }
     }
 }

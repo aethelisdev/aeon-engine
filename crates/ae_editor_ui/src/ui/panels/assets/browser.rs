@@ -14,6 +14,13 @@ impl EngineUi {
     ) {
         ui.horizontal(|ui| {
             if ui
+                .button("➕ Import 3D Model...")
+                .on_hover_text("Load a glTF, GLB, or OBJ 3D model into the asset manager")
+                .clicked()
+            {
+                ui_actions.push(EngineUiAction::OpenModelDialog);
+            }
+            if ui
                 .button("🗑 Garbage Collect")
                 .on_hover_text("Clean up unused model and texture resources to reclaim VRAM")
                 .clicked()
@@ -31,6 +38,45 @@ impl EngineUi {
             );
         });
         ui.separator();
+
+        let is_empty = models.is_empty() && textures.is_empty();
+
+        if is_empty {
+            ui.add_space(8.0);
+            egui::Frame::NONE
+                .fill(egui::Color32::from_rgb(18, 20, 26))
+                .corner_radius(egui::CornerRadius::same(6))
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60)))
+                .inner_margin(egui::Margin::symmetric(24, 16))
+                .show(ui, |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.label(
+                            egui::RichText::new("📁")
+                                .size(22.0)
+                                .color(egui::Color32::from_gray(160)),
+                        );
+                        ui.add_space(2.0);
+                        ui.label(
+                            egui::RichText::new("No Assets Loaded")
+                                .strong()
+                                .size(13.0)
+                                .color(egui::Color32::WHITE),
+                        );
+                        ui.label(
+                            egui::RichText::new(
+                                "Load 3D models (glTF, GLB, OBJ) or image textures into the scene.",
+                            )
+                            .size(11.0)
+                            .color(egui::Color32::from_gray(160)),
+                        );
+                        ui.add_space(6.0);
+                        if ui.button("➕ Load 3D Model File").clicked() {
+                            ui_actions.push(EngineUiAction::OpenModelDialog);
+                        }
+                    });
+                });
+            return;
+        }
 
         ui.spacing_mut().item_spacing.y = 8.0;
         egui::ScrollArea::vertical().show(ui, |ui| {
@@ -60,9 +106,9 @@ impl EngineUi {
                     }
                     if models.is_empty() {
                         ui.label(
-                            egui::RichText::new("No models loaded yet.")
+                            egui::RichText::new("No models loaded.")
                                 .italics()
-                                .color(egui::Color32::from_gray(120)),
+                                .color(egui::Color32::from_gray(140)),
                         );
                     }
                 });
@@ -94,9 +140,9 @@ impl EngineUi {
                     }
                     if textures.is_empty() {
                         ui.label(
-                            egui::RichText::new("No textures loaded yet.")
+                            egui::RichText::new("No textures loaded.")
                                 .italics()
-                                .color(egui::Color32::from_gray(120)),
+                                .color(egui::Color32::from_gray(140)),
                         );
                     }
                 });

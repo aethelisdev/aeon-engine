@@ -12,142 +12,72 @@ impl EngineUi {
         saved_swatches: &mut Vec<[f32; 4]>,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        ui.group(|ui| {
-            ui.set_width(ui.available_width());
-            ui.style_mut().spacing.item_spacing = egui::vec2(8.0, 8.0);
-            ui.label(
-                egui::RichText::new("Appearance")
-                    .strong()
-                    .color(egui::Color32::WHITE),
-            );
-            let mut color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity) {
-                [c.r, c.g, c.b, c.a]
-            } else {
-                [0.3, 0.3, 0.3, 1.0] // Default Dark Gray
-            };
+        super::widgets::draw_inspector_card(
+            ui,
+            "Appearance",
+            "🎨",
+            egui::Color32::WHITE,
+            false,
+            |ui| {
+                let mut color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity) {
+                    [c.r, c.g, c.b, c.a]
+                } else {
+                    [0.3, 0.3, 0.3, 1.0] // Default Dark Gray
+                };
 
-            ui.horizontal(|ui| {
-                ui.label("Object Color:");
-                let res = ui.color_edit_button_rgba_unmultiplied(&mut color);
+                ui.horizontal(|ui| {
+                    ui.label("Object Color:");
+                    let res = ui.color_edit_button_rgba_unmultiplied(&mut color);
 
-                // Hex Input Field
-                ui.add_space(5.0);
-                ui.label("Hex:");
-                let hex_res =
-                    ui.add(egui::TextEdit::singleline(inspector_color_hex).desired_width(65.0));
+                    // Hex Input Field
+                    ui.add_space(5.0);
+                    ui.label("Hex:");
+                    let hex_res =
+                        ui.add(egui::TextEdit::singleline(inspector_color_hex).desired_width(65.0));
 
-                if res.changed() {
-                    let old_color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity) {
-                        Some(*c)
-                    } else {
-                        Some(ae_core::ecs::Color {
-                            r: 0.3,
-                            g: 0.3,
-                            b: 0.3,
-                            a: 1.0,
-                        })
-                    };
-                    let new_color = ae_core::ecs::Color {
-                        r: color[0],
-                        g: color[1],
-                        b: color[2],
-                        a: color[3],
-                    };
-                    ui_actions.push(EngineUiAction::ModifyColor(
-                        entity,
-                        old_color.unwrap_or(ae_core::ecs::Color {
-                            r: 1.0,
-                            g: 1.0,
-                            b: 1.0,
-                            a: 1.0,
-                        }),
-                        new_color,
-                    ));
-
-                    *inspector_color_hex = format!(
-                        "#{:02x}{:02x}{:02x}",
-                        (color[0] * 255.0) as u8,
-                        (color[1] * 255.0) as u8,
-                        (color[2] * 255.0) as u8
-                    );
-                } else if hex_res.changed() {
-                    let clean_hex = inspector_color_hex.trim_start_matches('#');
-                    if clean_hex.len() == 6
-                        && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
-                    {
-                        let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
-                        let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
-                        let b = (rgb & 0xFF) as f32 / 255.0;
-
+                    if res.changed() {
                         let old_color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity) {
-                            *c
+                            Some(*c)
                         } else {
-                            ae_core::ecs::Color {
+                            Some(ae_core::ecs::Color {
                                 r: 0.3,
                                 g: 0.3,
                                 b: 0.3,
                                 a: 1.0,
-                            }
+                            })
                         };
                         let new_color = ae_core::ecs::Color {
-                            r,
-                            g,
-                            b,
-                            a: old_color.a,
+                            r: color[0],
+                            g: color[1],
+                            b: color[2],
+                            a: color[3],
                         };
+                        ui_actions.push(EngineUiAction::ModifyColor(
+                            entity,
+                            old_color.unwrap_or(ae_core::ecs::Color {
+                                r: 1.0,
+                                g: 1.0,
+                                b: 1.0,
+                                a: 1.0,
+                            }),
+                            new_color,
+                        ));
 
-                        ui_actions.push(EngineUiAction::ModifyColor(entity, old_color, new_color));
-                    }
-                }
-            });
-
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("Add to Palette:");
-                if ui
-                    .button("✚")
-                    .on_hover_text("Save selected color to palette")
-                    .clicked()
-                    && !saved_swatches.contains(&color)
-                    && saved_swatches.len() < 22
-                {
-                    saved_swatches.push(color);
-                }
-                if ui.button("🗑").on_hover_text("Clear palette").clicked() {
-                    saved_swatches.clear();
-                }
-            });
-
-            // --- SWATCH GRID ---
-            if !saved_swatches.is_empty() {
-                ui.add_space(4.0);
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                    for &swatch in saved_swatches.iter() {
-                        let swatch_size = egui::vec2(14.0, 14.0);
-                        let (rect, res) = ui.allocate_at_least(swatch_size, egui::Sense::click());
-
-                        let color32 = egui::Color32::from_rgba_unmultiplied(
-                            (swatch[0] * 255.0) as u8,
-                            (swatch[1] * 255.0) as u8,
-                            (swatch[2] * 255.0) as u8,
-                            (swatch[3] * 255.0) as u8,
+                        *inspector_color_hex = format!(
+                            "#{:02x}{:02x}{:02x}",
+                            (color[0] * 255.0) as u8,
+                            (color[1] * 255.0) as u8,
+                            (color[2] * 255.0) as u8
                         );
+                    } else if hex_res.changed() {
+                        let clean_hex = inspector_color_hex.trim_start_matches('#');
+                        if clean_hex.len() == 6
+                            && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
+                        {
+                            let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
+                            let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
+                            let b = (rgb & 0xFF) as f32 / 255.0;
 
-                        if res.hovered() {
-                            let glow_rect = rect.expand(1.5);
-                            ui.painter().rect_filled(glow_rect, 2.0, color32);
-                            ui.painter().rect_stroke(
-                                glow_rect,
-                                2.0,
-                                egui::Stroke::new(1.5, egui::Color32::WHITE),
-                                egui::StrokeKind::Outside,
-                            );
-                        } else {
-                            ui.painter().rect_filled(rect, 2.0, color32);
-                        }
-
-                        if res.clicked() {
                             let old_color = if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity)
                             {
                                 *c
@@ -160,10 +90,10 @@ impl EngineUi {
                                 }
                             };
                             let new_color = ae_core::ecs::Color {
-                                r: swatch[0],
-                                g: swatch[1],
-                                b: swatch[2],
-                                a: swatch[3],
+                                r,
+                                g,
+                                b,
+                                a: old_color.a,
                             };
 
                             ui_actions
@@ -171,8 +101,82 @@ impl EngineUi {
                         }
                     }
                 });
-            }
-        });
+
+                ui.separator();
+                ui.horizontal(|ui| {
+                    ui.label("Add to Palette:");
+                    if ui
+                        .button("✚")
+                        .on_hover_text("Save selected color to palette")
+                        .clicked()
+                        && !saved_swatches.contains(&color)
+                        && saved_swatches.len() < 22
+                    {
+                        saved_swatches.push(color);
+                    }
+                    if ui.button("🗑").on_hover_text("Clear palette").clicked() {
+                        saved_swatches.clear();
+                    }
+                });
+
+                // --- SWATCH GRID ---
+                if !saved_swatches.is_empty() {
+                    ui.add_space(4.0);
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
+                        for &swatch in saved_swatches.iter() {
+                            let swatch_size = egui::vec2(14.0, 14.0);
+                            let (rect, res) =
+                                ui.allocate_at_least(swatch_size, egui::Sense::click());
+
+                            let color32 = egui::Color32::from_rgba_unmultiplied(
+                                (swatch[0] * 255.0) as u8,
+                                (swatch[1] * 255.0) as u8,
+                                (swatch[2] * 255.0) as u8,
+                                (swatch[3] * 255.0) as u8,
+                            );
+
+                            if res.hovered() {
+                                let glow_rect = rect.expand(1.5);
+                                ui.painter().rect_filled(glow_rect, 2.0, color32);
+                                ui.painter().rect_stroke(
+                                    glow_rect,
+                                    2.0,
+                                    egui::Stroke::new(1.5, egui::Color32::WHITE),
+                                    egui::StrokeKind::Outside,
+                                );
+                            } else {
+                                ui.painter().rect_filled(rect, 2.0, color32);
+                            }
+
+                            if res.clicked() {
+                                let old_color =
+                                    if let Ok(c) = world.get::<&ae_core::ecs::Color>(entity) {
+                                        *c
+                                    } else {
+                                        ae_core::ecs::Color {
+                                            r: 0.3,
+                                            g: 0.3,
+                                            b: 0.3,
+                                            a: 1.0,
+                                        }
+                                    };
+                                let new_color = ae_core::ecs::Color {
+                                    r: swatch[0],
+                                    g: swatch[1],
+                                    b: swatch[2],
+                                    a: swatch[3],
+                                };
+
+                                ui_actions.push(EngineUiAction::ModifyColor(
+                                    entity, old_color, new_color,
+                                ));
+                            }
+                        }
+                    });
+                }
+            },
+        );
     }
 
     /// Renders the Texture & Material inspector panel section.

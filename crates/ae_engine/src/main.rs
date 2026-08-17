@@ -147,12 +147,11 @@ impl ApplicationHandler for AeApp {
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
-                // Get cursor position and check if it's over any UI area
                 let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
                 let scale = engine.render_state.window.scale_factor() as f32;
                 let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
 
-                // Only scroll 3D camera if cursor is NOT over any UI rect
+                // Only scroll 3D camera if cursor is strictly inside the 3D viewport and not over UI panels
                 if !engine.ui.is_point_over_ui_rects(logical_pos) {
                     engine.handle_mouse_scroll(delta, cursor_x, cursor_y);
                 }

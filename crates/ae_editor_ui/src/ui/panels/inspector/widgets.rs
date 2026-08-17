@@ -53,6 +53,57 @@ pub(super) fn draw_vec3_row(
     )
 }
 
+/// Helper to draw a modern Inspector section card with a styled header bar
+/// and rounded background frame.
+pub(super) fn draw_inspector_card<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    icon: &str,
+    header_color: egui::Color32,
+    remove_button: bool,
+    content: impl FnOnce(&mut egui::Ui) -> R,
+) -> (R, bool) {
+    let mut remove_clicked = false;
+    let ret = egui::Frame::NONE
+        .fill(egui::Color32::from_rgb(18, 20, 26))
+        .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(38, 42, 54)))
+        .corner_radius(egui::CornerRadius::same(5))
+        .inner_margin(egui::Margin::symmetric(8, 7))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            // Header bar
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{} {}", icon, title))
+                        .strong()
+                        .size(11.5)
+                        .color(header_color),
+                );
+                if remove_button {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .button(
+                                egui::RichText::new("🗑")
+                                    .size(10.5)
+                                    .color(egui::Color32::from_gray(160)),
+                            )
+                            .on_hover_text("Remove Component")
+                            .clicked()
+                        {
+                            remove_clicked = true;
+                        }
+                    });
+                }
+            });
+            ui.separator();
+            content(ui)
+        })
+        .inner;
+
+    ui.add_space(4.0);
+    (ret, remove_clicked)
+}
+
 /// Converts quaternion rotation to Euler angles in degrees (roll, pitch, yaw -> X, Y, Z).
 pub(super) fn quaternion_to_euler_deg(q: ae_core::ecs::Rotation) -> [f32; 3] {
     let qx = q.x;

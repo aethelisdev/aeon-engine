@@ -93,6 +93,8 @@ pub struct EngineUi {
     pub viewport_rect_width: f32,
     /// Last registered viewport texture height.
     pub viewport_rect_height: f32,
+    /// Last recorded 3D viewport screen rectangle in logical coordinates.
+    pub last_viewport_rect: egui::Rect,
     /// Active UI Zoom / Scaling factor (e.g. 1.0 = 100%, 0.8 = 80%, 1.25 = 125%).
     pub ui_zoom_factor: f32,
 }
@@ -179,6 +181,7 @@ impl EngineUi {
             viewport_texture_id: None,
             viewport_rect_width: 0.0,
             viewport_rect_height: 0.0,
+            last_viewport_rect: egui::Rect::ZERO,
             ui_zoom_factor: 1.0,
         }
     }
@@ -252,8 +255,13 @@ impl EngineUi {
         response.consumed
     }
 
-    /// Returns true if point is over any UI rect from last frame
+    /// Returns true if the point is over any UI panel, dialog, or outside the 3D viewport.
     pub fn is_point_over_ui_rects(&self, pos: egui::Pos2) -> bool {
+        // If cursor is outside the 3D viewport rectangle, it is 100% over an editor UI panel (Hierarchy, Inspector, Assets, Menus, etc.)
+        if !self.last_viewport_rect.contains(pos) {
+            return true;
+        }
+
         self.ui_rects.iter().any(|rect| rect.contains(pos))
     }
 
@@ -554,6 +562,8 @@ impl EngineUi {
             self.viewport_rect_width = new_rect.width();
             self.viewport_rect_height = new_rect.height();
         }
+
+        self.last_viewport_rect = new_rect;
 
         new_rect
     }

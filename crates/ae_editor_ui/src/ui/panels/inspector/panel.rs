@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::widgets::{draw_vec3_row, euler_deg_to_quaternion, quaternion_to_euler_deg};
+use super::widgets::{
+    draw_inspector_card, draw_vec3_row, euler_deg_to_quaternion, quaternion_to_euler_deg,
+};
 use crate::ui::{EngineUi, EngineUiAction};
 
 impl EngineUi {
@@ -32,72 +34,94 @@ impl EngineUi {
                                     .unwrap_or_else(|| name.0.clone())
                             });
 
-                            ui.horizontal(|ui| {
-                                ui.label("Name:");
-                                let old_name = name.0.clone();
+                            egui::Frame::NONE
+                                .fill(egui::Color32::from_rgb(18, 20, 26))
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(38, 42, 54)))
+                                .corner_radius(egui::CornerRadius::same(5))
+                                .inner_margin(egui::Margin::symmetric(8, 6))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            egui::RichText::new("🏷 Name:")
+                                                .strong()
+                                                .size(11.5)
+                                                .color(egui::Color32::from_gray(180)),
+                                        );
+                                        let old_name = name.0.clone();
 
-                                let resp = ui.text_edit_singleline(&mut temp_name);
-                                if editor_state.focus_rename {
-                                    resp.request_focus();
-                                }
+                                        let text_width = ui.available_width()
+                                            - if world
+                                                .get::<&ae_core::ecs::TransformDirty>(entity)
+                                                .is_ok()
+                                            {
+                                                60.0
+                                            } else {
+                                                0.0
+                                            };
+                                        let resp = ui.add_sized(
+                                            egui::vec2(text_width.max(60.0), 19.0),
+                                            egui::TextEdit::singleline(&mut temp_name),
+                                        );
+                                        if editor_state.focus_rename {
+                                            resp.request_focus();
+                                        }
 
-                                if world
-                                    .get::<&ae_core::ecs::TransformDirty>(entity)
-                                    .is_ok()
-                                {
-                                    ui.label(
-                                        egui::RichText::new("[DIRTY]")
-                                            .color(egui::Color32::RED)
-                                            .strong(),
-                                    )
-                                    .on_hover_text("Awaiting physics update...");
-                                }
-                                if resp.changed() {
-                                    ctx.data_mut(|d| {
-                                        d.insert_temp(
-                                            egui::Id::new(("name_edit", entity)),
-                                            temp_name.clone(),
-                                        )
+                                        if world
+                                            .get::<&ae_core::ecs::TransformDirty>(entity)
+                                            .is_ok()
+                                        {
+                                            ui.label(
+                                                egui::RichText::new("[DIRTY]")
+                                                    .color(egui::Color32::RED)
+                                                    .strong(),
+                                            )
+                                            .on_hover_text("Awaiting physics update...");
+                                        }
+                                        if resp.changed() {
+                                            ctx.data_mut(|d| {
+                                                d.insert_temp(
+                                                    egui::Id::new(("name_edit", entity)),
+                                                    temp_name.clone(),
+                                                )
+                                            });
+                                        }
+
+                                        if resp.lost_focus() && temp_name != old_name {
+                                            ui_actions.push(EngineUiAction::ModifyName(
+                                                entity, old_name, temp_name,
+                                            ));
+                                            ctx.data_mut(|d| {
+                                                d.remove::<String>(egui::Id::new((
+                                                    "name_edit",
+                                                    entity,
+                                                )))
+                                            });
+                                        }
                                     });
-                                }
-
-                                if resp.lost_focus() && temp_name != old_name {
-                                    ui_actions.push(EngineUiAction::ModifyName(
-                                        entity, old_name, temp_name,
-                                    ));
-                                    ctx.data_mut(|d| {
-                                        d.remove::<String>(egui::Id::new((
-                                            "name_edit",
-                                            entity,
-                                        )))
-                                    });
-                                }
-                            });
+                                });
+                            ui.add_space(4.0);
                         }
-                        ui.add_space(10.0);
 
                         {
-                            ui.group(|ui| {
-                                ui.set_width(ui.available_width());
-                                ui.style_mut().spacing.item_spacing =
-                                    egui::vec2(8.0, 8.0);
-                                ui.label(
-                                    egui::RichText::new("Transform")
-                                        .strong()
-                                        .color(egui::Color32::WHITE),
-                                );
-
-                                if *last_selected_entity != Some(entity) {
-                                    *last_selected_entity = Some(entity);
-                                    if let Ok(rot) = world.get::<&ae_core::ecs::Rotation>(entity) {
-                                        *inspector_euler = quaternion_to_euler_deg(*rot);
+                            draw_inspector_card(
+                                ui,
+                                "Transform",
+                                "📐",
+                                egui::Color32::WHITE,
+                                false,
+                                |ui| {
+                                    if *last_selected_entity != Some(entity) {
+                                        *last_selected_entity = Some(entity);
+                                        if let Ok(rot) = world.get::<&ae_core::ecs::Rotation>(entity) {
+                                            *inspector_euler = quaternion_to_euler_deg(*rot);
+                                        }
                                     }
-                                }
 
-                                egui::Grid::new(("transform_grid", entity))
-                                    .num_columns(2)
-                                    .spacing([4.0, 4.0])
-                                    .show(ui, |ui| {
+                                    egui::Grid::new(("transform_grid", entity))
+                                        .num_columns(2)
+                                        .spacing([4.0, 4.0])
+                                        .show(ui, |ui| {
                                         // 1. Position Row
                                         let mut px = 0.0;
                                         let mut py = 0.0;
@@ -453,70 +477,76 @@ impl EngineUi {
 
                         // --- MATERIAL EDITOR QUICK LINK ---
                         if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity) {
-                            ui.group(|ui| {
-                                ui.set_width(ui.available_width());
-                                ui.horizontal(|ui| {
-                                    let submesh_count = models
-                                        .get(model_id.0)
-                                        .map_or(0, |m| m.submeshes.len());
-                                    ui.label(
-                                        egui::RichText::new("🎨 Material:")
-                                            .strong()
-                                            .color(egui::Color32::WHITE),
-                                    );
-                                    if ui
-                                        .button(format!(
-                                            "🎨 Open Material Editor ({} slots) ↗",
-                                            submesh_count
-                                        ))
-                                        .on_hover_text("Open dedicated Material & Submesh Editor tab")
-                                        .clicked()
-                                    {
-                                        ui_actions.push(EngineUiAction::OpenPanel(
-                                            crate::ui::panel_layout::PanelId::MaterialEditor,
-                                        ));
-                                    }
-                                });
-                            });
+                            let submesh_count = models
+                                .get(model_id.0)
+                                .map_or(0, |m| m.submeshes.len());
+                            draw_inspector_card(
+                                ui,
+                                &format!("Material ({} slots)", submesh_count),
+                                "🎨",
+                                egui::Color32::WHITE,
+                                false,
+                                |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Submesh Materials:");
+                                        if ui
+                                            .button("Open Material Editor ↗")
+                                            .on_hover_text("Open dedicated Material & Submesh Editor tab")
+                                            .clicked()
+                                        {
+                                            ui_actions.push(EngineUiAction::OpenPanel(
+                                                crate::ui::panel_layout::PanelId::MaterialEditor,
+                                            ));
+                                        }
+                                    });
+                                },
+                            );
                         } else if world.get::<&ae_core::ecs::SpriteId>(entity).is_ok() {
-                            ui.group(|ui| {
-                                ui.set_width(ui.available_width());
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new("🖼️ Texture:")
-                                            .strong()
-                                            .color(egui::Color32::WHITE),
-                                    );
-                                    if ui
-                                        .button("🎨 Open Material Editor ↗")
-                                        .clicked()
-                                    {
-                                        ui_actions.push(EngineUiAction::OpenPanel(
-                                            crate::ui::panel_layout::PanelId::MaterialEditor,
-                                        ));
-                                    }
-                                });
-                            });
+                            draw_inspector_card(
+                                ui,
+                                "Texture & Material",
+                                "🖼️",
+                                egui::Color32::WHITE,
+                                false,
+                                |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Sprite Material:");
+                                        if ui
+                                            .button("Open Material Editor ↗")
+                                            .clicked()
+                                        {
+                                            ui_actions.push(EngineUiAction::OpenPanel(
+                                                crate::ui::panel_layout::PanelId::MaterialEditor,
+                                            ));
+                                        }
+                                    });
+                                },
+                            );
                         }
 
                         // --- LIGHTING SECTION ---
                         if let Ok(light) = world.get::<&ae_core::ecs::Light>(entity) {
-                            ui.group(|ui| {
-                                ui.set_width(ui.available_width());
-                                ui.label("Lighting Settings");
-                                ui.horizontal(|ui| {
-                                    ui.label("Color:");
-                                    let mut edit_color = light.color;
-                                    let res = ui.color_edit_button_rgb(&mut edit_color);
-                                    if res.changed() {
-                                        ui_actions.push(EngineUiAction::ModifyLightColor(
-                                            entity,
-                                            light.color,
-                                            edit_color,
-                                        ));
-                                    }
-                                });
-                            });
+                            draw_inspector_card(
+                                ui,
+                                "Lighting Settings",
+                                "💡",
+                                egui::Color32::from_rgb(255, 230, 100),
+                                false,
+                                |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Color:");
+                                        let mut edit_color = light.color;
+                                        let res = ui.color_edit_button_rgb(&mut edit_color);
+                                        if res.changed() {
+                                            ui_actions.push(EngineUiAction::ModifyLightColor(
+                                                entity,
+                                                light.color,
+                                                edit_color,
+                                            ));
+                                        }
+                                    });
+                                },
+                            );
                         }
 
                         // --- RIGIDBODY SECTION ---
@@ -532,35 +562,37 @@ impl EngineUi {
 
                         // --- ANIMATION PLAYER QUICK LINK ---
                         if let Ok(player) = world.get::<&ae_animation::AnimationPlayer>(entity) {
-                            ui.group(|ui| {
-                                ui.set_width(ui.available_width());
-                                ui.horizontal(|ui| {
-                                    let state_str = match player.state {
-                                        ae_animation::AnimationState::Playing => "▶ Playing",
-                                        ae_animation::AnimationState::Paused => "⏸ Paused",
-                                        ae_animation::AnimationState::Stopped => "⏹ Stopped",
-                                    };
-                                    ui.label(
-                                        egui::RichText::new("🎬 Animation:")
-                                            .strong()
-                                            .color(egui::Color32::WHITE),
-                                    );
-                                    ui.label(
-                                        egui::RichText::new(state_str)
-                                            .color(egui::Color32::GREEN)
-                                            .strong(),
-                                    );
-                                    if ui
-                                        .button("🎬 Open Timeline Studio ↗")
-                                        .on_hover_text("Open bottom Animation Timeline Studio panel")
-                                        .clicked()
-                                    {
-                                        ui_actions.push(EngineUiAction::OpenPanel(
-                                            crate::ui::panel_layout::PanelId::AnimationTimeline,
-                                        ));
-                                    }
-                                });
-                            });
+                            let state_str = match player.state {
+                                ae_animation::AnimationState::Playing => "▶ Playing",
+                                ae_animation::AnimationState::Paused => "⏸ Paused",
+                                ae_animation::AnimationState::Stopped => "⏹ Stopped",
+                            };
+                            draw_inspector_card(
+                                ui,
+                                "Animation Status",
+                                "🎬",
+                                egui::Color32::from_rgb(255, 150, 200),
+                                false,
+                                |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Status:");
+                                        ui.label(
+                                            egui::RichText::new(state_str)
+                                                .color(egui::Color32::GREEN)
+                                                .strong(),
+                                        );
+                                        if ui
+                                            .button("Open Timeline Studio ↗")
+                                            .on_hover_text("Open bottom Animation Timeline Studio panel")
+                                            .clicked()
+                                        {
+                                            ui_actions.push(EngineUiAction::OpenPanel(
+                                                crate::ui::panel_layout::PanelId::AnimationTimeline,
+                                            ));
+                                        }
+                                    });
+                                },
+                            );
                         }
 
                         // --- AUDIO SOURCE SECTION ---

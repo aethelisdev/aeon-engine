@@ -3,12 +3,20 @@
 use hecs;
 
 /// ViewportRect represent screen boundaries of 3D Viewport
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct ViewportRect {
     pub min_x: f32,
     pub min_y: f32,
     pub max_x: f32,
     pub max_y: f32,
+}
+
+impl ViewportRect {
+    /// Returns true if logical coordinates (x, y) fall strictly inside the viewport boundaries.
+    #[inline]
+    pub fn contains(&self, x: f32, y: f32) -> bool {
+        x >= self.min_x && x <= self.max_x && y >= self.min_y && y <= self.max_y
+    }
 }
 
 /// Viewport descriptor for sub-region rendering (currently unused but reserved).
