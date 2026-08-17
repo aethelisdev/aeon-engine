@@ -75,7 +75,6 @@ pub(crate) fn setup_custom_style(ctx: &Context) {
 
     // 1. Accent & Main Colors
     let accent_color = egui::Color32::from_rgb(0, 229, 255);
-    let hover_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 15);
     let window_bg = egui::Color32::from_rgb(20, 20, 25);
     let border_color = egui::Color32::from_rgb(45, 48, 60);
 
@@ -101,16 +100,29 @@ pub(crate) fn setup_custom_style(ctx: &Context) {
     style.visuals.selection.bg_fill = egui::Color32::from_rgb(0, 60, 80);
     style.visuals.selection.stroke = egui::Stroke::new(1.0, accent_color);
 
-    // 4. Widget background fills
-    style.visuals.widgets.hovered.bg_fill = hover_color;
-    style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(0, 60, 80);
-    style.visuals.widgets.open.bg_fill = egui::Color32::from_rgb(26, 28, 36);
+    // 4. Widget background fills & Zero Expansion (Prevents layout jitter on hover)
+    style.visuals.widgets.noninteractive.expansion = 0.0;
+    style.visuals.widgets.inactive.expansion = 0.0;
+    style.visuals.widgets.hovered.expansion = 0.0;
+    style.visuals.widgets.active.expansion = 0.0;
+    style.visuals.widgets.open.expansion = 0.0;
+
+    style.visuals.widgets.noninteractive.bg_stroke = egui::Stroke::NONE;
+    style.visuals.widgets.inactive.bg_stroke = egui::Stroke::NONE;
+    style.visuals.widgets.hovered.bg_stroke = egui::Stroke::NONE;
+    style.visuals.widgets.active.bg_stroke = egui::Stroke::NONE;
+    style.visuals.widgets.open.bg_stroke = egui::Stroke::NONE;
+
+    style.visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(26, 28, 36);
+    style.visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(45, 50, 65);
+    style.visuals.widgets.active.bg_fill = egui::Color32::from_rgb(0, 80, 110);
+    style.visuals.widgets.open.bg_fill = egui::Color32::from_rgb(32, 35, 45);
 
     // 5. Spacing & Padding
-    style.spacing.item_spacing = egui::vec2(6.0, 6.0);
-    style.spacing.window_margin = egui::Margin::same(8);
-    style.spacing.button_padding = egui::vec2(8.0, 4.0);
-    style.spacing.menu_margin = egui::Margin::symmetric(6, 6);
+    style.spacing.item_spacing = egui::vec2(4.0, 4.0);
+    style.spacing.window_margin = egui::Margin::same(6);
+    style.spacing.button_padding = egui::vec2(6.0, 3.0);
+    style.spacing.menu_margin = egui::Margin::symmetric(4, 4);
 
     // 6. Window transparency and Outlines
     style.visuals.window_fill = window_bg;

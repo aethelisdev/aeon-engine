@@ -43,6 +43,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::OpenPanel(panel) => {
                 ctx.ui.layout_state.activate_or_open(panel)
             }
+            crate::ui::EngineUiAction::SetUiScale(scale) => {
+                ctx.ui.ui_zoom_factor = scale.clamp(0.6, 2.0);
+            }
             crate::ui::EngineUiAction::GarbageCollect => system::handle_garbage_collect(ctx),
 
             // --- ENTITY LIFECYCLE & SPAWNING ACTIONS ---

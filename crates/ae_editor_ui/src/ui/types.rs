@@ -25,6 +25,7 @@ pub enum EngineUiAction {
 
     // --- UI/EDITOR STATE ACTIONS ---
     OpenPanel(crate::ui::panel_layout::PanelId),
+    SetUiScale(f32),
     SelectEntity(Option<hecs::Entity>),
     SetCameraMode(ae_renderer::camera::ProjectionMode),
     SetCameraTransform {

@@ -17,22 +17,22 @@ pub(super) fn draw_viewport_toolbar(
     ui_actions: &mut Vec<EngineUiAction>,
 ) {
     egui::Area::new(egui::Id::new("viewport_toolbar_area"))
-        .pivot(egui::Align2::RIGHT_TOP)
+        .pivot(egui::Align2::LEFT_TOP)
         .fixed_pos(egui::pos2(
-            available_rect.right() - 115.0,
-            available_rect.top() + 20.0,
+            available_rect.left() + 8.0,
+            available_rect.top() + 6.0,
         ))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
-                // Viewport Toolbar Frame
+                // Viewport Toolbar Frame (Matching editor theme background)
                 egui::Frame::NONE
-                    .fill(egui::Color32::from_black_alpha(200))
-                    .corner_radius(egui::CornerRadius::same(6))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(30)))
-                    .inner_margin(egui::Margin::symmetric(12, 6))
+                    .fill(egui::Color32::from_rgb(18, 20, 26))
+                    .corner_radius(egui::CornerRadius::same(4))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60)))
+                    .inner_margin(egui::Margin::symmetric(6, 3))
                     .show(ui, |ui| {
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            ui.spacing_mut().item_spacing = egui::vec2(16.0, 0.0);
+                            ui.spacing_mut().item_spacing = egui::vec2(6.0, 0.0);
 
                             // 1. Camera Mode Dropdown
                             let is_persp = camera.mode == ProjectionMode::Perspective;
@@ -56,11 +56,11 @@ pub(super) fn draw_viewport_toolbar(
 
                             ui.menu_button(
                                 egui::RichText::new(current_view)
-                                    .size(13.0)
+                                    .size(11.0)
                                     .strong()
                                     .color(egui::Color32::WHITE),
                                 |ui| {
-                                    ui.set_min_width(140.0);
+                                    ui.set_min_width(130.0);
                                     if ui.button("🎥 Perspective").clicked() {
                                         ui_actions.push(EngineUiAction::SetCameraMode(
                                             ProjectionMode::Perspective,
@@ -122,11 +122,11 @@ pub(super) fn draw_viewport_toolbar(
                             );
 
                             let (rect, _) =
-                                ui.allocate_exact_size(egui::vec2(1.0, 14.0), egui::Sense::hover());
+                                ui.allocate_exact_size(egui::vec2(1.0, 12.0), egui::Sense::hover());
                             ui.painter().rect_filled(
                                 rect,
                                 0.0,
-                                egui::Color32::from_white_alpha(40),
+                                egui::Color32::from_white_alpha(30),
                             );
 
                             // 2. Shading Mode Dropdown
@@ -137,11 +137,11 @@ pub(super) fn draw_viewport_toolbar(
                             };
                             ui.menu_button(
                                 egui::RichText::new(shading_label)
-                                    .size(13.0)
+                                    .size(11.0)
                                     .strong()
                                     .color(egui::Color32::WHITE),
                                 |ui| {
-                                    ui.set_min_width(120.0);
+                                    ui.set_min_width(110.0);
                                     if ui.button("💡 Lit").clicked() {
                                         *wireframe_enabled = false;
                                         ui.close();
@@ -154,83 +154,93 @@ pub(super) fn draw_viewport_toolbar(
                             );
 
                             let (rect, _) =
-                                ui.allocate_exact_size(egui::vec2(1.0, 14.0), egui::Sense::hover());
+                                ui.allocate_exact_size(egui::vec2(1.0, 12.0), egui::Sense::hover());
                             ui.painter().rect_filled(
                                 rect,
                                 0.0,
-                                egui::Color32::from_white_alpha(40),
+                                egui::Color32::from_white_alpha(30),
                             );
 
                             // 3. Gizmo Controls (W E R)
-                            ui.spacing_mut().item_spacing = egui::vec2(4.0, 0.0);
+                            ui.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
                             let modes = [
-                                (GizmoMode::Translate, "✛ W", "Translate (W)"),
-                                (GizmoMode::Rotate, "⟳ E", "Rotate (E)"),
-                                (GizmoMode::Scale, "⤡ R", "Scale (R)"),
+                                (GizmoMode::Translate, "✛ W"),
+                                (GizmoMode::Rotate, "⟳ E"),
+                                (GizmoMode::Scale, "⤡ R"),
                             ];
-                            egui::Frame::NONE
-                                .fill(egui::Color32::from_black_alpha(100))
-                                .corner_radius(egui::CornerRadius::same(6))
-                                .inner_margin(egui::Margin::symmetric(4, 4))
-                                .show(ui, |ui| {
-                                    for (gm, label, tooltip) in modes {
-                                        let is_selected = *gizmo_mode == gm;
-                                        let text_color = if is_selected {
-                                            egui::Color32::WHITE
-                                        } else {
-                                            egui::Color32::from_gray(140)
-                                        };
-                                        let bg_color = if is_selected {
-                                            egui::Color32::from_rgb(70, 130, 220)
-                                        } else {
-                                            egui::Color32::TRANSPARENT
-                                        };
-                                        let button_text = egui::RichText::new(label)
-                                            .size(13.0)
-                                            .strong()
-                                            .color(text_color);
-                                        let res = ui.add(
-                                            egui::Button::new(button_text)
-                                                .fill(bg_color)
-                                                .stroke(egui::Stroke::NONE)
-                                                .min_size(egui::vec2(36.0, 22.0)),
-                                        );
-                                        if res.on_hover_text(tooltip).clicked() {
-                                            *gizmo_mode = gm;
-                                        }
-                                    }
-                                });
+                            for (gm, label) in modes {
+                                let is_selected = *gizmo_mode == gm;
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(28.0, 20.0),
+                                    egui::Sense::click(),
+                                );
+                                let is_hovered = resp.hovered();
+                                let bg_color = match (is_selected, is_hovered) {
+                                    (true, true) => egui::Color32::from_rgb(0, 150, 205),
+                                    (true, false) => egui::Color32::from_rgb(0, 120, 165),
+                                    (false, true) => egui::Color32::from_rgb(45, 50, 65),
+                                    (false, false) => egui::Color32::from_rgb(26, 28, 36),
+                                };
+                                let text_color = if is_selected || is_hovered {
+                                    egui::Color32::WHITE
+                                } else {
+                                    egui::Color32::from_gray(160)
+                                };
+
+                                ui.painter().rect_filled(rect, 3.0, bg_color);
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    label,
+                                    egui::FontId::proportional(11.0),
+                                    text_color,
+                                );
+
+                                if resp.clicked() {
+                                    *gizmo_mode = gm;
+                                }
+                            }
 
                             // 3b. Separator between gizmo mode and space toggle
                             let (rect, _) =
-                                ui.allocate_exact_size(egui::vec2(1.0, 14.0), egui::Sense::hover());
+                                ui.allocate_exact_size(egui::vec2(1.0, 12.0), egui::Sense::hover());
                             ui.painter().rect_filled(
                                 rect,
                                 0.0,
-                                egui::Color32::from_white_alpha(40),
+                                egui::Color32::from_white_alpha(30),
                             );
 
                             // 3c. World/Local Space Toggle
-                            let (space_label, space_tooltip) = match *gizmo_space {
-                                GizmoSpace::World => ("🌍 World", "Switch to Local space"),
-                                GizmoSpace::Local => ("🏠 Local", "Switch to World space"),
+                            let space_label = match *gizmo_space {
+                                GizmoSpace::World => "🌍 World",
+                                GizmoSpace::Local => "🏠 Local",
                             };
-                            let space_text = egui::RichText::new(space_label)
-                                .size(13.0)
-                                .strong()
-                                .color(egui::Color32::WHITE);
-                            let space_bg = match *gizmo_space {
-                                GizmoSpace::Local => egui::Color32::from_rgb(180, 100, 50),
-                                GizmoSpace::World => egui::Color32::from_black_alpha(100),
+                            let (rect, resp) = ui
+                                .allocate_exact_size(egui::vec2(58.0, 20.0), egui::Sense::click());
+                            let is_hovered = resp.hovered();
+                            let is_local = *gizmo_space == GizmoSpace::Local;
+                            let bg_color = match (is_local, is_hovered) {
+                                (true, true) => egui::Color32::from_rgb(175, 95, 30),
+                                (true, false) => egui::Color32::from_rgb(140, 75, 25),
+                                (false, true) => egui::Color32::from_rgb(45, 50, 65),
+                                (false, false) => egui::Color32::from_rgb(26, 28, 36),
                             };
-                            let space_btn = ui.add(
-                                egui::Button::new(space_text)
-                                    .fill(space_bg)
-                                    .stroke(egui::Stroke::NONE)
-                                    .corner_radius(egui::CornerRadius::same(4))
-                                    .min_size(egui::vec2(64.0, 22.0)),
+                            let text_color = if is_local || is_hovered {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::from_gray(180)
+                            };
+
+                            ui.painter().rect_filled(rect, 3.0, bg_color);
+                            ui.painter().text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                space_label,
+                                egui::FontId::proportional(11.0),
+                                text_color,
                             );
-                            if space_btn.on_hover_text(space_tooltip).clicked() {
+
+                            if resp.clicked() {
                                 *gizmo_space = gizmo_space.toggle();
                             }
                         });
@@ -242,29 +252,37 @@ pub(super) fn draw_viewport_toolbar(
 /// Draws the viewport HUD displaying real-time camera position (X, Y, Z) and pitch/yaw rotation angles.
 pub(super) fn draw_camera_hud(ctx: &Context, available_rect: Rect, camera: &Camera) {
     egui::Area::new(egui::Id::new("camera_pos_hud"))
-        .pivot(egui::Align2::RIGHT_TOP)
+        .pivot(egui::Align2::RIGHT_BOTTOM)
         .fixed_pos(egui::pos2(
-            available_rect.right() - 10.0,
-            available_rect.top() + 115.0,
+            available_rect.right() - 8.0,
+            available_rect.bottom() - 8.0,
         ))
         .show(ctx, |ui| {
-            egui::Frame::window(&ctx.global_style())
-                .fill(egui::Color32::from_black_alpha(180))
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(30)))
-                .inner_margin(egui::Margin::same(8))
+            egui::Frame::NONE
+                .fill(egui::Color32::from_black_alpha(150))
+                .corner_radius(egui::CornerRadius::same(4))
+                .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(25)))
+                .inner_margin(egui::Margin::symmetric(6, 4))
                 .show(ui, |ui| {
-                    ui.label(
-                        egui::RichText::new("📷 Camera Info")
-                            .strong()
-                            .color(egui::Color32::WHITE),
-                    );
-                    ui.separator();
-                    let p = camera.position;
-                    ui.label(format!("X: {:.2}  Y: {:.2}  Z: {:.2}", p.x, p.y, p.z));
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(8.0, 0.0);
+                        let p = camera.position;
+                        let pos_text = format!("Pos: {:.1}, {:.1}, {:.1}", p.x, p.y, p.z);
+                        let pitch_deg = camera.pitch.0.to_degrees();
+                        let yaw_deg = camera.yaw.0.to_degrees();
+                        let rot_text = format!("Rot: {:.0}°, {:.0}°", pitch_deg, yaw_deg);
 
-                    let pitch_deg = camera.pitch.0.to_degrees();
-                    let yaw_deg = camera.yaw.0.to_degrees();
-                    ui.label(format!("Pitch: {:.1}°  Yaw: {:.1}°", pitch_deg, yaw_deg));
+                        ui.label(
+                            egui::RichText::new(pos_text)
+                                .size(10.0)
+                                .color(egui::Color32::from_gray(200)),
+                        );
+                        ui.label(
+                            egui::RichText::new(rot_text)
+                                .size(10.0)
+                                .color(egui::Color32::from_gray(160)),
+                        );
+                    });
                 });
         });
 }
@@ -277,23 +295,23 @@ pub(super) fn draw_scene_navigation_gizmo(
     camera: &Camera,
     ui_actions: &mut Vec<EngineUiAction>,
 ) {
-    let compass_center = egui::pos2(available_rect.right() - 55.0, available_rect.top() + 55.0);
-    let radius = 35.0;
+    let compass_center = egui::pos2(available_rect.right() - 44.0, available_rect.top() + 44.0);
+    let radius = 28.0;
 
     egui::Area::new(egui::Id::new("scene_nav_gizmo"))
         .pivot(egui::Align2::CENTER_CENTER)
         .fixed_pos(compass_center)
         .show(ctx, |ui| {
-            // Draw background compass circle
+            // Draw background compass circle (72px total diameter)
             ui.painter().circle_filled(
                 compass_center,
-                radius + 10.0,
-                egui::Color32::from_black_alpha(160),
+                radius + 8.0,
+                egui::Color32::from_black_alpha(130),
             );
             ui.painter().circle_stroke(
                 compass_center,
-                radius + 10.0,
-                egui::Stroke::new(1.0, egui::Color32::from_white_alpha(40)),
+                radius + 8.0,
+                egui::Stroke::new(1.0, egui::Color32::from_white_alpha(30)),
             );
 
             let endpoints = ae_editor::scene_gizmo::SceneNavigationGizmo::compute_axis_endpoints(
@@ -302,55 +320,94 @@ pub(super) fn draw_scene_navigation_gizmo(
                 radius,
             );
 
-            for (dx, dy, label, color_rgb) in endpoints {
+            for (dx, dy, label, color_rgb, is_positive) in endpoints {
                 let end_pos = egui::pos2(compass_center.x + dx, compass_center.y + dy);
                 let color = egui::Color32::from_rgb(color_rgb[0], color_rgb[1], color_rgb[2]);
 
-                // Axis line
-                ui.painter()
-                    .line_segment([compass_center, end_pos], egui::Stroke::new(2.5, color));
+                if is_positive {
+                    // Positive Axis: Solid line and labeled knob
+                    ui.painter()
+                        .line_segment([compass_center, end_pos], egui::Stroke::new(2.0, color));
 
-                // Clickable Knob
-                let knob_rect = Rect::from_center_size(end_pos, egui::vec2(18.0, 18.0));
-                let resp = ui.allocate_rect(knob_rect, egui::Sense::click());
+                    let knob_rect = Rect::from_center_size(end_pos, egui::vec2(14.0, 14.0));
+                    let resp = ui.allocate_rect(knob_rect, egui::Sense::click());
 
-                let is_hovered = resp.hovered();
-                let knob_color = if is_hovered {
-                    egui::Color32::WHITE
-                } else {
-                    color
-                };
-
-                ui.painter().circle_filled(end_pos, 8.0, knob_color);
-                ui.painter().text(
-                    end_pos,
-                    egui::Align2::CENTER_CENTER,
-                    label,
-                    egui::FontId::monospace(10.0),
-                    if is_hovered {
-                        egui::Color32::BLACK
-                    } else {
+                    let is_hovered = resp.hovered();
+                    let knob_color = if is_hovered {
                         egui::Color32::WHITE
-                    },
-                );
-
-                if resp.clicked() {
-                    let snap = match label {
-                        "X" => ae_editor::scene_gizmo::SceneViewSnap::Right,
-                        "-X" => ae_editor::scene_gizmo::SceneViewSnap::Left,
-                        "Y" => ae_editor::scene_gizmo::SceneViewSnap::Top,
-                        "-Y" => ae_editor::scene_gizmo::SceneViewSnap::Bottom,
-                        "Z" => ae_editor::scene_gizmo::SceneViewSnap::Front,
-                        "-Z" => ae_editor::scene_gizmo::SceneViewSnap::Back,
-                        _ => ae_editor::scene_gizmo::SceneViewSnap::Perspective,
+                    } else {
+                        color
                     };
-                    let (target_pitch, target_yaw, target_pos) =
-                        snap.compute_transform(camera.target, 12.0);
-                    ui_actions.push(EngineUiAction::SetCameraTransform {
-                        pitch: target_pitch,
-                        yaw: target_yaw,
-                        position: target_pos,
-                    });
+
+                    ui.painter().circle_filled(end_pos, 6.5, knob_color);
+                    ui.painter().text(
+                        end_pos,
+                        egui::Align2::CENTER_CENTER,
+                        label,
+                        egui::FontId::monospace(8.5),
+                        if is_hovered {
+                            egui::Color32::BLACK
+                        } else {
+                            egui::Color32::WHITE
+                        },
+                    );
+
+                    if resp.clicked() {
+                        let snap = match label {
+                            "X" => ae_editor::scene_gizmo::SceneViewSnap::Right,
+                            "Y" => ae_editor::scene_gizmo::SceneViewSnap::Top,
+                            "Z" => ae_editor::scene_gizmo::SceneViewSnap::Front,
+                            _ => ae_editor::scene_gizmo::SceneViewSnap::Perspective,
+                        };
+                        let (target_pitch, target_yaw, target_pos) =
+                            snap.compute_transform(camera.target, 12.0);
+                        ui_actions.push(EngineUiAction::SetCameraTransform {
+                            pitch: target_pitch,
+                            yaw: target_yaw,
+                            position: target_pos,
+                        });
+                    }
+                } else {
+                    // Negative Axis: Subtle muted line and small dot without letter clutter
+                    let muted_line_color = egui::Color32::from_rgba_unmultiplied(
+                        color_rgb[0],
+                        color_rgb[1],
+                        color_rgb[2],
+                        100,
+                    );
+                    ui.painter().line_segment(
+                        [compass_center, end_pos],
+                        egui::Stroke::new(1.2, muted_line_color),
+                    );
+
+                    let knob_rect = Rect::from_center_size(end_pos, egui::vec2(10.0, 10.0));
+                    let resp = ui.allocate_rect(knob_rect, egui::Sense::click());
+
+                    let is_hovered = resp.hovered();
+                    let dot_color = if is_hovered {
+                        egui::Color32::WHITE
+                    } else {
+                        color
+                    };
+                    let dot_radius = if is_hovered { 4.5 } else { 3.5 };
+
+                    ui.painter().circle_filled(end_pos, dot_radius, dot_color);
+
+                    if resp.clicked() {
+                        let snap = match label {
+                            "-X" => ae_editor::scene_gizmo::SceneViewSnap::Left,
+                            "-Y" => ae_editor::scene_gizmo::SceneViewSnap::Bottom,
+                            "-Z" => ae_editor::scene_gizmo::SceneViewSnap::Back,
+                            _ => ae_editor::scene_gizmo::SceneViewSnap::Perspective,
+                        };
+                        let (target_pitch, target_yaw, target_pos) =
+                            snap.compute_transform(camera.target, 12.0);
+                        ui_actions.push(EngineUiAction::SetCameraTransform {
+                            pitch: target_pitch,
+                            yaw: target_yaw,
+                            position: target_pos,
+                        });
+                    }
                 }
             }
         });

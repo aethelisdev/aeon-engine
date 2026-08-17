@@ -93,6 +93,8 @@ pub struct EngineUi {
     pub viewport_rect_width: f32,
     /// Last registered viewport texture height.
     pub viewport_rect_height: f32,
+    /// Active UI Zoom / Scaling factor (e.g. 1.0 = 100%, 0.8 = 80%, 1.25 = 125%).
+    pub ui_zoom_factor: f32,
 }
 
 impl EngineUi {
@@ -177,6 +179,7 @@ impl EngineUi {
             viewport_texture_id: None,
             viewport_rect_width: 0.0,
             viewport_rect_height: 0.0,
+            ui_zoom_factor: 1.0,
         }
     }
 
@@ -310,6 +313,31 @@ impl EngineUi {
         } else if let Some(old_id) = self.viewport_texture_id.take() {
             self.renderer.free_texture(&old_id);
         }
+
+        // Handle Ctrl + / - / 0 UI Zoom Shortcuts and apply active UI scaling
+        let zoom_delta = self.context.input(|i| {
+            if i.modifiers.ctrl {
+                if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
+                    0.05f32
+                } else if i.key_pressed(egui::Key::Minus) {
+                    -0.05f32
+                } else if i.key_pressed(egui::Key::Num0) {
+                    100.0f32
+                } else {
+                    0.0f32
+                }
+            } else {
+                0.0f32
+            }
+        });
+
+        if zoom_delta == 100.0 {
+            self.ui_zoom_factor = 1.0;
+        } else if zoom_delta != 0.0 {
+            self.ui_zoom_factor = (self.ui_zoom_factor + zoom_delta).clamp(0.6, 2.0);
+        }
+
+        self.context.set_zoom_factor(self.ui_zoom_factor);
 
         // Destructure self fields to allow split borrows in the closure
         let show_preferences = &mut self.show_preferences;

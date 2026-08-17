@@ -185,12 +185,48 @@ impl EngineUi {
                                         .auto_shrink([false; 2])
                                         .show(ui, |ui| match *pref_tab {
                                             0 => {
-                                                ui.heading("General");
+                                                ui.heading("General & Interface");
                                                 ui.separator();
-                                                ui.add_space(10.0);
+                                                ui.add_space(8.0);
                                                 ui.label(
-                                                    "Global engine settings, language, and theme.",
+                                                    "Global engine settings, language, and display scaling.",
                                                 );
+                                                ui.add_space(12.0);
+
+                                                ui.group(|ui| {
+                                                    ui.label(
+                                                        egui::RichText::new("🔍 Display & UI Scale")
+                                                            .strong()
+                                                            .color(egui::Color32::WHITE),
+                                                    );
+                                                    ui.add_space(4.0);
+                                                    ui.label(
+                                                        "Adjust interface scale for different monitor resolutions (or use Ctrl + / Ctrl - shortcuts):",
+                                                    );
+                                                    ui.add_space(8.0);
+
+                                                    let scales = [
+                                                        (0.75, "75%"),
+                                                        (0.80, "80%"),
+                                                        (0.90, "90%"),
+                                                        (1.00, "100% (Default)"),
+                                                        (1.10, "110%"),
+                                                        (1.25, "125%"),
+                                                        (1.50, "150%"),
+                                                    ];
+
+                                                    ui.horizontal_wrapped(|ui| {
+                                                        for (scale_val, label) in scales {
+                                                            if ui.button(label).clicked() {
+                                                                ui_actions.push(
+                                                                    crate::ui::EngineUiAction::SetUiScale(
+                                                                        scale_val,
+                                                                    ),
+                                                                );
+                                                            }
+                                                        }
+                                                    });
+                                                });
                                             }
                                             1 => {
                                                 graphics::draw(ui, gs);

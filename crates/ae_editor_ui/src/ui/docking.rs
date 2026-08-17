@@ -185,7 +185,7 @@ pub fn create_aeon_dock_style(ctx: &egui::Context) -> egui_dock::Style {
 
     // 1. Tab Bar & Main Surface
     style.tab_bar.bg_fill = Color32::from_rgb(15, 15, 20);
-    style.tab_bar.height = 28.0;
+    style.tab_bar.height = 24.0;
     style.main_surface_border_stroke = Stroke::new(1.0, Color32::from_rgb(45, 48, 60));
 
     // 2. Resizable Split Dividers
