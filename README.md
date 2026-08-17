@@ -8,8 +8,7 @@
 [![Instagram](https://img.shields.io/badge/AeonEngine-E4405F?style=flat&logo=instagram&logoColor=white)](https://instagram.com/aeonengine)
 [![X / Twitter](https://img.shields.io/badge/AeonEngine-000000?style=flat&logo=x&logoColor=white)](https://x.com/aeonengine)
 
-
-Aeon Engine Rust Game Engine & Editor
+![Aeon Engine Play Mode](./assets/screenshots/aeonengineplaymode.png)
 
 ## What is Aeon Engine?
 It is a fully modular game engine written almost entirely in safe Rust.
@@ -27,8 +26,6 @@ The goals I’ve set during the development process are as follows:
  - **Combining visuals and Rust code (Redprint)**: redprint is a feature I’ve named that aims to synchronously combine Rust code and visual programming; my goal is for changes made on either side to be reflected on the other side.
  
  - **The ability to work as an editor on Android devices**: If I achieve good results and performance in a modular, disengageable system, I aim to break the perception that game development isn’t possible on Android by making my Aeon engine capable of directly producing games on Android devices.
- 
- - **Creating games using prompts (Vibe Gaming)**: I want to enable my engine to create games using prompts by integrating the latest AI API. This way, I plan to build a useful editor for anyone with game ideas who wants to give it a try.
 
 ## Current Status
  Aeon Engine is currently under active development
