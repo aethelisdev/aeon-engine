@@ -243,6 +243,7 @@ impl DebugShapes {
     }
 
     /// Helper: generates a circle ring on a specified plane.
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_circle(
         verts: &mut Vec<DebugLineVertex>,
         model: &cgmath::Matrix4<f32>,
@@ -276,6 +277,7 @@ impl DebugShapes {
     }
 
     /// Helper: generates a half-circle arc for capsule hemispheres.
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_half_circle(
         verts: &mut Vec<DebugLineVertex>,
         model: &cgmath::Matrix4<f32>,

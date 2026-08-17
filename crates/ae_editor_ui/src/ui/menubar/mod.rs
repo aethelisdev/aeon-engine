@@ -35,69 +35,75 @@ impl EngineUi {
                     .inner_margin(egui::Margin::symmetric(8, 4)),
             )
             .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                egui::MenuBar::new().ui(ui, |ui| {
-                    // Draw modular submenus
-                    file::draw_file_menu(ui, ui_actions);
-                    edit::draw_edit_menu(ui, undo_stack, redo_stack, show_preferences, ui_actions);
-                    view::draw_view_menu(ui, layout_state);
+                ui.horizontal(|ui| {
+                    egui::MenuBar::new().ui(ui, |ui| {
+                        // Draw modular submenus
+                        file::draw_file_menu(ui, ui_actions);
+                        edit::draw_edit_menu(
+                            ui,
+                            undo_stack,
+                            redo_stack,
+                            show_preferences,
+                            ui_actions,
+                        );
+                        view::draw_view_menu(ui, layout_state);
 
-                    // Window Menu (Modular Panels & Reordering)
-                    ui.menu_button("Window", |ui| {
-                        for &panel in PanelId::all() {
-                            let is_open = layout_state.is_panel_visible(panel);
-                            let label = format!("{} {}", panel.icon(), panel.title());
-                            if ui.selectable_label(is_open, label).clicked() {
-                                layout_state.activate_or_open(panel);
+                        // Window Menu (Modular Panels & Reordering)
+                        ui.menu_button("Window", |ui| {
+                            for &panel in PanelId::all_tool_panels() {
+                                let is_open = layout_state.is_panel_visible(panel);
+                                let label = format!("{} {}", panel.icon(), panel.title());
+                                if ui.selectable_label(is_open, label).clicked() {
+                                    layout_state.activate_or_open(panel);
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("🔄 Reset Layout to Default").clicked() {
+                                layout_state.reset_to_default();
+                            }
+                        });
+
+                        // Help Menu
+                        ui.menu_button("Help", |ui| {
+                            if ui.button("About Aeon Engine").clicked() {
+                                *show_about = true;
+                            }
+                        });
+                    });
+
+                    // Engine Mode Controls (Play/Stop button on the right)
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if is_editing {
+                            let play_btn = egui::Button::new(
+                                egui::RichText::new("▶ Play")
+                                    .color(egui::Color32::WHITE)
+                                    .strong(),
+                            )
+                            .fill(egui::Color32::from_rgb(34, 139, 34))
+                            .small();
+
+                            if ui.add(play_btn).clicked() {
+                                ui_actions.push(crate::ui::EngineUiAction::ChangeMode(
+                                    ae_core::modules::EngineMode::Play,
+                                ));
+                            }
+                        } else {
+                            let stop_btn = egui::Button::new(
+                                egui::RichText::new("⏹ Stop")
+                                    .color(egui::Color32::WHITE)
+                                    .strong(),
+                            )
+                            .fill(egui::Color32::from_rgb(180, 40, 40))
+                            .small();
+
+                            if ui.add(stop_btn).clicked() {
+                                ui_actions.push(crate::ui::EngineUiAction::ChangeMode(
+                                    ae_core::modules::EngineMode::Edit,
+                                ));
                             }
                         }
-                        ui.separator();
-                        if ui.button("🔄 Reset Layout to Default").clicked() {
-                            layout_state.reset_to_default();
-                        }
                     });
-
-                    // Help Menu
-                    ui.menu_button("Help", |ui| {
-                        if ui.button("About Aeon Engine").clicked() {
-                            *show_about = true;
-                        }
-                    });
-                });
-
-                // Engine Mode Controls (Play/Stop button on the right)
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if is_editing {
-                        let play_btn = egui::Button::new(
-                            egui::RichText::new("▶ Play")
-                                .color(egui::Color32::WHITE)
-                                .strong(),
-                        )
-                        .fill(egui::Color32::from_rgb(34, 139, 34))
-                        .small();
-
-                        if ui.add(play_btn).clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::ChangeMode(
-                                ae_core::modules::EngineMode::Play,
-                            ));
-                        }
-                    } else {
-                        let stop_btn = egui::Button::new(
-                            egui::RichText::new("⏹ Stop")
-                                .color(egui::Color32::WHITE)
-                                .strong(),
-                        )
-                        .fill(egui::Color32::from_rgb(180, 40, 40))
-                        .small();
-
-                        if ui.add(stop_btn).clicked() {
-                            ui_actions.push(crate::ui::EngineUiAction::ChangeMode(
-                                ae_core::modules::EngineMode::Edit,
-                            ));
-                        }
-                    }
                 });
             });
-        });
     }
 }

@@ -203,6 +203,7 @@ impl GizmoSystem {
     }
 
     /// Legacy render API — opens its own render pass and calls `draw_in_render_pass`.
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &self,
         queue: &wgpu::Queue,
@@ -449,6 +450,7 @@ impl GizmoSystem {
     /// Prepares the gizmo GPU state for an upcoming `draw_overlay()` call.
     /// Writes the MVP uniform buffer based on gizmo position, camera distance,
     /// and screen params. Must be called BEFORE `draw_overlay()` in the same frame.
+    #[allow(clippy::too_many_arguments)]
     pub fn prepare_overlay(
         &self,
         queue: &wgpu::Queue,

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// Aeon Engine — Gizmo Module
-/// Native 3D Transform Gizmo system, modularized by responsibility.
+//! Aeon Engine — Gizmo Module
+//!
+//! Native 3D Transform Gizmo system, modularized by responsibility.
+//!
 
 /// Core types, state, and coordinator struct (`GizmoSystem`).
 pub mod core;

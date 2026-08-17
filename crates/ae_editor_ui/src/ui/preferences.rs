@@ -208,9 +208,7 @@ impl EngineUi {
                                                 ui.heading("Navigation");
                                                 ui.separator();
                                                 ui.add_space(10.0);
-                                                ui.label(
-                                                    "Orbit and viewport navigation settings.",
-                                                );
+                                                ui.label("Orbit and viewport navigation settings.");
                                             }
                                             4 => {
                                                 ui.heading("Keymap");
@@ -242,9 +240,7 @@ impl EngineUi {
                                                 ui.heading("Experimental");
                                                 ui.separator();
                                                 ui.add_space(10.0);
-                                                ui.label(
-                                                    "Trial features (Use with caution).",
-                                                );
+                                                ui.label("Trial features (Use with caution).");
                                             }
                                             9 => {
                                                 modules::draw(ui, enabled_modules, ui_actions);

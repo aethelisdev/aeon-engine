@@ -19,7 +19,7 @@ impl EngineUi {
         editor_state: &ae_editor::editor_state::EditorState,
         camera: &ae_renderer::camera::Camera,
         models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        layout_state: &mut crate::ui::panel_layout::PanelLayoutState,
+        _textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     ) {
         let ctx = ui.ctx().clone();
         ui.add_enabled_ui(is_editing, |ui| {
@@ -472,7 +472,9 @@ impl EngineUi {
                                         .on_hover_text("Open dedicated Material & Submesh Editor tab")
                                         .clicked()
                                     {
-                                        layout_state.activate_or_open(crate::ui::panel_layout::PanelId::MaterialEditor);
+                                        ui_actions.push(EngineUiAction::OpenPanel(
+                                            crate::ui::panel_layout::PanelId::MaterialEditor,
+                                        ));
                                     }
                                 });
                             });
@@ -489,7 +491,9 @@ impl EngineUi {
                                         .button("🎨 Open Material Editor ↗")
                                         .clicked()
                                     {
-                                        layout_state.activate_or_open(crate::ui::panel_layout::PanelId::MaterialEditor);
+                                        ui_actions.push(EngineUiAction::OpenPanel(
+                                            crate::ui::panel_layout::PanelId::MaterialEditor,
+                                        ));
                                     }
                                 });
                             });
@@ -551,7 +555,9 @@ impl EngineUi {
                                         .on_hover_text("Open bottom Animation Timeline Studio panel")
                                         .clicked()
                                     {
-                                        layout_state.activate_or_open(crate::ui::panel_layout::PanelId::AnimationTimeline);
+                                        ui_actions.push(EngineUiAction::OpenPanel(
+                                            crate::ui::panel_layout::PanelId::AnimationTimeline,
+                                        ));
                                     }
                                 });
                             });

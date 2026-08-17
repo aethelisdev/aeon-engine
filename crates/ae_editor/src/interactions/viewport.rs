@@ -6,6 +6,7 @@ use crate::editor_state::EditorState;
 use crate::input::InputManager;
 
 /// Handles cursor movement events — delegates to mouse-look and gizmo drag.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_cursor_moved(
     editor: &mut EditorState,
     camera: &mut ae_core::camera::Camera,
@@ -53,6 +54,7 @@ pub fn handle_cursor_moved(
 }
 
 /// Routes mouse button press/release events to the appropriate handler.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_mouse_click(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,

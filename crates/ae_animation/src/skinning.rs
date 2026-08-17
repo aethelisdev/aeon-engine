@@ -115,9 +115,12 @@ pub fn compute_skinning_matrices(
     let count = skeleton.joints.len().min(global_transforms.len());
     let mut matrices = Vec::with_capacity(count);
 
-    for i in 0..count {
-        let joint = &skeleton.joints[i];
-        let global = global_transforms[i];
+    for (joint, &global) in skeleton
+        .joints
+        .iter()
+        .take(count)
+        .zip(&global_transforms[..count])
+    {
         let skin_mat = global * joint.inverse_bind_matrix;
         matrices.push(JointMatrix::from_mat4(skin_mat));
     }

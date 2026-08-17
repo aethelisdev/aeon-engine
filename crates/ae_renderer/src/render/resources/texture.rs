@@ -147,7 +147,7 @@ impl RenderState {
             mag_filter,
             min_filter,
             mipmap_filter,
-            anisotropy_clamp: cpu_data.sampler_config.anisotropy_clamp.min(16).max(1),
+            anisotropy_clamp: cpu_data.sampler_config.anisotropy_clamp.clamp(1, 16),
             ..Default::default()
         });
 

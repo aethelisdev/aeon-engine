@@ -14,12 +14,11 @@ pub mod panel_layout;
 mod preferences;
 mod status_bar;
 mod style;
-pub mod tab_bar;
 mod types;
 mod viewport_hud;
 
 // Re-exports
-pub use panel_layout::{PanelId, PanelLayoutState, PanelZone, TabDragState};
+pub use panel_layout::{PanelId, PanelLayoutState};
 pub use panels::hierarchy::{HierarchyCache, HierarchyRow};
 pub use types::{ConsoleEntry, EngineUiAction};
 
@@ -61,8 +60,6 @@ pub struct EngineUi {
     pub should_exit: bool,
     /// Modular docking panel and tab layout state.
     pub layout_state: PanelLayoutState,
-    /// Interactive mouse tab drag-and-drop state.
-    pub tab_drag_state: Option<TabDragState>,
     pub hierarchy_search_query: String,
     /// Snapshot of log entries (updated at most once per frame, only when count changed).
     console_entries: Vec<ConsoleEntry>,
@@ -162,7 +159,6 @@ impl EngineUi {
             scene_dialog_receivers: Vec::new(),
             should_exit: false,
             layout_state: PanelLayoutState::new_default(),
-            tab_drag_state: None,
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
@@ -333,7 +329,6 @@ impl EngineUi {
         let gizmo_space = &mut self.gizmo_space;
         let status_message = &mut self.status_message;
         let layout_state = &mut self.layout_state;
-        let tab_drag_state = &mut self.tab_drag_state;
         let hierarchy_search_query = &mut self.hierarchy_search_query;
         let console_entries = &self.console_entries;
         let profiler_ecs_ms = self.profiler_ecs_ms;
@@ -346,7 +341,7 @@ impl EngineUi {
         let smoothed_fps = self.displayed_fps;
         let hierarchy_cache = &mut self.hierarchy_cache;
 
-        let viewport_rect = std::cell::Cell::new(egui::Rect::EVERYTHING);
+        let viewport_rect = std::cell::Cell::new(egui::Rect::ZERO);
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
         let full_output = self.context.run_ui(raw_input, |ui| {
@@ -401,16 +396,13 @@ impl EngineUi {
                 }
             }
 
-            // 2. Bottom Utility Bar (Toggle buttons + Status)
+            // 2. Bottom Status Bar
             if let Some(rect) = Self::draw_utility_bar(layout_state, status_message, ui) {
                 ui_rects_collector.borrow_mut().push(rect);
             }
 
-            // 2.1 Left Docked Panel (Draggable Tab Bar + Dynamic Panel Content)
-            Self::draw_left_dock(
-                ui,
-                layout_state,
-                tab_drag_state,
+            // 3. Central Tree Docking System (egui_dock - Tree-based split tab layout)
+            let mut tab_viewer = docking::EditorTabViewer {
                 world,
                 hierarchy_cache,
                 hierarchy_search_query,
@@ -428,7 +420,7 @@ impl EngineUi {
                 console_entries,
                 wireframe_enabled,
                 grid_enabled,
-                smoothed_fps,
+                fps: smoothed_fps,
                 profiler_ecs_ms,
                 profiler_render_ms,
                 profiler_present_ms,
@@ -436,125 +428,18 @@ impl EngineUi {
                 profiler_frame_ms,
                 memory_models_mb,
                 memory_textures_mb,
-                &ui_rects_collector,
-            );
+                viewport_texture_id: self.viewport_texture_id,
+                viewport_rect_out: &viewport_rect,
+                enabled_modules,
+                gizmo_mode,
+                gizmo_space,
+            };
 
-            // 2.2 Right Docked Panel (Draggable Tab Bar + Dynamic Panel Content)
-            Self::draw_right_dock(
-                ui,
-                layout_state,
-                tab_drag_state,
-                world,
-                hierarchy_cache,
-                hierarchy_search_query,
-                selected_entity,
-                last_selected_entity,
-                inspector_euler,
-                inspector_color_hex,
-                saved_swatches,
-                is_editing,
-                ui_actions,
-                editor_state,
-                camera,
-                models,
-                textures,
-                console_entries,
-                wireframe_enabled,
-                grid_enabled,
-                smoothed_fps,
-                profiler_ecs_ms,
-                profiler_render_ms,
-                profiler_present_ms,
-                profiler_ui_ms,
-                profiler_frame_ms,
-                memory_models_mb,
-                memory_textures_mb,
-                &ui_rects_collector,
-            );
-
-            // 2.3 Central Viewport Area & Bottom Docked Panel
-            let central_rect = egui::CentralPanel::default()
+            egui::CentralPanel::default()
                 .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
                 .show(ui, |ui| {
-                    // Docks bottom panel strictly within the central area
-                    Self::draw_bottom_dock(
-                        ui,
-                        layout_state,
-                        tab_drag_state,
-                        world,
-                        hierarchy_cache,
-                        hierarchy_search_query,
-                        selected_entity,
-                        last_selected_entity,
-                        inspector_euler,
-                        inspector_color_hex,
-                        saved_swatches,
-                        is_editing,
-                        ui_actions,
-                        editor_state,
-                        camera,
-                        models,
-                        textures,
-                        console_entries,
-                        wireframe_enabled,
-                        grid_enabled,
-                        smoothed_fps,
-                        profiler_ecs_ms,
-                        profiler_render_ms,
-                        profiler_present_ms,
-                        profiler_ui_ms,
-                        profiler_frame_ms,
-                        memory_models_mb,
-                        memory_textures_mb,
-                        &ui_rects_collector,
-                    );
-
-                    let rect = ui.available_rect_before_wrap();
-                    if let Some(texture_id) = self.viewport_texture_id {
-                        ui.image(egui::load::SizedTexture {
-                            id: texture_id,
-                            size: rect.size(),
-                        });
-                    } else {
-                        ui.centered_and_justified(|ui| {
-                            ui.label("Rendering viewport...");
-                        });
-                    }
-                    rect
-                })
-                .inner;
-            viewport_rect.set(central_rect);
-
-            // 3. Viewport Toolbar, Scene Gizmo & Billboard Icons
-            let is_render_active =
-                enabled_modules.contains(&ae_core::modules::EngineModule::Render);
-            if is_editing && is_render_active {
-                let available_rect = central_rect;
-                viewport_hud::draw_viewport_toolbar(
-                    &ctx,
-                    available_rect,
-                    wireframe_enabled,
-                    gizmo_mode,
-                    gizmo_space,
-                    camera,
-                    ui_actions,
-                );
-
-                viewport_hud::draw_camera_hud(&ctx, available_rect, camera);
-                viewport_hud::draw_scene_navigation_gizmo(&ctx, available_rect, camera, ui_actions);
-
-                viewport_hud::draw_billboard_icons(
-                    &ctx,
-                    available_rect,
-                    world,
-                    camera,
-                    *selected_entity,
-                    ui_actions,
-                );
-            }
-
-            // 4. Finalize Tab Drag & Drop Interactions (Release drop commit & Floating preview badges)
-            Self::finalize_tab_drag_interaction(layout_state, tab_drag_state, ui);
+                    Self::draw_docking_system(ui, layout_state, &mut tab_viewer);
+                });
 
             // Loading Overlay and Dialogs
             let mut collected_rects = ui_rects_collector.borrow_mut();
@@ -622,7 +507,16 @@ impl EngineUi {
         }
 
         // Check if viewport size changed to trigger re-registration on next frame
-        let new_rect = viewport_rect.get();
+        let mut new_rect = viewport_rect.get();
+        if !new_rect.is_positive()
+            || !new_rect.min.x.is_finite()
+            || !new_rect.min.y.is_finite()
+            || !new_rect.max.x.is_finite()
+            || !new_rect.max.y.is_finite()
+        {
+            new_rect = egui::Rect::ZERO;
+        }
+
         if new_rect.width() != self.viewport_rect_width
             || new_rect.height() != self.viewport_rect_height
         {
@@ -633,6 +527,6 @@ impl EngineUi {
             self.viewport_rect_height = new_rect.height();
         }
 
-        viewport_rect.get()
+        new_rect
     }
 }

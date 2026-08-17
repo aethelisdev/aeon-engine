@@ -574,10 +574,8 @@ impl GizmoSystem {
         let thickness = 0.003;
         let segments = 64; // Since triangles are drawn with MSAA, 64 segments provide perfect smoothness!
 
-        let color = if self.is_dragging {
-            [1.0, 1.0, 1.0] // White when dragging
-        } else if self.hovered_axis == ActiveAxis::Free {
-            [1.0, 1.0, 1.0] // White when hovered
+        let color = if self.is_dragging || self.hovered_axis == ActiveAxis::Free {
+            [1.0, 1.0, 1.0] // White when dragging or hovered
         } else {
             [0.85, 0.85, 0.85] // Light gray otherwise
         };

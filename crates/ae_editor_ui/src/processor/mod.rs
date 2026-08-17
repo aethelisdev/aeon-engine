@@ -40,6 +40,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::ToggleModule(module) => {
                 system::handle_toggle_module(ctx, module)
             }
+            crate::ui::EngineUiAction::OpenPanel(panel) => {
+                ctx.ui.layout_state.activate_or_open(panel)
+            }
             crate::ui::EngineUiAction::GarbageCollect => system::handle_garbage_collect(ctx),
 
             // --- ENTITY LIFECYCLE & SPAWNING ACTIONS ---

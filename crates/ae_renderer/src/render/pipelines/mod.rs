@@ -23,6 +23,7 @@ pub struct PipelineManager {
 
 impl PipelineManager {
     /// Creates all render pipelines using the provided bind group layouts and MSAA count.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         device: &wgpu::Device,
         camera_bgl: &wgpu::BindGroupLayout,
@@ -74,6 +75,7 @@ impl PipelineManager {
     }
 
     /// Destroys and rebuilds all pipelines with a new MSAA sample count.
+    #[allow(clippy::too_many_arguments)]
     pub fn rebuild_for_msaa(
         &mut self,
         device: &wgpu::Device,

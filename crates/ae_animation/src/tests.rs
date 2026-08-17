@@ -4,6 +4,7 @@
 //! Unit tests for skeletal hierarchy, keyframe interpolation, and skinning palette calculations.
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use crate::clip::{
         AnimationClip, Channel, Interpolation, Keyframe, RotationTrack, TargetProperty, VectorTrack,

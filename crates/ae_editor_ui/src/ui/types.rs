@@ -24,6 +24,7 @@ pub enum EngineUiAction {
     ToggleVisibility(hecs::Entity),
 
     // --- UI/EDITOR STATE ACTIONS ---
+    OpenPanel(crate::ui::panel_layout::PanelId),
     SelectEntity(Option<hecs::Entity>),
     SetCameraMode(ae_renderer::camera::ProjectionMode),
     SetCameraTransform {

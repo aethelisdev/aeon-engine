@@ -22,6 +22,12 @@ pub struct AudioManager {
     is_muted: bool,
 }
 
+impl Default for AudioManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AudioManager {
     /// Creates and initializes the `AudioManager` with hardware output device streams.
     /// If no physical audio output device is present or audio driver initialization fails,

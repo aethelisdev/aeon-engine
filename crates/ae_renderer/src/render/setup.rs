@@ -110,8 +110,10 @@ impl RenderState {
         };
 
         let initial_msaa = 4;
-        let mut graphics_settings = GraphicsSettings::default();
-        graphics_settings.msaa_samples = initial_msaa;
+        let graphics_settings = GraphicsSettings {
+            msaa_samples: initial_msaa,
+            ..Default::default()
+        };
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps

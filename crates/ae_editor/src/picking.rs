@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, SquareMatrix, Vector3, Vector4};
+//! Aeon Engine Picking & Raycasting Module
+//!
+//! This module provides utilities to handle mouse-to-world interaction,
+//! including ray generation from screen coordinates and intersection testing.
+//!
 
-/// Aeon Engine Picking & Raycasting Module
-/// This module provides utilities to handle mouse-to-world interaction,
-/// including ray generation from screen coordinates and intersection testing.
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, SquareMatrix, Vector3, Vector4};
 
 /// Represents a simple Ray in 3D space.
 pub struct Ray {

@@ -6,6 +6,7 @@ use ae_core::ecs::{Position, Rotation, Scale};
 use cgmath::{EuclideanSpace, Euler, Quaternion, Rad, Vector3};
 
 /// Processes gizmo drag movement for Translate, Rotate, and Scale modes.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_gizmo_drag(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
@@ -57,8 +58,9 @@ pub fn handle_gizmo_drag(
         );
 
         let has_snapshots = !editor.current_edit_snapshots.is_empty();
-        if delta.is_some() && has_snapshots {
-            let d = delta.unwrap();
+        if let Some(d) = delta
+            && has_snapshots
+        {
             let mut dirtied_entities = Vec::new();
             match ui_gizmo_mode {
                 crate::gizmo::GizmoMode::Translate => {

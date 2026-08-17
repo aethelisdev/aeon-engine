@@ -1,517 +1,230 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-
-use crate::ui::panel_layout::{PanelId, PanelLayoutState, PanelZone, TabDragState};
+/// Tree Docking Coordinator (`egui_dock` — Multi-zone split and tab dock layout)
+/// Implements `egui_dock::TabViewer` for all Aeon Engine panels and the central 3D Viewport.
+use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use crate::ui::types::ConsoleEntry;
-use crate::ui::{EngineUi, EngineUiAction, tab_bar};
-use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, Vec2};
+use crate::ui::{EngineUi, EngineUiAction};
+use egui::{Color32, CornerRadius, Rect, Stroke};
 
-impl EngineUi {
-    /// Polymorphic renderer for any docking panel content based on its `PanelId`.
-    /// Enables any panel to be rendered in the Left, Right, or Bottom docking zones interchangeably.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn draw_docked_panel_content(
-        panel_id: PanelId,
-        ui: &mut egui::Ui,
-        world: &hecs::World,
-        hierarchy_cache: &mut crate::ui::panels::hierarchy::HierarchyCache,
-        hierarchy_search_query: &mut String,
-        selected_entity: &mut Option<hecs::Entity>,
-        last_selected_entity: &mut Option<hecs::Entity>,
-        inspector_euler: &mut [f32; 3],
-        inspector_color_hex: &mut String,
-        saved_swatches: &mut Vec<[f32; 4]>,
-        is_editing: bool,
-        ui_actions: &mut Vec<EngineUiAction>,
-        editor_state: &ae_editor::editor_state::EditorState,
-        camera: &ae_renderer::camera::Camera,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-        console_entries: &[ConsoleEntry],
-        wireframe_enabled: &mut bool,
-        grid_enabled: &mut bool,
-        fps: f32,
-        profiler_ecs_ms: f32,
-        profiler_render_ms: f32,
-        profiler_present_ms: f32,
-        profiler_ui_ms: f32,
-        profiler_frame_ms: f32,
-        memory_models_mb: f32,
-        memory_textures_mb: f32,
-        layout_state: &mut PanelLayoutState,
-    ) {
-        match panel_id {
+/// Tab viewer context struct binding engine runtime state to `egui_dock`.
+pub struct EditorTabViewer<'a> {
+    pub world: &'a hecs::World,
+    pub hierarchy_cache: &'a mut crate::ui::panels::hierarchy::HierarchyCache,
+    pub hierarchy_search_query: &'a mut String,
+    pub selected_entity: &'a mut Option<hecs::Entity>,
+    pub last_selected_entity: &'a mut Option<hecs::Entity>,
+    pub inspector_euler: &'a mut [f32; 3],
+    pub inspector_color_hex: &'a mut String,
+    pub saved_swatches: &'a mut Vec<[f32; 4]>,
+    pub is_editing: bool,
+    pub ui_actions: &'a mut Vec<EngineUiAction>,
+    pub editor_state: &'a ae_editor::editor_state::EditorState,
+    pub camera: &'a ae_renderer::camera::Camera,
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    pub console_entries: &'a [ConsoleEntry],
+    pub wireframe_enabled: &'a mut bool,
+    pub grid_enabled: &'a mut bool,
+    pub fps: f32,
+    pub profiler_ecs_ms: f32,
+    pub profiler_render_ms: f32,
+    pub profiler_present_ms: f32,
+    pub profiler_ui_ms: f32,
+    pub profiler_frame_ms: f32,
+    pub memory_models_mb: f32,
+    pub memory_textures_mb: f32,
+    pub viewport_texture_id: Option<egui::TextureId>,
+    pub viewport_rect_out: &'a std::cell::Cell<Rect>,
+    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    pub gizmo_mode: &'a mut ae_editor::gizmo::GizmoMode,
+    pub gizmo_space: &'a mut ae_editor::gizmo::GizmoSpace,
+}
+
+impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
+    type Tab = PanelId;
+
+    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
+        egui::Id::new(format!("tab_{:?}", tab))
+    }
+
+    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
+        format!("{} {}", tab.icon(), tab.title()).into()
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
+        match tab {
+            PanelId::Viewport => {
+                let rect = ui.available_rect_before_wrap();
+                if let Some(texture_id) = self.viewport_texture_id {
+                    ui.image(egui::load::SizedTexture {
+                        id: texture_id,
+                        size: rect.size(),
+                    });
+                } else {
+                    ui.centered_and_justified(|ui| {
+                        ui.label("Rendering viewport...");
+                    });
+                }
+                self.viewport_rect_out.set(rect);
+
+                // Viewport Toolbar & HUD Overlays
+                let is_render_active = self
+                    .enabled_modules
+                    .contains(&ae_core::modules::EngineModule::Render);
+                if self.is_editing && is_render_active {
+                    crate::ui::viewport_hud::draw_viewport_toolbar(
+                        ui.ctx(),
+                        rect,
+                        self.wireframe_enabled,
+                        self.gizmo_mode,
+                        self.gizmo_space,
+                        self.camera,
+                        self.ui_actions,
+                    );
+                    crate::ui::viewport_hud::draw_camera_hud(ui.ctx(), rect, self.camera);
+                    crate::ui::viewport_hud::draw_scene_navigation_gizmo(
+                        ui.ctx(),
+                        rect,
+                        self.camera,
+                        self.ui_actions,
+                    );
+                    crate::ui::viewport_hud::draw_billboard_icons(
+                        ui.ctx(),
+                        rect,
+                        self.world,
+                        self.camera,
+                        *self.selected_entity,
+                        self.ui_actions,
+                    );
+                }
+            }
             PanelId::Hierarchy => {
-                Self::draw_hierarchy_content(
+                EngineUi::draw_hierarchy_content(
                     ui,
-                    world,
-                    hierarchy_cache,
-                    hierarchy_search_query,
-                    selected_entity,
-                    is_editing,
-                    ui_actions,
+                    self.world,
+                    self.hierarchy_cache,
+                    self.hierarchy_search_query,
+                    self.selected_entity,
+                    self.is_editing,
+                    self.ui_actions,
                 );
             }
             PanelId::Stats => {
-                Self::draw_stats_content(
+                EngineUi::draw_stats_content(
                     ui,
-                    wireframe_enabled,
-                    grid_enabled,
-                    fps,
-                    profiler_ecs_ms,
-                    profiler_render_ms,
-                    profiler_present_ms,
-                    profiler_ui_ms,
-                    profiler_frame_ms,
-                    memory_models_mb,
-                    memory_textures_mb,
+                    self.wireframe_enabled,
+                    self.grid_enabled,
+                    self.fps,
+                    self.profiler_ecs_ms,
+                    self.profiler_render_ms,
+                    self.profiler_present_ms,
+                    self.profiler_ui_ms,
+                    self.profiler_frame_ms,
+                    self.memory_models_mb,
+                    self.memory_textures_mb,
                 );
             }
             PanelId::Inspector => {
-                Self::draw_inspector_content(
+                EngineUi::draw_inspector_content(
                     ui,
-                    world,
-                    selected_entity,
-                    last_selected_entity,
-                    inspector_euler,
-                    inspector_color_hex,
-                    saved_swatches,
-                    is_editing,
-                    ui_actions,
-                    editor_state,
-                    camera,
-                    models,
-                    layout_state,
+                    self.world,
+                    self.selected_entity,
+                    self.last_selected_entity,
+                    self.inspector_euler,
+                    self.inspector_color_hex,
+                    self.saved_swatches,
+                    self.is_editing,
+                    self.ui_actions,
+                    self.editor_state,
+                    self.camera,
+                    self.models,
+                    self.textures,
                 );
             }
             PanelId::MaterialEditor => {
-                Self::draw_material_editor_content(
+                EngineUi::draw_material_editor_content(
                     ui,
-                    world,
-                    *selected_entity,
-                    textures,
-                    models,
-                    ui_actions,
+                    self.world,
+                    *self.selected_entity,
+                    self.textures,
+                    self.models,
+                    self.ui_actions,
                 );
             }
             PanelId::Assets => {
-                Self::draw_assets_content(ui, models, textures, ui_actions);
+                EngineUi::draw_assets_content(ui, self.models, self.textures, self.ui_actions);
             }
             PanelId::Console => {
-                Self::draw_console_content(ui, console_entries, ui_actions);
+                EngineUi::draw_console_content(ui, self.console_entries, self.ui_actions);
             }
             PanelId::AnimationTimeline => {
-                Self::draw_timeline_content(ui, world, *selected_entity, ui_actions);
+                EngineUi::draw_timeline_content(
+                    ui,
+                    self.world,
+                    *self.selected_entity,
+                    self.ui_actions,
+                );
             }
         }
     }
 
-    /// Renders the left side docking panel container and active tab content.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn draw_left_dock(
-        ui: &mut egui::Ui,
-        layout_state: &mut PanelLayoutState,
-        tab_drag_state: &mut Option<TabDragState>,
-        world: &hecs::World,
-        hierarchy_cache: &mut crate::ui::panels::hierarchy::HierarchyCache,
-        hierarchy_search_query: &mut String,
-        selected_entity: &mut Option<hecs::Entity>,
-        last_selected_entity: &mut Option<hecs::Entity>,
-        inspector_euler: &mut [f32; 3],
-        inspector_color_hex: &mut String,
-        saved_swatches: &mut Vec<[f32; 4]>,
-        is_editing: bool,
-        ui_actions: &mut Vec<EngineUiAction>,
-        editor_state: &ae_editor::editor_state::EditorState,
-        camera: &ae_renderer::camera::Camera,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-        console_entries: &[ConsoleEntry],
-        wireframe_enabled: &mut bool,
-        grid_enabled: &mut bool,
-        smoothed_fps: f32,
-        profiler_ecs_ms: f32,
-        profiler_render_ms: f32,
-        profiler_present_ms: f32,
-        profiler_ui_ms: f32,
-        profiler_frame_ms: f32,
-        memory_models_mb: f32,
-        memory_textures_mb: f32,
-        ui_rects_collector: &std::cell::RefCell<Vec<egui::Rect>>,
-    ) {
-        if !layout_state.show_left_panel || layout_state.left_tabs.is_empty() {
-            return;
-        }
-
-        let left_resp = egui::Panel::left("left_docked_panel")
-            .default_size(260.0)
-            .min_size(150.0)
-            .max_size(600.0)
-            .resizable(true)
-            .frame(
-                egui::Frame::new()
-                    .fill(egui::Color32::from_rgb(20, 20, 25))
-                    .inner_margin(egui::Margin::symmetric(8, 6))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
-            )
-            .show(ui, |ui| {
-                // 1. Draggable Tab Bar + Close Button
-                ui.horizontal(|ui| {
-                    tab_bar::draw_draggable_tab_bar(
-                        ui,
-                        PanelZone::Left,
-                        layout_state,
-                        tab_drag_state,
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("✖")
-                                        .size(11.0)
-                                        .color(egui::Color32::from_gray(160)),
-                                )
-                                .fill(egui::Color32::TRANSPARENT)
-                                .frame(false),
-                            )
-                            .on_hover_text("Close Left Panel")
-                            .clicked()
-                        {
-                            layout_state.show_left_panel = false;
-                        }
-                    });
-                });
-                ui.add_space(4.0);
-
-                // 2. Panel Content
-                if let Some(active_panel) = layout_state.active_left_tab {
-                    Self::draw_docked_panel_content(
-                        active_panel,
-                        ui,
-                        world,
-                        hierarchy_cache,
-                        hierarchy_search_query,
-                        selected_entity,
-                        last_selected_entity,
-                        inspector_euler,
-                        inspector_color_hex,
-                        saved_swatches,
-                        is_editing,
-                        ui_actions,
-                        editor_state,
-                        camera,
-                        models,
-                        textures,
-                        console_entries,
-                        wireframe_enabled,
-                        grid_enabled,
-                        smoothed_fps,
-                        profiler_ecs_ms,
-                        profiler_render_ms,
-                        profiler_present_ms,
-                        profiler_ui_ms,
-                        profiler_frame_ms,
-                        memory_models_mb,
-                        memory_textures_mb,
-                        layout_state,
-                    );
-                }
-            });
-        ui_rects_collector
-            .borrow_mut()
-            .push(left_resp.response.rect);
+    fn is_closeable(&self, tab: &Self::Tab) -> bool {
+        *tab != PanelId::Viewport
     }
 
-    /// Renders the right side docking panel container and active tab content.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn draw_right_dock(
-        ui: &mut egui::Ui,
-        layout_state: &mut PanelLayoutState,
-        tab_drag_state: &mut Option<TabDragState>,
-        world: &hecs::World,
-        hierarchy_cache: &mut crate::ui::panels::hierarchy::HierarchyCache,
-        hierarchy_search_query: &mut String,
-        selected_entity: &mut Option<hecs::Entity>,
-        last_selected_entity: &mut Option<hecs::Entity>,
-        inspector_euler: &mut [f32; 3],
-        inspector_color_hex: &mut String,
-        saved_swatches: &mut Vec<[f32; 4]>,
-        is_editing: bool,
-        ui_actions: &mut Vec<EngineUiAction>,
-        editor_state: &ae_editor::editor_state::EditorState,
-        camera: &ae_renderer::camera::Camera,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-        console_entries: &[ConsoleEntry],
-        wireframe_enabled: &mut bool,
-        grid_enabled: &mut bool,
-        smoothed_fps: f32,
-        profiler_ecs_ms: f32,
-        profiler_render_ms: f32,
-        profiler_present_ms: f32,
-        profiler_ui_ms: f32,
-        profiler_frame_ms: f32,
-        memory_models_mb: f32,
-        memory_textures_mb: f32,
-        ui_rects_collector: &std::cell::RefCell<Vec<egui::Rect>>,
-    ) {
-        if !layout_state.show_right_panel || layout_state.right_tabs.is_empty() {
-            return;
-        }
-
-        let right_resp = egui::Panel::right("right_docked_panel")
-            .default_size(320.0)
-            .min_size(200.0)
-            .max_size(700.0)
-            .resizable(true)
-            .frame(
-                egui::Frame::new()
-                    .fill(egui::Color32::from_rgb(20, 20, 25))
-                    .inner_margin(egui::Margin::symmetric(8, 6))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
-            )
-            .show(ui, |ui| {
-                // 1. Draggable Tab Bar + Close Button
-                ui.horizontal(|ui| {
-                    tab_bar::draw_draggable_tab_bar(
-                        ui,
-                        PanelZone::Right,
-                        layout_state,
-                        tab_drag_state,
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("✖")
-                                        .size(11.0)
-                                        .color(egui::Color32::from_gray(160)),
-                                )
-                                .fill(egui::Color32::TRANSPARENT)
-                                .frame(false),
-                            )
-                            .on_hover_text("Close Right Panel")
-                            .clicked()
-                        {
-                            layout_state.show_right_panel = false;
-                        }
-                    });
-                });
-                ui.add_space(4.0);
-
-                // 2. Panel Content
-                if let Some(active_panel) = layout_state.active_right_tab {
-                    Self::draw_docked_panel_content(
-                        active_panel,
-                        ui,
-                        world,
-                        hierarchy_cache,
-                        hierarchy_search_query,
-                        selected_entity,
-                        last_selected_entity,
-                        inspector_euler,
-                        inspector_color_hex,
-                        saved_swatches,
-                        is_editing,
-                        ui_actions,
-                        editor_state,
-                        camera,
-                        models,
-                        textures,
-                        console_entries,
-                        wireframe_enabled,
-                        grid_enabled,
-                        smoothed_fps,
-                        profiler_ecs_ms,
-                        profiler_render_ms,
-                        profiler_present_ms,
-                        profiler_ui_ms,
-                        profiler_frame_ms,
-                        memory_models_mb,
-                        memory_textures_mb,
-                        layout_state,
-                    );
-                }
-            });
-        ui_rects_collector
-            .borrow_mut()
-            .push(right_resp.response.rect);
+    fn clear_background(&self, tab: &Self::Tab) -> bool {
+        // Viewport clears its own RTT background
+        *tab != PanelId::Viewport
     }
+}
 
-    /// Renders the bottom side docking panel container within the viewport work area.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn draw_bottom_dock(
+/// Configures the visual style of the `egui_dock` tree to match the Aeon Dark Cyan theme.
+pub fn create_aeon_dock_style(ctx: &egui::Context) -> egui_dock::Style {
+    let mut style = egui_dock::Style::from_egui(ctx.global_style().as_ref());
+
+    // 1. Tab Bar & Main Surface
+    style.tab_bar.bg_fill = Color32::from_rgb(15, 15, 20);
+    style.tab_bar.height = 28.0;
+    style.main_surface_border_stroke = Stroke::new(1.0, Color32::from_rgb(45, 48, 60));
+
+    // 2. Resizable Split Dividers
+    style.separator.color_idle = Color32::from_rgb(45, 48, 60);
+    style.separator.color_hovered = Color32::from_rgb(0, 229, 255);
+    style.separator.color_dragged = Color32::from_rgb(0, 229, 255);
+    style.separator.width = 2.0;
+    style.separator.extra = 4.0;
+
+    // 3. Tab Styling & Aeon Cyan Line Highlight
+    style.tab.tab_body.bg_fill = Color32::from_rgb(20, 20, 25);
+    style.tab.tab_body.corner_radius = CornerRadius {
+        nw: 4,
+        ne: 4,
+        sw: 0,
+        se: 0,
+    };
+    style.tab.active.text_color = Color32::from_rgb(0, 229, 255);
+    style.tab.active.bg_fill = Color32::from_rgb(20, 20, 25);
+    style.tab.focused.text_color = Color32::from_rgb(0, 229, 255);
+    style.tab.focused.bg_fill = Color32::from_rgb(20, 20, 25);
+    style.tab.inactive.text_color = Color32::from_rgb(160, 160, 175);
+    style.tab.inactive.bg_fill = Color32::from_rgb(18, 19, 24);
+    style.tab.hovered.text_color = Color32::WHITE;
+    style.tab.hovered.bg_fill = Color32::from_rgb(28, 30, 38);
+
+    style
+}
+
+impl EngineUi {
+    /// Renders the complete tree docking system using `egui_dock`.
+    pub(super) fn draw_docking_system(
         ui: &mut egui::Ui,
         layout_state: &mut PanelLayoutState,
-        tab_drag_state: &mut Option<TabDragState>,
-        world: &hecs::World,
-        hierarchy_cache: &mut crate::ui::panels::hierarchy::HierarchyCache,
-        hierarchy_search_query: &mut String,
-        selected_entity: &mut Option<hecs::Entity>,
-        last_selected_entity: &mut Option<hecs::Entity>,
-        inspector_euler: &mut [f32; 3],
-        inspector_color_hex: &mut String,
-        saved_swatches: &mut Vec<[f32; 4]>,
-        is_editing: bool,
-        ui_actions: &mut Vec<EngineUiAction>,
-        editor_state: &ae_editor::editor_state::EditorState,
-        camera: &ae_renderer::camera::Camera,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-        console_entries: &[ConsoleEntry],
-        wireframe_enabled: &mut bool,
-        grid_enabled: &mut bool,
-        smoothed_fps: f32,
-        profiler_ecs_ms: f32,
-        profiler_render_ms: f32,
-        profiler_present_ms: f32,
-        profiler_ui_ms: f32,
-        profiler_frame_ms: f32,
-        memory_models_mb: f32,
-        memory_textures_mb: f32,
-        ui_rects_collector: &std::cell::RefCell<Vec<egui::Rect>>,
+        tab_viewer: &mut EditorTabViewer<'_>,
     ) {
-        if !layout_state.show_bottom_panel || layout_state.bottom_tabs.is_empty() {
-            return;
-        }
-
-        let bottom_resp = egui::Panel::bottom("bottom_docked_panel")
-            .default_size(240.0)
-            .min_size(100.0)
-            .max_size(500.0)
-            .resizable(true)
-            .frame(
-                egui::Frame::new()
-                    .fill(egui::Color32::from_rgb(20, 20, 25))
-                    .inner_margin(egui::Margin::symmetric(8, 6))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
-            )
-            .show(ui, |ui| {
-                // 1. Draggable Tab Bar + Close Button
-                ui.horizontal(|ui| {
-                    tab_bar::draw_draggable_tab_bar(
-                        ui,
-                        PanelZone::Bottom,
-                        layout_state,
-                        tab_drag_state,
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new("✖")
-                                        .size(11.0)
-                                        .color(egui::Color32::from_gray(160)),
-                                )
-                                .fill(egui::Color32::TRANSPARENT)
-                                .frame(false),
-                            )
-                            .on_hover_text("Close Bottom Panel")
-                            .clicked()
-                        {
-                            layout_state.show_bottom_panel = false;
-                        }
-                    });
-                });
-                ui.add_space(4.0);
-
-                // 2. Panel Content
-                if let Some(active_panel) = layout_state.active_bottom_tab {
-                    Self::draw_docked_panel_content(
-                        active_panel,
-                        ui,
-                        world,
-                        hierarchy_cache,
-                        hierarchy_search_query,
-                        selected_entity,
-                        last_selected_entity,
-                        inspector_euler,
-                        inspector_color_hex,
-                        saved_swatches,
-                        is_editing,
-                        ui_actions,
-                        editor_state,
-                        camera,
-                        models,
-                        textures,
-                        console_entries,
-                        wireframe_enabled,
-                        grid_enabled,
-                        smoothed_fps,
-                        profiler_ecs_ms,
-                        profiler_render_ms,
-                        profiler_present_ms,
-                        profiler_ui_ms,
-                        profiler_frame_ms,
-                        memory_models_mb,
-                        memory_textures_mb,
-                        layout_state,
-                    );
-                }
-            });
-        ui_rects_collector
-            .borrow_mut()
-            .push(bottom_resp.response.rect);
-    }
-
-    /// Finalizes tab drag-and-drop actions on pointer release and renders floating detached badges.
-    pub(super) fn finalize_tab_drag_interaction(
-        layout_state: &mut PanelLayoutState,
-        tab_drag_state: &mut Option<TabDragState>,
-        ui: &mut egui::Ui,
-    ) {
-        let mouse_pos = ui.input(|i| i.pointer.hover_pos());
-
-        // 1. If released, commit the tab move
-        if ui.input(|i| i.pointer.any_released())
-            && let Some(drag) = tab_drag_state.take()
-            && let Some(target_zone) = drag.hovered_zone
-        {
-            layout_state.move_tab(drag.panel_id, target_zone, drag.hovered_index);
-        }
-
-        // 2. If detached and still dragging, render floating preview badge over the top tooltip layer
-        if let (Some(drag), Some(pos)) = (tab_drag_state.as_ref(), mouse_pos)
-            && drag.is_detached
-        {
-            let layer_id =
-                egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("tab_drag_badge"));
-            let drag_painter = ui.ctx().layer_painter(layer_id);
-
-            let preview_text = format!("{} {}", drag.panel_id.icon(), drag.panel_id.title());
-            let badge_font = egui::TextStyle::Button.resolve(ui.style());
-            let text_layout = drag_painter.layout_no_wrap(
-                preview_text.clone(),
-                badge_font.clone(),
-                Color32::WHITE,
-            );
-            let badge_size = Vec2::new(text_layout.size().x + 22.0, 24.0);
-            let badge_rect = Rect::from_min_size(Pos2::new(pos.x + 12.0, pos.y + 12.0), badge_size);
-
-            // Semi-transparent glowing dark background with cyan border
-            drag_painter.rect_filled(
-                badge_rect,
-                CornerRadius::same(6),
-                Color32::from_rgba_premultiplied(20, 24, 35, 230),
-            );
-            drag_painter.rect_stroke(
-                badge_rect,
-                CornerRadius::same(6),
-                Stroke::new(1.5, Color32::from_rgb(0, 220, 255)),
-                egui::StrokeKind::Outside,
-            );
-
-            let badge_text_pos = Pos2::new(
-                badge_rect.min.x + 11.0,
-                badge_rect.min.y + (badge_size.y - text_layout.size().y) * 0.5,
-            );
-            drag_painter.text(
-                badge_text_pos,
-                egui::Align2::LEFT_TOP,
-                preview_text,
-                badge_font,
-                Color32::from_rgb(255, 255, 255),
-            );
-        }
+        let style = create_aeon_dock_style(ui.ctx());
+        egui_dock::DockArea::new(&mut layout_state.dock_state)
+            .style(style)
+            .show_inside(ui, tab_viewer);
     }
 }

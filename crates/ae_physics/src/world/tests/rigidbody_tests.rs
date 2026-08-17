@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-/// AE Physics — RigidBody and Gravity simulation unit tests.
+//! AE Physics — RigidBody and Gravity simulation unit tests.
+//!
 
 #[cfg(test)]
 mod tests {

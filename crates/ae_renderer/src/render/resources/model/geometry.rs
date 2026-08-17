@@ -6,6 +6,7 @@
 use crate::render::types::{SkinVertex, Vertex};
 
 /// Traverses GLTF scene node hierarchy and extracts all primitive geometry with world node transforms applied.
+#[allow(clippy::type_complexity)]
 pub fn parse_gltf_scene_geometry(
     document: &gltf::Document,
     buffers: &[gltf::buffer::Data],
@@ -97,6 +98,7 @@ pub fn parse_gltf_scene_geometry(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn traverse_gltf_node(
     node: &gltf::Node,
     parent_transform: glam::Mat4,
@@ -156,6 +158,7 @@ fn traverse_gltf_node(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_gltf_primitive_mesh(
     mesh: &gltf::Mesh,
     node_index: usize,

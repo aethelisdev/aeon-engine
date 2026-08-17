@@ -13,6 +13,7 @@ impl GizmoSystem {
     /// 3. Computes delta during drag.
     /// 4. Ends drag on `left_released`.
     /// Returns `Some(delta)` when a drag produces movement.
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_input(
         &mut self,
         ray_origin: Vector3<f32>,
