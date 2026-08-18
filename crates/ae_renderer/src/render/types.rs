@@ -718,3 +718,14 @@ impl ModelAsset {
         (center_dist + r_half_diag).max(1.0)
     }
 }
+
+/// Live per-frame rendering and geometry metrics collected during render passes.
+/// Tracks total GPU draw calls, triangles, vertices, and rendered instance count
+/// for real-time profiling and presentation in the editor Stats panel.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct FrameRenderStats {
+    pub draw_calls: u32,
+    pub triangles: u64,
+    pub vertices: u64,
+    pub entities_rendered: u32,
+}

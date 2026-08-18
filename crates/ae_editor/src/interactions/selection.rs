@@ -22,7 +22,6 @@ pub fn create_ray(
 }
 
 /// Handles left-click press in Edit Mode — initiates gizmo drag or entity selection.
-#[allow(clippy::too_many_arguments)]
 pub fn on_left_click_pressed(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
@@ -337,7 +336,6 @@ pub fn try_select_entity(
 }
 
 /// Handles left-click release — finalizes gizmo drag and commits undo history.
-#[allow(clippy::too_many_arguments)]
 pub fn on_left_click_released(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,

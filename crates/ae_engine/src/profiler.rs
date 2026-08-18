@@ -10,12 +10,14 @@ use std::time::Instant;
 #[derive(Default)]
 pub struct Profiler {
     pub ecs_time: f32,
+    pub physics_time: f32,
     pub render_time: f32,
     pub ui_time: f32,
     pub total_frame_time: f32,
 
     // Internal trackers
     ecs_start: Option<Instant>,
+    physics_start: Option<Instant>,
     render_start: Option<Instant>,
     ui_start: Option<Instant>,
     frame_start: Option<Instant>,
@@ -50,6 +52,18 @@ impl Profiler {
     pub fn end_ecs(&mut self) {
         if let Some(start) = self.ecs_start {
             self.ecs_time = start.elapsed().as_secs_f32() * 1000.0;
+        }
+    }
+
+    /// Marks the beginning of the Physics simulation and sync phase.
+    pub fn begin_physics(&mut self) {
+        self.physics_start = Some(Instant::now());
+    }
+
+    /// Finalizes the Physics phase measurement and stores elapsed time in `physics_time` (ms).
+    pub fn end_physics(&mut self) {
+        if let Some(start) = self.physics_start {
+            self.physics_time = start.elapsed().as_secs_f32() * 1000.0;
         }
     }
 

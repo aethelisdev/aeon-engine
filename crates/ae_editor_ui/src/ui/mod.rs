@@ -69,6 +69,7 @@ pub struct EngineUi {
     ui_rects: Vec<egui::Rect>,
     /// Profiler snapshot (ms) – updated by engine before render
     pub profiler_ecs_ms: f32,
+    pub profiler_physics_ms: f32,
     pub profiler_render_ms: f32,
     /// VSync/swapchain present blocking time (ms) – separated from render for accurate profiling.
     pub profiler_present_ms: f32,
@@ -77,6 +78,13 @@ pub struct EngineUi {
     /// Memory usage snapshot (MB) – updated by engine before render
     pub memory_models_mb: f32,
     pub memory_textures_mb: f32,
+    /// Live rendering geometry metrics
+    pub render_draw_calls: u32,
+    pub render_triangles: u64,
+    pub render_vertices: u64,
+    /// Physical GPU adapter information
+    pub gpu_adapter_name: String,
+    pub gpu_backend: String,
     /// Smoothed FPS value for readable, flicker-free presentation in the Stats panel.
     pub smoothed_fps: f32,
     /// The actual displayed FPS value in the UI panel, updated periodically (every 100ms) for high readability.
@@ -168,12 +176,18 @@ impl EngineUi {
             console_last_count: 0,
             ui_rects: Vec::new(),
             profiler_ecs_ms: 0.0,
+            profiler_physics_ms: 0.0,
             profiler_render_ms: 0.0,
             profiler_present_ms: 0.0,
             profiler_ui_ms: 0.0,
             profiler_frame_ms: 0.0,
             memory_models_mb: 0.0,
             memory_textures_mb: 0.0,
+            render_draw_calls: 0,
+            render_triangles: 0,
+            render_vertices: 0,
+            gpu_adapter_name: String::new(),
+            gpu_backend: String::new(),
             hierarchy_cache: crate::ui::panels::hierarchy::HierarchyCache::new(),
             smoothed_fps: 60.0,
             displayed_fps: 60.0,
@@ -368,12 +382,18 @@ impl EngineUi {
         let hierarchy_search_query = &mut self.hierarchy_search_query;
         let console_entries = &self.console_entries;
         let profiler_ecs_ms = self.profiler_ecs_ms;
+        let profiler_physics_ms = self.profiler_physics_ms;
         let profiler_render_ms = self.profiler_render_ms;
         let profiler_present_ms = self.profiler_present_ms;
         let profiler_ui_ms = self.profiler_ui_ms;
         let profiler_frame_ms = self.profiler_frame_ms;
         let memory_models_mb = self.memory_models_mb;
         let memory_textures_mb = self.memory_textures_mb;
+        let render_draw_calls = self.render_draw_calls;
+        let render_triangles = self.render_triangles;
+        let render_vertices = self.render_vertices;
+        let gpu_adapter_name = &self.gpu_adapter_name;
+        let gpu_backend = &self.gpu_backend;
         let smoothed_fps = self.displayed_fps;
         let hierarchy_cache = &mut self.hierarchy_cache;
 
@@ -458,12 +478,18 @@ impl EngineUi {
                 grid_enabled,
                 fps: smoothed_fps,
                 profiler_ecs_ms,
+                profiler_physics_ms,
                 profiler_render_ms,
                 profiler_present_ms,
                 profiler_ui_ms,
                 profiler_frame_ms,
                 memory_models_mb,
                 memory_textures_mb,
+                render_draw_calls,
+                render_triangles,
+                render_vertices,
+                gpu_adapter_name,
+                gpu_backend,
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect,
                 enabled_modules,

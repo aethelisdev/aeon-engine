@@ -46,4 +46,8 @@ pub struct RenderState {
     /// when calculating the FPS counter so that Uncapped mode displays the engine's
     /// true compute throughput rather than the display refresh rate.
     pub last_present_wait_secs: f32,
+    /// Live rendering and geometry metrics collected during the last frame.
+    pub last_render_stats: crate::render::types::FrameRenderStats,
+    /// Physical GPU adapter information (name, backend, device type, driver).
+    pub adapter_info: wgpu::AdapterInfo,
 }

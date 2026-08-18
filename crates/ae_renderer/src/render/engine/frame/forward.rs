@@ -40,7 +40,9 @@ impl RenderState {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         ctx: ForwardPassContext<'_>,
-    ) {
+    ) -> crate::render::types::FrameRenderStats {
+        let mut stats = crate::render::types::FrameRenderStats::default();
+
         let (color_view, resolve_target) = if self.post_process.msaa_samples > 1 {
             (
                 &self.post_process.multisampled_framebuffer,
@@ -109,7 +111,8 @@ impl RenderState {
                  instances: &[(Instance, Option<crate::asset::AssetHandle>)],
                  buf_start: usize,
                  v_buf: &wgpu::Buffer,
-                 num_verts: u32| {
+                 num_verts: u32,
+                 stats: &mut crate::render::types::FrameRenderStats| {
                     let mut cur = 0;
                     while cur < instances.len() {
                         let start = cur;
@@ -117,6 +120,7 @@ impl RenderState {
                         while cur < instances.len() && instances[cur].1 == tex_h {
                             cur += 1;
                         }
+                        let count = (cur - start) as u32;
                         let bg = tex_h
                             .and_then(|h| ctx.asset_manager.textures.get(h))
                             .map(|t| &t.bind_group)
@@ -129,7 +133,11 @@ impl RenderState {
                                 .instance_buffer
                                 .slice(((buf_start + start) * INSTANCE_SIZE) as u64..),
                         );
-                        pass.draw(0..num_verts, 0..(cur - start) as u32);
+                        pass.draw(0..num_verts, 0..count);
+                        stats.draw_calls += 1;
+                        stats.triangles += (num_verts as u64 / 3) * count as u64;
+                        stats.vertices += num_verts as u64 * count as u64;
+                        stats.entities_rendered += count;
                     }
                 };
 
@@ -140,6 +148,7 @@ impl RenderState {
                     ctx.tri_start,
                     &self.geometry.vertex_buffer,
                     3,
+                    &mut stats,
                 );
             }
             if !ctx.cube_instances.is_empty() {
@@ -149,6 +158,7 @@ impl RenderState {
                     ctx.cube_start,
                     &self.geometry.cube_vertex_buffer,
                     36,
+                    &mut stats,
                 );
             }
             if !ctx.sphere_instances.is_empty() {
@@ -158,6 +168,7 @@ impl RenderState {
                     ctx.sphere_start,
                     &self.geometry.sphere_vertex_buffer,
                     self.geometry.sphere_num_vertices,
+                    &mut stats,
                 );
             }
             if !ctx.cylinder_instances.is_empty() {
@@ -167,6 +178,7 @@ impl RenderState {
                     ctx.cylinder_start,
                     &self.geometry.cylinder_vertex_buffer,
                     self.geometry.cylinder_num_vertices,
+                    &mut stats,
                 );
             }
             if !ctx.capsule_instances.is_empty() {
@@ -176,6 +188,7 @@ impl RenderState {
                     ctx.capsule_start,
                     &self.geometry.capsule_vertex_buffer,
                     self.geometry.capsule_num_vertices,
+                    &mut stats,
                 );
             }
             if !ctx.torus_instances.is_empty() {
@@ -185,6 +198,7 @@ impl RenderState {
                     ctx.torus_start,
                     &self.geometry.torus_vertex_buffer,
                     self.geometry.torus_num_vertices,
+                    &mut stats,
                 );
             }
 
@@ -220,6 +234,10 @@ impl RenderState {
 
                             pass.set_bind_group(3, bg, &[]);
                             pass.draw_indexed(0..m.num_indices, 0, 0..count);
+                            stats.draw_calls += 1;
+                            stats.triangles += (m.num_indices as u64 / 3) * count as u64;
+                            stats.vertices += m.raw_vertices.len() as u64 * count as u64;
+                            stats.entities_rendered += count;
                         } else {
                             for submesh in &m.submeshes {
                                 if submesh.alpha_mode
@@ -269,6 +287,10 @@ impl RenderState {
                                     0,
                                     0..count,
                                 );
+                                stats.draw_calls += 1;
+                                stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
+                                stats.vertices += m.raw_vertices.len() as u64 * count as u64;
+                                stats.entities_rendered += count;
                             }
                         }
                     }
@@ -368,6 +390,10 @@ impl RenderState {
                                     0,
                                     0..count,
                                 );
+                                stats.draw_calls += 1;
+                                stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
+                                stats.vertices += m.raw_vertices.len() as u64 * count as u64;
+                                stats.entities_rendered += count;
                             }
                         }
                     }
@@ -548,6 +574,10 @@ impl RenderState {
                                 0,
                                 0..count,
                             );
+                            stats.draw_calls += 1;
+                            stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
+                            stats.vertices += m.raw_vertices.len() as u64 * count as u64;
+                            stats.entities_rendered += count;
                         }
                     }
                 }
@@ -565,6 +595,7 @@ impl RenderState {
                 while cur < ctx.transparent_objs.len() && ctx.transparent_objs[cur].1 == tid {
                     cur += 1;
                 }
+                let count = (cur - start) as u32;
                 if let Some(t) = ctx.asset_manager.textures.get(tid) {
                     pass.set_bind_group(1, &t.bind_group, &[]);
                     pass.set_vertex_buffer(
@@ -573,7 +604,11 @@ impl RenderState {
                             .instance_buffer
                             .slice(((ctx.sprite_start + start) * INSTANCE_SIZE) as u64..),
                     );
-                    pass.draw(0..6, 0..(cur - start) as u32);
+                    pass.draw(0..6, 0..count);
+                    stats.draw_calls += 1;
+                    stats.triangles += 2 * count as u64;
+                    stats.vertices += 4 * count as u64;
+                    stats.entities_rendered += count;
                 }
             }
         }
@@ -582,5 +617,8 @@ impl RenderState {
         for ov in ctx.overlays {
             ov.draw_overlay(&self.queue, &mut pass);
         }
+
+        drop(pass);
+        stats
     }
 }

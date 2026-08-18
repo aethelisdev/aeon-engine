@@ -126,6 +126,7 @@ impl AeEngine {
         let physics_enabled = self
             .event_bus
             .is_module_enabled(ae_core::modules::EngineModule::Physics);
+        self.profiler.begin_physics();
         if physics_enabled {
             while self.time.consume_fixed_step() {
                 if self.mode == EngineMode::Play {
@@ -160,6 +161,7 @@ impl AeEngine {
                         .map(|(v, i)| (v.as_slice(), i.as_slice()))
                 });
         }
+        self.profiler.end_physics();
 
         if self.mode == EngineMode::Play {
             self.update_play_mode();

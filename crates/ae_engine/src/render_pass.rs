@@ -202,6 +202,7 @@ impl AeEngine {
 
         // Sync profiler snapshot to UI for display
         self.ui.profiler_ecs_ms = self.profiler.ecs_time;
+        self.ui.profiler_physics_ms = self.profiler.physics_time;
         // Separate true GPU render work from VSync/swapchain present blocking.
         let present_wait_ms = self.render_state.last_present_wait_secs * 1000.0;
         self.ui.profiler_render_ms = (self.profiler.render_time - present_wait_ms).max(0.0);
@@ -211,6 +212,13 @@ impl AeEngine {
         let (models_bytes, textures_bytes) = self.asset_manager.get_memory_usage();
         self.ui.memory_models_mb = models_bytes as f32 / (1024.0 * 1024.0);
         self.ui.memory_textures_mb = textures_bytes as f32 / (1024.0 * 1024.0);
+        self.ui.render_draw_calls = self.render_state.last_render_stats.draw_calls;
+        self.ui.render_triangles = self.render_state.last_render_stats.triangles;
+        self.ui.render_vertices = self.render_state.last_render_stats.vertices;
+        if self.ui.gpu_adapter_name.is_empty() {
+            self.ui.gpu_adapter_name = self.render_state.adapter_info.name.clone();
+            self.ui.gpu_backend = format!("{:?}", self.render_state.adapter_info.backend);
+        }
 
         let render_options = ae_renderer::render::RenderOptions {
             grid_enabled: self.ui.grid_enabled && self.mode == EngineMode::Edit,

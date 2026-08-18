@@ -202,6 +202,8 @@ impl RenderState {
             &default_white_cpu,
         );
 
+        let adapter_info = adapter.get_info();
+
         let state = Self {
             surface,
             device,
@@ -221,6 +223,8 @@ impl RenderState {
             last_viewport_rect: super::ViewportRect::default(),
             supported_present_modes,
             last_present_wait_secs: 0.0,
+            last_render_stats: super::types::FrameRenderStats::default(),
+            adapter_info,
         };
         Ok((state, camera))
     }

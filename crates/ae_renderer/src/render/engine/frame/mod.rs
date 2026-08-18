@@ -20,7 +20,6 @@ use winit::window::Window;
 impl RenderState {
     /// Executes the full frame render pipeline: shadow pass → main pass (sky, grid,
     /// opaque geometry, wireframe, sprites, overlays) → bloom/post-process → egui UI.
-    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     pub fn render(
         &mut self,
         _world: &hecs::World,
@@ -47,19 +46,10 @@ impl RenderState {
 
         // Resize viewport texture and post-process systems if the last known viewport rect size changed or is not yet initialized
         let scale = self.window.scale_factor() as f32;
-        let rect_w = self.last_viewport_rect.max_x - self.last_viewport_rect.min_x;
-        let rect_h = self.last_viewport_rect.max_y - self.last_viewport_rect.min_y;
-
-        let vp_w = if rect_w.is_finite() && rect_w > 0.0 {
-            ((rect_w * scale) as u32).clamp(1, 16384)
-        } else {
-            0
-        };
-        let vp_h = if rect_h.is_finite() && rect_h > 0.0 {
-            ((rect_h * scale) as u32).clamp(1, 16384)
-        } else {
-            0
-        };
+        let vp_w = ((self.last_viewport_rect.max_x - self.last_viewport_rect.min_x) * scale)
+            .max(0.0) as u32;
+        let vp_h = ((self.last_viewport_rect.max_y - self.last_viewport_rect.min_y) * scale)
+            .max(0.0) as u32;
         if vp_w > 0 && vp_h > 0 {
             let needs_resize = match &self.viewport_texture {
                 Some(vt) => vt.width != vp_w || vt.height != vp_h,
@@ -304,7 +294,7 @@ impl RenderState {
         );
 
         // PASS 1: MAIN FORWARD PASS
-        self.execute_main_forward_pass(
+        self.last_render_stats = self.execute_main_forward_pass(
             &mut encoder,
             forward::ForwardPassContext {
                 options,
