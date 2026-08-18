@@ -28,11 +28,20 @@ The goals I’ve set during the development process are as follows:
  - **The ability to work as an editor on Android devices**: If I achieve good results and performance in a modular, disengageable system, I aim to break the perception that game development isn’t possible on Android by making my Aeon engine capable of directly producing games on Android devices.
 
 ## Current Status
- Aeon Engine is currently under active development
- 
- Most of the core systems have been implemented, but the API and features are subject to change.
+Aeon Engine is currently under active development.
 
- ## Design Philosophy
+Most of the core systems have been implemented, but the API and features are subject to change.
+
+## How to Run
+Make sure you have Rust installed on your machine.
+
+```bash
+git clone https://github.com/aethelisdev/aeon-engine.git
+cd aeon-engine
+cargo run -p ae_engine --release
+```
+
+## Design Philosophy
  
 - **Modular design**
 - **Simple editor**
@@ -40,8 +49,6 @@ The goals I’ve set during the development process are as follows:
 - **Safe Rust**
 - **To avoid unnecessary complexity**
 - **Open Source**
-
-##
 
 ## Licensing
 
