@@ -613,7 +613,7 @@ impl RenderState {
             }
         }
 
-        // Editor Overlays (gizmo, debug lines, etc.)
+        // Editor Overlays (gizmo, debug lines, etc.) rendered with full 4x MSAA and DepthBuffer
         for ov in ctx.overlays {
             ov.draw_overlay(&self.queue, &mut pass);
         }

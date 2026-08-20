@@ -23,7 +23,7 @@ The goals I’ve set during the development process are as follows:
  
  - **A system that adapts to the user's preferences**: initially, the system will start up with no load, and modules such as rendering, physics, and sound will be enabled or disabled based on the user's needs. I'm also considering adding a button for low end computers that allows them to clear RAM in the long term
  
- - **Combining visuals and Rust code (Redprint)**: redprint is a feature I’ve named that aims to synchronously combine Rust code and visual programming; my goal is for changes made on either side to be reflected on the other side.
+ - **Combining visuals and Rust code (RedWrite)**: redwrite is a feature I’ve named that aims to synchronously combine Rust code and visual programming; my goal is for changes made on either side to be reflected on the other side.
  
  - **The ability to work as an editor on Android devices**: If I achieve good results and performance in a modular, disengageable system, I aim to break the perception that game development isn’t possible on Android by making my Aeon engine capable of directly producing games on Android devices.
 

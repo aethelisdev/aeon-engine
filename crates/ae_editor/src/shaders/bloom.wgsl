@@ -40,7 +40,7 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 fn fs_extract(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(t_diffuse, s_diffuse, in.uv);
     let brightness = dot(color.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
-    if (brightness > 0.8) {
+    if (brightness > 1.05) {
         return color;
     } else {
         return vec4<f32>(0.0, 0.0, 0.0, 1.0);

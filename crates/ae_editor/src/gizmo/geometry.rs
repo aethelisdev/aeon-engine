@@ -59,7 +59,11 @@ impl GizmoSystem {
                 let p3 = cp(cos2, sin2, ccos2, csin2);
                 let p4 = cp(cos1, sin1, ccos2, csin2);
 
-                let v = |p| GizmoVertex { position: p, color };
+                let v = |p| GizmoVertex {
+                    position: p,
+                    color,
+                    uv: [0.0, 0.0],
+                };
                 vertices.extend_from_slice(&[v(p1), v(p2), v(p3), v(p1), v(p3), v(p4)]);
             }
         }
@@ -78,7 +82,11 @@ impl GizmoSystem {
         color: [f32; 3],
         axis: ActiveAxis,
     ) -> Vec<GizmoVertex> {
-        let v = |p: [f32; 3]| GizmoVertex { position: p, color };
+        let v = |p: [f32; 3]| GizmoVertex {
+            position: p,
+            color,
+            uv: [0.0, 0.0],
+        };
         let mut b = Vec::new();
         let (p0, p1, p2, p3) = match axis {
             ActiveAxis::PlaneXY => (
@@ -106,9 +114,9 @@ impl GizmoSystem {
         b
     }
 
-    /// Generates rotation ring geometry (3 torus rings: X=Red, Y=Green, Z=Blue).
+    /// Generates 3D orthogonal rotation ring geometry (X=Red, Y=Green, Z=Blue).
     /// ### Arguments
-    /// * `radius` - The major radius of the rotation handles.
+    /// * `radius` - Major radius of the rotation torus handles.
     pub(crate) fn build_rotation_vertices(radius: f32) -> Vec<GizmoVertex> {
         let mut vertices = Vec::new();
         let thickness = radius * 0.04;
@@ -174,7 +182,11 @@ impl GizmoSystem {
                 _ => [0., 0., 0.],
             }
         };
-        let v = |p: [f32; 3]| GizmoVertex { position: p, color };
+        let v = |p: [f32; 3]| GizmoVertex {
+            position: p,
+            color,
+            uv: [0.0, 0.0],
+        };
 
         for i in 0..segments {
             let a1 = (i as f32) / (segments as f32) * std::f32::consts::TAU;
@@ -312,26 +324,32 @@ impl GizmoSystem {
         lines.push(GizmoVertex {
             position: [-s, 0.0, 0.0],
             color: red,
+            uv: [0.0, 0.0],
         });
         lines.push(GizmoVertex {
             position: [s, 0.0, 0.0],
             color: red,
+            uv: [0.0, 0.0],
         });
         lines.push(GizmoVertex {
             position: [0.0, -s, 0.0],
             color: red,
+            uv: [0.0, 0.0],
         });
         lines.push(GizmoVertex {
             position: [0.0, s, 0.0],
             color: red,
+            uv: [0.0, 0.0],
         });
         lines.push(GizmoVertex {
             position: [0.0, 0.0, -s],
             color: red,
+            uv: [0.0, 0.0],
         });
         lines.push(GizmoVertex {
             position: [0.0, 0.0, s],
             color: red,
+            uv: [0.0, 0.0],
         });
 
         if !self.is_dragging || self.active_axis == ActiveAxis::None {
@@ -364,10 +382,12 @@ impl GizmoSystem {
                 lines.push(GizmoVertex {
                     position: p1.into(),
                     color,
+                    uv: [0.0, 0.0],
                 });
                 lines.push(GizmoVertex {
                     position: p2.into(),
                     color,
+                    uv: [0.0, 0.0],
                 });
             }
         };
@@ -477,10 +497,12 @@ impl GizmoSystem {
                 lines.push(GizmoVertex {
                     position: start_pos.into(),
                     color: [1.0, 1.0, 1.0],
+                    uv: [0.0, 0.0],
                 });
                 lines.push(GizmoVertex {
                     position: local_end.into(),
                     color: [1.0, 1.0, 1.0],
+                    uv: [0.0, 0.0],
                 });
             }
             GizmoMode::Scale => {
@@ -555,24 +577,23 @@ impl GizmoSystem {
                 lines.push(GizmoVertex {
                     position: local_start_on_ring.into(),
                     color: [1.0, 1.0, 1.0],
+                    uv: [0.0, 0.0],
                 });
                 lines.push(GizmoVertex {
                     position: local_end.into(),
                     color: [1.0, 1.0, 1.0],
+                    uv: [0.0, 0.0],
                 });
             }
         }
         lines
     }
 
-    /// Generates the uniform scale O-ring as an anti-aliased anti-flicker TriangleList mesh (Hollow Disk/Ring).
-    /// Generates a perfectly circular flat disk that aligns to the camera view plane.
-    /// Uses dynamic scale factors and highlighting depending on mouse hovering or dragging states.
+    /// Generates the uniform scale / center O-ring as an anti-aliased, zero-aliasing Screen-Space SDF Quad.
+    /// Generates a camera-aligned Quad billboard with normalized `[-1.0, 1.0]` UVs.
+    /// The fragment shader renders a mathematically perfect, sub-pixel anti-aliased circular ring with `fwidth()`.
     pub(crate) fn build_o_ring_mesh(&self) -> Vec<GizmoVertex> {
-        let mut vertices = Vec::new();
-        let radius = 0.15 * self.drag_scale_factor;
-        let thickness = 0.003;
-        let segments = 64; // Since triangles are drawn with MSAA, 64 segments provide perfect smoothness!
+        let radius = 0.16 * self.drag_scale_factor;
 
         let color = if self.is_dragging || self.hovered_axis == ActiveAxis::Free {
             [1.0, 1.0, 1.0] // White when dragging or hovered
@@ -580,48 +601,36 @@ impl GizmoSystem {
             [0.85, 0.85, 0.85] // Light gray otherwise
         };
 
-        // Ring thickness bounds (inner and outer radius)
-        let inner_radius = radius - thickness;
-        let outer_radius = radius + thickness;
+        let cam_right = self.cam_right.get();
+        let cam_up = self.cam_up.get();
 
-        for i in 0..segments {
-            let a1 = (i as f32) / (segments as f32) * std::f32::consts::TAU;
-            let a2 = ((i + 1) as f32) / (segments as f32) * std::f32::consts::TAU;
+        let mut p_tl = (-cam_right + cam_up) * radius;
+        let mut p_tr = (cam_right + cam_up) * radius;
+        let mut p_br = (cam_right - cam_up) * radius;
+        let mut p_bl = (-cam_right - cam_up) * radius;
 
-            let (sin1, cos1) = a1.sin_cos();
-            let (sin2, cos2) = a2.sin_cos();
-
-            let cam_right = self.cam_right.get();
-            let cam_up = self.cam_up.get();
-            let mut p_in1 = (cam_right * cos1 + cam_up * sin1) * inner_radius;
-            let mut p_out1 = (cam_right * cos1 + cam_up * sin1) * outer_radius;
-            let mut p_in2 = (cam_right * cos2 + cam_up * sin2) * inner_radius;
-            let mut p_out2 = (cam_right * cos2 + cam_up * sin2) * outer_radius;
-
-            if self.space == super::space::GizmoSpace::Local {
-                let inv_rot = self.entity_rotation.conjugate();
-                p_in1 = inv_rot.rotate_vector(p_in1);
-                p_out1 = inv_rot.rotate_vector(p_out1);
-                p_in2 = inv_rot.rotate_vector(p_in2);
-                p_out2 = inv_rot.rotate_vector(p_out2);
-            }
-
-            let v = |p: cgmath::Vector3<f32>| GizmoVertex {
-                position: p.into(),
-                color,
-            };
-
-            // Triangle 1
-            vertices.push(v(p_in1));
-            vertices.push(v(p_out1));
-            vertices.push(v(p_out2));
-
-            // Triangle 2
-            vertices.push(v(p_in1));
-            vertices.push(v(p_out2));
-            vertices.push(v(p_in2));
+        if self.space == super::space::GizmoSpace::Local {
+            let inv_rot = self.entity_rotation.conjugate();
+            p_tl = inv_rot.rotate_vector(p_tl);
+            p_tr = inv_rot.rotate_vector(p_tr);
+            p_br = inv_rot.rotate_vector(p_br);
+            p_bl = inv_rot.rotate_vector(p_bl);
         }
 
-        vertices
+        let v = |p: cgmath::Vector3<f32>, uv: [f32; 2]| GizmoVertex {
+            position: p.into(),
+            color,
+            uv,
+        };
+
+        // Quad consisting of 2 triangles with exact normalized [-1.0, 1.0] UV coordinates
+        vec![
+            v(p_tl, [-1.0, 1.0]),
+            v(p_bl, [-1.0, -1.0]),
+            v(p_br, [1.0, -1.0]),
+            v(p_tl, [-1.0, 1.0]),
+            v(p_br, [1.0, -1.0]),
+            v(p_tr, [1.0, 1.0]),
+        ]
     }
 }

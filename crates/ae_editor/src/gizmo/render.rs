@@ -5,18 +5,20 @@ use wgpu::util::DeviceExt;
 
 use super::core::{ActiveAxis, GizmoMode, GizmoScreenParams, GizmoSystem};
 
-/// GPU vertex for gizmo line/mesh rendering (position + color).
+/// GPU vertex for gizmo line/mesh rendering (position + color + uv).
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct GizmoVertex {
     pub(crate) position: [f32; 3],
     pub(crate) color: [f32; 3],
+    pub(crate) uv: [f32; 2],
 }
 
 impl GizmoVertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
+    const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
         0 => Float32x3, // position
-        1 => Float32x3  // color
+        1 => Float32x3, // color
+        2 => Float32x2  // uv for SDF anti-aliased circles
     ];
 
     fn layout() -> wgpu::VertexBufferLayout<'static> {
@@ -41,7 +43,7 @@ impl GizmoSystem {
         let scale_vertices = Self::build_axis_vertices(1.0, true);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Gizmo Vertex Buffer"),
+            label: Some("Gizmo Static Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
@@ -72,15 +74,16 @@ impl GizmoSystem {
             mapped_at_creation: false,
         });
 
+        // 3D Matrix Uniform buffer (MVP matrix, 64 bytes)
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Gizmo Uniform Buffer"),
-            size: 64, // Mat4x4
+            label: Some("Gizmo Matrix Uniform Buffer"),
+            size: std::mem::size_of::<[f32; 16]>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Gizmo Bind Group Layout"),
+            label: Some("Gizmo Matrix Bind Group Layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
                 visibility: wgpu::ShaderStages::VERTEX,
@@ -94,7 +97,7 @@ impl GizmoSystem {
         });
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Gizmo Bind Group"),
+            label: Some("Gizmo Matrix Bind Group"),
             layout: &bgl,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
@@ -102,25 +105,21 @@ impl GizmoSystem {
             }],
         });
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Gizmo Shader Module"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/gizmo.wgsl").into()),
-        });
-
-        let pll = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Gizmo Pipeline Layout"),
             bind_group_layouts: &[Some(&bgl)],
             immediate_size: 0,
         });
 
-        let create_pipeline = |topology: wgpu::PrimitiveTopology| {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Gizmo WGSL Shader Module"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/gizmo.wgsl").into()),
+        });
+
+        let create_pipeline = |topology: wgpu::PrimitiveTopology| -> wgpu::RenderPipeline {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(if topology == wgpu::PrimitiveTopology::LineList {
-                    "Gizmo Line Pipeline"
-                } else {
-                    "Gizmo Mesh Pipeline"
-                }),
-                layout: Some(&pll),
+                label: Some("Gizmo Pipeline"),
+                layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main"),
@@ -306,7 +305,19 @@ impl GizmoSystem {
             GizmoMode::Rotate => {
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.rotate_vertex_buffer.slice(..));
-                pass.draw(0..self.num_rotate_vertices, 0..1);
+
+                if self.is_dragging && self.active_axis != ActiveAxis::None {
+                    let verts_per_axis = self.num_rotate_vertices / 3;
+                    let range = match self.active_axis {
+                        ActiveAxis::X => 0..verts_per_axis,
+                        ActiveAxis::Y => verts_per_axis..(verts_per_axis * 2),
+                        ActiveAxis::Z => (verts_per_axis * 2)..self.num_rotate_vertices,
+                        _ => 0..self.num_rotate_vertices,
+                    };
+                    pass.draw(range, 0..1);
+                } else {
+                    pass.draw(0..self.num_rotate_vertices, 0..1);
+                }
 
                 // Draw the O-ring (camera-facing 360-degree circle in the center) using mesh_pipeline!
                 let ring = self.build_o_ring_mesh();
@@ -371,14 +382,17 @@ impl GizmoSystem {
                                 GizmoVertex {
                                     position: [0.0, 0.0, 0.0],
                                     color: dark_col,
+                                    uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p1 * r).into(),
                                     color: dark_col,
+                                    uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p2 * r).into(),
                                     color: dark_col,
+                                    uv: [0.0, 0.0],
                                 },
                             ]);
                         }
@@ -518,7 +532,19 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
             GizmoMode::Rotate => {
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.rotate_vertex_buffer.slice(..));
-                pass.draw(0..self.num_rotate_vertices, 0..1);
+
+                if self.is_dragging && self.active_axis != ActiveAxis::None {
+                    let verts_per_axis = self.num_rotate_vertices / 3;
+                    let range = match self.active_axis {
+                        ActiveAxis::X => 0..verts_per_axis,
+                        ActiveAxis::Y => verts_per_axis..(verts_per_axis * 2),
+                        ActiveAxis::Z => (verts_per_axis * 2)..self.num_rotate_vertices,
+                        _ => 0..self.num_rotate_vertices,
+                    };
+                    pass.draw(range, 0..1);
+                } else {
+                    pass.draw(0..self.num_rotate_vertices, 0..1);
+                }
 
                 // Draw the O-ring (camera-facing 360-degree circle in the center) using mesh_pipeline!
                 let ring = self.build_o_ring_mesh();
@@ -583,14 +609,17 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                                 GizmoVertex {
                                     position: [0.0, 0.0, 0.0],
                                     color: dark_col,
+                                    uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p1 * r).into(),
                                     color: dark_col,
+                                    uv: [0.0, 0.0],
                                 },
                                 GizmoVertex {
                                     position: (p2 * r).into(),
                                     color: dark_col,
+                                    uv: [0.0, 0.0],
                                 },
                             ]);
                         }
