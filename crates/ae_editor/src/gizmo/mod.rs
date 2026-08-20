@@ -26,4 +26,5 @@ pub mod translate;
 
 // Re-export public API for backwards compatibility
 pub use self::core::*;
+pub use self::input::GizmoInputParams;
 pub use self::space::*;

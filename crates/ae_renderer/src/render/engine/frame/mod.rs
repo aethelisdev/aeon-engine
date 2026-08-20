@@ -17,29 +17,40 @@ use crate::render::types::{OverlayRenderer, RenderError, ViewportRect};
 use crate::render::viewport_texture::ViewportTexture;
 use winit::window::Window;
 
+/// Type alias for the UI render callback to reduce type complexity.
+pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
+    &wgpu::Device,
+    &wgpu::Queue,
+    &mut wgpu::CommandEncoder,
+    &Window,
+    &wgpu::TextureView,
+    Option<&wgpu::TextureView>,
+) -> ViewportRect;
+
+/// Parameters for executing a single frame rendering pipeline pass.
+pub struct RenderFrameParams<'a> {
+    pub scene: crate::render::types::RenderScene,
+    pub camera: &'a ae_core::camera::Camera,
+    pub overlays: &'a [&'a dyn OverlayRenderer],
+    pub asset_manager: &'a crate::asset::AssetManager,
+    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    pub options: &'a RenderOptions,
+    pub ui_renderer: Option<UiRenderCallback<'a>>,
+}
+
 impl RenderState {
     /// Executes the full frame render pipeline: shadow pass → main pass (sky, grid,
     /// opaque geometry, wireframe, sprites, overlays) → bloom/post-process → egui UI.
-    pub fn render(
-        &mut self,
-        _world: &hecs::World,
-        scene: crate::render::types::RenderScene,
-        camera: &ae_core::camera::Camera,
-        overlays: &[&dyn OverlayRenderer],
-        asset_manager: &crate::asset::AssetManager,
-        enabled_modules: &std::collections::HashSet<ae_core::modules::EngineModule>,
-        options: &RenderOptions,
-        ui_renderer: Option<
-            &mut dyn FnMut(
-                &wgpu::Device,
-                &wgpu::Queue,
-                &mut wgpu::CommandEncoder,
-                &Window,
-                &wgpu::TextureView,
-                Option<&wgpu::TextureView>,
-            ) -> ViewportRect,
-        >,
-    ) -> Result<(), RenderError> {
+    pub fn render(&mut self, params: RenderFrameParams<'_>) -> Result<(), RenderError> {
+        let RenderFrameParams {
+            scene,
+            camera,
+            overlays,
+            asset_manager,
+            enabled_modules,
+            options,
+            ui_renderer,
+        } = params;
         if self.size.width == 0 || self.size.height == 0 {
             return Ok(());
         }

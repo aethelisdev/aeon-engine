@@ -457,10 +457,7 @@ impl PhysicsWorld {
             ColliderShape::Trimesh => {
                 if let Ok(model_id) = world.get::<&ModelId>(entity) {
                     if let Some((vertices, indices)) = get_mesh_data(model_id.0) {
-                        let triangles: Vec<[u32; 3]> = indices
-                            .chunks_exact(3)
-                            .map(|chunk| [chunk[0], chunk[1], chunk[2]])
-                            .collect();
+                        let triangles: Vec<[u32; 3]> = indices.as_chunks::<3>().0.to_vec();
                         let rapier_vertices: Vec<Vec3> = vertices
                             .iter()
                             .map(|v| Vec3::new(v[0] * sx, v[1] * sy, v[2] * sz))

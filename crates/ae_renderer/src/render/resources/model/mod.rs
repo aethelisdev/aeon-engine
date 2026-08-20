@@ -140,16 +140,16 @@ impl RenderState {
         let embedded_textures = extract_gltf_all_embedded_textures(&document, &images);
         let default_texture = embedded_textures.first().cloned();
 
-        let (all_vertices, all_indices, raw_positions, raw_skin_vertices, submeshes, min, max) =
+        let parsed_geom =
             parse_gltf_scene_geometry(&document, &buffers, &images, skeleton.is_some());
 
         let data = crate::asset::ParsedModelData {
-            all_vertices,
-            all_indices,
-            raw_positions,
-            raw_skin_vertices,
-            min,
-            max,
+            all_vertices: parsed_geom.all_vertices,
+            all_indices: parsed_geom.all_indices,
+            raw_positions: parsed_geom.raw_positions,
+            raw_skin_vertices: parsed_geom.raw_skin_vertices,
+            min: parsed_geom.min,
+            max: parsed_geom.max,
             canonical_path,
             original_path: path.to_owned(),
             final_name: String::new(),
@@ -157,7 +157,7 @@ impl RenderState {
             animations,
             default_texture,
             embedded_textures,
-            submeshes,
+            submeshes: parsed_geom.submeshes,
         };
 
         self.upload_model_data(assets, data)
@@ -202,16 +202,15 @@ pub fn parse_gltf_file(
     let embedded_textures = extract_gltf_all_embedded_textures(&document, &images);
     let default_texture = embedded_textures.first().cloned();
 
-    let (all_vertices, all_indices, raw_positions, raw_skin_vertices, submeshes, min, max) =
-        parse_gltf_scene_geometry(&document, &buffers, &images, skeleton.is_some());
+    let parsed_geom = parse_gltf_scene_geometry(&document, &buffers, &images, skeleton.is_some());
 
     Ok(crate::asset::ParsedModelData {
-        all_vertices,
-        all_indices,
-        raw_positions,
-        raw_skin_vertices,
-        min,
-        max,
+        all_vertices: parsed_geom.all_vertices,
+        all_indices: parsed_geom.all_indices,
+        raw_positions: parsed_geom.raw_positions,
+        raw_skin_vertices: parsed_geom.raw_skin_vertices,
+        min: parsed_geom.min,
+        max: parsed_geom.max,
         canonical_path,
         original_path: path.to_owned(),
         final_name,
@@ -219,6 +218,6 @@ pub fn parse_gltf_file(
         animations,
         default_texture,
         embedded_textures,
-        submeshes,
+        submeshes: parsed_geom.submeshes,
     })
 }

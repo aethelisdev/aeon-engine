@@ -31,10 +31,11 @@ impl SpatialAudioMath {
         let safe_min = min_dist.max(0.1);
         let safe_max = max_dist.max(safe_min + 0.1);
 
-        // OpenAL/ standard inverse-distance roll-off with smooth max_distance cutoff fade
-        let inv_dist_falloff = safe_min / dist;
-        let cutoff_factor = (safe_max - dist) / (safe_max - safe_min);
-        (inv_dist_falloff * cutoff_factor).clamp(0.0, 1.0)
+        // Standard inverse-distance roll-off with smooth max_distance cutoff fade
+        let inv_dist_falloff = safe_min.algebraic_div(dist);
+        let cutoff_factor =
+            (safe_max.algebraic_sub(dist)).algebraic_div(safe_max.algebraic_sub(safe_min));
+        (inv_dist_falloff.algebraic_mul(cutoff_factor)).clamp(0.0, 1.0)
     }
 
     /// Computes left and right channel stereo volume gain factors `(left_gain, right_gain)`
@@ -57,8 +58,8 @@ impl SpatialAudioMath {
         let pan = to_emitter.dot(listener_right).clamp(-1.0, 1.0);
 
         // Constant-power stereo panning curve
-        let left_gain = (0.5 * (1.0 - pan)).sqrt();
-        let right_gain = (0.5 * (1.0 + pan)).sqrt();
+        let left_gain = (0.5_f32.algebraic_mul(1.0_f32.algebraic_sub(pan))).sqrt();
+        let right_gain = (0.5_f32.algebraic_mul(1.0_f32.algebraic_add(pan))).sqrt();
 
         (left_gain, right_gain)
     }

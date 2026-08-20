@@ -238,49 +238,56 @@ impl AeEngine {
         let asset_manager = &self.asset_manager;
         let event_bus = &self.event_bus;
 
-        let res = self.render_state.render(
-            world,
+        let mut ui_render_callback =
+            |device: &wgpu::Device,
+             queue: &wgpu::Queue,
+             encoder: &mut wgpu::CommandEncoder,
+             window: &winit::window::Window,
+             surface_view: &wgpu::TextureView,
+             viewport_texture_view: Option<&wgpu::TextureView>| {
+                ui.sync_console();
+                let rect = ui.render(
+                    device,
+                    queue,
+                    encoder,
+                    window,
+                    surface_view,
+                    viewport_texture_view,
+                    fps,
+                    world,
+                    mode,
+                    &editor.undo_stack,
+                    &editor.redo_stack,
+                    camera.build_view_matrix(),
+                    camera.build_projection_matrix(),
+                    &graphics_settings,
+                    snapping,
+                    editor,
+                    camera,
+                    &asset_manager.models,
+                    &asset_manager.textures,
+                    &event_bus.enabled_modules,
+                    &mut ui_actions,
+                );
+                ae_renderer::render::ViewportRect {
+                    min_x: rect.min.x,
+                    min_y: rect.min.y,
+                    max_x: rect.max.x,
+                    max_y: rect.max.y,
+                }
+            };
+
+        let params = ae_renderer::render::RenderFrameParams {
             scene,
             camera,
-            &overlays,
+            overlays: &overlays,
             asset_manager,
-            &event_bus.enabled_modules,
-            &render_options,
-            Some(
-                &mut |device, queue, encoder, window, surface_view, viewport_texture_view| {
-                    ui.sync_console();
-                    let rect = ui.render(
-                        device,
-                        queue,
-                        encoder,
-                        window,
-                        surface_view,
-                        viewport_texture_view,
-                        fps,
-                        world,
-                        mode,
-                        &editor.undo_stack,
-                        &editor.redo_stack,
-                        camera.build_view_matrix(),
-                        camera.build_projection_matrix(),
-                        &graphics_settings,
-                        snapping,
-                        editor,
-                        camera,
-                        &asset_manager.models,
-                        &asset_manager.textures,
-                        &event_bus.enabled_modules,
-                        &mut ui_actions,
-                    );
-                    ae_renderer::render::ViewportRect {
-                        min_x: rect.min.x,
-                        min_y: rect.min.y,
-                        max_x: rect.max.x,
-                        max_y: rect.max.y,
-                    }
-                },
-            ),
-        );
+            enabled_modules: &event_bus.enabled_modules,
+            options: &render_options,
+            ui_renderer: Some(&mut ui_render_callback),
+        };
+
+        let res = self.render_state.render(params);
 
         let vp_rect = self.render_state.last_viewport_rect;
         let vp_w = vp_rect.max_x - vp_rect.min_x;

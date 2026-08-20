@@ -333,7 +333,7 @@ impl DebugShapes {
         raw_indices: &[u32],
         color: [f32; 3],
     ) {
-        for chunk in raw_indices.chunks_exact(3) {
+        for chunk in raw_indices.as_chunks::<3>().0 {
             let i0 = chunk[0] as usize;
             let i1 = chunk[1] as usize;
             let i2 = chunk[2] as usize;

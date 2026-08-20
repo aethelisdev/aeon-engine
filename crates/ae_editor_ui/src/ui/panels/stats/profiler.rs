@@ -170,30 +170,41 @@ impl EngineUi {
 
             // 3. Scene & Geometry Metrics Card
             draw_stats_card(ui, "Scene & Geometry", "📐", |ui| {
+                let mut tri_buf = core::fmt::NumBuffer::new();
+                let tri_str = ctx.render_triangles.format_into(&mut tri_buf);
                 ui.horizontal(|ui| {
                     ui.label("Triangles:");
                     ui.label(
-                        egui::RichText::new(format!("{}", ctx.render_triangles))
+                        egui::RichText::new(tri_str)
                             .strong()
                             .color(egui::Color32::from_rgb(200, 230, 255)),
                     );
                 });
+
+                let mut vert_buf = core::fmt::NumBuffer::new();
+                let vert_str = ctx.render_vertices.format_into(&mut vert_buf);
                 ui.horizontal(|ui| {
                     ui.label("Vertices:");
                     ui.label(
-                        egui::RichText::new(format!("{}", ctx.render_vertices))
+                        egui::RichText::new(vert_str)
                             .strong()
                             .color(egui::Color32::from_rgb(200, 230, 255)),
                     );
                 });
+
+                let mut dc_buf = core::fmt::NumBuffer::new();
+                let dc_str = ctx.render_draw_calls.format_into(&mut dc_buf);
                 ui.horizontal(|ui| {
                     ui.label("Draw Calls:");
                     ui.label(
-                        egui::RichText::new(format!("{}", ctx.render_draw_calls))
+                        egui::RichText::new(dc_str)
                             .strong()
                             .color(egui::Color32::from_rgb(0, 210, 160)),
                     );
                 });
+
+                let mut ent_buf = core::fmt::NumBuffer::new();
+                let ent_str = ctx.active_entities_count.format_into(&mut ent_buf);
                 ui.horizontal(|ui| {
                     ui.label("Entities:");
                     let selected_str = if ctx.selected_entity.is_some() {
@@ -201,7 +212,7 @@ impl EngineUi {
                     } else {
                         ""
                     };
-                    ui.label(format!("{}{}", ctx.active_entities_count, selected_str));
+                    ui.label(format!("{}{}", ent_str, selected_str));
                 });
             });
 

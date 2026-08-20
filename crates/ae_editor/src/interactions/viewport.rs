@@ -5,21 +5,37 @@ use super::selection::{on_left_click_pressed, on_left_click_released};
 use crate::editor_state::EditorState;
 use crate::input::InputManager;
 
+/// Parameters for handling cursor movement in the viewport.
+pub struct CursorMoveParams {
+    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
+    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
+    pub window_size: (u32, u32),
+    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub scale_factor: f32,
+    pub is_edit_mode: bool,
+    pub x: f64,
+    pub y: f64,
+}
+
 /// Handles cursor movement events — delegates to mouse-look and gizmo drag.
 pub fn handle_cursor_moved(
     editor: &mut EditorState,
     camera: &mut ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
     ecs: &mut ae_core::ecs::EcsManager,
-    ui_gizmo_mode: crate::gizmo::GizmoMode,
-    ui_gizmo_space: crate::gizmo::space::GizmoSpace,
-    window_size: (u32, u32),
-    last_viewport_rect: ae_renderer::render::ViewportRect,
-    scale_factor: f32,
-    is_edit_mode: bool,
-    x: f64,
-    y: f64,
+    params: CursorMoveParams,
 ) {
+    let CursorMoveParams {
+        ui_gizmo_mode,
+        ui_gizmo_space,
+        window_size,
+        last_viewport_rect,
+        scale_factor,
+        is_edit_mode,
+        x,
+        y,
+    } = params;
+
     let dx = x - editor.last_cursor_pos.0;
     let dy = y - editor.last_cursor_pos.1;
     editor.last_cursor_pos = (x, y);
@@ -52,25 +68,45 @@ pub fn handle_cursor_moved(
     }
 }
 
+/// Parameters for handling mouse click events in the viewport.
+pub struct MouseClickParams<'a> {
+    pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
+    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
+    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
+    pub window_size: (u32, u32),
+    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub scale_factor: f32,
+    pub is_point_over_ui: &'a dyn Fn(egui::Pos2) -> bool,
+    pub egui_context: &'a egui::Context,
+    pub is_edit_mode: bool,
+    pub input: &'a InputManager,
+    pub button: winit::event::MouseButton,
+    pub state: winit::event::ElementState,
+}
+
 /// Routes mouse button press/release events to the appropriate handler.
 pub fn handle_mouse_click(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
     ecs: &mut ae_core::ecs::EcsManager,
-    spatial_grid: &ae_core::spatial::SpatialGrid,
-    ui_gizmo_mode: crate::gizmo::GizmoMode,
-    ui_gizmo_space: crate::gizmo::space::GizmoSpace,
-    window_size: (u32, u32),
-    last_viewport_rect: ae_renderer::render::ViewportRect,
-    scale_factor: f32,
-    is_point_over_ui: &dyn Fn(egui::Pos2) -> bool,
-    egui_context: &egui::Context,
-    is_edit_mode: bool,
-    input: &InputManager,
-    button: winit::event::MouseButton,
-    state: winit::event::ElementState,
+    params: MouseClickParams<'_>,
 ) {
+    let MouseClickParams {
+        spatial_grid,
+        ui_gizmo_mode,
+        ui_gizmo_space,
+        window_size,
+        last_viewport_rect,
+        scale_factor,
+        is_point_over_ui,
+        egui_context,
+        is_edit_mode,
+        input,
+        button,
+        state,
+    } = params;
+
     let is_pressed = state == winit::event::ElementState::Pressed;
 
     if button == winit::event::MouseButton::Right {
@@ -86,16 +122,18 @@ pub fn handle_mouse_click(
                 camera,
                 gizmo_system,
                 ecs,
-                spatial_grid,
-                ui_gizmo_mode,
-                ui_gizmo_space,
-                window_size,
-                last_viewport_rect,
-                scale_factor,
-                is_point_over_ui,
-                egui_context,
-                is_edit_mode,
-                input,
+                super::selection::LeftClickPressParams {
+                    spatial_grid,
+                    ui_gizmo_mode,
+                    ui_gizmo_space,
+                    window_size,
+                    last_viewport_rect,
+                    scale_factor,
+                    is_point_over_ui,
+                    egui_context,
+                    is_edit_mode,
+                    input,
+                },
             );
         } else {
             on_left_click_released(
@@ -103,13 +141,13 @@ pub fn handle_mouse_click(
                 camera,
                 gizmo_system,
                 ecs,
-                ui_gizmo_space,
-                window_size,
-                last_viewport_rect,
-                scale_factor,
-                is_point_over_ui,
-                egui_context,
-                is_edit_mode,
+                super::selection::LeftClickReleaseParams {
+                    ui_gizmo_space,
+                    window_size,
+                    last_viewport_rect,
+                    scale_factor,
+                    is_edit_mode,
+                },
             );
         }
     }

@@ -45,17 +45,17 @@ pub fn handle_gizmo_drag(
             gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
         }
 
-        let delta = gizmo_system.handle_input(
-            ray.origin.to_vec(),
-            ray.direction,
+        let delta = gizmo_system.handle_input(crate::gizmo::GizmoInputParams {
+            ray_origin: ray.origin.to_vec(),
+            ray_dir: ray.direction,
             gizmo_pos,
             camera_pos,
             cam_forward,
-            &gizmo_screen,
-            false,
-            true,
-            false,
-        );
+            screen: &gizmo_screen,
+            left_just_pressed: false,
+            left_pressed: true,
+            left_released: false,
+        });
 
         let has_snapshots = !editor.current_edit_snapshots.is_empty();
         if let Some(d) = delta

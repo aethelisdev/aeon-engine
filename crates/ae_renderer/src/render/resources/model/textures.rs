@@ -14,7 +14,7 @@ pub fn extract_gltf_all_embedded_textures(
             gltf::image::Format::R8G8B8A8 => img.pixels.clone(),
             gltf::image::Format::R8G8B8 => {
                 let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
-                for chunk in img.pixels.chunks_exact(3) {
+                for chunk in img.pixels.as_chunks::<3>().0 {
                     out.push(chunk[0]);
                     out.push(chunk[1]);
                     out.push(chunk[2]);
@@ -34,7 +34,7 @@ pub fn extract_gltf_all_embedded_textures(
             }
             gltf::image::Format::R8G8 => {
                 let mut out = Vec::with_capacity((img.width * img.height * 4) as usize);
-                for chunk in img.pixels.chunks_exact(2) {
+                for chunk in img.pixels.as_chunks::<2>().0 {
                     out.push(chunk[0]);
                     out.push(chunk[1]);
                     out.push(0);

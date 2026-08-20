@@ -5,21 +5,24 @@
 
 use crate::render::types::{SkinVertex, Vertex};
 
+/// Result of extracting primitive geometry and submeshes from a GLTF scene graph.
+pub struct ParsedGltfGeometry {
+    pub all_vertices: Vec<Vertex>,
+    pub all_indices: Vec<u32>,
+    pub raw_positions: Vec<[f32; 3]>,
+    pub raw_skin_vertices: Vec<SkinVertex>,
+    pub submeshes: Vec<crate::render::types::ModelSubmesh>,
+    pub min: [f32; 3],
+    pub max: [f32; 3],
+}
+
 /// Traverses GLTF scene node hierarchy and extracts all primitive geometry with world node transforms applied.
 pub fn parse_gltf_scene_geometry(
     document: &gltf::Document,
     buffers: &[gltf::buffer::Data],
     images: &[gltf::image::Data],
     has_skeleton: bool,
-) -> (
-    Vec<Vertex>,
-    Vec<u32>,
-    Vec<[f32; 3]>,
-    Vec<SkinVertex>,
-    Vec<crate::render::types::ModelSubmesh>,
-    [f32; 3],
-    [f32; 3],
-) {
+) -> ParsedGltfGeometry {
     let mut all_vertices = Vec::new();
     let mut all_indices = Vec::new();
     let mut raw_positions = Vec::new();
@@ -40,44 +43,28 @@ pub fn parse_gltf_scene_geometry(
         document.nodes().collect()
     };
 
+    let mut ctx = GltfGeometryContext {
+        buffers,
+        images,
+        all_vertices: &mut all_vertices,
+        all_indices: &mut all_indices,
+        raw_positions: &mut raw_positions,
+        raw_skin_vertices: &mut raw_skin_vertices,
+        submeshes: &mut submeshes,
+        min: &mut min,
+        max: &mut max,
+        has_skeleton,
+        has_real_skin,
+        is_node_hierarchy,
+    };
+
     if !root_nodes.is_empty() {
         for root in &root_nodes {
-            traverse_gltf_node(
-                root,
-                glam::Mat4::IDENTITY,
-                buffers,
-                images,
-                &mut all_vertices,
-                &mut all_indices,
-                &mut raw_positions,
-                &mut raw_skin_vertices,
-                &mut submeshes,
-                &mut min,
-                &mut max,
-                has_skeleton,
-                has_real_skin,
-                is_node_hierarchy,
-            );
+            traverse_gltf_node(root, glam::Mat4::IDENTITY, &mut ctx);
         }
     } else {
         for mesh in document.meshes() {
-            process_gltf_primitive_mesh(
-                &mesh,
-                mesh.index(),
-                glam::Mat4::IDENTITY,
-                buffers,
-                images,
-                &mut all_vertices,
-                &mut all_indices,
-                &mut raw_positions,
-                &mut raw_skin_vertices,
-                &mut submeshes,
-                &mut min,
-                &mut max,
-                has_skeleton,
-                has_real_skin,
-                is_node_hierarchy,
-            );
+            process_gltf_primitive_mesh(&mesh, mesh.index(), glam::Mat4::IDENTITY, &mut ctx);
         }
     }
 
@@ -86,7 +73,7 @@ pub fn parse_gltf_scene_geometry(
         max = [0.5; 3];
     }
 
-    (
+    ParsedGltfGeometry {
         all_vertices,
         all_indices,
         raw_positions,
@@ -94,88 +81,66 @@ pub fn parse_gltf_scene_geometry(
         submeshes,
         min,
         max,
-    )
+    }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn traverse_gltf_node(
-    node: &gltf::Node,
-    parent_transform: glam::Mat4,
-    buffers: &[gltf::buffer::Data],
-    images: &[gltf::image::Data],
-    all_vertices: &mut Vec<Vertex>,
-    all_indices: &mut Vec<u32>,
-    raw_positions: &mut Vec<[f32; 3]>,
-    raw_skin_vertices: &mut Vec<SkinVertex>,
-    submeshes: &mut Vec<crate::render::types::ModelSubmesh>,
-    min: &mut [f32; 3],
-    max: &mut [f32; 3],
+/// Context and buffer references for extracting GLTF primitive meshes and node hierarchies.
+struct GltfGeometryContext<'a> {
+    buffers: &'a [gltf::buffer::Data],
+    images: &'a [gltf::image::Data],
+    all_vertices: &'a mut Vec<Vertex>,
+    all_indices: &'a mut Vec<u32>,
+    raw_positions: &'a mut Vec<[f32; 3]>,
+    raw_skin_vertices: &'a mut Vec<SkinVertex>,
+    submeshes: &'a mut Vec<crate::render::types::ModelSubmesh>,
+    min: &'a mut [f32; 3],
+    max: &'a mut [f32; 3],
     has_skeleton: bool,
     has_real_skin: bool,
     is_node_hierarchy: bool,
+}
+
+fn traverse_gltf_node(
+    node: &gltf::Node,
+    parent_transform: glam::Mat4,
+    ctx: &mut GltfGeometryContext<'_>,
 ) {
     let local_transform = glam::Mat4::from_cols_array_2d(&node.transform().matrix());
     let world_transform = parent_transform * local_transform;
 
     if let Some(mesh) = node.mesh() {
-        process_gltf_primitive_mesh(
-            &mesh,
-            node.index(),
-            world_transform,
-            buffers,
-            images,
-            all_vertices,
-            all_indices,
-            raw_positions,
-            raw_skin_vertices,
-            submeshes,
-            min,
-            max,
-            has_skeleton,
-            has_real_skin,
-            is_node_hierarchy,
-        );
+        process_gltf_primitive_mesh(&mesh, node.index(), world_transform, ctx);
     }
 
     for child in node.children() {
-        traverse_gltf_node(
-            &child,
-            world_transform,
-            buffers,
-            images,
-            all_vertices,
-            all_indices,
-            raw_positions,
-            raw_skin_vertices,
-            submeshes,
-            min,
-            max,
-            has_skeleton,
-            has_real_skin,
-            is_node_hierarchy,
-        );
+        traverse_gltf_node(&child, world_transform, ctx);
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn process_gltf_primitive_mesh(
     mesh: &gltf::Mesh,
     node_index: usize,
     world_transform: glam::Mat4,
-    buffers: &[gltf::buffer::Data],
-    images: &[gltf::image::Data],
-    all_vertices: &mut Vec<Vertex>,
-    all_indices: &mut Vec<u32>,
-    raw_positions: &mut Vec<[f32; 3]>,
-    raw_skin_vertices: &mut Vec<SkinVertex>,
-    submeshes: &mut Vec<crate::render::types::ModelSubmesh>,
-    min: &mut [f32; 3],
-    max: &mut [f32; 3],
-    has_skeleton: bool,
-    has_real_skin: bool,
-    is_node_hierarchy: bool,
+    ctx: &mut GltfGeometryContext<'_>,
 ) {
     let normal_matrix = glam::Mat3::from_mat4(world_transform);
+    let GltfGeometryContext {
+        buffers,
+        images,
+        all_vertices,
+        all_indices,
+        raw_positions,
+        raw_skin_vertices,
+        submeshes,
+        min,
+        max,
+        has_skeleton,
+        has_real_skin,
+        is_node_hierarchy,
+    } = ctx;
+    let has_skeleton = *has_skeleton;
+    let has_real_skin = *has_real_skin;
+    let is_node_hierarchy = *is_node_hierarchy;
 
     for primitive in mesh.primitives() {
         let mat = primitive.material();
@@ -190,7 +155,7 @@ fn process_gltf_primitive_mesh(
                 .and_then(|idx| images.get(idx))
                 .is_some_and(|img| {
                     if img.format == gltf::image::Format::R8G8B8A8 {
-                        img.pixels.chunks_exact(4).any(|c| c[3] < 245)
+                        img.pixels.as_chunks::<4>().0.iter().any(|c| c[3] < 245)
                     } else {
                         false
                     }

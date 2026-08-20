@@ -62,11 +62,11 @@ impl VectorTrack {
         };
         let k0 = &self.keyframes[i];
         let k1 = &self.keyframes[i + 1];
-        let duration = k1.time - k0.time;
+        let duration = k1.time.algebraic_sub(k0.time);
         if duration <= 1e-6 {
             return k0.value;
         }
-        let t = (time - k0.time) / duration;
+        let t = (time.algebraic_sub(k0.time)).algebraic_div(duration);
         match self.interpolation {
             Interpolation::Step => k0.value,
             Interpolation::Linear | Interpolation::CubicSpline => k0.value.lerp(k1.value, t),
@@ -109,11 +109,11 @@ impl RotationTrack {
         };
         let k0 = &self.keyframes[i];
         let k1 = &self.keyframes[i + 1];
-        let duration = k1.time - k0.time;
+        let duration = k1.time.algebraic_sub(k0.time);
         if duration <= 1e-6 {
             return k0.value.normalize();
         }
-        let t = (time - k0.time) / duration;
+        let t = (time.algebraic_sub(k0.time)).algebraic_div(duration);
         match self.interpolation {
             Interpolation::Step => k0.value.normalize(),
             Interpolation::Linear | Interpolation::CubicSpline => {

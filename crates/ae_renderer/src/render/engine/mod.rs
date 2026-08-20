@@ -8,4 +8,5 @@ pub mod frame;
 pub mod skinning;
 pub mod state;
 
+pub use frame::*;
 pub use state::*;

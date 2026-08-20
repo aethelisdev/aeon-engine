@@ -47,7 +47,7 @@ impl RenderState {
                 let w2 = skin_v.joint_weights[2];
                 let w3 = skin_v.joint_weights[3];
 
-                let total_w = w0 + w1 + w2 + w3;
+                let total_w = w0.algebraic_add(w1).algebraic_add(w2).algebraic_add(w3);
                 if total_w < 0.001 {
                     continue;
                 }

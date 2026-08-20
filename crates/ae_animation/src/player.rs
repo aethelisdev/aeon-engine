@@ -103,14 +103,14 @@ impl AnimationPlayer {
             return;
         }
 
-        let dt = delta_time * self.speed;
+        let dt = delta_time.algebraic_mul(self.speed);
 
         // Advance primary clip
         if let Some(ref clip) = self.current_clip {
-            self.current_time += dt;
+            self.current_time = self.current_time.algebraic_add(dt);
             if clip.duration > 0.0 {
                 if self.looping {
-                    self.current_time %= clip.duration;
+                    self.current_time = self.current_time.algebraic_rem(clip.duration);
                 } else if self.current_time > clip.duration {
                     self.current_time = clip.duration;
                 }
@@ -119,17 +119,19 @@ impl AnimationPlayer {
 
         // Advance target clip & blend factor if crossfading
         if let Some(ref target) = self.target_clip {
-            self.target_time += dt;
+            self.target_time = self.target_time.algebraic_add(dt);
             if target.duration > 0.0 {
                 if self.looping {
-                    self.target_time %= target.duration;
+                    self.target_time = self.target_time.algebraic_rem(target.duration);
                 } else if self.target_time > target.duration {
                     self.target_time = target.duration;
                 }
             }
 
             if self.blend_duration > 0.0 {
-                self.blend_factor += dt / self.blend_duration;
+                self.blend_factor = self
+                    .blend_factor
+                    .algebraic_add(dt.algebraic_div(self.blend_duration));
                 if self.blend_factor >= 1.0 {
                     // Crossfade complete: promote target to primary
                     self.current_clip = self.target_clip.take();

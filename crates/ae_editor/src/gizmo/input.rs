@@ -6,6 +6,19 @@ use super::math::ray_plane;
 /// Gizmo input — handles the drag lifecycle (start, calculate, end).
 use cgmath::{InnerSpace, Vector3};
 
+/// Input parameters for evaluating Gizmo interaction and ray casting.
+pub struct GizmoInputParams<'a> {
+    pub ray_origin: Vector3<f32>,
+    pub ray_dir: Vector3<f32>,
+    pub gizmo_pos: Vector3<f32>,
+    pub camera_pos: Vector3<f32>,
+    pub cam_forward: Vector3<f32>,
+    pub screen: &'a GizmoScreenParams,
+    pub left_just_pressed: bool,
+    pub left_pressed: bool,
+    pub left_released: bool,
+}
+
 impl GizmoSystem {
     /// Top-level input handler called each frame.
     /// 1. Updates hover state (when not dragging).
@@ -13,18 +26,19 @@ impl GizmoSystem {
     /// 3. Computes delta during drag.
     /// 4. Ends drag on `left_released`.
     /// Returns `Some(delta)` when a drag produces movement.
-    pub fn handle_input(
-        &mut self,
-        ray_origin: Vector3<f32>,
-        ray_dir: Vector3<f32>,
-        gizmo_pos: Vector3<f32>,
-        camera_pos: Vector3<f32>,
-        cam_forward: Vector3<f32>,
-        screen: &GizmoScreenParams,
-        left_just_pressed: bool,
-        left_pressed: bool,
-        left_released: bool,
-    ) -> Option<Vector3<f32>> {
+    pub fn handle_input(&mut self, params: GizmoInputParams<'_>) -> Option<Vector3<f32>> {
+        let GizmoInputParams {
+            ray_origin,
+            ray_dir,
+            gizmo_pos,
+            camera_pos,
+            cam_forward,
+            screen,
+            left_just_pressed,
+            left_pressed,
+            left_released,
+        } = params;
+
         let dist_cam = (camera_pos - gizmo_pos)
             .dot(cam_forward.normalize())
             .abs()

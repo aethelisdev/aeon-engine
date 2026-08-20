@@ -21,23 +21,41 @@ pub fn create_ray(
     picking::create_ray(mx, my, width, height, &vp_matrix)
 }
 
+/// Parameters for processing left-click press events in the viewport.
+pub struct LeftClickPressParams<'a> {
+    pub spatial_grid: &'a ae_core::spatial::SpatialGrid,
+    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
+    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
+    pub window_size: (u32, u32),
+    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub scale_factor: f32,
+    pub is_point_over_ui: &'a dyn Fn(egui::Pos2) -> bool,
+    pub egui_context: &'a egui::Context,
+    pub is_edit_mode: bool,
+    pub input: &'a InputManager,
+}
+
 /// Handles left-click press in Edit Mode — initiates gizmo drag or entity selection.
 pub fn on_left_click_pressed(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
     ecs: &mut ae_core::ecs::EcsManager,
-    spatial_grid: &ae_core::spatial::SpatialGrid,
-    _ui_gizmo_mode: crate::gizmo::GizmoMode,
-    ui_gizmo_space: crate::gizmo::space::GizmoSpace,
-    window_size: (u32, u32),
-    last_viewport_rect: ae_renderer::render::ViewportRect,
-    scale_factor: f32,
-    is_point_over_ui: &dyn Fn(egui::Pos2) -> bool,
-    egui_context: &egui::Context,
-    is_edit_mode: bool,
-    input: &InputManager,
+    params: LeftClickPressParams<'_>,
 ) {
+    let LeftClickPressParams {
+        spatial_grid,
+        ui_gizmo_mode: _ui_gizmo_mode,
+        ui_gizmo_space,
+        window_size,
+        last_viewport_rect,
+        scale_factor,
+        is_point_over_ui,
+        egui_context,
+        is_edit_mode,
+        input,
+    } = params;
+
     if !is_edit_mode {
         return;
     }
@@ -83,17 +101,17 @@ pub fn on_left_click_pressed(
                 gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
             }
 
-            gizmo_system.handle_input(
-                ray.origin.to_vec(),
-                ray.direction,
-                pos,
+            gizmo_system.handle_input(crate::gizmo::GizmoInputParams {
+                ray_origin: ray.origin.to_vec(),
+                ray_dir: ray.direction,
+                gizmo_pos: pos,
                 camera_pos,
                 cam_forward,
-                &gizmo_screen,
-                true,
-                false,
-                false,
-            );
+                screen: &gizmo_screen,
+                left_just_pressed: true,
+                left_pressed: false,
+                left_released: false,
+            });
         }
 
         if gizmo_system.dragging_active() {
@@ -335,20 +353,31 @@ pub fn try_select_entity(
     }
 }
 
+/// Parameters for processing left-click release events in the viewport.
+pub struct LeftClickReleaseParams {
+    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
+    pub window_size: (u32, u32),
+    pub last_viewport_rect: ae_renderer::render::ViewportRect,
+    pub scale_factor: f32,
+    pub is_edit_mode: bool,
+}
+
 /// Handles left-click release — finalizes gizmo drag and commits undo history.
 pub fn on_left_click_released(
     editor: &mut EditorState,
     camera: &ae_core::camera::Camera,
     gizmo_system: &mut crate::gizmo::GizmoSystem,
     ecs: &mut ae_core::ecs::EcsManager,
-    ui_gizmo_space: crate::gizmo::space::GizmoSpace,
-    window_size: (u32, u32),
-    last_viewport_rect: ae_renderer::render::ViewportRect,
-    scale_factor: f32,
-    _is_point_over_ui: &dyn Fn(egui::Pos2) -> bool,
-    _egui_context: &egui::Context,
-    is_edit_mode: bool,
+    params: LeftClickReleaseParams,
 ) {
+    let LeftClickReleaseParams {
+        ui_gizmo_space,
+        window_size,
+        last_viewport_rect,
+        scale_factor,
+        is_edit_mode,
+    } = params;
+
     if editor.gizmo_dragging && is_edit_mode {
         let (mx, my) = editor.last_cursor_pos;
         let (local_mx, local_my, local_size) =
@@ -367,17 +396,17 @@ pub fn on_left_click_released(
                     gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
                 }
 
-                gizmo_system.handle_input(
-                    ray.origin.to_vec(),
-                    ray.direction,
-                    Vector3::new(pos0.x, pos0.y, pos0.z),
+                gizmo_system.handle_input(crate::gizmo::GizmoInputParams {
+                    ray_origin: ray.origin.to_vec(),
+                    ray_dir: ray.direction,
+                    gizmo_pos: Vector3::new(pos0.x, pos0.y, pos0.z),
                     camera_pos,
                     cam_forward,
-                    &gizmo_screen,
-                    false,
-                    false,
-                    true,
-                );
+                    screen: &gizmo_screen,
+                    left_just_pressed: false,
+                    left_pressed: false,
+                    left_released: true,
+                });
             }
             crate::history::commit_undo_history(editor, &ecs.world, sel);
         }
