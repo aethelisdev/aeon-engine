@@ -767,4 +767,39 @@ mod tests {
             ejected_x
         );
     }
+
+    /// Tests that entities possessing only `PlayerTag` without `CharacterController` are not treated as KCC kinematic capsules.
+    #[test]
+    fn test_entities_with_only_player_tag_not_treated_as_kcc() {
+        let mut world = World::new();
+        let mut physics = PhysicsWorld::new();
+
+        let tag_only_entity = world.spawn((
+            Position {
+                x: 10.0,
+                y: 5.0,
+                z: 10.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            ae_core::ecs::PlayerTag,
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+        // Character controller query must find 0 entities
+        let kcc_count = world.query::<&CharacterController>().iter().count();
+        assert_eq!(kcc_count, 0);
+
+        // Position of tag-only entity remains unchanged
+        let pos = world.get::<&Position>(tag_only_entity).unwrap();
+        assert_eq!(pos.x, 10.0);
+        assert_eq!(pos.y, 5.0);
+        assert_eq!(pos.z, 10.0);
+    }
 }

@@ -298,3 +298,9 @@ fn test_destructible_target_damage_and_destruction_event() {
     let events = destruction_events.unwrap();
     assert_eq!(events[0].target, target_ent);
 }
+
+#[test]
+fn test_behavior_runner_registry_initialization() {
+    let registry = BehaviorRunnerRegistry::global();
+    assert_eq!(registry.handlers().len(), 5);
+}

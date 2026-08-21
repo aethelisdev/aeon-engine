@@ -24,16 +24,17 @@ impl PhysicsWorld {
         F: Fn(AssetHandle) -> Option<(&'a [[f32; 3]], &'a [u32])>,
     {
         // 1. Remove deleted entities from simulation
-        let mut to_remove = Vec::new();
+        self.scratch_to_remove.clear();
         for &entity in self.entity_to_body.keys() {
             let is_active = world.get::<&RigidBody>(entity).is_ok()
                 || world.get::<&Collider>(entity).is_ok()
                 || world.get::<&CharacterController>(entity).is_ok();
             if !world.contains(entity) || !is_active {
-                to_remove.push(entity);
+                self.scratch_to_remove.push(entity);
             }
         }
-        for entity in to_remove {
+        for i in 0..self.scratch_to_remove.len() {
+            let entity = self.scratch_to_remove[i];
             if let Some(handle) = self.entity_to_body.remove(&entity) {
                 self.body_to_entity.remove(&handle);
                 self.rigid_body_set.remove(

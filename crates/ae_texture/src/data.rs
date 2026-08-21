@@ -191,7 +191,7 @@ pub enum CompressedTextureFormat {
     Bc3Unorm,
     /// BC3 (DXT5) sRGB encoded color space.
     Bc3Srgb,
-    /// BC7 High-quality ARGB compression for  PBR materials (16 bytes per 4x4 block).
+    /// BC7 High-quality ARGB compression for high-fidelity PBR materials (16 bytes per 4x4 block).
     Bc7Unorm,
     /// BC7 sRGB encoded color space.
     Bc7Srgb,

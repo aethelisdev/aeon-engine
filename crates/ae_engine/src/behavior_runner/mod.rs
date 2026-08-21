@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Gameplay behavior execution pipeline for interactive gameplay systems.
+//! Dynamic Gameplay Behavior Execution Pipeline.
+//!
+//! Provides a decoupled `BehaviorHandler` and `BehaviorRunnerRegistry` architecture
+//! for extensible, data-driven entity execution.
 //!
 
 pub mod combat;
@@ -18,6 +21,8 @@ use ae_core::events::DynamicEventBus;
 use ae_editor::input::InputManager;
 use ae_physics::world::PhysicsWorld;
 use hecs::World;
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Parameters bundle for executing the behavior runner pipeline.
 pub struct BehaviorRunnerParams<'a> {
@@ -27,6 +32,148 @@ pub struct BehaviorRunnerParams<'a> {
     pub event_bus: &'a mut DynamicEventBus,
     pub camera_forward: cgmath::Vector3<f32>,
     pub delta_time: f32,
+}
+
+/// Execution context passed to each behavior handler during update.
+pub struct BehaviorUpdateContext<'a> {
+    pub world: &'a mut World,
+    pub physics_world: &'a mut PhysicsWorld,
+    pub input: &'a InputManager,
+    pub event_bus: &'a mut DynamicEventBus,
+    pub camera_forward: cgmath::Vector3<f32>,
+    pub delta_time: f32,
+    pub player_entity_and_pos: Option<(hecs::Entity, [f32; 3])>,
+    pub dirty_entities: &'a mut Vec<hecs::Entity>,
+}
+
+/// Interface for custom gameplay behavior update logic.
+pub trait BehaviorHandler: Send + Sync {
+    /// Associated behavior type matching the ECS `BehaviorComponent`.
+    fn behavior_type(&self) -> BehaviorType;
+
+    /// Executes the gameplay tick for all entities holding this behavior.
+    fn update(&self, ctx: &mut BehaviorUpdateContext, entities: &[hecs::Entity]);
+}
+
+/// Continuous Rotator behavior handler.
+pub struct RotatorBehaviorHandler;
+impl BehaviorHandler for RotatorBehaviorHandler {
+    fn behavior_type(&self) -> BehaviorType {
+        BehaviorType::Rotator
+    }
+    fn update(&self, ctx: &mut BehaviorUpdateContext, entities: &[hecs::Entity]) {
+        rotator::update_rotators(
+            ctx.world,
+            ctx.physics_world,
+            entities,
+            ctx.delta_time,
+            ctx.dirty_entities,
+        );
+    }
+}
+
+/// Moving Platform waypoint interpolation behavior handler.
+pub struct MovingPlatformBehaviorHandler;
+impl BehaviorHandler for MovingPlatformBehaviorHandler {
+    fn behavior_type(&self) -> BehaviorType {
+        BehaviorType::MovingPlatform
+    }
+    fn update(&self, ctx: &mut BehaviorUpdateContext, entities: &[hecs::Entity]) {
+        moving_platform::update_moving_platforms(
+            ctx.world,
+            entities,
+            ctx.player_entity_and_pos,
+            ctx.delta_time,
+            ctx.dirty_entities,
+        );
+    }
+}
+
+/// Proximity Trigger Zone and elevator/door mechanism behavior handler.
+pub struct TriggerZoneBehaviorHandler;
+impl BehaviorHandler for TriggerZoneBehaviorHandler {
+    fn behavior_type(&self) -> BehaviorType {
+        BehaviorType::TriggerZone
+    }
+    fn update(&self, ctx: &mut BehaviorUpdateContext, entities: &[hecs::Entity]) {
+        trigger_zone::update_trigger_zone_mechanisms(
+            ctx.world,
+            entities,
+            ctx.delta_time,
+            ctx.dirty_entities,
+        );
+    }
+}
+
+/// Destructible target damage and hit flash behavior handler.
+pub struct DestructibleTargetBehaviorHandler;
+impl BehaviorHandler for DestructibleTargetBehaviorHandler {
+    fn behavior_type(&self) -> BehaviorType {
+        BehaviorType::DestructibleTarget
+    }
+    fn update(&self, ctx: &mut BehaviorUpdateContext, entities: &[hecs::Entity]) {
+        destructible::update_destructible_visuals(ctx.world, entities, ctx.delta_time);
+    }
+}
+
+/// Character Action weapon shooting, raycasts and impulses behavior handler.
+pub struct CharacterActionBehaviorHandler;
+impl BehaviorHandler for CharacterActionBehaviorHandler {
+    fn behavior_type(&self) -> BehaviorType {
+        BehaviorType::CharacterAction
+    }
+    fn update(&self, ctx: &mut BehaviorUpdateContext, entities: &[hecs::Entity]) {
+        combat::update_character_actions(
+            ctx.world,
+            ctx.physics_world,
+            ctx.input,
+            ctx.event_bus,
+            entities,
+            ctx.camera_forward,
+        );
+    }
+}
+
+/// Central registry managing all gameplay behavior handlers.
+#[derive(Default)]
+pub struct BehaviorRunnerRegistry {
+    handlers: Vec<Box<dyn BehaviorHandler>>,
+}
+
+impl BehaviorRunnerRegistry {
+    /// Creates a new empty behavior runner registry.
+    pub fn new() -> Self {
+        Self {
+            handlers: Vec::new(),
+        }
+    }
+
+    /// Registers a new behavior handler.
+    pub fn register<H: BehaviorHandler + 'static>(&mut self, handler: H) {
+        self.handlers.push(Box::new(handler));
+    }
+
+    /// Returns all registered behavior handlers.
+    pub fn handlers(&self) -> &[Box<dyn BehaviorHandler>] {
+        &self.handlers
+    }
+
+    /// Builds the default engine registry with all built-in behavior handlers.
+    pub fn default_registry() -> Self {
+        let mut registry = Self::new();
+        registry.register(RotatorBehaviorHandler);
+        registry.register(MovingPlatformBehaviorHandler);
+        registry.register(TriggerZoneBehaviorHandler);
+        registry.register(DestructibleTargetBehaviorHandler);
+        registry.register(CharacterActionBehaviorHandler);
+        registry
+    }
+
+    /// Returns a reference to the global engine behavior runner registry singleton.
+    pub fn global() -> &'static BehaviorRunnerRegistry {
+        static REGISTRY: OnceLock<BehaviorRunnerRegistry> = OnceLock::new();
+        REGISTRY.get_or_init(Self::default_registry)
+    }
 }
 
 /// Executes all active entity behaviors during Play mode.
@@ -68,60 +215,45 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     // 3. Process raycast damage on destructible targets
     destructible::process_destructible_hits(world, event_bus);
 
-    // 4. Collect active entities by behavior type
-    let mut rotators = Vec::new();
-    let mut moving_platforms = Vec::new();
-    let mut trigger_zones = Vec::new();
-    let mut destructible_targets = Vec::new();
-    let mut character_actions = Vec::new();
-
+    // 4. Collect active entities dynamically by BehaviorType
+    let mut grouped_entities: HashMap<BehaviorType, Vec<hecs::Entity>> = HashMap::new();
     for (entity, behavior) in world.query::<(hecs::Entity, &BehaviorComponent)>().iter() {
-        match behavior.behavior_type {
-            BehaviorType::Rotator => rotators.push(entity),
-            BehaviorType::MovingPlatform => moving_platforms.push(entity),
-            BehaviorType::TriggerZone => trigger_zones.push(entity),
-            BehaviorType::DestructibleTarget => destructible_targets.push(entity),
-            BehaviorType::CharacterAction => character_actions.push(entity),
-            BehaviorType::Custom => {}
-        }
+        grouped_entities
+            .entry(behavior.behavior_type)
+            .or_default()
+            .push(entity);
     }
 
     let mut dirty_entities = Vec::new();
 
-    // 5. Update Rotators and Player continuous angular rotations
-    rotator::update_rotators(world, physics_world, &rotators, dt, &mut dirty_entities);
-    rotator::update_player_rotations(world, physics_world, dt, &mut dirty_entities);
+    // 5. Execute registered behavior handlers dynamically
+    let registry = BehaviorRunnerRegistry::global();
+    {
+        let mut ctx = BehaviorUpdateContext {
+            world,
+            physics_world,
+            input,
+            event_bus,
+            camera_forward,
+            delta_time: dt,
+            player_entity_and_pos,
+            dirty_entities: &mut dirty_entities,
+        };
 
-    // 6. Update Moving Platforms and passenger translation
-    moving_platform::update_moving_platforms(
-        world,
-        &moving_platforms,
-        player_entity_and_pos,
-        dt,
-        &mut dirty_entities,
-    );
+        for handler in registry.handlers() {
+            if let Some(entities) = grouped_entities.get(&handler.behavior_type())
+                && !entities.is_empty()
+            {
+                handler.update(&mut ctx, entities);
+            }
+        }
 
-    // 7. Update Trigger Zones and linked elevator/door mechanisms
-    trigger_zone::update_trigger_zone_mechanisms(world, &trigger_zones, dt, &mut dirty_entities);
+        // 6. Update Ephemeral projectile despawning
+        destructible::update_ephemeral_projectiles(ctx.world, dt);
+    }
 
-    // Mark dirty entities for transform hierarchy sync
+    // 7. Mark dirty entities for transform hierarchy sync
     for ent in dirty_entities {
         let _ = world.insert_one(ent, ae_core::ecs::TransformDirty);
     }
-
-    // 8. Update Destructible Targets visual hit flashes
-    destructible::update_destructible_visuals(world, &destructible_targets, dt);
-
-    // 9. Update Ephemeral Projectiles lifetime and auto-despawn
-    destructible::update_ephemeral_projectiles(world, dt);
-
-    // 10. Update Character Actions (Weapon shooting, raycasts, impulses & projectiles)
-    combat::update_character_actions(
-        world,
-        physics_world,
-        input,
-        event_bus,
-        &character_actions,
-        camera_forward,
-    );
 }

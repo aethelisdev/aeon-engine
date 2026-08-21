@@ -292,19 +292,7 @@ impl AeEngine {
             .query::<(hecs::Entity, &ae_core::ecs::CharacterController)>()
             .iter()
         {
-            if !kcc_entities.contains(&ent) {
-                kcc_entities.push(ent);
-            }
-        }
-        for (ent, _tag) in self
-            .ecs
-            .world
-            .query::<(hecs::Entity, &ae_core::ecs::PlayerTag)>()
-            .iter()
-        {
-            if !kcc_entities.contains(&ent) {
-                kcc_entities.push(ent);
-            }
+            kcc_entities.push(ent);
         }
 
         if !kcc_entities.is_empty() {
@@ -360,81 +348,50 @@ impl AeEngine {
             let jump_pressed = self.input.is_action_pressed("Jump");
 
             for ent in kcc_entities {
-                let is_kcc = self
+                let is_grounded = self
                     .ecs
                     .world
                     .get::<&ae_core::ecs::CharacterController>(ent)
-                    .is_ok();
+                    .map(|c| c.is_grounded)
+                    .unwrap_or(false);
+                let mut vert_vel = self
+                    .ecs
+                    .world
+                    .get::<&ae_core::ecs::Velocity>(ent)
+                    .map(|v| v.y)
+                    .unwrap_or(0.0);
 
-                if is_kcc {
-                    let is_grounded = self
-                        .ecs
-                        .world
-                        .get::<&ae_core::ecs::CharacterController>(ent)
-                        .map(|c| c.is_grounded)
-                        .unwrap_or(false);
-                    let mut vert_vel = self
-                        .ecs
-                        .world
-                        .get::<&ae_core::ecs::Velocity>(ent)
-                        .map(|v| v.y)
-                        .unwrap_or(0.0);
-
-                    if is_grounded {
-                        if jump_pressed {
-                            vert_vel = 9.0; // Jump impulse velocity (1.8m high jump)
-                            if let Ok(mut ctrl) =
-                                self.ecs
-                                    .world
-                                    .get::<&mut ae_core::ecs::CharacterController>(ent)
-                            {
-                                ctrl.is_grounded = false;
-                            }
-                        } else {
-                            vert_vel = 0.0; // Grounded: zero vertical velocity; snap_to_ground handles slopes/steps
+                if is_grounded {
+                    if jump_pressed {
+                        vert_vel = 9.0; // Jump impulse velocity (1.8m high jump)
+                        if let Ok(mut ctrl) = self
+                            .ecs
+                            .world
+                            .get::<&mut ae_core::ecs::CharacterController>(ent)
+                        {
+                            ctrl.is_grounded = false;
                         }
                     } else {
-                        vert_vel -= 20.0 * dt; // Gravity
+                        vert_vel = 0.0; // Grounded: zero vertical velocity; snap_to_ground handles slopes/steps
                     }
-
-                    if let Ok(mut vel) = self.ecs.world.get::<&mut ae_core::ecs::Velocity>(ent) {
-                        vel.x = 0.0;
-                        vel.y = vert_vel;
-                        vel.z = 0.0;
-                    }
-
-                    let translation = Vec3::new(
-                        move_dir.x * speed * dt,
-                        vert_vel * dt,
-                        move_dir.z * speed * dt,
-                    );
-
-                    self.physics_world
-                        .move_character(&mut self.ecs.world, ent, translation, dt);
-                } else if let Some(&handle) = self.physics_world.entity_to_body.get(&ent) {
-                    if let Some(body) = self.physics_world.rigid_body_set.get_mut(handle) {
-                        if body.is_dynamic() {
-                            let current_vy = body.linvel().y;
-                            let vy = if jump_pressed && current_vy.abs() < 0.1 {
-                                6.0
-                            } else {
-                                current_vy
-                            };
-                            body.set_linvel(
-                                Vec3::new(move_dir.x * speed, vy, move_dir.z * speed),
-                                true,
-                            );
-                        } else if body.is_kinematic() {
-                            let mut pose = *body.position();
-                            pose.translation +=
-                                Vec3::new(move_dir.x * speed * dt, 0.0, move_dir.z * speed * dt);
-                            body.set_next_kinematic_position(pose);
-                        }
-                    }
-                } else if let Ok(mut pos) = self.ecs.world.get::<&mut ae_core::ecs::Position>(ent) {
-                    pos.x += move_dir.x * speed * dt;
-                    pos.z += move_dir.z * speed * dt;
+                } else {
+                    vert_vel -= 20.0 * dt; // Gravity
                 }
+
+                if let Ok(mut vel) = self.ecs.world.get::<&mut ae_core::ecs::Velocity>(ent) {
+                    vel.x = 0.0;
+                    vel.y = vert_vel;
+                    vel.z = 0.0;
+                }
+
+                let translation = Vec3::new(
+                    move_dir.x * speed * dt,
+                    vert_vel * dt,
+                    move_dir.z * speed * dt,
+                );
+
+                self.physics_world
+                    .move_character(&mut self.ecs.world, ent, translation, dt);
             }
         }
     }

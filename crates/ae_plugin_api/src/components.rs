@@ -335,7 +335,7 @@ pub struct GlobalTransform(pub cgmath::Matrix4<f32>);
 // =========================================================================
 
 /// Predefined gameplay behavior category for data-driven entity execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BehaviorType {
     /// Smoothly rotates the entity around a defined axis.
     Rotator,

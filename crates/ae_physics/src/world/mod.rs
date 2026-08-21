@@ -45,6 +45,10 @@ pub struct PhysicsWorld {
     pub entity_to_body: HashMap<Entity, RigidBodyHandle>,
     /// Mapping of Rapier rigid body handles to ECS entities.
     pub body_to_entity: HashMap<RigidBodyHandle, Entity>,
+    /// Reusable scratch buffer for removed entities to avoid allocations in hot loop.
+    pub scratch_to_remove: Vec<Entity>,
+    /// Reusable scratch buffer for entities whose dirty flags will be cleared.
+    pub scratch_dirty_to_clear: Vec<Entity>,
 }
 
 /// Default solver and material constants for `PhysicsWorld`.
@@ -77,6 +81,8 @@ impl PhysicsWorld {
             ccd_solver: CCDSolver::new(),
             entity_to_body: HashMap::new(),
             body_to_entity: HashMap::new(),
+            scratch_to_remove: Vec::with_capacity(32),
+            scratch_dirty_to_clear: Vec::with_capacity(64),
         }
     }
 
@@ -92,6 +98,8 @@ impl PhysicsWorld {
         self.ccd_solver = CCDSolver::new();
         self.entity_to_body.clear();
         self.body_to_entity.clear();
+        self.scratch_to_remove.clear();
+        self.scratch_dirty_to_clear.clear();
     }
 
     /// Applies a linear impulse to the dynamic rigid body associated with the given entity.

@@ -55,6 +55,8 @@ impl Default for EcsManager {
 
 /// Updates the world-space GlobalTransform matrices of all entities in parent-child relationships,
 /// and synchronizes standalone entities possessing GlobalTransform components with their local transform.
+/// Uses an event/dirty-propagation model (`TransformDirty`): if a parent or child is dirty,
+/// updates matrices and cascades down the subtree; unchanged subtrees skip matrix multiplications.
 pub fn update_hierarchy_transforms(world: &mut hecs::World) {
     use cgmath::SquareMatrix;
 
@@ -84,74 +86,103 @@ pub fn update_hierarchy_transforms(world: &mut hecs::World) {
             }
         }
 
-        // 3. Recursive DFS helper to compute and insert/update GlobalTransform components for hierarchies
+        // 3. Recursive DFS helper with dirty-propagation optimization
         fn propagate(
             world: &mut hecs::World,
             entity: hecs::Entity,
             parent_transform: &cgmath::Matrix4<f32>,
             parent_to_children: &std::collections::HashMap<hecs::Entity, Vec<hecs::Entity>>,
             visited: &mut std::collections::HashSet<hecs::Entity>,
+            parent_is_dirty: bool,
         ) {
             if !visited.insert(entity) {
                 return; // Cycle detected — stop recursion to prevent stack overflow
             }
 
-            let pos = world
-                .get::<&Position>(entity)
-                .ok()
-                .map(|p| cgmath::Vector3::new(p.x, p.y, p.z))
-                .unwrap_or_else(|| cgmath::Vector3::new(0.0, 0.0, 0.0));
-            let rot = world
-                .get::<&Rotation>(entity)
-                .ok()
-                .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
-                .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
-            let scale = world
-                .get::<&Scale>(entity)
-                .ok()
-                .map(|s| {
-                    let min = 1e-4;
-                    let sx = if s.x.abs() < min {
-                        f32::copysign(min, s.x)
-                    } else {
-                        s.x
-                    };
-                    let sy = if s.y.abs() < min {
-                        f32::copysign(min, s.y)
-                    } else {
-                        s.y
-                    };
-                    let sz = if s.z.abs() < min {
-                        f32::copysign(min, s.z)
-                    } else {
-                        s.z
-                    };
-                    cgmath::Vector3::new(sx, sy, sz)
-                })
-                .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
+            let self_is_dirty = world.get::<&TransformDirty>(entity).is_ok();
+            let has_gt = world.get::<&GlobalTransform>(entity).is_ok();
+            let is_dirty = parent_is_dirty || self_is_dirty || !has_gt;
 
-            let local_matrix = cgmath::Matrix4::from_translation(pos)
-                * cgmath::Matrix4::from(rot)
-                * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z);
+            let global_matrix = if is_dirty {
+                let pos = world
+                    .get::<&Position>(entity)
+                    .ok()
+                    .map(|p| cgmath::Vector3::new(p.x, p.y, p.z))
+                    .unwrap_or_else(|| cgmath::Vector3::new(0.0, 0.0, 0.0));
+                let rot = world
+                    .get::<&Rotation>(entity)
+                    .ok()
+                    .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
+                    .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
+                let scale = world
+                    .get::<&Scale>(entity)
+                    .ok()
+                    .map(|s| {
+                        let min = 1e-4;
+                        let sx = if s.x.abs() < min {
+                            f32::copysign(min, s.x)
+                        } else {
+                            s.x
+                        };
+                        let sy = if s.y.abs() < min {
+                            f32::copysign(min, s.y)
+                        } else {
+                            s.y
+                        };
+                        let sz = if s.z.abs() < min {
+                            f32::copysign(min, s.z)
+                        } else {
+                            s.z
+                        };
+                        cgmath::Vector3::new(sx, sy, sz)
+                    })
+                    .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
 
-            let global_matrix = parent_transform * local_matrix;
+                let local_matrix = cgmath::Matrix4::from_translation(pos)
+                    * cgmath::Matrix4::from(rot)
+                    * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, scale.z);
 
-            if let Ok(mut gt) = world.get::<&mut GlobalTransform>(entity) {
-                gt.0 = global_matrix;
+                let g_mat = parent_transform * local_matrix;
+
+                if let Ok(mut gt) = world.get::<&mut GlobalTransform>(entity) {
+                    gt.0 = g_mat;
+                } else {
+                    let _ = world.insert_one(entity, GlobalTransform(g_mat));
+                }
+
+                g_mat
             } else {
-                let _ = world.insert_one(entity, GlobalTransform(global_matrix));
-            }
+                world
+                    .get::<&GlobalTransform>(entity)
+                    .map(|gt| gt.0)
+                    .unwrap_or(*parent_transform)
+            };
 
             if let Some(children) = parent_to_children.get(&entity) {
                 for &child in children {
-                    propagate(world, child, &global_matrix, parent_to_children, visited);
+                    propagate(
+                        world,
+                        child,
+                        &global_matrix,
+                        parent_to_children,
+                        visited,
+                        is_dirty,
+                    );
                 }
             }
         }
 
         let identity = cgmath::Matrix4::identity();
         for root in root_entities {
-            propagate(world, root, &identity, &parent_to_children, &mut visited);
+            let root_is_dirty = world.get::<&TransformDirty>(root).is_ok();
+            propagate(
+                world,
+                root,
+                &identity,
+                &parent_to_children,
+                &mut visited,
+                root_is_dirty,
+            );
         }
     }
 
@@ -249,5 +280,44 @@ mod tests {
         assert_eq!(gt.0.w.x, 10.0);
         assert_eq!(gt.0.w.y, 5.0);
         assert_eq!(gt.0.w.z, -2.0);
+    }
+
+    /// Tests that update_hierarchy_transforms propagates dirty parent transforms down to children.
+    #[test]
+    fn test_update_hierarchy_transforms_dirty_propagation() {
+        let mut world = hecs::World::new();
+        let parent = world.spawn((
+            Position {
+                x: 5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            TransformDirty,
+        ));
+        let child = world.spawn((
+            Parent(parent),
+            Position {
+                x: 2.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+        ));
+
+        update_hierarchy_transforms(&mut world);
+
+        let child_gt = world.get::<&GlobalTransform>(child).unwrap();
+        assert_eq!(child_gt.0.w.x, 7.0);
     }
 }

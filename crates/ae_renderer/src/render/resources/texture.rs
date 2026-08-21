@@ -220,7 +220,7 @@ impl RenderState {
 
     /// Uploads BC1/BC3/BC7 block-compressed texture pixel data (`ae_texture::CompressedTextureData`)
     /// directly into a WGPU compressed texture format.
-    /// Achieves 75-80% VRAM bandwidth and memory savings for  material textures.
+    /// Achieves 75-80% VRAM bandwidth and memory savings for high-resolution PBR material textures.
     pub fn upload_compressed_texture_data(
         &self,
         assets: &mut crate::asset::AssetManager,

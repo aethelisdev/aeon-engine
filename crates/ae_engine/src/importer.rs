@@ -1,48 +1,240 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::engine::AeEngine;
-use std::path::PathBuf;
 
-// is_safe_path and ParsedModelData are now imported from ae_renderer::asset
+//! Modular Asset Importer & Loader Pipeline.
+//!
+//! Provides a decoupled `AssetLoader` and `AssetLoaderRegistry` architecture
+//! for drag-and-drop file ingestion, background async parsing, and entity spawning.
+//!
+
+use crate::engine::AeEngine;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+/// Interface for custom asset format loaders and background converters.
+pub trait AssetLoader: Send + Sync {
+    /// List of lower-case file extensions handled by this loader (e.g. `["png", "jpg"]`, `["gltf", "glb"]`).
+    fn supported_extensions(&self) -> &'static [&'static str];
+
+    /// Executes the import/loading logic for this asset file format.
+    fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String);
+}
+
+/// 2D Sprite / Texture Asset Loader for image formats.
+pub struct TextureAssetLoader;
+
+impl AssetLoader for TextureAssetLoader {
+    fn supported_extensions(&self) -> &'static [&'static str] {
+        &["png", "jpg", "jpeg", "tga", "bmp"]
+    }
+
+    fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
+        engine.ui.is_loading_assets = true;
+        if let Some(path_str) = path.to_str() {
+            let texture_id = engine
+                .render_state
+                .load_texture(&mut engine.asset_manager, path_str);
+            engine.ui.is_loading_assets = false;
+            log::info!("Image loaded and spawned entity: {:?}", final_name);
+            spawn_sprite(engine, final_name, texture_id);
+        }
+    }
+}
+
+/// 3D glTF / GLB Model Asset Loader with async parsing via Rayon.
+pub struct GltfAssetLoader;
+
+impl AssetLoader for GltfAssetLoader {
+    fn supported_extensions(&self) -> &'static [&'static str] {
+        &["gltf", "glb"]
+    }
+
+    fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
+        engine.ui.is_loading_assets = true;
+        if let Some(path_str) = path.to_str() {
+            engine.ui.status_message = Some((
+                vec![(
+                    format!("Loading {} in background...", final_name),
+                    egui::Color32::LIGHT_BLUE,
+                )],
+                std::time::Instant::now(),
+            ));
+            let (tx, rx) = std::sync::mpsc::channel();
+            engine.model_receivers.push(rx);
+
+            let path_str_clone = path_str.to_string();
+
+            rayon::spawn(move || {
+                let result =
+                    ae_renderer::render::resources::parse_gltf_file(&path_str_clone, final_name);
+                let _ = tx.send(result);
+            });
+        }
+    }
+}
+
+/// 3D FBX Model Asset Loader using direct native FBX2glTF conversion pipeline.
+pub struct FbxAssetLoader;
+
+impl AssetLoader for FbxAssetLoader {
+    fn supported_extensions(&self) -> &'static [&'static str] {
+        &["fbx"]
+    }
+
+    fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
+        engine.ui.is_loading_assets = true;
+        if let Some(path_str) = path.to_str() {
+            engine.ui.status_message = Some((
+                vec![(
+                    "Converting FBX file... Please wait.".to_string(),
+                    egui::Color32::LIGHT_BLUE,
+                )],
+                std::time::Instant::now(),
+            ));
+
+            let (tx, rx) = std::sync::mpsc::channel();
+            engine.asset_receivers.push(rx);
+
+            let path_clone = path.to_path_buf();
+            let path_str_clone = path_str.to_string();
+
+            rayon::spawn(move || {
+                let tool_path = if cfg!(target_os = "windows") {
+                    "tools/windows/FBX2glTF.exe"
+                } else if cfg!(target_os = "macos") {
+                    "tools/macos/FBX2glTF_macos"
+                } else {
+                    "tools/linux/FBX2glTF_linux"
+                };
+
+                let p = std::path::Path::new(tool_path);
+                if !p.exists() {
+                    let _ = tx.send(Err(format!(
+                        "FBX2glTF tool not found at '{}'. Please make sure the tools/ folder is intact.",
+                        tool_path
+                    )));
+                    return;
+                }
+
+                let output_path = path_clone.with_extension("glb");
+                let output_stem = path_clone.with_extension("");
+                let output_stem_str = output_stem.to_string_lossy().to_string();
+
+                let output = std::process::Command::new(tool_path)
+                    .arg("-i")
+                    .arg(&path_str_clone)
+                    .arg("-o")
+                    .arg(&output_stem_str)
+                    .arg("-b")
+                    .arg("--pbr-metallic-roughness")
+                    .arg("--normalize-weights")
+                    .arg("1")
+                    .output();
+
+                match output {
+                    Ok(out) if out.status.success() => {
+                        if output_path.exists() {
+                            let _ = tx.send(Ok(output_path));
+                        } else {
+                            let _ = tx.send(Err(
+                                "Conversion reported success but .glb file was not found."
+                                    .to_string(),
+                            ));
+                        }
+                    }
+                    Ok(out) => {
+                        let err_msg = String::from_utf8_lossy(&out.stderr).to_string();
+                        let out_msg = String::from_utf8_lossy(&out.stdout).to_string();
+                        let combined_err = if err_msg.is_empty() { out_msg } else { err_msg };
+                        let _ = tx.send(Err(format!("Conversion failed: {}", combined_err)));
+                    }
+                    Err(e) => {
+                        log::error!("Failed to start FBX2glTF executable: {}", e);
+                        let _ = tx.send(Err(format!("Failed to start FBX2glTF executable: {}", e)));
+                    }
+                }
+            });
+        }
+    }
+}
+
+/// Central registry managing all file format asset loaders.
+#[derive(Default)]
+pub struct AssetLoaderRegistry {
+    loaders: Vec<Box<dyn AssetLoader>>,
+    extension_map: HashMap<&'static str, usize>,
+}
+
+impl AssetLoaderRegistry {
+    /// Creates a new empty asset loader registry.
+    pub fn new() -> Self {
+        Self {
+            loaders: Vec::new(),
+            extension_map: HashMap::new(),
+        }
+    }
+
+    /// Registers an asset loader for its supported extensions.
+    pub fn register<L: AssetLoader + 'static>(&mut self, loader: L) {
+        let idx = self.loaders.len();
+        for &ext in loader.supported_extensions() {
+            self.extension_map.insert(ext, idx);
+        }
+        self.loaders.push(Box::new(loader));
+    }
+
+    /// Finds a registered loader matching the given file extension.
+    pub fn find_loader(&self, extension: &str) -> Option<&dyn AssetLoader> {
+        let ext_lower = extension.to_ascii_lowercase();
+        self.extension_map
+            .get(ext_lower.as_str())
+            .map(|&idx| &*self.loaders[idx])
+    }
+
+    /// Builds the default engine registry with all built-in loaders.
+    pub fn default_registry() -> Self {
+        let mut registry = Self::new();
+        registry.register(TextureAssetLoader);
+        registry.register(GltfAssetLoader);
+        registry.register(FbxAssetLoader);
+        registry
+    }
+
+    /// Returns a reference to the global engine asset loader registry singleton.
+    pub fn global() -> &'static AssetLoaderRegistry {
+        static REGISTRY: OnceLock<AssetLoaderRegistry> = OnceLock::new();
+        REGISTRY.get_or_init(Self::default_registry)
+    }
+}
 
 /// Process asynchronous asset imports, such as background FBX conversions and model parsing tasks.
-/// Iterates ALL active receivers — multiple async operations can run concurrently.
-/// Also drains `dialog_receivers` to process asynchronously selected files from the native dialog
-/// without blocking the winit main thread / event loop.
 pub fn process_async_imports(engine: &mut AeEngine) {
-    // --- ASYNC DIALOG RECEIVERS ---
-    // Drain asynchronously picked paths from native file dialogs and feed them to importer
+    // 1. Drain asynchronously picked paths from native file dialogs
     let mut dialog_paths = Vec::new();
     for rx in &engine.dialog_receivers {
         while let Ok(path) = rx.try_recv() {
             dialog_paths.push(path);
         }
     }
-    // Clean up disconnected dialog receivers
     engine.dialog_receivers.retain(|rx| {
         !matches!(
             rx.try_recv(),
             Err(std::sync::mpsc::TryRecvError::Disconnected)
         )
     });
-    // Process each path identically to a drag-and-drop file import
     for path in dialog_paths {
         handle_dropped_file(engine, path);
     }
 
+    // 2. Drain FBX converter results
     let mut messages = Vec::new();
-
-    // Drain all pending messages from ALL receivers
     for rx in &engine.asset_receivers {
         while let Ok(result) = rx.try_recv() {
             messages.push(result);
         }
     }
-
-    // Remove disconnected receivers (sender dropped = thread finished)
     engine.asset_receivers.retain(|rx| {
-        // A receiver is still alive if try_recv returns Ok or TryRecvError::Empty.
-        // TryRecvError::Disconnected means the sender is gone — safe to drop.
         !matches!(
             rx.try_recv(),
             Err(std::sync::mpsc::TryRecvError::Disconnected)
@@ -62,7 +254,13 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                         std::time::Instant::now(),
                     ));
                 } else if path_str == "PYTHON_DONE" {
-                    engine.ui.status_message = Some((vec![("Python installed successfully! You may need to restart the engine for changes to take effect.".to_string(), egui::Color32::LIGHT_BLUE)], std::time::Instant::now()));
+                    engine.ui.status_message = Some((
+                        vec![(
+                            "Python installed successfully! You may need to restart the engine for changes to take effect.".to_string(),
+                            egui::Color32::LIGHT_BLUE,
+                        )],
+                        std::time::Instant::now(),
+                    ));
                 } else if glb_path.exists()
                     && let Some(path_str) = glb_path.to_str()
                 {
@@ -75,7 +273,6 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                         .to_string_lossy()
                         .into_owned();
 
-                    // Calculate Auto Scaling & Spawn
                     log::info!("Asset loaded and spawned entity: {:?}", base_name);
                     spawn_model(engine, base_name, model_id, min, max, path_str);
                     engine.ui.status_message = Some((
@@ -99,14 +296,13 @@ pub fn process_async_imports(engine: &mut AeEngine) {
         }
     }
 
-    // --- ASYNC MODEL PARSING RECEIVERS ---
+    // 3. Drain async model parsing receivers
     let mut model_messages = Vec::new();
     for rx in &engine.model_receivers {
         while let Ok(result) = rx.try_recv() {
             model_messages.push(result);
         }
     }
-
     engine.model_receivers.retain(|rx| {
         !matches!(
             rx.try_recv(),
@@ -147,11 +343,8 @@ pub fn process_async_imports(engine: &mut AeEngine) {
 }
 
 /// Handle a file drag-and-dropped into the application window.
-/// Dispatches based on file extension:
-/// - `.png`/`.jpg`/`.jpeg` → synchronous texture load + sprite spawn
-/// - `.gltf`/`.glb` → async thread-based model parsing
-/// - `.fbx` → Native FBX2glTF direct tool converter pipeline (no Python required)
-/// Auto-generates unique entity names to avoid collisions.
+/// Automatically resolves matching `AssetLoader` via `AssetLoaderRegistry`
+/// using `Path::extension()` without magic string searches.
 pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
     let path_str = path.to_string_lossy();
     if !ae_renderer::asset::is_safe_path(&path_str) {
@@ -167,149 +360,51 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
     }
 
     log::info!("File dropped for import: {:?}", path);
-    println!("File dropped: {:?}", path);
-    if let Some(ext) = path.extension() {
-        let ext_str = ext.to_str().unwrap_or("").to_lowercase();
-        let mut final_name = path
-            .file_name()
-            .unwrap_or(std::ffi::OsStr::new("Asset"))
-            .to_string_lossy()
-            .into_owned();
-        let base_name = final_name.clone();
-        let mut count = 0;
-        loop {
-            let mut exists = false;
-            for ent_ref in engine.ecs.world.iter() {
-                if let Ok(name) = engine
-                    .ecs
-                    .world
-                    .get::<&ae_core::ecs::Name>(ent_ref.entity())
-                    && name.0 == final_name
-                {
-                    exists = true;
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        let registry = AssetLoaderRegistry::global();
+        if let Some(loader) = registry.find_loader(ext) {
+            let mut final_name = path
+                .file_name()
+                .unwrap_or(std::ffi::OsStr::new("Asset"))
+                .to_string_lossy()
+                .into_owned();
+            let base_name = final_name.clone();
+            let mut count = 0;
+            loop {
+                let mut exists = false;
+                for ent_ref in engine.ecs.world.iter() {
+                    if let Ok(name) = engine
+                        .ecs
+                        .world
+                        .get::<&ae_core::ecs::Name>(ent_ref.entity())
+                        && name.0 == final_name
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if !exists {
                     break;
                 }
+                count += 1;
+                final_name = format!("{} {}", base_name, count);
             }
-            if !exists {
-                break;
-            }
-            count += 1;
-            final_name = format!("{} {}", base_name, count);
-        }
 
-        if ext_str == "png" || ext_str == "jpg" || ext_str == "jpeg" {
-            engine.ui.is_loading_assets = true;
-            if let Some(path_str) = path.to_str() {
-                let texture_id = engine
-                    .render_state
-                    .load_texture(&mut engine.asset_manager, path_str);
-                engine.ui.is_loading_assets = false;
-                log::info!("Image loaded and spawned entity: {:?}", final_name);
-                spawn_sprite(engine, final_name, texture_id);
-            }
-        } else if ext_str == "gltf" || ext_str == "glb" {
-            engine.ui.is_loading_assets = true;
-            if let Some(path_str) = path.to_str() {
-                engine.ui.status_message = Some((
-                    vec![(
-                        format!("Loading {} in background...", final_name),
-                        egui::Color32::LIGHT_BLUE,
-                    )],
-                    std::time::Instant::now(),
-                ));
-                let (tx, rx) = std::sync::mpsc::channel();
-                engine.model_receivers.push(rx);
-
-                let path_str_clone = path_str.to_string();
-
-                rayon::spawn(move || {
-                    let result = ae_renderer::render::resources::parse_gltf_file(
-                        &path_str_clone,
-                        final_name,
-                    );
-                    let _ = tx.send(result);
-                });
-            }
-        } else if ext_str == "fbx" {
-            engine.ui.is_loading_assets = true;
-            if let Some(path_str) = path.to_str() {
-                engine.ui.status_message = Some((
-                    vec![(
-                        "Converting FBX file... Please wait.".to_string(),
-                        egui::Color32::LIGHT_BLUE,
-                    )],
-                    std::time::Instant::now(),
-                ));
-
-                let (tx, rx) = std::sync::mpsc::channel();
-                engine.asset_receivers.push(rx);
-
-                let path_clone = path.to_path_buf();
-                let path_str_clone = path_str.to_string();
-
-                rayon::spawn(move || {
-                    let tool_path = if cfg!(target_os = "windows") {
-                        "tools/windows/FBX2glTF.exe"
-                    } else if cfg!(target_os = "macos") {
-                        "tools/macos/FBX2glTF_macos"
-                    } else {
-                        "tools/linux/FBX2glTF_linux"
-                    };
-
-                    let p = std::path::Path::new(tool_path);
-                    if !p.exists() {
-                        let _ = tx.send(Err(format!("FBX2glTF tool not found at '{}'. Please make sure the tools/ folder is intact.", tool_path)));
-                        return;
-                    }
-
-                    let output_path = path_clone.with_extension("glb");
-                    let output_stem = path_clone.with_extension("");
-                    let output_stem_str = output_stem.to_string_lossy().to_string();
-
-                    // Direct invocation of the local precompiled tool without Python
-                    let output = std::process::Command::new(tool_path)
-                        .arg("-i")
-                        .arg(&path_str_clone)
-                        .arg("-o")
-                        .arg(&output_stem_str)
-                        .arg("-b")
-                        .arg("--pbr-metallic-roughness")
-                        .arg("--normalize-weights")
-                        .arg("1")
-                        .output();
-
-                    match output {
-                        Ok(out) if out.status.success() => {
-                            if output_path.exists() {
-                                let _ = tx.send(Ok(output_path));
-                            } else {
-                                let _ = tx.send(Err(
-                                    "Conversion reported success but .glb file was not found."
-                                        .to_string(),
-                                ));
-                            }
-                        }
-                        Ok(out) => {
-                            let err_msg = String::from_utf8_lossy(&out.stderr).to_string();
-                            let out_msg = String::from_utf8_lossy(&out.stdout).to_string();
-                            let combined_err = if err_msg.is_empty() { out_msg } else { err_msg };
-                            let _ = tx.send(Err(format!("Conversion failed: {}", combined_err)));
-                        }
-                        Err(e) => {
-                            log::error!("Failed to start FBX2glTF executable: {}", e);
-                            let _ =
-                                tx.send(Err(format!("Failed to start FBX2glTF executable: {}", e)));
-                        }
-                    }
-                });
-            }
+            loader.load(engine, &path, final_name);
+        } else {
+            log::warn!("Unsupported file format dropped: {:?}", ext);
+            engine.ui.status_message = Some((
+                vec![(
+                    format!("Unsupported file extension: .{}", ext),
+                    egui::Color32::YELLOW,
+                )],
+                std::time::Instant::now(),
+            ));
         }
     }
 }
 
 /// Spawns a model entity with auto-scaling based on AABB dimensions.
-/// Applies 100x/1000x scale for micro-models, FBX rotation fix (-90° X),
-/// records undo `Command::Spawn`, and selects the new entity.
 pub fn spawn_model(
     engine: &mut crate::engine::AeEngine,
     final_name: String,
@@ -409,7 +504,6 @@ pub fn spawn_model(
 }
 
 /// Spawns a sprite entity (textured quad) with default transform.
-/// Records undo `Command::Spawn` and selects the new entity.
 pub fn spawn_sprite(
     engine: &mut crate::engine::AeEngine,
     final_name: String,
@@ -443,4 +537,20 @@ pub fn spawn_sprite(
     engine.editor.redo_stack.clear();
     engine.editor.selected_entities.clear();
     engine.editor.selected_entities.push(new_entity);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asset_loader_registry_routing() {
+        let registry = AssetLoaderRegistry::global();
+        assert!(registry.find_loader("png").is_some());
+        assert!(registry.find_loader("PNG").is_some());
+        assert!(registry.find_loader("gltf").is_some());
+        assert!(registry.find_loader("GLB").is_some());
+        assert!(registry.find_loader("fbx").is_some());
+        assert!(registry.find_loader("unsupported_xyz").is_none());
+    }
 }
