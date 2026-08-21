@@ -9,5 +9,3 @@ Categories=Development;GameDevelopment;
 StartupNotify=true
 StartupWMClass=com.aeonengine.Editor
 Keywords=engine;gamedev;3d;rust;
-
-

@@ -64,6 +64,9 @@ impl ApplicationHandler for AeApp {
             let icon_bytes = include_bytes!("../assets/icon/aeicon.png");
             let icon = icon::load_icon_from_memory(icon_bytes);
 
+            #[cfg(target_os = "linux")]
+            icon::ensure_xdg_desktop_integration(icon_bytes);
+
             let window_attributes = {
                 let attr = WindowAttributes::default()
                     .with_title("Aeon Engine")
@@ -80,10 +83,14 @@ impl ApplicationHandler for AeApp {
                 {
                     let attr = WindowAttributesExtWayland::with_name(
                         attr,
-                        "com.aeengine.Editor",
-                        "ae_engine",
+                        "com.aeonengine.Editor",
+                        "com.aeonengine.Editor",
                     );
-                    WindowAttributesExtX11::with_name(attr, "com.aeengine.Editor", "ae_engine")
+                    WindowAttributesExtX11::with_name(
+                        attr,
+                        "com.aeonengine.Editor",
+                        "com.aeonengine.Editor",
+                    )
                 }
 
                 #[cfg(not(any(

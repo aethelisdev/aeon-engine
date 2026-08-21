@@ -18,11 +18,12 @@ ICON_SOURCE="${SCRIPT_DIR}/../icon/aeicon.png"
 DESKTOP_SOURCE="${SCRIPT_DIR}/com.aeengine.Editor.desktop"
 
 ICON_NAME="com.aeengine.Editor"
-ICON_DEST_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
-DESKTOP_DEST_DIR="${HOME}/.local/share/applications"
+XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
+ICON_DEST_BASE="${XDG_DATA_HOME}/icons/hicolor"
+DESKTOP_DEST_DIR="${XDG_DATA_HOME}/applications"
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║          Aeon Engine - Linux Desktop Installer                ║"
+echo "║      Aeon Engine - Universal Linux Desktop Installer         ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -38,34 +39,48 @@ if [ ! -f "$DESKTOP_SOURCE" ]; then
 fi
 
 # Create target directories
-mkdir -p "$ICON_DEST_DIR"
 mkdir -p "$DESKTOP_DEST_DIR"
 
-# Install icon to hicolor theme
-echo "📦 Installing icon to: ${ICON_DEST_DIR}/${ICON_NAME}.png"
-cp "$ICON_SOURCE" "${ICON_DEST_DIR}/${ICON_NAME}.png"
+# Install icon to hicolor theme in standard FreeDesktop resolutions
+SIZES=("16x16" "22x22" "24x24" "32x32" "48x48" "64x64" "128x128" "256x256" "512x512")
+for SIZE in "${SIZES[@]}"; do
+    TARGET_DIR="${ICON_DEST_BASE}/${SIZE}/apps"
+    mkdir -p "$TARGET_DIR"
+    if command -v magick &> /dev/null; then
+        echo "📦 Installing ${SIZE} icon: ${TARGET_DIR}/${ICON_NAME}.png"
+        magick "$ICON_SOURCE" -resize "$SIZE" "${TARGET_DIR}/${ICON_NAME}.png"
+    elif command -v convert &> /dev/null; then
+        echo "📦 Installing ${SIZE} icon: ${TARGET_DIR}/${ICON_NAME}.png"
+        convert "$ICON_SOURCE" -resize "$SIZE" "${TARGET_DIR}/${ICON_NAME}.png"
+    else
+        echo "📦 Installing icon: ${TARGET_DIR}/${ICON_NAME}.png"
+        cp "$ICON_SOURCE" "${TARGET_DIR}/${ICON_NAME}.png"
+    fi
+done
 
 # Install .desktop file
-echo "📦 Installing desktop entry to: ${DESKTOP_DEST_DIR}/com.aeengine.Editor.desktop"
+echo "📦 Installing desktop entry: ${DESKTOP_DEST_DIR}/com.aeengine.Editor.desktop"
 cp "$DESKTOP_SOURCE" "${DESKTOP_DEST_DIR}/com.aeengine.Editor.desktop"
+chmod +x "${DESKTOP_DEST_DIR}/com.aeengine.Editor.desktop"
 
-# Update icon cache (if gtk-update-icon-cache is available)
-if command -v gtk-update-icon-cache &> /dev/null; then
-    echo "🔄 Updating icon cache..."
-    gtk-update-icon-cache -f -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
+# Refresh system-wide FreeDesktop / XDG icon and desktop caches
+echo "🔄 Updating FreeDesktop icon and desktop databases..."
+
+if command -v xdg-icon-resource &> /dev/null; then
+    xdg-icon-resource forceupdate 2>/dev/null || true
 fi
 
-# Update desktop database (if update-desktop-database is available)
+if command -v gtk-update-icon-cache &> /dev/null; then
+    gtk-update-icon-cache -f -t "${ICON_DEST_BASE}" 2>/dev/null || true
+fi
+
 if command -v update-desktop-database &> /dev/null; then
-    echo "🔄 Updating desktop database..."
     update-desktop-database "${DESKTOP_DEST_DIR}" 2>/dev/null || true
 fi
 
 echo ""
 echo "✅ Installation complete!"
 echo ""
-echo "ℹ️  Notes:"
-echo "   - The icon should now appear in Wayland compositors (GNOME, KDE, Hyprland, Sway, etc.)"
-echo "   - You may need to log out and log back in for changes to take effect."
-echo "   - To uninstall, run: ./uninstall_desktop.sh"
+echo "ℹ️  Universal FreeDesktop integration active across all Linux Desktop Environments."
+echo "   (GNOME, KDE Plasma, XFCE, Cinnamon, MATE, LXQt, Hyprland, Sway, COSMIC, etc.)"
 
