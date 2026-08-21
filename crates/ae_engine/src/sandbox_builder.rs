@@ -116,6 +116,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: true,
         },
+        BehaviorComponent::trigger_zone(),
     ));
 
     // Sliding Door (Elevates when player steps into proximity sensor)

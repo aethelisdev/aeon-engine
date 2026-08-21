@@ -30,8 +30,7 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     let camera_forward = params.camera_forward;
     let dt = params.delta_time;
 
-    // 1. Process trigger events and proximity distance to toggle trigger zone behaviors
-    let mut is_player_on_sensor = false;
+    // 1. Process physics trigger events dispatched by Rapier
     let mut player_entity_and_pos = None;
 
     for (ent, _) in world
@@ -55,39 +54,17 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
         }
     }
 
-    if let Some((_, p_pos)) = player_entity_and_pos {
-        for (ent, name) in world.query::<(hecs::Entity, &ae_core::ecs::Name)>().iter() {
-            if name.0.contains("Sensor")
-                && let Ok(s_pos) = world.get::<&Position>(ent)
-            {
-                let dx = p_pos[0] - s_pos.x;
-                let dz = p_pos[2] - s_pos.z;
-                let dy = (p_pos[1] - s_pos.y).abs();
-                if (dx * dx + dz * dz).sqrt() < 3.2 && dy < 3.0 {
-                    is_player_on_sensor = true;
-                    break;
-                }
-            }
-        }
-    }
-
     if let Some(events) = event_bus.receive::<ae_core::events::TriggerEnter>() {
         for ev in events {
-            let mut any_trigger = false;
             if let Ok(mut behavior) = world.get::<&mut BehaviorComponent>(ev.entity_a)
                 && behavior.behavior_type == BehaviorType::TriggerZone
             {
                 behavior.is_triggered = true;
-                any_trigger = true;
             }
             if let Ok(mut behavior) = world.get::<&mut BehaviorComponent>(ev.entity_b)
                 && behavior.behavior_type == BehaviorType::TriggerZone
             {
                 behavior.is_triggered = true;
-                any_trigger = true;
-            }
-            if any_trigger {
-                is_player_on_sensor = true;
             }
         }
     }
@@ -104,12 +81,6 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
             {
                 behavior.is_triggered = false;
             }
-        }
-    }
-
-    for behavior in world.query::<&mut BehaviorComponent>().iter() {
-        if behavior.behavior_type == BehaviorType::TriggerZone {
-            behavior.is_triggered = is_player_on_sensor;
         }
     }
 
@@ -254,39 +225,48 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
         }
     }
 
-    // 6. Update Trigger Zones (Smooth proximity transition for sliding door & sensor pad)
+    // 6. Update Trigger Zones (Physics Trigger driven motion & visual response)
+    let any_sensor_triggered = world
+        .query::<&BehaviorComponent>()
+        .iter()
+        .any(|b| b.behavior_type == BehaviorType::TriggerZone && b.is_triggered);
+
     for ent in trigger_zones {
         if let Ok(behavior) = world.get::<&BehaviorComponent>(ent) {
-            let is_active = behavior.is_triggered;
-            let target_y = if is_active {
-                behavior.target_position[1]
+            let is_elevating_mechanism =
+                (behavior.original_position[1] - behavior.target_position[1]).abs() > 0.05;
+
+            let is_active = if is_elevating_mechanism {
+                any_sensor_triggered || behavior.is_triggered
             } else {
-                behavior.original_position[1]
+                behavior.is_triggered
             };
 
-            if let Ok(mut pos) = world.get::<&mut Position>(ent) {
-                let diff = target_y - pos.y;
-                if diff.abs() > 0.01 {
-                    pos.y += diff.signum() * (behavior.speed * dt).min(diff.abs());
-                    dirty_entities.push(ent);
-                }
-            }
-        }
-    }
+            if is_elevating_mechanism {
+                let target_y = if is_active {
+                    behavior.target_position[1]
+                } else {
+                    behavior.original_position[1]
+                };
 
-    // Proximity Sensor Pad illumination
-    for (ent, name) in world.query::<(hecs::Entity, &ae_core::ecs::Name)>().iter() {
-        if name.0.contains("Sensor")
-            && let Ok(mut col) = world.get::<&mut Color>(ent)
-        {
-            if is_player_on_sensor {
-                col.r = 0.2;
-                col.g = 1.0;
-                col.b = 0.3;
-            } else {
-                col.r = 0.1;
-                col.g = 0.7;
-                col.b = 0.2;
+                if let Ok(mut pos) = world.get::<&mut Position>(ent) {
+                    let diff = target_y - pos.y;
+                    if diff.abs() > 0.01 {
+                        pos.y += diff.signum() * (behavior.speed * dt).min(diff.abs());
+                        dirty_entities.push(ent);
+                    }
+                }
+            } else if let Ok(mut col) = world.get::<&mut Color>(ent) {
+                // Stationary trigger zone pad visual feedback (Component-driven)
+                if is_active {
+                    col.r = 0.2;
+                    col.g = 1.0;
+                    col.b = 0.3;
+                } else {
+                    col.r = 0.1;
+                    col.g = 0.7;
+                    col.b = 0.2;
+                }
             }
         }
     }

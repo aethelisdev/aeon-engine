@@ -326,6 +326,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: true,
         },
+        ae_core::ecs::BehaviorComponent::trigger_zone(),
     ));
 
     ctx.world.spawn((
