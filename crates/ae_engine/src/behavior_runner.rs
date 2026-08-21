@@ -209,11 +209,13 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
                 let delta_q =
                     cgmath::Quaternion::from_axis_angle(norm_axis, cgmath::Rad(angle_rad));
                 let cur_q = cgmath::Quaternion::new(rot.w, rot.x, rot.y, rot.z);
-                let new_q = cur_q * delta_q;
+                let new_q = (cur_q * delta_q).normalize();
 
                 rot.x = new_q.v.x;
                 rot.y = new_q.v.y;
                 rot.z = new_q.v.z;
+                rot.w = new_q.s;
+
                 if let Some(&handle) = physics_world.entity_to_body.get(&ent)
                     && let Some(body) = physics_world.rigid_body_set.get_mut(handle)
                 {
@@ -236,11 +238,14 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
 
     for ent in player_tag_entities {
         if let Ok(mut rot) = world.get::<&mut Rotation>(ent) {
-            let half_angle = 1.5 * dt;
-            let (sin, cos) = half_angle.sin_cos();
-            let (w, y) = (rot.w, rot.y);
-            rot.w = w * cos - y * sin;
-            rot.y = y * cos + w * sin;
+            let cur_q = cgmath::Quaternion::new(rot.w, rot.x, rot.y, rot.z);
+            let delta_q = cgmath::Quaternion::from_angle_y(cgmath::Rad(1.5 * dt));
+            let new_q = (cur_q * delta_q).normalize();
+
+            rot.x = new_q.v.x;
+            rot.y = new_q.v.y;
+            rot.z = new_q.v.z;
+            rot.w = new_q.s;
 
             if let Some(&handle) = physics_world.entity_to_body.get(&ent)
                 && let Some(body) = physics_world.rigid_body_set.get_mut(handle)
