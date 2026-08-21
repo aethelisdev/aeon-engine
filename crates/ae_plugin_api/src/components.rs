@@ -405,7 +405,7 @@ impl BehaviorComponent {
             health: 100.0,
             max_health: 100.0,
             is_triggered: false,
-            target_position: [0.0, 4.0, 0.0],
+            target_position: [0.0, 0.0, 0.0],
             original_position: [0.0, 0.0, 0.0],
             ping_pong_forward: true,
             timer: 0.0,

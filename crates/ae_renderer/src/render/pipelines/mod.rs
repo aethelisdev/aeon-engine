@@ -13,7 +13,9 @@ pub mod sprite;
 /// rebuild when MSAA sample count changes at runtime.
 pub struct PipelineManager {
     pub render_pipeline: wgpu::RenderPipeline,
+    pub render_pipeline_cw: wgpu::RenderPipeline,
     pub cutout_pipeline: wgpu::RenderPipeline,
+    pub cutout_pipeline_cw: wgpu::RenderPipeline,
     pub transparent_pipeline: wgpu::RenderPipeline,
     pub wireframe_pipeline: wgpu::RenderPipeline,
     pub sprite_pipeline: wgpu::RenderPipeline,
@@ -34,16 +36,15 @@ impl PipelineManager {
         scene_format: wgpu::TextureFormat,
         msaa_samples: u32,
     ) -> Self {
-        let (render_pipeline, cutout_pipeline, transparent_pipeline, wireframe_pipeline) =
-            pbr::create_pbr_pipelines(
-                device,
-                camera_bgl,
-                light_bgl,
-                shadow_bgl,
-                texture_bgl,
-                scene_format,
-                msaa_samples,
-            );
+        let pbr_pipes = pbr::create_pbr_pipelines(
+            device,
+            camera_bgl,
+            light_bgl,
+            shadow_bgl,
+            texture_bgl,
+            scene_format,
+            msaa_samples,
+        );
         let grid_pipeline = grid::create_grid_pipeline(
             device,
             camera_bgl,
@@ -64,10 +65,12 @@ impl PipelineManager {
             sky::create_sky_pipeline(device, camera_bgl, sky_bgl, scene_format, msaa_samples);
 
         Self {
-            render_pipeline,
-            cutout_pipeline,
-            transparent_pipeline,
-            wireframe_pipeline,
+            render_pipeline: pbr_pipes.render_pipeline,
+            render_pipeline_cw: pbr_pipes.render_pipeline_cw,
+            cutout_pipeline: pbr_pipes.cutout_pipeline,
+            cutout_pipeline_cw: pbr_pipes.cutout_pipeline_cw,
+            transparent_pipeline: pbr_pipes.transparent_pipeline,
+            wireframe_pipeline: pbr_pipes.wireframe_pipeline,
             sprite_pipeline,
             grid_pipeline,
             sky_pipeline,
@@ -87,7 +90,7 @@ impl PipelineManager {
         scene_format: wgpu::TextureFormat,
         msaa_samples: u32,
     ) {
-        let (rp, cp, tp, wp) = pbr::create_pbr_pipelines(
+        let pbr_pipes = pbr::create_pbr_pipelines(
             device,
             camera_bgl,
             light_bgl,
@@ -96,11 +99,7 @@ impl PipelineManager {
             scene_format,
             msaa_samples,
         );
-        self.render_pipeline = rp;
-        self.cutout_pipeline = cp;
-        self.transparent_pipeline = tp;
-        self.wireframe_pipeline = wp;
-        self.grid_pipeline = grid::create_grid_pipeline(
+        let grid_pipeline = grid::create_grid_pipeline(
             device,
             camera_bgl,
             light_bgl,
@@ -108,7 +107,7 @@ impl PipelineManager {
             scene_format,
             msaa_samples,
         );
-        self.sprite_pipeline = sprite::create_sprite_pipeline(
+        let sprite_pipeline = sprite::create_sprite_pipeline(
             device,
             camera_bgl,
             texture_bgl,
@@ -116,7 +115,17 @@ impl PipelineManager {
             scene_format,
             msaa_samples,
         );
-        self.sky_pipeline =
+        let sky_pipeline =
             sky::create_sky_pipeline(device, camera_bgl, sky_bgl, scene_format, msaa_samples);
+
+        self.render_pipeline = pbr_pipes.render_pipeline;
+        self.render_pipeline_cw = pbr_pipes.render_pipeline_cw;
+        self.cutout_pipeline = pbr_pipes.cutout_pipeline;
+        self.cutout_pipeline_cw = pbr_pipes.cutout_pipeline_cw;
+        self.transparent_pipeline = pbr_pipes.transparent_pipeline;
+        self.wireframe_pipeline = pbr_pipes.wireframe_pipeline;
+        self.grid_pipeline = grid_pipeline;
+        self.sprite_pipeline = sprite_pipeline;
+        self.sky_pipeline = sky_pipeline;
     }
 }

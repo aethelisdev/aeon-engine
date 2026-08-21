@@ -163,7 +163,7 @@ pub fn handle_gizmo_drag(
                             if editor.snapping.current_enabled {
                                 target = crate::snapping::scale::snap_scale(target, 0.25);
                             }
-                            let min = 0.001;
+                            let min = 1e-4;
                             s.x = if target.x.abs() < min {
                                 f32::copysign(min, target.x)
                             } else {

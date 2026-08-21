@@ -30,7 +30,7 @@ pub(crate) fn create_shadow_pipeline(
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: Some(wgpu::Face::Back),
+            cull_mode: None,
             unclipped_depth: false,
             ..Default::default()
         },

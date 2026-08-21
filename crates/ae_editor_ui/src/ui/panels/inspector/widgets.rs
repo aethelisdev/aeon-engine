@@ -11,21 +11,22 @@ pub(super) fn draw_vec3_row(
     decimals: usize,
     reset_val: f32,
 ) -> (bool, bool, bool, bool, bool) {
+    let [v0, v1, v2] = values;
     ui.label(label);
     let r_x = ui.add(
-        egui::DragValue::new(&mut values[0])
+        egui::DragValue::new(v0)
             .prefix("X: ")
             .speed(speed)
             .fixed_decimals(decimals),
     );
     let r_y = ui.add(
-        egui::DragValue::new(&mut values[1])
+        egui::DragValue::new(v1)
             .prefix("Y: ")
             .speed(speed)
             .fixed_decimals(decimals),
     );
     let r_z = ui.add(
-        egui::DragValue::new(&mut values[2])
+        egui::DragValue::new(v2)
             .prefix("Z: ")
             .speed(speed)
             .fixed_decimals(decimals),

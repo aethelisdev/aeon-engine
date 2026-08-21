@@ -84,6 +84,52 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
         }
     }
 
+    // Direct spatial sensor volume test to ensure 100% reliable detection on any map
+    if let Some((_p_ent, p_pos)) = player_entity_and_pos {
+        for (behavior, pos, scale_opt, col_opt) in world
+            .query_mut::<(
+                &mut BehaviorComponent,
+                &Position,
+                Option<&Scale>,
+                Option<&ae_core::ecs::Collider>,
+            )>()
+            .into_iter()
+        {
+            if behavior.behavior_type == BehaviorType::TriggerZone {
+                let is_sensor = col_opt.map(|c| c.is_sensor).unwrap_or(false);
+                if is_sensor {
+                    let sx = scale_opt.map(|s| s.x.abs()).unwrap_or(1.0);
+                    let sy = scale_opt.map(|s| s.y.abs()).unwrap_or(1.0);
+                    let sz = scale_opt.map(|s| s.z.abs()).unwrap_or(1.0);
+
+                    let (hx, hy, hz) = if let Some(col) = col_opt {
+                        match col.shape {
+                            ae_core::ecs::ColliderShape::Box { half_extents } => (
+                                half_extents[0] * sx,
+                                (half_extents[1] * sy).max(1.5),
+                                half_extents[2] * sz,
+                            ),
+                            ae_core::ecs::ColliderShape::Sphere { radius } => (
+                                radius * sx.max(sy).max(sz),
+                                (radius * sx.max(sy).max(sz)).max(1.5),
+                                radius * sx.max(sy).max(sz),
+                            ),
+                            _ => (sx * 0.5, (sy * 0.5).max(1.5), sz * 0.5),
+                        }
+                    } else {
+                        (sx * 0.5, 1.5, sz * 0.5)
+                    };
+
+                    let inside_x = (p_pos[0] - pos.x).abs() <= hx + 0.5;
+                    let inside_z = (p_pos[2] - pos.z).abs() <= hz + 0.5;
+                    let inside_y = p_pos[1] >= pos.y - 0.5 && p_pos[1] <= pos.y + hy + 2.5;
+
+                    behavior.is_triggered = inside_x && inside_z && inside_y;
+                }
+            }
+        }
+    }
+
     // 2. Process raycast hit events applied to destructible targets
     let mut targets_to_destroy = Vec::new();
     if let Some(hits) = event_bus.receive::<RaycastHitEvent>() {
@@ -233,8 +279,13 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
 
     for ent in trigger_zones {
         if let Ok(behavior) = world.get::<&BehaviorComponent>(ent) {
-            let is_elevating_mechanism =
-                (behavior.original_position[1] - behavior.target_position[1]).abs() > 0.05;
+            let is_sensor = world
+                .get::<&ae_core::ecs::Collider>(ent)
+                .map(|c| c.is_sensor)
+                .unwrap_or(false);
+
+            let is_elevating_mechanism = !is_sensor
+                && (behavior.original_position[1] - behavior.target_position[1]).abs() > 0.05;
 
             let is_active = if is_elevating_mechanism {
                 any_sensor_triggered || behavior.is_triggered

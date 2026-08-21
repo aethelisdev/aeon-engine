@@ -2,6 +2,16 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::render::types::{DEPTH_FORMAT, Instance, Vertex};
 
+/// Struct holding all PBR rendering pipeline variants (CCW standard, CW mirrored, cutout, transparent, wireframe).
+pub(crate) struct PbrPipelines {
+    pub render_pipeline: wgpu::RenderPipeline,
+    pub render_pipeline_cw: wgpu::RenderPipeline,
+    pub cutout_pipeline: wgpu::RenderPipeline,
+    pub cutout_pipeline_cw: wgpu::RenderPipeline,
+    pub transparent_pipeline: wgpu::RenderPipeline,
+    pub wireframe_pipeline: wgpu::RenderPipeline,
+}
+
 /// Creates the PBR rendering pipelines modernized for Wgpu 23+ (v2026 stable).
 pub(crate) fn create_pbr_pipelines(
     device: &wgpu::Device,
@@ -11,12 +21,7 @@ pub(crate) fn create_pbr_pipelines(
     texture_bind_group_layout: &wgpu::BindGroupLayout,
     scene_format: wgpu::TextureFormat,
     msaa_samples: u32,
-) -> (
-    wgpu::RenderPipeline,
-    wgpu::RenderPipeline,
-    wgpu::RenderPipeline,
-    wgpu::RenderPipeline,
-) {
+) -> PbrPipelines {
     let shader = device.create_shader_module(wgpu::include_wgsl!("../../shaders/shader.wgsl"));
 
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -31,7 +36,7 @@ pub(crate) fn create_pbr_pipelines(
     });
 
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("PBR Pipeline"),
+        label: Some("PBR Pipeline (CCW)"),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -71,8 +76,49 @@ pub(crate) fn create_pbr_pipelines(
         cache: None,
     });
 
+    let render_pipeline_cw = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("PBR Pipeline (CW Mirrored)"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: scene_format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            front_face: wgpu::FrontFace::Cw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode: wgpu::PolygonMode::Fill,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: msaa_samples,
+            ..Default::default()
+        },
+        multiview_mask: None,
+        cache: None,
+    });
+
     let cutout_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("PBR Cutout Pipeline"),
+        label: Some("PBR Cutout Pipeline (CCW)"),
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
@@ -93,6 +139,48 @@ pub(crate) fn create_pbr_pipelines(
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode: wgpu::PolygonMode::Fill,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: msaa_samples,
+            ..Default::default()
+        },
+        multiview_mask: None,
+        cache: None,
+    });
+
+    let cutout_pipeline_cw = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("PBR Cutout Pipeline (CW Mirrored)"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &shader,
+            entry_point: Some("fs_cutout"),
+            targets: &[Some(wgpu::ColorTargetState {
+                format: scene_format,
+                blend: Some(wgpu::BlendState::REPLACE),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            front_face: wgpu::FrontFace::Cw,
+            cull_mode: Some(wgpu::Face::Back),
             polygon_mode: wgpu::PolygonMode::Fill,
             ..Default::default()
         },
@@ -195,10 +283,12 @@ pub(crate) fn create_pbr_pipelines(
         cache: None,
     });
 
-    (
+    PbrPipelines {
         render_pipeline,
+        render_pipeline_cw,
         cutout_pipeline,
+        cutout_pipeline_cw,
         transparent_pipeline,
         wireframe_pipeline,
-    )
+    }
 }

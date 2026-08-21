@@ -158,12 +158,15 @@ impl Command {
                 match property {
                     Property::Position(old, _) => {
                         let _ = world.insert_one(*entity, *old);
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Rotation(old, _) => {
                         let _ = world.insert_one(*entity, *old);
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Scale(old, _) => {
                         let _ = world.insert_one(*entity, *old);
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Name(old, _) => {
                         let _ = world.insert_one(*entity, Name(old.clone()));
@@ -211,12 +214,15 @@ impl Command {
                 match property {
                     Property::Position(_, new) => {
                         let _ = world.insert_one(*entity, *new);
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Rotation(_, new) => {
                         let _ = world.insert_one(*entity, *new);
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Scale(_, new) => {
                         let _ = world.insert_one(*entity, *new);
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Name(_, new) => {
                         let _ = world.insert_one(*entity, Name(new.clone()));

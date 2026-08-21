@@ -33,6 +33,14 @@ pub struct ForwardPassContext<'a> {
     pub asset_manager: &'a crate::asset::AssetManager,
 }
 
+#[inline]
+fn is_matrix_mirrored(m: &[[f32; 4]; 4]) -> bool {
+    let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+    det < 0.0
+}
+
 impl RenderState {
     /// Executes the main forward render pass:
     /// Skybox → Grid → Opaque Primitives & Models → Cutout Models → Wireframe → Transparent Models → Sprites → Overlays.
@@ -104,8 +112,6 @@ impl RenderState {
         }
 
         if ctx.all_instances_len > 0 {
-            pass.set_pipeline(&self.pipelines.render_pipeline);
-
             let draw_primitive_batch =
                 |pass: &mut wgpu::RenderPass,
                  instances: &[(Instance, Option<crate::asset::AssetHandle>)],
@@ -117,10 +123,19 @@ impl RenderState {
                     while cur < instances.len() {
                         let start = cur;
                         let tex_h = instances[cur].1;
-                        while cur < instances.len() && instances[cur].1 == tex_h {
+                        let mirrored = is_matrix_mirrored(&instances[cur].0.model_matrix);
+                        while cur < instances.len()
+                            && instances[cur].1 == tex_h
+                            && is_matrix_mirrored(&instances[cur].0.model_matrix) == mirrored
+                        {
                             cur += 1;
                         }
                         let count = (cur - start) as u32;
+                        if mirrored {
+                            pass.set_pipeline(&self.pipelines.render_pipeline_cw);
+                        } else {
+                            pass.set_pipeline(&self.pipelines.render_pipeline);
+                        }
                         let bg = tex_h
                             .and_then(|h| ctx.asset_manager.textures.get(h))
                             .map(|t| &t.bind_group)
@@ -212,10 +227,19 @@ impl RenderState {
                     while cur < insts.len() {
                         let start = cur;
                         let override_tex = insts[cur].1;
-                        while cur < insts.len() && insts[cur].1 == override_tex {
+                        let mirrored = is_matrix_mirrored(&insts[cur].0.model_matrix);
+                        while cur < insts.len()
+                            && insts[cur].1 == override_tex
+                            && is_matrix_mirrored(&insts[cur].0.model_matrix) == mirrored
+                        {
                             cur += 1;
                         }
                         let count = (cur - start) as u32;
+                        if mirrored {
+                            pass.set_pipeline(&self.pipelines.render_pipeline_cw);
+                        } else {
+                            pass.set_pipeline(&self.pipelines.render_pipeline);
+                        }
 
                         pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
                         pass.set_vertex_buffer(
@@ -312,7 +336,6 @@ impl RenderState {
             }
 
             if has_any_cutout_submesh {
-                pass.set_pipeline(&self.pipelines.cutout_pipeline);
                 for (handle, m) in ctx.asset_manager.models.iter() {
                     if let Some(insts) = ctx.model_instance_data.get(&handle)
                         && !insts.is_empty()
@@ -325,10 +348,19 @@ impl RenderState {
                         while cur < insts.len() {
                             let start = cur;
                             let override_tex = insts[cur].1;
-                            while cur < insts.len() && insts[cur].1 == override_tex {
+                            let mirrored = is_matrix_mirrored(&insts[cur].0.model_matrix);
+                            while cur < insts.len()
+                                && insts[cur].1 == override_tex
+                                && is_matrix_mirrored(&insts[cur].0.model_matrix) == mirrored
+                            {
                                 cur += 1;
                             }
                             let count = (cur - start) as u32;
+                            if mirrored {
+                                pass.set_pipeline(&self.pipelines.cutout_pipeline_cw);
+                            } else {
+                                pass.set_pipeline(&self.pipelines.cutout_pipeline);
+                            }
 
                             pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
                             pass.set_vertex_buffer(

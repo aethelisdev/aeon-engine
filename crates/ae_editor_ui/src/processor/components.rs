@@ -28,7 +28,22 @@ pub fn handle_modify_rotation(
 }
 
 /// Handles modifying scale component of an entity.
-pub fn handle_modify_scale(ctx: &mut UiContext, entity: hecs::Entity, scale: ae_core::ecs::Scale) {
+pub fn handle_modify_scale(
+    ctx: &mut UiContext,
+    entity: hecs::Entity,
+    mut scale: ae_core::ecs::Scale,
+) {
+    let min = 1e-4;
+    if scale.x.abs() < min {
+        scale.x = f32::copysign(min, scale.x);
+    }
+    if scale.y.abs() < min {
+        scale.y = f32::copysign(min, scale.y);
+    }
+    if scale.z.abs() < min {
+        scale.z = f32::copysign(min, scale.z);
+    }
+
     if let Ok(mut existing) = ctx.world.get::<&mut ae_core::ecs::Scale>(entity) {
         *existing = scale;
     }

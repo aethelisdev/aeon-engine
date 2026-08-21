@@ -75,13 +75,16 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.clip_position = camera.view_proj * world_p;
     out.color = instance.color;
     out.world_pos = world_p.xyz;
-    // Extract pure 3D rotation matrix (removes non-uniform scale distortion on cylinder/sphere normals)
-    let rot_matrix = mat3x3<f32>(
-        normalize(model_matrix[0].xyz),
-        normalize(model_matrix[1].xyz),
-        normalize(model_matrix[2].xyz)
-    );
-    out.world_normal = rot_matrix * model.normal;
+    // Normal transform via adjugate matrix with sign(det) correction for true outward normals
+    let c0 = model_matrix[0].xyz;
+    let c1 = model_matrix[1].xyz;
+    let c2 = model_matrix[2].xyz;
+    let cross0 = cross(c1, c2);
+    let cross1 = cross(c2, c0);
+    let cross2 = cross(c0, c1);
+    let det = dot(c0, cross0);
+    let inv_trans = mat3x3<f32>(cross0, cross1, cross2);
+    out.world_normal = normalize(sign(det) * (inv_trans * model.normal));
     out.uv = model.uv;
     return out;
 }
@@ -145,8 +148,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // 2. Direct Sun Illumination
     let normal = normalize(in.world_normal);
-    
-    // light.direction is pointing TOWARDS the light source
     let light_dir = normalize(light.direction);
     
     let diff = max(dot(normal, light_dir), 0.0);

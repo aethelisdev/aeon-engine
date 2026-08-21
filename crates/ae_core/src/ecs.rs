@@ -106,7 +106,25 @@ pub fn update_hierarchy_transforms(world: &mut hecs::World) {
             let scale = world
                 .get::<&Scale>(entity)
                 .ok()
-                .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
+                .map(|s| {
+                    let min = 1e-4;
+                    let sx = if s.x.abs() < min {
+                        f32::copysign(min, s.x)
+                    } else {
+                        s.x
+                    };
+                    let sy = if s.y.abs() < min {
+                        f32::copysign(min, s.y)
+                    } else {
+                        s.y
+                    };
+                    let sz = if s.z.abs() < min {
+                        f32::copysign(min, s.z)
+                    } else {
+                        s.z
+                    };
+                    cgmath::Vector3::new(sx, sy, sz)
+                })
                 .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
 
             let local_matrix = cgmath::Matrix4::from_translation(pos)
@@ -155,7 +173,25 @@ pub fn update_hierarchy_transforms(world: &mut hecs::World) {
                 .map(|r| cgmath::Quaternion::new(r.w, r.x, r.y, r.z))
                 .unwrap_or_else(|| cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0));
             let scale = scale_opt
-                .map(|s| cgmath::Vector3::new(s.x, s.y, s.z))
+                .map(|s| {
+                    let min = 1e-4;
+                    let sx = if s.x.abs() < min {
+                        f32::copysign(min, s.x)
+                    } else {
+                        s.x
+                    };
+                    let sy = if s.y.abs() < min {
+                        f32::copysign(min, s.y)
+                    } else {
+                        s.y
+                    };
+                    let sz = if s.z.abs() < min {
+                        f32::copysign(min, s.z)
+                    } else {
+                        s.z
+                    };
+                    cgmath::Vector3::new(sx, sy, sz)
+                })
                 .unwrap_or_else(|| cgmath::Vector3::new(1.0, 1.0, 1.0));
 
             gt.0 = cgmath::Matrix4::from_translation(pos)

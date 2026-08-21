@@ -329,9 +329,36 @@ impl RenderScene {
                                 .unwrap_or(cgmath::Quaternion::new(1.0, 0.0, 0.0, 0.0)),
                         )
                         * cgmath::Matrix4::from_nonuniform_scale(
-                            scale.map(|s| s.x).unwrap_or(1.0),
-                            scale.map(|s| s.y).unwrap_or(1.0),
-                            scale.map(|s| s.z).unwrap_or(1.0),
+                            scale
+                                .map(|s| {
+                                    let min = 1e-4;
+                                    if s.x.abs() < min {
+                                        f32::copysign(min, s.x)
+                                    } else {
+                                        s.x
+                                    }
+                                })
+                                .unwrap_or(1.0),
+                            scale
+                                .map(|s| {
+                                    let min = 1e-4;
+                                    if s.y.abs() < min {
+                                        f32::copysign(min, s.y)
+                                    } else {
+                                        s.y
+                                    }
+                                })
+                                .unwrap_or(1.0),
+                            scale
+                                .map(|s| {
+                                    let min = 1e-4;
+                                    if s.z.abs() < min {
+                                        f32::copysign(min, s.z)
+                                    } else {
+                                        s.z
+                                    }
+                                })
+                                .unwrap_or(1.0),
                         )
                 };
 

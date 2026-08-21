@@ -74,26 +74,105 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             }
 
             // --- COMPONENT MUTATION ACTIONS ---
-            crate::ui::EngineUiAction::LiveUpdatePosition(ent, pos)
-            | crate::ui::EngineUiAction::ModifyPosition(ent, _, pos) => {
-                components::handle_modify_position(ctx, ent, pos)
+            crate::ui::EngineUiAction::LiveUpdatePosition(ent, pos) => {
+                components::handle_modify_position(ctx, ent, pos);
             }
-            crate::ui::EngineUiAction::LiveUpdateRotation(ent, rot)
-            | crate::ui::EngineUiAction::ModifyRotation(ent, _, rot) => {
-                components::handle_modify_rotation(ctx, ent, rot)
+            crate::ui::EngineUiAction::ModifyPosition(ent, old, pos) => {
+                components::handle_modify_position(ctx, ent, pos);
+                if old != pos {
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Position(old, pos),
+                        ),
+                    );
+                }
             }
-            crate::ui::EngineUiAction::LiveUpdateScale(ent, scale)
-            | crate::ui::EngineUiAction::ModifyScale(ent, _, scale) => {
-                components::handle_modify_scale(ctx, ent, scale)
+            crate::ui::EngineUiAction::LiveUpdateRotation(ent, rot) => {
+                components::handle_modify_rotation(ctx, ent, rot);
             }
-            crate::ui::EngineUiAction::ModifyName(ent, _, new_name) => {
-                components::handle_modify_name(ctx, ent, new_name)
+            crate::ui::EngineUiAction::ModifyRotation(ent, old, rot) => {
+                components::handle_modify_rotation(ctx, ent, rot);
+                if old != rot {
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Rotation(old, rot),
+                        ),
+                    );
+                }
             }
-            crate::ui::EngineUiAction::ModifyColor(ent, _, color) => {
-                components::handle_modify_color(ctx, ent, color)
+            crate::ui::EngineUiAction::LiveUpdateScale(ent, scale) => {
+                components::handle_modify_scale(ctx, ent, scale);
             }
-            crate::ui::EngineUiAction::ModifyLightColor(ent, _, color) => {
-                components::handle_modify_light_color(ctx, ent, color)
+            crate::ui::EngineUiAction::ModifyScale(ent, old, scale) => {
+                components::handle_modify_scale(ctx, ent, scale);
+                if old != scale {
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Scale(old, scale),
+                        ),
+                    );
+                }
+            }
+            crate::ui::EngineUiAction::ModifyName(ent, old, new_name) => {
+                components::handle_modify_name(ctx, ent, new_name.clone());
+                if old != new_name {
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Name(old, new_name),
+                        ),
+                    );
+                }
+            }
+            crate::ui::EngineUiAction::ModifyColor(ent, old, color) => {
+                components::handle_modify_color(ctx, ent, color);
+                if old != color {
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Color(old, color),
+                        ),
+                    );
+                }
+            }
+            crate::ui::EngineUiAction::ModifyLightColor(ent, old, color) => {
+                components::handle_modify_light_color(ctx, ent, color);
+                if old != color {
+                    let old_light = ctx
+                        .world
+                        .get::<&ae_core::ecs::Light>(ent)
+                        .map(|l| ae_core::ecs::Light {
+                            position: l.position,
+                            color: old,
+                        })
+                        .unwrap_or(ae_core::ecs::Light {
+                            position: [0.0, 0.0, 0.0],
+                            color: old,
+                        });
+                    let new_light = ctx
+                        .world
+                        .get::<&ae_core::ecs::Light>(ent)
+                        .map(|l| *l)
+                        .unwrap_or(ae_core::ecs::Light {
+                            position: [0.0, 0.0, 0.0],
+                            color,
+                        });
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Light(old_light, new_light),
+                        ),
+                    );
+                }
             }
             crate::ui::EngineUiAction::AssignTextureToEntity(ent, path) => {
                 components::handle_assign_texture(ctx, ent, path)
