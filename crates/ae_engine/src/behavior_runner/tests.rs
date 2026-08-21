@@ -5,7 +5,7 @@
 //!
 
 use super::*;
-use ae_core::ecs::{BehaviorComponent, BehaviorType, Color, Position, Rotation};
+use ae_core::ecs::{BehaviorComponent, BehaviorType, Color, Position, Rotation, Scale};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
 use ae_editor::input::InputManager;
 use ae_physics::world::PhysicsWorld;
@@ -121,6 +121,108 @@ fn test_trigger_zone_activation_and_elevation() {
     assert!(
         pos.y > 0.5,
         "Trigger zone should begin moving up towards target Y"
+    );
+}
+
+#[test]
+fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
+    let mut world = World::new();
+    let mut physics = PhysicsWorld::new();
+    let input = InputManager::new();
+    let mut event_bus = DynamicEventBus::new();
+
+    // 1. Sensor Pad
+    let sensor_pad = world.spawn((
+        Position::new(10.0, 0.55, -4.0),
+        Scale::new(4.0, 0.1, 4.0),
+        ae_core::ecs::Collider {
+            shape: ae_core::ecs::ColliderShape::Box {
+                half_extents: [0.5, 10.0, 0.5],
+            },
+            friction: 0.0,
+            restitution: 0.0,
+            is_sensor: true,
+        },
+        BehaviorComponent::trigger_zone(),
+    ));
+
+    // 2. Sliding Door
+    let door = world.spawn((
+        Position::new(10.0, 2.0, -7.0),
+        ae_core::ecs::Collider {
+            shape: ae_core::ecs::ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            },
+            friction: 0.5,
+            restitution: 0.0,
+            is_sensor: false,
+        },
+        BehaviorComponent {
+            behavior_type: BehaviorType::TriggerZone,
+            speed: 10.0,
+            axis: [0.0, 1.0, 0.0],
+            health: 100.0,
+            max_health: 100.0,
+            is_triggered: false,
+            original_position: [10.0, 2.0, -7.0],
+            target_position: [10.0, 6.0, -7.0],
+            ping_pong_forward: true,
+            timer: 0.0,
+            hit_flash_timer: 0.0,
+        },
+    ));
+
+    // 3. Player entity stepping on sensor pad (10.0, 0.55, -4.0)
+    let player = world.spawn((Position::new(10.0, 1.0, -4.0), ae_core::ecs::PlayerTag));
+
+    // Frame 1: Player is on the pad -> Door raises up
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 0.5,
+    });
+
+    let is_triggered = world
+        .get::<&BehaviorComponent>(sensor_pad)
+        .unwrap()
+        .is_triggered;
+    assert!(is_triggered, "Pad must be triggered when player is on it");
+    let door_pos = *world.get::<&Position>(door).unwrap();
+    assert!(
+        door_pos.y > 2.0,
+        "Door must move up towards 6.0 when player is on pad"
+    );
+
+    // Frame 2: Player steps OFF the pad to (50.0, 1.0, 50.0) -> Door lowers back down
+    if let Ok(mut pos) = world.get::<&mut Position>(player) {
+        pos.x = 50.0;
+        pos.z = 50.0;
+    }
+
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 1.0,
+    });
+
+    let is_triggered = world
+        .get::<&BehaviorComponent>(sensor_pad)
+        .unwrap()
+        .is_triggered;
+    assert!(
+        !is_triggered,
+        "Pad must NOT be triggered when player steps off"
+    );
+    let door_pos = *world.get::<&Position>(door).unwrap();
+    assert!(
+        door_pos.y <= 2.05,
+        "Door must lower back down to original position (2.0) after player steps off"
     );
 }
 
