@@ -17,7 +17,22 @@ pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEvent
                 && target_behavior.behavior_type == BehaviorType::DestructibleTarget
             {
                 target_behavior.health = (target_behavior.health - hit.damage).max(0.0);
-                target_behavior.hit_flash_timer = 0.35; // 350ms bright flash
+
+                // Save original color before applying flash if not currently flashing
+                if target_behavior.hit_flash_timer <= 0.0
+                    && let Ok(col) = world.get::<&Color>(hit.target)
+                {
+                    target_behavior.original_color = [col.r, col.g, col.b, col.a];
+                }
+                target_behavior.hit_flash_timer = 0.20; // 200ms impact flash
+
+                // Apply bright impact flash color
+                if let Ok(mut col) = world.get::<&mut Color>(hit.target) {
+                    col.r = 1.0;
+                    col.g = 0.9;
+                    col.b = 0.4;
+                    col.a = 1.0;
+                }
 
                 log::info!(
                     "🎯 [RaycastHit] Target {:?} took {} damage! Health: {}/{}",
@@ -57,18 +72,13 @@ pub fn update_destructible_visuals(world: &mut World, destructible_entities: &[E
             && behavior.hit_flash_timer > 0.0
         {
             behavior.hit_flash_timer = (behavior.hit_flash_timer - dt).max(0.0);
-            if let Ok(mut col) = world.get::<&mut Color>(ent) {
-                if behavior.hit_flash_timer > 0.0 {
-                    // Flash bright orange/red
-                    col.r = 1.0;
-                    col.g = 0.3;
-                    col.b = 0.1;
-                } else {
-                    // Restore healthy / damage ratio color
-                    let health_ratio = behavior.health / behavior.max_health.max(1.0);
-                    col.r = 1.0 - health_ratio * 0.6;
-                    col.g = health_ratio * 0.8;
-                    col.b = 0.2;
+            if behavior.hit_flash_timer == 0.0 {
+                // Restore the entity's exact original color
+                if let Ok(mut col) = world.get::<&mut Color>(ent) {
+                    col.r = behavior.original_color[0];
+                    col.g = behavior.original_color[1];
+                    col.b = behavior.original_color[2];
+                    col.a = behavior.original_color[3];
                 }
             }
         }

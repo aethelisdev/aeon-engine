@@ -152,6 +152,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 

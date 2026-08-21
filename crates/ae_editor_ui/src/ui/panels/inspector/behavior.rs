@@ -166,13 +166,25 @@ impl EngineUi {
                         BehaviorType::DestructibleTarget => {
                             ui.horizontal(|ui| {
                                 ui.label("Health:");
-                                let health_fraction =
-                                    (updated.health / updated.max_health.max(1.0)).clamp(0.0, 1.0);
-                                let health_bar = egui::ProgressBar::new(health_fraction).text(
-                                    format!("{:.0} / {:.0}", updated.health, updated.max_health),
-                                );
-                                ui.add(health_bar);
+                                if ui
+                                    .add(
+                                        egui::DragValue::new(&mut updated.health)
+                                            .speed(1.0)
+                                            .range(0.0..=updated.max_health),
+                                    )
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                                ui.label(format!("/ {:.0}", updated.max_health));
                             });
+
+                            let health_fraction =
+                                (updated.health / updated.max_health.max(1.0)).clamp(0.0, 1.0);
+                            let health_bar = egui::ProgressBar::new(health_fraction)
+                                .desired_width(ui.available_width().min(240.0))
+                                .show_percentage();
+                            ui.add(health_bar);
 
                             ui.horizontal(|ui| {
                                 ui.label("Max HP:");
@@ -184,6 +196,9 @@ impl EngineUi {
                                     )
                                     .changed()
                                 {
+                                    if updated.health > updated.max_health {
+                                        updated.health = updated.max_health;
+                                    }
                                     changed = true;
                                 }
                             });

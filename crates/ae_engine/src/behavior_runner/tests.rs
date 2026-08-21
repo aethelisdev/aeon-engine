@@ -91,6 +91,7 @@ fn test_trigger_zone_activation_and_elevation() {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 
@@ -169,6 +170,7 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 
@@ -303,4 +305,62 @@ fn test_destructible_target_damage_and_destruction_event() {
 fn test_behavior_runner_registry_initialization() {
     let registry = BehaviorRunnerRegistry::global();
     assert_eq!(registry.handlers().len(), 5);
+}
+
+#[test]
+fn test_destructible_target_hit_flash_restores_original_color() {
+    let mut world = World::new();
+    let mut physics = PhysicsWorld::new();
+    let input = InputManager::new();
+    let mut event_bus = DynamicEventBus::new();
+
+    let target_ent = world.spawn((
+        Position::new(0.0, 0.0, 5.0),
+        Color::red(), // Original color is Red (1.0, 0.0, 0.0, 1.0)
+        BehaviorComponent::destructible_target(100.0),
+    ));
+
+    // Send 10 damage hit
+    event_bus.send(RaycastHitEvent {
+        shooter: None,
+        target: target_ent,
+        hit_point: [0.0, 0.0, 4.5],
+        hit_normal: [0.0, 0.0, -1.0],
+        damage: 10.0,
+    });
+
+    // Step 1: Hit applied -> flash active
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 0.016,
+    });
+
+    {
+        let col = world.get::<&Color>(target_ent).unwrap();
+        // During flash, color is bright impact color (not original red)
+        assert_eq!(col.r, 1.0);
+        assert_eq!(col.g, 0.9);
+    }
+
+    // Step 2: Simulate 300ms passing -> flash timer expires
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 0.30,
+    });
+
+    {
+        let col = world.get::<&Color>(target_ent).unwrap();
+        // After flash expires, original Red color must be 100% restored (NOT green!)
+        assert_eq!(col.r, 1.0, "Red channel must be 1.0");
+        assert_eq!(col.g, 0.2, "Green channel must be 0.2 (Color::red)");
+        assert_eq!(col.b, 0.2, "Blue channel must be 0.2 (Color::red)");
+    }
 }

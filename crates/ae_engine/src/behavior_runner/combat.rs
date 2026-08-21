@@ -134,6 +134,7 @@ pub fn update_character_actions(
                     health: 1.0,
                     max_health: 1.0,
                     hit_flash_timer: 0.0,
+                    original_color: [1.0, 1.0, 1.0, 1.0],
                 },
                 TransformDirty,
             ));

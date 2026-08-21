@@ -361,6 +361,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 

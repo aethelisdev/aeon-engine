@@ -376,6 +376,8 @@ pub struct BehaviorComponent {
     pub timer: f32,
     /// Hit flash timer indicating remaining duration of the visual damage tint.
     pub hit_flash_timer: f32,
+    /// Original base color for restoring after hit flash effects.
+    pub original_color: [f32; 4],
 }
 
 impl BehaviorComponent {
@@ -393,6 +395,7 @@ impl BehaviorComponent {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         }
     }
 
@@ -410,6 +413,7 @@ impl BehaviorComponent {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         }
     }
 
@@ -427,6 +431,7 @@ impl BehaviorComponent {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         }
     }
 
@@ -448,6 +453,7 @@ impl BehaviorComponent {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         }
     }
 
@@ -465,6 +471,7 @@ impl BehaviorComponent {
             ping_pong_forward: true,
             timer: 0.0,
             hit_flash_timer: 0.0,
+            original_color: [1.0, 1.0, 1.0, 1.0],
         }
     }
 }
