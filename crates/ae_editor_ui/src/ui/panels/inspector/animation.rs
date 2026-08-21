@@ -25,59 +25,35 @@ impl EngineUi {
                 true,
                 |ui| {
                     let state_badge = match updated.state {
-                        ae_animation::AnimationState::Playing => {
-                            egui::RichText::new(" [▶ PLAYING]")
-                                .color(egui::Color32::GREEN)
-                                .strong()
-                        }
-                        ae_animation::AnimationState::Paused => egui::RichText::new(" [⏸ PAUSED]")
+                        ae_animation::AnimationState::Playing => egui::RichText::new("▶ PLAYING")
+                            .color(egui::Color32::GREEN)
+                            .strong(),
+                        ae_animation::AnimationState::Paused => egui::RichText::new("⏸ PAUSED")
                             .color(egui::Color32::GOLD)
                             .strong(),
                         ae_animation::AnimationState::Stopped => {
-                            egui::RichText::new(" [⏹ STOPPED]").color(egui::Color32::LIGHT_GRAY)
+                            egui::RichText::new("⏹ STOPPED").color(egui::Color32::LIGHT_GRAY)
                         }
                     };
 
-                    // State controls
+                    // Status & Quick Link to Timeline Studio
                     ui.horizontal(|ui| {
-                        ui.label("State:");
-                        if ui.button("▶ Play").clicked() {
-                            updated.state = ae_animation::AnimationState::Playing;
-                            changed = true;
-                        }
-                        if ui.button("⏸ Pause").clicked() {
-                            updated.state = ae_animation::AnimationState::Paused;
-                            changed = true;
-                        }
-                        if ui.button("⏹ Stop").clicked() {
-                            updated.state = ae_animation::AnimationState::Stopped;
-                            updated.current_time = 0.0;
-                            changed = true;
-                        }
+                        ui.label("Status:");
                         ui.label(state_badge);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .button("Open Timeline Studio ↗")
+                                .on_hover_text("Open full Animation Timeline panel with transport controls and scrubbing")
+                                .clicked()
+                            {
+                                ui_actions.push(EngineUiAction::OpenPanel(
+                                    crate::ui::panel_layout::PanelId::AnimationTimeline,
+                                ));
+                            }
+                        });
                     });
 
-                    // Timeline Seek / Scrubbing Slider
-                    let duration = updated
-                        .current_clip
-                        .as_ref()
-                        .map_or(1.0, |c| c.duration.max(0.1));
-                    ui.horizontal(|ui| {
-                        ui.label("Timeline:");
-                        let progress_pct =
-                            (updated.current_time / duration * 100.0).clamp(0.0, 100.0);
-                        if ui
-                            .add(
-                                egui::Slider::new(&mut updated.current_time, 0.0..=duration)
-                                    .text(format!("s ({:.0}%)", progress_pct))
-                                    .fixed_decimals(2),
-                            )
-                            .on_hover_text("Drag slider to seek / scrub timeline position")
-                            .changed()
-                        {
-                            changed = true;
-                        }
-                    });
+                    ui.separator();
 
                     // Active clip display & dropdown selector
                     let model_anims =
@@ -115,6 +91,7 @@ impl EngineUi {
                     });
 
                     // Clip & Skeleton Info
+                    let duration = updated.current_clip.as_ref().map_or(0.0, |c| c.duration);
                     if let Ok(skel) = world.get::<&ae_animation::Skeleton>(entity) {
                         let num_channels = updated
                             .current_clip
@@ -132,27 +109,9 @@ impl EngineUi {
                         );
                     } else {
                         ui.colored_label(
-                        egui::Color32::GOLD,
-                        "ℹ Static 3D Model (No Skeletal Armature/Bones found).\nExport with 3D Skeletal Armature/Bones to use skeletal animation.",
-                    );
-                    }
-
-                    ui.horizontal(|ui| {
-                        ui.label("Speed:");
-                        if ui
-                            .add(egui::Slider::new(&mut updated.speed, 0.1..=5.0).text("x"))
-                            .changed()
-                        {
-                            changed = true;
-                        }
-                    });
-
-                    if ui
-                        .checkbox(&mut updated.looping, "Loop Animation")
-                        .on_hover_text("Repeat animation when reaching clip duration")
-                        .changed()
-                    {
-                        changed = true;
+                            egui::Color32::GOLD,
+                            "ℹ Static 3D Model (No Skeletal Armature/Bones found).\nExport with 3D Skeletal Armature/Bones to use skeletal animation.",
+                        );
                     }
 
                     if changed {
@@ -165,5 +124,46 @@ impl EngineUi {
                 ui_actions.push(EngineUiAction::RemoveAnimationPlayer(entity));
             }
         }
+    }
+}
+
+pub struct AnimationUiHandler;
+
+impl super::registry::ComponentUiHandler for AnimationUiHandler {
+    fn component_name(&self) -> &'static str {
+        "AnimationPlayer"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "Animation Player",
+            "🎬",
+            egui::Color32::from_rgb(255, 150, 200),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Animation", "Animation Player")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_animation::AnimationPlayer>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_animation_section(ui, ctx.world, ctx.entity, ctx.models, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveAnimationPlayer(entity));
     }
 }

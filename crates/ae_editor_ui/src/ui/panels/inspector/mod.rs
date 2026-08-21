@@ -12,4 +12,7 @@ pub mod lod;
 pub mod panel;
 pub mod parenting;
 pub mod physics;
+pub mod registry;
 pub mod widgets;
+
+pub use registry::{ComponentUiHandler, InspectorContext, InspectorUiRegistry};

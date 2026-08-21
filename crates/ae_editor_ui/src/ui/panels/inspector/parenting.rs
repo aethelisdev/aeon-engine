@@ -89,3 +89,44 @@ impl EngineUi {
         );
     }
 }
+
+pub struct ParentingUiHandler;
+
+impl super::registry::ComponentUiHandler for ParentingUiHandler {
+    fn component_name(&self) -> &'static str {
+        "Parenting"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("Parent / Child Relationship", "🔗", egui::Color32::WHITE)
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Hierarchy", "Parenting")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::Parent>(entity).is_ok()
+            || world.get::<&ae_core::ecs::Children>(entity).is_ok()
+    }
+
+    fn is_removable(&self) -> bool {
+        false
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_parenting_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        _entity: hecs::Entity,
+        _ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::UnparentEntity(entity));
+    }
+}

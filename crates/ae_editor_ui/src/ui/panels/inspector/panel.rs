@@ -483,17 +483,27 @@ impl EngineUi {
                             );
                         }
 
-                        // --- APPEARANCE (Color & Swatches) ---
-                        Self::draw_appearance_section(
-                            ui,
+                        // --- DYNAMIC COMPONENT RENDERING VIA REGISTRY ---
+                        let mut ctx = super::registry::InspectorContext {
                             world,
                             entity,
+                            ui_actions,
+                            editor_state,
+                            camera,
+                            models,
+                            textures: _textures,
                             inspector_color_hex,
                             saved_swatches,
-                            ui_actions,
-                        );
+                        };
 
-                        // --- MATERIAL EDITOR QUICK LINK ---
+                        let registry = super::registry::InspectorUiRegistry::global();
+                        for handler in registry.handlers() {
+                            if handler.has_component(world, entity) {
+                                handler.render_ui(ui, &mut ctx);
+                            }
+                        }
+
+                        // --- MATERIAL / SUBMESH QUICK LINKS ---
                         if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity) {
                             let submesh_count = models
                                 .get(model_id.0)
@@ -542,95 +552,6 @@ impl EngineUi {
                             );
                         }
 
-                        // --- LIGHTING SECTION ---
-                        if let Ok(light) = world.get::<&ae_core::ecs::Light>(entity) {
-                            draw_inspector_card(
-                                ui,
-                                "Lighting Settings",
-                                "💡",
-                                egui::Color32::from_rgb(255, 230, 100),
-                                false,
-                                |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label("Color:");
-                                        let mut edit_color = light.color;
-                                        let res = ui.color_edit_button_rgb(&mut edit_color);
-                                        if res.changed() {
-                                            ui_actions.push(EngineUiAction::ModifyLightColor(
-                                                entity,
-                                                light.color,
-                                                edit_color,
-                                            ));
-                                        }
-                                    });
-                                },
-                            );
-                        }
-
-                        // --- RIGIDBODY SECTION ---
-                        Self::draw_rigidbody_section(ui, world, entity, ui_actions);
-
-                        // --- COLLIDER SECTION ---
-                        Self::draw_collider_section(ui, world, entity, ui_actions);
-
-                        // --- CHARACTER CONTROLLER SECTION ---
-                        Self::draw_character_controller_section(
-                            ui, world, entity, ui_actions,
-                        );
-
-                        // --- ANIMATION PLAYER QUICK LINK ---
-                        if let Ok(player) = world.get::<&ae_animation::AnimationPlayer>(entity) {
-                            let state_str = match player.state {
-                                ae_animation::AnimationState::Playing => "▶ Playing",
-                                ae_animation::AnimationState::Paused => "⏸ Paused",
-                                ae_animation::AnimationState::Stopped => "⏹ Stopped",
-                            };
-                            draw_inspector_card(
-                                ui,
-                                "Animation Status",
-                                "🎬",
-                                egui::Color32::from_rgb(255, 150, 200),
-                                false,
-                                |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label("Status:");
-                                        ui.label(
-                                            egui::RichText::new(state_str)
-                                                .color(egui::Color32::GREEN)
-                                                .strong(),
-                                        );
-                                        if ui
-                                            .button("Open Timeline Studio ↗")
-                                            .on_hover_text("Open bottom Animation Timeline Studio panel")
-                                            .clicked()
-                                        {
-                                            ui_actions.push(EngineUiAction::OpenPanel(
-                                                crate::ui::panel_layout::PanelId::AnimationTimeline,
-                                            ));
-                                        }
-                                    });
-                                },
-                            );
-                        }
-
-                        // --- AUDIO SOURCE SECTION ---
-                        Self::draw_audio_source_section(ui, world, entity, ui_actions);
-
-                        // --- AUDIO LISTENER SECTION ---
-                        Self::draw_audio_listener_section(ui, world, entity, ui_actions);
-
-                        // --- PLAYER TAG SECTION ---
-                        Self::draw_player_tag_section(ui, world, entity, ui_actions);
-
-                        // --- BEHAVIOR SECTION ---
-                        Self::draw_behavior_section(ui, world, entity, ui_actions);
-
-                        // --- HIERARCHY / PARENTING SECTION ---
-                        Self::draw_parenting_section(ui, world, entity, ui_actions);
-
-                        // --- LOD GROUP SECTION ---
-                        Self::draw_lod_section(ui, world, entity, camera, models, ui_actions);
-
                         // --- BOTTOM ACTION BUTTONS ---
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
@@ -666,6 +587,39 @@ impl EngineUi {
                     );
                 }
             });
+        });
+    }
+
+    /// Renders dynamic "Add Component" dropdown menu automatically categorized via InspectorUiRegistry.
+    pub(super) fn draw_add_component_button(
+        ui: &mut egui::Ui,
+        world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        let registry = super::registry::InspectorUiRegistry::global();
+        let grouped = registry.grouped_by_category();
+
+        ui.menu_button("➕ Add Component", |ui| {
+            for (category, handlers) in grouped {
+                let available: Vec<_> = handlers
+                    .into_iter()
+                    .filter(|h| !h.has_component(world, entity))
+                    .collect();
+
+                if !available.is_empty() {
+                    ui.menu_button(category, |ui| {
+                        for handler in available {
+                            let (_, display_name) = handler.menu_category();
+                            let (_, icon, _) = handler.card_header();
+                            if ui.button(format!("{} {}", icon, display_name)).clicked() {
+                                handler.add_default_to_entity(world, entity, ui_actions);
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+            }
         });
     }
 }

@@ -352,192 +352,146 @@ impl EngineUi {
             }
         }
     }
+}
 
-    /// Renders a button dropdown that allows attaching physics components (RigidBody, Collider, CharacterController) to an entity.
-    pub(super) fn draw_add_component_button(
-        ui: &mut egui::Ui,
-        world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        let has_rb = world.get::<&ae_core::ecs::RigidBody>(entity).is_ok();
-        let has_col = world.get::<&ae_core::ecs::Collider>(entity).is_ok();
-        let has_ctrl = world
-            .get::<&ae_core::ecs::CharacterController>(entity)
-            .is_ok();
-        let has_lod = world.get::<&ae_core::ecs::LodGroup>(entity).is_ok();
+pub struct RigidBodyUiHandler;
 
-        if has_rb && has_col && has_ctrl && has_lod {
-            return; // Nothing to add
-        }
-
-        ui.horizontal(|ui| {
-            ui.menu_button("➕ Add Component", |ui| {
-                if !has_rb && ui.button("⚙ RigidBody").clicked() {
-                    let default_rb = ae_core::ecs::RigidBody {
-                        body_type: ae_core::ecs::RigidBodyType::Dynamic,
-                        mass: 1.0,
-                        gravity_scale: 1.0,
-                    };
-                    ui_actions.push(EngineUiAction::AddRigidBody(entity, default_rb));
-                    if !has_col {
-                        let default_col =
-                            if let Ok(shape) = world.get::<&ae_core::ecs::Shape>(entity) {
-                                match *shape {
-                                    ae_core::ecs::Shape::Sphere => ae_core::ecs::Collider {
-                                        shape: ae_core::ecs::ColliderShape::Sphere { radius: 0.5 },
-                                        friction: 0.7,
-                                        restitution: 0.0,
-                                        is_sensor: false,
-                                    },
-                                    ae_core::ecs::Shape::Cylinder
-                                    | ae_core::ecs::Shape::Capsule => ae_core::ecs::Collider {
-                                        shape: ae_core::ecs::ColliderShape::Capsule {
-                                            half_height: 0.15,
-                                            radius: 0.35,
-                                            center_y: 0.0,
-                                        },
-                                        friction: 0.7,
-                                        restitution: 0.0,
-                                        is_sensor: false,
-                                    },
-                                    _ => ae_core::ecs::Collider {
-                                        shape: ae_core::ecs::ColliderShape::Box {
-                                            half_extents: [0.5, 0.5, 0.5],
-                                        },
-                                        friction: 0.7,
-                                        restitution: 0.0,
-                                        is_sensor: false,
-                                    },
-                                }
-                            } else if world.get::<&ae_core::ecs::ModelId>(entity).is_ok() {
-                                ae_core::ecs::Collider {
-                                    shape: ae_core::ecs::ColliderShape::Trimesh,
-                                    friction: 0.7,
-                                    restitution: 0.0,
-                                    is_sensor: false,
-                                }
-                            } else {
-                                ae_core::ecs::Collider {
-                                    shape: ae_core::ecs::ColliderShape::Box {
-                                        half_extents: [0.5, 0.5, 0.5],
-                                    },
-                                    friction: 0.7,
-                                    restitution: 0.0,
-                                    is_sensor: false,
-                                }
-                            };
-                        ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
-                    }
-                    ui.close();
-                }
-                if !has_col && ui.button("🛡 Collider").clicked() {
-                    let default_col = ae_core::ecs::Collider {
-                        shape: ae_core::ecs::ColliderShape::Box {
-                            half_extents: [0.5, 0.5, 0.5],
-                        },
-                        friction: 0.7,
-                        restitution: 0.0,
-                        is_sensor: false,
-                    };
-                    ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
-                    ui.close();
-                }
-                if !has_ctrl && ui.button("👤 CharacterController").clicked() {
-                    let default_ctrl = ae_core::ecs::CharacterController::default();
-                    ui_actions.push(EngineUiAction::AddCharacterController(entity, default_ctrl));
-                    // Automatically attach Kinematic rigid body and Capsule collider for character physics if not present
-                    if !has_rb {
-                        let rb = ae_core::ecs::RigidBody {
-                            body_type: ae_core::ecs::RigidBodyType::Kinematic,
-                            mass: 1.0,
-                            gravity_scale: 1.0,
-                        };
-                        ui_actions.push(EngineUiAction::AddRigidBody(entity, rb));
-                    }
-                    if !has_col {
-                        let col = ae_core::ecs::Collider {
-                            shape: ae_core::ecs::ColliderShape::Capsule {
-                                half_height: default_ctrl.capsule_half_height(),
-                                radius: default_ctrl.radius,
-                                center_y: default_ctrl.center_y,
-                            },
-                            friction: 0.5,
-                            restitution: 0.0,
-                            is_sensor: false,
-                        };
-                        ui_actions.push(EngineUiAction::AddCollider(entity, col));
-                    }
-                    ui.close();
-                }
-                if !has_lod && ui.button("📊 LodGroup").clicked() {
-                    ui_actions.push(EngineUiAction::AddLodGroup(entity));
-                    ui.close();
-                }
-                if world.get::<&ae_audio::AudioSource>(entity).is_err()
-                    && ui.button("🔊 AudioSource").clicked()
-                {
-                    ui_actions.push(EngineUiAction::AddAudioSource(entity));
-                    ui.close();
-                }
-                if world.get::<&ae_audio::AudioListener>(entity).is_err()
-                    && ui.button("👂 AudioListener").clicked()
-                {
-                    ui_actions.push(EngineUiAction::AddAudioListener(entity));
-                    ui.close();
-                }
-                if world.get::<&ae_core::ecs::PlayerTag>(entity).is_err()
-                    && ui.button("🎮 PlayerTag").clicked()
-                {
-                    ui_actions.push(EngineUiAction::AddPlayerTag(entity));
-                    ui.close();
-                }
-                if world.get::<&ae_animation::AnimationPlayer>(entity).is_err()
-                    && ui.button("🎬 AnimationPlayer").clicked()
-                {
-                    ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
-                    ui.close();
-                }
-                if world
-                    .get::<&ae_core::ecs::BehaviorComponent>(entity)
-                    .is_err()
-                    && ui.button("🧠 Behavior").clicked()
-                {
-                    ui_actions.push(EngineUiAction::AddBehavior(
-                        entity,
-                        ae_core::ecs::BehaviorComponent::default(),
-                    ));
-                    ui.close();
-                }
-            });
-        });
+impl super::registry::ComponentUiHandler for RigidBodyUiHandler {
+    fn component_name(&self) -> &'static str {
+        "RigidBody"
     }
 
-    /// Draws the PlayerTag component section if the entity has one.
-    pub(super) fn draw_player_tag_section(
-        ui: &mut egui::Ui,
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("RigidBody", "⚙", egui::Color32::from_rgb(100, 200, 255))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Physics", "RigidBody")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::RigidBody>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_rigidbody_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
         world: &hecs::World,
         entity: hecs::Entity,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        if world.get::<&ae_core::ecs::PlayerTag>(entity).is_ok() {
-            let (_, remove_clicked) = super::widgets::draw_inspector_card(
-                ui,
-                "PlayerTag",
-                "🎮",
-                egui::Color32::from_rgb(255, 180, 80),
-                true,
-                |ui| {
-                    ui.label(
-                        egui::RichText::new("Designates this entity as the active Player target for gameplay logic and camera tracking.")
-                            .small()
-                            .color(egui::Color32::from_gray(170)),
-                    );
+        let default_rb = ae_core::ecs::RigidBody {
+            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+            mass: 1.0,
+            gravity_scale: 1.0,
+        };
+        ui_actions.push(EngineUiAction::AddRigidBody(entity, default_rb));
+        if world.get::<&ae_core::ecs::Collider>(entity).is_err() {
+            let default_col = ae_core::ecs::Collider {
+                shape: ae_core::ecs::ColliderShape::Box {
+                    half_extents: [0.5, 0.5, 0.5],
                 },
-            );
-            if remove_clicked {
-                ui_actions.push(EngineUiAction::RemovePlayerTag(entity));
-            }
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: false,
+            };
+            ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
         }
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveRigidBody(entity));
+    }
+}
+
+pub struct ColliderUiHandler;
+
+impl super::registry::ComponentUiHandler for ColliderUiHandler {
+    fn component_name(&self) -> &'static str {
+        "Collider"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("Collider", "🛡", egui::Color32::from_rgb(120, 255, 120))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Physics", "Collider")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::Collider>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_collider_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        let default_col = ae_core::ecs::Collider {
+            shape: ae_core::ecs::ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            },
+            friction: 0.7,
+            restitution: 0.0,
+            is_sensor: false,
+        };
+        ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveCollider(entity));
+    }
+}
+
+pub struct CharacterControllerUiHandler;
+
+impl super::registry::ComponentUiHandler for CharacterControllerUiHandler {
+    fn component_name(&self) -> &'static str {
+        "CharacterController"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "Kinematic Character Controller",
+            "🚶",
+            egui::Color32::from_rgb(255, 120, 200),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Physics", "Character Controller")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world
+            .get::<&ae_core::ecs::CharacterController>(entity)
+            .is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_character_controller_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        let default_cc = ae_core::ecs::CharacterController::default();
+        ui_actions.push(EngineUiAction::AddCharacterController(entity, default_cc));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveCharacterController(entity));
     }
 }

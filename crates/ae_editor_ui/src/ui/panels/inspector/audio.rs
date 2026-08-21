@@ -138,3 +138,81 @@ impl EngineUi {
         }
     }
 }
+
+pub struct AudioSourceUiHandler;
+
+impl super::registry::ComponentUiHandler for AudioSourceUiHandler {
+    fn component_name(&self) -> &'static str {
+        "AudioSource"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("Audio Source", "🔊", egui::Color32::from_rgb(150, 220, 255))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Audio", "Audio Source")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_audio::AudioSource>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_audio_source_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddAudioSource(entity));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveAudioSource(entity));
+    }
+}
+
+pub struct AudioListenerUiHandler;
+
+impl super::registry::ComponentUiHandler for AudioListenerUiHandler {
+    fn component_name(&self) -> &'static str {
+        "AudioListener"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "Audio Listener",
+            "👂",
+            egui::Color32::from_rgb(150, 220, 255),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Audio", "Audio Listener")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_audio::AudioListener>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_audio_listener_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddAudioListener(entity));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveAudioListener(entity));
+    }
+}

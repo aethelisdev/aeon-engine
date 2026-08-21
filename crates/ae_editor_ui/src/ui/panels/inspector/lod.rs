@@ -178,3 +178,51 @@ impl EngineUi {
         }
     }
 }
+
+pub struct LodGroupUiHandler;
+
+impl super::registry::ComponentUiHandler for LodGroupUiHandler {
+    fn component_name(&self) -> &'static str {
+        "LodGroup"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "LOD Group (Distance Switching)",
+            "👁",
+            egui::Color32::from_rgb(120, 230, 200),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Rendering", "LOD Group")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::LodGroup>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_lod_section(
+            ui,
+            ctx.world,
+            ctx.entity,
+            ctx.camera,
+            ctx.models,
+            ctx.ui_actions,
+        );
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddLodGroup(entity));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveLodGroup(entity));
+    }
+}

@@ -474,3 +474,142 @@ impl EngineUi {
         });
     }
 }
+
+pub struct AppearanceUiHandler;
+
+impl super::registry::ComponentUiHandler for AppearanceUiHandler {
+    fn component_name(&self) -> &'static str {
+        "Appearance"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("Appearance", "🎨", egui::Color32::WHITE)
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Rendering", "Appearance")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::Color>(entity).is_ok()
+            || world.get::<&ae_core::ecs::Shape>(entity).is_ok()
+            || world.get::<&ae_core::ecs::ModelId>(entity).is_ok()
+            || world.get::<&ae_core::ecs::SpriteId>(entity).is_ok()
+    }
+
+    fn is_removable(&self) -> bool {
+        false
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_appearance_section(
+            ui,
+            ctx.world,
+            ctx.entity,
+            ctx.inspector_color_hex,
+            ctx.saved_swatches,
+            ctx.ui_actions,
+        );
+    }
+
+    fn add_default_to_entity(
+        &self,
+        world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        if world.get::<&ae_core::ecs::Color>(entity).is_err() {
+            ui_actions.push(EngineUiAction::ModifyColor(
+                entity,
+                ae_core::ecs::Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 1.0,
+                },
+                ae_core::ecs::Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 1.0,
+                },
+            ));
+        }
+    }
+
+    fn remove_from_entity(&self, _entity: hecs::Entity, _ui_actions: &mut Vec<EngineUiAction>) {}
+}
+
+pub struct LightUiHandler;
+
+impl super::registry::ComponentUiHandler for LightUiHandler {
+    fn component_name(&self) -> &'static str {
+        "Light"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "Lighting Settings",
+            "💡",
+            egui::Color32::from_rgb(255, 230, 100),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Rendering", "Light")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::Light>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        if let Ok(light) = ctx.world.get::<&ae_core::ecs::Light>(ctx.entity) {
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "Lighting Settings",
+                "💡",
+                egui::Color32::from_rgb(255, 230, 100),
+                true,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Color:");
+                        let mut edit_color = light.color;
+                        let res = ui.color_edit_button_rgb(&mut edit_color);
+                        if res.changed() {
+                            ctx.ui_actions.push(EngineUiAction::ModifyLightColor(
+                                ctx.entity,
+                                light.color,
+                                edit_color,
+                            ));
+                        }
+                    });
+                },
+            );
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
+            }
+        }
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::ModifyLightColor(
+            entity,
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::ModifyLightColor(
+            entity,
+            [1.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0],
+        ));
+    }
+}

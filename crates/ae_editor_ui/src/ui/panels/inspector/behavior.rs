@@ -275,3 +275,102 @@ impl EngineUi {
         }
     }
 }
+
+pub struct BehaviorUiHandler;
+
+impl super::registry::ComponentUiHandler for BehaviorUiHandler {
+    fn component_name(&self) -> &'static str {
+        "Behavior"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("Behavior", "🧠", egui::Color32::from_rgb(180, 130, 255))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Gameplay", "Behavior")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&BehaviorComponent>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_behavior_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddBehavior(
+            entity,
+            BehaviorComponent::default(),
+        ));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveBehavior(entity));
+    }
+}
+
+pub struct PlayerTagUiHandler;
+
+impl super::registry::ComponentUiHandler for PlayerTagUiHandler {
+    fn component_name(&self) -> &'static str {
+        "PlayerTag"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("PlayerTag", "🎮", egui::Color32::from_rgb(255, 180, 80))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Gameplay", "Player Tag")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::PlayerTag>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        if ctx
+            .world
+            .get::<&ae_core::ecs::PlayerTag>(ctx.entity)
+            .is_ok()
+        {
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "PlayerTag",
+                "🎮",
+                egui::Color32::from_rgb(255, 180, 80),
+                true,
+                |ui| {
+                    ui.label(
+                        egui::RichText::new("Designates this entity as the active Player target for gameplay logic and camera tracking.")
+                            .small()
+                            .color(egui::Color32::from_gray(170)),
+                    );
+                },
+            );
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
+            }
+        }
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddPlayerTag(entity));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemovePlayerTag(entity));
+    }
+}
