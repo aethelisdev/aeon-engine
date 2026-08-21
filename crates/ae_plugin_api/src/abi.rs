@@ -28,3 +28,14 @@ pub fn platform_lib_extension() -> &'static str {
         "so"
     }
 }
+
+/// Returns the platform-specific shared library filename including prefix (e.g. `libgame_logic.so`).
+pub fn platform_lib_filename(name: &str) -> String {
+    if cfg!(target_os = "windows") {
+        format!("{}.dll", name)
+    } else if cfg!(target_os = "macos") {
+        format!("lib{}.dylib", name)
+    } else {
+        format!("lib{}.so", name)
+    }
+}

@@ -219,7 +219,7 @@ impl AeEngine {
         engine.time.fixed_time_step = 1.0 / engine.editor.config.physics_hz;
 
         // Load the game logic plugin
-        let ext = ae_plugin_api::platform_lib_extension();
+        let lib_filename = ae_plugin_api::platform_lib_filename("game_logic");
         let profile = if cfg!(debug_assertions) {
             "debug"
         } else {
@@ -233,18 +233,29 @@ impl AeEngine {
         if let Ok(current_exe) = std::env::current_exe()
             && let Some(exe_dir) = current_exe.parent()
         {
-            let plugin_exe_dir = exe_dir.join(format!("game_logic.{}", ext));
+            let plugin_exe_dir = exe_dir.join(&lib_filename);
+            let plugin_exe_deps = exe_dir.join("deps").join(&lib_filename);
             if plugin_exe_dir.exists() {
                 plugin_path_opt = std::fs::canonicalize(&plugin_exe_dir).ok();
+                target_base_opt = std::fs::canonicalize(exe_dir).ok();
+            } else if plugin_exe_deps.exists() {
+                plugin_path_opt = std::fs::canonicalize(&plugin_exe_deps).ok();
                 target_base_opt = std::fs::canonicalize(exe_dir).ok();
             }
         }
 
         // 2. Fallback to target folder relative to CWD
-        let plugin_rel = std::path::PathBuf::from(format!("target/{}/game_logic.{}", profile, ext));
-        if plugin_path_opt.is_none() && plugin_rel.exists() {
-            plugin_path_opt = std::fs::canonicalize(&plugin_rel).ok();
-            target_base_opt = std::fs::canonicalize("target").ok();
+        let plugin_rel = std::path::PathBuf::from(format!("target/{}/{}", profile, lib_filename));
+        let plugin_rel_deps =
+            std::path::PathBuf::from(format!("target/{}/deps/{}", profile, lib_filename));
+        if plugin_path_opt.is_none() {
+            if plugin_rel.exists() {
+                plugin_path_opt = std::fs::canonicalize(&plugin_rel).ok();
+                target_base_opt = std::fs::canonicalize("target").ok();
+            } else if plugin_rel_deps.exists() {
+                plugin_path_opt = std::fs::canonicalize(&plugin_rel_deps).ok();
+                target_base_opt = std::fs::canonicalize("target").ok();
+            }
         }
 
         match (plugin_path_opt, target_base_opt) {

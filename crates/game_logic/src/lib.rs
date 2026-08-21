@@ -30,7 +30,7 @@ pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
     let _dt = ctx.delta_time;
 
     // Get visible entities from resources if available (cloned to release the borrow on ctx)
-    let visible_ents = ctx
+    let _visible_ents = ctx
         .get_resources()
         .and_then(|r| r.get::<ae_plugin_api::VisibleEntities>())
         .map(|v| v.entities.clone());
@@ -42,22 +42,8 @@ pub extern "C" fn plugin_update(ctx: &mut PluginContextFFI<'_>) {
     };
 
     // ===== GAMEPLAY CODE GOES HERE =====
-    // Note: Standard linear velocity integration (pos += vel * dt) is performed
-    // by EcsManager::update in the engine core. This plugin implements custom,
-    // hot-reloadable gameplay logic (e.g., custom rotation or gameplay behavior).
-    if let Some(visible) = &visible_ents {
-        for &entity in visible {
-            if let Ok(mut rot) = _world.get::<&mut ae_plugin_api::Rotation>(entity)
-                && _world.get::<&ae_plugin_api::PlayerTag>(entity).is_ok()
-            {
-                // Example hot-reloadable gameplay logic: smooth Y-axis spin for player entities
-                let half_angle = 0.5 * _dt;
-                let (sin, cos) = half_angle.sin_cos();
-                let (w, y) = (rot.w, rot.y);
-                rot.w = w * cos - y * sin;
-                rot.y = y * cos + w * sin;
-            }
-        }
-    }
+    // Note: Standard linear velocity integration (pos += vel * dt) and character
+    // rotation are handled robustly in the engine core. This plugin demonstrates
+    // hot-reloadable gameplay logic and event processing.
     // ====================================
 }

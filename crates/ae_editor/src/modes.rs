@@ -3,6 +3,7 @@
 use crate::editor_state::EditorState;
 use crate::input::{InputManager, KeyCode};
 use ae_core::ecs::{PlayerTag, Velocity};
+use cgmath::Rotation3;
 
 /// Fixed-timestep update loop for Play Mode.
 /// Reads WASD keyboard input to drive player entity velocity,
@@ -43,6 +44,16 @@ pub fn fixed_update_play_mode(
         }
         vel.x = player_vel_x;
         vel.z = player_vel_z;
+        if player_vel_x.abs() > 0.001 || player_vel_z.abs() > 0.001 {
+            let target_yaw = player_vel_x.atan2(player_vel_z);
+            let rot_quat = cgmath::Quaternion::from_angle_y(cgmath::Rad(target_yaw));
+            if let Ok(mut r) = ecs.world.get::<&mut ae_core::ecs::Rotation>(ent) {
+                r.x = rot_quat.v.x;
+                r.y = rot_quat.v.y;
+                r.z = rot_quat.v.z;
+                r.w = rot_quat.s;
+            }
+        }
     }
     ecs.update(fixed_time_step);
 }
