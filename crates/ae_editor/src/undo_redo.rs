@@ -28,6 +28,7 @@ pub struct EntitySnapshot {
     pub rigid_body: Option<RigidBody>,
     pub collider: Option<Collider>,
     pub model_id: Option<ModelId>,
+    pub behavior: Option<ae_core::ecs::BehaviorComponent>,
 }
 
 impl EntitySnapshot {
@@ -50,6 +51,10 @@ impl EntitySnapshot {
             rigid_body: world.get::<&RigidBody>(entity).ok().map(|r| *r),
             collider: world.get::<&Collider>(entity).ok().map(|c| *c),
             model_id: world.get::<&ModelId>(entity).ok().map(|m| *m),
+            behavior: world
+                .get::<&ae_core::ecs::BehaviorComponent>(entity)
+                .ok()
+                .map(|b| (*b).clone()),
         }
     }
 
@@ -98,6 +103,9 @@ impl EntitySnapshot {
         }
         if let Some(m) = self.model_id {
             let _ = world.insert_one(entity, m);
+        }
+        if let Some(b) = &self.behavior {
+            let _ = world.insert_one(entity, b.clone());
         }
     }
 

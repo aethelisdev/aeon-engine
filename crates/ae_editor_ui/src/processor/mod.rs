@@ -177,6 +177,20 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 components::handle_modify_animation_player(ctx, ent, player)
             }
 
+            // --- GAMEPLAY BEHAVIOR ACTIONS ---
+            crate::ui::EngineUiAction::AddBehavior(ent, behavior) => {
+                components::handle_add_behavior(ctx, ent, behavior)
+            }
+            crate::ui::EngineUiAction::RemoveBehavior(ent) => {
+                components::handle_remove_behavior(ctx, ent)
+            }
+            crate::ui::EngineUiAction::ModifyBehavior(ent, behavior) => {
+                components::handle_modify_behavior(ctx, ent, behavior)
+            }
+            crate::ui::EngineUiAction::SpawnPhase1TestSandbox => {
+                spawning::handle_spawn_phase1_test_sandbox(ctx)
+            }
+
             // --- CAMERA & SETTINGS ACTIONS ---
             crate::ui::EngineUiAction::SetCameraMode(mode) => {
                 system::handle_set_camera_mode(ctx, mode)

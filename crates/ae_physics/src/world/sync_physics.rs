@@ -17,7 +17,7 @@ impl PhysicsWorld {
             }
             if let Some(body) = self.rigid_body_set.get(handle) {
                 let is_kcc = world.get::<&CharacterController>(entity).is_ok();
-                if !is_kcc && (body.is_dynamic() || body.is_kinematic()) {
+                if !is_kcc && body.is_dynamic() {
                     let pose = body.position();
                     let translation = pose.translation;
                     let rotation = pose.rotation;

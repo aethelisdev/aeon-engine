@@ -7,6 +7,7 @@
 pub mod animation;
 pub mod appearance;
 pub mod audio;
+pub mod behavior;
 pub mod lod;
 pub mod panel;
 pub mod parenting;

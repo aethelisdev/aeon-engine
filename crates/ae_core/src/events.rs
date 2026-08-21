@@ -3,6 +3,6 @@
 /// AE Core - Dynamic Event Bus Infrastructure.
 pub use ae_plugin_api::{
     AudioMute, CollisionEnter, CollisionExit, DynamicEventBus, EntityDestroyed, EntitySpawned,
-    Event, MaterialChanged, PhysicsTick, PhysicsUpdate, PlaySound, RenderFrame, StopSound,
-    TriggerEnter, TriggerExit, ViewportResize,
+    Event, MaterialChanged, PhysicsTick, PhysicsUpdate, PlaySound, RaycastHitEvent, RenderFrame,
+    StopSound, TargetDestroyedEvent, TriggerEnter, TriggerExit, ViewportResize,
 };

@@ -209,7 +209,9 @@ impl PhysicsWorld {
         // Synchronize updated position directly to Rapier rigid body as next kinematic position
         if let Some(body) = self.rigid_body_set.get_mut(body_handle) {
             body.set_next_kinematic_position(Pose::from_translation(Vec3::new(
-                new_x, new_y, new_z,
+                new_x,
+                new_y + center_y,
+                new_z,
             )));
         }
 

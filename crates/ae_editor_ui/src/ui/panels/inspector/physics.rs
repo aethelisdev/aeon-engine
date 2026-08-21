@@ -498,6 +498,17 @@ impl EngineUi {
                     ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
                     ui.close();
                 }
+                if world
+                    .get::<&ae_core::ecs::BehaviorComponent>(entity)
+                    .is_err()
+                    && ui.button("🧠 Behavior").clicked()
+                {
+                    ui_actions.push(EngineUiAction::AddBehavior(
+                        entity,
+                        ae_core::ecs::BehaviorComponent::default(),
+                    ));
+                    ui.close();
+                }
             });
         });
     }

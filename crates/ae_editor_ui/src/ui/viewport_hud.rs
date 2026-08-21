@@ -505,3 +505,80 @@ pub(super) fn draw_billboard_icons(
             });
     }
 }
+
+/// Draws the Play Mode HUD (Aiming Crosshair and Controls Reminder overlay).
+pub(super) fn draw_play_mode_hud(ctx: &Context, rect: Rect) {
+    let center = rect.center();
+
+    // 1. Sleek Aiming Reticle / Crosshair in the center of the screen
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("play_mode_crosshair"),
+    ));
+
+    let reticle_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, 220);
+    let reticle_shadow = egui::Color32::from_rgba_unmultiplied(0, 0, 0, 160);
+
+    let len = 7.0;
+    let gap = 4.0;
+    let thickness = 1.8;
+
+    for (start, end) in [
+        (
+            center - egui::vec2(0.0, gap),
+            center - egui::vec2(0.0, gap + len),
+        ),
+        (
+            center + egui::vec2(0.0, gap),
+            center + egui::vec2(0.0, gap + len),
+        ),
+        (
+            center - egui::vec2(gap, 0.0),
+            center - egui::vec2(gap + len, 0.0),
+        ),
+        (
+            center + egui::vec2(gap, 0.0),
+            center + egui::vec2(gap + len, 0.0),
+        ),
+    ] {
+        painter.line_segment(
+            [start, end],
+            egui::Stroke::new(thickness + 1.0, reticle_shadow),
+        );
+        painter.line_segment([start, end], egui::Stroke::new(thickness, reticle_color));
+    }
+    painter.circle_filled(center, 1.2, reticle_color);
+
+    // 2. Play mode quick action guide badge at bottom-left
+    egui::Area::new(egui::Id::new("play_mode_guide_badge"))
+        .pivot(egui::Align2::LEFT_BOTTOM)
+        .fixed_pos(egui::pos2(rect.left() + 16.0, rect.bottom() - 16.0))
+        .show(ctx, |ui| {
+            egui::Frame::NONE
+                .fill(egui::Color32::from_rgba_unmultiplied(12, 14, 20, 200))
+                .corner_radius(egui::CornerRadius::same(6))
+                .stroke(egui::Stroke::new(
+                    1.0,
+                    egui::Color32::from_rgba_unmultiplied(255, 255, 255, 30),
+                ))
+                .inner_margin(egui::Margin::symmetric(10, 6))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new("🔫 Left Click / F: Shoot")
+                                .color(egui::Color32::from_rgb(255, 200, 60))
+                                .strong(),
+                        );
+                        ui.separator();
+                        ui.label(egui::RichText::new("🏃 WASD: Move").color(egui::Color32::WHITE));
+                        ui.separator();
+                        ui.label(egui::RichText::new("⬆ Space: Jump").color(egui::Color32::WHITE));
+                        ui.separator();
+                        ui.label(
+                            egui::RichText::new("⏹ ESC / F5: Exit")
+                                .color(egui::Color32::LIGHT_GRAY),
+                        );
+                    });
+                });
+        });
+}

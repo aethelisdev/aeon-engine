@@ -102,6 +102,12 @@ pub enum EngineUiAction {
     AddAnimationPlayer(hecs::Entity),
     RemoveAnimationPlayer(hecs::Entity),
     ModifyAnimationPlayer(hecs::Entity, ae_animation::AnimationPlayer),
+
+    // --- GAMEPLAY BEHAVIOR ACTIONS ---
+    AddBehavior(hecs::Entity, ae_core::ecs::BehaviorComponent),
+    RemoveBehavior(hecs::Entity),
+    ModifyBehavior(hecs::Entity, ae_core::ecs::BehaviorComponent),
+    SpawnPhase1TestSandbox,
 }
 
 /// Lightweight snapshot of a single log entry – owned, no Mutex dependency.

@@ -94,6 +94,17 @@ impl PhysicsWorld {
         self.body_to_entity.clear();
     }
 
+    /// Applies a linear impulse to the dynamic rigid body associated with the given entity.
+    /// Wakes up sleeping rigid bodies and immediately applies physical momentum.
+    pub fn apply_impulse(&mut self, entity: Entity, impulse: Vec3) {
+        if let Some(&handle) = self.entity_to_body.get(&entity)
+            && let Some(body) = self.rigid_body_set.get_mut(handle)
+            && body.is_dynamic()
+        {
+            body.apply_impulse(impulse, true);
+        }
+    }
+
     /// Performs one physics simulation step, processes collision and sensor events,
     /// broadcasts events to the DynamicEventBus, and synchronizes positions/velocities with the ECS world.
     pub fn step<'a, F>(
@@ -187,11 +198,33 @@ impl PhysicsWorld {
 
     /// Casts a 3D ray into the physics world and returns the closest hit collider information.
     pub fn raycast(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<RaycastHit> {
+        self.raycast_filtered(origin, direction, max_distance, None, false)
+    }
+
+    /// Casts a 3D ray into the physics world with optional entity exclusion and sensor filtering.
+    pub fn raycast_filtered(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_distance: f32,
+        exclude_entity: Option<Entity>,
+        exclude_sensors: bool,
+    ) -> Option<RaycastHit> {
+        let mut filter = QueryFilter::default();
+        if exclude_sensors {
+            filter = filter.exclude_sensors();
+        }
+        if let Some(excluded) = exclude_entity
+            && let Some(&body_handle) = self.entity_to_body.get(&excluded)
+        {
+            filter = filter.exclude_rigid_body(body_handle);
+        }
+
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.rigid_body_set,
             &self.collider_set,
-            QueryFilter::default(),
+            filter,
         );
 
         let ray = Ray::new(

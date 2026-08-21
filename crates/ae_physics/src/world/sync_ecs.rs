@@ -105,6 +105,15 @@ impl PhysicsWorld {
                         if is_dirty {
                             body.set_next_kinematic_position(pose);
                         }
+                    } else if body.is_kinematic() {
+                        let pos_diff = (body.position().translation - pose.translation).length();
+                        let r1 = body.position().rotation;
+                        let r2 = pose.rotation;
+                        let rot_diff =
+                            1.0 - (r1.w * r2.w + r1.x * r2.x + r1.y * r2.y + r1.z * r2.z).abs();
+                        if pos_diff > 1e-4 || rot_diff > 1e-5 || is_dirty {
+                            body.set_next_kinematic_position(pose);
+                        }
                     } else if body.is_fixed() {
                         let pos_diff = (body.position().translation - pose.translation).length();
                         let r1 = body.position().rotation;
@@ -116,9 +125,6 @@ impl PhysicsWorld {
                         if pos_diff > 1e-4 || rot_diff > 1e-5 {
                             body.set_position(pose, false);
                         }
-                    } else if is_dirty {
-                        body.set_position(pose, true);
-                        body.set_linvel(Vec3::new(vel_comp.x, vel_comp.y, vel_comp.z), true);
                     }
 
                     let expected_type = if is_kcc {

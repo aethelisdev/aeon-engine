@@ -52,6 +52,12 @@ impl ActionMap {
             "Crouch".to_string(),
             vec![KeyCode::ControlLeft, KeyCode::KeyC],
         );
+        map.actions.insert(
+            "Fire".to_string(),
+            vec![KeyCode::KeyF, KeyCode::ControlRight],
+        );
+        map.actions
+            .insert("Reload".to_string(), vec![KeyCode::KeyR]);
 
         // Axes
         map.axes.insert(

@@ -96,6 +96,8 @@ impl HierarchyCache {
                 "🔊 "
             } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
                 "🎮 "
+            } else if ent_ref.get::<&ae_core::ecs::BehaviorComponent>().is_some() {
+                "🧠 "
             } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some() {
                 "📦 "
             } else if ent_ref.get::<&ae_core::ecs::Shape>().is_some() {
@@ -385,6 +387,15 @@ impl EngineUi {
                         {
                             ui_actions.push(crate::ui::EngineUiAction::InstantiatePrefab(path));
                         }
+                        ui.close();
+                    }
+                    ui.separator();
+                    if ui
+                        .button("🎮 Phase 1 Test Sandbox")
+                        .on_hover_text("Spawns complete interactive test sandbox: Player, Destructible Targets, Proximity Door, Moving Platform, Coins & Physics Cubes")
+                        .clicked()
+                    {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnPhase1TestSandbox);
                         ui.close();
                     }
                     ui.separator();

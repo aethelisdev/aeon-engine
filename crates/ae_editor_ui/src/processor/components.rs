@@ -362,3 +362,35 @@ pub fn handle_toggle_visibility(ctx: &mut UiContext, entity: hecs::Entity) {
         log::info!("🚫 Entity {:?} HIDDEN", entity);
     }
 }
+
+/// Handles adding a BehaviorComponent to an entity.
+pub fn handle_add_behavior(
+    ctx: &mut UiContext,
+    entity: hecs::Entity,
+    behavior: ae_core::ecs::BehaviorComponent,
+) {
+    let _ = ctx.world.insert_one(entity, behavior);
+}
+
+/// Handles removing a BehaviorComponent from an entity.
+pub fn handle_remove_behavior(ctx: &mut UiContext, entity: hecs::Entity) {
+    let _ = ctx
+        .world
+        .remove_one::<ae_core::ecs::BehaviorComponent>(entity);
+}
+
+/// Handles modifying a BehaviorComponent on an entity.
+pub fn handle_modify_behavior(
+    ctx: &mut UiContext,
+    entity: hecs::Entity,
+    behavior: ae_core::ecs::BehaviorComponent,
+) {
+    if let Ok(mut existing) = ctx
+        .world
+        .get::<&mut ae_core::ecs::BehaviorComponent>(entity)
+    {
+        *existing = behavior;
+    } else {
+        let _ = ctx.world.insert_one(entity, behavior);
+    }
+}

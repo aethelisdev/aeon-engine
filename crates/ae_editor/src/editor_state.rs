@@ -121,6 +121,14 @@ impl EditorState {
 
     /// Restores all backed-up entity snapshots when returning from Play Mode to Edit Mode.
     pub fn restore_scene(&self, world: &mut hecs::World) {
+        // Despawn temporary entities spawned during gameplay that were not in the scene backup
+        let current_entities: Vec<hecs::Entity> = world.iter().map(|e| e.entity()).collect();
+        for entity in current_entities {
+            if !self.scene_backup.contains_key(&entity) {
+                let _ = world.despawn(entity);
+            }
+        }
+
         for (entity, snapshot) in &self.scene_backup {
             if world.contains(*entity) {
                 snapshot.apply(world, *entity);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+pub mod behavior_runner;
 pub mod debug_renderer;
 pub mod engine;
 pub mod events;
@@ -11,13 +12,15 @@ pub mod icon;
 mod importer;
 pub mod profiler;
 pub mod render_pass;
+pub mod sandbox_builder;
 pub mod scene;
 pub mod update;
-
+use ae_core::modules::EngineMode;
+use ae_editor_ui::ui::EngineUiAction;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::{KeyEvent, WindowEvent},
+    event::{ElementState, KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
     keyboard::PhysicalKey,
     window::{WindowAttributes, WindowId},
@@ -126,8 +129,15 @@ impl ApplicationHandler for AeApp {
 
         let window = &engine.render_state.window;
 
-        // Event processing
-        let consumed = engine.ui.handle_event(window, &event);
+        // Event processing: In Play mode with cursor grabbed, isolate mouse events from egui so gameplay shooting doesn't click the Stop button
+        let consumed = if engine.mode == EngineMode::Play && engine.is_cursor_grabbed {
+            match &event {
+                WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } => false,
+                _ => engine.ui.handle_event(window, &event),
+            }
+        } else {
+            engine.ui.handle_event(window, &event)
+        };
 
         match &event {
             WindowEvent::CloseRequested => {
@@ -147,8 +157,29 @@ impl ApplicationHandler for AeApp {
                     },
                 ..
             } => {
-                // Professional Focus Check: Always process Escape key so Play mode ESC pause is never blocked by Egui
-                if *key == winit::keyboard::KeyCode::Escape || !consumed {
+                // F5: Toggle between Edit and Play mode
+                if *key == winit::keyboard::KeyCode::F5 && *state == ElementState::Pressed {
+                    let next_mode = if engine.mode == EngineMode::Play {
+                        EngineMode::Edit
+                    } else {
+                        EngineMode::Play
+                    };
+                    engine.process_ui_actions(vec![EngineUiAction::ChangeMode(next_mode)]);
+                }
+
+                // Escape: In Play mode, cleanly return to Edit mode
+                if *key == winit::keyboard::KeyCode::Escape
+                    && *state == ElementState::Pressed
+                    && engine.mode == EngineMode::Play
+                {
+                    engine.process_ui_actions(vec![EngineUiAction::ChangeMode(EngineMode::Edit)]);
+                }
+
+                // In Play mode or when not consumed by UI text edit, deliver all key events to engine input
+                if *key == winit::keyboard::KeyCode::Escape
+                    || engine.mode == EngineMode::Play
+                    || !consumed
+                {
                     engine.input.process_key_event(*key, *state);
                 }
             }

@@ -50,35 +50,39 @@ impl AeEngine {
         button: winit::event::MouseButton,
         state: winit::event::ElementState,
     ) {
+        self.input.process_mouse_button_event(button, state);
+
         if self.mode == EngineMode::Play && state == winit::event::ElementState::Pressed {
             self.set_cursor_grab(true);
         }
 
-        let window_size = (self.render_state.size.width, self.render_state.size.height);
-        let scale_factor = self.render_state.window.scale_factor() as f32;
-        let ui_ref = &self.ui;
-        let is_point_over_ui = move |pos| ui_ref.is_point_over_ui_rects(pos);
+        if self.mode == EngineMode::Edit {
+            let window_size = (self.render_state.size.width, self.render_state.size.height);
+            let scale_factor = self.render_state.window.scale_factor() as f32;
+            let ui_ref = &self.ui;
+            let is_point_over_ui = move |pos| ui_ref.is_point_over_ui_rects(pos);
 
-        ae_editor::interactions::handle_mouse_click(
-            &mut self.editor,
-            &self.camera,
-            &mut self.gizmo_system,
-            &mut self.ecs,
-            ae_editor::interactions::MouseClickParams {
-                spatial_grid: &self.spatial_grid,
-                ui_gizmo_mode: self.ui.gizmo_mode,
-                ui_gizmo_space: self.ui.gizmo_space,
-                window_size,
-                last_viewport_rect: self.render_state.last_viewport_rect,
-                scale_factor,
-                is_point_over_ui: &is_point_over_ui,
-                egui_context: &self.ui.context,
-                is_edit_mode: self.mode == EngineMode::Edit,
-                input: &self.input,
-                button,
-                state,
-            },
-        );
+            ae_editor::interactions::handle_mouse_click(
+                &mut self.editor,
+                &self.camera,
+                &mut self.gizmo_system,
+                &mut self.ecs,
+                ae_editor::interactions::MouseClickParams {
+                    spatial_grid: &self.spatial_grid,
+                    ui_gizmo_mode: self.ui.gizmo_mode,
+                    ui_gizmo_space: self.ui.gizmo_space,
+                    window_size,
+                    last_viewport_rect: self.render_state.last_viewport_rect,
+                    scale_factor,
+                    is_point_over_ui: &is_point_over_ui,
+                    egui_context: &self.ui.context,
+                    is_edit_mode: true,
+                    input: &self.input,
+                    button,
+                    state,
+                },
+            );
+        }
     }
 
     /// Configures mouse cursor locking and visibility for Play Mode vs Edit Mode transitions.
@@ -99,15 +103,19 @@ impl AeEngine {
                     log::warn!("Failed to lock mouse cursor: {:?}", e);
                     window.set_cursor_visible(true);
                     self.is_cursor_grabbed = false;
+                } else {
+                    // Warp cursor to the center of the window so it is safely away from any menu buttons
+                    let w = self.render_state.size.width as f64;
+                    let h = self.render_state.size.height as f64;
+                    let _ = window
+                        .set_cursor_position(winit::dpi::PhysicalPosition::new(w / 2.0, h / 2.0));
                 }
             }
-        } else {
-            if self.is_cursor_grabbed || self.mode == EngineMode::Edit {
-                self.is_cursor_grabbed = false;
-                window.set_cursor_visible(true);
-                let _ = window.set_cursor_grab(winit::window::CursorGrabMode::None);
-                self.editor.mouse_delta = (0.0, 0.0);
-            }
+        } else if self.is_cursor_grabbed || self.mode == EngineMode::Edit {
+            self.is_cursor_grabbed = false;
+            window.set_cursor_visible(true);
+            let _ = window.set_cursor_grab(winit::window::CursorGrabMode::None);
+            self.editor.mouse_delta = (0.0, 0.0);
         }
     }
 

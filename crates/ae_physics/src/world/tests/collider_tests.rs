@@ -253,4 +253,75 @@ mod tests {
             "Raycast distance should be approx 9.5 units"
         );
     }
+
+    #[test]
+    fn test_physics_raycast_filtered_exclusion() {
+        let mut world = World::new();
+        let mut physics = PhysicsWorld::new();
+
+        let shooter_entity = world.spawn((
+            Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale::one(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 0.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [0.5, 0.5, 0.5],
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        let target_entity = world.spawn((
+            Position {
+                x: 0.0,
+                y: 0.0,
+                z: 10.0,
+            },
+            Rotation::identity(),
+            Scale::one(),
+            RigidBody {
+                body_type: RigidBodyType::Static,
+                mass: 1.0,
+                gravity_scale: 0.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [0.5, 0.5, 0.5],
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+        // Raycasting with shooter excluded should pass through shooter and hit target
+        let hit = physics.raycast_filtered(
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            20.0,
+            Some(shooter_entity),
+            true,
+        );
+
+        assert!(
+            hit.is_some(),
+            "Filtered raycast should ignore shooter and hit target"
+        );
+        let hit = hit.unwrap();
+        assert_eq!(hit.entity, target_entity);
+    }
 }

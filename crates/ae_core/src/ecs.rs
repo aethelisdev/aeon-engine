@@ -5,10 +5,10 @@
 use hecs::World;
 
 pub use ae_plugin_api::{
-    AssetHandle, BoundingBox, BoundingRadius, CharacterController, Children, Collider,
-    ColliderShape, Color, GlobalTransform, Hidden, Light, ModelId, Name, Parent, PlayerTag,
-    Position, RaycastHit, RigidBody, RigidBodyType, Rotation, Scale, Shape, SpriteId,
-    TransformDirty, Velocity,
+    AssetHandle, BehaviorComponent, BehaviorType, BoundingBox, BoundingRadius, CharacterController,
+    Children, Collider, ColliderShape, Color, GlobalTransform, Hidden, Light, ModelId, Name,
+    Parent, PlayerTag, Position, RaycastHit, RigidBody, RigidBodyType, Rotation, Scale, Shape,
+    SpriteId, TransformDirty, Velocity,
 };
 
 /// Central ECS manager.

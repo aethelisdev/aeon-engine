@@ -37,6 +37,8 @@ pub struct SavedEntity {
     pub collider: Option<Collider>,
     #[serde(default)]
     pub character_controller: Option<CharacterController>,
+    #[serde(default)]
+    pub behavior: Option<ae_core::ecs::BehaviorComponent>,
 
     // Instead of raw model_id or sprite_id integers which change across restarts,
     // we store the actual disk path of the asset!
@@ -141,6 +143,10 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
             rigid_body: w.get::<&RigidBody>(entity).map(|c| *c).ok(),
             collider: w.get::<&Collider>(entity).map(|c| *c).ok(),
             character_controller: w.get::<&CharacterController>(entity).map(|c| *c).ok(),
+            behavior: w
+                .get::<&ae_core::ecs::BehaviorComponent>(entity)
+                .map(|c| (*c).clone())
+                .ok(),
             model_path: model_p,
             sprite_path: sprite_p,
             parent_name: parent_n,
@@ -401,6 +407,9 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                     }
                     if let Some(ctrl) = se.character_controller {
                         builder.add(ctrl);
+                    }
+                    if let Some(beh) = se.behavior {
+                        builder.add(beh);
                     }
 
                     if se.rigid_body.is_some()

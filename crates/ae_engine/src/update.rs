@@ -391,25 +391,18 @@ impl AeEngine {
         // Sync spatial grid in Play mode so moving player entities update their 3D cells and remain 100% visible
         self.spatial_grid.sync(&self.ecs.world);
 
-        // Process trigger events from physics world in Play mode
-        if let Some(events) = self.event_bus.receive::<ae_core::events::TriggerEnter>() {
-            for ev in events {
-                log::info!(
-                    "⚡ [TriggerEnter] Entity {:?} entered trigger Entity {:?}",
-                    ev.entity_a,
-                    ev.entity_b
-                );
-            }
-        }
-        if let Some(events) = self.event_bus.receive::<ae_core::events::TriggerExit>() {
-            for ev in events {
-                log::info!(
-                    "⚡ [TriggerExit] Entity {:?} exited trigger Entity {:?}",
-                    ev.entity_a,
-                    ev.entity_b
-                );
-            }
-        }
+        // Run gameplay behaviors (rotators, moving platforms, trigger zones, destructible targets, character actions)
+        let cam_fwd = self.camera.get_forward();
+        crate::behavior_runner::update_gameplay_behaviors(
+            crate::behavior_runner::BehaviorRunnerParams {
+                world: &mut self.ecs.world,
+                physics_world: &mut self.physics_world,
+                input: &self.input,
+                event_bus: &mut self.event_bus,
+                camera_forward: cam_fwd,
+                delta_time: self.time.delta_time,
+            },
+        );
     }
 
     pub fn update_edit_mode(&mut self) {
