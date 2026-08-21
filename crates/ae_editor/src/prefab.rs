@@ -22,9 +22,8 @@ impl Prefab {
     pub fn create_from_entity(world: &hecs::World, entity: hecs::Entity) -> Self {
         let snapshot = EntitySnapshot::capture(world, entity);
         let name = snapshot
-            .name
-            .as_ref()
-            .map(|n| n.0.clone())
+            .get::<ae_core::ecs::Name>()
+            .map(|n| n.0)
             .unwrap_or_else(|| "PrefabEntity".to_string());
         Self {
             name,

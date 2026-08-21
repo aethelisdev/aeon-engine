@@ -70,6 +70,7 @@ dependencies = [
  "log",
  "rayon",
  "serde",
+ "serde_json",
  "slotmap",
 ]
 
@@ -1776,6 +1777,7 @@ checksum = "f3a2d85ff28b1e1a1c183b6ca9ec1a6b97e7937fb989988a74d9db39760a07b8"
 dependencies = [
  "foldhash",
  "hashbrown 0.16.1",
+ "serde",
  "spin",
 ]
 

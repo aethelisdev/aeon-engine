@@ -2,6 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::editor_state::EditorState;
 use crate::undo_redo::{Command, EntitySnapshot, Property};
+use ae_core::ecs::{Position, Rotation, Scale};
 
 /// Pushes a new command to the undo stack, dropping the oldest if the limit is exceeded.
 pub fn push_undo(editor: &mut EditorState, cmd: Command) {
@@ -85,14 +86,19 @@ pub fn commit_undo_history(
     for (entity, old_snap) in editor.current_edit_snapshots.drain() {
         let new_snap = EntitySnapshot::capture(world, entity);
 
-        if let (Some(os), Some(ns)) = (old_snap.pos, new_snap.pos)
+        let old_pos = old_snap.get::<Position>();
+        let new_pos = new_snap.get::<Position>();
+        if let (Some(os), Some(ns)) = (old_pos, new_pos)
             && ((os.x - ns.x).abs() > 0.001
                 || (os.y - ns.y).abs() > 0.001
                 || (os.z - ns.z).abs() > 0.001)
         {
             batch.push(Command::Modify(entity, Property::Position(os, ns)));
         }
-        if let (Some(os), Some(ns)) = (old_snap.rot, new_snap.rot)
+
+        let old_rot = old_snap.get::<Rotation>();
+        let new_rot = new_snap.get::<Rotation>();
+        if let (Some(os), Some(ns)) = (old_rot, new_rot)
             && ((os.x - ns.x).abs() > 0.0001
                 || (os.y - ns.y).abs() > 0.0001
                 || (os.z - ns.z).abs() > 0.0001
@@ -100,7 +106,10 @@ pub fn commit_undo_history(
         {
             batch.push(Command::Modify(entity, Property::Rotation(os, ns)));
         }
-        if let (Some(os), Some(ns)) = (old_snap.scale, new_snap.scale)
+
+        let old_scale = old_snap.get::<Scale>();
+        let new_scale = new_snap.get::<Scale>();
+        if let (Some(os), Some(ns)) = (old_scale, new_scale)
             && ((os.x - ns.x).abs() > 0.001
                 || (os.y - ns.y).abs() > 0.001
                 || (os.z - ns.z).abs() > 0.001)

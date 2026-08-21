@@ -319,11 +319,11 @@ pub struct RaycastHit {
 }
 
 /// Parent entity reference for hierarchical transforms and scene graphs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Parent(pub hecs::Entity);
 
 /// Child entity list for hierarchical transforms and scene graphs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Children(pub Vec<hecs::Entity>);
 
 /// Cached world-space transform matrix for hierarchical transforms, picking, and rendering.

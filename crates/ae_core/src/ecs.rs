@@ -11,6 +11,8 @@ pub use ae_plugin_api::{
     SpriteId, TransformDirty, Velocity,
 };
 
+pub use crate::registry::{ComponentHandler, ComponentRegistry, TypedComponentHandler};
+
 /// Central ECS manager.
 /// The `update()` method runs linear velocity integration over non-physics entities.
 pub struct EcsManager {

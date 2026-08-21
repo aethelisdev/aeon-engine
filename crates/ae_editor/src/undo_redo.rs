@@ -1,119 +1,80 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use ae_core::ecs::{
-    BoundingRadius, Collider, Color, Light, ModelId, Name, PlayerTag, Position, RigidBody,
-    Rotation, Scale, Shape, SpriteId, Velocity,
-};
 
+//! Dynamic Undo/Redo and Entity Snapshot architecture for the editor.
+//!
+//! Integrates with the central `ComponentRegistry` to provide 100% automated,
+//! extensible entity state capture, restoration, serialization, and undo history.
+//!
+
+use ae_core::ecs::{Color, ComponentRegistry, Light, Name, Position, Rotation, Scale};
 use serde::{Deserialize, Serialize};
 
-/// Complete snapshot of an entity's components at a point in time.
-/// Captures all serializable components (Position, Rotation, Scale, Color, Light,
-/// Velocity, Name, Shape, SpriteId, BoundingRadius, PlayerTag, RigidBody, Collider, ModelId)
-/// for use in undo/redo operations. Supports `capture()`, `apply()`, and `spawn()`
-/// to enable full entity state restoration and re-creation.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Serialized component entry stored within an `EntitySnapshot`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SerializedComponent {
+    /// Human-readable type identifier corresponding to a registered `ComponentHandler`.
+    pub type_name: String,
+    /// Serialized JSON component payload.
+    pub data: Vec<u8>,
+}
+
+/// Complete dynamic snapshot of an entity's components at a point in time.
+/// Automatically captures all registered components via `ComponentRegistry` without
+/// requiring hardcoded struct fields. Fully extensible for new components and custom plugins.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntitySnapshot {
-    pub name: Option<Name>,
-    pub pos: Option<Position>,
-    pub rot: Option<Rotation>,
-    pub scale: Option<Scale>,
-    pub shape: Option<Shape>,
-    pub sprite_id: Option<SpriteId>,
-    pub light: Option<Light>,
-    pub color: Option<Color>,
-    pub vel: Option<Velocity>,
-    pub radius: Option<BoundingRadius>,
-    pub is_player: bool,
-    pub rigid_body: Option<RigidBody>,
-    pub collider: Option<Collider>,
-    pub model_id: Option<ModelId>,
-    pub behavior: Option<ae_core::ecs::BehaviorComponent>,
-    pub character_controller: Option<ae_core::ecs::CharacterController>,
+    /// Dynamic list of captured component payloads.
+    pub components: Vec<SerializedComponent>,
 }
 
 impl EntitySnapshot {
-    /// Captures the current state of all known components on the given entity.
-    /// Returns a snapshot containing `Some(component)` for each component
-    /// present on the entity, `None` for absent components.
-    pub fn capture(world: &hecs::World, entity: hecs::Entity) -> Self {
+    /// Creates an empty entity snapshot.
+    pub fn new() -> Self {
         Self {
-            name: world.get::<&Name>(entity).ok().map(|n| (*n).clone()),
-            pos: world.get::<&Position>(entity).ok().map(|p| *p),
-            rot: world.get::<&Rotation>(entity).ok().map(|r| *r),
-            scale: world.get::<&Scale>(entity).ok().map(|s| *s),
-            shape: world.get::<&Shape>(entity).ok().map(|s| *s),
-            sprite_id: world.get::<&SpriteId>(entity).ok().map(|s| *s),
-            light: world.get::<&Light>(entity).ok().map(|l| *l),
-            color: world.get::<&Color>(entity).ok().map(|c| *c),
-            vel: world.get::<&Velocity>(entity).ok().map(|v| *v),
-            radius: world.get::<&BoundingRadius>(entity).ok().map(|r| *r),
-            is_player: world.get::<&PlayerTag>(entity).is_ok(),
-            rigid_body: world.get::<&RigidBody>(entity).ok().map(|r| *r),
-            collider: world.get::<&Collider>(entity).ok().map(|c| *c),
-            model_id: world.get::<&ModelId>(entity).ok().map(|m| *m),
-            behavior: world
-                .get::<&ae_core::ecs::BehaviorComponent>(entity)
-                .ok()
-                .map(|b| (*b).clone()),
-            character_controller: world
-                .get::<&ae_core::ecs::CharacterController>(entity)
-                .ok()
-                .map(|c| *c),
+            components: Vec::new(),
         }
     }
 
-    /// Restores all captured components onto an existing entity.
-    /// Overwrites any existing components with the snapshot values.
-    /// Used by `Command::Delete::undo()` to restore a deleted entity's state.
+    /// Captures the current state of all registered components on `entity` using the global registry.
+    pub fn capture(world: &hecs::World, entity: hecs::Entity) -> Self {
+        Self::capture_with_registry(world, entity, ComponentRegistry::global())
+    }
+
+    /// Captures all components present on `entity` registered in the provided `registry`.
+    pub fn capture_with_registry(
+        world: &hecs::World,
+        entity: hecs::Entity,
+        registry: &ComponentRegistry,
+    ) -> Self {
+        let mut components = Vec::new();
+        for handler in registry.handlers() {
+            if let Some(data) = handler.capture(world, entity) {
+                components.push(SerializedComponent {
+                    type_name: handler.type_name().to_string(),
+                    data,
+                });
+            }
+        }
+        Self { components }
+    }
+
+    /// Restores all captured components onto an existing entity using the global registry.
     pub fn apply(&self, world: &mut hecs::World, entity: hecs::Entity) {
-        if let Some(n) = &self.name {
-            let _ = world.insert_one(entity, n.clone());
-        }
-        if let Some(p) = self.pos {
-            let _ = world.insert_one(entity, p);
-        }
-        if let Some(r) = self.rot {
-            let _ = world.insert_one(entity, r);
-        }
-        if let Some(s) = self.scale {
-            let _ = world.insert_one(entity, s);
-        }
-        if let Some(s) = self.shape {
-            let _ = world.insert_one(entity, s);
-        }
-        if let Some(s) = self.sprite_id {
-            let _ = world.insert_one(entity, s);
-        }
-        if let Some(l) = self.light {
-            let _ = world.insert_one(entity, l);
-        }
-        if let Some(c) = self.color {
-            let _ = world.insert_one(entity, c);
-        }
-        if let Some(v) = self.vel {
-            let _ = world.insert_one(entity, v);
-        }
-        if let Some(r) = self.radius {
-            let _ = world.insert_one(entity, r);
-        }
-        if self.is_player {
-            let _ = world.insert_one(entity, PlayerTag);
-        }
-        if let Some(rb) = self.rigid_body {
-            let _ = world.insert_one(entity, rb);
-        }
-        if let Some(col) = self.collider {
-            let _ = world.insert_one(entity, col);
-        }
-        if let Some(m) = self.model_id {
-            let _ = world.insert_one(entity, m);
-        }
-        if let Some(b) = &self.behavior {
-            let _ = world.insert_one(entity, b.clone());
-        }
-        if let Some(cc) = self.character_controller {
-            let _ = world.insert_one(entity, cc);
+        self.apply_with_registry(world, entity, ComponentRegistry::global());
+    }
+
+    /// Restores all captured components onto an existing entity using the provided `registry`.
+    pub fn apply_with_registry(
+        &self,
+        world: &mut hecs::World,
+        entity: hecs::Entity,
+        registry: &ComponentRegistry,
+    ) {
+        for comp in &self.components {
+            if let Some(handler) = registry.get_by_name(&comp.type_name) {
+                let _ = handler.apply(world, entity, &comp.data);
+            }
         }
     }
 
@@ -121,9 +82,52 @@ impl EntitySnapshot {
     /// Returns the new entity handle. Used by undo-delete to re-create
     /// a previously destroyed entity with all its original components.
     pub fn spawn(&self, world: &mut hecs::World) -> hecs::Entity {
+        self.spawn_with_registry(world, ComponentRegistry::global())
+    }
+
+    /// Spawns a new entity in `world` and applies components using the provided `registry`.
+    pub fn spawn_with_registry(
+        &self,
+        world: &mut hecs::World,
+        registry: &ComponentRegistry,
+    ) -> hecs::Entity {
         let entity = world.spawn(());
-        self.apply(world, entity);
+        self.apply_with_registry(world, entity, registry);
         entity
+    }
+
+    /// Deserializes and returns a specific component `T` if present in the snapshot.
+    pub fn get<T: hecs::Component + serde::de::DeserializeOwned>(&self) -> Option<T> {
+        let type_id = std::any::TypeId::of::<T>();
+        let handler = ComponentRegistry::global().get_by_type_id(type_id)?;
+        let name = handler.type_name();
+        for comp in &self.components {
+            if comp.type_name == name {
+                return serde_json::from_slice(&comp.data).ok();
+            }
+        }
+        None
+    }
+
+    /// Returns true if a component of type `T` is stored in the snapshot.
+    pub fn has<T: hecs::Component>(&self) -> bool {
+        let type_id = std::any::TypeId::of::<T>();
+        if let Some(handler) = ComponentRegistry::global().get_by_type_id(type_id) {
+            let name = handler.type_name();
+            self.components.iter().any(|c| c.type_name == name)
+        } else {
+            false
+        }
+    }
+
+    /// Returns the total number of components captured in the snapshot.
+    pub fn component_count(&self) -> usize {
+        self.components.len()
+    }
+
+    /// Returns true if no components are stored in the snapshot.
+    pub fn is_empty(&self) -> bool {
+        self.components.is_empty()
     }
 }
 
@@ -290,6 +294,9 @@ pub enum Property {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ae_core::ecs::{
+        CharacterController, Collider, ColliderShape, Parent, RigidBody, RigidBodyType,
+    };
 
     /// Tests that EntitySnapshot captures and restores CharacterController correctly.
     #[test]
@@ -297,7 +304,7 @@ mod tests {
         let mut world = hecs::World::new();
         let entity = world.spawn((
             Position::new(1.0, 2.0, 3.0),
-            ae_core::ecs::CharacterController {
+            CharacterController {
                 radius: 0.4,
                 height: 1.8,
                 center_y: 0.0,
@@ -308,13 +315,60 @@ mod tests {
         ));
 
         let snapshot = EntitySnapshot::capture(&world, entity);
-        assert!(snapshot.character_controller.is_some());
+        assert!(snapshot.has::<CharacterController>());
+        assert_eq!(snapshot.component_count(), 2);
 
         let restored_ent = snapshot.spawn(&mut world);
-        let cc = world.get::<&ae_core::ecs::CharacterController>(restored_ent);
+        let cc = world.get::<&CharacterController>(restored_ent);
         assert!(cc.is_ok());
         let cc = cc.unwrap();
         assert_eq!(cc.radius, 0.4);
         assert_eq!(cc.height, 1.8);
+    }
+
+    /// Tests that EntitySnapshot captures complex hierarchies and physics components dynamically.
+    #[test]
+    fn test_entity_snapshot_dynamic_hierarchy_and_physics() {
+        let mut world = hecs::World::new();
+        let parent_entity = world.spawn((
+            Name("ParentEntity".to_string()),
+            Position::new(0.0, 5.0, 0.0),
+        ));
+
+        let child_entity = world.spawn((
+            Name("ChildEntity".to_string()),
+            Position::new(1.0, 2.0, 3.0),
+            Rotation::identity(),
+            Scale::new(2.0, 2.0, 2.0),
+            Parent(parent_entity),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 15.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [1.0, 1.0, 1.0],
+                },
+                friction: 0.7,
+                restitution: 0.3,
+                is_sensor: false,
+            },
+        ));
+
+        let snapshot = EntitySnapshot::capture(&world, child_entity);
+        assert_eq!(snapshot.component_count(), 7);
+        assert!(snapshot.has::<Name>());
+        assert!(snapshot.has::<Position>());
+        assert!(snapshot.has::<Rotation>());
+        assert!(snapshot.has::<Scale>());
+        assert!(snapshot.has::<Parent>());
+        assert!(snapshot.has::<RigidBody>());
+        assert!(snapshot.has::<Collider>());
+
+        let restored_ent = snapshot.spawn(&mut world);
+        assert_eq!(world.get::<&Name>(restored_ent).unwrap().0, "ChildEntity");
+        assert_eq!(world.get::<&Parent>(restored_ent).unwrap().0, parent_entity);
+        assert_eq!(world.get::<&RigidBody>(restored_ent).unwrap().mass, 15.0);
     }
 }
