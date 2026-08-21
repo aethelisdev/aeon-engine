@@ -123,7 +123,12 @@ fn process_gltf_primitive_mesh(
     world_transform: glam::Mat4,
     ctx: &mut GltfGeometryContext<'_>,
 ) {
-    let normal_matrix = glam::Mat3::from_mat4(world_transform);
+    let mat3 = glam::Mat3::from_mat4(world_transform);
+    let normal_matrix = if mat3.determinant().abs() > 1e-6 {
+        mat3.inverse().transpose()
+    } else {
+        glam::Mat3::IDENTITY
+    };
     let GltfGeometryContext {
         buffers,
         images,

@@ -85,7 +85,9 @@ pub fn test_spatial_sensor_overlaps(
                     let inside_z = (p_pos[2] - pos.z).abs() <= hz + 0.5;
                     let inside_y = p_pos[1] >= pos.y - 0.5 && p_pos[1] <= pos.y + hy + 2.5;
 
-                    behavior.is_triggered = inside_x && inside_z && inside_y;
+                    if inside_x && inside_z && inside_y {
+                        behavior.is_triggered = true;
+                    }
                 }
             }
         }

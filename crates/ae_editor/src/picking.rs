@@ -104,8 +104,13 @@ pub fn intersect_aabb(ray: &Ray, min: [f32; 3], max: [f32; 3]) -> Option<f32> {
         t_max = t_max.min(t2);
     }
 
-    if t_max >= t_min && t_max > 0.0 && t_min < ray.max_dist {
-        Some(t_min)
+    if t_max >= t_min && t_max > 0.0 {
+        let hit_t = if t_min >= 0.0 { t_min } else { 0.0 };
+        if hit_t < ray.max_dist {
+            Some(hit_t)
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -250,5 +255,19 @@ mod tests {
         let result = compute_model_matrix(Some(&gt), Some(&pos), None, None);
         assert_eq!(result.w.x, 100.0);
         assert_eq!(result.w.y, 50.0);
+    }
+
+    /// Tests that intersect_aabb returns a non-negative distance (0.0) when the ray origin is inside the box.
+    #[test]
+    fn test_intersect_aabb_origin_inside_box_non_negative() {
+        let ray = Ray {
+            origin: cgmath::Point3::new(0.0, 0.0, 0.0),
+            direction: cgmath::Vector3::new(0.0, 0.0, 1.0),
+            max_dist: 100.0,
+        };
+        let min = [-1.0, -1.0, -1.0];
+        let max = [1.0, 1.0, 1.0];
+        let hit = intersect_aabb(&ray, min, max);
+        assert_eq!(hit, Some(0.0));
     }
 }

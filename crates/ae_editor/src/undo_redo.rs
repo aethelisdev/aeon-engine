@@ -29,6 +29,7 @@ pub struct EntitySnapshot {
     pub collider: Option<Collider>,
     pub model_id: Option<ModelId>,
     pub behavior: Option<ae_core::ecs::BehaviorComponent>,
+    pub character_controller: Option<ae_core::ecs::CharacterController>,
 }
 
 impl EntitySnapshot {
@@ -55,6 +56,10 @@ impl EntitySnapshot {
                 .get::<&ae_core::ecs::BehaviorComponent>(entity)
                 .ok()
                 .map(|b| (*b).clone()),
+            character_controller: world
+                .get::<&ae_core::ecs::CharacterController>(entity)
+                .ok()
+                .map(|c| *c),
         }
     }
 
@@ -106,6 +111,9 @@ impl EntitySnapshot {
         }
         if let Some(b) = &self.behavior {
             let _ = world.insert_one(entity, b.clone());
+        }
+        if let Some(cc) = self.character_controller {
+            let _ = world.insert_one(entity, cc);
         }
     }
 
@@ -277,4 +285,36 @@ pub enum Property {
     Name(String, String),
     Light(Light, Light),
     Color(Color, Color),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Tests that EntitySnapshot captures and restores CharacterController correctly.
+    #[test]
+    fn test_entity_snapshot_character_controller_retention() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Position::new(1.0, 2.0, 3.0),
+            ae_core::ecs::CharacterController {
+                radius: 0.4,
+                height: 1.8,
+                center_y: 0.0,
+                max_slope_climb_angle: 45.0,
+                step_height: 0.3,
+                is_grounded: true,
+            },
+        ));
+
+        let snapshot = EntitySnapshot::capture(&world, entity);
+        assert!(snapshot.character_controller.is_some());
+
+        let restored_ent = snapshot.spawn(&mut world);
+        let cc = world.get::<&ae_core::ecs::CharacterController>(restored_ent);
+        assert!(cc.is_ok());
+        let cc = cc.unwrap();
+        assert_eq!(cc.radius, 0.4);
+        assert_eq!(cc.height, 1.8);
+    }
 }

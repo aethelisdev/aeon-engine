@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::render::types::LightSpaceUniform;
-use cgmath::SquareMatrix;
+use cgmath::{InnerSpace, SquareMatrix};
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
@@ -338,6 +338,11 @@ impl ShadowSystem {
         camera: &crate::camera::Camera,
         light_dir: cgmath::Vector3<f32>,
     ) {
+        let light_dir = if light_dir.magnitude2() < 1e-6 {
+            cgmath::Vector3::unit_y()
+        } else {
+            light_dir.normalize()
+        };
         let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
         let splits = graphics_settings.shadow_cascade_splits; // Configurable View-Z distances
 
@@ -665,6 +670,7 @@ impl ShadowSystem {
 
 #[cfg(test)]
 mod tests {
+    use cgmath::InnerSpace;
     /// Tests that computing shadow cascades with a vertical light vector does not generate NaN values.
     #[test]
     fn test_shadow_cascade_vertical_light_no_nan() {
@@ -689,6 +695,42 @@ mod tests {
         for row in &mat_arr {
             for val in row {
                 assert!(!val.is_nan(), "Light view matrix element is NaN!");
+            }
+        }
+    }
+
+    /// Tests that computing shadow cascades with a zero light vector falls back safely and does not generate NaN values.
+    #[test]
+    fn test_shadow_cascade_zero_light_no_nan() {
+        let light_dir: cgmath::Vector3<f32> = cgmath::Vector3::new(0.0, 0.0, 0.0);
+        let safe_light_dir = if light_dir.magnitude2() < 1e-6 {
+            cgmath::Vector3::unit_y()
+        } else {
+            light_dir.normalize()
+        };
+        let up_vector = if safe_light_dir.y.abs() > 0.99 {
+            cgmath::Vector3::unit_z()
+        } else {
+            cgmath::Vector3::unit_y()
+        };
+
+        let cascade_center = cgmath::Vector3::new(0.0, 0.0, 0.0);
+        let radius = 10.0_f32;
+        let light_pos_target = cascade_center + safe_light_dir * radius * 2.0;
+
+        let light_view = cgmath::Matrix4::look_at_rh(
+            cgmath::Point3::new(light_pos_target.x, light_pos_target.y, light_pos_target.z),
+            cgmath::Point3::new(cascade_center.x, cascade_center.y, cascade_center.z),
+            up_vector,
+        );
+
+        let mat_arr: [[f32; 4]; 4] = light_view.into();
+        for row in &mat_arr {
+            for val in row {
+                assert!(
+                    !val.is_nan(),
+                    "Light view matrix element with zero light dir is NaN!"
+                );
             }
         }
     }

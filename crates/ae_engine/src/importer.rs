@@ -331,7 +331,11 @@ pub fn spawn_model(
     }
 
     let mut rotation = ae_core::ecs::Rotation::identity();
-    if path_str.contains(".fbx") || path_str.contains("temp_fbx") {
+    let is_fbx = std::path::Path::new(path_str)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("fbx"));
+    if is_fbx {
         rotation = ae_core::ecs::Rotation {
             x: -std::f32::consts::FRAC_1_SQRT_2,
             y: 0.0,

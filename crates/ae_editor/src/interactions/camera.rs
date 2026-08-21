@@ -65,5 +65,47 @@ pub fn focus_selected(
 
     let dir = (pos - new_pos).normalize();
     camera.pitch = Rad(dir.y.asin());
-    camera.yaw = Rad(dir.x.atan2(dir.z));
+    camera.yaw = Rad(dir.z.atan2(dir.x));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Tests that focus_selected points the camera forward vector towards the selected entity.
+    #[test]
+    fn test_focus_selected_forward_alignment() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((Position::new(10.0, 0.0, 0.0),));
+
+        let mut editor = EditorState::default();
+        editor.selected_entities.push(entity);
+
+        let mut camera = ae_core::camera::Camera {
+            position: Point3::new(0.0, 0.0, 0.0),
+            yaw: Rad(0.0),
+            pitch: Rad(0.0),
+            aspect: 1.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ae_core::camera::ProjectionMode::Perspective,
+            ortho_scale: 1.0,
+            target: Point3::new(0.0, 0.0, 0.0),
+        };
+
+        focus_selected(&mut camera, &editor, &world);
+
+        let fwd = camera.get_forward();
+        assert!(
+            (fwd.x - 1.0).abs() < 1e-4,
+            "Forward X should be ~1.0 towards entity, got {}",
+            fwd.x
+        );
+        assert!(
+            fwd.z.abs() < 1e-4,
+            "Forward Z should be ~0.0 towards entity, got {}",
+            fwd.z
+        );
+    }
 }
