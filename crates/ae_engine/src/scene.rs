@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! Dynamic Scene Serialization & Asynchronous Asset Loading subsystem.
+//!
+//! Provides automated scene persistence and loading powered by the central
+//! `ComponentRegistry`. Eliminates manual component match blocks, ensuring that
+//! all existing and future ECS components are serialized and restored automatically.
+//!
+
 use crate::engine::AeEngine;
 use ae_core::ecs::*;
 use hecs::World;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
@@ -18,44 +27,78 @@ pub struct SavedLodGroup {
     pub threshold_2: f32,
 }
 
-/// An intermediate schema for serializing an ECS Entity with partial components.
-#[derive(Serialize, Deserialize, Clone)]
+/// An intermediate schema for serializing an ECS Entity dynamically using `ComponentRegistry`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct SavedEntity {
-    pub name: Option<Name>,
-    pub position: Option<Position>,
-    pub rotation: Option<Rotation>,
-    pub scale: Option<Scale>,
-    pub color: Option<Color>,
-    pub light: Option<Light>,
-    pub velocity: Option<Velocity>,
-    pub shape: Option<Shape>,
-    pub bounding_radius: Option<BoundingRadius>,
-    pub bounding_box: Option<BoundingBox>,
-    pub lod_group: Option<SavedLodGroup>,
-    pub is_player: bool,
-    pub rigid_body: Option<RigidBody>,
-    pub collider: Option<Collider>,
-    #[serde(default)]
-    pub character_controller: Option<CharacterController>,
-    #[serde(default)]
-    pub behavior: Option<ae_core::ecs::BehaviorComponent>,
-
-    // Instead of raw model_id or sprite_id integers which change across restarts,
-    // we store the actual disk path of the asset!
+    /// Source disk path of the 3D model asset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_path: Option<String>,
+
+    /// Source disk path of the 2D sprite/texture asset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sprite_path: Option<String>,
 
-    /// Uniquely links parent-child relationships after scene reload.
+    /// Entity name identifier linking parent-child relationships after reload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_name: Option<String>,
+
+    /// Level of Detail configuration paths and thresholds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lod_group: Option<SavedLodGroup>,
+
+    /// Dynamic map storing all component properties serialized by key.
+    /// Supports both legacy scene files and future component additions without manual boilerplate.
+    #[serde(flatten)]
+    pub components: HashMap<String, serde_json::Value>,
+}
+
+/// Converts a PascalCase identifier to snake_case for clean, standardized JSON keys.
+fn to_snake_case(s: &str) -> String {
+    let mut result = String::with_capacity(s.len() + 4);
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() {
+            if i > 0 {
+                result.push('_');
+            }
+            result.extend(c.to_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+/// Dynamic lookup matching component keys across exact names, snake_case, and alias variations.
+fn lookup_registry_handler<'a>(
+    registry: &'a ComponentRegistry,
+    key: &str,
+) -> Option<&'a dyn ae_core::registry::ComponentHandler> {
+    if let Some(handler) = registry.get_by_name(key) {
+        return Some(handler);
+    }
+    for handler in registry.handlers() {
+        let name = handler.type_name();
+        if name.eq_ignore_ascii_case(key)
+            || to_snake_case(name) == key
+            || (name == "BehaviorComponent" && (key == "behavior" || key == "behavior_component"))
+            || (name == "BoundingRadius" && (key == "bounding_radius" || key == "radius"))
+            || (name == "BoundingBox" && (key == "bounding_box" || key == "bbox"))
+            || (name == "CharacterController"
+                && (key == "character_controller" || key == "controller"))
+        {
+            return Some(&**handler);
+        }
+    }
+    None
 }
 
 /// A structured container representing fully parsed but not yet GPU-uploaded model and texture data.
-/// Sent from the background parallel parsing thread to the main thread for instant GPU registration.
 pub type ParsedTextureItem = (
     String,
     Result<(std::path::PathBuf, image::RgbaImage), String>,
 );
 
+/// Bundle of parsed asset data returned by background worker threads to the main engine thread.
 pub struct PendingSceneData {
     /// Saved entities blueprint deserialized from the JSON scene file.
     pub entities: Vec<SavedEntity>,
@@ -65,9 +108,10 @@ pub struct PendingSceneData {
     pub parsed_textures: Vec<ParsedTextureItem>,
 }
 
-/// Serialize the current engine ECS state to a JSON file on disk.
+/// Serializes the current engine ECS state dynamically to a JSON file on disk.
 pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<()> {
     let mut saved_entities = Vec::new();
+    let registry = ComponentRegistry::global();
 
     for entity_ref in engine.ecs.world.iter() {
         let entity = entity_ref.entity();
@@ -127,29 +171,44 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
             }
         }
 
+        let mut components = HashMap::new();
+
+        // 100% Dynamic Component Serialization via ComponentRegistry
+        for handler in registry.handlers() {
+            let name = handler.type_name();
+            // Skip transient / asset-linked handle components that are saved as paths
+            if name == "ModelId"
+                || name == "SpriteId"
+                || name == "Parent"
+                || name == "Children"
+                || name == "TransformDirty"
+                || name == "GlobalTransform"
+                || name == "LodGroup"
+            {
+                continue;
+            }
+
+            if name == "PlayerTag" {
+                if handler.has_component(w, entity) {
+                    components.insert("is_player".to_string(), serde_json::Value::Bool(true));
+                }
+                continue;
+            }
+
+            if let Some(data) = handler.capture(w, entity)
+                && let Ok(val) = serde_json::from_slice::<serde_json::Value>(&data)
+            {
+                let json_key = to_snake_case(name);
+                components.insert(json_key, val);
+            }
+        }
+
         let se = SavedEntity {
-            name: w.get::<&Name>(entity).map(|c| (*c).clone()).ok(),
-            position: w.get::<&Position>(entity).map(|c| *c).ok(),
-            rotation: w.get::<&Rotation>(entity).map(|c| *c).ok(),
-            scale: w.get::<&Scale>(entity).map(|c| *c).ok(),
-            color: w.get::<&Color>(entity).map(|c| *c).ok(),
-            light: w.get::<&Light>(entity).map(|c| *c).ok(),
-            velocity: w.get::<&Velocity>(entity).map(|c| *c).ok(),
-            shape: w.get::<&Shape>(entity).map(|c| *c).ok(),
-            bounding_radius: w.get::<&BoundingRadius>(entity).map(|c| *c).ok(),
-            bounding_box: w.get::<&BoundingBox>(entity).map(|c| *c).ok(),
-            lod_group: lod_group_saved,
-            is_player: w.get::<&PlayerTag>(entity).is_ok(),
-            rigid_body: w.get::<&RigidBody>(entity).map(|c| *c).ok(),
-            collider: w.get::<&Collider>(entity).map(|c| *c).ok(),
-            character_controller: w.get::<&CharacterController>(entity).map(|c| *c).ok(),
-            behavior: w
-                .get::<&ae_core::ecs::BehaviorComponent>(entity)
-                .map(|c| (*c).clone())
-                .ok(),
             model_path: model_p,
             sprite_path: sprite_p,
             parent_name: parent_n,
+            lod_group: lod_group_saved,
+            components,
         };
 
         saved_entities.push(se);
@@ -167,7 +226,6 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
 /// using Rayon, totally avoiding main-thread frames freeze. Updates the UI overlay status.
 pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Result<()> {
     // Security: Reject scene files larger than 256 MB to prevent memory exhaustion DoS
-    // via crafted deserialization bombs (multi-gigabyte JSON arrays of SavedEntity).
     const MAX_SCENE_FILE_SIZE: u64 = 256 * 1024 * 1024;
     let metadata = std::fs::metadata(filepath)?;
     if metadata.len() > MAX_SCENE_FILE_SIZE {
@@ -185,8 +243,7 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
     let reader = BufReader::new(file);
     let saved_entities: Vec<SavedEntity> = serde_json::from_reader(reader)?;
 
-    // Security: Reject scenes with an unreasonable number of entities to prevent
-    // RAM exhaustion during entity instantiation and GPU buffer allocation.
+    // Security: Reject scenes with an unreasonable number of entities
     const MAX_SCENE_ENTITIES: usize = 500_000;
     if saved_entities.len() > MAX_SCENE_ENTITIES {
         return Err(std::io::Error::new(
@@ -267,10 +324,6 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
                 .collect();
 
         // 2. Parallel parse texture files using Rayon
-        type ParsedTextureItem = (
-            String,
-            Result<(std::path::PathBuf, image::RgbaImage), String>,
-        );
         let parsed_textures: Vec<ParsedTextureItem> = textures_list
             .into_par_iter()
             .map(|path| {
@@ -299,12 +352,12 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
 }
 
 /// Checks the asynchronous scene load channel and uploads completed asset data to the GPU.
-/// Reconstructs the ECS hierarchy and finishes the scene swap on the main thread.
+/// Reconstructs the ECS hierarchy dynamically and finishes the scene swap on the main thread.
 pub fn process_async_scene_load(engine: &mut AeEngine) {
     if let Some(ref rx) = engine.scene_rx
         && let Ok(result) = rx.try_recv()
     {
-        engine.scene_rx = None; // Reset the receiver immediately
+        engine.scene_rx = None; // Reset receiver immediately
 
         match result {
             Ok(scene_data) => {
@@ -356,67 +409,45 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                 engine.editor.undo_stack.clear();
                 engine.editor.redo_stack.clear();
 
-                let mut name_to_entity = std::collections::HashMap::new();
+                let registry = ComponentRegistry::global();
+                let mut name_to_entity = HashMap::new();
                 let mut entity_parent_links = Vec::new();
 
-                // 4. Instantiation of new entities using EntityBuilder (Single batch allocation)
+                // 4. Dynamic instantiation of new entities via ComponentRegistry
                 for se in scene_data.entities {
-                    let mut builder = hecs::EntityBuilder::new();
+                    let new_ent = engine.ecs.world.spawn(());
+                    let mut has_physics = false;
 
-                    let parent_name_opt = se.parent_name;
-                    let entity_name_opt = se.name.clone();
+                    for (key, val) in &se.components {
+                        if val.is_null() {
+                            continue;
+                        }
 
-                    if let Some(n) = se.name {
-                        builder.add(n);
-                    }
-                    if let Some(p) = se.position {
-                        builder.add(p);
-                    }
-                    if let Some(r) = se.rotation {
-                        builder.add(r);
-                    }
-                    if let Some(s) = se.scale {
-                        builder.add(s);
-                    }
-                    if let Some(c) = se.color {
-                        builder.add(c);
-                    }
-                    if let Some(l) = se.light {
-                        builder.add(l);
-                    }
-                    if let Some(v) = se.velocity {
-                        builder.add(v);
-                    }
-                    if let Some(sh) = se.shape {
-                        builder.add(sh);
-                    }
-                    if let Some(b) = se.bounding_radius {
-                        builder.add(b);
-                    }
-                    if let Some(bbox) = se.bounding_box {
-                        builder.add(bbox);
-                    }
-                    if se.is_player {
-                        builder.add(PlayerTag);
-                    }
-                    if let Some(rb) = se.rigid_body {
-                        builder.add(rb);
-                    }
-                    if let Some(col) = se.collider {
-                        builder.add(col);
-                    }
-                    if let Some(ctrl) = se.character_controller {
-                        builder.add(ctrl);
-                    }
-                    if let Some(beh) = se.behavior {
-                        builder.add(beh);
+                        if key == "is_player" {
+                            if val.as_bool().unwrap_or(false) {
+                                let _ = engine.ecs.world.insert_one(new_ent, PlayerTag);
+                            }
+                            continue;
+                        }
+
+                        if let Some(handler) = lookup_registry_handler(registry, key)
+                            && let Ok(bytes) = serde_json::to_vec(val)
+                            && handler
+                                .apply(&mut engine.ecs.world, new_ent, &bytes)
+                                .is_ok()
+                        {
+                            let name = handler.type_name();
+                            if name == "RigidBody"
+                                || name == "Collider"
+                                || name == "CharacterController"
+                            {
+                                has_physics = true;
+                            }
+                        }
                     }
 
-                    if se.rigid_body.is_some()
-                        || se.collider.is_some()
-                        || se.character_controller.is_some()
-                    {
-                        builder.add(TransformDirty);
+                    if has_physics {
+                        let _ = engine.ecs.world.insert_one(new_ent, TransformDirty);
                     }
 
                     if let Some(lg) = se.lod_group {
@@ -442,7 +473,7 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                                 threshold_1: lg.threshold_1,
                                 threshold_2: lg.threshold_2,
                             };
-                            builder.add(lod_comp);
+                            let _ = engine.ecs.world.insert_one(new_ent, lod_comp);
                         }
                     }
 
@@ -452,10 +483,10 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                         let handle = canonical_path
                             .and_then(|c| engine.asset_manager.model_path_map.get(&c).copied());
                         if let Some(mid) = handle {
-                            builder.add(ModelId(mid));
+                            let _ = engine.ecs.world.insert_one(new_ent, ModelId(mid));
 
                             // Reconstruct bounding sphere if missing
-                            if se.bounding_radius.is_none()
+                            if engine.ecs.world.get::<&BoundingRadius>(new_ent).is_err()
                                 && let Some(m) = engine.asset_manager.models.get(mid)
                             {
                                 let size_x = m.max[0] - m.min[0];
@@ -463,7 +494,8 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                                 let size_z = m.max[2] - m.min[2];
                                 let max_dim = size_x.max(size_y).max(size_z);
                                 let radius = max_dim / 2.0;
-                                builder.add(BoundingRadius(radius));
+                                let _ =
+                                    engine.ecs.world.insert_one(new_ent, BoundingRadius(radius));
                             }
                         }
                     }
@@ -473,17 +505,15 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                         let handle = canonical_path
                             .and_then(|c| engine.asset_manager.texture_path_map.get(&c).copied());
                         if let Some(tid) = handle {
-                            builder.add(SpriteId(tid));
+                            let _ = engine.ecs.world.insert_one(new_ent, SpriteId(tid));
                         }
                     }
 
-                    let new_ent = engine.ecs.world.spawn(builder.build());
-
                     // Track parenting link for hierarchy reconstruction
-                    if let Some(n) = entity_name_opt {
-                        name_to_entity.insert(n.0, new_ent);
+                    if let Ok(n) = engine.ecs.world.get::<&Name>(new_ent) {
+                        name_to_entity.insert(n.0.clone(), new_ent);
                     }
-                    if let Some(pn) = parent_name_opt {
+                    if let Some(pn) = se.parent_name {
                         entity_parent_links.push((new_ent, pn));
                     }
                 }
@@ -579,5 +609,48 @@ mod tests {
                 "texture_test_suite.aee must contain entities"
             );
         }
+    }
+
+    #[test]
+    fn test_dynamic_saved_entity_serialization_round_trip() {
+        let mut entity = SavedEntity {
+            model_path: Some("assets/models/test.gltf".to_string()),
+            sprite_path: None,
+            parent_name: Some("Root_Parent".to_string()),
+            lod_group: None,
+            components: HashMap::new(),
+        };
+
+        entity.components.insert(
+            "position".to_string(),
+            serde_json::json!({ "x": 10.0, "y": 20.0, "z": 30.0 }),
+        );
+        entity
+            .components
+            .insert("name".to_string(), serde_json::json!("DynamicTestEntity"));
+        entity
+            .components
+            .insert("is_player".to_string(), serde_json::json!(true));
+
+        let json = serde_json::to_string_pretty(&entity).unwrap();
+        let deserialized: SavedEntity = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(
+            deserialized.model_path.as_deref(),
+            Some("assets/models/test.gltf")
+        );
+        assert_eq!(deserialized.parent_name.as_deref(), Some("Root_Parent"));
+        assert_eq!(
+            deserialized.components.get("name").unwrap(),
+            &serde_json::json!("DynamicTestEntity")
+        );
+        assert_eq!(
+            deserialized.components.get("position").unwrap(),
+            &serde_json::json!({ "x": 10.0, "y": 20.0, "z": 30.0 })
+        );
+        assert_eq!(
+            deserialized.components.get("is_player").unwrap(),
+            &serde_json::json!(true)
+        );
     }
 }

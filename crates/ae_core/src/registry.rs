@@ -221,6 +221,7 @@ impl ComponentRegistry {
         registry.register_with_name::<ae_plugin_api::Hidden>("Hidden");
         registry.register_with_name::<ae_plugin_api::Parent>("Parent");
         registry.register_with_name::<ae_plugin_api::Children>("Children");
+        registry.register_with_name::<crate::ecs::LodGroup>("LodGroup");
         registry
             .register_with_name::<ae_plugin_api::PhysicsMaterialHandle>("PhysicsMaterialHandle");
         registry.register_with_name::<ae_plugin_api::TransformDirty>("TransformDirty");

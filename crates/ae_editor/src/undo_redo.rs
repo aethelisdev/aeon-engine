@@ -168,6 +168,23 @@ impl Command {
             }
             Command::Modify(entity, property) => {
                 match property {
+                    Property::Component {
+                        type_name,
+                        old_data,
+                        ..
+                    } => {
+                        if let Some(handler) = ComponentRegistry::global().get_by_name(type_name) {
+                            let _ = handler.apply(world, *entity, old_data);
+                        }
+                        if type_name == "Position"
+                            || type_name == "Rotation"
+                            || type_name == "Scale"
+                            || type_name == "RigidBody"
+                            || type_name == "Collider"
+                        {
+                            let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        }
+                    }
                     Property::Position(old, _) => {
                         let _ = world.insert_one(*entity, *old);
                         let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
@@ -224,6 +241,23 @@ impl Command {
             }
             Command::Modify(entity, property) => {
                 match property {
+                    Property::Component {
+                        type_name,
+                        new_data,
+                        ..
+                    } => {
+                        if let Some(handler) = ComponentRegistry::global().get_by_name(type_name) {
+                            let _ = handler.apply(world, *entity, new_data);
+                        }
+                        if type_name == "Position"
+                            || type_name == "Rotation"
+                            || type_name == "Scale"
+                            || type_name == "RigidBody"
+                            || type_name == "Collider"
+                        {
+                            let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                        }
+                    }
                     Property::Position(_, new) => {
                         let _ = world.insert_one(*entity, *new);
                         let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
@@ -281,14 +315,42 @@ impl Command {
 /// Trackable entity property for single-field undo/redo.
 /// Each variant stores `(old_value, new_value)` to enable bidirectional
 /// restore. Used by `Command::Modify` for inspector-driven property edits.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Property {
+    /// Generic component modification for any registered component type
+    Component {
+        type_name: String,
+        old_data: Vec<u8>,
+        new_data: Vec<u8>,
+    },
     Position(Position, Position),
     Rotation(Rotation, Rotation),
     Scale(Scale, Scale),
     Name(String, String),
     Light(Light, Light),
     Color(Color, Color),
+}
+
+impl Property {
+    /// Creates a generic component modification property for any registered component type.
+    pub fn from_component<T: hecs::Component + serde::Serialize>(
+        old: &T,
+        new: &T,
+    ) -> Result<Self, String> {
+        let full_name = std::any::type_name::<T>();
+        let type_name = full_name
+            .rsplit("::")
+            .next()
+            .unwrap_or(full_name)
+            .to_string();
+        let old_data = serde_json::to_vec(old).map_err(|e| e.to_string())?;
+        let new_data = serde_json::to_vec(new).map_err(|e| e.to_string())?;
+        Ok(Self::Component {
+            type_name,
+            old_data,
+            new_data,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -370,5 +432,49 @@ mod tests {
         assert_eq!(world.get::<&Name>(restored_ent).unwrap().0, "ChildEntity");
         assert_eq!(world.get::<&Parent>(restored_ent).unwrap().0, parent_entity);
         assert_eq!(world.get::<&RigidBody>(restored_ent).unwrap().mass, 15.0);
+    }
+
+    /// Tests that Property::from_component enables generic single-field undo and redo.
+    #[test]
+    fn test_generic_property_component_undo_redo() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Position::new(0.0, 0.0, 0.0),
+            RigidBody {
+                body_type: RigidBodyType::Static,
+                mass: 10.0,
+                gravity_scale: 0.0,
+            },
+        ));
+
+        let old_rb = RigidBody {
+            body_type: RigidBodyType::Static,
+            mass: 10.0,
+            gravity_scale: 0.0,
+        };
+        let new_rb = RigidBody {
+            body_type: RigidBodyType::Dynamic,
+            mass: 50.0,
+            gravity_scale: 2.0,
+        };
+
+        let prop = Property::from_component(&old_rb, &new_rb).unwrap();
+        let mut cmd = Command::Modify(entity, prop);
+
+        // Apply change (redo)
+        cmd.redo(&mut world);
+        {
+            let current_rb = world.get::<&RigidBody>(entity).unwrap();
+            assert_eq!(current_rb.mass, 50.0);
+            assert_eq!(current_rb.body_type, RigidBodyType::Dynamic);
+        }
+
+        // Revert change (undo)
+        cmd.undo(&mut world);
+        {
+            let current_rb = world.get::<&RigidBody>(entity).unwrap();
+            assert_eq!(current_rb.mass, 10.0);
+            assert_eq!(current_rb.body_type, RigidBodyType::Static);
+        }
     }
 }

@@ -3,6 +3,7 @@
 /// AE Core - ECS Manager and Hierarchical Transform System.
 /// Manages the `hecs::World` database and hierarchical transform updates.
 use hecs::World;
+use serde::{Deserialize, Serialize};
 
 pub use ae_plugin_api::{
     AssetHandle, BehaviorComponent, BehaviorType, BoundingBox, BoundingRadius, CharacterController,
@@ -204,7 +205,7 @@ pub fn update_hierarchy_transforms(world: &mut hecs::World) {
 }
 
 /// Level of Detail (LOD) model selection component based on camera distance.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LodGroup {
     /// LOD 0 model handle (High detail)
     pub lod_0: AssetHandle,
