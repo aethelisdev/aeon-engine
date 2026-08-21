@@ -186,7 +186,7 @@ impl ApplicationHandler for AeApp {
 
             WindowEvent::MouseWheel { delta, .. } => {
                 let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
-                let scale = engine.render_state.window.scale_factor() as f32;
+                let scale = engine.ui.context.pixels_per_point();
                 let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
 
                 // Only scroll 3D camera if cursor is strictly inside the 3D viewport and not over UI panels

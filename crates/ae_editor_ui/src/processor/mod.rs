@@ -45,6 +45,7 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             }
             crate::ui::EngineUiAction::SetUiScale(scale) => {
                 ctx.ui.ui_zoom_factor = scale.clamp(0.6, 2.0);
+                ctx.ui.context.set_zoom_factor(ctx.ui.ui_zoom_factor);
             }
             crate::ui::EngineUiAction::GarbageCollect => system::handle_garbage_collect(ctx),
 

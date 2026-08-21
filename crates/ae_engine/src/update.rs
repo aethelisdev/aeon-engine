@@ -343,16 +343,16 @@ impl AeEngine {
                         r.z = rot_quat.v.z;
                         r.w = rot_quat.s;
                     }
-                    if let Some(&handle) = self.physics_world.entity_to_body.get(&ent) {
-                        if let Some(body) = self.physics_world.rigid_body_set.get_mut(handle) {
-                            let rot_glam = ae_physics::glam::Quat::from_xyzw(
-                                rot_quat.v.x,
-                                rot_quat.v.y,
-                                rot_quat.v.z,
-                                rot_quat.s,
-                            );
-                            body.set_rotation(rot_glam, true);
-                        }
+                    if let Some(&handle) = self.physics_world.entity_to_body.get(&ent)
+                        && let Some(body) = self.physics_world.rigid_body_set.get_mut(handle)
+                    {
+                        let rot_glam = ae_physics::glam::Quat::from_xyzw(
+                            rot_quat.v.x,
+                            rot_quat.v.y,
+                            rot_quat.v.z,
+                            rot_quat.s,
+                        );
+                        body.set_rotation(rot_glam, true);
                     }
                 }
             }

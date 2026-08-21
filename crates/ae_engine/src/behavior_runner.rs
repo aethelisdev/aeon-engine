@@ -214,12 +214,11 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
                 rot.x = new_q.v.x;
                 rot.y = new_q.v.y;
                 rot.z = new_q.v.z;
-                if let Some(&handle) = physics_world.entity_to_body.get(&ent) {
-                    if let Some(body) = physics_world.rigid_body_set.get_mut(handle) {
-                        let rot_glam =
-                            ae_physics::glam::Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
-                        body.set_rotation(rot_glam, true);
-                    }
+                if let Some(&handle) = physics_world.entity_to_body.get(&ent)
+                    && let Some(body) = physics_world.rigid_body_set.get_mut(handle)
+                {
+                    let rot_glam = ae_physics::glam::Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
+                    body.set_rotation(rot_glam, true);
                 }
                 dirty_entities.push(ent);
             }
@@ -243,11 +242,11 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
             rot.w = w * cos - y * sin;
             rot.y = y * cos + w * sin;
 
-            if let Some(&handle) = physics_world.entity_to_body.get(&ent) {
-                if let Some(body) = physics_world.rigid_body_set.get_mut(handle) {
-                    let rot_glam = ae_physics::glam::Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
-                    body.set_rotation(rot_glam, true);
-                }
+            if let Some(&handle) = physics_world.entity_to_body.get(&ent)
+                && let Some(body) = physics_world.rigid_body_set.get_mut(handle)
+            {
+                let rot_glam = ae_physics::glam::Quat::from_xyzw(rot.x, rot.y, rot.z, rot.w);
+                body.set_rotation(rot_glam, true);
             }
             dirty_entities.push(ent);
         }

@@ -526,7 +526,7 @@ impl EngineUi {
             .tessellate(full_output.shapes, full_output.pixels_per_point);
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [window.inner_size().width, window.inner_size().height],
-            pixels_per_point: window.scale_factor() as f32,
+            pixels_per_point: full_output.pixels_per_point,
         };
 
         for (id, image_deltas) in &full_output.textures_delta.set {

@@ -223,6 +223,7 @@ impl AeEngine {
         let render_options = ae_renderer::render::RenderOptions {
             grid_enabled: self.ui.grid_enabled && self.mode == EngineMode::Edit,
             wireframe_enabled: self.ui.wireframe_enabled,
+            scale_factor: self.ui.context.pixels_per_point(),
         };
 
         let mut ui_actions = Vec::new();

@@ -205,7 +205,7 @@ impl EngineUi {
                                                     );
                                                     ui.add_space(8.0);
 
-                                                    let scales = [
+                                                    let scales: [(f32, &str); 7] = [
                                                         (0.75, "75%"),
                                                         (0.80, "80%"),
                                                         (0.90, "90%"),
@@ -215,17 +215,39 @@ impl EngineUi {
                                                         (1.50, "150%"),
                                                     ];
 
-                                                    ui.horizontal_wrapped(|ui| {
-                                                        for (scale_val, label) in scales {
-                                                            if ui.button(label).clicked() {
-                                                                ui_actions.push(
-                                                                    crate::ui::EngineUiAction::SetUiScale(
-                                                                        scale_val,
-                                                                    ),
-                                                                );
+                                                    let current_zoom = ctx.zoom_factor();
+                                                    let selected_text = scales
+                                                        .iter()
+                                                        .find(|(val, _)| (current_zoom - *val).abs() < 0.01)
+                                                        .map(|(_, l)| *l)
+                                                        .unwrap_or_else(|| {
+                                                            if (current_zoom - 1.0).abs() < 0.01 {
+                                                                "100% (Default)"
+                                                            } else {
+                                                                ""
                                                             }
-                                                        }
-                                                    });
+                                                        });
+                                                    let display_text = if selected_text.is_empty() {
+                                                        format!("{:.0}%", (current_zoom * 100.0).round())
+                                                    } else {
+                                                        selected_text.to_string()
+                                                    };
+
+                                                    egui::ComboBox::from_id_salt("ui_scale_combo")
+                                                        .width(220.0)
+                                                        .selected_text(display_text)
+                                                        .show_ui(ui, |ui| {
+                                                            for (scale_val, label) in scales {
+                                                                let is_selected = (current_zoom - scale_val).abs() < 0.01;
+                                                                if ui.selectable_label(is_selected, label).clicked() {
+                                                                    ui_actions.push(
+                                                                        crate::ui::EngineUiAction::SetUiScale(
+                                                                            scale_val,
+                                                                        ),
+                                                                    );
+                                                                }
+                                                            }
+                                                        });
                                                 });
                                             }
                                             1 => {

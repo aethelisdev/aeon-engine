@@ -56,7 +56,11 @@ impl RenderState {
         }
 
         // Resize viewport texture and post-process systems if the last known viewport rect size changed or is not yet initialized
-        let scale = self.window.scale_factor() as f32;
+        let scale = if options.scale_factor > 0.0 {
+            options.scale_factor
+        } else {
+            self.window.scale_factor() as f32
+        };
         let vp_w = ((self.last_viewport_rect.max_x - self.last_viewport_rect.min_x) * scale)
             .max(0.0) as u32;
         let vp_h = ((self.last_viewport_rect.max_y - self.last_viewport_rect.min_y) * scale)

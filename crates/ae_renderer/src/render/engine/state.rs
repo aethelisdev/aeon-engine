@@ -11,6 +11,7 @@ use crate::render::viewport_texture::ViewportTexture;
 pub struct RenderOptions {
     pub grid_enabled: bool,
     pub wireframe_enabled: bool,
+    pub scale_factor: f32,
 }
 
 /// Central render state owning all WGPU resources: device, queue, surface,
