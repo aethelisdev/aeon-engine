@@ -3,6 +3,26 @@
 
 use super::vertex::DebugLineVertex;
 
+/// Parameters for generating debug circle rings.
+pub struct DebugCircleParams<'a> {
+    pub model: &'a cgmath::Matrix4<f32>,
+    pub radius: f32,
+    pub axes: (usize, usize, usize),
+    pub segments: usize,
+    pub color: [f32; 3],
+}
+
+/// Parameters for generating debug half-circle arcs.
+pub struct DebugArcParams<'a> {
+    pub model: &'a cgmath::Matrix4<f32>,
+    pub radius: f32,
+    pub y_offset: f32,
+    pub top: bool,
+    pub horizontal_axis: usize,
+    pub segments: usize,
+    pub color: [f32; 3],
+}
+
 /// Self-contained wireframe geometry line generators for 3D debug overlays.
 pub struct DebugShapes;
 
@@ -63,11 +83,38 @@ impl DebugShapes {
     ) {
         let segments = 32;
         // XY ring
-        Self::generate_circle(verts, model, radius, 0, 1, 2, segments, color);
+        Self::generate_circle(
+            verts,
+            DebugCircleParams {
+                model,
+                radius,
+                axes: (0, 1, 2),
+                segments,
+                color,
+            },
+        );
         // XZ ring
-        Self::generate_circle(verts, model, radius, 0, 2, 1, segments, color);
+        Self::generate_circle(
+            verts,
+            DebugCircleParams {
+                model,
+                radius,
+                axes: (0, 2, 1),
+                segments,
+                color,
+            },
+        );
         // YZ ring
-        Self::generate_circle(verts, model, radius, 1, 2, 0, segments, color);
+        Self::generate_circle(
+            verts,
+            DebugCircleParams {
+                model,
+                radius,
+                axes: (1, 2, 0),
+                segments,
+                color,
+            },
+        );
     }
 
     /// Generates capsule wireframe: 2 hemisphere rings + 4 vertical lines.
@@ -120,30 +167,56 @@ impl DebugShapes {
         }
 
         // Top hemisphere arc (XY plane)
-        Self::generate_half_circle(verts, model, radius, half_height, true, 0, segments, color);
+        Self::generate_half_circle(
+            verts,
+            DebugArcParams {
+                model,
+                radius,
+                y_offset: half_height,
+                top: true,
+                horizontal_axis: 0,
+                segments,
+                color,
+            },
+        );
         // Top hemisphere arc (ZY plane)
-        Self::generate_half_circle(verts, model, radius, half_height, true, 2, segments, color);
+        Self::generate_half_circle(
+            verts,
+            DebugArcParams {
+                model,
+                radius,
+                y_offset: half_height,
+                top: true,
+                horizontal_axis: 2,
+                segments,
+                color,
+            },
+        );
         // Bottom hemisphere arc (XY plane)
         Self::generate_half_circle(
             verts,
-            model,
-            radius,
-            -half_height,
-            false,
-            0,
-            segments,
-            color,
+            DebugArcParams {
+                model,
+                radius,
+                y_offset: -half_height,
+                top: false,
+                horizontal_axis: 0,
+                segments,
+                color,
+            },
         );
         // Bottom hemisphere arc (ZY plane)
         Self::generate_half_circle(
             verts,
-            model,
-            radius,
-            -half_height,
-            false,
-            2,
-            segments,
-            color,
+            DebugArcParams {
+                model,
+                radius,
+                y_offset: -half_height,
+                top: false,
+                horizontal_axis: 2,
+                segments,
+                color,
+            },
         );
     }
 
@@ -243,54 +316,39 @@ impl DebugShapes {
     }
 
     /// Helper: generates a circle ring on a specified plane.
-    #[allow(clippy::too_many_arguments)]
-    pub fn generate_circle(
-        verts: &mut Vec<DebugLineVertex>,
-        model: &cgmath::Matrix4<f32>,
-        radius: f32,
-        axis_a: usize,
-        axis_b: usize,
-        axis_n: usize,
-        segments: usize,
-        color: [f32; 3],
-    ) {
-        for i in 0..segments {
-            let a1 = (i as f32) / (segments as f32) * std::f32::consts::TAU;
-            let a2 = ((i + 1) as f32) / (segments as f32) * std::f32::consts::TAU;
+    pub fn generate_circle(verts: &mut Vec<DebugLineVertex>, params: DebugCircleParams<'_>) {
+        let (axis_a, axis_b, axis_n) = params.axes;
+        for i in 0..params.segments {
+            let a1 = (i as f32) / (params.segments as f32) * std::f32::consts::TAU;
+            let a2 = ((i + 1) as f32) / (params.segments as f32) * std::f32::consts::TAU;
             let mut p1 = [0.0_f32; 3];
             let mut p2 = [0.0_f32; 3];
-            p1[axis_a] = radius * a1.cos();
-            p1[axis_b] = radius * a1.sin();
+            p1[axis_a] = params.radius * a1.cos();
+            p1[axis_b] = params.radius * a1.sin();
             p1[axis_n] = 0.0;
-            p2[axis_a] = radius * a2.cos();
-            p2[axis_b] = radius * a2.sin();
+            p2[axis_a] = params.radius * a2.cos();
+            p2[axis_b] = params.radius * a2.sin();
             p2[axis_n] = 0.0;
             verts.push(DebugLineVertex {
-                position: Self::transform_point(model, p1),
-                color,
+                position: Self::transform_point(params.model, p1),
+                color: params.color,
             });
             verts.push(DebugLineVertex {
-                position: Self::transform_point(model, p2),
-                color,
+                position: Self::transform_point(params.model, p2),
+                color: params.color,
             });
         }
     }
 
     /// Helper: generates a half-circle arc for capsule hemispheres.
-    #[allow(clippy::too_many_arguments)]
-    pub fn generate_half_circle(
-        verts: &mut Vec<DebugLineVertex>,
-        model: &cgmath::Matrix4<f32>,
-        radius: f32,
-        y_offset: f32,
-        top: bool,
-        horizontal_axis: usize,
-        segments: usize,
-        color: [f32; 3],
-    ) {
-        let half_segments = segments / 2;
-        let start_angle = if top { 0.0 } else { std::f32::consts::PI };
-        let end_angle = if top {
+    pub fn generate_half_circle(verts: &mut Vec<DebugLineVertex>, params: DebugArcParams<'_>) {
+        let half_segments = params.segments / 2;
+        let start_angle = if params.top {
+            0.0
+        } else {
+            std::f32::consts::PI
+        };
+        let end_angle = if params.top {
             std::f32::consts::PI
         } else {
             std::f32::consts::TAU
@@ -303,18 +361,18 @@ impl DebugShapes {
 
             let mut p1 = [0.0_f32; 3];
             let mut p2 = [0.0_f32; 3];
-            p1[horizontal_axis] = radius * t1.cos();
-            p1[1] = y_offset + radius * t1.sin();
-            p2[horizontal_axis] = radius * t2.cos();
-            p2[1] = y_offset + radius * t2.sin();
+            p1[params.horizontal_axis] = params.radius * t1.cos();
+            p1[1] = params.y_offset + params.radius * t1.sin();
+            p2[params.horizontal_axis] = params.radius * t2.cos();
+            p2[1] = params.y_offset + params.radius * t2.sin();
 
             verts.push(DebugLineVertex {
-                position: Self::transform_point(model, p1),
-                color,
+                position: Self::transform_point(params.model, p1),
+                color: params.color,
             });
             verts.push(DebugLineVertex {
-                position: Self::transform_point(model, p2),
-                color,
+                position: Self::transform_point(params.model, p2),
+                color: params.color,
             });
         }
     }

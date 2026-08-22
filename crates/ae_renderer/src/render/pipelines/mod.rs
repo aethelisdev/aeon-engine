@@ -23,46 +23,52 @@ pub struct PipelineManager {
     pub sky_pipeline: wgpu::RenderPipeline,
 }
 
+/// Parameters required for configuring and building all render pipelines.
+pub struct PipelineConfigParams<'a> {
+    pub camera_bgl: &'a wgpu::BindGroupLayout,
+    pub light_bgl: &'a wgpu::BindGroupLayout,
+    pub shadow_bgl: &'a wgpu::BindGroupLayout,
+    pub texture_bgl: &'a wgpu::BindGroupLayout,
+    pub sky_bgl: &'a wgpu::BindGroupLayout,
+    pub scene_format: wgpu::TextureFormat,
+    pub msaa_samples: u32,
+}
+
 impl PipelineManager {
     /// Creates all render pipelines using the provided bind group layouts and MSAA count.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        device: &wgpu::Device,
-        camera_bgl: &wgpu::BindGroupLayout,
-        light_bgl: &wgpu::BindGroupLayout,
-        shadow_bgl: &wgpu::BindGroupLayout,
-        texture_bgl: &wgpu::BindGroupLayout,
-        sky_bgl: &wgpu::BindGroupLayout,
-        scene_format: wgpu::TextureFormat,
-        msaa_samples: u32,
-    ) -> Self {
-        let pbr_pipes = pbr::create_pbr_pipelines(
-            device,
-            camera_bgl,
-            light_bgl,
-            shadow_bgl,
-            texture_bgl,
-            scene_format,
-            msaa_samples,
-        );
+    pub fn new(device: &wgpu::Device, params: &PipelineConfigParams<'_>) -> Self {
+        let pbr_params = pbr::PbrPipelineParams {
+            camera_bind_group_layout: params.camera_bgl,
+            light_bind_group_layout: params.light_bgl,
+            shadow_bind_group_layout: params.shadow_bgl,
+            texture_bind_group_layout: params.texture_bgl,
+            scene_format: params.scene_format,
+            msaa_samples: params.msaa_samples,
+        };
+        let pbr_pipes = pbr::create_pbr_pipelines(device, &pbr_params);
         let grid_pipeline = grid::create_grid_pipeline(
             device,
-            camera_bgl,
-            light_bgl,
-            shadow_bgl,
-            scene_format,
-            msaa_samples,
+            params.camera_bgl,
+            params.light_bgl,
+            params.shadow_bgl,
+            params.scene_format,
+            params.msaa_samples,
         );
         let sprite_pipeline = sprite::create_sprite_pipeline(
             device,
-            camera_bgl,
-            texture_bgl,
-            light_bgl,
-            scene_format,
-            msaa_samples,
+            params.camera_bgl,
+            params.texture_bgl,
+            params.light_bgl,
+            params.scene_format,
+            params.msaa_samples,
         );
-        let sky_pipeline =
-            sky::create_sky_pipeline(device, camera_bgl, sky_bgl, scene_format, msaa_samples);
+        let sky_pipeline = sky::create_sky_pipeline(
+            device,
+            params.camera_bgl,
+            params.sky_bgl,
+            params.scene_format,
+            params.msaa_samples,
+        );
 
         Self {
             render_pipeline: pbr_pipes.render_pipeline,
@@ -78,45 +84,39 @@ impl PipelineManager {
     }
 
     /// Destroys and rebuilds all pipelines with a new MSAA sample count.
-    #[allow(clippy::too_many_arguments)]
-    pub fn rebuild_for_msaa(
-        &mut self,
-        device: &wgpu::Device,
-        camera_bgl: &wgpu::BindGroupLayout,
-        light_bgl: &wgpu::BindGroupLayout,
-        shadow_bgl: &wgpu::BindGroupLayout,
-        texture_bgl: &wgpu::BindGroupLayout,
-        sky_bgl: &wgpu::BindGroupLayout,
-        scene_format: wgpu::TextureFormat,
-        msaa_samples: u32,
-    ) {
-        let pbr_pipes = pbr::create_pbr_pipelines(
-            device,
-            camera_bgl,
-            light_bgl,
-            shadow_bgl,
-            texture_bgl,
-            scene_format,
-            msaa_samples,
-        );
+    pub fn rebuild_for_msaa(&mut self, device: &wgpu::Device, params: &PipelineConfigParams<'_>) {
+        let pbr_params = pbr::PbrPipelineParams {
+            camera_bind_group_layout: params.camera_bgl,
+            light_bind_group_layout: params.light_bgl,
+            shadow_bind_group_layout: params.shadow_bgl,
+            texture_bind_group_layout: params.texture_bgl,
+            scene_format: params.scene_format,
+            msaa_samples: params.msaa_samples,
+        };
+        let pbr_pipes = pbr::create_pbr_pipelines(device, &pbr_params);
         let grid_pipeline = grid::create_grid_pipeline(
             device,
-            camera_bgl,
-            light_bgl,
-            shadow_bgl,
-            scene_format,
-            msaa_samples,
+            params.camera_bgl,
+            params.light_bgl,
+            params.shadow_bgl,
+            params.scene_format,
+            params.msaa_samples,
         );
         let sprite_pipeline = sprite::create_sprite_pipeline(
             device,
-            camera_bgl,
-            texture_bgl,
-            light_bgl,
-            scene_format,
-            msaa_samples,
+            params.camera_bgl,
+            params.texture_bgl,
+            params.light_bgl,
+            params.scene_format,
+            params.msaa_samples,
         );
-        let sky_pipeline =
-            sky::create_sky_pipeline(device, camera_bgl, sky_bgl, scene_format, msaa_samples);
+        let sky_pipeline = sky::create_sky_pipeline(
+            device,
+            params.camera_bgl,
+            params.sky_bgl,
+            params.scene_format,
+            params.msaa_samples,
+        );
 
         self.render_pipeline = pbr_pipes.render_pipeline;
         self.render_pipeline_cw = pbr_pipes.render_pipeline_cw;

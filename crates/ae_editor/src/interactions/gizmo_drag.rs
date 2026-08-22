@@ -5,19 +5,28 @@ use crate::editor_state::EditorState;
 use ae_core::ecs::{Position, Rotation, Scale};
 use cgmath::{EuclideanSpace, Euler, Quaternion, Rad, Vector3};
 
+/// Parameters for processing gizmo drag interactions.
+pub struct GizmoDragParams<'a> {
+    pub editor: &'a mut EditorState,
+    pub camera: &'a ae_core::camera::Camera,
+    pub gizmo_system: &'a mut crate::gizmo::GizmoSystem,
+    pub ecs: &'a mut ae_core::ecs::EcsManager,
+    pub ui_gizmo_mode: crate::gizmo::GizmoMode,
+    pub ui_gizmo_space: crate::gizmo::space::GizmoSpace,
+    pub window_size: (u32, u32),
+    pub cursor_pos: (f64, f64),
+}
+
 /// Processes gizmo drag movement for Translate, Rotate, and Scale modes.
-#[allow(clippy::too_many_arguments)]
-pub fn handle_gizmo_drag(
-    editor: &mut EditorState,
-    camera: &ae_core::camera::Camera,
-    gizmo_system: &mut crate::gizmo::GizmoSystem,
-    ecs: &mut ae_core::ecs::EcsManager,
-    ui_gizmo_mode: crate::gizmo::GizmoMode,
-    ui_gizmo_space: crate::gizmo::space::GizmoSpace,
-    window_size: (u32, u32),
-    x: f64,
-    y: f64,
-) {
+pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
+    let editor = params.editor;
+    let camera = params.camera;
+    let gizmo_system = params.gizmo_system;
+    let ecs = params.ecs;
+    let ui_gizmo_mode = params.ui_gizmo_mode;
+    let ui_gizmo_space = params.ui_gizmo_space;
+    let window_size = params.window_size;
+    let (x, y) = params.cursor_pos;
     let selected_ent = match editor.selected_entities.first() {
         Some(&ent) => ent,
         None => return,

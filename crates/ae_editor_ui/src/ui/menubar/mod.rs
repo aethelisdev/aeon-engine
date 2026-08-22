@@ -8,25 +8,29 @@ mod file;
 pub(crate) mod help;
 mod view;
 
+/// Parameters for drawing the top menu bar.
+pub struct MenuBarDrawParams<'a> {
+    pub show_preferences: &'a mut bool,
+    pub show_about: &'a mut bool,
+    pub layout_state: &'a mut PanelLayoutState,
+    pub undo_stack: &'a [ae_editor::undo_redo::Command],
+    pub redo_stack: &'a [ae_editor::undo_redo::Command],
+    pub is_editing: bool,
+    pub ui_actions: &'a mut Vec<crate::ui::EngineUiAction>,
+}
+
 impl EngineUi {
     /// Renders the clean top menu bar panel of the engine editor.
     /// Manages file options, history/preferences configuration, view settings,
     /// modular panel anchors, and fast engine edit/play status toggling.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn draw_menu_bar(
-        show_preferences: &mut bool,
-        show_about: &mut bool,
-        _should_save_scene: &mut bool,
-        _should_load_scene: &mut bool,
-        layout_state: &mut PanelLayoutState,
-        ui: &mut egui::Ui,
-        _world: &hecs::World,
-        _mode: &ae_core::modules::EngineMode,
-        undo_stack: &[ae_editor::undo_redo::Command],
-        redo_stack: &[ae_editor::undo_redo::Command],
-        is_editing: bool,
-        ui_actions: &mut Vec<crate::ui::EngineUiAction>,
-    ) {
+    pub(super) fn draw_menu_bar(ui: &mut egui::Ui, params: MenuBarDrawParams<'_>) {
+        let show_preferences = params.show_preferences;
+        let show_about = params.show_about;
+        let layout_state = params.layout_state;
+        let undo_stack = params.undo_stack;
+        let redo_stack = params.redo_stack;
+        let is_editing = params.is_editing;
+        let ui_actions = params.ui_actions;
         egui::Panel::top("top_menu_bar")
             .frame(
                 egui::Frame::new()

@@ -28,6 +28,29 @@ pub enum SceneDialogAction {
     LoadFrom(std::path::PathBuf),
 }
 
+/// Parameters for rendering the entire Editor UI frame.
+pub struct EditorUiRenderParams<'a> {
+    pub device: &'a wgpu::Device,
+    pub queue: &'a wgpu::Queue,
+    pub encoder: &'a mut wgpu::CommandEncoder,
+    pub window: &'a Window,
+    pub window_surface_view: &'a wgpu::TextureView,
+    pub viewport_texture_view: Option<&'a wgpu::TextureView>,
+    pub fps: f32,
+    pub world: &'a hecs::World,
+    pub mode: &'a ae_core::modules::EngineMode,
+    pub undo_stack: &'a [ae_editor::undo_redo::Command],
+    pub redo_stack: &'a [ae_editor::undo_redo::Command],
+    pub graphics_settings: &'a ae_renderer::graphics_settings::GraphicsSettings,
+    pub snapping: &'a ae_editor::snapping::SnapSettings,
+    pub editor_state: &'a ae_editor::editor_state::EditorState,
+    pub camera: &'a ae_renderer::camera::Camera,
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    pub ui_actions: &'a mut Vec<EngineUiAction>,
+}
+
 /// The main UI management system for the Aeon Engine.
 /// Owns the egui context, winit state adapter, WGPU renderer, panel docking layout,
 /// and all persistent editor UI state (selection, inspector, preferences, console).
@@ -281,31 +304,27 @@ impl EngineUi {
 
     /// Orchestrates the drawing of all editor panels, toolbar menus, preference views,
     /// hierarchy snapshots, interactive HUD nodes, and overlay dialogs for the frame.
-    #[allow(clippy::too_many_arguments)]
-    pub fn render(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        window: &Window,
-        window_surface_view: &wgpu::TextureView,
-        viewport_texture_view: Option<&wgpu::TextureView>,
-        fps: f32,
-        world: &hecs::World,
-        mode: &ae_core::modules::EngineMode,
-        undo_stack: &[ae_editor::undo_redo::Command],
-        redo_stack: &[ae_editor::undo_redo::Command],
-        _view_matrix: cgmath::Matrix4<f32>,
-        _proj_matrix: cgmath::Matrix4<f32>,
-        graphics_settings: &ae_renderer::graphics_settings::GraphicsSettings,
-        snapping: &ae_editor::snapping::SnapSettings,
-        editor_state: &ae_editor::editor_state::EditorState,
-        camera: &ae_renderer::camera::Camera,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-        enabled_modules: &std::collections::HashSet<ae_core::modules::EngineModule>,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) -> egui::Rect {
+    pub fn render(&mut self, params: EditorUiRenderParams<'_>) -> egui::Rect {
+        let device = params.device;
+        let queue = params.queue;
+        let encoder = params.encoder;
+        let window = params.window;
+        let window_surface_view = params.window_surface_view;
+        let viewport_texture_view = params.viewport_texture_view;
+        let fps = params.fps;
+        let world = params.world;
+        let mode = params.mode;
+        let undo_stack = params.undo_stack;
+        let redo_stack = params.redo_stack;
+        let graphics_settings = params.graphics_settings;
+        let snapping = params.snapping;
+        let editor_state = params.editor_state;
+        let camera = params.camera;
+        let models = params.models;
+        let textures = params.textures;
+        let enabled_modules = params.enabled_modules;
+        let ui_actions = params.ui_actions;
+
         let alpha = 0.08f32;
         self.smoothed_fps = alpha * fps + (1.0 - alpha) * self.smoothed_fps;
 
@@ -364,8 +383,8 @@ impl EngineUi {
         // Destructure self fields to allow split borrows in the closure
         let show_preferences = &mut self.show_preferences;
         let show_about = &mut self.show_about;
-        let should_save_scene = &mut self.should_save_scene;
-        let should_load_scene = &mut self.should_load_scene;
+        let _should_save_scene = &mut self.should_save_scene;
+        let _should_load_scene = &mut self.should_load_scene;
         let preferences_tab = &mut self.preferences_tab;
         let selected_entity = &mut self.selected_entity;
         let last_selected_entity = &mut self.last_selected_entity;
@@ -406,18 +425,16 @@ impl EngineUi {
 
             // 1. Top Menu Bar
             Self::draw_menu_bar(
-                show_preferences,
-                show_about,
-                should_save_scene,
-                should_load_scene,
-                layout_state,
                 ui,
-                world,
-                mode,
-                undo_stack,
-                redo_stack,
-                is_editing,
-                ui_actions,
+                menubar::MenuBarDrawParams {
+                    show_preferences,
+                    show_about,
+                    layout_state,
+                    undo_stack,
+                    redo_stack,
+                    is_editing,
+                    ui_actions,
+                },
             );
 
             // 1.5 PREFERENCES WINDOW
@@ -427,18 +444,19 @@ impl EngineUi {
                 let mut temp_live_updates = editor_state.enable_live_editor_updates;
                 let mut temp_cfg = editor_state.config.clone();
 
-                let pref_resp = Self::draw_preferences_window(
-                    show_preferences,
-                    preferences_tab,
-                    &ctx,
-                    &mut temp_gs,
-                    &mut temp_snap,
-                    &mut temp_live_updates,
-                    &mut temp_cfg,
-                    enabled_modules,
-                    ui_actions,
-                    status_message,
-                );
+                let pref_resp =
+                    Self::draw_preferences_window(preferences::PreferencesWindowParams {
+                        show_preferences,
+                        preferences_tab,
+                        ctx: &ctx,
+                        graphics_settings: &mut temp_gs,
+                        snapping_settings: &mut temp_snap,
+                        enable_live_updates: &mut temp_live_updates,
+                        editor_config: &mut temp_cfg,
+                        enabled_modules,
+                        ui_actions,
+                        status_message,
+                    });
 
                 if temp_gs != *graphics_settings {
                     ui_actions.push(EngineUiAction::UpdateGraphicsSettings(temp_gs));

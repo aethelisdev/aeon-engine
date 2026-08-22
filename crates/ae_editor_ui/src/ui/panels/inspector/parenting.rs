@@ -54,7 +54,6 @@ impl EngineUi {
                             false
                         }
 
-                        #[allow(deprecated)]
                         egui::ComboBox::from_id_salt(egui::Id::new(("parent_combo", entity)))
                             .selected_text("Set Parent...")
                             .show_ui(ui, |ui| {

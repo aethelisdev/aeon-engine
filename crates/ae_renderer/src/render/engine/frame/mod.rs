@@ -198,7 +198,15 @@ impl RenderState {
         transparent_objs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
         // Buffer Prep
-        let mut all_instances = Vec::new();
+        let total_instances = triangle_instances.len()
+            + cube_instances.len()
+            + sphere_instances.len()
+            + cylinder_instances.len()
+            + capsule_instances.len()
+            + torus_instances.len()
+            + transparent_objs.len()
+            + model_instance_data.values().map(|v| v.len()).sum::<usize>();
+        let mut all_instances = Vec::with_capacity(total_instances);
         let tri_start = 0;
         for (inst, _) in &triangle_instances {
             all_instances.push(*inst);
@@ -286,26 +294,30 @@ impl RenderState {
 
         self.shadow.execute_pass(
             &mut encoder,
-            &self.graphics_settings,
-            &self.geometry,
-            &self.geometry.instance_buffer,
-            all_instances.len(),
-            triangle_instances.len(),
-            tri_start,
-            cube_instances.len(),
-            cube_start,
-            sphere_instances.len(),
-            sphere_start,
-            cylinder_instances.len(),
-            cylinder_start,
-            capsule_instances.len(),
-            capsule_start,
-            torus_instances.len(),
-            torus_start,
-            asset_manager,
-            &model_instance_data,
-            &model_starts,
-            &self.default_white_texture,
+            crate::render::shadow::ShadowPassParams {
+                graphics_settings: &self.graphics_settings,
+                primitives: &self.geometry,
+                instance_buffer: &self.geometry.instance_buffer,
+                offsets: crate::render::shadow::ShadowPassBatchOffsets {
+                    all_instances_count: all_instances.len(),
+                    triangle_instances_count: triangle_instances.len(),
+                    tri_start,
+                    cube_instances_count: cube_instances.len(),
+                    cube_start,
+                    sphere_instances_count: sphere_instances.len(),
+                    sphere_start,
+                    cylinder_instances_count: cylinder_instances.len(),
+                    cylinder_start,
+                    capsule_instances_count: capsule_instances.len(),
+                    capsule_start,
+                    torus_instances_count: torus_instances.len(),
+                    torus_start,
+                },
+                asset_manager,
+                model_instance_data: &model_instance_data,
+                model_starts: &model_starts,
+                default_white_texture: &self.default_white_texture,
+            },
         );
 
         // PASS 1: MAIN FORWARD PASS

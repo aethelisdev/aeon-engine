@@ -179,13 +179,15 @@ impl RenderState {
 
         let pipelines = crate::render::pipelines::PipelineManager::new(
             &device,
-            &uniforms.camera_bind_group_layout,
-            &uniforms.light_bind_group_layout,
-            &shadow.shadow_bind_group_layout,
-            &uniforms.texture_bind_group_layout,
-            &uniforms.sky_bind_group_layout,
-            post_process.scene_format,
-            initial_msaa,
+            &crate::render::pipelines::PipelineConfigParams {
+                camera_bgl: &uniforms.camera_bind_group_layout,
+                light_bgl: &uniforms.light_bind_group_layout,
+                shadow_bgl: &shadow.shadow_bind_group_layout,
+                texture_bgl: &uniforms.texture_bind_group_layout,
+                sky_bgl: &uniforms.sky_bind_group_layout,
+                scene_format: post_process.scene_format,
+                msaa_samples: initial_msaa,
+            },
         );
 
         let outline = crate::render::pipelines::outline::SelectionOutlinePass::new(
@@ -258,13 +260,15 @@ impl RenderState {
 
             self.pipelines.rebuild_for_msaa(
                 &self.device,
-                &self.uniforms.camera_bind_group_layout,
-                &self.uniforms.light_bind_group_layout,
-                &self.shadow.shadow_bind_group_layout,
-                &self.uniforms.texture_bind_group_layout,
-                &self.uniforms.sky_bind_group_layout,
-                self.post_process.scene_format,
-                new_msaa,
+                &crate::render::pipelines::PipelineConfigParams {
+                    camera_bgl: &self.uniforms.camera_bind_group_layout,
+                    light_bgl: &self.uniforms.light_bind_group_layout,
+                    shadow_bgl: &self.shadow.shadow_bind_group_layout,
+                    texture_bgl: &self.uniforms.texture_bind_group_layout,
+                    sky_bgl: &self.uniforms.sky_bind_group_layout,
+                    scene_format: self.post_process.scene_format,
+                    msaa_samples: new_msaa,
+                },
             );
 
             msaa_changed = Some(new_msaa);

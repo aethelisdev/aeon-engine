@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use glam::Vec3;
-use hecs::{Entity, World};
-use rapier3d::prelude::*;
 /// AE Physics — ECS to Rapier3D synchronization module.
-use std::collections::HashMap;
-
 use ae_core::ecs::{
     AssetHandle, CharacterController, Collider, ColliderShape, ModelId, Position, RigidBody,
     RigidBodyType, Rotation, Scale, Shape, TransformDirty, Velocity,
 };
+use glam::Vec3;
+use hecs::{Entity, World};
+use rapier3d::prelude::*;
 
 use super::PhysicsWorld;
 
@@ -49,22 +47,27 @@ impl PhysicsWorld {
         }
 
         // 2. Add or update active bodies
-        // Pre-allocate map capacity to avoid re-allocations based on active physics bodies
-        let mut active_entities = HashMap::with_capacity(self.entity_to_body.len().max(16));
-        for (entity, rb) in world.query::<(Entity, &RigidBody)>().iter() {
-            active_entities.insert(entity, (Some(*rb), None));
-        }
-        for (entity, col) in world.query::<(Entity, &Collider)>().iter() {
-            active_entities
-                .entry(entity)
-                .and_modify(|(_, c)| *c = Some(*col))
-                .or_insert((None, Some(*col)));
-        }
-        for (entity, _ctrl) in world.query::<(Entity, &CharacterController)>().iter() {
-            active_entities.entry(entity).or_insert((None, None));
+        // Reuse persistent scratch buffer capacity to eliminate heap allocations in hot loop
+        self.scratch_active_entities.clear();
+        for (entity, (rb, col, ctrl)) in world
+            .query::<(
+                Entity,
+                (
+                    Option<&ae_core::ecs::RigidBody>,
+                    Option<&ae_core::ecs::Collider>,
+                    Option<&ae_core::ecs::CharacterController>,
+                ),
+            )>()
+            .iter()
+        {
+            if rb.is_some() || col.is_some() || ctrl.is_some() {
+                self.scratch_active_entities
+                    .push((entity, rb.copied(), col.copied()));
+            }
         }
 
-        for (entity, (rb_comp, col_comp)) in active_entities {
+        for i in 0..self.scratch_active_entities.len() {
+            let (entity, rb_comp, col_comp) = self.scratch_active_entities[i];
             let (world_pos, world_rot, scale_comp) =
                 if let Ok(gt) = world.get::<&ae_core::ecs::GlobalTransform>(entity) {
                     let (trans, rot, scale) = ae_core::math::conversions::matrix4_to_glam_trs(gt.0);

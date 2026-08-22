@@ -71,7 +71,6 @@ impl EngineUi {
 
                     ui.horizontal(|ui| {
                         ui.label("Active Clip:");
-                        #[allow(deprecated)]
                         egui::ComboBox::from_id_salt(egui::Id::new(("anim_clip_combo", entity)))
                             .selected_text(current_name)
                             .show_ui(ui, |ui| {

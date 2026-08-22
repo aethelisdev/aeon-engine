@@ -5,24 +5,38 @@ use super::widgets::{
 };
 use crate::ui::{EngineUi, EngineUiAction};
 
+/// Parameters for drawing the Inspector panel contents.
+pub struct InspectorContentParams<'a> {
+    pub world: &'a hecs::World,
+    pub selected_entity: &'a mut Option<hecs::Entity>,
+    pub last_selected_entity: &'a mut Option<hecs::Entity>,
+    pub inspector_euler: &'a mut [f32; 3],
+    pub inspector_color_hex: &'a mut String,
+    pub saved_swatches: &'a mut Vec<[f32; 4]>,
+    pub is_editing: bool,
+    pub ui_actions: &'a mut Vec<EngineUiAction>,
+    pub editor_state: &'a ae_editor::editor_state::EditorState,
+    pub camera: &'a ae_renderer::camera::Camera,
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+}
+
 impl EngineUi {
     /// Renders the internal content of the Entity Component Inspector panel.
-    #[allow(clippy::too_many_arguments)]
-    pub fn draw_inspector_content(
-        ui: &mut egui::Ui,
-        world: &hecs::World,
-        selected_entity: &mut Option<hecs::Entity>,
-        last_selected_entity: &mut Option<hecs::Entity>,
-        inspector_euler: &mut [f32; 3],
-        inspector_color_hex: &mut String,
-        saved_swatches: &mut Vec<[f32; 4]>,
-        is_editing: bool,
-        ui_actions: &mut Vec<EngineUiAction>,
-        editor_state: &ae_editor::editor_state::EditorState,
-        camera: &ae_renderer::camera::Camera,
-        models: &ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-        _textures: &ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-    ) {
+    pub fn draw_inspector_content(ui: &mut egui::Ui, params: InspectorContentParams<'_>) {
+        let world = params.world;
+        let selected_entity = params.selected_entity;
+        let last_selected_entity = params.last_selected_entity;
+        let inspector_euler = params.inspector_euler;
+        let inspector_color_hex = params.inspector_color_hex;
+        let saved_swatches = params.saved_swatches;
+        let is_editing = params.is_editing;
+        let ui_actions = params.ui_actions;
+        let editor_state = params.editor_state;
+        let camera = params.camera;
+        let models = params.models;
+        let textures = params.textures;
+
         let ctx = ui.ctx().clone();
         ui.add_enabled_ui(is_editing, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -491,7 +505,7 @@ impl EngineUi {
                             editor_state,
                             camera,
                             models,
-                            textures: _textures,
+                            textures,
                             inspector_color_hex,
                             saved_swatches,
                         };

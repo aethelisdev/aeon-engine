@@ -30,7 +30,6 @@ impl EngineUi {
                         ae_core::ecs::RigidBodyType::Kinematic => 2,
                     };
                     let mut selected = type_idx;
-                    #[allow(deprecated)]
                     egui::ComboBox::from_id_salt("rb_type_combo")
                         .selected_text(type_labels[selected])
                         .show_ui(ui, |ui| {

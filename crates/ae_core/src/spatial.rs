@@ -39,6 +39,8 @@ pub struct SpatialGrid {
     pub last_entity_count: usize,
     /// Explicit dirty flag to trigger a full rebuild on the next `sync()` call.
     pub needs_rebuild: bool,
+    /// Reusable scratch buffer for dynamic entities to eliminate allocations during delta updates.
+    pub scratch_dynamic_entities: Vec<(Entity, [f32; 3])>,
 }
 
 impl SpatialGrid {
@@ -50,6 +52,7 @@ impl SpatialGrid {
             entity_to_cell: HashMap::new(),
             last_entity_count: usize::MAX, // Force rebuild on the first frame
             needs_rebuild: true,
+            scratch_dynamic_entities: Vec::with_capacity(128),
         }
     }
 
@@ -135,7 +138,7 @@ impl SpatialGrid {
             );
         } else {
             // Entity topology static: perform fast delta updates for dynamic/dirty entities
-            let mut dynamic_entities = Vec::new();
+            self.scratch_dynamic_entities.clear();
 
             // 1. Collect entities marked dirty, moving, KCC, or dynamic physics
             for (entity, (pos, gt, _dirty, _vel, _rb, _kcc)) in world
@@ -168,12 +171,13 @@ impl SpatialGrid {
                     } else {
                         [pos.x, pos.y, pos.z]
                     };
-                    dynamic_entities.push((entity, world_pos));
+                    self.scratch_dynamic_entities.push((entity, world_pos));
                 }
             }
 
             // 2. Update cell positions for dynamic entities whose grid cell shifted
-            for (entity, world_pos) in dynamic_entities {
+            for i in 0..self.scratch_dynamic_entities.len() {
+                let (entity, world_pos) = self.scratch_dynamic_entities[i];
                 let new_cell = self.world_to_grid(world_pos);
                 let current_cell = self.entity_to_cell.get(&entity).copied();
 

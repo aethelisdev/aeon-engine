@@ -12,16 +12,27 @@ pub(crate) struct PbrPipelines {
     pub wireframe_pipeline: wgpu::RenderPipeline,
 }
 
+/// Parameters required for creating PBR pipelines.
+pub(crate) struct PbrPipelineParams<'a> {
+    pub camera_bind_group_layout: &'a wgpu::BindGroupLayout,
+    pub light_bind_group_layout: &'a wgpu::BindGroupLayout,
+    pub shadow_bind_group_layout: &'a wgpu::BindGroupLayout,
+    pub texture_bind_group_layout: &'a wgpu::BindGroupLayout,
+    pub scene_format: wgpu::TextureFormat,
+    pub msaa_samples: u32,
+}
+
 /// Creates the PBR rendering pipelines modernized for Wgpu 23+ (v2026 stable).
 pub(crate) fn create_pbr_pipelines(
     device: &wgpu::Device,
-    camera_bind_group_layout: &wgpu::BindGroupLayout,
-    light_bind_group_layout: &wgpu::BindGroupLayout,
-    shadow_bind_group_layout: &wgpu::BindGroupLayout,
-    texture_bind_group_layout: &wgpu::BindGroupLayout,
-    scene_format: wgpu::TextureFormat,
-    msaa_samples: u32,
+    params: &PbrPipelineParams<'_>,
 ) -> PbrPipelines {
+    let camera_bind_group_layout = params.camera_bind_group_layout;
+    let light_bind_group_layout = params.light_bind_group_layout;
+    let shadow_bind_group_layout = params.shadow_bind_group_layout;
+    let texture_bind_group_layout = params.texture_bind_group_layout;
+    let scene_format = params.scene_format;
+    let msaa_samples = params.msaa_samples;
     let shader = device.create_shader_module(wgpu::include_wgsl!("../../shaders/shader.wgsl"));
 
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

@@ -4,8 +4,7 @@
 //! Unit tests for texture data, procedural fallbacks, mipmap generation, path sanitization, and asset storage.
 
 #[cfg(test)]
-#[allow(clippy::module_inception)]
-mod tests {
+mod unit_tests {
     use crate::asset::{TexturePathMap, TextureStorage};
     use crate::data::{
         ColorSpace, CompressedTextureFormat, CpuTextureData, FilterMode, SamplerConfig,

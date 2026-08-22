@@ -155,18 +155,20 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
             PanelId::Inspector => {
                 EngineUi::draw_inspector_content(
                     ui,
-                    self.world,
-                    self.selected_entity,
-                    self.last_selected_entity,
-                    self.inspector_euler,
-                    self.inspector_color_hex,
-                    self.saved_swatches,
-                    self.is_editing,
-                    self.ui_actions,
-                    self.editor_state,
-                    self.camera,
-                    self.models,
-                    self.textures,
+                    crate::ui::panels::inspector::panel::InspectorContentParams {
+                        world: self.world,
+                        selected_entity: self.selected_entity,
+                        last_selected_entity: self.last_selected_entity,
+                        inspector_euler: self.inspector_euler,
+                        inspector_color_hex: self.inspector_color_hex,
+                        saved_swatches: self.saved_swatches,
+                        is_editing: self.is_editing,
+                        ui_actions: self.ui_actions,
+                        editor_state: self.editor_state,
+                        camera: self.camera,
+                        models: self.models,
+                        textures: self.textures,
+                    },
                 );
             }
             PanelId::MaterialEditor => {

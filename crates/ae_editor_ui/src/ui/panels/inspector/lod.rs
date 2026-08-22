@@ -68,7 +68,6 @@ impl EngineUi {
                     ui.horizontal(|ui| {
                         ui.label("LOD 0 (High):");
                         let current_name = get_model_name(lod.lod_0);
-                        #[allow(deprecated)]
                         egui::ComboBox::from_id_salt(egui::Id::new(("lod0_combo", entity)))
                             .selected_text(current_name)
                             .show_ui(ui, |ui| {
@@ -92,7 +91,6 @@ impl EngineUi {
                             .lod_1
                             .map(&mut get_model_name)
                             .unwrap_or_else(|| "None".to_string());
-                        #[allow(deprecated)]
                         egui::ComboBox::from_id_salt(egui::Id::new(("lod1_combo", entity)))
                             .selected_text(current_name)
                             .show_ui(ui, |ui| {
@@ -123,7 +121,6 @@ impl EngineUi {
                             .lod_2
                             .map(&mut get_model_name)
                             .unwrap_or_else(|| "None".to_string());
-                        #[allow(deprecated)]
                         egui::ComboBox::from_id_salt(egui::Id::new(("lod2_combo", entity)))
                             .selected_text(current_name)
                             .show_ui(ui, |ui| {

@@ -6,21 +6,43 @@ pub mod editor;
 pub mod graphics;
 pub mod modules;
 
+/// Parameters for drawing the editor preferences window.
+pub struct PreferencesWindowParams<'a> {
+    pub show_preferences: &'a mut bool,
+    pub preferences_tab: &'a mut u8,
+    pub ctx: &'a egui::Context,
+    pub graphics_settings: &'a mut ae_renderer::graphics_settings::GraphicsSettings,
+    pub snapping_settings: &'a mut ae_editor::snapping::SnapSettings,
+    pub enable_live_updates: &'a mut bool,
+    pub editor_config: &'a mut ae_editor::editor_state::EditorConfig,
+    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    pub ui_actions: &'a mut Vec<super::EngineUiAction>,
+    pub status_message: &'a mut Option<(Vec<(String, egui::Color32)>, std::time::Instant)>,
+}
+
 impl EngineUi {
-    /// Renders the Preferences window of the engine editor.
-    #[allow(clippy::too_many_arguments)]
+    /// Renders the floating modal/window for configuring project and engine preferences.
+    /// Supports the following configurations:
+    ///   - `General`: Live updates toggle, layout reset.
+    ///   - `Snapping`: Movement, rotation, scale grids.
+    ///   - `Graphics`: Directly modifies `GraphicsSettings` (Shadows, MSAA, Bloom).
+    ///   - `Navigation`: Tab persistence via `preferences_tab`.
+    /// - UI PATTERN: Split-pane layout with a vertical sidebar and scrollable content area.
+    /// - PERSISTENCE: Modifies the `graphics_settings` which are usually passed from the main loop.
     pub(super) fn draw_preferences_window(
-        show_preferences: &mut bool,
-        preferences_tab: &mut u8,
-        ctx: &egui::Context,
-        graphics_settings: &mut ae_renderer::graphics_settings::GraphicsSettings,
-        snapping_settings: &mut ae_editor::snapping::SnapSettings,
-        enable_live_updates: &mut bool,
-        editor_config: &mut ae_editor::editor_state::EditorConfig,
-        enabled_modules: &std::collections::HashSet<ae_core::modules::EngineModule>,
-        ui_actions: &mut Vec<super::EngineUiAction>,
-        status_message: &mut Option<(Vec<(String, egui::Color32)>, std::time::Instant)>,
+        params: PreferencesWindowParams<'_>,
     ) -> Option<egui::Rect> {
+        let show_preferences = params.show_preferences;
+        let preferences_tab = params.preferences_tab;
+        let ctx = params.ctx;
+        let graphics_settings = params.graphics_settings;
+        let snapping_settings = params.snapping_settings;
+        let enable_live_updates = params.enable_live_updates;
+        let editor_config = params.editor_config;
+        let enabled_modules = params.enabled_modules;
+        let ui_actions = params.ui_actions;
+        let status_message = params.status_message;
+
         let mut show_pref = *show_preferences;
         let mut rect = None;
         if show_pref {

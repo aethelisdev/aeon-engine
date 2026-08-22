@@ -20,14 +20,12 @@ impl ViewportRect {
 }
 
 /// Viewport descriptor for sub-region rendering (currently unused but reserved).
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct Viewport {
     pub position: [f32; 2],
     pub size: [f32; 2],
 }
 
-#[allow(dead_code)]
 impl Default for Viewport {
     fn default() -> Self {
         Self {
@@ -183,20 +181,21 @@ impl RenderScene {
             fog_params: [0.0; 4],
         };
 
-        let _total_ents = world.len() as usize;
-        let mut triangle_instances = Vec::new();
-        let mut cube_instances = Vec::new();
-        let mut sphere_instances = Vec::new();
-        let mut cylinder_instances = Vec::new();
-        let mut capsule_instances = Vec::new();
-        let mut torus_instances = Vec::new();
-        let mut transparent_objs: Vec<(f32, crate::asset::AssetHandle, Instance)> = Vec::new();
+        let total_ents = world.len() as usize;
+        let mut triangle_instances = Vec::with_capacity(total_ents.max(4));
+        let mut cube_instances = Vec::with_capacity(total_ents.max(16));
+        let mut sphere_instances = Vec::with_capacity(total_ents.max(4));
+        let mut cylinder_instances = Vec::with_capacity(total_ents.max(4));
+        let mut capsule_instances = Vec::with_capacity(total_ents.max(4));
+        let mut torus_instances = Vec::with_capacity(total_ents.max(4));
+        let mut transparent_objs: Vec<(f32, crate::asset::AssetHandle, Instance)> =
+            Vec::with_capacity(total_ents.max(4));
         let mut model_instance_data: std::collections::HashMap<
             crate::asset::AssetHandle,
             Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-        > = std::collections::HashMap::new();
-        let mut selected_primitive_instances = Vec::new();
-        let mut selected_model_instances = Vec::new();
+        > = std::collections::HashMap::with_capacity(16);
+        let mut selected_primitive_instances = Vec::with_capacity(selected_entities.len().max(2));
+        let mut selected_model_instances = Vec::with_capacity(selected_entities.len().max(2));
 
         // Use dedicated culling matrix (shorter zfar=400) to aggressively cull distant objects
         // on the CPU. The actual render matrix uses zfar=2000 for visual depth quality.

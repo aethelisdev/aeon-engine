@@ -127,13 +127,15 @@ impl AeEngine {
                         let dist = (p - cam_pos).dot(cam_fwd).abs().max(1e-6);
                         let screen = self.gizmo_screen_params();
                         self.gizmo_system.prepare_overlay(
-                            &self.render_state.queue,
-                            p,
-                            dist,
-                            self.camera.build_view_projection_matrix(),
-                            &screen,
-                            right_dir,
-                            up_dir,
+                            ae_editor::gizmo::render::GizmoOverlayPrepareParams {
+                                queue: &self.render_state.queue,
+                                gizmo_pos: p,
+                                camera_distance: dist,
+                                view_proj: self.camera.build_view_projection_matrix(),
+                                screen: &screen,
+                                cam_right: right_dir,
+                                cam_up: up_dir,
+                            },
                         );
                         Some(&self.gizmo_system as &dyn ae_renderer::render::OverlayRenderer)
                     } else {
@@ -247,29 +249,27 @@ impl AeEngine {
              surface_view: &wgpu::TextureView,
              viewport_texture_view: Option<&wgpu::TextureView>| {
                 ui.sync_console();
-                let rect = ui.render(
+                let rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
                     encoder,
                     window,
-                    surface_view,
+                    window_surface_view: surface_view,
                     viewport_texture_view,
                     fps,
                     world,
                     mode,
-                    &editor.undo_stack,
-                    &editor.redo_stack,
-                    camera.build_view_matrix(),
-                    camera.build_projection_matrix(),
-                    &graphics_settings,
+                    undo_stack: &editor.undo_stack,
+                    redo_stack: &editor.redo_stack,
+                    graphics_settings: &graphics_settings,
                     snapping,
-                    editor,
+                    editor_state: editor,
                     camera,
-                    &asset_manager.models,
-                    &asset_manager.textures,
-                    &event_bus.enabled_modules,
-                    &mut ui_actions,
-                );
+                    models: &asset_manager.models,
+                    textures: &asset_manager.textures,
+                    enabled_modules: &event_bus.enabled_modules,
+                    ui_actions: &mut ui_actions,
+                });
                 ae_renderer::render::ViewportRect {
                     min_x: rect.min.x,
                     min_y: rect.min.y,

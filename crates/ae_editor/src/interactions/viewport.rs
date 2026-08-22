@@ -54,17 +54,16 @@ pub fn handle_cursor_moved(
     if editor.gizmo_dragging && editor.left_mouse_pressed && is_edit_mode {
         let (local_x, local_y, local_size) =
             map_window_to_viewport(x, y, window_size, last_viewport_rect, scale_factor);
-        handle_gizmo_drag(
+        handle_gizmo_drag(super::gizmo_drag::GizmoDragParams {
             editor,
             camera,
             gizmo_system,
             ecs,
             ui_gizmo_mode,
             ui_gizmo_space,
-            local_size,
-            local_x as f64,
-            local_y as f64,
-        );
+            window_size: local_size,
+            cursor_pos: (local_x as f64, local_y as f64),
+        });
     }
 }
 

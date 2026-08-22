@@ -30,6 +30,29 @@ impl GizmoVertex {
     }
 }
 
+/// Parameters for legacy standalone gizmo render pass execution.
+pub struct GizmoStandaloneRenderParams<'a> {
+    pub queue: &'a wgpu::Queue,
+    pub encoder: &'a mut wgpu::CommandEncoder,
+    pub view: &'a wgpu::TextureView,
+    pub depth_view: &'a wgpu::TextureView,
+    pub gizmo_pos: Vector3<f32>,
+    pub camera_pos: Vector3<f32>,
+    pub view_proj: Matrix4<f32>,
+    pub screen: &'a GizmoScreenParams,
+}
+
+/// Parameters for preparing gizmo overlay uniforms.
+pub struct GizmoOverlayPrepareParams<'a> {
+    pub queue: &'a wgpu::Queue,
+    pub gizmo_pos: Vector3<f32>,
+    pub camera_distance: f32,
+    pub view_proj: Matrix4<f32>,
+    pub screen: &'a GizmoScreenParams,
+    pub cam_right: Vector3<f32>,
+    pub cam_up: Vector3<f32>,
+}
+
 impl GizmoSystem {
     /// Creates a new GizmoSystem with its own WGPU pipeline, vertex buffers,
     /// and uniform buffer. Generates all geometry upfront for Translate, Rotate, and Scale modes.
@@ -202,43 +225,41 @@ impl GizmoSystem {
     }
 
     /// Legacy render API — opens its own render pass and calls `draw_in_render_pass`.
-    #[allow(clippy::too_many_arguments)]
-    pub fn render(
-        &self,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
-        depth_view: &wgpu::TextureView,
-        gizmo_pos: Vector3<f32>,
-        camera_pos: Vector3<f32>,
-        view_proj: Matrix4<f32>,
-        screen: &GizmoScreenParams,
-    ) {
+    pub fn render(&self, params: GizmoStandaloneRenderParams<'_>) {
         // Legacy render() API starts a render pass and calls the `draw_in_render_pass` function.
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Gizmo Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
+        let mut pass = params
+            .encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Gizmo Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: params.view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: params.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
                 }),
-                stencil_ops: None,
-            }),
-            ..Default::default()
-        });
+                ..Default::default()
+            });
 
-        let dist_cam = (camera_pos - gizmo_pos).magnitude();
-        self.draw_in_render_pass(queue, &mut pass, gizmo_pos, dist_cam, view_proj, screen);
+        let dist_cam = (params.camera_pos - params.gizmo_pos).magnitude();
+        self.draw_in_render_pass(
+            params.queue,
+            &mut pass,
+            params.gizmo_pos,
+            dist_cam,
+            params.view_proj,
+            params.screen,
+        );
     }
 
     /// Draws the gizmo inside an existing render pass (no pass creation).
@@ -464,22 +485,12 @@ impl GizmoSystem {
     /// Prepares the gizmo GPU state for an upcoming `draw_overlay()` call.
     /// Writes the MVP uniform buffer based on gizmo position, camera distance,
     /// and screen params. Must be called BEFORE `draw_overlay()` in the same frame.
-    #[allow(clippy::too_many_arguments)]
-    pub fn prepare_overlay(
-        &self,
-        queue: &wgpu::Queue,
-        gizmo_pos: Vector3<f32>,
-        camera_distance: f32,
-        view_proj: Matrix4<f32>,
-        screen: &GizmoScreenParams,
-        cam_right: Vector3<f32>,
-        cam_up: Vector3<f32>,
-    ) {
-        self.cam_right.set(cam_right);
-        self.cam_up.set(cam_up);
+    pub fn prepare_overlay(&self, params: GizmoOverlayPrepareParams<'_>) {
+        self.cam_right.set(params.cam_right);
+        self.cam_up.set(params.cam_up);
 
-        let dist = camera_distance.max(1e-6);
-        let axis_len_world = screen.axis_length_world(dist);
+        let dist = params.camera_distance.max(1e-6);
+        let axis_len_world = params.screen.axis_length_world(dist);
         let scale = axis_len_world;
 
         // Entity rotation is applied in Local mode, aligning the axes to the object.
@@ -488,10 +499,13 @@ impl GizmoSystem {
         } else {
             Matrix4::identity()
         };
-        let model =
-            Matrix4::from_translation(gizmo_pos) * rotation_matrix * Matrix4::from_scale(scale);
-        let mvp: [[f32; 4]; 4] = (view_proj * model).into();
-        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&mvp));
+        let model = Matrix4::from_translation(params.gizmo_pos)
+            * rotation_matrix
+            * Matrix4::from_scale(scale);
+        let mvp: [[f32; 4]; 4] = (params.view_proj * model).into();
+        params
+            .queue
+            .write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&mvp));
     }
 }
 

@@ -49,6 +49,12 @@ pub struct PhysicsWorld {
     pub scratch_to_remove: Vec<Entity>,
     /// Reusable scratch buffer for entities whose dirty flags will be cleared.
     pub scratch_dirty_to_clear: Vec<Entity>,
+    /// Reusable scratch buffer for active entities to avoid allocations in hot sync loop.
+    pub scratch_active_entities: Vec<(
+        Entity,
+        Option<ae_core::ecs::RigidBody>,
+        Option<ae_core::ecs::Collider>,
+    )>,
 }
 
 /// Default solver and material constants for `PhysicsWorld`.
@@ -83,6 +89,7 @@ impl PhysicsWorld {
             body_to_entity: HashMap::new(),
             scratch_to_remove: Vec::with_capacity(32),
             scratch_dirty_to_clear: Vec::with_capacity(64),
+            scratch_active_entities: Vec::with_capacity(64),
         }
     }
 

@@ -26,6 +26,42 @@ pub struct ShadowSystem {
     pub shadow_pass_bind_groups: [wgpu::BindGroup; 4],
 }
 
+/// Encapsulates primitive counts and start offsets for shadow depth rendering passes.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ShadowPassBatchOffsets {
+    pub all_instances_count: usize,
+    pub triangle_instances_count: usize,
+    pub tri_start: usize,
+    pub cube_instances_count: usize,
+    pub cube_start: usize,
+    pub sphere_instances_count: usize,
+    pub sphere_start: usize,
+    pub cylinder_instances_count: usize,
+    pub cylinder_start: usize,
+    pub capsule_instances_count: usize,
+    pub capsule_start: usize,
+    pub torus_instances_count: usize,
+    pub torus_start: usize,
+}
+
+/// Encapsulates all context and parameters required to execute depth-only shadow passes.
+pub struct ShadowPassParams<'a> {
+    pub graphics_settings: &'a crate::graphics_settings::GraphicsSettings,
+    pub primitives: &'a crate::render::primitives::GeometrySystem,
+    pub instance_buffer: &'a wgpu::Buffer,
+    pub offsets: ShadowPassBatchOffsets,
+    pub asset_manager: &'a crate::asset::AssetManager,
+    pub model_instance_data: &'a HashMap<
+        crate::asset::AssetHandle,
+        Vec<(
+            crate::render::types::Instance,
+            Option<crate::asset::AssetHandle>,
+        )>,
+    >,
+    pub model_starts: &'a HashMap<crate::asset::AssetHandle, usize>,
+    pub default_white_texture: &'a crate::render::TextureAsset,
+}
+
 impl ShadowSystem {
     /// Initializes the shadow system with the configured resolution and cascade count.
     pub fn new(
@@ -415,42 +451,33 @@ impl ShadowSystem {
 
     /// Executes depth-only shadow passes for all active cascades, rendering
     /// triangles, cubes, sphere, cylinder, capsule, torus, and imported models into the shadow map array.
-    #[allow(clippy::too_many_arguments)]
-    pub fn execute_pass(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        graphics_settings: &crate::graphics_settings::GraphicsSettings,
-        primitives: &crate::render::primitives::GeometrySystem,
-        instance_buffer: &wgpu::Buffer,
-        all_instances_count: usize,
-        triangle_instances_count: usize,
-        tri_start: usize,
-        cube_instances_count: usize,
-        cube_start: usize,
-        sphere_instances_count: usize,
-        sphere_start: usize,
-        cylinder_instances_count: usize,
-        cylinder_start: usize,
-        capsule_instances_count: usize,
-        capsule_start: usize,
-        torus_instances_count: usize,
-        torus_start: usize,
-        asset_manager: &crate::asset::AssetManager,
-        model_instance_data: &HashMap<
-            crate::asset::AssetHandle,
-            Vec<(
-                crate::render::types::Instance,
-                Option<crate::asset::AssetHandle>,
-            )>,
-        >,
-        model_starts: &HashMap<crate::asset::AssetHandle, usize>,
-        default_white_texture: &crate::render::TextureAsset,
-    ) {
-        if !graphics_settings.shadow_enabled || all_instances_count == 0 {
+    pub fn execute_pass(&self, encoder: &mut wgpu::CommandEncoder, params: ShadowPassParams<'_>) {
+        if !params.graphics_settings.shadow_enabled || params.offsets.all_instances_count == 0 {
             return;
         }
 
-        let cascades = graphics_settings.shadow_cascades.clamp(1, 4) as usize;
+        let cascades = params.graphics_settings.shadow_cascades.clamp(1, 4) as usize;
+        let primitives = params.primitives;
+        let instance_buffer = params.instance_buffer;
+        let offsets = params.offsets;
+        let asset_manager = params.asset_manager;
+        let model_instance_data = params.model_instance_data;
+        let model_starts = params.model_starts;
+        let default_white_texture = params.default_white_texture;
+
+        let triangle_instances_count = offsets.triangle_instances_count;
+        let tri_start = offsets.tri_start;
+        let cube_instances_count = offsets.cube_instances_count;
+        let cube_start = offsets.cube_start;
+        let sphere_instances_count = offsets.sphere_instances_count;
+        let sphere_start = offsets.sphere_start;
+        let cylinder_instances_count = offsets.cylinder_instances_count;
+        let cylinder_start = offsets.cylinder_start;
+        let capsule_instances_count = offsets.capsule_instances_count;
+        let capsule_start = offsets.capsule_start;
+        let torus_instances_count = offsets.torus_instances_count;
+        let torus_start = offsets.torus_start;
+
         for cascade_idx in 0..cascades {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some(&format!("Shadow Pass {}", cascade_idx)),
