@@ -80,28 +80,26 @@ impl EngineUi {
                                 .add(
                                     egui::DragValue::new(&mut updated.min_distance)
                                         .speed(0.1)
-                                        .range(0.0..=100.0),
+                                        .range(0.1..=100.0),
                                 )
                                 .changed()
                             {
                                 changed = true;
                             }
                         });
-                        updated.min_distance = updated.min_distance.max(0.01);
                         ui.horizontal(|ui| {
                             ui.label("Max Dist:");
                             if ui
                                 .add(
                                     egui::DragValue::new(&mut updated.max_distance)
                                         .speed(1.0)
-                                        .range(0.0..=1000.0),
+                                        .range(1.0..=1000.0),
                                 )
                                 .changed()
                             {
                                 changed = true;
                             }
                         });
-                        updated.max_distance = updated.max_distance.max(updated.min_distance);
                     }
                 },
             );

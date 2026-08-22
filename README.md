@@ -3,7 +3,6 @@
 
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-orange.svg)](https://opensource.org/licenses/MPL-2.0)
 [![Status](https://img.shields.io/badge/status-in_active_development-green)](https://github.com/aethelisdev/aeon-engine)
-[![Rust CI](https://github.com/aethelisdev/aeon-engine/actions/workflows/rust.yml/badge.svg)](https://github.com/aethelisdev/aeon-engine/actions/workflows/rust.yml)
 [![Rust](https://img.shields.io/badge/rust-v1.98.0-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![YouTube](https://img.shields.io/badge/AeonEngine-FF0000?style=flat&logo=youtube&logoColor=white)](https://youtube.com/@Aeonengine)
 [![Instagram](https://img.shields.io/badge/AeonEngine-E4405F?style=flat&logo=instagram&logoColor=white)](https://instagram.com/aeonengine)

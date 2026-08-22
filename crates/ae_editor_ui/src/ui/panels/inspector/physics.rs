@@ -50,10 +50,9 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut mass)
                                 .speed(0.1)
-                                .range(0.0..=10000.0),
+                                .range(0.001..=10000.0),
                         );
                     });
-                    mass = mass.max(0.001);
                     ui.horizontal(|ui| {
                         ui.label("Gravity:");
                         ui.add(
@@ -181,34 +180,27 @@ impl EngineUi {
                                 ui.add(
                                     egui::DragValue::new(&mut half_extents[0])
                                         .speed(0.05)
-                                        .range(0.0..=1000.0)
                                         .prefix("X: "),
                                 );
                                 ui.add(
                                     egui::DragValue::new(&mut half_extents[1])
                                         .speed(0.05)
-                                        .range(0.0..=1000.0)
                                         .prefix("Y: "),
                                 );
                                 ui.add(
                                     egui::DragValue::new(&mut half_extents[2])
                                         .speed(0.05)
-                                        .range(0.0..=1000.0)
                                         .prefix("Z: "),
                                 );
                             });
-                            half_extents[0] = half_extents[0].max(0.001);
-                            half_extents[1] = half_extents[1].max(0.001);
-                            half_extents[2] = half_extents[2].max(0.001);
                         }
                         ae_core::ecs::ColliderShape::Sphere { radius } => {
                             ui.horizontal(|ui| {
                                 ui.label("Radius:");
                                 ui.add(
-                                    egui::DragValue::new(radius).speed(0.05).range(0.0..=1000.0),
+                                    egui::DragValue::new(radius).speed(0.05).range(0.01..=100.0),
                                 );
                             });
-                            *radius = (*radius).max(0.001);
                         }
                         ae_core::ecs::ColliderShape::Capsule {
                             half_height,
@@ -220,13 +212,13 @@ impl EngineUi {
                                 ui.add(
                                     egui::DragValue::new(half_height)
                                         .speed(0.05)
-                                        .range(0.0..=1000.0),
+                                        .range(0.05..=100.0),
                                 );
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Radius:");
                                 ui.add(
-                                    egui::DragValue::new(radius).speed(0.05).range(0.0..=1000.0),
+                                    egui::DragValue::new(radius).speed(0.05).range(0.01..=100.0),
                                 );
                             });
                             ui.horizontal(|ui| {
@@ -237,8 +229,6 @@ impl EngineUi {
                                         .range(-50.0..=50.0),
                                 );
                             });
-                            *half_height = (*half_height).max(0.001);
-                            *radius = (*radius).max(0.001);
                         }
                         _ => {}
                     }
@@ -248,10 +238,9 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut friction)
                                 .speed(0.02)
-                                .range(0.0..=10.0),
+                                .range(0.0..=1.0),
                         );
                     });
-                    friction = friction.max(0.0);
 
                     ui.horizontal(|ui| {
                         ui.label("Restitution:");
@@ -261,7 +250,6 @@ impl EngineUi {
                                 .range(0.0..=1.0),
                         );
                     });
-                    restitution = restitution.clamp(0.0, 1.0);
 
                     ui.horizontal(|ui| {
                         ui.checkbox(&mut is_sensor, "Is Sensor (Trigger)");
@@ -313,25 +301,23 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut height)
                                 .speed(0.05)
-                                .range(0.0..=100.0),
+                                .range(0.1..=10.0),
                         );
                     });
-                    height = height.max(0.01);
                     ui.horizontal(|ui| {
                         ui.label("Radius:");
                         ui.add(
                             egui::DragValue::new(&mut radius)
                                 .speed(0.02)
-                                .range(0.0..=50.0),
+                                .range(0.05..=5.0),
                         );
                     });
-                    radius = radius.max(0.01);
                     ui.horizontal(|ui| {
                         ui.label("Center Y:");
                         ui.add(
                             egui::DragValue::new(&mut center_y)
                                 .speed(0.02)
-                                .range(-50.0..=50.0),
+                                .range(-5.0..=5.0),
                         );
                     });
                     ui.horizontal(|ui| {
@@ -348,10 +334,9 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut step_height)
                                 .speed(0.02)
-                                .range(0.0..=10.0),
+                                .range(0.0..=1.0),
                         );
                     });
-                    step_height = step_height.max(0.0);
 
                     let status_text = if ctrl.is_grounded {
                         "🟢 Grounded"

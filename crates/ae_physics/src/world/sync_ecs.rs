@@ -439,13 +439,13 @@ impl PhysicsWorld {
 
         let col_builder = match col.shape {
             ColliderShape::Box { half_extents } => ColliderBuilder::cuboid(
-                (half_extents[0].abs() * sx).max(1e-4),
-                (half_extents[1].abs() * sy).max(1e-4),
-                (half_extents[2].abs() * sz).max(1e-4),
+                half_extents[0] * sx,
+                half_extents[1] * sy,
+                half_extents[2] * sz,
             ),
             ColliderShape::Sphere { radius } => {
                 let s = sx.max(sy).max(sz);
-                ColliderBuilder::ball((radius.abs() * s).max(1e-4))
+                ColliderBuilder::ball(radius * s)
             }
             ColliderShape::Capsule {
                 half_height,
@@ -458,11 +458,11 @@ impl PhysicsWorld {
                 } else {
                     center_y
                 };
-                ColliderBuilder::capsule_y(
-                    (half_height.abs() * sy).max(1e-4),
-                    (radius.abs() * s_xz).max(1e-4),
-                )
-                .translation(Vec3::new(0.0, offset_y * sy, 0.0))
+                ColliderBuilder::capsule_y(half_height * sy, radius * s_xz).translation(Vec3::new(
+                    0.0,
+                    offset_y * sy,
+                    0.0,
+                ))
             }
             ColliderShape::Trimesh => {
                 if let Ok(model_id) = world.get::<&ModelId>(entity) {
