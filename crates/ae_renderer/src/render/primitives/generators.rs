@@ -118,7 +118,7 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [u0, 1.0],
         });
 
-        // Top cap: CCW looking from +Y down (normal +Y)
+        // Top cap: CCW looking from +Y down (normal +Y UP): top_center -> [x1] -> [x0]
         vertices.push(Vertex {
             position: top_center,
             color: [1.0; 3],
@@ -126,19 +126,19 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [0.5, 0.5],
         });
         vertices.push(Vertex {
-            position: [x0, 0.5, z0],
-            color: [1.0; 3],
-            normal: [0.0, 1.0, 0.0],
-            uv: [x0 + 0.5, z0 + 0.5],
-        });
-        vertices.push(Vertex {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
             normal: [0.0, 1.0, 0.0],
             uv: [x1 + 0.5, z1 + 0.5],
         });
+        vertices.push(Vertex {
+            position: [x0, 0.5, z0],
+            color: [1.0; 3],
+            normal: [0.0, 1.0, 0.0],
+            uv: [x0 + 0.5, z0 + 0.5],
+        });
 
-        // Bottom cap: CCW looking from -Y up (normal -Y)
+        // Bottom cap: CCW looking from -Y up (normal -Y DOWN): bottom_center -> [x0] -> [x1]
         vertices.push(Vertex {
             position: bottom_center,
             color: [1.0; 3],
@@ -146,16 +146,16 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [0.5, 0.5],
         });
         vertices.push(Vertex {
-            position: [x1, -0.5, z1],
-            color: [1.0; 3],
-            normal: [0.0, -1.0, 0.0],
-            uv: [x1 + 0.5, z1 + 0.5],
-        });
-        vertices.push(Vertex {
             position: [x0, -0.5, z0],
             color: [1.0; 3],
             normal: [0.0, -1.0, 0.0],
             uv: [x0 + 0.5, z0 + 0.5],
+        });
+        vertices.push(Vertex {
+            position: [x1, -0.5, z1],
+            color: [1.0; 3],
+            normal: [0.0, -1.0, 0.0],
+            uv: [x1 + 0.5, z1 + 0.5],
         });
     }
 
