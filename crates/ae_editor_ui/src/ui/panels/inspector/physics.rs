@@ -50,9 +50,10 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut mass)
                                 .speed(0.1)
-                                .range(0.001..=10000.0),
+                                .range(0.0..=10000.0),
                         );
                     });
+                    mass = mass.max(0.001);
                     ui.horizontal(|ui| {
                         ui.label("Gravity:");
                         ui.add(
@@ -180,19 +181,19 @@ impl EngineUi {
                                 ui.add(
                                     egui::DragValue::new(&mut half_extents[0])
                                         .speed(0.05)
-                                        .range(0.01..=1000.0)
+                                        .range(0.0..=1000.0)
                                         .prefix("X: "),
                                 );
                                 ui.add(
                                     egui::DragValue::new(&mut half_extents[1])
                                         .speed(0.05)
-                                        .range(0.01..=1000.0)
+                                        .range(0.0..=1000.0)
                                         .prefix("Y: "),
                                 );
                                 ui.add(
                                     egui::DragValue::new(&mut half_extents[2])
                                         .speed(0.05)
-                                        .range(0.01..=1000.0)
+                                        .range(0.0..=1000.0)
                                         .prefix("Z: "),
                                 );
                             });
@@ -204,9 +205,7 @@ impl EngineUi {
                             ui.horizontal(|ui| {
                                 ui.label("Radius:");
                                 ui.add(
-                                    egui::DragValue::new(radius)
-                                        .speed(0.05)
-                                        .range(0.01..=1000.0),
+                                    egui::DragValue::new(radius).speed(0.05).range(0.0..=1000.0),
                                 );
                             });
                             *radius = (*radius).max(0.001);
@@ -221,15 +220,13 @@ impl EngineUi {
                                 ui.add(
                                     egui::DragValue::new(half_height)
                                         .speed(0.05)
-                                        .range(0.01..=1000.0),
+                                        .range(0.0..=1000.0),
                                 );
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Radius:");
                                 ui.add(
-                                    egui::DragValue::new(radius)
-                                        .speed(0.05)
-                                        .range(0.01..=1000.0),
+                                    egui::DragValue::new(radius).speed(0.05).range(0.0..=1000.0),
                                 );
                             });
                             ui.horizontal(|ui| {
@@ -316,23 +313,25 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut height)
                                 .speed(0.05)
-                                .range(0.1..=10.0),
+                                .range(0.0..=100.0),
                         );
                     });
+                    height = height.max(0.01);
                     ui.horizontal(|ui| {
                         ui.label("Radius:");
                         ui.add(
                             egui::DragValue::new(&mut radius)
                                 .speed(0.02)
-                                .range(0.05..=5.0),
+                                .range(0.0..=50.0),
                         );
                     });
+                    radius = radius.max(0.01);
                     ui.horizontal(|ui| {
                         ui.label("Center Y:");
                         ui.add(
                             egui::DragValue::new(&mut center_y)
                                 .speed(0.02)
-                                .range(-5.0..=5.0),
+                                .range(-50.0..=50.0),
                         );
                     });
                     ui.horizontal(|ui| {
@@ -349,9 +348,10 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut step_height)
                                 .speed(0.02)
-                                .range(0.0..=1.0),
+                                .range(0.0..=10.0),
                         );
                     });
+                    step_height = step_height.max(0.0);
 
                     let status_text = if ctrl.is_grounded {
                         "🟢 Grounded"

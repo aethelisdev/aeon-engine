@@ -145,7 +145,7 @@ impl super::registry::ComponentUiHandler for MovingPlatformUiHandler {
                             .add(
                                 egui::DragValue::new(&mut updated.speed)
                                     .speed(0.1)
-                                    .range(0.1..=50.0),
+                                    .range(0.0..=50.0),
                             )
                             .changed()
                         {
@@ -153,6 +153,7 @@ impl super::registry::ComponentUiHandler for MovingPlatformUiHandler {
                         }
                         ui.label("m/s");
                     });
+                    updated.speed = updated.speed.max(0.0);
 
                     ui.horizontal(|ui| {
                         ui.label("Target Pos:");
@@ -242,13 +243,14 @@ impl super::registry::ComponentUiHandler for TriggerZoneUiHandler {
                             .add(
                                 egui::DragValue::new(&mut updated.speed)
                                     .speed(0.1)
-                                    .range(0.1..=50.0),
+                                    .range(0.0..=50.0),
                             )
                             .changed()
                         {
                             changed = true;
                         }
                     });
+                    updated.speed = updated.speed.max(0.0);
 
                     ui.horizontal(|ui| {
                         ui.label("Target Y:");
@@ -427,7 +429,7 @@ impl super::registry::ComponentUiHandler for CharacterActionUiHandler {
                             .add(
                                 egui::DragValue::new(&mut updated.speed)
                                     .speed(1.0)
-                                    .range(1.0..=500.0),
+                                    .range(0.0..=500.0),
                             )
                             .changed()
                         {
@@ -435,6 +437,7 @@ impl super::registry::ComponentUiHandler for CharacterActionUiHandler {
                         }
                         ui.label("m/s");
                     });
+                    updated.speed = updated.speed.max(0.0);
 
                     ui.horizontal(|ui| {
                         ui.label("Cooldown:");
@@ -442,7 +445,7 @@ impl super::registry::ComponentUiHandler for CharacterActionUiHandler {
                             .add(
                                 egui::DragValue::new(&mut updated.cooldown)
                                     .speed(0.05)
-                                    .range(0.05..=5.0),
+                                    .range(0.0..=5.0),
                             )
                             .changed()
                         {
@@ -450,6 +453,7 @@ impl super::registry::ComponentUiHandler for CharacterActionUiHandler {
                         }
                         ui.label("s");
                     });
+                    updated.cooldown = updated.cooldown.max(0.0);
                 },
             );
 
