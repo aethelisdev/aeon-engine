@@ -22,6 +22,8 @@ pub struct GeometrySystem {
     pub capsule_vertex_buffer: wgpu::Buffer,
     /// Vertex buffer for parametric toruses.
     pub torus_vertex_buffer: wgpu::Buffer,
+    /// Number of vertices in the triangle/pyramid model.
+    pub triangle_num_vertices: u32,
     /// Number of vertices in the sphere model.
     pub sphere_num_vertices: u32,
     /// Number of vertices in the cylinder model.
@@ -39,6 +41,7 @@ pub struct GeometrySystem {
 impl GeometrySystem {
     /// Creates all static vertex buffers and an initial dynamic instance buffer (25k capacity).
     pub fn new(device: &wgpu::Device) -> Self {
+        let triangle_num_vertices = VERTICES.len() as u32;
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(VERTICES),
@@ -114,6 +117,7 @@ impl GeometrySystem {
             cylinder_vertex_buffer,
             capsule_vertex_buffer,
             torus_vertex_buffer,
+            triangle_num_vertices,
             sphere_num_vertices,
             cylinder_num_vertices,
             capsule_num_vertices,

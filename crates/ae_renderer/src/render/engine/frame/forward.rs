@@ -162,7 +162,7 @@ impl RenderState {
                     ctx.triangle_instances,
                     ctx.tri_start,
                     &self.geometry.vertex_buffer,
-                    3,
+                    self.geometry.triangle_num_vertices,
                     &mut stats,
                 );
             }
@@ -436,6 +436,19 @@ impl RenderState {
         if ctx.options.wireframe_enabled {
             pass.set_pipeline(&self.pipelines.wireframe_pipeline);
             pass.set_bind_group(3, &self.default_white_texture.bind_group, &[]);
+            if !ctx.triangle_instances.is_empty() {
+                pass.set_vertex_buffer(0, self.geometry.vertex_buffer.slice(..));
+                pass.set_vertex_buffer(
+                    1,
+                    self.geometry
+                        .instance_buffer
+                        .slice((ctx.tri_start * INSTANCE_SIZE) as u64..),
+                );
+                pass.draw(
+                    0..self.geometry.triangle_num_vertices,
+                    0..ctx.triangle_instances.len() as u32,
+                );
+            }
             if !ctx.cube_instances.is_empty() {
                 pass.set_vertex_buffer(0, self.geometry.cube_vertex_buffer.slice(..));
                 pass.set_vertex_buffer(

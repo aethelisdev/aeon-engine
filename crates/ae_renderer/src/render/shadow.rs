@@ -478,7 +478,10 @@ impl ShadowSystem {
                     instance_buffer
                         .slice((tri_start * crate::render::types::INSTANCE_SIZE) as u64..),
                 );
-                pass.draw(0..3, 0..triangle_instances_count as u32);
+                pass.draw(
+                    0..primitives.triangle_num_vertices,
+                    0..triangle_instances_count as u32,
+                );
             }
             if cube_instances_count > 0 {
                 pass.set_vertex_buffer(0, primitives.cube_vertex_buffer.slice(..));

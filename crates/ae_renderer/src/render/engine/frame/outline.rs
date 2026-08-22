@@ -93,7 +93,7 @@ impl RenderState {
                         }
                         ae_core::ecs::Shape::Triangle => {
                             mask_pass.set_vertex_buffer(0, self.geometry.vertex_buffer.slice(..));
-                            mask_pass.draw(0..3, 0..1);
+                            mask_pass.draw(0..self.geometry.triangle_num_vertices, 0..1);
                         }
                     }
                 }

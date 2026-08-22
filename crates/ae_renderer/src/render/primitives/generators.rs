@@ -78,7 +78,7 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
         let u0 = i as f32 / segments as f32;
         let u1 = (i + 1) as f32 / segments as f32;
 
-        // Side Triangle 1
+        // Side Triangle 1: top-0 -> top-1 -> bottom-0 (CCW outward)
         vertices.push(Vertex {
             position: [x0, 0.5, z0],
             color: [1.0; 3],
@@ -86,30 +86,24 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [u0, 0.0],
         });
         vertices.push(Vertex {
-            position: [x0, -0.5, z0],
-            color: [1.0; 3],
-            normal: n0,
-            uv: [u0, 1.0],
-        });
-        vertices.push(Vertex {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
             normal: n1,
             uv: [u1, 0.0],
+        });
+        vertices.push(Vertex {
+            position: [x0, -0.5, z0],
+            color: [1.0; 3],
+            normal: n0,
+            uv: [u0, 1.0],
         });
 
-        // Side Triangle 2
+        // Side Triangle 2: top-1 -> bottom-1 -> bottom-0 (CCW outward)
         vertices.push(Vertex {
             position: [x1, 0.5, z1],
             color: [1.0; 3],
             normal: n1,
             uv: [u1, 0.0],
-        });
-        vertices.push(Vertex {
-            position: [x0, -0.5, z0],
-            color: [1.0; 3],
-            normal: n0,
-            uv: [u0, 1.0],
         });
         vertices.push(Vertex {
             position: [x1, -0.5, z1],
@@ -117,8 +111,14 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             normal: n1,
             uv: [u1, 1.0],
         });
+        vertices.push(Vertex {
+            position: [x0, -0.5, z0],
+            color: [1.0; 3],
+            normal: n0,
+            uv: [u0, 1.0],
+        });
 
-        // Top cap
+        // Top cap: CCW looking from +Y down (normal +Y)
         vertices.push(Vertex {
             position: top_center,
             color: [1.0; 3],
@@ -126,19 +126,19 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [0.5, 0.5],
         });
         vertices.push(Vertex {
-            position: [x1, 0.5, z1],
-            color: [1.0; 3],
-            normal: [0.0, 1.0, 0.0],
-            uv: [x1 + 0.5, z1 + 0.5],
-        });
-        vertices.push(Vertex {
             position: [x0, 0.5, z0],
             color: [1.0; 3],
             normal: [0.0, 1.0, 0.0],
             uv: [x0 + 0.5, z0 + 0.5],
         });
+        vertices.push(Vertex {
+            position: [x1, 0.5, z1],
+            color: [1.0; 3],
+            normal: [0.0, 1.0, 0.0],
+            uv: [x1 + 0.5, z1 + 0.5],
+        });
 
-        // Bottom cap
+        // Bottom cap: CCW looking from -Y up (normal -Y)
         vertices.push(Vertex {
             position: bottom_center,
             color: [1.0; 3],
@@ -146,16 +146,16 @@ pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
             uv: [0.5, 0.5],
         });
         vertices.push(Vertex {
-            position: [x0, -0.5, z0],
-            color: [1.0; 3],
-            normal: [0.0, -1.0, 0.0],
-            uv: [x0 + 0.5, z0 + 0.5],
-        });
-        vertices.push(Vertex {
             position: [x1, -0.5, z1],
             color: [1.0; 3],
             normal: [0.0, -1.0, 0.0],
             uv: [x1 + 0.5, z1 + 0.5],
+        });
+        vertices.push(Vertex {
+            position: [x0, -0.5, z0],
+            color: [1.0; 3],
+            normal: [0.0, -1.0, 0.0],
+            uv: [x0 + 0.5, z0 + 0.5],
         });
     }
 
@@ -322,13 +322,14 @@ pub fn generate_torus(radial_segments: u32, tubular_segments: u32) -> Vec<Vertex
             let first = (r_seg * (tubular_segments + 1) + t_seg) as usize;
             let second = first + (tubular_segments + 1) as usize;
 
+            // Outward-facing CCW winding for Torus (first -> first + 1 -> second)
             vertices.push(raw_vertices[first]);
-            vertices.push(raw_vertices[second]);
             vertices.push(raw_vertices[first + 1]);
+            vertices.push(raw_vertices[second]);
 
             vertices.push(raw_vertices[first + 1]);
-            vertices.push(raw_vertices[second]);
             vertices.push(raw_vertices[second + 1]);
+            vertices.push(raw_vertices[second]);
         }
     }
 
