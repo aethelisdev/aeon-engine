@@ -286,21 +286,25 @@ pub fn try_select_entity(
                     }
                 } else if let Some(col) = col_opt {
                     match col.shape {
-                        ae_core::ecs::ColliderShape::Box { half_extents } => (
-                            [-half_extents[0], -half_extents[1], -half_extents[2]],
-                            [half_extents[0], half_extents[1], half_extents[2]],
-                        ),
+                        ae_core::ecs::ColliderShape::Box { half_extents } => {
+                            let hx = half_extents[0].abs().max(1e-3);
+                            let hy = half_extents[1].abs().max(1e-3);
+                            let hz = half_extents[2].abs().max(1e-3);
+                            ([-hx, -hy, -hz], [hx, hy, hz])
+                        }
                         ae_core::ecs::ColliderShape::Sphere { radius } => {
-                            ([-radius, -radius, -radius], [radius, radius, radius])
+                            let r = radius.abs().max(1e-3);
+                            ([-r, -r, -r], [r, r, r])
                         }
                         ae_core::ecs::ColliderShape::Capsule {
                             half_height,
                             radius,
                             center_y,
-                        } => (
-                            [-radius, -half_height - radius + center_y, -radius],
-                            [radius, half_height + radius + center_y, radius],
-                        ),
+                        } => {
+                            let hh = half_height.abs().max(1e-3);
+                            let r = radius.abs().max(1e-3);
+                            ([-r, -hh - r + center_y, -r], [r, hh + r + center_y, r])
+                        }
                         _ => ([-0.5; 3], [0.5; 3]),
                     }
                 } else {

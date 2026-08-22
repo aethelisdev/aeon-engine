@@ -324,4 +324,85 @@ mod tests {
         let hit = hit.unwrap();
         assert_eq!(hit.entity, target_entity);
     }
+
+    #[test]
+    fn test_negative_and_zero_collider_dimensions_sanitized() {
+        let mut world = World::new();
+        let mut physics = PhysicsWorld::new();
+
+        // Spawn box with negative half extents
+        world.spawn((
+            Position {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [-1.7, -0.5, 0.0],
+                },
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        // Spawn sphere with negative radius
+        world.spawn((
+            Position {
+                x: 5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Sphere { radius: -0.8 },
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        // Spawn capsule with negative half height & radius
+        world.spawn((
+            Position {
+                x: -5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Capsule {
+                    half_height: -0.5,
+                    radius: -0.3,
+                    center_y: 0.0,
+                },
+                friction: 0.7,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        // Should safely sanitize dimensions to absolute positive values and step without panic or NaN
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+        assert_eq!(physics.collider_set.len(), 3);
+    }
 }
