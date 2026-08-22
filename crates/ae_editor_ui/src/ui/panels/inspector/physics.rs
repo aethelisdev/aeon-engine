@@ -66,7 +66,7 @@ impl EngineUi {
             );
 
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveRigidBody(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "RigidBody"));
             }
 
             let new_rb = ae_core::ecs::RigidBody {
@@ -75,7 +75,11 @@ impl EngineUi {
                 gravity_scale,
             };
             if new_rb != *rb {
-                ui_actions.push(EngineUiAction::ModifyRigidBody(entity, new_rb));
+                ui_actions.push(EngineUiAction::modify_component(
+                    entity,
+                    "RigidBody",
+                    &new_rb,
+                ));
             }
         }
     }
@@ -97,153 +101,165 @@ impl EngineUi {
                 ui,
                 "Collider",
                 "🛡",
-                egui::Color32::from_rgb(100, 255, 150),
+                egui::Color32::from_rgb(120, 255, 120),
                 true,
                 |ui| {
-                    ui.checkbox(&mut is_sensor, "Is Trigger (Sensor)").on_hover_text(
-                        "If checked, this collider detects overlaps without physical collision response",
-                    );
-                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label("Shape:");
+                        let current_shape_str = match shape {
+                            ae_core::ecs::ColliderShape::Box { .. } => "Box",
+                            ae_core::ecs::ColliderShape::Sphere { .. } => "Sphere",
+                            ae_core::ecs::ColliderShape::Capsule { .. } => "Capsule",
+                            ae_core::ecs::ColliderShape::Trimesh => "Trimesh",
+                            ae_core::ecs::ColliderShape::ConvexHull => "Convex Hull",
+                        };
 
-                    let shape_name = match shape {
-                        ae_core::ecs::ColliderShape::Box { .. } => "Box",
-                        ae_core::ecs::ColliderShape::Sphere { .. } => "Sphere",
-                        ae_core::ecs::ColliderShape::Capsule { .. } => "Capsule",
-                        ae_core::ecs::ColliderShape::Trimesh => "Trimesh",
-                        ae_core::ecs::ColliderShape::ConvexHull => "ConvexHull",
-                    };
-                    let mut selected_idx = match shape {
-                        ae_core::ecs::ColliderShape::Box { .. } => 0,
-                        ae_core::ecs::ColliderShape::Sphere { .. } => 1,
-                        ae_core::ecs::ColliderShape::Capsule { .. } => 2,
-                        ae_core::ecs::ColliderShape::Trimesh => 3,
-                        ae_core::ecs::ColliderShape::ConvexHull => 4,
-                    };
-                    let shape_labels = ["Box", "Sphere", "Capsule", "Trimesh", "ConvexHull"];
-                    #[allow(deprecated)]
-                    egui::ComboBox::from_id_salt("col_shape_combo")
-                        .selected_text(shape_name)
-                        .show_ui(ui, |ui| {
-                            for (i, label) in shape_labels.iter().enumerate() {
-                                ui.selectable_value(&mut selected_idx, i, *label);
-                            }
-                        });
+                        egui::ComboBox::from_id_salt("collider_shape_combo")
+                            .selected_text(current_shape_str)
+                            .show_ui(ui, |ui| {
+                                if ui
+                                    .selectable_label(
+                                        matches!(shape, ae_core::ecs::ColliderShape::Box { .. }),
+                                        "Box",
+                                    )
+                                    .clicked()
+                                {
+                                    shape = ae_core::ecs::ColliderShape::Box {
+                                        half_extents: [0.5, 0.5, 0.5],
+                                    };
+                                }
+                                if ui
+                                    .selectable_label(
+                                        matches!(shape, ae_core::ecs::ColliderShape::Sphere { .. }),
+                                        "Sphere",
+                                    )
+                                    .clicked()
+                                {
+                                    shape = ae_core::ecs::ColliderShape::Sphere { radius: 0.5 };
+                                }
+                                if ui
+                                    .selectable_label(
+                                        matches!(
+                                            shape,
+                                            ae_core::ecs::ColliderShape::Capsule { .. }
+                                        ),
+                                        "Capsule",
+                                    )
+                                    .clicked()
+                                {
+                                    shape = ae_core::ecs::ColliderShape::Capsule {
+                                        half_height: 0.5,
+                                        radius: 0.4,
+                                        center_y: 0.0,
+                                    };
+                                }
+                                if ui
+                                    .selectable_label(
+                                        matches!(shape, ae_core::ecs::ColliderShape::Trimesh),
+                                        "Trimesh",
+                                    )
+                                    .clicked()
+                                {
+                                    shape = ae_core::ecs::ColliderShape::Trimesh;
+                                }
+                                if ui
+                                    .selectable_label(
+                                        matches!(shape, ae_core::ecs::ColliderShape::ConvexHull),
+                                        "Convex Hull",
+                                    )
+                                    .clicked()
+                                {
+                                    shape = ae_core::ecs::ColliderShape::ConvexHull;
+                                }
+                            });
+                    });
 
-                    match selected_idx {
-                        0 => {
-                            let mut he = match shape {
-                                ae_core::ecs::ColliderShape::Box { half_extents } => half_extents,
-                                _ => [0.5, 0.5, 0.5],
-                            };
+                    match &mut shape {
+                        ae_core::ecs::ColliderShape::Box { half_extents } => {
                             ui.horizontal(|ui| {
                                 ui.label("Half Extents:");
                                 ui.add(
-                                    egui::DragValue::new(&mut he[0])
-                                        .prefix("X:")
-                                        .speed(0.02)
-                                        .range(0.01..=100.0),
+                                    egui::DragValue::new(&mut half_extents[0])
+                                        .speed(0.05)
+                                        .prefix("X: "),
                                 );
                                 ui.add(
-                                    egui::DragValue::new(&mut he[1])
-                                        .prefix("Y:")
-                                        .speed(0.02)
-                                        .range(0.01..=100.0),
+                                    egui::DragValue::new(&mut half_extents[1])
+                                        .speed(0.05)
+                                        .prefix("Y: "),
                                 );
                                 ui.add(
-                                    egui::DragValue::new(&mut he[2])
-                                        .prefix("Z:")
-                                        .speed(0.02)
-                                        .range(0.01..=100.0),
+                                    egui::DragValue::new(&mut half_extents[2])
+                                        .speed(0.05)
+                                        .prefix("Z: "),
                                 );
                             });
-                            shape = ae_core::ecs::ColliderShape::Box { half_extents: he };
                         }
-                        1 => {
-                            let mut r = 0.5;
-                            if let ae_core::ecs::ColliderShape::Sphere { radius } = shape {
-                                r = radius;
-                            }
+                        ae_core::ecs::ColliderShape::Sphere { radius } => {
                             ui.horizontal(|ui| {
                                 ui.label("Radius:");
                                 ui.add(
-                                    egui::DragValue::new(&mut r).speed(0.02).range(0.01..=100.0),
+                                    egui::DragValue::new(radius).speed(0.05).range(0.01..=100.0),
                                 );
                             });
-                            shape = ae_core::ecs::ColliderShape::Sphere { radius: r };
                         }
-                        2 => {
-                            let mut hh = 0.5;
-                            let mut r = 0.5;
-                            let mut cy = 0.0;
-                            if let ae_core::ecs::ColliderShape::Capsule {
-                                half_height,
-                                radius,
-                                center_y,
-                            } = shape
-                            {
-                                hh = half_height;
-                                r = radius;
-                                cy = center_y;
-                            }
+                        ae_core::ecs::ColliderShape::Capsule {
+                            half_height,
+                            radius,
+                            center_y,
+                        } => {
                             ui.horizontal(|ui| {
                                 ui.label("Half Height:");
                                 ui.add(
-                                    egui::DragValue::new(&mut hh)
-                                        .speed(0.02)
-                                        .range(0.01..=100.0),
+                                    egui::DragValue::new(half_height)
+                                        .speed(0.05)
+                                        .range(0.05..=100.0),
                                 );
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Radius:");
                                 ui.add(
-                                    egui::DragValue::new(&mut r).speed(0.02).range(0.01..=100.0),
+                                    egui::DragValue::new(radius).speed(0.05).range(0.01..=100.0),
                                 );
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Center Y:");
                                 ui.add(
-                                    egui::DragValue::new(&mut cy)
-                                        .speed(0.02)
-                                        .range(-10.0..=10.0),
+                                    egui::DragValue::new(center_y)
+                                        .speed(0.05)
+                                        .range(-50.0..=50.0),
                                 );
                             });
-                            shape = ae_core::ecs::ColliderShape::Capsule {
-                                half_height: hh,
-                                radius: r,
-                                center_y: cy,
-                            };
                         }
-                        3 => {
-                            ui.label("Trimesh (Static Mesh Collider)");
-                            shape = ae_core::ecs::ColliderShape::Trimesh;
-                        }
-                        _ => {
-                            ui.label("Convex Hull (Convex Dynamic/Kinematic)");
-                            shape = ae_core::ecs::ColliderShape::ConvexHull;
-                        }
+                        _ => {}
                     }
 
                     ui.horizontal(|ui| {
                         ui.label("Friction:");
                         ui.add(
                             egui::DragValue::new(&mut friction)
-                                .speed(0.01)
-                                .range(0.0..=2.0),
+                                .speed(0.02)
+                                .range(0.0..=1.0),
                         );
                     });
+
                     ui.horizontal(|ui| {
                         ui.label("Restitution:");
                         ui.add(
                             egui::DragValue::new(&mut restitution)
-                                .speed(0.01)
-                                .range(0.0..=2.0),
+                                .speed(0.02)
+                                .range(0.0..=1.0),
                         );
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut is_sensor, "Is Sensor (Trigger)");
                     });
                 },
             );
 
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveCollider(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "Collider"));
             }
 
             let new_col = ae_core::ecs::Collider {
@@ -253,7 +269,9 @@ impl EngineUi {
                 is_sensor,
             };
             if new_col != *col {
-                ui_actions.push(EngineUiAction::ModifyCollider(entity, new_col));
+                ui_actions.push(EngineUiAction::modify_component(
+                    entity, "Collider", &new_col,
+                ));
             }
         }
     }
@@ -274,9 +292,9 @@ impl EngineUi {
 
             let (_, remove_clicked) = super::widgets::draw_inspector_card(
                 ui,
-                "CharacterController",
-                "👤",
-                egui::Color32::from_rgb(255, 200, 100),
+                "Kinematic Character Controller",
+                "🚶",
+                egui::Color32::from_rgb(255, 120, 200),
                 true,
                 |ui| {
                     ui.horizontal(|ui| {
@@ -300,7 +318,16 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut center_y)
                                 .speed(0.02)
-                                .range(-10.0..=10.0),
+                                .range(-5.0..=5.0),
+                        );
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Max Slope Angle:");
+                        ui.add(
+                            egui::DragValue::new(&mut max_slope)
+                                .speed(1.0)
+                                .range(0.0..=89.0)
+                                .suffix("°"),
                         );
                     });
                     ui.horizontal(|ui| {
@@ -308,35 +335,29 @@ impl EngineUi {
                         ui.add(
                             egui::DragValue::new(&mut step_height)
                                 .speed(0.02)
-                                .range(0.0..=2.0),
-                        );
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("Max Slope (°):");
-                        ui.add(
-                            egui::DragValue::new(&mut max_slope)
-                                .speed(0.5)
-                                .range(0.0..=89.0),
+                                .range(0.0..=1.0),
                         );
                     });
 
-                    ui.separator();
-                    let status_color = if ctrl.is_grounded {
-                        egui::Color32::GREEN
-                    } else {
-                        egui::Color32::LIGHT_GRAY
-                    };
                     let status_text = if ctrl.is_grounded {
                         "🟢 Grounded"
                     } else {
-                        "⚪ In Air"
+                        "🟡 In Air"
+                    };
+                    let status_color = if ctrl.is_grounded {
+                        egui::Color32::from_rgb(100, 255, 100)
+                    } else {
+                        egui::Color32::from_rgb(255, 200, 50)
                     };
                     ui.label(egui::RichText::new(status_text).color(status_color).small());
                 },
             );
 
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveCharacterController(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(
+                    entity,
+                    "CharacterController",
+                ));
             }
 
             let new_ctrl = ae_core::ecs::CharacterController {
@@ -348,7 +369,11 @@ impl EngineUi {
                 is_grounded: ctrl.is_grounded,
             };
             if new_ctrl != *ctrl {
-                ui_actions.push(EngineUiAction::ModifyCharacterController(entity, new_ctrl));
+                ui_actions.push(EngineUiAction::modify_component(
+                    entity,
+                    "CharacterController",
+                    &new_ctrl,
+                ));
             }
         }
     }
@@ -383,27 +408,14 @@ impl super::registry::ComponentUiHandler for RigidBodyUiHandler {
         entity: hecs::Entity,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        let default_rb = ae_core::ecs::RigidBody {
-            body_type: ae_core::ecs::RigidBodyType::Dynamic,
-            mass: 1.0,
-            gravity_scale: 1.0,
-        };
-        ui_actions.push(EngineUiAction::AddRigidBody(entity, default_rb));
+        ui_actions.push(EngineUiAction::AddComponent(entity, "RigidBody"));
         if world.get::<&ae_core::ecs::Collider>(entity).is_err() {
-            let default_col = ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Box {
-                    half_extents: [0.5, 0.5, 0.5],
-                },
-                friction: 0.7,
-                restitution: 0.0,
-                is_sensor: false,
-            };
-            ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
+            ui_actions.push(EngineUiAction::AddComponent(entity, "Collider"));
         }
     }
 
     fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveRigidBody(entity));
+        ui_actions.push(EngineUiAction::RemoveComponent(entity, "RigidBody"));
     }
 }
 
@@ -436,19 +448,11 @@ impl super::registry::ComponentUiHandler for ColliderUiHandler {
         entity: hecs::Entity,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        let default_col = ae_core::ecs::Collider {
-            shape: ae_core::ecs::ColliderShape::Box {
-                half_extents: [0.5, 0.5, 0.5],
-            },
-            friction: 0.7,
-            restitution: 0.0,
-            is_sensor: false,
-        };
-        ui_actions.push(EngineUiAction::AddCollider(entity, default_col));
+        ui_actions.push(EngineUiAction::AddComponent(entity, "Collider"));
     }
 
     fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveCollider(entity));
+        ui_actions.push(EngineUiAction::RemoveComponent(entity, "Collider"));
     }
 }
 
@@ -487,11 +491,13 @@ impl super::registry::ComponentUiHandler for CharacterControllerUiHandler {
         entity: hecs::Entity,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        let default_cc = ae_core::ecs::CharacterController::default();
-        ui_actions.push(EngineUiAction::AddCharacterController(entity, default_cc));
+        ui_actions.push(EngineUiAction::AddComponent(entity, "CharacterController"));
     }
 
     fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveCharacterController(entity));
+        ui_actions.push(EngineUiAction::RemoveComponent(
+            entity,
+            "CharacterController",
+        ));
     }
 }

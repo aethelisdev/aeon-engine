@@ -13,8 +13,9 @@
 //!
 
 use ae_core::ecs::{
-    BehaviorComponent, BehaviorType, CharacterController, Collider, ColliderShape, Color, Name,
-    PlayerTag, Position, RigidBody, RigidBodyType, Rotation, Scale, Shape, Velocity,
+    CharacterAction, CharacterController, Collider, ColliderShape, Color, DestructibleTarget,
+    MovingPlatform, Name, PlayerTag, Position, RigidBody, RigidBodyType, Rotation, Rotator, Scale,
+    Shape, TriggerZone, Velocity,
 };
 use hecs::World;
 
@@ -66,7 +67,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
-        BehaviorComponent::character_action(),
+        CharacterAction::new(),
     ));
 
     // 3. Destructible Target Dummies (Shooting Range)
@@ -95,7 +96,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
                 restitution: 0.2,
                 is_sensor: false,
             },
-            BehaviorComponent::destructible_target(100.0),
+            DestructibleTarget::new(100.0),
         ));
     }
 
@@ -116,7 +117,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: true,
         },
-        BehaviorComponent::trigger_zone(),
+        TriggerZone::new(),
     ));
 
     // Sliding Door (Elevates when player steps into proximity sensor)
@@ -140,19 +141,13 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
-        BehaviorComponent {
-            behavior_type: BehaviorType::TriggerZone,
+        TriggerZone {
+            is_triggered: false,
             speed: 5.0,
             axis: [0.0, 1.0, 0.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
             original_position: [10.0, 2.0, -7.0],
             target_position: [10.0, 6.0, -7.0],
             ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 
@@ -197,7 +192,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
                 restitution: 0.0,
                 is_sensor: true,
             },
-            BehaviorComponent::rotator(speed, axis),
+            Rotator::new(speed, axis),
         ));
     }
 
@@ -222,7 +217,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
-        BehaviorComponent::moving_platform(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
+        MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
     ));
 
     // 7. Dynamic Bouncing Hazard Cubes

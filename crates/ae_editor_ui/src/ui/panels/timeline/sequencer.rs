@@ -149,7 +149,11 @@ impl EngineUi {
                     );
 
                     if changed {
-                        ui_actions.push(EngineUiAction::ModifyAnimationPlayer(entity, updated));
+                        ui_actions.push(EngineUiAction::modify_component(
+                            entity,
+                            "AnimationPlayer",
+                            &updated,
+                        ));
                     }
                 } else {
                     ui.centered_and_justified(|ui| {

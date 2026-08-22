@@ -121,9 +121,10 @@ impl super::registry::ComponentUiHandler for ParentingUiHandler {
     fn add_default_to_entity(
         &self,
         _world: &hecs::World,
-        _entity: hecs::Entity,
-        _ui_actions: &mut Vec<EngineUiAction>,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
     ) {
+        ui_actions.push(EngineUiAction::AddComponent(entity, "Children"));
     }
 
     fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {

@@ -53,16 +53,10 @@ pub enum EngineUiAction {
     ),
     SetModelSubmeshTexture(ae_renderer::asset::AssetHandle, usize, String),
 
-    // --- DYNAMIC COMPONENT ACTIONS (Physics) ---
-    AddRigidBody(hecs::Entity, ae_core::ecs::RigidBody),
-    RemoveRigidBody(hecs::Entity),
-    ModifyRigidBody(hecs::Entity, ae_core::ecs::RigidBody),
-    AddCollider(hecs::Entity, ae_core::ecs::Collider),
-    RemoveCollider(hecs::Entity),
-    ModifyCollider(hecs::Entity, ae_core::ecs::Collider),
-    AddCharacterController(hecs::Entity, ae_core::ecs::CharacterController),
-    RemoveCharacterController(hecs::Entity),
-    ModifyCharacterController(hecs::Entity, ae_core::ecs::CharacterController),
+    // --- DYNAMIC COMPONENT ACTIONS (Generic ComponentRegistry Pattern) ---
+    AddComponent(hecs::Entity, &'static str),
+    RemoveComponent(hecs::Entity, &'static str),
+    ModifyComponent(hecs::Entity, &'static str, Vec<u8>),
 
     // --- SCENE/SYSTEM ACTIONS ---
     OpenModelDialog,
@@ -86,28 +80,21 @@ pub enum EngineUiAction {
     Exit,
     /// Toggle the enable/disable state of a core engine module.
     ToggleModule(ae_core::modules::EngineModule),
-    AddLodGroup(hecs::Entity),
-    RemoveLodGroup(hecs::Entity),
     ModifyLodThresholds(hecs::Entity, f32, f32),
     ModifyLodModel(hecs::Entity, u8, Option<ae_renderer::asset::AssetHandle>),
-    AddAudioSource(hecs::Entity),
-    RemoveAudioSource(hecs::Entity),
-    AddAudioListener(hecs::Entity),
-    RemoveAudioListener(hecs::Entity),
-    ModifyAudioSource(hecs::Entity, ae_audio::AudioSource),
-    AddPlayerTag(hecs::Entity),
-    RemovePlayerTag(hecs::Entity),
-
-    // --- ANIMATION ACTIONS ---
-    AddAnimationPlayer(hecs::Entity),
-    RemoveAnimationPlayer(hecs::Entity),
-    ModifyAnimationPlayer(hecs::Entity, ae_animation::AnimationPlayer),
-
-    // --- GAMEPLAY BEHAVIOR ACTIONS ---
-    AddBehavior(hecs::Entity, ae_core::ecs::BehaviorComponent),
-    RemoveBehavior(hecs::Entity),
-    ModifyBehavior(hecs::Entity, ae_core::ecs::BehaviorComponent),
     SpawnPhase1TestSandbox,
+}
+
+impl EngineUiAction {
+    /// Creates a generic component modification action by serializing `component` data to JSON bytes.
+    pub fn modify_component<T: serde::Serialize>(
+        entity: hecs::Entity,
+        type_name: &'static str,
+        component: &T,
+    ) -> Self {
+        let data = serde_json::to_vec(component).unwrap_or_default();
+        Self::ModifyComponent(entity, type_name, data)
+    }
 }
 
 /// Lightweight snapshot of a single log entry – owned, no Mutex dependency.

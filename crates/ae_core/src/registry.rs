@@ -45,11 +45,15 @@ pub trait ComponentHandler: Send + Sync {
 
     /// Removes the component from the given entity in `world`.
     fn remove_component(&self, world: &mut hecs::World, entity: hecs::Entity) -> bool;
+
+    /// Instantiates and attaches a default instance of this component onto `entity` in `world`.
+    fn add_default(&self, world: &mut hecs::World, entity: hecs::Entity) -> Result<(), String>;
 }
 
 /// Generic handler implementation for any component implementing `Serialize + DeserializeOwned + Clone`.
 pub struct TypedComponentHandler<T> {
     name: &'static str,
+    default_fn: Option<fn() -> T>,
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -58,6 +62,16 @@ impl<T> TypedComponentHandler<T> {
     pub fn new(name: &'static str) -> Self {
         Self {
             name,
+            default_fn: None,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    /// Creates a new typed component handler with a default value constructor.
+    pub fn with_default(name: &'static str, default_fn: fn() -> T) -> Self {
+        Self {
+            name,
+            default_fn: Some(default_fn),
             _marker: std::marker::PhantomData,
         }
     }
@@ -115,6 +129,26 @@ impl<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone
     fn remove_component(&self, world: &mut hecs::World, entity: hecs::Entity) -> bool {
         world.remove_one::<T>(entity).is_ok()
     }
+
+    fn add_default(&self, world: &mut hecs::World, entity: hecs::Entity) -> Result<(), String> {
+        if let Some(factory) = self.default_fn {
+            let instance = factory();
+            world
+                .insert_one(entity, instance)
+                .map_err(|e| format!("{:?}", e))?;
+            Ok(())
+        } else if let Ok(comp) = serde_json::from_str::<T>("{}") {
+            world
+                .insert_one(entity, comp)
+                .map_err(|e| format!("{:?}", e))?;
+            Ok(())
+        } else {
+            Err(format!(
+                "Component '{}' has no default constructor registered",
+                self.name
+            ))
+        }
+    }
 }
 
 /// Central registry storing all registered component handlers for dynamic ECS operations.
@@ -135,12 +169,14 @@ impl ComponentRegistry {
     }
 
     /// Registers a component type with its default type name.
-    pub fn register<T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone>(
+    pub fn register<
+        T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone + Default,
+    >(
         &mut self,
     ) {
         let full_name = type_name::<T>();
         let short_name = full_name.rsplit("::").next().unwrap_or(full_name);
-        self.register_with_name::<T>(short_name);
+        self.register_with_default::<T>(short_name, T::default);
     }
 
     /// Registers a component type with a custom identifier name.
@@ -154,6 +190,24 @@ impl ComponentRegistry {
         let idx = self.handlers.len();
         self.handlers
             .push(Box::new(TypedComponentHandler::<T>::new(name)));
+        self.type_id_map.insert(type_id, idx);
+        self.name_map.insert(name.to_string(), idx);
+    }
+
+    /// Registers a component type with a custom identifier name and a default constructor.
+    pub fn register_with_default<
+        T: hecs::Component + serde::Serialize + serde::de::DeserializeOwned + Clone,
+    >(
+        &mut self,
+        name: &'static str,
+        default_fn: fn() -> T,
+    ) {
+        let type_id = TypeId::of::<T>();
+        let idx = self.handlers.len();
+        self.handlers
+            .push(Box::new(TypedComponentHandler::<T>::with_default(
+                name, default_fn,
+            )));
         self.type_id_map.insert(type_id, idx);
         self.name_map.insert(name.to_string(), idx);
     }
@@ -201,30 +255,107 @@ impl ComponentRegistry {
     /// Builds a default component registry pre-populated with all core engine components.
     pub fn default_engine_registry() -> Self {
         let mut registry = Self::new();
-        registry.register_with_name::<ae_plugin_api::Position>("Position");
-        registry.register_with_name::<ae_plugin_api::Rotation>("Rotation");
-        registry.register_with_name::<ae_plugin_api::Scale>("Scale");
-        registry.register_with_name::<ae_plugin_api::Velocity>("Velocity");
-        registry.register_with_name::<ae_plugin_api::Name>("Name");
-        registry.register_with_name::<ae_plugin_api::Shape>("Shape");
-        registry.register_with_name::<ae_plugin_api::Color>("Color");
-        registry.register_with_name::<ae_plugin_api::Light>("Light");
-        registry.register_with_name::<ae_plugin_api::SpriteId>("SpriteId");
-        registry.register_with_name::<ae_plugin_api::ModelId>("ModelId");
-        registry.register_with_name::<ae_plugin_api::RigidBody>("RigidBody");
-        registry.register_with_name::<ae_plugin_api::Collider>("Collider");
-        registry.register_with_name::<ae_plugin_api::BehaviorComponent>("BehaviorComponent");
-        registry.register_with_name::<ae_plugin_api::CharacterController>("CharacterController");
-        registry.register_with_name::<ae_plugin_api::PlayerTag>("PlayerTag");
-        registry.register_with_name::<ae_plugin_api::BoundingRadius>("BoundingRadius");
-        registry.register_with_name::<ae_plugin_api::BoundingBox>("BoundingBox");
-        registry.register_with_name::<ae_plugin_api::Hidden>("Hidden");
-        registry.register_with_name::<ae_plugin_api::Parent>("Parent");
-        registry.register_with_name::<ae_plugin_api::Children>("Children");
-        registry.register_with_name::<crate::ecs::LodGroup>("LodGroup");
+        registry.register_with_default::<ae_plugin_api::Position>(
+            "Position",
+            ae_plugin_api::Position::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Rotation>(
+            "Rotation",
+            ae_plugin_api::Rotation::default,
+        );
         registry
-            .register_with_name::<ae_plugin_api::PhysicsMaterialHandle>("PhysicsMaterialHandle");
-        registry.register_with_name::<ae_plugin_api::TransformDirty>("TransformDirty");
+            .register_with_default::<ae_plugin_api::Scale>("Scale", ae_plugin_api::Scale::default);
+        registry.register_with_default::<ae_plugin_api::Velocity>(
+            "Velocity",
+            ae_plugin_api::Velocity::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Name>("Name", ae_plugin_api::Name::default);
+        registry
+            .register_with_default::<ae_plugin_api::Shape>("Shape", ae_plugin_api::Shape::default);
+        registry
+            .register_with_default::<ae_plugin_api::Color>("Color", ae_plugin_api::Color::default);
+        registry
+            .register_with_default::<ae_plugin_api::Light>("Light", ae_plugin_api::Light::default);
+        registry.register_with_default::<ae_plugin_api::SpriteId>(
+            "SpriteId",
+            ae_plugin_api::SpriteId::default,
+        );
+        registry.register_with_default::<ae_plugin_api::ModelId>(
+            "ModelId",
+            ae_plugin_api::ModelId::default,
+        );
+        registry.register_with_default::<ae_plugin_api::RigidBody>(
+            "RigidBody",
+            ae_plugin_api::RigidBody::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Collider>(
+            "Collider",
+            ae_plugin_api::Collider::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Rotator>(
+            "Rotator",
+            ae_plugin_api::Rotator::default,
+        );
+        registry.register_with_default::<ae_plugin_api::MovingPlatform>(
+            "MovingPlatform",
+            ae_plugin_api::MovingPlatform::default,
+        );
+        registry.register_with_default::<ae_plugin_api::TriggerZone>(
+            "TriggerZone",
+            ae_plugin_api::TriggerZone::default,
+        );
+        registry.register_with_default::<ae_plugin_api::DestructibleTarget>(
+            "DestructibleTarget",
+            ae_plugin_api::DestructibleTarget::default,
+        );
+        registry.register_with_default::<ae_plugin_api::CharacterAction>(
+            "CharacterAction",
+            ae_plugin_api::CharacterAction::default,
+        );
+        registry.register_with_default::<ae_plugin_api::EphemeralProjectile>(
+            "EphemeralProjectile",
+            ae_plugin_api::EphemeralProjectile::default,
+        );
+        registry.register_with_default::<ae_plugin_api::CharacterController>(
+            "CharacterController",
+            ae_plugin_api::CharacterController::default,
+        );
+        registry.register_with_default::<ae_plugin_api::PlayerTag>(
+            "PlayerTag",
+            ae_plugin_api::PlayerTag::default,
+        );
+        registry.register_with_default::<ae_plugin_api::BoundingRadius>(
+            "BoundingRadius",
+            ae_plugin_api::BoundingRadius::default,
+        );
+        registry.register_with_default::<ae_plugin_api::BoundingBox>(
+            "BoundingBox",
+            ae_plugin_api::BoundingBox::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Hidden>(
+            "Hidden",
+            ae_plugin_api::Hidden::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Parent>(
+            "Parent",
+            ae_plugin_api::Parent::default,
+        );
+        registry.register_with_default::<ae_plugin_api::Children>(
+            "Children",
+            ae_plugin_api::Children::default,
+        );
+        registry.register_with_default::<crate::ecs::LodGroup>(
+            "LodGroup",
+            crate::ecs::LodGroup::default,
+        );
+        registry.register_with_default::<ae_plugin_api::PhysicsMaterialHandle>(
+            "PhysicsMaterialHandle",
+            ae_plugin_api::PhysicsMaterialHandle::default,
+        );
+        registry.register_with_default::<ae_plugin_api::TransformDirty>(
+            "TransformDirty",
+            ae_plugin_api::TransformDirty::default,
+        );
         registry
     }
 
@@ -238,5 +369,49 @@ impl ComponentRegistry {
 impl Default for ComponentRegistry {
     fn default() -> Self {
         Self::default_engine_registry()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hecs::World;
+
+    #[test]
+    fn test_component_registry_add_default_and_remove() {
+        let registry = ComponentRegistry::global();
+        let mut world = World::new();
+        let entity = world.spawn(());
+
+        let rotator_handler = registry
+            .get_by_name("Rotator")
+            .expect("Rotator must be registered");
+        assert!(!rotator_handler.has_component(&world, entity));
+
+        rotator_handler
+            .add_default(&mut world, entity)
+            .expect("add_default must succeed");
+        assert!(rotator_handler.has_component(&world, entity));
+
+        let removed = rotator_handler.remove_component(&mut world, entity);
+        assert!(removed);
+        assert!(!rotator_handler.has_component(&world, entity));
+    }
+
+    #[test]
+    fn test_component_registry_all_registered_components_support_add_default() {
+        let registry = ComponentRegistry::global();
+        for handler in registry.handlers() {
+            let mut world = World::new();
+            let entity = world.spawn(());
+            let res = handler.add_default(&mut world, entity);
+            assert!(
+                res.is_ok(),
+                "Component '{}' must support add_default: {:?}",
+                handler.type_name(),
+                res.err()
+            );
+            assert!(handler.has_component(&world, entity));
+        }
     }
 }

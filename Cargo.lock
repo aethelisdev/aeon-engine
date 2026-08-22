@@ -112,6 +112,7 @@ dependencies = [
  "rayon",
  "rfd",
  "serde",
+ "serde_json",
  "wgpu",
  "winit",
 ]

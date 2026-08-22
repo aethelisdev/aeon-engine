@@ -1,336 +1,473 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Inspector section card for inspecting and live-editing gameplay BehaviorComponent properties.
+//! Modular Inspector UI handlers for gameplay behavior components.
+//!
+//! Provides decoupled inspector cards and live property editing for:
+//! - `Rotator` (speed, axis)
+//! - `MovingPlatform` (speed, waypoints)
+//! - `TriggerZone` (status, speed, target elevation)
+//! - `DestructibleTarget` (health, max health, hit reaction)
+//! - `CharacterAction` (weapon parameters)
+//! - `PlayerTag` (player target marker)
 //!
 
-use crate::ui::{EngineUi, EngineUiAction};
-use ae_core::ecs::{BehaviorComponent, BehaviorType};
+use crate::ui::EngineUiAction;
+use ae_core::ecs::{
+    CharacterAction, DestructibleTarget, MovingPlatform, PlayerTag, Rotator, TriggerZone,
+};
 
-impl EngineUi {
-    /// Renders the BehaviorComponent inspector panel section.
-    pub(super) fn draw_behavior_section(
-        ui: &mut egui::Ui,
-        world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        if let Ok(behavior) = world.get::<&BehaviorComponent>(entity) {
-            let mut updated = (*behavior).clone();
+/// UI handler for `Rotator` continuous angular rotation component.
+pub struct RotatorUiHandler;
+
+impl super::registry::ComponentUiHandler for RotatorUiHandler {
+    fn component_name(&self) -> &'static str {
+        "Rotator"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("Rotator", "🔄", egui::Color32::from_rgb(180, 130, 255))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Gameplay", "Rotator")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&Rotator>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        if let Ok(rotator) = ctx.world.get::<&Rotator>(ctx.entity) {
+            let mut updated = *rotator;
             let mut changed = false;
 
             let (_, remove_clicked) = super::widgets::draw_inspector_card(
                 ui,
-                "Behavior",
-                "🧠",
+                "Rotator",
+                "🔄",
                 egui::Color32::from_rgb(180, 130, 255),
                 true,
                 |ui| {
                     ui.horizontal(|ui| {
-                        ui.label("Type:");
-                        let prev_type = updated.behavior_type;
-                        egui::ComboBox::from_id_salt(("behavior_type_combo", entity))
-                            .selected_text(match updated.behavior_type {
-                                BehaviorType::Rotator => "Rotator (Spin)",
-                                BehaviorType::TriggerZone => "Trigger Zone (Proximity)",
-                                BehaviorType::DestructibleTarget => "Destructible Target (Health)",
-                                BehaviorType::MovingPlatform => "Moving Platform (Waypoints)",
-                                BehaviorType::CharacterAction => "Character Action (Weapon)",
-                                BehaviorType::Custom => "Custom Script",
-                            })
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut updated.behavior_type,
-                                    BehaviorType::Rotator,
-                                    "Rotator (Spin)",
-                                );
-                                ui.selectable_value(
-                                    &mut updated.behavior_type,
-                                    BehaviorType::TriggerZone,
-                                    "Trigger Zone (Proximity)",
-                                );
-                                ui.selectable_value(
-                                    &mut updated.behavior_type,
-                                    BehaviorType::DestructibleTarget,
-                                    "Destructible Target (Health)",
-                                );
-                                ui.selectable_value(
-                                    &mut updated.behavior_type,
-                                    BehaviorType::MovingPlatform,
-                                    "Moving Platform (Waypoints)",
-                                );
-                                ui.selectable_value(
-                                    &mut updated.behavior_type,
-                                    BehaviorType::CharacterAction,
-                                    "Character Action (Weapon)",
-                                );
-                                ui.selectable_value(
-                                    &mut updated.behavior_type,
-                                    BehaviorType::Custom,
-                                    "Custom Script",
-                                );
-                            });
+                        ui.label("Speed:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.speed)
+                                    .speed(0.1)
+                                    .range(-20.0..=20.0),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("rad/s");
+                    });
 
-                        if updated.behavior_type != prev_type {
+                    ui.horizontal(|ui| {
+                        ui.label("Axis:");
+                        ui.label("X:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.axis[0]).speed(0.05))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("Y:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.axis[1]).speed(0.05))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("Z:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.axis[2]).speed(0.05))
+                            .changed()
+                        {
                             changed = true;
                         }
                     });
-
-                    ui.separator();
-
-                    match updated.behavior_type {
-                        BehaviorType::Rotator => {
-                            ui.horizontal(|ui| {
-                                ui.label("Speed:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.speed)
-                                            .speed(0.1)
-                                            .range(-20.0..=20.0),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label("rad/s");
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("Axis:");
-                                ui.label("X:");
-                                if ui
-                                    .add(egui::DragValue::new(&mut updated.axis[0]).speed(0.05))
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label("Y:");
-                                if ui
-                                    .add(egui::DragValue::new(&mut updated.axis[1]).speed(0.05))
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label("Z:");
-                                if ui
-                                    .add(egui::DragValue::new(&mut updated.axis[2]).speed(0.05))
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                            });
-                        }
-                        BehaviorType::TriggerZone => {
-                            ui.horizontal(|ui| {
-                                ui.label("Status:");
-                                if updated.is_triggered {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(50, 230, 80),
-                                        "● ACTIVATED",
-                                    );
-                                } else {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(120, 130, 150),
-                                        "○ IDLE",
-                                    );
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("Speed:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.speed)
-                                            .speed(0.1)
-                                            .range(0.1..=50.0),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("Target Y:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.target_position[1])
-                                            .speed(0.1),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                            });
-                        }
-                        BehaviorType::DestructibleTarget => {
-                            ui.horizontal(|ui| {
-                                ui.label("Health:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.health)
-                                            .speed(1.0)
-                                            .range(0.0..=updated.max_health),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label(format!("/ {:.0}", updated.max_health));
-                            });
-
-                            let health_fraction =
-                                (updated.health / updated.max_health.max(1.0)).clamp(0.0, 1.0);
-                            let health_bar = egui::ProgressBar::new(health_fraction)
-                                .desired_width(ui.available_width().min(240.0))
-                                .show_percentage();
-                            ui.add(health_bar);
-
-                            ui.horizontal(|ui| {
-                                ui.label("Max HP:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.max_health)
-                                            .speed(5.0)
-                                            .range(1.0..=10000.0),
-                                    )
-                                    .changed()
-                                {
-                                    if updated.health > updated.max_health {
-                                        updated.health = updated.max_health;
-                                    }
-                                    changed = true;
-                                }
-                            });
-                        }
-                        BehaviorType::MovingPlatform => {
-                            ui.horizontal(|ui| {
-                                ui.label("Speed:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.speed)
-                                            .speed(0.1)
-                                            .range(0.1..=50.0),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label("m/s");
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("Direction:");
-                                if updated.ping_pong_forward {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(100, 200, 255),
-                                        "➔ Moving to Target",
-                                    );
-                                } else {
-                                    ui.colored_label(
-                                        egui::Color32::from_rgb(255, 180, 80),
-                                        "⬅ Returning to Origin",
-                                    );
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label("Target Pos:");
-                                ui.label("X:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.target_position[0])
-                                            .speed(0.2),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label("Y:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.target_position[1])
-                                            .speed(0.2),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                                ui.label("Z:");
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut updated.target_position[2])
-                                            .speed(0.2),
-                                    )
-                                    .changed()
-                                {
-                                    changed = true;
-                                }
-                            });
-                        }
-                        BehaviorType::CharacterAction => {
-                            ui.label("🎯 Action: WASD Move, Shift Sprint, Space Jump");
-                            ui.label("🔫 Weapon: Left Mouse / Key 'F' Raycast Shoot");
-                            ui.label("🚪 Interaction: Key 'E' Trigger Proximity");
-                        }
-                        BehaviorType::Custom => {
-                            ui.label("Custom dynamic gameplay plugin behavior.");
-                        }
-                    }
                 },
             );
 
-            if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveBehavior(entity));
-            }
-
             if changed {
-                ui_actions.push(EngineUiAction::ModifyBehavior(entity, updated));
+                ctx.ui_actions.push(EngineUiAction::modify_component(
+                    ctx.entity, "Rotator", &updated,
+                ));
+            }
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
             }
         }
     }
 }
 
-pub struct BehaviorUiHandler;
+/// UI handler for `MovingPlatform` waypoint translation component.
+pub struct MovingPlatformUiHandler;
 
-impl super::registry::ComponentUiHandler for BehaviorUiHandler {
+impl super::registry::ComponentUiHandler for MovingPlatformUiHandler {
     fn component_name(&self) -> &'static str {
-        "Behavior"
+        "MovingPlatform"
     }
 
     fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
-        ("Behavior", "🧠", egui::Color32::from_rgb(180, 130, 255))
+        (
+            "MovingPlatform",
+            "🚡",
+            egui::Color32::from_rgb(180, 130, 255),
+        )
     }
 
     fn menu_category(&self) -> (&'static str, &'static str) {
-        ("Gameplay", "Behavior")
+        ("Gameplay", "Moving Platform")
     }
 
     fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&BehaviorComponent>(entity).is_ok()
+        world.get::<&MovingPlatform>(entity).is_ok()
     }
 
     fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
-        EngineUi::draw_behavior_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
-    }
+        if let Ok(platform) = ctx.world.get::<&MovingPlatform>(ctx.entity) {
+            let mut updated = *platform;
+            let mut changed = false;
 
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::AddBehavior(
-            entity,
-            BehaviorComponent::default(),
-        ));
-    }
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "MovingPlatform",
+                "🚡",
+                egui::Color32::from_rgb(180, 130, 255),
+                true,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Speed:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.speed)
+                                    .speed(0.1)
+                                    .range(0.1..=50.0),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("m/s");
+                    });
 
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveBehavior(entity));
+                    ui.horizontal(|ui| {
+                        ui.label("Target Pos:");
+                        ui.label("X:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.target_position[0]).speed(0.1))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("Y:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.target_position[1]).speed(0.1))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("Z:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.target_position[2]).speed(0.1))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                    });
+                },
+            );
+
+            if changed {
+                ctx.ui_actions.push(EngineUiAction::modify_component(
+                    ctx.entity,
+                    "MovingPlatform",
+                    &updated,
+                ));
+            }
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
+            }
+        }
     }
 }
 
+/// UI handler for `TriggerZone` proximity sensor and mechanism component.
+pub struct TriggerZoneUiHandler;
+
+impl super::registry::ComponentUiHandler for TriggerZoneUiHandler {
+    fn component_name(&self) -> &'static str {
+        "TriggerZone"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        ("TriggerZone", "⚡", egui::Color32::from_rgb(180, 130, 255))
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Gameplay", "Trigger Zone")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&TriggerZone>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        if let Ok(zone) = ctx.world.get::<&TriggerZone>(ctx.entity) {
+            let mut updated = *zone;
+            let mut changed = false;
+
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "TriggerZone",
+                "⚡",
+                egui::Color32::from_rgb(180, 130, 255),
+                true,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Status:");
+                        if updated.is_triggered {
+                            ui.colored_label(egui::Color32::from_rgb(50, 230, 80), "● ACTIVATED");
+                        } else {
+                            ui.colored_label(egui::Color32::from_rgb(120, 130, 150), "○ IDLE");
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Speed:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.speed)
+                                    .speed(0.1)
+                                    .range(0.1..=50.0),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Target Y:");
+                        if ui
+                            .add(egui::DragValue::new(&mut updated.target_position[1]).speed(0.1))
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                    });
+                },
+            );
+
+            if changed {
+                ctx.ui_actions.push(EngineUiAction::modify_component(
+                    ctx.entity,
+                    "TriggerZone",
+                    &updated,
+                ));
+            }
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
+            }
+        }
+    }
+}
+
+/// UI handler for `DestructibleTarget` health and damage response component.
+pub struct DestructibleTargetUiHandler;
+
+impl super::registry::ComponentUiHandler for DestructibleTargetUiHandler {
+    fn component_name(&self) -> &'static str {
+        "DestructibleTarget"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "DestructibleTarget",
+            "🎯",
+            egui::Color32::from_rgb(180, 130, 255),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Gameplay", "Destructible Target")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&DestructibleTarget>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        if let Ok(target) = ctx.world.get::<&DestructibleTarget>(ctx.entity) {
+            let mut updated = *target;
+            let mut changed = false;
+
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "DestructibleTarget",
+                "🎯",
+                egui::Color32::from_rgb(180, 130, 255),
+                true,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Health:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.health)
+                                    .speed(1.0)
+                                    .range(0.0..=updated.max_health),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label(format!("/ {:.0}", updated.max_health));
+                    });
+
+                    let health_frac =
+                        (updated.health / updated.max_health.max(1.0)).clamp(0.0, 1.0);
+                    let bar_color = if health_frac > 0.5 {
+                        egui::Color32::from_rgb(50, 200, 80)
+                    } else if health_frac > 0.25 {
+                        egui::Color32::from_rgb(230, 180, 30)
+                    } else {
+                        egui::Color32::from_rgb(230, 50, 50)
+                    };
+
+                    ui.horizontal(|ui| {
+                        ui.label("Status:");
+                        let bar_width = (ui.available_width() - 80.0).clamp(60.0, 240.0);
+                        let text_color = if health_frac > 0.3 {
+                            egui::Color32::BLACK
+                        } else {
+                            egui::Color32::WHITE
+                        };
+                        let progress_bar =
+                            egui::ProgressBar::new(health_frac).fill(bar_color).text(
+                                egui::RichText::new(format!("{:.0}%", health_frac * 100.0))
+                                    .color(text_color)
+                                    .strong(),
+                            );
+                        ui.add_sized([bar_width, 16.0], progress_bar);
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Max HP:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.max_health)
+                                    .speed(5.0)
+                                    .range(1.0..=10000.0),
+                            )
+                            .changed()
+                        {
+                            updated.health = updated.health.min(updated.max_health);
+                            changed = true;
+                        }
+                    });
+                },
+            );
+
+            if changed {
+                ctx.ui_actions.push(EngineUiAction::modify_component(
+                    ctx.entity,
+                    "DestructibleTarget",
+                    &updated,
+                ));
+            }
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
+            }
+        }
+    }
+}
+
+/// UI handler for `CharacterAction` weapon raycast shooting component.
+pub struct CharacterActionUiHandler;
+
+impl super::registry::ComponentUiHandler for CharacterActionUiHandler {
+    fn component_name(&self) -> &'static str {
+        "CharacterAction"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "CharacterAction",
+            "🔫",
+            egui::Color32::from_rgb(180, 130, 255),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Gameplay", "Character Action")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&CharacterAction>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        if let Ok(action) = ctx.world.get::<&CharacterAction>(ctx.entity) {
+            let mut updated = *action;
+            let mut changed = false;
+
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "CharacterAction",
+                "🔫",
+                egui::Color32::from_rgb(180, 130, 255),
+                true,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Speed / Range:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.speed)
+                                    .speed(1.0)
+                                    .range(1.0..=500.0),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("m/s");
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Cooldown:");
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut updated.cooldown)
+                                    .speed(0.05)
+                                    .range(0.05..=5.0),
+                            )
+                            .changed()
+                        {
+                            changed = true;
+                        }
+                        ui.label("s");
+                    });
+                },
+            );
+
+            if changed {
+                ctx.ui_actions.push(EngineUiAction::modify_component(
+                    ctx.entity,
+                    "CharacterAction",
+                    &updated,
+                ));
+            }
+            if remove_clicked {
+                self.remove_from_entity(ctx.entity, ctx.ui_actions);
+            }
+        }
+    }
+}
+
+/// UI handler for `PlayerTag` marker component.
 pub struct PlayerTagUiHandler;
 
 impl super::registry::ComponentUiHandler for PlayerTagUiHandler {
@@ -347,15 +484,11 @@ impl super::registry::ComponentUiHandler for PlayerTagUiHandler {
     }
 
     fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::PlayerTag>(entity).is_ok()
+        world.get::<&PlayerTag>(entity).is_ok()
     }
 
     fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
-        if ctx
-            .world
-            .get::<&ae_core::ecs::PlayerTag>(ctx.entity)
-            .is_ok()
-        {
+        if ctx.world.get::<&PlayerTag>(ctx.entity).is_ok() {
             let (_, remove_clicked) = super::widgets::draw_inspector_card(
                 ui,
                 "PlayerTag",
@@ -364,9 +497,11 @@ impl super::registry::ComponentUiHandler for PlayerTagUiHandler {
                 true,
                 |ui| {
                     ui.label(
-                        egui::RichText::new("Designates this entity as the active Player target for gameplay logic and camera tracking.")
-                            .small()
-                            .color(egui::Color32::from_gray(170)),
+                        egui::RichText::new(
+                            "Designates this entity as the active Player target for gameplay logic and camera tracking.",
+                        )
+                        .small()
+                        .color(egui::Color32::from_gray(170)),
                     );
                 },
             );
@@ -374,18 +509,5 @@ impl super::registry::ComponentUiHandler for PlayerTagUiHandler {
                 self.remove_from_entity(ctx.entity, ctx.ui_actions);
             }
         }
-    }
-
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::AddPlayerTag(entity));
-    }
-
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemovePlayerTag(entity));
     }
 }

@@ -96,8 +96,16 @@ impl HierarchyCache {
                 "🔊 "
             } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
                 "🎮 "
-            } else if ent_ref.get::<&ae_core::ecs::BehaviorComponent>().is_some() {
-                "🧠 "
+            } else if ent_ref.get::<&ae_core::ecs::Rotator>().is_some() {
+                "🔄 "
+            } else if ent_ref.get::<&ae_core::ecs::MovingPlatform>().is_some() {
+                "🚡 "
+            } else if ent_ref.get::<&ae_core::ecs::TriggerZone>().is_some() {
+                "⚡ "
+            } else if ent_ref.get::<&ae_core::ecs::DestructibleTarget>().is_some() {
+                "🎯 "
+            } else if ent_ref.get::<&ae_core::ecs::CharacterAction>().is_some() {
+                "🔫 "
             } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some() {
                 "📦 "
             } else if ent_ref.get::<&ae_core::ecs::Shape>().is_some() {

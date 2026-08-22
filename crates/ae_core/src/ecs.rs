@@ -6,10 +6,11 @@ use hecs::World;
 use serde::{Deserialize, Serialize};
 
 pub use ae_plugin_api::{
-    AssetHandle, BehaviorComponent, BehaviorType, BoundingBox, BoundingRadius, CharacterController,
-    Children, Collider, ColliderShape, Color, GlobalTransform, Hidden, Light, ModelId, Name,
-    Parent, PlayerTag, Position, RaycastHit, RigidBody, RigidBodyType, Rotation, Scale, Shape,
-    SpriteId, TransformDirty, Velocity,
+    AssetHandle, BoundingBox, BoundingRadius, CharacterAction, CharacterController, Children,
+    Collider, ColliderShape, Color, DestructibleTarget, EphemeralProjectile, GlobalTransform,
+    Hidden, Light, ModelId, MovingPlatform, Name, Parent, PlayerTag, Position, RaycastHit,
+    RigidBody, RigidBodyType, Rotation, Rotator, Scale, Shape, SpriteId, TransformDirty,
+    TriggerZone, Velocity,
 };
 
 pub use crate::registry::{ComponentHandler, ComponentRegistry, TypedComponentHandler};
@@ -248,6 +249,18 @@ pub struct LodGroup {
     pub threshold_1: f32,
     /// Distance threshold between LOD 1 and LOD 2
     pub threshold_2: f32,
+}
+
+impl Default for LodGroup {
+    fn default() -> Self {
+        Self {
+            lod_0: AssetHandle::default(),
+            lod_1: None,
+            lod_2: None,
+            threshold_1: 15.0,
+            threshold_2: 35.0,
+        }
+    }
 }
 
 #[cfg(test)]

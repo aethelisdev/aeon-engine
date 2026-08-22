@@ -168,7 +168,7 @@ slotmap::new_key_type! {
 }
 
 /// Asset handle reference to a loaded 3D model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelId(pub AssetHandle);
 
 /// Linear velocity component for physics-driven entity movement.
@@ -191,7 +191,7 @@ impl Velocity {
 }
 
 /// Zero-cost marker tag identifying the player-controlled entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayerTag;
 
 /// Human-readable display name for an entity.
@@ -199,9 +199,10 @@ pub struct PlayerTag;
 pub struct Name(pub String);
 
 /// Built-in geometric shape type for primitive entity rendering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Shape {
     Triangle,
+    #[default]
     Cube,
     Sphere,
     Cylinder,
@@ -210,11 +211,11 @@ pub enum Shape {
 }
 
 /// Asset handle reference to a loaded 2D texture sprite.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpriteId(pub AssetHandle);
 
 /// Reference to a physics material asset for friction and restitution properties.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PhysicsMaterialHandle(pub AssetHandle);
 
 /// Bounding sphere radius for broad-phase frustum culling.
@@ -229,7 +230,7 @@ pub struct BoundingBox {
 }
 
 /// Marker component flagging entities whose transform changed this frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TransformDirty;
 
 /// Physics body simulation type.
@@ -318,12 +319,101 @@ pub struct RaycastHit {
     pub distance: f32,
 }
 
+impl Default for Position {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+impl Default for Rotation {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
+impl Default for Scale {
+    fn default() -> Self {
+        Self::one()
+    }
+}
+
+impl Default for Velocity {
+    fn default() -> Self {
+        Self::zero()
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self::white()
+    }
+}
+
+impl Default for Light {
+    fn default() -> Self {
+        Self {
+            position: [0.0, 0.0, 0.0],
+            color: [1.0, 1.0, 1.0],
+        }
+    }
+}
+
+impl Default for Name {
+    fn default() -> Self {
+        Self("Entity".to_string())
+    }
+}
+
+impl Default for BoundingRadius {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+impl Default for BoundingBox {
+    fn default() -> Self {
+        Self {
+            min: [-0.5, -0.5, -0.5],
+            max: [0.5, 0.5, 0.5],
+        }
+    }
+}
+
+impl Default for RigidBody {
+    fn default() -> Self {
+        Self {
+            body_type: RigidBodyType::Dynamic,
+            mass: 1.0,
+            gravity_scale: 1.0,
+        }
+    }
+}
+
+impl Default for Collider {
+    fn default() -> Self {
+        Self {
+            shape: ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            },
+            friction: 0.5,
+            restitution: 0.0,
+            is_sensor: false,
+        }
+    }
+}
+
 /// Parent entity reference for hierarchical transforms and scene graphs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Parent(pub hecs::Entity);
 
+impl Default for Parent {
+    fn default() -> Self {
+        Self(hecs::Entity::DANGLING)
+    }
+}
+
 /// Child entity list for hierarchical transforms and scene graphs.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Children(pub Vec<hecs::Entity>);
 
 /// Cached world-space transform matrix for hierarchical transforms, picking, and rendering.
@@ -331,153 +421,186 @@ pub struct Children(pub Vec<hecs::Entity>);
 pub struct GlobalTransform(pub cgmath::Matrix4<f32>);
 
 // =========================================================================
-// PHASE 1: GAMEPLAY SCRIPTING & BEHAVIOR SYSTEM
+// =========================================================================
+// MODULAR GAMEPLAY SCRIPTING & ECS BEHAVIOR COMPONENTS
 // =========================================================================
 
-/// Predefined gameplay behavior category for data-driven entity execution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum BehaviorType {
-    /// Smoothly rotates the entity around a defined axis.
-    Rotator,
-    /// Proximity volume that toggles state when entities enter or exit its boundary.
-    TriggerZone,
-    /// Hit-reactive target entity with health, damage response, and despawn handling.
-    DestructibleTarget,
-    /// Entity that translates back and forth between waypoints.
-    MovingPlatform,
-    /// Character actions including raycast shooting and world interaction.
-    CharacterAction,
-    /// Custom user-defined or plugin-driven script behavior.
-    Custom,
+/// Continuous rotational behavior component for rotating entities around a 3D axis.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Rotator {
+    /// Angular rotation speed in radians per second.
+    pub speed: f32,
+    /// 3D rotational unit axis (e.g. `[0.0, 1.0, 0.0]` for Y-axis rotation).
+    pub axis: [f32; 3],
 }
 
-/// Generic gameplay behavior component storing runtime state and configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BehaviorComponent {
-    /// Active behavior archetype category.
-    pub behavior_type: BehaviorType,
-    /// General speed multiplier for rotation, movement, or cooldowns.
+impl Rotator {
+    /// Creates a new `Rotator` with the specified rotation speed and axis.
+    pub fn new(speed: f32, axis: [f32; 3]) -> Self {
+        Self { speed, axis }
+    }
+}
+
+impl Default for Rotator {
+    fn default() -> Self {
+        Self {
+            speed: 1.5,
+            axis: [0.0, 1.0, 0.0],
+        }
+    }
+}
+
+/// Waypoint interpolation behavior component for moving entities back and forth between two points.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MovingPlatform {
+    /// Linear movement speed in units per second.
     pub speed: f32,
-    /// Primary 3D axis vector (e.g. `[0.0, 1.0, 0.0]` for Y-axis rotation).
-    pub axis: [f32; 3],
-    /// Current health pool for destructible targets.
-    pub health: f32,
-    /// Maximum health pool for destructible targets.
-    pub max_health: f32,
-    /// Flag indicating whether the trigger zone is currently activated.
-    pub is_triggered: bool,
-    /// Target world-space position for moving platforms or sliding elements.
-    pub target_position: [f32; 3],
-    /// Original rest position for returning or ping-pong movements.
+    /// Initial starting or rest position.
     pub original_position: [f32; 3],
-    /// Direction flag for ping-pong waypoint interpolation (`true` moving to target, `false` returning).
+    /// Target waypoint position for the entity to move toward.
+    pub target_position: [f32; 3],
+    /// Direction flag for ping-pong movement (`true` moving to target, `false` returning).
     pub ping_pong_forward: bool,
-    /// Accumulator timer used for cooldowns, periodic oscillation, or hit-flash decay.
-    pub timer: f32,
-    /// Hit flash timer indicating remaining duration of the visual damage tint.
+}
+
+impl MovingPlatform {
+    /// Creates a new `MovingPlatform` between two 3D positions.
+    pub fn new(speed: f32, original_position: [f32; 3], target_position: [f32; 3]) -> Self {
+        Self {
+            speed,
+            original_position,
+            target_position,
+            ping_pong_forward: true,
+        }
+    }
+}
+
+impl Default for MovingPlatform {
+    fn default() -> Self {
+        Self {
+            speed: 2.5,
+            original_position: [0.0, 0.0, 0.0],
+            target_position: [0.0, 5.0, 0.0],
+            ping_pong_forward: true,
+        }
+    }
+}
+
+/// Proximity sensor and mechanism behavior component for reactive trigger areas, doors, and elevators.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct TriggerZone {
+    /// Flag indicating whether the trigger zone is currently activated by an overlapping actor.
+    pub is_triggered: bool,
+    /// Movement speed for attached mechanism transitions (e.g. door opening/closing).
+    pub speed: f32,
+    /// Primary motion axis vector for the activated mechanism.
+    pub axis: [f32; 3],
+    /// Target position when fully triggered.
+    pub target_position: [f32; 3],
+    /// Original rest position when un-triggered.
+    pub original_position: [f32; 3],
+    /// Direction flag for mechanism movement.
+    pub ping_pong_forward: bool,
+}
+
+impl TriggerZone {
+    /// Creates a default `TriggerZone` for proximity detection and mechanism activation.
+    pub fn new() -> Self {
+        Self {
+            is_triggered: false,
+            speed: 3.0,
+            axis: [0.0, 1.0, 0.0],
+            target_position: [0.0, 4.0, 0.0],
+            original_position: [0.0, 0.0, 0.0],
+            ping_pong_forward: true,
+        }
+    }
+}
+
+impl Default for TriggerZone {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Destructible combat target behavior component managing health, damage reaction, and hit flash effects.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct DestructibleTarget {
+    /// Current health points of the target entity.
+    pub health: f32,
+    /// Maximum health points capacity of the target entity.
+    pub max_health: f32,
+    /// Remaining duration in seconds for the visual damage hit-flash tint.
     pub hit_flash_timer: f32,
-    /// Original base color for restoring after hit flash effects.
+    /// Original RGBA color of the target entity restored after hit-flash decay.
     pub original_color: [f32; 4],
 }
 
-impl BehaviorComponent {
-    /// Creates a new `Rotator` behavior component with the specified rotation speed and axis.
-    pub fn rotator(speed: f32, axis: [f32; 3]) -> Self {
+impl DestructibleTarget {
+    /// Creates a new `DestructibleTarget` with the specified maximum health pool.
+    pub fn new(max_health: f32) -> Self {
         Self {
-            behavior_type: BehaviorType::Rotator,
-            speed,
-            axis,
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
-            target_position: [0.0, 0.0, 0.0],
-            original_position: [0.0, 0.0, 0.0],
-            ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
-        }
-    }
-
-    /// Creates a new `TriggerZone` behavior component for proximity detection.
-    pub fn trigger_zone() -> Self {
-        Self {
-            behavior_type: BehaviorType::TriggerZone,
-            speed: 3.0,
-            axis: [0.0, 1.0, 0.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
-            target_position: [0.0, 0.0, 0.0],
-            original_position: [0.0, 0.0, 0.0],
-            ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
-        }
-    }
-
-    /// Creates a new `DestructibleTarget` behavior component with the given health pool.
-    pub fn destructible_target(max_health: f32) -> Self {
-        Self {
-            behavior_type: BehaviorType::DestructibleTarget,
-            speed: 1.0,
-            axis: [0.0, 1.0, 0.0],
             health: max_health,
             max_health,
-            is_triggered: false,
-            target_position: [0.0, 0.0, 0.0],
-            original_position: [0.0, 0.0, 0.0],
-            ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
-        }
-    }
-
-    /// Creates a new `MovingPlatform` behavior component between two positions.
-    pub fn moving_platform(
-        speed: f32,
-        original_position: [f32; 3],
-        target_position: [f32; 3],
-    ) -> Self {
-        Self {
-            behavior_type: BehaviorType::MovingPlatform,
-            speed,
-            axis: [1.0, 0.0, 0.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
-            target_position,
-            original_position,
-            ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
-        }
-    }
-
-    /// Creates a new `CharacterAction` behavior component for player weapon shooting and actions.
-    pub fn character_action() -> Self {
-        Self {
-            behavior_type: BehaviorType::CharacterAction,
-            speed: 10.0, // Raycast max range (e.g. 50.0m) or fire rate
-            axis: [0.0, 0.0, -1.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
-            target_position: [0.0, 0.0, 0.0],
-            original_position: [0.0, 0.0, 0.0],
-            ping_pong_forward: true,
-            timer: 0.0,
             hit_flash_timer: 0.0,
             original_color: [1.0, 1.0, 1.0, 1.0],
         }
     }
 }
 
-impl Default for BehaviorComponent {
+impl Default for DestructibleTarget {
     fn default() -> Self {
-        Self::rotator(1.5, [0.0, 1.0, 0.0])
+        Self::new(100.0)
+    }
+}
+
+/// Character weapon and world interaction behavior component for shooting raycasts and spawning projectiles.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct CharacterAction {
+    /// Raycast range or projectile ejection speed.
+    pub speed: f32,
+    /// Fire direction axis relative to camera or forward transform.
+    pub axis: [f32; 3],
+    /// Cooldown period between consecutive weapon actions in seconds.
+    pub cooldown: f32,
+    /// Current timer accumulator for weapon cooldown gating.
+    pub timer: f32,
+}
+
+impl CharacterAction {
+    /// Creates a new `CharacterAction` component with default weapon parameters.
+    pub fn new() -> Self {
+        Self {
+            speed: 50.0,
+            axis: [0.0, 0.0, -1.0],
+            cooldown: 0.2,
+            timer: 0.0,
+        }
+    }
+}
+
+impl Default for CharacterAction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Ephemeral projectile marker component that despawns an entity after its lifetime expires.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct EphemeralProjectile {
+    /// Remaining lifetime in seconds before automatic entity destruction.
+    pub lifetime_remaining: f32,
+}
+
+impl EphemeralProjectile {
+    /// Creates a new `EphemeralProjectile` with the specified lifetime in seconds.
+    pub fn new(lifetime_remaining: f32) -> Self {
+        Self { lifetime_remaining }
+    }
+}
+
+impl Default for EphemeralProjectile {
+    fn default() -> Self {
+        Self::new(0.7)
     }
 }

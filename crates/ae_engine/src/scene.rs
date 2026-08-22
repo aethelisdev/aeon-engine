@@ -80,7 +80,13 @@ fn lookup_registry_handler<'a>(
         let name = handler.type_name();
         if name.eq_ignore_ascii_case(key)
             || to_snake_case(name) == key
-            || (name == "BehaviorComponent" && (key == "behavior" || key == "behavior_component"))
+            || (name == "Rotator" && (key == "rotator" || key == "rot"))
+            || (name == "MovingPlatform" && (key == "moving_platform" || key == "platform"))
+            || (name == "TriggerZone" && (key == "trigger_zone" || key == "trigger"))
+            || (name == "DestructibleTarget"
+                && (key == "destructible_target" || key == "destructible" || key == "target"))
+            || (name == "CharacterAction"
+                && (key == "character_action" || key == "combat" || key == "weapon"))
             || (name == "BoundingRadius" && (key == "bounding_radius" || key == "radius"))
             || (name == "BoundingBox" && (key == "bounding_box" || key == "bbox"))
             || (name == "CharacterController"

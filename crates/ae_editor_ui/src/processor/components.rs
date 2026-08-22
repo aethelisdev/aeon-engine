@@ -1,7 +1,185 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+//! Generic ECS Component and Entity Processor Handlers.
+//!
+//! Provides dynamic component addition, removal, and mutation through `ComponentRegistry`.
+//!
+
 use super::UiContext;
+
+/// Handles dynamically adding a component to an entity using `ComponentRegistry` default constructor.
+pub fn handle_add_component(ctx: &mut UiContext, entity: hecs::Entity, type_name: &str) {
+    match type_name {
+        "AudioSource" => {
+            let _ = ctx
+                .world
+                .insert_one(entity, ae_audio::AudioSource::default());
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!("➕ Added component 'AudioSource' to entity {:?}", entity);
+            return;
+        }
+        "AudioListener" => {
+            let _ = ctx.world.insert_one(entity, ae_audio::AudioListener);
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!("➕ Added component 'AudioListener' to entity {:?}", entity);
+            return;
+        }
+        "AnimationPlayer" => {
+            let _ = ctx
+                .world
+                .insert_one(entity, ae_animation::AnimationPlayer::default());
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!(
+                "➕ Added component 'AnimationPlayer' to entity {:?}",
+                entity
+            );
+            return;
+        }
+        _ => {}
+    }
+
+    let registry = ae_core::registry::ComponentRegistry::global();
+    if let Some(handler) = registry.get_by_name(type_name) {
+        if let Err(e) = handler.add_default(ctx.world, entity) {
+            log::error!(
+                "Failed to add component '{}' to entity {:?}: {}",
+                type_name,
+                entity,
+                e
+            );
+        } else {
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!("➕ Added component '{}' to entity {:?}", type_name, entity);
+        }
+    } else {
+        log::warn!(
+            "Attempted to add unregistered component '{}' to entity {:?}",
+            type_name,
+            entity
+        );
+    }
+}
+
+/// Handles dynamically removing a component from an entity using `ComponentRegistry`.
+pub fn handle_remove_component(ctx: &mut UiContext, entity: hecs::Entity, type_name: &str) {
+    match type_name {
+        "AudioSource" => {
+            let _ = ctx.world.remove_one::<ae_audio::AudioSource>(entity);
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!("🗑 Removed component 'AudioSource' from entity {:?}", entity);
+            return;
+        }
+        "AudioListener" => {
+            let _ = ctx.world.remove_one::<ae_audio::AudioListener>(entity);
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!(
+                "🗑 Removed component 'AudioListener' from entity {:?}",
+                entity
+            );
+            return;
+        }
+        "AnimationPlayer" => {
+            let _ = ctx
+                .world
+                .remove_one::<ae_animation::AnimationPlayer>(entity);
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!(
+                "🗑 Removed component 'AnimationPlayer' from entity {:?}",
+                entity
+            );
+            return;
+        }
+        _ => {}
+    }
+
+    let registry = ae_core::registry::ComponentRegistry::global();
+    if let Some(handler) = registry.get_by_name(type_name) {
+        if handler.remove_component(ctx.world, entity) {
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!(
+                "🗑 Removed component '{}' from entity {:?}",
+                type_name,
+                entity
+            );
+        }
+    } else {
+        log::warn!(
+            "Attempted to remove unregistered component '{}' from entity {:?}",
+            type_name,
+            entity
+        );
+    }
+}
+
+/// Handles dynamically modifying a component on an entity using `ComponentRegistry`.
+pub fn handle_modify_component(
+    ctx: &mut UiContext,
+    entity: hecs::Entity,
+    type_name: &str,
+    data: &[u8],
+) {
+    match type_name {
+        "AudioSource" => {
+            if let Ok(comp) = serde_json::from_slice::<ae_audio::AudioSource>(data) {
+                let _ = ctx.world.insert_one(entity, comp);
+                let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            }
+            return;
+        }
+        "AudioListener" => {
+            if let Ok(comp) = serde_json::from_slice::<ae_audio::AudioListener>(data) {
+                let _ = ctx.world.insert_one(entity, comp);
+                let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            }
+            return;
+        }
+        "AnimationPlayer" => {
+            if let Ok(comp) = serde_json::from_slice::<ae_animation::AnimationPlayer>(data) {
+                let _ = ctx.world.insert_one(entity, comp);
+                let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            }
+            return;
+        }
+        _ => {}
+    }
+
+    let registry = ae_core::registry::ComponentRegistry::global();
+    if let Some(handler) = registry.get_by_name(type_name) {
+        if let Err(e) = handler.apply(ctx.world, entity, data) {
+            log::error!(
+                "Failed to apply component '{}' modification on entity {:?}: {}",
+                type_name,
+                entity,
+                e
+            );
+        } else {
+            // Synchronize CharacterController capsule geometry when Collider shape is modified
+            if type_name == "Collider"
+                && let Ok(collider) = ctx.world.get::<&ae_core::ecs::Collider>(entity)
+                && let ae_core::ecs::ColliderShape::Capsule {
+                    half_height,
+                    radius,
+                    center_y,
+                } = collider.shape
+                && let Ok(mut ctrl) = ctx
+                    .world
+                    .get::<&mut ae_core::ecs::CharacterController>(entity)
+            {
+                ctrl.height = (half_height + radius) * 2.0;
+                ctrl.radius = radius;
+                ctrl.center_y = center_y;
+            }
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+        }
+    } else {
+        log::warn!(
+            "Attempted to modify unregistered component '{}' on entity {:?}",
+            type_name,
+            entity
+        );
+    }
+}
 
 /// Handles modifying position component of an entity.
 pub fn handle_modify_position(
@@ -70,245 +248,16 @@ pub fn handle_modify_color(ctx: &mut UiContext, entity: hecs::Entity, color: ae_
 pub fn handle_modify_light_color(ctx: &mut UiContext, entity: hecs::Entity, color: [f32; 3]) {
     if let Ok(mut existing) = ctx.world.get::<&mut ae_core::ecs::Light>(entity) {
         existing.color = color;
-    }
-}
-
-/// Handles modifying rigid body component of an entity.
-pub fn handle_modify_rigid_body(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    rb: ae_core::ecs::RigidBody,
-) {
-    if let Ok(mut existing) = ctx.world.get::<&mut ae_core::ecs::RigidBody>(entity) {
-        *existing = rb;
     } else {
-        let _ = ctx.world.insert_one(entity, rb);
+        let _ = ctx.world.insert_one(
+            entity,
+            ae_core::ecs::Light {
+                position: [0.0, 0.0, 0.0],
+                color,
+            },
+        );
     }
-}
-
-/// Handles modifying collider component of an entity.
-pub fn handle_modify_collider(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    collider: ae_core::ecs::Collider,
-) {
-    if let Ok(mut existing) = ctx.world.get::<&mut ae_core::ecs::Collider>(entity) {
-        *existing = collider;
-    } else {
-        let _ = ctx.world.insert_one(entity, collider);
-    }
-
-    // Synchronize CharacterController dimensions if present
-    if let ae_core::ecs::ColliderShape::Capsule {
-        half_height,
-        radius,
-        center_y,
-    } = collider.shape
-        && let Ok(mut ctrl) = ctx
-            .world
-            .get::<&mut ae_core::ecs::CharacterController>(entity)
-    {
-        ctrl.height = (half_height + radius) * 2.0;
-        ctrl.radius = radius;
-        ctrl.center_y = center_y;
-    }
-
     let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-}
-
-/// Handles adding a rigid body component to an entity.
-pub fn handle_add_rigid_body(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    rb: ae_core::ecs::RigidBody,
-) {
-    let _ = ctx.world.insert_one(entity, rb);
-}
-
-/// Handles removing rigid body component from an entity.
-pub fn handle_remove_rigid_body(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.remove_one::<ae_core::ecs::RigidBody>(entity);
-}
-
-/// Handles adding a collider to an entity.
-pub fn handle_add_collider(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    collider: ae_core::ecs::Collider,
-) {
-    let _ = ctx.world.insert_one(entity, collider);
-}
-
-/// Handles removing collider component from an entity.
-pub fn handle_remove_collider(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.remove_one::<ae_core::ecs::Collider>(entity);
-}
-
-/// Handles adding character controller component to an entity.
-pub fn handle_add_character_controller(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    cc: ae_core::ecs::CharacterController,
-) {
-    let _ = ctx.world.insert_one(entity, cc);
-}
-
-/// Handles removing character controller component from an entity.
-pub fn handle_remove_character_controller(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx
-        .world
-        .remove_one::<ae_core::ecs::CharacterController>(entity);
-}
-
-/// Handles modifying character controller component of an entity.
-pub fn handle_modify_character_controller(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    cc: ae_core::ecs::CharacterController,
-) {
-    if let Ok(mut existing) = ctx
-        .world
-        .get::<&mut ae_core::ecs::CharacterController>(entity)
-    {
-        *existing = cc;
-    } else {
-        let _ = ctx.world.insert_one(entity, cc);
-    }
-
-    if let Ok(mut col) = ctx.world.get::<&mut ae_core::ecs::Collider>(entity)
-        && matches!(col.shape, ae_core::ecs::ColliderShape::Capsule { .. })
-    {
-        col.shape = ae_core::ecs::ColliderShape::Capsule {
-            half_height: cc.capsule_half_height(),
-            radius: cc.radius,
-            center_y: cc.center_y,
-        };
-    }
-
-    let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
-}
-
-/// Handles adding LOD group component to an entity.
-pub fn handle_add_lod_group(ctx: &mut UiContext, entity: hecs::Entity) {
-    let dummy_handle = ae_renderer::asset::AssetHandle::default();
-    let lod = ae_core::ecs::LodGroup {
-        lod_0: dummy_handle,
-        lod_1: None,
-        lod_2: None,
-        threshold_1: 20.0,
-        threshold_2: 50.0,
-    };
-    let _ = ctx.world.insert_one(entity, lod);
-}
-
-/// Handles removing LOD group component from an entity.
-pub fn handle_remove_lod_group(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.remove_one::<ae_core::ecs::LodGroup>(entity);
-}
-
-/// Handles modifying LOD thresholds of an entity.
-pub fn handle_modify_lod_thresholds(ctx: &mut UiContext, entity: hecs::Entity, t1: f32, t2: f32) {
-    if let Ok(mut lod) = ctx.world.get::<&mut ae_core::ecs::LodGroup>(entity) {
-        lod.threshold_1 = t1;
-        lod.threshold_2 = t2;
-    }
-}
-
-/// Handles modifying LOD model handle of an entity.
-pub fn handle_modify_lod_model(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    slot: u8,
-    handle_opt: Option<ae_renderer::asset::AssetHandle>,
-) {
-    if let Ok(mut lod) = ctx.world.get::<&mut ae_core::ecs::LodGroup>(entity) {
-        match slot {
-            0 => {
-                if let Some(h) = handle_opt {
-                    lod.lod_0 = h;
-                }
-            }
-            1 => {
-                lod.lod_1 = handle_opt;
-            }
-            2 => {
-                lod.lod_2 = handle_opt;
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Handles adding AudioSource component to an entity.
-pub fn handle_add_audio_source(ctx: &mut UiContext, entity: hecs::Entity) {
-    let source = ae_audio::AudioSource::default();
-    let _ = ctx.world.insert_one(entity, source);
-    log::info!("🔊 Added AudioSource to entity {:?}", entity);
-}
-
-/// Handles removing AudioSource component from an entity.
-pub fn handle_remove_audio_source(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.remove_one::<ae_audio::AudioSource>(entity);
-    log::info!("🔊 Removed AudioSource from entity {:?}", entity);
-}
-
-/// Handles modifying AudioSource parameters of an entity.
-pub fn handle_modify_audio_source(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    source: ae_audio::AudioSource,
-) {
-    if let Ok(mut existing) = ctx.world.get::<&mut ae_audio::AudioSource>(entity) {
-        *existing = source;
-    }
-}
-
-/// Handles adding AudioListener component to an entity.
-pub fn handle_add_audio_listener(ctx: &mut UiContext, entity: hecs::Entity) {
-    let listener = ae_audio::AudioListener;
-    let _ = ctx.world.insert_one(entity, listener);
-    log::info!("👂 Added AudioListener to entity {:?}", entity);
-}
-
-/// Handles removing AudioListener component from an entity.
-pub fn handle_remove_audio_listener(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.remove_one::<ae_audio::AudioListener>(entity);
-    log::info!("👂 Removed AudioListener from entity {:?}", entity);
-}
-
-/// Handles adding PlayerTag component to an entity.
-pub fn handle_add_player_tag(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.insert_one(entity, ae_core::ecs::PlayerTag);
-    log::info!("🎮 Added PlayerTag to entity {:?}", entity);
-}
-
-/// Handles removing PlayerTag component from an entity.
-pub fn handle_remove_player_tag(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx.world.remove_one::<ae_core::ecs::PlayerTag>(entity);
-    log::info!("🎮 Removed PlayerTag from entity {:?}", entity);
-}
-
-/// Handles adding AnimationPlayer component to an entity.
-pub fn handle_add_animation_player(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx
-        .world
-        .insert_one(entity, ae_animation::AnimationPlayer::new());
-}
-
-/// Handles removing AnimationPlayer component from an entity.
-pub fn handle_remove_animation_player(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx
-        .world
-        .remove_one::<ae_animation::AnimationPlayer>(entity);
-}
-
-/// Handles modifying AnimationPlayer component on an entity.
-pub fn handle_modify_animation_player(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    player: ae_animation::AnimationPlayer,
-) {
-    let _ = ctx.world.insert_one(entity, player);
 }
 
 /// Handles loading a texture file from disk and assigning a `SpriteId` component to an entity.
@@ -378,34 +327,35 @@ pub fn handle_toggle_visibility(ctx: &mut UiContext, entity: hecs::Entity) {
     }
 }
 
-/// Handles adding a BehaviorComponent to an entity.
-pub fn handle_add_behavior(
-    ctx: &mut UiContext,
-    entity: hecs::Entity,
-    behavior: ae_core::ecs::BehaviorComponent,
-) {
-    let _ = ctx.world.insert_one(entity, behavior);
+/// Handles modifying LOD thresholds of an entity.
+pub fn handle_modify_lod_thresholds(ctx: &mut UiContext, entity: hecs::Entity, t1: f32, t2: f32) {
+    if let Ok(mut lod) = ctx.world.get::<&mut ae_core::ecs::LodGroup>(entity) {
+        lod.threshold_1 = t1;
+        lod.threshold_2 = t2;
+    }
 }
 
-/// Handles removing a BehaviorComponent from an entity.
-pub fn handle_remove_behavior(ctx: &mut UiContext, entity: hecs::Entity) {
-    let _ = ctx
-        .world
-        .remove_one::<ae_core::ecs::BehaviorComponent>(entity);
-}
-
-/// Handles modifying a BehaviorComponent on an entity.
-pub fn handle_modify_behavior(
+/// Handles modifying LOD model handle of an entity.
+pub fn handle_modify_lod_model(
     ctx: &mut UiContext,
     entity: hecs::Entity,
-    behavior: ae_core::ecs::BehaviorComponent,
+    slot: u8,
+    handle_opt: Option<ae_renderer::asset::AssetHandle>,
 ) {
-    if let Ok(mut existing) = ctx
-        .world
-        .get::<&mut ae_core::ecs::BehaviorComponent>(entity)
-    {
-        *existing = behavior;
-    } else {
-        let _ = ctx.world.insert_one(entity, behavior);
+    if let Ok(mut lod) = ctx.world.get::<&mut ae_core::ecs::LodGroup>(entity) {
+        match slot {
+            0 => {
+                if let Some(h) = handle_opt {
+                    lod.lod_0 = h;
+                }
+            }
+            1 => {
+                lod.lod_1 = handle_opt;
+            }
+            2 => {
+                lod.lod_2 = handle_opt;
+            }
+            _ => {}
+        }
     }
 }

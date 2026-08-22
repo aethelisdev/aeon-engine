@@ -105,11 +105,15 @@ impl EngineUi {
             );
 
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveAudioSource(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "AudioSource"));
             }
 
             if changed {
-                ui_actions.push(EngineUiAction::ModifyAudioSource(entity, updated));
+                ui_actions.push(EngineUiAction::modify_component(
+                    entity,
+                    "AudioSource",
+                    &updated,
+                ));
             }
         }
     }
@@ -133,7 +137,7 @@ impl EngineUi {
                 },
             );
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveAudioListener(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "AudioListener"));
             }
         }
     }
@@ -160,19 +164,6 @@ impl super::registry::ComponentUiHandler for AudioSourceUiHandler {
 
     fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
         EngineUi::draw_audio_source_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
-    }
-
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::AddAudioSource(entity));
-    }
-
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveAudioSource(entity));
     }
 }
 
@@ -201,18 +192,5 @@ impl super::registry::ComponentUiHandler for AudioListenerUiHandler {
 
     fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
         EngineUi::draw_audio_listener_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
-    }
-
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::AddAudioListener(entity));
-    }
-
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveAudioListener(entity));
     }
 }

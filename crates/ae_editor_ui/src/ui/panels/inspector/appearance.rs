@@ -519,21 +519,7 @@ impl super::registry::ComponentUiHandler for AppearanceUiHandler {
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         if world.get::<&ae_core::ecs::Color>(entity).is_err() {
-            ui_actions.push(EngineUiAction::ModifyColor(
-                entity,
-                ae_core::ecs::Color {
-                    r: 1.0,
-                    g: 1.0,
-                    b: 1.0,
-                    a: 1.0,
-                },
-                ae_core::ecs::Color {
-                    r: 1.0,
-                    g: 1.0,
-                    b: 1.0,
-                    a: 1.0,
-                },
-            ));
+            ui_actions.push(EngineUiAction::AddComponent(entity, "Color"));
         }
     }
 
@@ -590,26 +576,5 @@ impl super::registry::ComponentUiHandler for LightUiHandler {
                 self.remove_from_entity(ctx.entity, ctx.ui_actions);
             }
         }
-    }
-
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::ModifyLightColor(
-            entity,
-            [1.0, 1.0, 1.0],
-            [1.0, 1.0, 1.0],
-        ));
-    }
-
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::ModifyLightColor(
-            entity,
-            [1.0, 1.0, 1.0],
-            [0.0, 0.0, 0.0],
-        ));
     }
 }

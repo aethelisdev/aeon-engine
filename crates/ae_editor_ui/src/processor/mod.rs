@@ -187,85 +187,21 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::SetModelSubmeshTexture(model_h, idx, path) => {
                 components::handle_set_model_submesh_texture(ctx, model_h, idx, path)
             }
-            crate::ui::EngineUiAction::AddRigidBody(ent, rb) => {
-                components::handle_add_rigid_body(ctx, ent, rb)
+            // --- DYNAMIC COMPONENT ACTIONS (Generic ComponentRegistry Pattern) ---
+            crate::ui::EngineUiAction::AddComponent(ent, type_name) => {
+                components::handle_add_component(ctx, ent, type_name)
             }
-            crate::ui::EngineUiAction::RemoveRigidBody(ent) => {
-                components::handle_remove_rigid_body(ctx, ent)
+            crate::ui::EngineUiAction::RemoveComponent(ent, type_name) => {
+                components::handle_remove_component(ctx, ent, type_name)
             }
-            crate::ui::EngineUiAction::ModifyRigidBody(ent, rb) => {
-                components::handle_modify_rigid_body(ctx, ent, rb)
-            }
-            crate::ui::EngineUiAction::AddCollider(ent, collider) => {
-                components::handle_add_collider(ctx, ent, collider)
-            }
-            crate::ui::EngineUiAction::RemoveCollider(ent) => {
-                components::handle_remove_collider(ctx, ent)
-            }
-            crate::ui::EngineUiAction::ModifyCollider(ent, collider) => {
-                components::handle_modify_collider(ctx, ent, collider)
-            }
-            crate::ui::EngineUiAction::AddCharacterController(ent, cc) => {
-                components::handle_add_character_controller(ctx, ent, cc)
-            }
-            crate::ui::EngineUiAction::RemoveCharacterController(ent) => {
-                components::handle_remove_character_controller(ctx, ent)
-            }
-            crate::ui::EngineUiAction::ModifyCharacterController(ent, cc) => {
-                components::handle_modify_character_controller(ctx, ent, cc)
-            }
-            crate::ui::EngineUiAction::AddLodGroup(ent) => {
-                components::handle_add_lod_group(ctx, ent)
-            }
-            crate::ui::EngineUiAction::RemoveLodGroup(ent) => {
-                components::handle_remove_lod_group(ctx, ent)
+            crate::ui::EngineUiAction::ModifyComponent(ent, type_name, data) => {
+                components::handle_modify_component(ctx, ent, type_name, &data)
             }
             crate::ui::EngineUiAction::ModifyLodThresholds(ent, t1, t2) => {
                 components::handle_modify_lod_thresholds(ctx, ent, t1, t2)
             }
             crate::ui::EngineUiAction::ModifyLodModel(ent, slot, handle_opt) => {
                 components::handle_modify_lod_model(ctx, ent, slot, handle_opt)
-            }
-            crate::ui::EngineUiAction::AddAudioSource(ent) => {
-                components::handle_add_audio_source(ctx, ent)
-            }
-            crate::ui::EngineUiAction::RemoveAudioSource(ent) => {
-                components::handle_remove_audio_source(ctx, ent)
-            }
-            crate::ui::EngineUiAction::ModifyAudioSource(ent, source) => {
-                components::handle_modify_audio_source(ctx, ent, source)
-            }
-            crate::ui::EngineUiAction::AddAudioListener(ent) => {
-                components::handle_add_audio_listener(ctx, ent)
-            }
-            crate::ui::EngineUiAction::RemoveAudioListener(ent) => {
-                components::handle_remove_audio_listener(ctx, ent)
-            }
-            crate::ui::EngineUiAction::AddPlayerTag(ent) => {
-                components::handle_add_player_tag(ctx, ent)
-            }
-            crate::ui::EngineUiAction::RemovePlayerTag(ent) => {
-                components::handle_remove_player_tag(ctx, ent)
-            }
-            crate::ui::EngineUiAction::AddAnimationPlayer(ent) => {
-                components::handle_add_animation_player(ctx, ent)
-            }
-            crate::ui::EngineUiAction::RemoveAnimationPlayer(ent) => {
-                components::handle_remove_animation_player(ctx, ent)
-            }
-            crate::ui::EngineUiAction::ModifyAnimationPlayer(ent, player) => {
-                components::handle_modify_animation_player(ctx, ent, player)
-            }
-
-            // --- GAMEPLAY BEHAVIOR ACTIONS ---
-            crate::ui::EngineUiAction::AddBehavior(ent, behavior) => {
-                components::handle_add_behavior(ctx, ent, behavior)
-            }
-            crate::ui::EngineUiAction::RemoveBehavior(ent) => {
-                components::handle_remove_behavior(ctx, ent)
-            }
-            crate::ui::EngineUiAction::ModifyBehavior(ent, behavior) => {
-                components::handle_modify_behavior(ctx, ent, behavior)
             }
             crate::ui::EngineUiAction::SpawnPhase1TestSandbox => {
                 spawning::handle_spawn_phase1_test_sandbox(ctx)

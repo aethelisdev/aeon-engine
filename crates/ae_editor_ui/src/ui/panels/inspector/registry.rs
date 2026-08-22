@@ -47,16 +47,23 @@ pub trait ComponentUiHandler: Send + Sync {
     /// Renders the component's inner UI inside the styled inspector card frame.
     fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut InspectorContext);
 
-    /// Adds the default instance of this component to the entity.
+    /// Adds the default instance of this component to the entity via generic `EngineUiAction::AddComponent`.
     fn add_default_to_entity(
         &self,
-        world: &hecs::World,
+        _world: &hecs::World,
         entity: hecs::Entity,
         ui_actions: &mut Vec<EngineUiAction>,
-    );
+    ) {
+        ui_actions.push(EngineUiAction::AddComponent(entity, self.component_name()));
+    }
 
-    /// Removes this component from the entity.
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>);
+    /// Removes this component from the entity via generic `EngineUiAction::RemoveComponent`.
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveComponent(
+            entity,
+            self.component_name(),
+        ));
+    }
 }
 
 /// Central registry managing all component UI inspector handlers.
@@ -112,7 +119,11 @@ impl InspectorUiRegistry {
         registry.register(super::audio::AudioListenerUiHandler);
 
         // 4. Gameplay
-        registry.register(super::behavior::BehaviorUiHandler);
+        registry.register(super::behavior::RotatorUiHandler);
+        registry.register(super::behavior::MovingPlatformUiHandler);
+        registry.register(super::behavior::TriggerZoneUiHandler);
+        registry.register(super::behavior::DestructibleTargetUiHandler);
+        registry.register(super::behavior::CharacterActionUiHandler);
         registry.register(super::behavior::PlayerTagUiHandler);
 
         // 5. Animation
@@ -210,8 +221,38 @@ mod tests {
         rb_handler.remove_from_entity(entity, &mut actions);
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            EngineUiAction::RemoveRigidBody(ent) => assert_eq!(*ent, entity),
-            _ => panic!("Expected RemoveRigidBody action"),
+            EngineUiAction::RemoveComponent(ent, name) => {
+                assert_eq!(*ent, entity);
+                assert_eq!(*name, "RigidBody");
+            }
+            _ => panic!("Expected RemoveComponent action"),
+        }
+    }
+
+    #[test]
+    fn test_all_inspector_ui_handlers_produce_valid_actions() {
+        let registry = InspectorUiRegistry::global();
+        let world = hecs::World::new();
+        let entity = hecs::Entity::DANGLING;
+
+        for handler in registry.handlers() {
+            let mut add_actions = Vec::new();
+            handler.add_default_to_entity(&world, entity, &mut add_actions);
+            assert!(
+                !add_actions.is_empty(),
+                "Handler '{}' must produce at least one action on add_default_to_entity",
+                handler.component_name()
+            );
+
+            if handler.is_removable() {
+                let mut remove_actions = Vec::new();
+                handler.remove_from_entity(entity, &mut remove_actions);
+                assert!(
+                    !remove_actions.is_empty(),
+                    "Handler '{}' must produce at least one action on remove_from_entity",
+                    handler.component_name()
+                );
+            }
         }
     }
 }

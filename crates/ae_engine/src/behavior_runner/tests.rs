@@ -5,7 +5,9 @@
 //!
 
 use super::*;
-use ae_core::ecs::{BehaviorComponent, BehaviorType, Color, Position, Rotation, Scale};
+use ae_core::ecs::{
+    Color, DestructibleTarget, MovingPlatform, Position, Rotation, Rotator, Scale, TriggerZone,
+};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
 use ae_editor::input::InputManager;
 use ae_physics::world::PhysicsWorld;
@@ -21,7 +23,7 @@ fn test_rotator_behavior_rotation_progression() {
     let ent = world.spawn((
         Position::new(0.0, 0.0, 0.0),
         Rotation::identity(),
-        BehaviorComponent::rotator(2.0, [0.0, 1.0, 0.0]),
+        Rotator::new(2.0, [0.0, 1.0, 0.0]),
     ));
 
     update_gameplay_behaviors(BehaviorRunnerParams {
@@ -50,7 +52,7 @@ fn test_moving_platform_waypoint_interpolation() {
     let ent = world.spawn((
         Position::new(0.0, 0.0, 0.0),
         Rotation::identity(),
-        BehaviorComponent::moving_platform(5.0, [0.0, 0.0, 0.0], [10.0, 0.0, 0.0]),
+        MovingPlatform::new(5.0, [0.0, 0.0, 0.0], [10.0, 0.0, 0.0]),
     ));
 
     update_gameplay_behaviors(BehaviorRunnerParams {
@@ -79,19 +81,13 @@ fn test_trigger_zone_activation_and_elevation() {
     let trigger_ent = world.spawn((
         Position::new(0.0, 0.0, 0.0),
         Color::soft_blue(),
-        BehaviorComponent {
-            behavior_type: BehaviorType::TriggerZone,
+        TriggerZone {
+            is_triggered: false,
             speed: 4.0,
             axis: [0.0, 1.0, 0.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
             original_position: [0.0, 0.0, 0.0],
             target_position: [0.0, 4.0, 0.0],
             ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 
@@ -112,11 +108,8 @@ fn test_trigger_zone_activation_and_elevation() {
         delta_time: 0.5,
     });
 
-    let behavior = world.get::<&BehaviorComponent>(trigger_ent).unwrap();
-    assert!(
-        behavior.is_triggered,
-        "Trigger zone should be marked triggered"
-    );
+    let zone = world.get::<&TriggerZone>(trigger_ent).unwrap();
+    assert!(zone.is_triggered, "Trigger zone should be marked triggered");
 
     let pos = world.get::<&Position>(trigger_ent).unwrap();
     assert!(
@@ -144,7 +137,7 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
             restitution: 0.0,
             is_sensor: true,
         },
-        BehaviorComponent::trigger_zone(),
+        TriggerZone::new(),
     ));
 
     // 2. Sliding Door
@@ -158,19 +151,13 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
             restitution: 0.0,
             is_sensor: false,
         },
-        BehaviorComponent {
-            behavior_type: BehaviorType::TriggerZone,
+        TriggerZone {
+            is_triggered: false,
             speed: 10.0,
             axis: [0.0, 1.0, 0.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
             original_position: [10.0, 2.0, -7.0],
             target_position: [10.0, 6.0, -7.0],
             ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 
@@ -187,10 +174,7 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
         delta_time: 0.5,
     });
 
-    let is_triggered = world
-        .get::<&BehaviorComponent>(sensor_pad)
-        .unwrap()
-        .is_triggered;
+    let is_triggered = world.get::<&TriggerZone>(sensor_pad).unwrap().is_triggered;
     assert!(is_triggered, "Pad must be triggered when player is on it");
     let door_pos = *world.get::<&Position>(door).unwrap();
     assert!(
@@ -213,10 +197,7 @@ fn test_trigger_zone_step_on_and_step_off_elevation_cycle() {
         delta_time: 1.0,
     });
 
-    let is_triggered = world
-        .get::<&BehaviorComponent>(sensor_pad)
-        .unwrap()
-        .is_triggered;
+    let is_triggered = world.get::<&TriggerZone>(sensor_pad).unwrap().is_triggered;
     assert!(
         !is_triggered,
         "Pad must NOT be triggered when player steps off"
@@ -238,7 +219,7 @@ fn test_destructible_target_damage_and_destruction_event() {
     let target_ent = world.spawn((
         Position::new(0.0, 0.0, 5.0),
         Color::red(),
-        BehaviorComponent::destructible_target(50.0),
+        DestructibleTarget::new(50.0),
     ));
 
     // Send 30 damage hit
@@ -260,13 +241,13 @@ fn test_destructible_target_damage_and_destruction_event() {
     });
 
     {
-        let behavior = world.get::<&BehaviorComponent>(target_ent).unwrap();
+        let target = world.get::<&DestructibleTarget>(target_ent).unwrap();
         assert_eq!(
-            behavior.health, 20.0,
+            target.health, 20.0,
             "Health should drop to 20.0 after 30 damage"
         );
         assert!(
-            behavior.hit_flash_timer > 0.0,
+            target.hit_flash_timer > 0.0,
             "Hit flash timer should be active"
         );
     }
@@ -289,8 +270,8 @@ fn test_destructible_target_damage_and_destruction_event() {
         delta_time: 0.016,
     });
 
-    let behavior = world.get::<&BehaviorComponent>(target_ent).unwrap();
-    assert_eq!(behavior.health, 0.0, "Health should clamp to 0.0");
+    let target = world.get::<&DestructibleTarget>(target_ent).unwrap();
+    assert_eq!(target.health, 0.0, "Health should clamp to 0.0");
 
     let destruction_events = event_bus.receive::<TargetDestroyedEvent>();
     assert!(
@@ -302,12 +283,6 @@ fn test_destructible_target_damage_and_destruction_event() {
 }
 
 #[test]
-fn test_behavior_runner_registry_initialization() {
-    let registry = BehaviorRunnerRegistry::global();
-    assert_eq!(registry.handlers().len(), 5);
-}
-
-#[test]
 fn test_destructible_target_hit_flash_restores_original_color() {
     let mut world = World::new();
     let mut physics = PhysicsWorld::new();
@@ -316,8 +291,8 @@ fn test_destructible_target_hit_flash_restores_original_color() {
 
     let target_ent = world.spawn((
         Position::new(0.0, 0.0, 5.0),
-        Color::red(), // Original color is Red (1.0, 0.0, 0.0, 1.0)
-        BehaviorComponent::destructible_target(100.0),
+        Color::red(), // Original color is Red (1.0, 0.2, 0.2, 1.0)
+        DestructibleTarget::new(100.0),
     ));
 
     // Send 10 damage hit
@@ -358,9 +333,80 @@ fn test_destructible_target_hit_flash_restores_original_color() {
 
     {
         let col = world.get::<&Color>(target_ent).unwrap();
-        // After flash expires, original Red color must be 100% restored (NOT green!)
+        // After flash expires, original Red color must be 100% restored
         assert_eq!(col.r, 1.0, "Red channel must be 1.0");
         assert_eq!(col.g, 0.2, "Green channel must be 0.2 (Color::red)");
         assert_eq!(col.b, 0.2, "Blue channel must be 0.2 (Color::red)");
     }
+}
+
+#[test]
+fn test_entities_without_character_action_do_not_shoot() {
+    let mut world = World::new();
+    let mut physics = PhysicsWorld::new();
+    let mut input = InputManager::new();
+    let mut event_bus = DynamicEventBus::new();
+
+    // Spawn player entity with ONLY PlayerTag (NO CharacterAction)
+    let _player_ent = world.spawn((
+        Position::new(0.0, 1.0, 0.0),
+        Rotation::identity(),
+        ae_core::ecs::PlayerTag,
+    ));
+
+    // Simulate Fire button press
+    input.process_key_event(
+        ae_editor::input::KeyCode::KeyF,
+        winit::event::ElementState::Pressed,
+    );
+
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 0.016,
+    });
+
+    // Verify NO EphemeralProjectile was spawned
+    let projectile_count = world
+        .query::<&ae_core::ecs::EphemeralProjectile>()
+        .into_iter()
+        .count();
+    assert_eq!(
+        projectile_count, 0,
+        "Entities without CharacterAction must NOT shoot projectiles"
+    );
+
+    // Now attach CharacterAction and verify it CAN shoot
+    let shooter_ent = world.spawn((
+        Position::new(0.0, 1.0, 0.0),
+        Rotation::identity(),
+        ae_core::ecs::CharacterAction::default(),
+    ));
+
+    input.process_key_event(
+        ae_editor::input::KeyCode::KeyF,
+        winit::event::ElementState::Pressed,
+    );
+
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 0.016,
+    });
+
+    let projectile_count_after = world
+        .query::<&ae_core::ecs::EphemeralProjectile>()
+        .into_iter()
+        .count();
+    assert_eq!(
+        projectile_count_after, 1,
+        "Entity with CharacterAction MUST spawn projectile on fire"
+    );
+    let _ = shooter_ent;
 }

@@ -115,13 +115,17 @@ impl EngineUi {
                     }
 
                     if changed {
-                        ui_actions.push(EngineUiAction::ModifyAnimationPlayer(entity, updated));
+                        ui_actions.push(EngineUiAction::modify_component(
+                            entity,
+                            "AnimationPlayer",
+                            &updated,
+                        ));
                     }
                 },
             );
 
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveAnimationPlayer(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "AnimationPlayer"));
             }
         }
     }
@@ -152,18 +156,5 @@ impl super::registry::ComponentUiHandler for AnimationUiHandler {
 
     fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
         EngineUi::draw_animation_section(ui, ctx.world, ctx.entity, ctx.models, ctx.ui_actions);
-    }
-
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::AddAnimationPlayer(entity));
-    }
-
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveAnimationPlayer(entity));
     }
 }

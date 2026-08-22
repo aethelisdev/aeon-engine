@@ -8,6 +8,7 @@ pub mod animation;
 pub mod appearance;
 pub mod audio;
 pub mod behavior;
+pub mod dynamic_reflection;
 pub mod lod;
 pub mod panel;
 pub mod parenting;

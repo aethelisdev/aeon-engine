@@ -173,7 +173,7 @@ impl EngineUi {
             );
 
             if remove_clicked {
-                ui_actions.push(EngineUiAction::RemoveLodGroup(entity));
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "LodGroup"));
             }
         }
     }
@@ -211,18 +211,5 @@ impl super::registry::ComponentUiHandler for LodGroupUiHandler {
             ctx.models,
             ctx.ui_actions,
         );
-    }
-
-    fn add_default_to_entity(
-        &self,
-        _world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        ui_actions.push(EngineUiAction::AddLodGroup(entity));
-    }
-
-    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
-        ui_actions.push(EngineUiAction::RemoveLodGroup(entity));
     }
 }

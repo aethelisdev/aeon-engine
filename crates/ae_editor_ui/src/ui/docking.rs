@@ -106,9 +106,10 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 } else if !self.is_editing && is_render_active {
                     let has_character_action = self
                         .world
-                        .query::<&ae_core::ecs::BehaviorComponent>()
+                        .query::<&ae_core::ecs::CharacterAction>()
                         .iter()
-                        .any(|b| b.behavior_type == ae_core::ecs::BehaviorType::CharacterAction);
+                        .next()
+                        .is_some();
 
                     if has_character_action {
                         crate::ui::viewport_hud::draw_play_mode_hud(ui.ctx(), rect);

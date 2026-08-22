@@ -277,7 +277,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::BehaviorComponent::character_action(),
+        ae_core::ecs::CharacterAction::new(),
     ));
 
     // 3. Destructible Target Dummies (Shooting Range)
@@ -306,7 +306,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
                 restitution: 0.2,
                 is_sensor: false,
             },
-            ae_core::ecs::BehaviorComponent::destructible_target(100.0),
+            ae_core::ecs::DestructibleTarget::new(100.0),
         ));
     }
 
@@ -326,7 +326,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: true,
         },
-        ae_core::ecs::BehaviorComponent::trigger_zone(),
+        ae_core::ecs::TriggerZone::new(),
     ));
 
     ctx.world.spawn((
@@ -349,19 +349,13 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::BehaviorComponent {
-            behavior_type: ae_core::ecs::BehaviorType::TriggerZone,
+        ae_core::ecs::TriggerZone {
+            is_triggered: false,
             speed: 5.0,
             axis: [0.0, 1.0, 0.0],
-            health: 100.0,
-            max_health: 100.0,
-            is_triggered: false,
             original_position: [10.0, 2.0, -7.0],
             target_position: [10.0, 6.0, -7.0],
             ping_pong_forward: true,
-            timer: 0.0,
-            hit_flash_timer: 0.0,
-            original_color: [1.0, 1.0, 1.0, 1.0],
         },
     ));
 
@@ -406,7 +400,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
                 restitution: 0.0,
                 is_sensor: true,
             },
-            ae_core::ecs::BehaviorComponent::rotator(speed, axis),
+            ae_core::ecs::Rotator::new(speed, axis),
         ));
     }
 
@@ -431,7 +425,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
-        ae_core::ecs::BehaviorComponent::moving_platform(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
+        ae_core::ecs::MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
     ));
 
     // 7. Dynamic Bouncing Hazard Cubes

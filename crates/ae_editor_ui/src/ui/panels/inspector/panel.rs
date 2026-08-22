@@ -483,7 +483,7 @@ impl EngineUi {
                             );
                         }
 
-                        // --- DYNAMIC COMPONENT RENDERING VIA REGISTRY ---
+                        // --- DYNAMIC COMPONENT RENDERING VIA REGISTRY & REFLECTION ---
                         let mut ctx = super::registry::InspectorContext {
                             world,
                             entity,
@@ -496,10 +496,28 @@ impl EngineUi {
                             saved_swatches,
                         };
 
-                        let registry = super::registry::InspectorUiRegistry::global();
-                        for handler in registry.handlers() {
+                        let mut rendered_component_types = std::collections::HashSet::new();
+
+                        // 1. Render specialized UI handlers from InspectorUiRegistry
+                        let ui_registry = super::registry::InspectorUiRegistry::global();
+                        for handler in ui_registry.handlers() {
                             if handler.has_component(world, entity) {
+                                rendered_component_types.insert(handler.component_name());
                                 handler.render_ui(ui, &mut ctx);
+                            }
+                        }
+
+                        // 2. Fallback: Automatically render any other component from ComponentRegistry using dynamic reflection!
+                        let comp_registry = ae_core::registry::ComponentRegistry::global();
+                        for handler in comp_registry.handlers() {
+                            let type_name = handler.type_name();
+                            if !rendered_component_types.contains(type_name)
+                                && !super::dynamic_reflection::is_internal_or_specialized(type_name)
+                                && handler.has_component(world, entity)
+                            {
+                                super::dynamic_reflection::draw_dynamic_component_card(
+                                    ui, &mut ctx, &**handler,
+                                );
                             }
                         }
 
@@ -590,18 +608,23 @@ impl EngineUi {
         });
     }
 
-    /// Renders dynamic "Add Component" dropdown menu automatically categorized via InspectorUiRegistry.
+    /// Renders dynamic "Add Component" dropdown menu automatically categorized via InspectorUiRegistry & ComponentRegistry.
     pub(super) fn draw_add_component_button(
         ui: &mut egui::Ui,
         world: &hecs::World,
         entity: hecs::Entity,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
-        let registry = super::registry::InspectorUiRegistry::global();
-        let grouped = registry.grouped_by_category();
+        let ui_registry = super::registry::InspectorUiRegistry::global();
+        let grouped = ui_registry.grouped_by_category();
+        let mut handled_names = std::collections::HashSet::new();
 
         ui.menu_button("➕ Add Component", |ui| {
             for (category, handlers) in grouped {
+                for h in &handlers {
+                    handled_names.insert(h.component_name());
+                }
+
                 let available: Vec<_> = handlers
                     .into_iter()
                     .filter(|h| !h.has_component(world, entity))
@@ -619,6 +642,31 @@ impl EngineUi {
                         }
                     });
                 }
+            }
+
+            // Fallback for custom / dynamically registered components from ComponentRegistry
+            let comp_registry = ae_core::registry::ComponentRegistry::global();
+            let dynamic_available: Vec<_> = comp_registry
+                .handlers()
+                .iter()
+                .filter(|h| {
+                    let name = h.type_name();
+                    !handled_names.contains(name)
+                        && !super::dynamic_reflection::is_internal_or_specialized(name)
+                        && !h.has_component(world, entity)
+                })
+                .collect();
+
+            if !dynamic_available.is_empty() {
+                ui.menu_button("Custom / Dynamic", |ui| {
+                    for handler in dynamic_available {
+                        let name = handler.type_name();
+                        if ui.button(format!("🧩 {}", name)).clicked() {
+                            ui_actions.push(EngineUiAction::AddComponent(entity, name));
+                            ui.close();
+                        }
+                    }
+                });
             }
         });
     }
