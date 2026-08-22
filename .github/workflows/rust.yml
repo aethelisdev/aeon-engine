@@ -1,0 +1,53 @@
+name: Aeon Engine CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    name: Build & Test (Ubuntu Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust Toolchain (1.98.0)
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: 1.98.0
+        components: clippy, rustfmt
+
+    - name: Cache Cargo Dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: "aeon-engine-cache"
+
+    - name: Install Linux System Dependencies (WGPU / Winit / ALSA / Udev)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          libudev-dev \
+          libwayland-dev \
+          libxkbcommon-dev \
+          libx11-dev \
+          libx11-xcb-dev \
+          libxrandr-dev \
+          libxi-dev \
+          libxcursor-dev
+
+    - name: Workspace Cargo Check
+      run: cargo check --workspace --all-targets --verbose
+
+    - name: Workspace Build
+      run: cargo build --workspace --all-targets --verbose
+
+    - name: Workspace Tests
+      run: cargo test --workspace --verbose
