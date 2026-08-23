@@ -121,8 +121,16 @@ pub struct GraphicsSettings {
     pub sun_pitch: f32,
     pub sun_yaw: f32,
     pub atmosphere_density: f32,
+    pub ozone_density: f32,
     pub sun_disc_size: f32,
     pub sun_glow_strength: f32,
+
+    pub cloud_coverage: f32,
+    pub cloud_density: f32,
+    pub cloud_speed: f32,
+    pub cloud_evolution: f32,
+    pub cloud_altitude: f32,
+    pub cloud_thickness: f32,
 
     pub fog_enabled: bool,
     pub fog_distance: f32,
@@ -150,8 +158,16 @@ impl Default for GraphicsSettings {
             sun_pitch: 0.5,
             sun_yaw: 0.5,
             atmosphere_density: 1.0, // Standard Earth atmosphere multiplier (1.0 = Default)
+            ozone_density: 1.0,      // Physical Chappuis ozone absorption multiplier
             sun_disc_size: 1.0,      // Standard natural sun size multiplier (1.0 = Default)
             sun_glow_strength: 1.0,  // Standard sun glow halo multiplier (1.0 = Default)
+
+            cloud_coverage: 0.45,
+            cloud_density: 1.0,
+            cloud_speed: 1.0,
+            cloud_evolution: 1.0,
+            cloud_altitude: 1500.0,
+            cloud_thickness: 3000.0,
 
             fog_enabled: true,
             fog_distance: 800.0,

@@ -242,15 +242,19 @@ pub fn draw(ui: &mut egui::Ui, gs: &mut GraphicsSettings) {
 
             if gs.sky_quality != ae_renderer::graphics_settings::SkyQuality::Low {
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new("Atmosphere Parameters").strong());
+                ui.label(egui::RichText::new("Physical SkyAtmosphere").strong());
                 ui.add_space(4.0);
 
                 egui::Grid::new("atmos_grid")
                     .num_columns(2)
-                    .spacing([20.0, 12.0])
+                    .spacing([20.0, 10.0])
                     .show(ui, |ui| {
-                        ui.label("Density");
+                        ui.label("Atmosphere Density");
                         ui.add(egui::Slider::new(&mut gs.atmosphere_density, 0.0..=5.0));
+                        ui.end_row();
+
+                        ui.label("Ozone Absorption (Chappuis)");
+                        ui.add(egui::Slider::new(&mut gs.ozone_density, 0.0..=3.0));
                         ui.end_row();
 
                         ui.label("Sun Disc Size");
@@ -259,6 +263,35 @@ pub fn draw(ui: &mut egui::Ui, gs: &mut GraphicsSettings) {
 
                         ui.label("Sun Glow Strength");
                         ui.add(egui::Slider::new(&mut gs.sun_glow_strength, 0.0..=5.0));
+                        ui.end_row();
+                    });
+
+                ui.add_space(8.0);
+                ui.label(egui::RichText::new("☁ Volumetric Clouds").strong());
+                ui.add_space(4.0);
+
+                egui::Grid::new("volumetric_clouds_grid")
+                    .num_columns(2)
+                    .spacing([20.0, 10.0])
+                    .show(ui, |ui| {
+                        ui.label("Cloud Coverage");
+                        ui.add(egui::Slider::new(&mut gs.cloud_coverage, 0.0..=1.0));
+                        ui.end_row();
+
+                        ui.label("Cloud Density");
+                        ui.add(egui::Slider::new(&mut gs.cloud_density, 0.1..=3.0));
+                        ui.end_row();
+
+                        ui.label("Wind Speed (Drift)");
+                        ui.add(egui::Slider::new(&mut gs.cloud_speed, 0.0..=5.0));
+                        ui.end_row();
+
+                        ui.label("Turbulence / Evolution");
+                        ui.add(egui::Slider::new(&mut gs.cloud_evolution, 0.0..=3.0));
+                        ui.end_row();
+
+                        ui.label("Cloud Base Altitude (m)");
+                        ui.add(egui::Slider::new(&mut gs.cloud_altitude, 500.0..=5000.0));
                         ui.end_row();
                     });
             }

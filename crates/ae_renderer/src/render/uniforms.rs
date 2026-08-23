@@ -126,17 +126,21 @@ impl SceneUniforms {
 
         let sky_uniform = crate::render::types::SkyUniform {
             sun_direction: [0.0, 1.0, 0.0, 0.0],
-            sun_color: [1.0, 1.0, 1.0, 1.0],
+            sun_color: [1.0, 1.0, 1.0, 100.0],
             horizon_color: [0.5, 0.6, 0.7, 0.0],
             zenith_color: [0.1, 0.2, 0.4, 0.0],
             atmosphere_density: 1.0,
+            ozone_density: 1.0,
             sun_disc_size: 1.0,
             sun_glow_strength: 1.0,
-            sky_quality_mode: 2,
-            time: 0.0,
             cloud_coverage: 0.45,
-            cloud_speed: 0.02,
-            _pad: 0.0,
+            cloud_density: 1.0,
+            cloud_speed: 1.0,
+            cloud_evolution: 1.0,
+            cloud_altitude: 1500.0,
+            cloud_thickness: 3000.0,
+            time: 0.0,
+            sky_quality_mode: 2,
         };
 
         let sky_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -227,13 +231,17 @@ impl SceneUniforms {
         self.sky_uniform.sun_color = [1.0, 0.95, 0.8, 100.0]; // HDR intensity in w
 
         self.sky_uniform.atmosphere_density = settings.atmosphere_density;
+        self.sky_uniform.ozone_density = settings.ozone_density;
         self.sky_uniform.sun_disc_size = settings.sun_disc_size;
         self.sky_uniform.sun_glow_strength = settings.sun_glow_strength;
-        self.sky_uniform.sky_quality_mode = settings.sky_quality as u32;
+        self.sky_uniform.cloud_coverage = settings.cloud_coverage;
+        self.sky_uniform.cloud_density = settings.cloud_density;
+        self.sky_uniform.cloud_speed = settings.cloud_speed;
+        self.sky_uniform.cloud_evolution = settings.cloud_evolution;
+        self.sky_uniform.cloud_altitude = settings.cloud_altitude;
+        self.sky_uniform.cloud_thickness = settings.cloud_thickness;
         self.sky_uniform.time = self.start_time.elapsed().as_secs_f32();
-        self.sky_uniform.cloud_coverage = 0.45;
-        self.sky_uniform.cloud_speed = 0.02;
-        self.sky_uniform._pad = 0.0;
+        self.sky_uniform.sky_quality_mode = settings.sky_quality as u32;
 
         queue.write_buffer(
             &self.sky_buffer,

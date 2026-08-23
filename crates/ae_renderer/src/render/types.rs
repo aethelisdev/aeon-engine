@@ -612,23 +612,27 @@ pub struct LightSpaceUniform {
     pub _pad: u32,
 } // Total: 288 bytes
 
-/// GPU uniform for the procedural sky shader: sun position, atmosphere density,
-/// color parameters, and quality mode selector.
+/// GPU uniform for the procedural sky and volumetric clouds shader: sun position,
+/// physical atmosphere density, ozone absorption, volumetric cloud coverage and wind dynamics.
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SkyUniform {
-    pub sun_direction: [f32; 4], // xyz used, w padding
-    pub sun_color: [f32; 4],     // rgb color, w intensity
-    pub horizon_color: [f32; 4], // w unused
-    pub zenith_color: [f32; 4],  // w unused
+    pub sun_direction: [f32; 4], // xyz: direction, w: padding
+    pub sun_color: [f32; 4],     // rgb: color, w: HDR intensity
+    pub horizon_color: [f32; 4], // rgb: horizon tint, w: padding
+    pub zenith_color: [f32; 4],  // rgb: zenith tint, w: padding
     pub atmosphere_density: f32,
+    pub ozone_density: f32,
     pub sun_disc_size: f32,
     pub sun_glow_strength: f32,
-    pub sky_quality_mode: u32, // 0=Low, 1=Medium, 2=High
-    pub time: f32,
     pub cloud_coverage: f32,
+    pub cloud_density: f32,
     pub cloud_speed: f32,
-    pub _pad: f32,
+    pub cloud_evolution: f32,
+    pub cloud_altitude: f32,
+    pub cloud_thickness: f32,
+    pub time: f32,
+    pub sky_quality_mode: u32, // 0=Low, 1=Medium, 2=High (Volumetric)
 }
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;

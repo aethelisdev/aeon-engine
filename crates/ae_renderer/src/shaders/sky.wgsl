@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! 2.5D Atmospheric Sky, Optical Sun Disc & Procedural Cloud Shader.
+//!
+//! Technical Pipeline:
+//! 1. Barometric Rayleigh & Ozone attenuation model for sky gradient.
+//! 2. Optical solar disc rendering with polynomial limb darkening (u=0.60) and Henyey-Greenstein Mie aureole.
+//! 3. Curved tropospheric dome projection for 2.5D procedural FBM cloud generation.
+//! 4. Directional Beer-Lambert solar extinction and forward Mie scatter for cloud illumination.
+
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     view_inv: mat4x4<f32>,
@@ -10,18 +19,22 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 struct SkyUniform {
-    sun_direction: vec4<f32>, // w unused
-    sun_color: vec4<f32>,     // rgb, w=intensity
-    horizon_color: vec4<f32>,
-    zenith_color: vec4<f32>,
+    sun_direction: vec4<f32>, // xyz: direction, w: padding
+    sun_color: vec4<f32>,     // rgb: sun color, w: HDR sun intensity
+    horizon_color: vec4<f32>, // rgb: horizon color, w: padding
+    zenith_color: vec4<f32>,  // rgb: zenith color, w: padding
     atmosphere_density: f32,
+    ozone_density: f32,
     sun_disc_size: f32,
     sun_glow_strength: f32,
-    sky_quality_mode: u32,
-    time: f32,
     cloud_coverage: f32,
+    cloud_density: f32,
     cloud_speed: f32,
-    _pad: f32,
+    cloud_evolution: f32,
+    cloud_altitude: f32,
+    cloud_thickness: f32,
+    time: f32,
+    sky_quality_mode: u32,   // 0=Low, 1=Medium, 2=High
 };
 @group(1) @binding(0)
 var<uniform> sky: SkyUniform;
@@ -44,24 +57,28 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
     view_rot_inv[3][0] = 0.0;
     view_rot_inv[3][1] = 0.0;
     view_rot_inv[3][2] = 0.0;
-    
+
     let unprojected = camera.proj_inv * pos_ndc;
     out.view_direction = (view_rot_inv * vec4<f32>(unprojected.xyz, 0.0)).xyz;
 
     return out;
 }
 
-// ── Procedural Value Noise and Cloud Synthesis ──
+// ══════════════════════════════════════════════════════════════════════════════
+// 🌌 1. PROCEDURAL NOISE & MULTI-SCALE SYNTHESIS
+// ══════════════════════════════════════════════════════════════════════════════
+
 fn hash12(p: vec2<f32>) -> f32 {
     var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
 
+// Perlin's Improved Quintic Smoothstep (6t^5 - 15t^4 + 10t^3) guarantees C2 continuity
 fn value_noise(p: vec2<f32>) -> f32 {
     let i = floor(p);
     let f = fract(p);
-    let u = f * f * (3.0 - 2.0 * f);
+    let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
 
     let a = hash12(i);
     let b = hash12(i + vec2<f32>(1.0, 0.0));
@@ -77,196 +94,267 @@ fn fbm_octaves(p: vec2<f32>) -> f32 {
     var pos = p;
     for (var i = 0u; i < 5u; i++) {
         v += a * value_noise(pos);
-        pos = pos * 2.08 + vec2<f32>(1.7, 9.2);
+        pos = pos * 2.06 + vec2<f32>(1.7, 9.2);
         a *= 0.5;
     }
     return v;
 }
 
-fn sample_clouds(p: vec2<f32>) -> f32 {
-    let warp_x = fbm_octaves(p + vec2<f32>(0.0, 0.0));
-    let warp_y = fbm_octaves(p + vec2<f32>(4.3, 1.7));
-    let warped_pos = p + vec2<f32>(warp_x, warp_y) * 0.40;
+fn sample_clouds_animated(p: vec2<f32>, evolution_phase: vec2<f32>) -> f32 {
+    let warp_x = fbm_octaves(p + evolution_phase);
+    let warp_y = fbm_octaves(p + vec2<f32>(4.3, 1.7) - evolution_phase);
+    let warped_pos = p + vec2<f32>(warp_x, warp_y) * 0.22;
     return fbm_octaves(warped_pos);
 }
 
-fn render_clouds(dir: vec3<f32>, sun_dir: vec3<f32>, sunset_factor: f32) -> vec4<f32> {
-    if dir.y <= 0.02 {
-        return vec4<f32>(0.0);
+// ══════════════════════════════════════════════════════════════════════════════
+// ☁️ 2. TROPOSPHERIC DOME PROCEDURAL CLOUDS (Beer-Lambert Model)
+// ══════════════════════════════════════════════════════════════════════════════
+
+struct CloudResult {
+    color: vec3<f32>,
+    alpha: f32,
+    density: f32,
+};
+
+fn render_volumetric_clouds(
+    dir: vec3<f32>,
+    sun_dir: vec3<f32>,
+    sun_radiance: vec3<f32>,
+    ambient_sky: vec3<f32>,
+    sunset_factor: f32
+) -> CloudResult {
+    var cr: CloudResult;
+    cr.color = vec3<f32>(0.0);
+    cr.alpha = 0.0;
+    cr.density = 0.0;
+
+    if dir.y <= 0.02 || sky.cloud_coverage <= 0.01 {
+        return cr;
     }
-    
-    // High-altitude atmospheric dome projection
+
+    // High-altitude curved atmospheric dome projection
     let dome_dist = 1.0 / (dir.y + 0.12 * (1.0 - dir.y));
     let world_pos = dir.xz * dome_dist;
-    
-    // Continuous wind animation
-    let wind = vec2<f32>(sky.time * sky.cloud_speed * 0.04, sky.time * sky.cloud_speed * 0.015);
-    let uv = world_pos * 1.75 + wind;
-    
-    // Multi-frequency natural cumulus structure
-    let cluster_mask = smoothstep(0.35, 0.70, fbm_octaves(uv * 0.55));
-    let billowy_detail = sample_clouds(uv * 1.35);
-    let raw_cloud = billowy_detail * (cluster_mask * 0.65 + 0.35);
-    
-    // Continuous smooth density curve without hard ceiling plateau
-    let d = max(0.0, raw_cloud - 0.40);
-    let density = d * (1.0 + d * 2.0);
-    
-    if density <= 0.001 {
-        return vec4<f32>(0.0);
+
+    // 1. Continuous dynamic fluid wind drift
+    let wind_rate = sky.cloud_speed * 0.08;
+    let wind = vec2<f32>(sky.time * wind_rate, sky.time * wind_rate * 0.35);
+
+    // 2. Continuous 3D turbulent boiling evolution
+    let evo_rate = sky.cloud_evolution * 0.06;
+    let evolution_phase = vec2<f32>(
+        sin(sky.time * evo_rate * 0.7),
+        cos(sky.time * evo_rate * 0.5)
+    ) * 0.25;
+
+    let uv = world_pos * 1.50 + wind;
+
+    // Multi-frequency billowy cumulus structure
+    let cluster = fbm_octaves(uv * 0.40 + evolution_phase * 0.40);
+    let cluster_mask = smoothstep(0.28, 0.70, cluster);
+
+    let detail = sample_clouds_animated(uv * 1.15, evolution_phase);
+    let raw_cloud = detail * (cluster_mask * 0.65 + 0.35);
+
+    // Smoothstep coverage curve with soft organic feathering
+    let coverage_threshold = 1.0 - clamp(sky.cloud_coverage, 0.0, 1.0);
+    let threshold = coverage_threshold * 0.65;
+    let d = smoothstep(threshold - 0.08, threshold + 0.28, raw_cloud);
+    let density = d * (1.0 + d * 1.8) * sky.cloud_density;
+
+    if density <= 0.0005 {
+        return cr;
     }
-    
-    // Directional shadow calculation
-    let sun_offset = sun_dir.xz * 0.08;
-    let sun_sample = sample_clouds((uv + sun_offset) * 1.35) * (cluster_mask * 0.65 + 0.35);
-    let sun_d = max(0.0, sun_sample - 0.40);
-    let sun_density = sun_d * (1.0 + sun_d * 2.0);
-    let shadow = clamp(1.0 - (sun_density - density) * 1.8, 0.55, 1.0);
-    
-    // Internal volumetric light absorption (darkens interior to create 3D volume instead of flat white plate)
-    let internal_absorption = exp(-density * 1.2);
-    let ambient_shade = mix(vec3<f32>(0.62, 0.72, 0.85), vec3<f32>(1.08, 1.05, 1.02), shadow * internal_absorption);
-    
-    // Soft perimeter light scatter
-    let sun_dot = max(0.0, dot(dir, sun_dir));
-    let silver_lining = pow(sun_dot, 16.0) * exp(-density * 2.0) * density * 0.4;
-    
-    let sunset_tint = vec3<f32>(1.0, 0.56, 0.26);
-    let cloud_color = mix(ambient_shade, sunset_tint, sunset_factor * 0.85) + sky.sun_color.rgb * silver_lining;
-    
-    // Atmospheric horizon fade and smooth transmission alpha
+
+    // 3. Directional Light Sampling Along Sun Path
+    let sun_step = sun_dir.xz * 0.12;
+    let sun_sample_val = sample_clouds_animated((uv + sun_step) * 1.15, evolution_phase) * (cluster_mask * 0.65 + 0.35);
+    let sun_d = smoothstep(threshold - 0.08, threshold + 0.28, sun_sample_val);
+    let sun_density = sun_d * (1.0 + sun_d * 1.8) * sky.cloud_density;
+
+    // Optical depth through cloud volume along sun path
+    let optical_depth_sun = max(0.0, sun_density - density * 0.35);
+    let sun_transmission = exp(-optical_depth_sun * 2.0);
+    let powder_sugar = 1.0 - exp(-density * 3.0);
+    let direct_sun_illum = clamp(sun_transmission * powder_sugar, 0.0, 1.0);
+
+    // 4. Forward Silver Lining (Golden/White Rim on Sun-Facing Facets)
+    let cos_theta = max(0.0, dot(dir, sun_dir));
+    let silver_lining = pow(cos_theta, 16.0) * exp(-density * 1.4) * density * 0.85;
+
+    // 5. Natural Atmospheric Ambient (Shaded Base + Sunlit Highlights)
+    let base_white = vec3<f32>(0.75, 0.78, 0.82);
+    let shade_ambient = mix(sky.zenith_color.rgb * 0.85, base_white, 0.68);
+    let cloud_base_tone = mix(shade_ambient, base_white, 0.30 + 0.70 * direct_sun_illum);
+    let direct_light = (sky.sun_color.rgb * 0.70) * (direct_sun_illum * 0.40 + silver_lining * 0.50);
+    let illuminated_color = cloud_base_tone + direct_light;
+
+    let sunset_tint = vec3<f32>(1.0, 0.48, 0.18);
+    let final_color = mix(illuminated_color, sunset_tint * illuminated_color, sunset_factor * 0.75);
+
+    // 6. Atmospheric Horizon Blending & Alpha Transmission
     let horizon_fade = smoothstep(0.02, 0.22, dir.y);
-    let alpha = (1.0 - exp(-density * 2.2)) * horizon_fade * 0.78;
-    
-    return vec4<f32>(cloud_color, alpha);
+    let alpha = (1.0 - exp(-density * 2.4)) * horizon_fade * 0.85;
+
+    cr.color = final_color;
+    cr.alpha = alpha;
+    cr.density = density * horizon_fade;
+    return cr;
 }
 
-// ── Quality 0: Low Tier ──
-fn calculate_low_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
-    let altitude = max(0.0, dir.y);
-    let horizon_factor = pow(1.0 - altitude, 4.0);
-    var color = mix(sky.zenith_color.rgb, sky.horizon_color.rgb, horizon_factor);
-    
-    let sun_dot = max(0.0, dot(dir, sun_dir));
+// ══════════════════════════════════════════════════════════════════════════════
+// ☀️ 3. OPTICAL SOLAR DISC & MIE AUREOLE MODEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+struct SunAtmosphereContribution {
+    direct_sun_disc: vec3<f32>,
+    mie_aureole: vec3<f32>,
+};
+
+fn calculate_optical_sun(
+    dir: vec3<f32>,
+    sun_dir: vec3<f32>,
+    sunset_factor: f32,
+    horizon_blend: f32
+) -> SunAtmosphereContribution {
+    var sc: SunAtmosphereContribution;
+    sc.direct_sun_disc = vec3<f32>(0.0);
+    sc.mie_aureole = vec3<f32>(0.0);
+
+    let sun_dot = dot(dir, sun_dir);
+    if sun_dot <= -0.1 {
+        return sc;
+    }
+
     let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
-    let sun_radius = sky.sun_disc_size * 0.009;
+    let sun_radius = sky.sun_disc_size * 0.015;
+
+    let sunset_tint = vec3<f32>(1.0, 0.38, 0.10);
+    let core_tint = mix(vec3<f32>(1.0, 0.98, 0.94), sunset_tint, sunset_factor);
+
+    // 1. Optical Solar Disc with Polynomial Limb Darkening (u = 0.60)
+    let r_rel = clamp(angular_dist / max(1e-5, sun_radius), 0.0, 1.0);
+    let on_disc = smoothstep(sun_radius * 1.02, sun_radius * 0.98, angular_dist);
+    let mu = sqrt(max(0.0, 1.0 - r_rel * r_rel));
+    let limb_darkening = 1.0 - 0.60 * (1.0 - mu);
+
+    // Core Radiance
+    let disc_hdr_intensity = 38.0 * (sky.sun_color.w * 0.10);
+    sc.direct_sun_disc = (core_tint * disc_hdr_intensity * limb_darkening * on_disc) * horizon_blend * step(0.0, dir.y);
+
+    // 2. Dual-Layer Henyey-Greenstein Atmospheric Mie Aureole & Corona
+    let inner_corona = exp(-angular_dist * (80.0 / max(0.3, sky.sun_disc_size))) * 3.5;
     
-    let disc = exp(-pow(angular_dist / max(1e-5, sun_radius), 6.0)) * step(0.0, dir.y);
-    let corona = exp(-pow(angular_dist / max(1e-5, sun_radius * 2.5), 2.0)) * 0.3 * step(0.0, dir.y);
-    color += sky.sun_color.rgb * (disc * 5.0 + corona);
-    
-    return color;
+    let g = 0.86;
+    let denom = 1.0 + g * g - 2.0 * g * max(0.0, sun_dot);
+    let hg_wide = (1.0 - g * g) / max(1e-4, denom * sqrt(denom));
+    let wide_aureole = hg_wide * 0.0008 * sky.atmosphere_density;
+
+    let total_glare = (inner_corona + wide_aureole) * sky.sun_glow_strength * horizon_blend;
+    sc.mie_aureole = mix(vec3<f32>(1.0, 0.96, 0.88), sunset_tint, sunset_factor) * total_glare;
+
+    return sc;
 }
 
-// ── Quality 1: Medium Tier ──
-fn calculate_medium_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
+// ══════════════════════════════════════════════════════════════════════════════
+// 🌌 4. ATMOSPHERIC SKY INTEGRATOR
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn calculate_physical_sky(
+    dir: vec3<f32>,
+    sun_dir: vec3<f32>
+) -> vec3<f32> {
     let altitude = max(0.0, dir.y);
     let sun_angle = max(0.0, sun_dir.y);
-    let horizon_factor = pow(1.0 - altitude, 5.0);
-    var color = mix(sky.zenith_color.rgb, sky.horizon_color.rgb, horizon_factor);
-    
     let sun_dot = max(0.0, dot(dir, sun_dir));
-    let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
-    let sun_radius = sky.sun_disc_size * 0.009;
-    
-    let sunset_factor = 1.0 - clamp(sun_angle * 3.5, 0.0, 1.0);
-    
-    // Sun disc and corona
-    let sun_core = exp(-pow(angular_dist / max(1e-5, sun_radius), 6.0));
-    let limb_darkening = pow(clamp(1.0 - (angular_dist / max(1e-5, sun_radius)), 0.0, 1.0), 0.5);
-    let sun_corona = exp(-pow(angular_dist / max(1e-5, sun_radius * 2.6), 2.0)) * 0.4;
-    
-    let g = 0.80;
-    let mie = (1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * sun_dot, 1.5);
-    let mie_glow = mie * 0.0004 * sky.sun_glow_strength * sky.atmosphere_density;
-    
-    color += sky.sun_color.rgb * (sun_core * (5.0 + 3.0 * limb_darkening) + sun_corona + mie_glow) * step(0.0, dir.y);
-    
-    // Clouds
-    let clouds = render_clouds(dir, sun_dir, sunset_factor);
-    color = mix(color, clouds.rgb, clouds.a);
-    
-    return color;
-}
 
-// ── Quality 2: High Tier (Atmospheric Scattering Simulation) ──
-fn calculate_high_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
-    let altitude = max(0.0, dir.y);
-    let sun_angle = max(0.0, sun_dir.y);
-    let sun_dot = max(0.0, dot(dir, sun_dir));
-    
-    // 1. Barometric Optical Depth Gradient
-    let horizon_factor = pow(1.0 - altitude, 5.0);
+    // 1. Barometric Rayleigh Optical Depth Gradient
+    let horizon_factor = pow(1.0 - altitude, 4.8);
     var base_sky = mix(sky.zenith_color.rgb, sky.horizon_color.rgb, horizon_factor);
-    
-    // 2. Sunset Factor
+
+    // 2. Sunset Factor & Ozone Chappuis Band Absorption
     let sunset_factor = 1.0 - clamp(sun_angle * 3.5, 0.0, 1.0);
-    let sunset_tint = vec3<f32>(1.0, 0.40, 0.10);
-    
+    let sunset_tint = vec3<f32>(1.0, 0.38, 0.10);
+    let ozone_twilight_tint = vec3<f32>(0.20, 0.28, 0.75) * sky.ozone_density;
+
+    let twilight_boost = pow(sunset_factor, 2.0) * (1.0 - horizon_factor) * 0.45;
+    base_sky = mix(base_sky, base_sky * ozone_twilight_tint + base_sky, twilight_boost);
+
     // 3. Directional Rayleigh In-Scattering
     let rayleigh_phase = 0.75 * (1.0 + sun_dot * sun_dot);
-    let sun_warmth = pow(sun_dot, 6.0) * 0.10 * horizon_factor;
-    let warm_tone = mix(vec3<f32>(1.0, 0.92, 0.80), sunset_tint, sunset_factor);
+    let sun_warmth = pow(sun_dot, 5.0) * 0.12 * horizon_factor;
+    let warm_tone = mix(vec3<f32>(1.0, 0.94, 0.82), sunset_tint, sunset_factor);
     base_sky = mix(base_sky, base_sky * warm_tone, sun_warmth * sky.atmosphere_density);
-    
+
     // 4. Horizon Atmospheric Haze Layer
-    let horizon_blend = smoothstep(-0.10, 0.04, dir.y);
-    let haze_intensity = pow(1.0 - altitude, 10.0) * 0.25 * sky.atmosphere_density * horizon_blend;
+    let horizon_blend = smoothstep(-0.08, 0.04, dir.y);
+    let haze_intensity = pow(1.0 - altitude, 8.0) * 0.28 * sky.atmosphere_density * horizon_blend;
     let haze_color = mix(sky.horizon_color.rgb, sunset_tint, sunset_factor);
     base_sky = mix(base_sky, haze_color, haze_intensity * rayleigh_phase);
 
     // 5. Below Horizon Smooth Ground Tone
     let ground_factor = smoothstep(0.0, -0.30, dir.y);
-    let ground_tone = sky.horizon_color.rgb * 0.45;
+    let ground_tone = sky.horizon_color.rgb * 0.40;
     base_sky = mix(base_sky, ground_tone, ground_factor);
 
-    // 6. Henyey-Greenstein Mie Forward Scattering
-    let g = 0.82;
-    let mie_denom = 1.0 + g * g - 2.0 * g * sun_dot;
-    let mie = (1.0 - g * g) / (mie_denom * sqrt(max(1e-5, mie_denom)));
-    let mie_glow = mie * 0.0005 * sky.sun_glow_strength * sky.atmosphere_density * horizon_blend;
-    base_sky += mix(vec3<f32>(1.0, 0.98, 0.90), sunset_tint, sunset_factor) * mie_glow;
+    // 6. Calculate Optical Sun & Atmospheric Aureole
+    let sun_res = calculate_optical_sun(dir, sun_dir, sunset_factor, horizon_blend);
+    base_sky += sun_res.mie_aureole;
 
-    // 7. Perfect Spherical Solar Disc with Limb Darkening and Corona
+    // 7. Dynamic 2.5D Procedural Clouds Layer
+    let clouds = render_volumetric_clouds(
+        dir,
+        sun_dir,
+        sky.sun_color.rgb,
+        mix(sky.zenith_color.rgb, sky.horizon_color.rgb, 0.5),
+        sunset_factor
+    );
+
+    // Solar Disc Extinction Through Clouds & Forward Scatter
+    let direct_disc_visibility = 1.0 - smoothstep(0.06, 0.65, clouds.alpha);
+    let visible_sun_disc = sun_res.direct_sun_disc * direct_disc_visibility;
+
+    // Focused forward scatter strictly around the solar disc
+    let forward_cloud_scatter = (sky.sun_color.rgb * 0.50) * pow(sun_dot, 96.0) * clouds.alpha * exp(-clouds.density * 0.70);
+
+    let final_sky = mix(base_sky + visible_sun_disc, clouds.color + forward_cloud_scatter, clouds.alpha);
+
+    return final_sky;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎮 5. QUALITY TIERS & MAIN ENTRY
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn calculate_low_quality(dir: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {
+    let altitude = max(0.0, dir.y);
+    let horizon_factor = pow(1.0 - altitude, 4.0);
+    var color = mix(sky.zenith_color.rgb, sky.horizon_color.rgb, horizon_factor);
+
+    let sun_dot = max(0.0, dot(dir, sun_dir));
     let angular_dist = acos(clamp(sun_dot, -1.0, 1.0));
-    let sun_radius = sky.sun_disc_size * 0.009;
-    
-    let sun_core = exp(-pow(angular_dist / max(1e-5, sun_radius), 6.0));
-    let limb_darkening = pow(clamp(1.0 - (angular_dist / max(1e-5, sun_radius)), 0.0, 1.0), 0.5);
-    let sun_corona = exp(-pow(angular_dist / max(1e-5, sun_radius * 2.8), 2.0)) * 0.45;
-    let sun_outer_halo = exp(-angular_dist * 40.0) * 0.12;
+    let sun_radius = sky.sun_disc_size * 0.015;
 
-    let core_color = mix(vec3<f32>(10.0, 9.8, 9.2), vec3<f32>(12.0, 4.0, 0.8), sunset_factor);
-    let corona_color = mix(vec3<f32>(2.0, 1.9, 1.6), vec3<f32>(3.0, 1.4, 0.2), sunset_factor);
-    let halo_color = mix(vec3<f32>(0.6, 0.55, 0.45), vec3<f32>(1.0, 0.35, 0.05), sunset_factor);
+    let disc = exp(-pow(angular_dist / max(1e-5, sun_radius), 6.0)) * step(0.0, dir.y);
+    let corona = exp(-pow(angular_dist / max(1e-5, sun_radius * 2.5), 2.0)) * 0.3 * step(0.0, dir.y);
+    color += sky.sun_color.rgb * (disc * 5.0 + corona);
 
-    let hdr_sun = (core_color * sun_core * (1.0 + 0.5 * limb_darkening) * (sky.sun_color.w * 0.1))
-                + (corona_color * sun_corona * sky.sun_glow_strength)
-                + (halo_color * sun_outer_halo * sky.sun_glow_strength * 0.5);
-
-    base_sky += hdr_sun * horizon_blend;
-
-    // 8. Natural Procedural Clouds Layer (Blended seamlessly over the sun and sky)
-    let clouds = render_clouds(dir, sun_dir, sunset_factor);
-    base_sky = mix(base_sky, clouds.rgb, clouds.a);
-
-    return base_sky;
+    return color;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let dir = normalize(in.view_direction);
     let sun_dir = normalize(sky.sun_direction.xyz);
-    
+
     var color = vec3<f32>(0.0);
-    
+
     if sky.sky_quality_mode == 0u {
         color = calculate_low_quality(dir, sun_dir);
-    } else if sky.sky_quality_mode == 1u {
-        color = calculate_medium_quality(dir, sun_dir);
     } else {
-        color = calculate_high_quality(dir, sun_dir);
+        color = calculate_physical_sky(dir, sun_dir);
     }
-    
+
     return vec4<f32>(color, 1.0);
 }
