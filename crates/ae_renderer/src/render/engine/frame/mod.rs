@@ -292,6 +292,7 @@ impl RenderState {
                 label: Some("Encoder"),
             });
 
+        let shadow_timer = std::time::Instant::now();
         self.shadow.execute_pass(
             &mut encoder,
             crate::render::shadow::ShadowPassParams {
@@ -319,8 +320,10 @@ impl RenderState {
                 default_white_texture: &self.default_white_texture,
             },
         );
+        let shadow_pass_ms = shadow_timer.elapsed().as_secs_f32() * 1000.0;
 
         // PASS 1: MAIN FORWARD PASS
+        let main_timer = std::time::Instant::now();
         self.last_render_stats = self.execute_main_forward_pass(
             &mut encoder,
             forward::ForwardPassContext {
@@ -346,8 +349,12 @@ impl RenderState {
                 asset_manager,
             },
         );
+        let main_opaque_pass_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
+        self.last_render_stats.culled_meshes =
+            (total_instances as u32).saturating_sub(self.last_render_stats.entities_rendered);
 
         // BLOOM & POST PROCESS
+        let post_timer = std::time::Instant::now();
         let target_view = self
             .viewport_texture
             .as_ref()
@@ -368,7 +375,9 @@ impl RenderState {
             &scene.selected_model_instances,
             asset_manager,
         );
+        let post_process_pass_ms = post_timer.elapsed().as_secs_f32() * 1000.0;
 
+        let ui_timer = std::time::Instant::now();
         if let Some(render_ui) = ui_renderer {
             let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.egui_view);
             self.last_viewport_rect = render_ui(
@@ -380,6 +389,16 @@ impl RenderState {
                 vt_view,
             );
         }
+        let ui_pass_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
+
+        let total_gpu_ms = shadow_pass_ms + main_opaque_pass_ms + post_process_pass_ms + ui_pass_ms;
+        self.last_gpu_pass_timings = ae_core::telemetry::GpuPassTimings {
+            shadow_pass_ms,
+            main_opaque_pass_ms,
+            post_process_pass_ms,
+            ui_pass_ms,
+            total_gpu_ms,
+        };
 
         self.queue.submit(std::iter::once(encoder.finish()));
         let present_start = std::time::Instant::now();

@@ -98,6 +98,18 @@ pub struct EngineUi {
     pub profiler_present_ms: f32,
     pub profiler_ui_ms: f32,
     pub profiler_frame_ms: f32,
+    /// Detailed CPU thread execution and synchronization stage timings
+    pub cpu_timings: ae_core::telemetry::CpuSyncTimings,
+    /// Detailed GPU pass execution timings (Shadow, Main Opaque, Post-Process, UI)
+    pub gpu_pass_timings: ae_core::telemetry::GpuPassTimings,
+    /// Live 240-frame ring buffer for real-time frame pacing analysis
+    pub frame_pacing: ae_core::telemetry::FrameRingBuffer<240>,
+    /// Precalculated statistical pacing metrics (1% Low, 0.1% Low, Jitter Variance, Spikes)
+    pub frame_pacing_stats: ae_core::telemetry::FramePacingStats,
+    /// Detailed draw calls and culling breakdown
+    pub draw_call_stats: ae_core::telemetry::DrawCallBreakdown,
+    /// Granular Video RAM (VRAM) consumption metrics
+    pub vram_stats: ae_core::telemetry::VramStats,
     /// Memory usage snapshot (MB) – updated by engine before render
     pub memory_models_mb: f32,
     pub memory_textures_mb: f32,
@@ -204,6 +216,12 @@ impl EngineUi {
             profiler_present_ms: 0.0,
             profiler_ui_ms: 0.0,
             profiler_frame_ms: 0.0,
+            cpu_timings: ae_core::telemetry::CpuSyncTimings::default(),
+            gpu_pass_timings: ae_core::telemetry::GpuPassTimings::default(),
+            frame_pacing: ae_core::telemetry::FrameRingBuffer::new(),
+            frame_pacing_stats: ae_core::telemetry::FramePacingStats::default(),
+            draw_call_stats: ae_core::telemetry::DrawCallBreakdown::default(),
+            vram_stats: ae_core::telemetry::VramStats::default(),
             memory_models_mb: 0.0,
             memory_textures_mb: 0.0,
             render_draw_calls: 0,
@@ -400,20 +418,17 @@ impl EngineUi {
         let layout_state = &mut self.layout_state;
         let hierarchy_search_query = &mut self.hierarchy_search_query;
         let console_entries = &self.console_entries;
-        let profiler_ecs_ms = self.profiler_ecs_ms;
-        let profiler_physics_ms = self.profiler_physics_ms;
-        let profiler_render_ms = self.profiler_render_ms;
-        let profiler_present_ms = self.profiler_present_ms;
-        let profiler_ui_ms = self.profiler_ui_ms;
-        let profiler_frame_ms = self.profiler_frame_ms;
-        let memory_models_mb = self.memory_models_mb;
-        let memory_textures_mb = self.memory_textures_mb;
-        let render_draw_calls = self.render_draw_calls;
         let render_triangles = self.render_triangles;
         let render_vertices = self.render_vertices;
         let gpu_adapter_name = &self.gpu_adapter_name;
         let gpu_backend = &self.gpu_backend;
         let smoothed_fps = self.displayed_fps;
+        let frame_pacing = &self.frame_pacing;
+        let frame_pacing_stats = self.frame_pacing_stats;
+        let cpu_timings = self.cpu_timings;
+        let gpu_pass_timings = self.gpu_pass_timings;
+        let draw_call_stats = self.draw_call_stats;
+        let vram_stats = self.vram_stats;
         let hierarchy_cache = &mut self.hierarchy_cache;
 
         let viewport_rect = std::cell::Cell::new(egui::Rect::ZERO);
@@ -495,15 +510,12 @@ impl EngineUi {
                 wireframe_enabled,
                 grid_enabled,
                 fps: smoothed_fps,
-                profiler_ecs_ms,
-                profiler_physics_ms,
-                profiler_render_ms,
-                profiler_present_ms,
-                profiler_ui_ms,
-                profiler_frame_ms,
-                memory_models_mb,
-                memory_textures_mb,
-                render_draw_calls,
+                frame_pacing,
+                frame_pacing_stats,
+                cpu_timings,
+                gpu_pass_timings,
+                draw_call_stats,
+                vram_stats,
                 render_triangles,
                 render_vertices,
                 gpu_adapter_name,

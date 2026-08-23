@@ -150,6 +150,11 @@ impl RenderState {
                         );
                         pass.draw(0..num_verts, 0..count);
                         stats.draw_calls += 1;
+                        if count > 1 {
+                            stats.instanced_draw_calls += 1;
+                        } else {
+                            stats.batched_draw_calls += 1;
+                        }
                         stats.triangles += (num_verts as u64 / 3) * count as u64;
                         stats.vertices += num_verts as u64 * count as u64;
                         stats.entities_rendered += count;
@@ -259,6 +264,11 @@ impl RenderState {
                             pass.set_bind_group(3, bg, &[]);
                             pass.draw_indexed(0..m.num_indices, 0, 0..count);
                             stats.draw_calls += 1;
+                            if count > 1 {
+                                stats.instanced_draw_calls += 1;
+                            } else {
+                                stats.batched_draw_calls += 1;
+                            }
                             stats.triangles += (m.num_indices as u64 / 3) * count as u64;
                             stats.vertices += m.raw_vertices.len() as u64 * count as u64;
                             stats.entities_rendered += count;
@@ -312,6 +322,11 @@ impl RenderState {
                                     0..count,
                                 );
                                 stats.draw_calls += 1;
+                                if count > 1 {
+                                    stats.instanced_draw_calls += 1;
+                                } else {
+                                    stats.batched_draw_calls += 1;
+                                }
                                 stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
                                 stats.vertices += m.raw_vertices.len() as u64 * count as u64;
                                 stats.entities_rendered += count;
@@ -423,6 +438,11 @@ impl RenderState {
                                     0..count,
                                 );
                                 stats.draw_calls += 1;
+                                if count > 1 {
+                                    stats.instanced_draw_calls += 1;
+                                } else {
+                                    stats.batched_draw_calls += 1;
+                                }
                                 stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
                                 stats.vertices += m.raw_vertices.len() as u64 * count as u64;
                                 stats.entities_rendered += count;
@@ -620,6 +640,11 @@ impl RenderState {
                                 0..count,
                             );
                             stats.draw_calls += 1;
+                            if count > 1 {
+                                stats.instanced_draw_calls += 1;
+                            } else {
+                                stats.batched_draw_calls += 1;
+                            }
                             stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
                             stats.vertices += m.raw_vertices.len() as u64 * count as u64;
                             stats.entities_rendered += count;
@@ -651,6 +676,7 @@ impl RenderState {
                     );
                     pass.draw(0..6, 0..count);
                     stats.draw_calls += 1;
+                    stats.batched_draw_calls += 1;
                     stats.triangles += 2 * count as u64;
                     stats.vertices += 4 * count as u64;
                     stats.entities_rendered += count;

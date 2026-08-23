@@ -10,6 +10,7 @@ pub mod math;
 pub mod modules;
 pub mod registry;
 pub mod spatial;
+pub mod telemetry;
 pub mod time;
 
 pub use ae_plugin_api::Resources;

@@ -211,6 +211,13 @@ impl AeEngine {
         self.ui.profiler_present_ms = present_wait_ms;
         self.ui.profiler_ui_ms = self.profiler.ui_time;
         self.ui.profiler_frame_ms = self.profiler.total_frame_time;
+        self.ui.cpu_timings = self.profiler.get_cpu_sync_timings(present_wait_ms);
+        self.ui.gpu_pass_timings = self.render_state.last_gpu_pass_timings;
+        self.ui.frame_pacing = self.profiler.frame_pacing;
+        self.ui.frame_pacing_stats = self.profiler.calculate_pacing_stats();
+        self.ui.draw_call_stats = self.render_state.last_render_stats.to_breakdown();
+        self.ui.vram_stats = self.render_state.get_vram_breakdown(&self.asset_manager);
+
         let (models_bytes, textures_bytes) = self.asset_manager.get_memory_usage();
         self.ui.memory_models_mb = models_bytes as f32 / (1024.0 * 1024.0);
         self.ui.memory_textures_mb = textures_bytes as f32 / (1024.0 * 1024.0);

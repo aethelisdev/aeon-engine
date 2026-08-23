@@ -7,6 +7,9 @@
 //! and viewport rendering mode toggles (Wireframe / Grid).
 //!
 
+pub mod breakdown;
+pub mod graph;
+pub mod metrics;
 pub mod profiler;
 
-pub use profiler::StatsPanelContext;
+pub use profiler::{StatsPanelContext, draw_stats_card};

@@ -746,12 +746,31 @@ impl ModelAsset {
 }
 
 /// Live per-frame rendering and geometry metrics collected during render passes.
-/// Tracks total GPU draw calls, triangles, vertices, and rendered instance count
-/// for real-time profiling and presentation in the editor Stats panel.
+/// Tracks total GPU draw calls, batched calls, instanced calls, compute passes,
+/// culled meshes, triangles, vertices, and rendered instance count for real-time profiling.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct FrameRenderStats {
     pub draw_calls: u32,
+    pub batched_draw_calls: u32,
+    pub instanced_draw_calls: u32,
+    pub dispatched_compute: u32,
+    pub culled_meshes: u32,
     pub triangles: u64,
     pub vertices: u64,
     pub entities_rendered: u32,
+}
+
+impl FrameRenderStats {
+    /// Converts `FrameRenderStats` into an `ae_core::telemetry::DrawCallBreakdown` struct.
+    pub fn to_breakdown(&self) -> ae_core::telemetry::DrawCallBreakdown {
+        ae_core::telemetry::DrawCallBreakdown {
+            total_draw_calls: self.draw_calls,
+            batched_draw_calls: self.batched_draw_calls,
+            instanced_draw_calls: self.instanced_draw_calls,
+            dispatched_compute: self.dispatched_compute,
+            culled_meshes: self.culled_meshes,
+            triangles: self.triangles,
+            vertices: self.vertices,
+        }
+    }
 }
