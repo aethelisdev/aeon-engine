@@ -632,7 +632,7 @@ pub struct SkyUniform {
     pub cloud_altitude: f32,
     pub cloud_thickness: f32,
     pub time: f32,
-    pub sky_quality_mode: u32, // 0=Low, 1=Medium, 2=High (Volumetric)
+    pub sky_quality_mode: u32, // 0=Low, 1=Medium, 2=High
 }
 
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;

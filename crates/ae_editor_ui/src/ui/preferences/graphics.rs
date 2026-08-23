@@ -242,7 +242,7 @@ pub fn draw(ui: &mut egui::Ui, gs: &mut GraphicsSettings) {
 
             if gs.sky_quality != ae_renderer::graphics_settings::SkyQuality::Low {
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new("Physical SkyAtmosphere").strong());
+                ui.label(egui::RichText::new("Atmosphere & Sun").strong());
                 ui.add_space(4.0);
 
                 egui::Grid::new("atmos_grid")
@@ -267,10 +267,10 @@ pub fn draw(ui: &mut egui::Ui, gs: &mut GraphicsSettings) {
                     });
 
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new("☁ Volumetric Clouds").strong());
+                ui.label(egui::RichText::new("☁ Procedural Clouds").strong());
                 ui.add_space(4.0);
 
-                egui::Grid::new("volumetric_clouds_grid")
+                egui::Grid::new("procedural_clouds_grid")
                     .num_columns(2)
                     .spacing([20.0, 10.0])
                     .show(ui, |ui| {
