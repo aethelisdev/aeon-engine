@@ -240,12 +240,21 @@ fn draw_row(
             ui_actions.push(crate::ui::EngineUiAction::SelectEntity(Some(row.entity)));
         }
         name_resp.context_menu(|ui| {
-            if ui.button("🗑 Delete Entity").clicked() {
+            ui.set_width(155.0);
+            if crate::ui::panels::assets::context_menu::context_menu_item(ui, "🗑", "Delete Entity")
+                .clicked()
+            {
                 ui_actions.push(crate::ui::EngineUiAction::SelectEntity(Some(row.entity)));
                 ui_actions.push(crate::ui::EngineUiAction::DeleteSelected);
                 ui.close();
             }
-            if ui.button("👁 Toggle Visibility").clicked() {
+            if crate::ui::panels::assets::context_menu::context_menu_item(
+                ui,
+                "👁",
+                "Toggle Visibility",
+            )
+            .clicked()
+            {
                 ui_actions.push(crate::ui::EngineUiAction::ToggleVisibility(row.entity));
                 ui.close();
             }

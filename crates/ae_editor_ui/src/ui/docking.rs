@@ -102,6 +102,33 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                         *self.selected_entity,
                         self.ui_actions,
                     );
+
+                    // Content Browser Drag-and-Drop Viewport Raycast Spawning
+                    if self.asset_browser.drag_payload.is_some()
+                        && let Some(mouse_pos) = ui.ctx().pointer_latest_pos()
+                        && rect.contains(mouse_pos)
+                        && let Some(hit_pos) =
+                            crate::ui::panels::assets::drag_drop::compute_ground_intersection(
+                                mouse_pos,
+                                rect,
+                                self.camera,
+                            )
+                    {
+                        crate::ui::panels::assets::drag_drop::draw_viewport_drop_indicator(
+                            ui.ctx(),
+                            rect,
+                            hit_pos,
+                            self.camera,
+                        );
+
+                        if ui.input(|i| i.pointer.any_released()) {
+                            crate::ui::panels::assets::drag_drop::handle_viewport_drop(
+                                self.asset_browser,
+                                hit_pos,
+                                self.ui_actions,
+                            );
+                        }
+                    }
                 } else if !self.is_editing && is_render_active {
                     let has_character_action = self
                         .world

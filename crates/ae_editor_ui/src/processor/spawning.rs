@@ -3,8 +3,17 @@
 
 use super::UiContext;
 
-/// Handles spawning a 3D model asset entity into the ECS world.
+/// Handles spawning a 3D model asset entity into the ECS world at the default origin.
 pub fn handle_spawn_model(ctx: &mut UiContext, mid: ae_renderer::asset::AssetHandle) {
+    handle_spawn_model_at(ctx, mid, [0.0, 0.0, 0.0]);
+}
+
+/// Handles spawning a 3D model asset entity into the ECS world at a specified 3D world position.
+pub fn handle_spawn_model_at(
+    ctx: &mut UiContext,
+    mid: ae_renderer::asset::AssetHandle,
+    pos: [f32; 3],
+) {
     let mut base_name = "Model".to_string();
     let mut bbox = ae_core::ecs::BoundingBox {
         min: [-0.5; 3],
@@ -28,9 +37,9 @@ pub fn handle_spawn_model(ctx: &mut UiContext, mid: ae_renderer::asset::AssetHan
         ae_core::ecs::Name(base_name),
         ae_core::ecs::ModelId(mid),
         ae_core::ecs::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
+            x: pos[0],
+            y: pos[1],
+            z: pos[2],
         },
         ae_core::ecs::Rotation::identity(),
         ae_core::ecs::Scale {
@@ -58,8 +67,17 @@ pub fn handle_spawn_model(ctx: &mut UiContext, mid: ae_renderer::asset::AssetHan
     ctx.ui.selected_entity = Some(new_entity);
 }
 
-/// Handles spawning a 2D sprite texture asset entity into the ECS world.
+/// Handles spawning a 2D sprite texture asset entity into the ECS world at default origin.
 pub fn handle_spawn_sprite(ctx: &mut UiContext, tid: ae_renderer::asset::AssetHandle) {
+    handle_spawn_sprite_at(ctx, tid, [0.0, 0.0, 0.0]);
+}
+
+/// Handles spawning a 2D sprite texture asset entity into the ECS world at a specified 3D world position.
+pub fn handle_spawn_sprite_at(
+    ctx: &mut UiContext,
+    tid: ae_renderer::asset::AssetHandle,
+    pos: [f32; 3],
+) {
     let mut base_name = "Sprite".to_string();
     if let Some(t) = ctx.asset_manager.textures.get(tid) {
         let path = std::path::Path::new(&t.source_path);
@@ -74,9 +92,9 @@ pub fn handle_spawn_sprite(ctx: &mut UiContext, tid: ae_renderer::asset::AssetHa
         ae_core::ecs::Name(base_name),
         ae_core::ecs::SpriteId(tid),
         ae_core::ecs::Position {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
+            x: pos[0],
+            y: pos[1],
+            z: pos[2],
         },
         ae_core::ecs::Rotation::identity(),
         ae_core::ecs::Scale {

@@ -7,7 +7,8 @@
 //!
 
 use super::context_menu::attach_asset_context_menu;
-use super::types::{AssetBrowserState, AssetCategory, AssetItem};
+use super::drag_drop::handle_asset_drag_source;
+use super::types::{AssetBrowserState, AssetCategory, AssetItem, PreviewModalState};
 use crate::ui::types::EngineUiAction;
 use egui::{Color32, RichText, Ui};
 
@@ -81,6 +82,9 @@ pub fn draw_asset_list_view(
                     state.selected_asset = Some(item.path.clone());
                 }
 
+                // Drag Source
+                handle_asset_drag_source(&response, item, state);
+
                 if response.double_clicked() {
                     match item.category {
                         AssetCategory::Models3D => {
@@ -96,11 +100,21 @@ pub fn draw_asset_list_view(
                         AssetCategory::Scenes => {
                             ui_actions.push(EngineUiAction::LoadSceneFromPath(item.path.clone()));
                         }
-                        _ => {}
+                        _ => {
+                            state.preview_modal = Some(PreviewModalState {
+                                item: item.clone(),
+                                orbit_yaw: 0.0,
+                                orbit_pitch: 0.3,
+                                zoom_distance: 1.0,
+                                show_wireframe: true,
+                                channel_mask: [true, true, true, true],
+                                wgsl_source: None,
+                            });
+                        }
                     }
                 }
 
-                attach_asset_context_menu(&response, item, ui_actions);
+                attach_asset_context_menu(&response, item, state, ui_actions);
 
                 // 2. Category
                 ui.label(
@@ -151,7 +165,19 @@ pub fn draw_asset_list_view(
                     AssetCategory::Scenes if ui.small_button("🎬 Load").clicked() => {
                         ui_actions.push(EngineUiAction::LoadSceneFromPath(item.path.clone()));
                     }
-                    _ => {}
+                    _ => {
+                        if ui.small_button("🔍 Inspect").clicked() {
+                            state.preview_modal = Some(PreviewModalState {
+                                item: item.clone(),
+                                orbit_yaw: 0.0,
+                                orbit_pitch: 0.3,
+                                zoom_distance: 1.0,
+                                show_wireframe: true,
+                                channel_mask: [true, true, true, true],
+                                wgsl_source: None,
+                            });
+                        }
+                    }
                 });
 
                 ui.end_row();

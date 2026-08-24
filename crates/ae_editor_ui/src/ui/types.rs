@@ -5,7 +5,9 @@
 /// and consumed by the engine loop to modify ECS, scene, or editor state.
 pub enum EngineUiAction {
     SpawnModel(ae_renderer::asset::AssetHandle),
+    SpawnModelAt(ae_renderer::asset::AssetHandle, [f32; 3]),
     SpawnSprite(ae_renderer::asset::AssetHandle),
+    SpawnSpriteAt(ae_renderer::asset::AssetHandle, [f32; 3]),
     ChangeMode(ae_core::modules::EngineMode),
 
     /// Triggers an ECS-wide asset garbage collection sweep.

@@ -108,6 +108,20 @@ pub fn handle_mouse_click(
 
     let is_pressed = state == winit::event::ElementState::Pressed;
 
+    if is_pressed
+        && !should_pass_to_3d(
+            editor,
+            last_viewport_rect,
+            scale_factor,
+            is_point_over_ui,
+            egui_context,
+        )
+    {
+        editor.left_mouse_pressed = false;
+        editor.right_mouse_pressed = false;
+        return;
+    }
+
     if button == winit::event::MouseButton::Right {
         editor.right_mouse_pressed = is_pressed;
         return;
@@ -172,19 +186,10 @@ pub fn should_pass_to_3d(
     }
 
     let rect = last_viewport_rect;
-    let in_viewport = logical_pos.x >= rect.min_x
+    logical_pos.x >= rect.min_x
         && logical_pos.x <= rect.max_x
         && logical_pos.y >= rect.min_y
-        && logical_pos.y <= rect.max_y;
-    if in_viewport {
-        return true;
-    }
-
-    if editor.right_mouse_pressed {
-        return true;
-    }
-
-    false
+        && logical_pos.y <= rect.max_y
 }
 
 /// Handles window focus loss by finalizing any active gizmo drags and committing history.

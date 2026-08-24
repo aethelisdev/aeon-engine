@@ -175,10 +175,10 @@ impl ApplicationHandler for AeApp {
                     engine.process_ui_actions(vec![EngineUiAction::ChangeMode(EngineMode::Edit)]);
                 }
 
-                // In Play mode or when not consumed by UI text edit, deliver all key events to engine input
+                // Deliver key events to 3D engine / gameplay unless user is actively typing in a UI TextEdit
                 if *key == winit::keyboard::KeyCode::Escape
                     || engine.mode == EngineMode::Play
-                    || !consumed
+                    || !engine.ui.context.egui_wants_keyboard_input()
                 {
                     engine.input.process_key_event(*key, *state);
                 }
@@ -189,16 +189,26 @@ impl ApplicationHandler for AeApp {
                 let scale = engine.ui.context.pixels_per_point();
                 let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
 
-                // Only scroll 3D camera if cursor is strictly inside the 3D viewport and not over UI panels
+                // Only scroll 3D camera if cursor is strictly inside the 3D viewport and not over UI panels or active modals
                 if !engine.ui.is_point_over_ui_rects(logical_pos) {
                     engine.handle_mouse_scroll(delta, cursor_x, cursor_y);
                 }
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
-                // Background Interaction: Pass all mouse input to the engine.
-                // The engine uses internal geometric checks (viewport_rect / is_pointer_over_area) to safely separate UI vs 3D.
-                engine.handle_mouse_click(*button, *state);
+                let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
+                let scale = engine.ui.context.pixels_per_point();
+                let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
+
+                // Pass mouse input to engine when in 3D viewport or releasing button
+                if *state == ElementState::Released
+                    || !engine.ui.is_point_over_ui_rects(logical_pos)
+                {
+                    engine.handle_mouse_click(*button, *state);
+                } else if *state == ElementState::Pressed {
+                    engine.editor.left_mouse_pressed = false;
+                    engine.editor.right_mouse_pressed = false;
+                }
             }
 
             WindowEvent::Focused(focused) => {

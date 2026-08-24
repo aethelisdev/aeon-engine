@@ -314,13 +314,19 @@ impl EngineUi {
         response.consumed
     }
 
-    /// Returns true if the point is over any UI panel, dialog, or outside the 3D viewport.
+    /// Returns true if the point is over any UI panel, floating modal dialog, or outside the 3D viewport.
     pub fn is_point_over_ui_rects(&self, pos: egui::Pos2) -> bool {
-        // If cursor is outside the 3D viewport rectangle, it is 100% over an editor UI panel (Hierarchy, Inspector, Assets, Menus, etc.)
+        // 1. Outside 3D viewport -> 100% over an editor UI panel (Hierarchy, Inspector, Assets, Menus, etc.)
         if !self.last_viewport_rect.contains(pos) {
             return true;
         }
 
+        // 2. Open popups / context menus ( /  style)
+        if egui::Popup::is_any_open(&self.context) {
+            return true;
+        }
+
+        // 3. Floating dialogs (Preferences, About, Loading overlay, etc.)
         self.ui_rects.iter().any(|rect| rect.contains(pos))
     }
 
@@ -540,10 +546,30 @@ impl EngineUi {
                     Self::draw_docking_system(ui, layout_state, &mut tab_viewer);
                 });
 
-            // Loading Overlay and Dialogs
+            // Top-Level Modal Dialogs & Floating Overlays
             let mut collected_rects = ui_rects_collector.borrow_mut();
             dialogs::draw_dialogs(&ctx, is_loading_assets, &mut collected_rects);
             menubar::help::draw_about_dialog(&ctx, show_about, &mut collected_rects);
+
+            // Asset Browser Modals (New Folder, Rename, Delete confirmation)
+            if let Some(rect) = crate::ui::panels::assets::file_ops::draw_file_operations_dialogs(
+                &ctx,
+                &mut self.asset_browser,
+            ) {
+                collected_rects.push(rect);
+            }
+
+            // Quick Asset Inspector Modal
+            if let Some(rect) = crate::ui::panels::assets::preview_modal::draw_asset_preview_modal(
+                &ctx,
+                &mut self.asset_browser,
+                models,
+                textures,
+                shaders,
+                ui_actions,
+            ) {
+                collected_rects.push(rect);
+            }
 
             // Clean up status message after duration
             if let Some((_, start_time)) = status_message
