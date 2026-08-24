@@ -54,23 +54,31 @@ impl EngineUi {
 
                         // Window Menu (Modular Panels & Reordering)
                         ui.menu_button("Window", |ui| {
+                            ui.set_width(MENU_ITEM_WIDTH);
                             for &panel in PanelId::all_tool_panels() {
                                 let is_open = layout_state.is_panel_visible(panel);
-                                let label = format!("{} {}", panel.icon(), panel.title());
-                                if ui.selectable_label(is_open, label).clicked() {
+                                if selectable_menu_item(ui, panel.icon(), panel.title(), is_open)
+                                    .clicked()
+                                {
                                     layout_state.activate_or_open(panel);
+                                    ui.close();
                                 }
                             }
                             ui.separator();
-                            if ui.button("🔄 Reset Layout to Default").clicked() {
+                            if menu_item(ui, "🔄", "Reset Layout to Default", None, true).clicked()
+                            {
                                 layout_state.reset_to_default();
+                                ui.close();
                             }
                         });
 
                         // Help Menu
                         ui.menu_button("Help", |ui| {
-                            if ui.button("About Aeon Engine").clicked() {
+                            ui.set_width(MENU_ITEM_WIDTH);
+                            if menu_item(ui, "ℹ", "About Aeon Engine", Some("F1"), true).clicked()
+                            {
                                 *show_about = true;
+                                ui.close();
                             }
                         });
                     });
@@ -110,4 +118,176 @@ impl EngineUi {
                 });
             });
     }
+}
+
+/// Standard menu item width for all top menu bar dropdowns.
+pub const MENU_ITEM_WIDTH: f32 = 205.0;
+
+/// Renders a neatly formatted menu bar item with an icon column, text label, and right-aligned shortcut hint.
+pub(super) fn menu_item(
+    ui: &mut egui::Ui,
+    icon: &str,
+    label: &str,
+    shortcut: Option<&str>,
+    enabled: bool,
+) -> egui::Response {
+    let padding_x = 6.0;
+    let icon_width = 18.0;
+    let height = 22.0;
+
+    let (rect, response) = ui.allocate_exact_size(
+        egui::vec2(MENU_ITEM_WIDTH, height),
+        if enabled {
+            egui::Sense::click()
+        } else {
+            egui::Sense::hover()
+        },
+    );
+
+    if enabled && response.hovered() {
+        ui.painter().rect_filled(
+            rect,
+            egui::CornerRadius::same(4),
+            egui::Color32::from_rgb(38, 44, 58),
+        );
+    }
+
+    let (icon_color, text_color, shortcut_color) = if !enabled {
+        (
+            egui::Color32::from_gray(90),
+            egui::Color32::from_gray(100),
+            egui::Color32::from_gray(75),
+        )
+    } else if response.hovered() {
+        (
+            egui::Color32::WHITE,
+            egui::Color32::WHITE,
+            egui::Color32::from_gray(190),
+        )
+    } else {
+        (
+            egui::Color32::from_gray(180),
+            egui::Color32::from_gray(215),
+            egui::Color32::from_gray(130),
+        )
+    };
+
+    // 1. Fixed Icon Column (18px)
+    if !icon.is_empty() {
+        let icon_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.min.x + padding_x, rect.min.y),
+            egui::vec2(icon_width, height),
+        );
+        ui.painter().text(
+            icon_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            icon,
+            egui::FontId::proportional(12.0),
+            icon_color,
+        );
+    }
+
+    // 2. Text Label (Starts at X = min.x + padding + icon_width + 6)
+    let text_pos = egui::pos2(
+        rect.min.x + padding_x + icon_width + 6.0,
+        rect.min.y + (height - 12.0) * 0.5 - 1.0,
+    );
+    ui.painter().text(
+        text_pos,
+        egui::Align2::LEFT_TOP,
+        label,
+        egui::FontId::proportional(12.0),
+        text_color,
+    );
+
+    // 3. Right-Aligned Shortcut Hint
+    if let Some(sc) = shortcut {
+        let sc_pos = egui::pos2(
+            rect.max.x - padding_x - 2.0,
+            rect.min.y + (height - 12.0) * 0.5 - 1.0,
+        );
+        ui.painter().text(
+            sc_pos,
+            egui::Align2::RIGHT_TOP,
+            sc,
+            egui::FontId::proportional(11.0),
+            shortcut_color,
+        );
+    }
+
+    response
+}
+
+/// Renders a toggleable menu bar item with an active checkmark indicator on the right.
+pub(super) fn selectable_menu_item(
+    ui: &mut egui::Ui,
+    icon: &str,
+    label: &str,
+    is_active: bool,
+) -> egui::Response {
+    let padding_x = 6.0;
+    let icon_width = 18.0;
+    let height = 22.0;
+
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(MENU_ITEM_WIDTH, height), egui::Sense::click());
+
+    if response.hovered() {
+        ui.painter().rect_filled(
+            rect,
+            egui::CornerRadius::same(4),
+            egui::Color32::from_rgb(38, 44, 58),
+        );
+    }
+
+    let (icon_color, text_color) = if is_active {
+        (egui::Color32::from_rgb(0, 229, 255), egui::Color32::WHITE)
+    } else if response.hovered() {
+        (egui::Color32::WHITE, egui::Color32::WHITE)
+    } else {
+        (egui::Color32::from_gray(180), egui::Color32::from_gray(215))
+    };
+
+    // 1. Icon Column
+    let icon_rect = egui::Rect::from_min_size(
+        egui::pos2(rect.min.x + padding_x, rect.min.y),
+        egui::vec2(icon_width, height),
+    );
+    ui.painter().text(
+        icon_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(12.0),
+        icon_color,
+    );
+
+    // 2. Text Label
+    let text_pos = egui::pos2(
+        rect.min.x + padding_x + icon_width + 6.0,
+        rect.min.y + (height - 12.0) * 0.5 - 1.0,
+    );
+    ui.painter().text(
+        text_pos,
+        egui::Align2::LEFT_TOP,
+        label,
+        egui::FontId::proportional(12.0),
+        text_color,
+    );
+
+    // 3. Right Checkmark
+    if is_active {
+        let check_pos = egui::pos2(
+            rect.max.x - padding_x - 2.0,
+            rect.min.y + (height - 12.0) * 0.5 - 1.0,
+        );
+        ui.painter().text(
+            check_pos,
+            egui::Align2::RIGHT_TOP,
+            "✓",
+            egui::FontId::proportional(12.0),
+            egui::Color32::from_rgb(0, 229, 255),
+        );
+    }
+
+    response
 }

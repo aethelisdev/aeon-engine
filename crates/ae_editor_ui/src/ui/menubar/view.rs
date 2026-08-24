@@ -6,18 +6,24 @@ use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 /// Exposes toggles for screen layout adjustments, tool panel visibility, and layout reset.
 pub(super) fn draw_view_menu(ui: &mut egui::Ui, layout_state: &mut PanelLayoutState) {
     ui.menu_button("View", |ui| {
-        let _ = ui.button("Toggle Fullscreen");
+        ui.set_width(super::MENU_ITEM_WIDTH);
+
+        if super::menu_item(ui, "⛶", "Toggle Fullscreen", Some("F11"), true).clicked() {
+            // Fullscreen toggle
+            ui.close();
+        }
         ui.separator();
         for &panel in PanelId::all_tool_panels() {
             let is_open = layout_state.is_panel_visible(panel);
-            let label = format!("{} {}", panel.icon(), panel.title());
-            if ui.selectable_label(is_open, label).clicked() {
+            if super::selectable_menu_item(ui, panel.icon(), panel.title(), is_open).clicked() {
                 layout_state.activate_or_open(panel);
+                ui.close();
             }
         }
         ui.separator();
-        if ui.button("🔄 Reset Layout to Default").clicked() {
+        if super::menu_item(ui, "🔄", "Reset Layout to Default", None, true).clicked() {
             layout_state.reset_to_default();
+            ui.close();
         }
     });
 }

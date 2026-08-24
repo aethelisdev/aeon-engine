@@ -11,21 +11,20 @@ pub(super) fn draw_edit_menu(
     ui_actions: &mut Vec<crate::ui::EngineUiAction>,
 ) {
     ui.menu_button("Edit", |ui| {
-        if ui
-            .add_enabled(!undo_stack.is_empty(), egui::Button::new("Undo"))
-            .clicked()
-        {
+        ui.set_width(super::MENU_ITEM_WIDTH);
+
+        if super::menu_item(ui, "↩", "Undo", Some("Ctrl Z"), !undo_stack.is_empty()).clicked() {
             ui_actions.push(crate::ui::EngineUiAction::Undo);
+            ui.close();
         }
-        if ui
-            .add_enabled(!redo_stack.is_empty(), egui::Button::new("Redo"))
-            .clicked()
-        {
+        if super::menu_item(ui, "↪", "Redo", Some("Ctrl Y"), !redo_stack.is_empty()).clicked() {
             ui_actions.push(crate::ui::EngineUiAction::Redo);
+            ui.close();
         }
         ui.separator();
-        if ui.button("Preferences").clicked() {
+        if super::menu_item(ui, "⚙", "Preferences", Some("Ctrl ,"), true).clicked() {
             *show_preferences = true;
+            ui.close();
         }
     });
 }

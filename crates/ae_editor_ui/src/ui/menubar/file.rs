@@ -5,22 +5,29 @@
 /// safe engine shutdown via the Event Bus UI actions pipeline.
 pub(super) fn draw_file_menu(ui: &mut egui::Ui, ui_actions: &mut Vec<crate::ui::EngineUiAction>) {
     ui.menu_button("File", |ui| {
-        if ui.button("New Project").clicked() {
+        ui.set_width(super::MENU_ITEM_WIDTH);
+
+        if super::menu_item(ui, "📄", "New Project", Some("Ctrl N"), true).clicked() {
             // New project logic placeholder
+            ui.close();
         }
-        if ui.button("Load Scene").clicked() {
+        if super::menu_item(ui, "📂", "Load Scene", Some("Ctrl O"), true).clicked() {
             ui_actions.push(crate::ui::EngineUiAction::OpenLoadSceneDialog);
+            ui.close();
         }
         ui.separator();
-        if ui.button("Save Scene").clicked() {
+        if super::menu_item(ui, "💾", "Save Scene", Some("Ctrl S"), true).clicked() {
             ui_actions.push(crate::ui::EngineUiAction::SaveScene);
+            ui.close();
         }
-        if ui.button("Save Scene As...").clicked() {
+        if super::menu_item(ui, "💾", "Save Scene As", Some("Ctrl Shift S"), true).clicked() {
             ui_actions.push(crate::ui::EngineUiAction::OpenSaveSceneDialog);
+            ui.close();
         }
         ui.separator();
-        if ui.button("Exit").clicked() {
+        if super::menu_item(ui, "⏻", "Exit", Some("Alt F4"), true).clicked() {
             ui_actions.push(crate::ui::EngineUiAction::Exit);
+            ui.close();
         }
     });
 }
