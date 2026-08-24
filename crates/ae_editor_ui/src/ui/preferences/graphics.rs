@@ -209,6 +209,16 @@ pub fn draw(ui: &mut egui::Ui, gs: &mut GraphicsSettings) {
                                 SkyQuality::High,
                                 SkyQuality::High.label(),
                             );
+                            ui.selectable_value(
+                                &mut gs.sky_quality,
+                                SkyQuality::Panoramic,
+                                SkyQuality::Panoramic.label(),
+                            );
+                            ui.selectable_value(
+                                &mut gs.sky_quality,
+                                SkyQuality::Volumetric,
+                                SkyQuality::Volumetric.label(),
+                            );
                         });
                     ui.end_row();
 

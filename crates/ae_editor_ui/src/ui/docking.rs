@@ -21,8 +21,10 @@ pub struct EditorTabViewer<'a> {
     pub ui_actions: &'a mut Vec<EngineUiAction>,
     pub editor_state: &'a ae_editor::editor_state::EditorState,
     pub camera: &'a ae_renderer::camera::Camera,
+    pub asset_browser: &'a mut crate::ui::panels::assets::AssetBrowserState,
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
     pub console_entries: &'a [ConsoleEntry],
     pub wireframe_enabled: &'a mut bool,
     pub grid_enabled: &'a mut bool,
@@ -176,7 +178,14 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 );
             }
             PanelId::Assets => {
-                EngineUi::draw_assets_content(ui, self.models, self.textures, self.ui_actions);
+                EngineUi::draw_assets_content(
+                    ui,
+                    self.asset_browser,
+                    self.models,
+                    self.textures,
+                    self.shaders,
+                    self.ui_actions,
+                );
             }
             PanelId::Console => {
                 EngineUi::draw_console_content(ui, self.console_entries, self.ui_actions);

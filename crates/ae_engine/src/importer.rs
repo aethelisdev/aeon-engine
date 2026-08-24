@@ -133,28 +133,62 @@ impl AssetLoader for FbxAssetLoader {
                     .output();
 
                 match output {
-                    Ok(out) if out.status.success() => {
-                        if output_path.exists() {
-                            let _ = tx.send(Ok(output_path));
-                        } else {
-                            let _ = tx.send(Err(
-                                "Conversion reported success but .glb file was not found."
-                                    .to_string(),
-                            ));
-                        }
+                    Ok(out) if out.status.success() && output_path.exists() => {
+                        let _ = tx.send(Ok(output_path));
                     }
                     Ok(out) => {
-                        let err_msg = String::from_utf8_lossy(&out.stderr).to_string();
-                        let out_msg = String::from_utf8_lossy(&out.stdout).to_string();
-                        let combined_err = if err_msg.is_empty() { out_msg } else { err_msg };
-                        let _ = tx.send(Err(format!("Conversion failed: {}", combined_err)));
+                        let stderr = String::from_utf8_lossy(&out.stderr);
+                        let _ = tx.send(Err(format!("FBX conversion failed: {}", stderr)));
                     }
                     Err(e) => {
-                        log::error!("Failed to start FBX2glTF executable: {}", e);
-                        let _ = tx.send(Err(format!("Failed to start FBX2glTF executable: {}", e)));
+                        let _ = tx.send(Err(format!("Failed to execute FBX2glTF tool: {}", e)));
                     }
                 }
             });
+        }
+    }
+}
+
+/// WGSL Shader Asset Loader for runtime `.wgsl` shader file imports.
+pub struct ShaderAssetLoader;
+
+impl AssetLoader for ShaderAssetLoader {
+    fn supported_extensions(&self) -> &'static [&'static str] {
+        &["wgsl"]
+    }
+
+    fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
+        engine.ui.is_loading_assets = true;
+        if let Some(path_str) = path.to_str() {
+            match engine
+                .render_state
+                .load_shader(&mut engine.asset_manager, path_str)
+            {
+                Ok(_handle) => {
+                    log::info!(
+                        "⚡ [Shader Importer] Successfully loaded shader asset: {:?}",
+                        final_name
+                    );
+                    engine.ui.status_message = Some((
+                        vec![(
+                            format!("Shader '{}' successfully loaded.", final_name),
+                            egui::Color32::GREEN,
+                        )],
+                        std::time::Instant::now(),
+                    ));
+                }
+                Err(err) => {
+                    log::error!("❌ [Shader Importer] Failed to load shader: {}", err);
+                    engine.ui.status_message = Some((
+                        vec![(
+                            format!("Failed to load shader '{}': {}", final_name, err),
+                            egui::Color32::RED,
+                        )],
+                        std::time::Instant::now(),
+                    ));
+                }
+            }
+            engine.ui.is_loading_assets = false;
         }
     }
 }
@@ -198,6 +232,7 @@ impl AssetLoaderRegistry {
         registry.register(TextureAssetLoader);
         registry.register(GltfAssetLoader);
         registry.register(FbxAssetLoader);
+        registry.register(ShaderAssetLoader);
         registry
     }
 
@@ -551,6 +586,8 @@ mod tests {
         assert!(registry.find_loader("gltf").is_some());
         assert!(registry.find_loader("GLB").is_some());
         assert!(registry.find_loader("fbx").is_some());
+        assert!(registry.find_loader("wgsl").is_some());
+        assert!(registry.find_loader("WGSL").is_some());
         assert!(registry.find_loader("unsupported_xyz").is_none());
     }
 }

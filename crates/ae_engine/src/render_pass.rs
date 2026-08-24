@@ -274,6 +274,7 @@ impl AeEngine {
                     camera,
                     models: &asset_manager.models,
                     textures: &asset_manager.textures,
+                    shaders: &asset_manager.shaders,
                     enabled_modules: &event_bus.enabled_modules,
                     ui_actions: &mut ui_actions,
                 });

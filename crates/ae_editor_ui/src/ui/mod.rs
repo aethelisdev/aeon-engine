@@ -47,6 +47,7 @@ pub struct EditorUiRenderParams<'a> {
     pub camera: &'a ae_renderer::camera::Camera,
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_actions: &'a mut Vec<EngineUiAction>,
 }
@@ -140,6 +141,8 @@ pub struct EngineUi {
     pub last_viewport_rect: egui::Rect,
     /// Active UI Zoom / Scaling factor (e.g. 1.0 = 100%, 0.8 = 80%, 1.25 = 125%).
     pub ui_zoom_factor: f32,
+    /// Persistent Content / Asset Browser state (directory path, search query, active category filter).
+    pub asset_browser: crate::ui::panels::assets::AssetBrowserState,
 }
 
 impl EngineUi {
@@ -238,6 +241,7 @@ impl EngineUi {
             viewport_rect_height: 0.0,
             last_viewport_rect: egui::Rect::ZERO,
             ui_zoom_factor: 1.0,
+            asset_browser: crate::ui::panels::assets::AssetBrowserState::new(),
         }
     }
 
@@ -340,6 +344,7 @@ impl EngineUi {
         let camera = params.camera;
         let models = params.models;
         let textures = params.textures;
+        let shaders = params.shaders;
         let enabled_modules = params.enabled_modules;
         let ui_actions = params.ui_actions;
 
@@ -504,8 +509,10 @@ impl EngineUi {
                 ui_actions,
                 editor_state,
                 camera,
+                asset_browser: &mut self.asset_browser,
                 models,
                 textures,
+                shaders,
                 console_entries,
                 wireframe_enabled,
                 grid_enabled,

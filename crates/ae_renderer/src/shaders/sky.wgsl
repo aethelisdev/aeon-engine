@@ -69,7 +69,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 // ══════════════════════════════════════════════════════════════════════════════
 
 fn hash12(p: vec2<f32>) -> f32 {
-    var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+    var p3 = fract(vec3<f32>(p.xyx) * 0.1031 + vec3<f32>(0.1031, 0.1030, 0.0973));
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
@@ -88,13 +88,16 @@ fn value_noise(p: vec2<f32>) -> f32 {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
+// Multi-octave FBM with 2D rotation matrix to break axial grid alignment and facet artifacts
 fn fbm_octaves(p: vec2<f32>, octaves: u32) -> f32 {
     var v = 0.0;
     var a = 0.5;
     var pos = p;
+    let rot = mat2x2<f32>(0.80, 0.60, -0.60, 0.80);
+
     for (var i = 0u; i < octaves; i++) {
         v += a * value_noise(pos);
-        pos = pos * 2.06 + vec2<f32>(1.7, 9.2);
+        pos = rot * pos * 2.02 + vec2<f32>(1.7, 9.2);
         a *= 0.5;
     }
     return v;
@@ -104,9 +107,9 @@ fn sample_clouds_animated(p: vec2<f32>, evolution_phase: vec2<f32>, is_high: boo
     if !is_high {
         return fbm_octaves(p + evolution_phase, 3u);
     }
-    let warp_x = fbm_octaves(p + evolution_phase, 4u);
-    let warp_y = fbm_octaves(p + vec2<f32>(4.3, 1.7) - evolution_phase, 4u);
-    let warped_pos = p + vec2<f32>(warp_x, warp_y) * 0.22;
+    let warp_x = fbm_octaves(p + evolution_phase, 3u);
+    let warp_y = fbm_octaves(p + vec2<f32>(4.3, 1.7) - evolution_phase, 3u);
+    let warped_pos = p + vec2<f32>(warp_x, warp_y) * 0.14;
     return fbm_octaves(warped_pos, 5u);
 }
 
@@ -152,7 +155,7 @@ fn render_procedural_clouds(
         cos(sky.time * evo_rate * 0.5)
     ) * 0.25;
 
-    let uv = world_pos * 1.50 + wind;
+    let uv = (world_pos + vec2<f32>(123.45, 678.90)) * 1.50 + wind;
 
     // Macro cluster mask
     let cluster_octaves = select(2u, 4u, is_high);
@@ -182,10 +185,12 @@ fn render_procedural_clouds(
         let sun_d = smoothstep(threshold - 0.08, threshold + 0.28, sun_sample_val);
         let sun_density = sun_d * (1.0 + sun_d * 1.8) * sky.cloud_density;
 
-        let optical_depth_sun = max(0.0, sun_density - density * 0.35);
-        let sun_transmission = exp(-optical_depth_sun * 2.0);
-        let powder_sugar = 1.0 - exp(-density * 3.0);
-        direct_sun_illum = clamp(sun_transmission * powder_sugar, 0.0, 1.0);
+        // Smooth continuous directional slope (highlights sun-facing cloud surface without edge spikes)
+        let sun_slope = clamp(0.5 + (raw_cloud - sun_sample_val) * 3.0, 0.15, 1.0);
+        // Beer-Lambert extinction along the sun path
+        let sun_transmission = exp(-sun_density * 1.5);
+        let powder_sugar = 1.0 - exp(-density * 2.8);
+        direct_sun_illum = clamp(sun_slope * sun_transmission * powder_sugar, 0.0, 1.0);
 
         let cos_theta = max(0.0, dot(dir, sun_dir));
         silver_lining = pow(cos_theta, 16.0) * exp(-density * 1.4) * density * 0.85;
@@ -366,7 +371,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color = calculate_low_quality(dir, sun_dir);
     } else if sky.sky_quality_mode == 1u {
         color = calculate_physical_sky(dir, sun_dir, false);
+    } else if sky.sky_quality_mode == 2u {
+        color = calculate_physical_sky(dir, sun_dir, true);
+    } else if sky.sky_quality_mode == 3u {
+        // Mode 3: 2D Texture Flowmap Skybox Layer (Fallback to High until texture binding is attached)
+        color = calculate_physical_sky(dir, sun_dir, true);
     } else {
+        // Mode 4: 3D Volumetric Raymarched Atmosphere (Fallback to High until compute raymarching pass is active)
         color = calculate_physical_sky(dir, sun_dir, true);
     }
 

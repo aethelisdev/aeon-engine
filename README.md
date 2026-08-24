@@ -8,7 +8,7 @@
 [![Instagram](https://img.shields.io/badge/AeonEngine-E4405F?style=flat&logo=instagram&logoColor=white)](https://instagram.com/aeonengine)
 [![X / Twitter](https://img.shields.io/badge/AeonEngine-000000?style=flat&logo=x&logoColor=white)](https://x.com/aeonengine)
 
-![Aeon Engine Play Mode](./assets/screenshots/aeonengineplaymode.png)
+![Aeon Engine Play Mode](./assets/screenshots/aeonengineplaymode.jpg)
 
 ## What is Aeon Engine?
 It is a fully modular game engine written almost entirely in safe Rust.

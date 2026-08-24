@@ -23,7 +23,7 @@ impl Default for PhysicsMaterialAsset {
 
 /// Generic slotmap-backed asset container with O(1) insert, get, and remove.
 /// Wraps `SlotMap<AssetHandle, T>` to provide a type-safe, generational-index
-/// storage for any asset type (models, textures, physics materials).
+/// storage for any asset type (models, textures, shaders, physics materials).
 /// Handles remain valid across insertions/removals of other assets.
 pub struct AssetStorage<T> {
     inner: SlotMap<AssetHandle, T>,
@@ -83,16 +83,38 @@ impl<T> AssetStorage<T> {
     }
 }
 
-/// Central asset registry managing all loaded models, textures, and physics materials.
-/// Provides path-based deduplication via `model_path_map` and `texture_path_map`
+impl<T> Default for AssetStorage<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// GPU-compiled WGSL shader module with raw source and metadata.
+/// Holds the compiled `wgpu::ShaderModule` alongside its source text and canonical
+/// disk path, allowing hot-reloading, inspector inspection, and dynamic pipeline binding.
+pub struct ShaderAsset {
+    /// Compiled GPU shader module.
+    pub module: wgpu::ShaderModule,
+    /// Raw WGSL shader source code.
+    pub source_code: String,
+    /// Canonical asset / file name.
+    pub name: String,
+    /// Absolute local file path.
+    pub source_path: String,
+}
+
+/// Central asset registry managing all loaded models, textures, shaders, and physics materials.
+/// Provides path-based deduplication via `model_path_map`, `texture_path_map`, and `shader_path_map`
 /// to prevent loading the same file twice. Also offers physics mesh data retrieval
 /// for collision shape generation and VRAM usage estimation.
 pub struct AssetManager {
     pub models: AssetStorage<crate::render::ModelAsset>,
     pub textures: AssetStorage<crate::render::TextureAsset>,
+    pub shaders: AssetStorage<ShaderAsset>,
     pub physics_materials: AssetStorage<PhysicsMaterialAsset>,
     pub model_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
     pub texture_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
+    pub shader_path_map: std::collections::HashMap<std::path::PathBuf, AssetHandle>,
 }
 
 impl Default for AssetManager {
@@ -110,9 +132,11 @@ impl AssetManager {
         Self {
             models: AssetStorage::with_capacity(32),
             textures: AssetStorage::with_capacity(32),
+            shaders: AssetStorage::with_capacity(16),
             physics_materials,
             model_path_map: std::collections::HashMap::new(),
             texture_path_map: std::collections::HashMap::new(),
+            shader_path_map: std::collections::HashMap::new(),
         }
     }
 
@@ -208,12 +232,6 @@ impl AssetManager {
     }
 }
 
-impl<T> Default for AssetStorage<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Intermediate result of async glTF/GLB file parsing.
 /// Contains all vertex/index data ready for GPU upload, AABB bounds for
 /// auto-scaling and culling, the canonical disk path for deduplication,
@@ -256,4 +274,24 @@ pub fn is_safe_path(path: &str) -> bool {
         }
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asset_manager_initialization_and_path_security() {
+        let manager = AssetManager::new();
+        assert_eq!(manager.shaders.len(), 0);
+        assert_eq!(manager.models.len(), 0);
+        assert_eq!(manager.textures.len(), 0);
+
+        assert!(is_safe_path("shaders/custom_sky.wgsl"));
+        assert!(is_safe_path("assets/materials/pbr.wgsl"));
+        assert!(!is_safe_path("../etc/passwd"));
+        assert!(!is_safe_path("shaders/../../root.wgsl"));
+        assert!(!is_safe_path("\\\\remote\\share\\shader.wgsl"));
+        assert!(!is_safe_path("http://evil.com/shader.wgsl"));
+    }
 }

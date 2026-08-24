@@ -83,6 +83,8 @@ pub enum SkyQuality {
     Low = 0,
     Medium = 1,
     High = 2,
+    Panoramic = 3,
+    Volumetric = 4,
 }
 
 impl SkyQuality {
@@ -90,7 +92,9 @@ impl SkyQuality {
         match self {
             SkyQuality::Low => "Low (Gradient)",
             SkyQuality::Medium => "Medium (Fast HDR)",
-            SkyQuality::High => "High (Atmospheric)",
+            SkyQuality::High => "High (Atmospheric 2.5D)",
+            SkyQuality::Panoramic => "2D Panoramic (Planned)",
+            SkyQuality::Volumetric => "3D Volumetric (Planned)",
         }
     }
 }

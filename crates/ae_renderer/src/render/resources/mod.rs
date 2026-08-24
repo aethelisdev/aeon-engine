@@ -5,6 +5,7 @@
 //!
 
 pub mod model;
+pub mod shader;
 pub mod targets;
 pub mod texture;
 
