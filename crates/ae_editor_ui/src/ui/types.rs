@@ -6,8 +6,10 @@
 pub enum EngineUiAction {
     SpawnModel(ae_renderer::asset::AssetHandle),
     SpawnModelAt(ae_renderer::asset::AssetHandle, [f32; 3]),
+    SpawnModelPathAt(std::path::PathBuf, [f32; 3]),
     SpawnSprite(ae_renderer::asset::AssetHandle),
     SpawnSpriteAt(ae_renderer::asset::AssetHandle, [f32; 3]),
+    SpawnSpritePathAt(std::path::PathBuf, [f32; 3]),
     ChangeMode(ae_core::modules::EngineMode),
 
     /// Triggers an ECS-wide asset garbage collection sweep.

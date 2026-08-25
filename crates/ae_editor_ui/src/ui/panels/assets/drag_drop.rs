@@ -153,18 +153,18 @@ pub fn handle_viewport_drop(
                 if let Some(handle) = payload.model_handle {
                     ui_actions.push(EngineUiAction::SpawnModelAt(handle, world_pos));
                 } else {
-                    log::warn!("Asset '{}' is not loaded in memory to spawn.", payload.name);
+                    ui_actions.push(EngineUiAction::SpawnModelPathAt(payload.path, world_pos));
                 }
             }
             AssetCategory::Textures2D => {
                 if let Some(handle) = payload.texture_handle {
                     ui_actions.push(EngineUiAction::SpawnSpriteAt(handle, world_pos));
                 } else {
-                    log::warn!(
-                        "Texture '{}' is not loaded in memory to spawn.",
-                        payload.name
-                    );
+                    ui_actions.push(EngineUiAction::SpawnSpritePathAt(payload.path, world_pos));
                 }
+            }
+            AssetCategory::Scenes => {
+                ui_actions.push(EngineUiAction::LoadSceneFromPath(payload.path));
             }
             _ => {}
         }

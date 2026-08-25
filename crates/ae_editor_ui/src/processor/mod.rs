@@ -54,9 +54,15 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::SpawnModelAt(mid, pos) => {
                 spawning::handle_spawn_model_at(ctx, mid, pos)
             }
+            crate::ui::EngineUiAction::SpawnModelPathAt(path, pos) => {
+                spawning::handle_spawn_model_path_at(ctx, path, pos)
+            }
             crate::ui::EngineUiAction::SpawnSprite(tid) => spawning::handle_spawn_sprite(ctx, tid),
             crate::ui::EngineUiAction::SpawnSpriteAt(tid, pos) => {
                 spawning::handle_spawn_sprite_at(ctx, tid, pos)
+            }
+            crate::ui::EngineUiAction::SpawnSpritePathAt(path, pos) => {
+                spawning::handle_spawn_sprite_path_at(ctx, path, pos)
             }
             crate::ui::EngineUiAction::SpawnShape(shape) => {
                 spawning::handle_spawn_shape(ctx, shape)

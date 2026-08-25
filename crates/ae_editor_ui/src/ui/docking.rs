@@ -211,6 +211,7 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                     self.models,
                     self.textures,
                     self.shaders,
+                    self.is_editing,
                     self.ui_actions,
                 );
             }

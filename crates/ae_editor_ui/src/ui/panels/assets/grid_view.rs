@@ -170,11 +170,21 @@ pub fn draw_asset_grid_view(
                     AssetCategory::Models3D => {
                         if let Some(handle) = item.model_handle {
                             ui_actions.push(EngineUiAction::SpawnModel(handle));
+                        } else {
+                            ui_actions.push(EngineUiAction::SpawnModelPathAt(
+                                item.path.clone(),
+                                [0.0, 0.0, 0.0],
+                            ));
                         }
                     }
                     AssetCategory::Textures2D => {
                         if let Some(handle) = item.texture_handle {
                             ui_actions.push(EngineUiAction::SpawnSprite(handle));
+                        } else {
+                            ui_actions.push(EngineUiAction::SpawnSpritePathAt(
+                                item.path.clone(),
+                                [0.0, 0.0, 0.0],
+                            ));
                         }
                     }
                     AssetCategory::Scenes => {

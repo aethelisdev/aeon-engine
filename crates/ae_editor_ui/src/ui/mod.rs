@@ -559,16 +559,22 @@ impl EngineUi {
                 collected_rects.push(rect);
             }
 
-            // Quick Asset Inspector Modal
-            if let Some(rect) = crate::ui::panels::assets::preview_modal::draw_asset_preview_modal(
-                &ctx,
-                &mut self.asset_browser,
-                models,
-                textures,
-                shaders,
-                ui_actions,
-            ) {
-                collected_rects.push(rect);
+            // Quick Asset Inspector Modal (Only in Edit mode)
+            if is_editing {
+                if let Some(rect) =
+                    crate::ui::panels::assets::preview_modal::draw_asset_preview_modal(
+                        &ctx,
+                        &mut self.asset_browser,
+                        models,
+                        textures,
+                        shaders,
+                        ui_actions,
+                    )
+                {
+                    collected_rects.push(rect);
+                }
+            } else {
+                self.asset_browser.preview_modal = None;
             }
 
             // Clean up status message after duration

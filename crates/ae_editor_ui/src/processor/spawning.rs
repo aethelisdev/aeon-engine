@@ -121,6 +121,63 @@ pub fn handle_spawn_sprite_at(
     ctx.ui.selected_entity = Some(new_entity);
 }
 
+/// Handles spawning a 3D model entity into the ECS world from an arbitrary file path.
+/// Resolves cached model handles if already uploaded, or dynamically parses the GLTF/GLB file,
+/// uploads vertex and index buffers to GPU memory, and spawns the entity at the target coordinates.
+pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf, pos: [f32; 3]) {
+    let path_str = path.to_string_lossy().to_string();
+    let final_name = path
+        .file_stem()
+        .unwrap_or(std::ffi::OsStr::new("Model"))
+        .to_string_lossy()
+        .into_owned();
+
+    // Check if model already loaded into memory
+    let mut existing_handle = None;
+    if let Ok(canonical) = std::fs::canonicalize(&path)
+        && let Some(&handle) = ctx.asset_manager.model_path_map.get(&canonical)
+    {
+        existing_handle = Some(handle);
+    }
+
+    if let Some(handle) = existing_handle {
+        handle_spawn_model_at(ctx, handle, pos);
+        return;
+    }
+
+    // Dynamically parse and upload model to GPU
+    match ae_renderer::render::resources::parse_gltf_file(&path_str, final_name) {
+        Ok(parsed_data) => {
+            let (model_id, _min, _max) = ctx
+                .render_state
+                .upload_model_data(ctx.asset_manager, parsed_data);
+            handle_spawn_model_at(ctx, model_id, pos);
+            log::info!(
+                "Model dynamically loaded from '{}' and spawned at {:?}",
+                path_str,
+                pos
+            );
+        }
+        Err(e) => {
+            log::error!("Failed to load 3D model from '{}': {}", path_str, e);
+        }
+    }
+}
+
+/// Handles spawning a 2D sprite texture asset entity into the ECS world from a file path.
+/// Dynamically loads the texture image from disk into GPU memory if not already cached
+/// and spawns a new sprite entity at the designated 3D world location.
+pub fn handle_spawn_sprite_path_at(ctx: &mut UiContext, path: std::path::PathBuf, pos: [f32; 3]) {
+    let path_str = path.to_string_lossy().to_string();
+    let texture_handle = ctx.render_state.load_texture(ctx.asset_manager, &path_str);
+    handle_spawn_sprite_at(ctx, texture_handle, pos);
+    log::info!(
+        "Texture dynamically loaded from '{}' and spawned sprite at {:?}",
+        path_str,
+        pos
+    );
+}
+
 /// Handles spawning a parametric 3D primitive shape entity.
 pub fn handle_spawn_shape(ctx: &mut UiContext, shape: ae_core::ecs::Shape) {
     let final_name = match shape {

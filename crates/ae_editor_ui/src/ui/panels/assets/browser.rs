@@ -28,13 +28,16 @@ impl crate::ui::EngineUi {
         models: &AssetStorage<ModelAsset>,
         textures: &AssetStorage<TextureAsset>,
         shaders: &AssetStorage<ShaderAsset>,
+        is_editing: bool,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         // 1. Rescan disk and correlate with active GPU storages
         rescan_assets_if_needed(state, models, textures, shaders);
 
-        // 2. Space key shortcut for Quick Asset Inspector
-        if ui.input(|i| i.key_pressed(egui::Key::Space))
+        // 2. Space key shortcut for Quick Asset Inspector (Only in Edit mode when panel is hovered)
+        if is_editing
+            && ui.ui_contains_pointer()
+            && ui.input(|i| i.key_pressed(egui::Key::Space))
             && state.preview_modal.is_none()
             && state.rename_state.is_none()
             && state.delete_confirmation.is_none()
