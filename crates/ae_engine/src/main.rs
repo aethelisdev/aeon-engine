@@ -189,8 +189,9 @@ impl ApplicationHandler for AeApp {
                 let scale = engine.ui.context.pixels_per_point();
                 let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
 
-                // Only scroll 3D camera if cursor is strictly inside the 3D viewport and not over UI panels or active modals
-                if !engine.ui.is_point_over_ui_rects(logical_pos) {
+                // Only scroll 3D camera if in Play mode (with cursor grabbed) or cursor is strictly inside the 3D viewport in Edit mode
+                if engine.mode == EngineMode::Play || !engine.ui.is_point_over_ui_rects(logical_pos)
+                {
                     engine.handle_mouse_scroll(delta, cursor_x, cursor_y);
                 }
             }
@@ -200,10 +201,18 @@ impl ApplicationHandler for AeApp {
                 let scale = engine.ui.context.pixels_per_point();
                 let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
 
-                // Pass mouse input to engine when in 3D viewport or releasing button
-                if *state == ElementState::Released
-                    || !engine.ui.is_point_over_ui_rects(logical_pos)
-                {
+                // In Play mode, all clicks when cursor is grabbed (or releasing) go to gameplay.
+                // If in Edit mode, only pass mouse input when releasing or when cursor is not over UI panels.
+                let should_handle = if engine.mode == EngineMode::Play {
+                    engine.is_cursor_grabbed
+                        || *state == ElementState::Released
+                        || !engine.ui.is_point_over_ui_rects(logical_pos)
+                } else {
+                    *state == ElementState::Released
+                        || !engine.ui.is_point_over_ui_rects(logical_pos)
+                };
+
+                if should_handle {
                     engine.handle_mouse_click(*button, *state);
                 } else if *state == ElementState::Pressed {
                     engine.editor.left_mouse_pressed = false;

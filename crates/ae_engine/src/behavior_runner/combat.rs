@@ -20,23 +20,42 @@ pub fn update_character_actions(
     input: &InputManager,
     event_bus: &mut DynamicEventBus,
     camera_forward: cgmath::Vector3<f32>,
+    dt: f32,
 ) {
+    // 1. Tick cooldown timers for all active CharacterAction components
+    for (_ent, action) in world.query::<(Entity, &mut CharacterAction)>().iter() {
+        action.timer = (action.timer - dt).max(0.0);
+    }
+
     let fire_pressed = input.is_action_just_pressed("Fire")
         || input.is_mouse_button_just_pressed(winit::event::MouseButton::Left)
         || input.is_key_just_pressed(ae_editor::input::KeyCode::KeyF);
 
     if fire_pressed {
         let mut projectiles_to_spawn = Vec::new();
-        let shooters: Vec<(Entity, Position)> = world
-            .query::<(Entity, &CharacterAction, &Position)>()
-            .into_iter()
-            .map(|(ent, _, pos)| (ent, *pos))
-            .collect();
 
-        for (shooter_ent, pos) in shooters {
+        // 2. Filter shooters whose cooldown timer has elapsed
+        let mut ready_shooters = Vec::new();
+        for (ent, action, pos) in world
+            .query::<(Entity, &mut CharacterAction, &Position)>()
+            .iter()
+        {
+            if action.timer <= 0.0 {
+                action.timer = action.cooldown;
+                let speed = if action.speed > 0.0 {
+                    action.speed
+                } else {
+                    50.0
+                };
+                ready_shooters.push((ent, *pos, speed));
+            }
+        }
+
+        for (shooter_ent, pos, speed) in ready_shooters {
             shooters_action(
                 shooter_ent,
                 &pos,
+                speed,
                 camera_forward,
                 physics_world,
                 event_bus,
@@ -81,7 +100,7 @@ pub fn update_character_actions(
                     restitution: 0.0,
                     is_sensor: true, // Sensor prevents slow-mo floor bouncing
                 },
-                EphemeralProjectile::new(0.7),
+                EphemeralProjectile::new(1.5),
                 TransformDirty,
             ));
         }
@@ -92,6 +111,7 @@ pub fn update_character_actions(
 fn shooters_action(
     shooter_ent: Entity,
     pos: &Position,
+    speed: f32,
     camera_forward: cgmath::Vector3<f32>,
     physics_world: &mut PhysicsWorld,
     event_bus: &mut DynamicEventBus,
@@ -102,18 +122,20 @@ fn shooters_action(
         .normalize();
 
     log::info!(
-        "🔫 [Weapon Fired] Shooter {:?} fired laser bolt!",
-        shooter_ent
+        "🔫 [Weapon Fired] Shooter {:?} fired laser bolt with speed: {:.1} m/s!",
+        shooter_ent,
+        speed
     );
 
-    // Queue fast, straight-line laser projectile in 3D world
+    // Queue projectile with dynamic speed configured from CharacterAction
     let bolt_pos = ray_origin + ray_dir * 0.8;
-    let bolt_vel = ray_dir * 60.0;
+    let bolt_vel = ray_dir * speed;
     projectiles_to_spawn.push((bolt_pos, bolt_vel));
 
-    // Cast ray excluding the shooter's own collider
+    // Cast ray with range proportional to weapon speed
+    let ray_distance = (speed * 2.0).clamp(50.0, 500.0);
     if let Some(hit) =
-        physics_world.raycast_filtered(ray_origin, ray_dir, 100.0, Some(shooter_ent), true)
+        physics_world.raycast_filtered(ray_origin, ray_dir, ray_distance, Some(shooter_ent), true)
     {
         log::info!(
             "⚡ [Weapon Raycast] Hit Entity {:?} at dist: {:.2}m",
@@ -129,8 +151,9 @@ fn shooters_action(
             damage: 25.0,
         });
 
-        // Physical kinetic impulse to dynamic physics bodies (e.g. bouncing cubes)
-        let impulse = ray_dir * 10.0 + ae_physics::glam::Vec3::new(0.0, 3.5, 0.0);
+        // Physical kinetic impulse scaled by weapon velocity
+        let impulse_mag = (speed * 0.2).clamp(5.0, 50.0);
+        let impulse = ray_dir * impulse_mag + ae_physics::glam::Vec3::new(0.0, 3.5, 0.0);
         physics_world.apply_impulse(hit.entity, impulse);
     } else {
         log::info!("💨 [Weapon Raycast] Shot missed (no target in line of fire)");

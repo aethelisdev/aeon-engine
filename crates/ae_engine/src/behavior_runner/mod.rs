@@ -9,6 +9,7 @@
 pub mod combat;
 pub mod destructible;
 pub mod moving_platform;
+pub mod native_behavior;
 pub mod rotator;
 pub mod trigger_zone;
 
@@ -82,7 +83,7 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     trigger_zone::update_trigger_zone_mechanisms(world, dt, &mut dirty_entities);
 
     // 7. Update character weapon shooting and raycasts
-    combat::update_character_actions(world, physics_world, input, event_bus, camera_forward);
+    combat::update_character_actions(world, physics_world, input, event_bus, camera_forward, dt);
 
     // 8. Update destructible target damage visual hit flash timers
     destructible::update_destructible_visuals(world, dt);
@@ -90,7 +91,18 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     // 9. Update Ephemeral projectile despawning
     destructible::update_ephemeral_projectiles(world, dt);
 
-    // 10. Mark dirty entities for transform hierarchy sync
+    // 10. Execute dynamic NativeBehavior lifecycle scripts
+    let mut command_buffer = ae_core::commands::EntityCommandBuffer::new();
+    native_behavior::update_native_behaviors(
+        world,
+        event_bus,
+        &mut command_buffer,
+        camera_forward,
+        dt,
+    );
+    command_buffer.apply(world);
+
+    // 11. Mark dirty entities for transform hierarchy sync
     for ent in dirty_entities {
         let _ = world.insert_one(ent, ae_core::ecs::TransformDirty);
     }

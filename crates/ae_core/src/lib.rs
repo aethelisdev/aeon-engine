@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+pub mod behavior;
 pub mod camera;
+pub mod commands;
 /// AE Core - Core engine runtime and orchestration infrastructure.
 /// Provides a dynamic downcasting-based `Resources` store to prevent
 /// borrow checker conflicts between modular subsystems.
@@ -14,4 +16,6 @@ pub mod telemetry;
 pub mod time;
 
 pub use ae_plugin_api::Resources;
+pub use behavior::{Behavior, BehaviorContext, NativeBehavior};
 pub use cgmath;
+pub use commands::{CommandFn, EntityCommandBuffer};
