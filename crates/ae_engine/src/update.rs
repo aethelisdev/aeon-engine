@@ -283,7 +283,18 @@ impl AeEngine {
             self.time.fixed_time_step,
         );
 
+        // Fixed update for GameStateManager
+        let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
+        self.state_manager.fixed_update(
+            &mut self.ecs.world,
+            &mut self.event_bus,
+            &mut state_cmd_buffer,
+            self.time.fixed_time_step,
+        );
+        state_cmd_buffer.apply(&mut self.ecs.world);
+
         // Process Kinematic Character Controller (KCC) entities
+
         let dt = self.time.fixed_time_step;
         let mut kcc_entities = Vec::new();
         for (ent, _ctrl) in self
@@ -398,6 +409,16 @@ impl AeEngine {
 
     pub fn update_play_mode(&mut self) {
         ae_editor::modes::update_play_mode(&mut self.ecs, &mut self.camera, &mut self.editor);
+
+        // 1. Tick stack-based GameStateManager
+        let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
+        self.state_manager.update(
+            &mut self.ecs.world,
+            &mut self.event_bus,
+            &mut state_cmd_buffer,
+            self.time.delta_time,
+        );
+        state_cmd_buffer.apply(&mut self.ecs.world);
 
         // Sync spatial grid in Play mode so moving player entities update their 3D cells and remain 100% visible
         self.spatial_grid.sync(&self.ecs.world);

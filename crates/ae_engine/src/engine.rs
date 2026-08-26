@@ -60,6 +60,8 @@ pub struct AeEngine {
     /// Set to `true` whenever the ECS scene changes (spawn, delete, transform edit).
     /// Cleared after the sync runs. Prevents O(N) ECS scans every frame when nothing changed.
     pub physics_sync_dirty: bool,
+    /// Stack-based Game State Machine for high-level flow and mode transitions.
+    pub state_manager: ae_core::state::StateManager,
 }
 
 impl AeEngine {
@@ -213,6 +215,7 @@ impl AeEngine {
             audio_manager: ae_audio::AudioManager::new(),
             texture_watcher: ae_texture::TextureFileWatcher::new(),
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
+            state_manager: ae_core::state::StateManager::new(),
         };
 
         // Align physics fixed time step with EditorConfig frequency
