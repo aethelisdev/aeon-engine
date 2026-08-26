@@ -20,5 +20,7 @@ pub mod inspector;
 pub mod material;
 pub mod stats;
 pub mod timeline;
+pub mod ui_designer;
 
 pub use hierarchy::{HierarchyCache, HierarchyRow};
+pub use ui_designer::{UiDesignerContext, UiDesignerState, draw_ui_designer_panel};

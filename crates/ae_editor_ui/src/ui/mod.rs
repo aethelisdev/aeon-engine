@@ -143,6 +143,8 @@ pub struct EngineUi {
     pub ui_zoom_factor: f32,
     /// Persistent Content / Asset Browser state (directory path, search query, active category filter).
     pub asset_browser: crate::ui::panels::assets::AssetBrowserState,
+    /// Persistent 2D UI Designer canvas state (aspect ratio, zoom, pan, grid snap).
+    pub ui_designer_state: crate::ui::panels::UiDesignerState,
 }
 
 impl EngineUi {
@@ -242,6 +244,7 @@ impl EngineUi {
             last_viewport_rect: egui::Rect::ZERO,
             ui_zoom_factor: 1.0,
             asset_browser: crate::ui::panels::assets::AssetBrowserState::new(),
+            ui_designer_state: crate::ui::panels::UiDesignerState::default(),
         }
     }
 
@@ -441,8 +444,10 @@ impl EngineUi {
         let draw_call_stats = self.draw_call_stats;
         let vram_stats = self.vram_stats;
         let hierarchy_cache = &mut self.hierarchy_cache;
+        let ui_designer_state = &mut self.ui_designer_state;
 
         let viewport_rect = std::cell::Cell::new(egui::Rect::ZERO);
+
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
         let full_output = self.context.run_ui(raw_input, |ui| {
@@ -538,6 +543,7 @@ impl EngineUi {
                 enabled_modules,
                 gizmo_mode,
                 gizmo_space,
+                ui_designer_state,
             };
 
             egui::CentralPanel::default()

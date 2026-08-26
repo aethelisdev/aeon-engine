@@ -40,10 +40,12 @@ pub struct EditorTabViewer<'a> {
     pub gpu_adapter_name: &'a str,
     pub gpu_backend: &'a str,
     pub viewport_texture_id: Option<egui::TextureId>,
+
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub gizmo_mode: &'a mut ae_editor::gizmo::GizmoMode,
     pub gizmo_space: &'a mut ae_editor::gizmo::GizmoSpace,
+    pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
 
 impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
@@ -268,6 +270,17 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                     self.world,
                     *self.selected_entity,
                     self.ui_actions,
+                );
+            }
+            PanelId::UiDesigner => {
+                crate::ui::panels::draw_ui_designer_panel(
+                    ui,
+                    &mut crate::ui::panels::UiDesignerContext {
+                        world: self.world,
+                        selected_entity: *self.selected_entity,
+                        ui_actions: self.ui_actions,
+                        state: self.ui_designer_state,
+                    },
                 );
             }
         }

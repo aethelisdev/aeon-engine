@@ -10,13 +10,19 @@ pub fn handle_change_mode(ctx: &mut UiContext, mode: ae_core::modules::EngineMod
             // Backup scene before starting play mode
             ctx.editor.backup_scene(ctx.world);
 
-            // Clean up asset browser active selection, modals, and drag state to prevent gameplay input interception
+            // Automatically switch active tab to 3D Viewport for gameplay immersion
+            ctx.ui
+                .layout_state
+                .activate_or_open(crate::ui::panel_layout::PanelId::Viewport);
+
+            // Clean up asset browser & UI designer active selection, modals, and drag state to prevent gameplay input interception
             ctx.ui.asset_browser.selected_asset = None;
             ctx.ui.asset_browser.preview_modal = None;
             ctx.ui.asset_browser.rename_state = None;
             ctx.ui.asset_browser.delete_confirmation = None;
             ctx.ui.asset_browser.new_folder_parent = None;
             ctx.ui.asset_browser.drag_payload = None;
+            ctx.ui.ui_designer_state.drag_state = None;
         } else if *ctx.mode == ae_core::modules::EngineMode::Play
             && mode == ae_core::modules::EngineMode::Edit
         {

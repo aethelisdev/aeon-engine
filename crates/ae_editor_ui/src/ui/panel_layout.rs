@@ -24,6 +24,8 @@ pub enum PanelId {
     Console,
     /// Skeletal Animation Player & Timeline Scrubbing panel.
     AnimationTimeline,
+    /// 2D Canvas & In-Game UI Designer panel.
+    UiDesigner,
 }
 
 impl PanelId {
@@ -38,6 +40,7 @@ impl PanelId {
             Self::Assets => "Assets",
             Self::Console => "Console",
             Self::AnimationTimeline => "Timeline",
+            Self::UiDesigner => "UI Designer",
         }
     }
 
@@ -52,6 +55,7 @@ impl PanelId {
             Self::Assets => "📂",
             Self::Console => "📜",
             Self::AnimationTimeline => "🎬",
+            Self::UiDesigner => "📐",
         }
     }
 
@@ -65,6 +69,7 @@ impl PanelId {
             Self::Assets,
             Self::Console,
             Self::AnimationTimeline,
+            Self::UiDesigner,
         ]
     }
 
@@ -79,18 +84,19 @@ impl PanelId {
             Self::Assets,
             Self::Console,
             Self::AnimationTimeline,
+            Self::UiDesigner,
         ]
     }
 }
 
 /// Constructs the default tree layout using `egui_dock`.
 /// **Layout Topology:**
+/// - Center: `[Viewport, UiDesigner]` (Tabbed 3D & 2D workspace)
 /// - Left Split (15%): `[Hierarchy, Stats]`
 /// - Right Split (19%): `[Inspector, MaterialEditor]`
 /// - Bottom Split (19%): `[Assets, Console, AnimationTimeline]`
-/// - Center Viewport: Spacious ~66% Width × ~81% Height 3D Workspace
 pub fn create_default_dock_state() -> DockState<PanelId> {
-    let mut dock_state = DockState::new(vec![PanelId::Viewport]);
+    let mut dock_state = DockState::new(vec![PanelId::Viewport, PanelId::UiDesigner]);
 
     // Split Left: Hierarchy & Stats (15% width)
     let [center, _left] = dock_state.main_surface_mut().split_left(
