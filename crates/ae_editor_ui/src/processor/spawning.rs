@@ -329,6 +329,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
+        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Stone, 0.7, 0.0),
     ));
 
     // 2. Player Character with KCC & CharacterAction (Raycast Weapon Shooting)
@@ -352,6 +353,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
+        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Flesh, 0.7, 0.0),
         ae_core::ecs::CharacterAction::new(),
     ));
 
@@ -381,6 +383,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
                 restitution: 0.2,
                 is_sensor: false,
             },
+            ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Flesh, 0.5, 0.2),
             ae_core::ecs::DestructibleTarget::new(100.0),
         ));
     }
@@ -424,6 +427,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
+        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Metal, 0.7, 0.0),
         ae_core::ecs::TriggerZone {
             is_triggered: false,
             speed: 5.0,
@@ -500,16 +504,26 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
             restitution: 0.0,
             is_sensor: false,
         },
+        ae_core::ecs::PhysicsMaterial::new(ae_core::ecs::SurfaceType::Metal, 0.9, 0.0),
         ae_core::ecs::MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
     ));
 
     // 7. Dynamic Bouncing Hazard Cubes
     let hazard_positions = [
-        ("Bouncing Cube Alpha", [5.0, 5.0, 3.0]),
-        ("Bouncing Cube Beta", [7.0, 8.0, 4.0]),
+        (
+            "Bouncing Cube Alpha",
+            [5.0, 5.0, 3.0],
+            ae_core::ecs::SurfaceType::Metal,
+        ),
+        (
+            "Bouncing Cube Beta",
+            [7.0, 8.0, 4.0],
+            ae_core::ecs::SurfaceType::Wood,
+        ),
     ];
 
-    for (name, pos) in hazard_positions {
+    for (name, pos, surface) in hazard_positions {
+        let mat = ae_core::ecs::PhysicsMaterial::from_preset(surface);
         ctx.world.spawn((
             ae_core::ecs::Name(name.to_string()),
             ae_core::ecs::Position::new(pos[0], pos[1], pos[2]),
@@ -527,10 +541,11 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
                 shape: ae_core::ecs::ColliderShape::Box {
                     half_extents: [0.5, 0.5, 0.5],
                 },
-                friction: 0.4,
-                restitution: 0.85,
+                friction: mat.friction,
+                restitution: mat.restitution,
                 is_sensor: false,
             },
+            mat,
         ));
     }
 

@@ -104,12 +104,50 @@ impl Default for DynamicEventBus {
 // --- Standard Core Event Definitions ---
 
 /// Event fired when two solid physics bodies begin contact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CollisionEnter {
+    /// First entity involved in the physical contact.
     pub entity_a: hecs::Entity,
+    /// Second entity involved in the physical contact.
     pub entity_b: hecs::Entity,
+    /// World-space contact point where physical impact occurred, if available.
+    pub contact_point: Option<[f32; 3]>,
+    /// Contact surface normal vector, if available.
+    pub normal: Option<[f32; 3]>,
+    /// Magnitude of physical impulse/force exchanged during collision.
+    pub impulse: f32,
 }
 impl Event for CollisionEnter {}
+
+impl CollisionEnter {
+    /// Creates a new `CollisionEnter` event with entity IDs and default contact info.
+    pub fn new(entity_a: hecs::Entity, entity_b: hecs::Entity) -> Self {
+        Self {
+            entity_a,
+            entity_b,
+            contact_point: None,
+            normal: None,
+            impulse: 0.0,
+        }
+    }
+
+    /// Creates a new `CollisionEnter` event with full contact and impulse parameters.
+    pub fn with_details(
+        entity_a: hecs::Entity,
+        entity_b: hecs::Entity,
+        contact_point: Option<[f32; 3]>,
+        normal: Option<[f32; 3]>,
+        impulse: f32,
+    ) -> Self {
+        Self {
+            entity_a,
+            entity_b,
+            contact_point,
+            normal,
+            impulse,
+        }
+    }
+}
 
 /// Event fired when two solid physics bodies end contact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -6,6 +6,7 @@
 //! Coordinates modular, data-driven entity execution systems directly across archetype storage.
 //!
 
+pub mod collision_bridge;
 pub mod combat;
 pub mod destructible;
 pub mod moving_platform;
@@ -41,7 +42,10 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     let camera_forward = params.camera_forward;
     let dt = params.delta_time;
 
-    // 1. Identify player entity and position for trigger and elevator interactions
+    // 1. Process physics collision surface impacts and audio/VFX cues
+    collision_bridge::process_collision_surface_impacts(world, event_bus);
+
+    // 2. Identify player entity and position for trigger and elevator interactions
     let mut player_entity_and_pos = None;
     for (ent, _) in world
         .query::<(hecs::Entity, &ae_core::ecs::PlayerTag)>()
@@ -64,35 +68,42 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
         }
     }
 
-    // 2. Process physics trigger events and spatial sensor volume overlaps
+    // 3. Process physics trigger events and spatial sensor volume overlaps
     trigger_zone::process_trigger_events(world, event_bus);
     trigger_zone::test_spatial_sensor_overlaps(world, player_entity_and_pos);
 
-    // 3. Process raycast damage on destructible targets
+    // 4. Process raycast damage on destructible targets
     destructible::process_destructible_hits(world, event_bus);
 
     let mut dirty_entities = Vec::new();
 
-    // 4. Update rotational behaviors
+    // 5. Update rotational behaviors
     rotator::update_rotators(world, physics_world, dt, &mut dirty_entities);
 
-    // 5. Update moving platform waypoint interpolation
+    // 6. Update moving platform waypoint interpolation
     moving_platform::update_moving_platforms(world, player_entity_and_pos, dt, &mut dirty_entities);
 
-    // 6. Update trigger zone mechanisms and elevating doors
+    // 7. Update trigger zone mechanisms and elevating doors
     trigger_zone::update_trigger_zone_mechanisms(world, dt, &mut dirty_entities);
 
-    // 7. Update character weapon shooting and raycasts
+    // 8. Update character weapon shooting and raycasts
     combat::update_character_actions(world, physics_world, input, event_bus, camera_forward, dt);
 
-    // 8. Update destructible target damage visual hit flash timers
+    // 9. Update destructible target damage visual hit flash timers
     destructible::update_destructible_visuals(world, dt);
 
-    // 9. Update Ephemeral projectile despawning
+    // 10. Update Ephemeral projectile despawning
     destructible::update_ephemeral_projectiles(world, dt);
 
-    // 10. Execute dynamic NativeBehavior lifecycle scripts
+    // 11. Execute dynamic NativeBehavior lifecycle scripts and collision/trigger callbacks
     let mut command_buffer = ae_core::commands::EntityCommandBuffer::new();
+    native_behavior::dispatch_collision_and_trigger_behaviors(
+        world,
+        event_bus,
+        &mut command_buffer,
+        camera_forward,
+        dt,
+    );
     native_behavior::update_native_behaviors(
         world,
         event_bus,
@@ -102,7 +113,7 @@ pub fn update_gameplay_behaviors(params: BehaviorRunnerParams<'_>) {
     );
     command_buffer.apply(world);
 
-    // 11. Mark dirty entities for transform hierarchy sync
+    // 12. Mark dirty entities for transform hierarchy sync
     for ent in dirty_entities {
         let _ = world.insert_one(ent, ae_core::ecs::TransformDirty);
     }

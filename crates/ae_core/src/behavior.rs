@@ -46,6 +46,42 @@ pub trait Behavior: Send + Sync + 'static {
 
     /// Invoked when the entity is despawned or when Play mode transitions back to Edit mode.
     fn on_destroy(&mut self, _entity: hecs::Entity, _ctx: &mut BehaviorContext<'_>) {}
+
+    /// Invoked when this entity begins physical contact with another solid physics body.
+    fn on_collision_enter(
+        &mut self,
+        _entity: hecs::Entity,
+        _other: hecs::Entity,
+        _ctx: &mut BehaviorContext<'_>,
+    ) {
+    }
+
+    /// Invoked when this entity ends physical contact with another solid physics body.
+    fn on_collision_exit(
+        &mut self,
+        _entity: hecs::Entity,
+        _other: hecs::Entity,
+        _ctx: &mut BehaviorContext<'_>,
+    ) {
+    }
+
+    /// Invoked when this entity enters a volumetric sensor / trigger zone.
+    fn on_trigger_enter(
+        &mut self,
+        _entity: hecs::Entity,
+        _other: hecs::Entity,
+        _ctx: &mut BehaviorContext<'_>,
+    ) {
+    }
+
+    /// Invoked when this entity exits a volumetric sensor / trigger zone.
+    fn on_trigger_exit(
+        &mut self,
+        _entity: hecs::Entity,
+        _other: hecs::Entity,
+        _ctx: &mut BehaviorContext<'_>,
+    ) {
+    }
 }
 
 /// ECS wrapper component for attaching dynamic pure Rust `Behavior` instances to entities.

@@ -177,10 +177,26 @@ impl PhysicsWorld {
                                 entity_b: eb,
                             });
                         } else {
-                            event_bus.send(ae_core::events::CollisionEnter {
-                                entity_a: ea,
-                                entity_b: eb,
-                            });
+                            let mut contact_point = None;
+                            let mut normal = None;
+                            if let Some(pair) = self.narrow_phase.contact_pair(h1, h2) {
+                                for manifold in &pair.manifolds {
+                                    let n = manifold.data.normal;
+                                    normal = Some([n.x, n.y, n.z]);
+                                    if let Some(pt) = manifold.data.solver_contacts.first() {
+                                        contact_point = Some([pt.point.x, pt.point.y, pt.point.z]);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            event_bus.send(ae_core::events::CollisionEnter::with_details(
+                                ea,
+                                eb,
+                                contact_point,
+                                normal,
+                                1.0,
+                            ));
                         }
                     }
                 }

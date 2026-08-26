@@ -14,8 +14,8 @@
 
 use ae_core::ecs::{
     CharacterAction, CharacterController, Collider, ColliderShape, Color, DestructibleTarget,
-    MovingPlatform, Name, PlayerTag, Position, RigidBody, RigidBodyType, Rotation, Rotator, Scale,
-    Shape, TriggerZone, Velocity,
+    MovingPlatform, Name, PhysicsMaterial, PlayerTag, Position, RigidBody, RigidBodyType, Rotation,
+    Rotator, Scale, Shape, SurfaceType, TriggerZone, Velocity,
 };
 use hecs::World;
 
@@ -44,6 +44,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
+        PhysicsMaterial::new(SurfaceType::Stone, 0.7, 0.0),
     ));
 
     // 2. Player Character with KCC & CharacterAction (Raycast Weapon Shooting)
@@ -67,6 +68,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
+        PhysicsMaterial::new(SurfaceType::Flesh, 0.7, 0.0),
         CharacterAction::new(),
     ));
 
@@ -96,6 +98,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
                 restitution: 0.2,
                 is_sensor: false,
             },
+            PhysicsMaterial::new(SurfaceType::Flesh, 0.5, 0.2),
             DestructibleTarget::new(100.0),
         ));
     }
@@ -141,6 +144,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
+        PhysicsMaterial::new(SurfaceType::Metal, 0.7, 0.0),
         TriggerZone {
             is_triggered: false,
             speed: 5.0,
@@ -217,16 +221,18 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
             restitution: 0.0,
             is_sensor: false,
         },
+        PhysicsMaterial::new(SurfaceType::Metal, 0.9, 0.0),
         MovingPlatform::new(2.5, [-15.0, 0.8, 4.0], [-15.0, 6.5, 4.0]),
     ));
 
     // 7. Dynamic Bouncing Hazard Cubes
     let hazard_positions = [
-        ("Bouncing Cube Alpha", [5.0, 5.0, 3.0]),
-        ("Bouncing Cube Beta", [7.0, 8.0, 4.0]),
+        ("Bouncing Cube Alpha", [5.0, 5.0, 3.0], SurfaceType::Metal),
+        ("Bouncing Cube Beta", [7.0, 8.0, 4.0], SurfaceType::Wood),
     ];
 
-    for (name, pos) in hazard_positions {
+    for (name, pos, surface) in hazard_positions {
+        let mat = PhysicsMaterial::from_preset(surface);
         world.spawn((
             Name(name.to_string()),
             Position::new(pos[0], pos[1], pos[2]),
@@ -243,10 +249,11 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
                 shape: ColliderShape::Box {
                     half_extents: [0.5, 0.5, 0.5],
                 },
-                friction: 0.4,
-                restitution: 0.85,
+                friction: mat.friction,
+                restitution: mat.restitution,
                 is_sensor: false,
             },
+            mat,
         ));
     }
 

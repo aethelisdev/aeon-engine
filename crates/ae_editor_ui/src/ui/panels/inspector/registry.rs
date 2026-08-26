@@ -112,6 +112,7 @@ impl InspectorUiRegistry {
         // 2. Physics
         registry.register(super::physics::RigidBodyUiHandler);
         registry.register(super::physics::ColliderUiHandler);
+        registry.register(super::physics::PhysicsMaterialUiHandler);
         registry.register(super::physics::CharacterControllerUiHandler);
 
         // 3. Audio

@@ -129,6 +129,18 @@ impl PhysicsWorld {
                         if pos_diff > 1e-4 || rot_diff > 1e-5 {
                             body.set_position(pose, false);
                         }
+                    } else if body.is_dynamic() {
+                        let pos_diff = (body.position().translation - pose.translation).length();
+                        let r1 = body.position().rotation;
+                        let r2 = pose.rotation;
+                        let rot_diff =
+                            1.0 - (r1.w * r2.w + r1.x * r2.x + r1.y * r2.y + r1.z * r2.z).abs();
+                        if pos_diff > 1e-4 || rot_diff > 1e-5 || is_dirty {
+                            body.set_position(pose, true);
+                            body.set_linvel(Vec3::new(vel_comp.x, vel_comp.y, vel_comp.z), true);
+                            body.set_angvel(Vec3::ZERO, true);
+                            body.wake_up(true);
+                        }
                     }
 
                     let expected_type = if is_kcc {
@@ -181,8 +193,15 @@ impl PhysicsWorld {
 
                     if let Some(cb) = col_builder {
                         let target_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
-                        let target_friction = col_comp.map(|c| c.friction).unwrap_or(0.7);
-                        let target_restitution = col_comp.map(|c| c.restitution).unwrap_or(0.0);
+                        let (target_friction, target_restitution) =
+                            if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
+                                (mat.friction, mat.restitution)
+                            } else {
+                                (
+                                    col_comp.map(|c| c.friction).unwrap_or(0.7),
+                                    col_comp.map(|c| c.restitution).unwrap_or(0.0),
+                                )
+                            };
 
                         let mut needs_rebuild = body.colliders().is_empty();
 
@@ -263,9 +282,10 @@ impl PhysicsWorld {
                             RigidBodyType::Dynamic => RigidBodyBuilder::dynamic()
                                 .gravity_scale(rb.gravity_scale)
                                 .additional_mass(rb.mass)
-                                .linear_damping(0.5)
-                                .angular_damping(0.5)
+                                .linear_damping(0.05)
+                                .angular_damping(0.05)
                                 .ccd_enabled(true),
+
                             RigidBodyType::Kinematic => {
                                 RigidBodyBuilder::kinematic_position_based()
                             }
@@ -528,9 +548,18 @@ impl PhysicsWorld {
             }
         };
 
+        let (friction, restitution) =
+            if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
+                (mat.friction, mat.restitution)
+            } else {
+                (col.friction, col.restitution)
+            };
+
         col_builder
-            .friction(col.friction)
-            .restitution(col.restitution)
+            .friction(friction)
+            .friction_combine_rule(CoefficientCombineRule::Multiply)
+            .restitution(restitution)
+            .restitution_combine_rule(CoefficientCombineRule::Max)
             .sensor(col.is_sensor)
             .contact_skin(0.02)
             .active_events(ActiveEvents::COLLISION_EVENTS)

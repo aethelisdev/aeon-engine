@@ -352,10 +352,15 @@ impl ComponentRegistry {
             "PhysicsMaterialHandle",
             ae_plugin_api::PhysicsMaterialHandle::default,
         );
+        registry.register_with_default::<ae_plugin_api::PhysicsMaterial>(
+            "PhysicsMaterial",
+            ae_plugin_api::PhysicsMaterial::default,
+        );
         registry.register_with_default::<ae_plugin_api::TransformDirty>(
             "TransformDirty",
             ae_plugin_api::TransformDirty::default,
         );
+
         registry
     }
 

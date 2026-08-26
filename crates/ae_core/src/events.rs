@@ -82,3 +82,19 @@ pub struct CustomGameplayEvent {
     pub value: f32,
 }
 impl Event for CustomGameplayEvent {}
+
+/// Event broadcast when physical impact or projectile collision strikes a material surface.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SurfaceImpactEvent {
+    /// Entity that was impacted.
+    pub entity: hecs::Entity,
+    /// Surface material type of the struck surface.
+    pub surface_type: ae_plugin_api::SurfaceType,
+    /// 3D world space coordinate where the impact occurred.
+    pub hit_point: [f32; 3],
+    /// Surface normal vector pointing outward from the impact plane.
+    pub hit_normal: [f32; 3],
+    /// Impact energy or impulse magnitude.
+    pub energy: f32,
+}
+impl Event for SurfaceImpactEvent {}

@@ -107,11 +107,10 @@ impl AeEngine {
         if self.mode == EngineMode::Play {
             // ESC key releases mouse lock and returns to Edit mode
             if self.input.is_key_just_pressed(KeyCode::Escape) {
-                self.mode = EngineMode::Edit;
-                self.previous_mode = EngineMode::Edit;
+                self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::ChangeMode(
+                    EngineMode::Edit,
+                )]);
                 self.set_cursor_grab(false);
-                self.in_game_hud.reset(&mut self.ecs.world);
-                self.state_manager = ae_core::state::StateManager::new();
             }
         }
 
@@ -541,10 +540,18 @@ impl AeEngine {
             self.in_game_hud.reset(&mut self.ecs.world);
             self.state_manager = ae_core::state::StateManager::new();
             self.previous_mode = self.mode;
+            // Immediate physics world re-sync to reset dynamic Rapier simulation bodies & velocities
+            self.physics_world
+                .sync_ecs_to_physics(&mut self.ecs.world, |handle| {
+                    self.asset_manager
+                        .get_physics_mesh_data(handle)
+                        .map(|(v, i)| (v.as_slice(), i.as_slice()))
+                });
+            self.physics_sync_dirty = false;
         }
         self.profiler.end_ui();
         // Any UI action (spawn, delete, transform edit) may have changed ECS state.
-        // Mark physics dirty so sync_ecs_to_physics runs once on the next frame.
+        // Mark physics dirty so sync_ecs_to_physics runs once on the next frame if needed.
         self.physics_sync_dirty = true;
     }
 

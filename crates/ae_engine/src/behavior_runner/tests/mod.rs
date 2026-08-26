@@ -4,6 +4,7 @@
 //! Modular unit tests for gameplay behaviors, combat, mechanisms, events, and state machines.
 //!
 
+mod collisions;
 mod combat;
 mod events;
 mod mechanisms;

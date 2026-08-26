@@ -94,3 +94,160 @@ pub fn fixed_update_native_behaviors(
         }
     }
 }
+
+/// Dispatches incoming physics collision and trigger events to relevant `NativeBehavior` callbacks.
+pub fn dispatch_collision_and_trigger_behaviors(
+    world: &mut World,
+    event_bus: &mut DynamicEventBus,
+    commands: &mut EntityCommandBuffer,
+    camera_forward: cgmath::Vector3<f32>,
+    dt: f32,
+) {
+    // 1. Dispatch CollisionEnter
+    if let Some(events) = event_bus.receive::<ae_core::events::CollisionEnter>() {
+        for col in events {
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(col.entity_a) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_collision_enter(col.entity_a, col.entity_b, &mut ctx);
+                if world.contains(col.entity_a) {
+                    let _ = world.insert_one(col.entity_a, behavior);
+                }
+            }
+
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(col.entity_b) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_collision_enter(col.entity_b, col.entity_a, &mut ctx);
+                if world.contains(col.entity_b) {
+                    let _ = world.insert_one(col.entity_b, behavior);
+                }
+            }
+        }
+    }
+
+    // 2. Dispatch CollisionExit
+    if let Some(events) = event_bus.receive::<ae_core::events::CollisionExit>() {
+        for col in events {
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(col.entity_a) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_collision_exit(col.entity_a, col.entity_b, &mut ctx);
+                if world.contains(col.entity_a) {
+                    let _ = world.insert_one(col.entity_a, behavior);
+                }
+            }
+
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(col.entity_b) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_collision_exit(col.entity_b, col.entity_a, &mut ctx);
+                if world.contains(col.entity_b) {
+                    let _ = world.insert_one(col.entity_b, behavior);
+                }
+            }
+        }
+    }
+
+    // 3. Dispatch TriggerEnter
+    if let Some(events) = event_bus.receive::<ae_core::events::TriggerEnter>() {
+        for trig in events {
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(trig.entity_a) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_trigger_enter(trig.entity_a, trig.entity_b, &mut ctx);
+                if world.contains(trig.entity_a) {
+                    let _ = world.insert_one(trig.entity_a, behavior);
+                }
+            }
+
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(trig.entity_b) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_trigger_enter(trig.entity_b, trig.entity_a, &mut ctx);
+                if world.contains(trig.entity_b) {
+                    let _ = world.insert_one(trig.entity_b, behavior);
+                }
+            }
+        }
+    }
+
+    // 4. Dispatch TriggerExit
+    if let Some(events) = event_bus.receive::<ae_core::events::TriggerExit>() {
+        for trig in events {
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(trig.entity_a) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_trigger_exit(trig.entity_a, trig.entity_b, &mut ctx);
+                if world.contains(trig.entity_a) {
+                    let _ = world.insert_one(trig.entity_a, behavior);
+                }
+            }
+
+            if let Ok(mut behavior) = world.remove_one::<NativeBehavior>(trig.entity_b) {
+                let mut ctx = BehaviorContext {
+                    world,
+                    event_bus,
+                    commands,
+                    camera_forward: [camera_forward.x, camera_forward.y, camera_forward.z],
+                    delta_time: dt,
+                };
+                behavior
+                    .inner
+                    .on_trigger_exit(trig.entity_b, trig.entity_a, &mut ctx);
+                if world.contains(trig.entity_b) {
+                    let _ = world.insert_one(trig.entity_b, behavior);
+                }
+            }
+        }
+    }
+}

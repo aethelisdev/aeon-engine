@@ -500,3 +500,156 @@ impl super::registry::ComponentUiHandler for CharacterControllerUiHandler {
         ));
     }
 }
+
+impl EngineUi {
+    /// Draws the PhysicsMaterial component section if the entity has one.
+    pub(super) fn draw_physics_material_section(
+        ui: &mut egui::Ui,
+        world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
+            let mut surface_type = mat.surface_type;
+            let mut friction = mat.friction;
+            let mut restitution = mat.restitution;
+
+            let (_, remove_clicked) = super::widgets::draw_inspector_card(
+                ui,
+                "Physics Material",
+                "🧱",
+                egui::Color32::from_rgb(255, 180, 80),
+                true,
+                |ui| {
+                    let surface_labels = [
+                        "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass",
+                    ];
+                    let current_idx = match surface_type {
+                        ae_core::ecs::SurfaceType::Default => 0,
+                        ae_core::ecs::SurfaceType::Metal => 1,
+                        ae_core::ecs::SurfaceType::Wood => 2,
+                        ae_core::ecs::SurfaceType::Stone => 3,
+                        ae_core::ecs::SurfaceType::Flesh => 4,
+                        ae_core::ecs::SurfaceType::Dirt => 5,
+                        ae_core::ecs::SurfaceType::Glass => 6,
+                    };
+                    let mut selected = current_idx;
+                    ui.horizontal(|ui| {
+                        ui.label("Surface Type:");
+                        egui::ComboBox::from_id_salt("phys_mat_surface_type")
+                            .selected_text(surface_labels[selected])
+                            .show_ui(ui, |ui| {
+                                for (i, label) in surface_labels.iter().enumerate() {
+                                    ui.selectable_value(&mut selected, i, *label);
+                                }
+                            });
+
+                        if ui
+                            .button("↺ Preset")
+                            .on_hover_text(
+                                "Reset friction and bounciness to canonical material preset values",
+                            )
+                            .clicked()
+                        {
+                            let preset = surface_type.properties();
+                            friction = preset.friction;
+                            restitution = preset.restitution;
+                        }
+                    });
+                    if selected != current_idx {
+                        surface_type = match selected {
+                            1 => ae_core::ecs::SurfaceType::Metal,
+                            2 => ae_core::ecs::SurfaceType::Wood,
+                            3 => ae_core::ecs::SurfaceType::Stone,
+                            4 => ae_core::ecs::SurfaceType::Flesh,
+                            5 => ae_core::ecs::SurfaceType::Dirt,
+                            6 => ae_core::ecs::SurfaceType::Glass,
+                            _ => ae_core::ecs::SurfaceType::Default,
+                        };
+                        // Industry standard: auto-populate canonical preset values on surface change
+                        let preset = surface_type.properties();
+                        friction = preset.friction;
+                        restitution = preset.restitution;
+                    }
+
+                    ui.horizontal(|ui| {
+                        ui.label("Friction:");
+                        ui.add(
+                            egui::DragValue::new(&mut friction)
+                                .speed(0.02)
+                                .range(0.0..=5.0),
+                        );
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Restitution (Bounciness):");
+                        ui.add(
+                            egui::DragValue::new(&mut restitution)
+                                .speed(0.02)
+                                .range(0.0..=1.0),
+                        );
+                    });
+                },
+            );
+
+            if remove_clicked {
+                ui_actions.push(EngineUiAction::RemoveComponent(entity, "PhysicsMaterial"));
+            }
+
+            let new_mat = ae_core::ecs::PhysicsMaterial {
+                surface_type,
+                friction,
+                restitution,
+            };
+            if new_mat != *mat {
+                ui_actions.push(EngineUiAction::modify_component(
+                    entity,
+                    "PhysicsMaterial",
+                    &new_mat,
+                ));
+            }
+        }
+    }
+}
+
+/// Inspector UI handler for `PhysicsMaterial`.
+pub struct PhysicsMaterialUiHandler;
+
+impl super::registry::ComponentUiHandler for PhysicsMaterialUiHandler {
+    fn component_name(&self) -> &'static str {
+        "PhysicsMaterial"
+    }
+
+    fn card_header(&self) -> (&'static str, &'static str, egui::Color32) {
+        (
+            "Physics Material",
+            "🧱",
+            egui::Color32::from_rgb(255, 180, 80),
+        )
+    }
+
+    fn menu_category(&self) -> (&'static str, &'static str) {
+        ("Physics", "Physics Material")
+    }
+
+    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
+        world.get::<&ae_core::ecs::PhysicsMaterial>(entity).is_ok()
+    }
+
+    fn render_ui(&self, ui: &mut egui::Ui, ctx: &mut super::registry::InspectorContext) {
+        EngineUi::draw_physics_material_section(ui, ctx.world, ctx.entity, ctx.ui_actions);
+    }
+
+    fn add_default_to_entity(
+        &self,
+        _world: &hecs::World,
+        entity: hecs::Entity,
+        ui_actions: &mut Vec<EngineUiAction>,
+    ) {
+        ui_actions.push(EngineUiAction::AddComponent(entity, "PhysicsMaterial"));
+    }
+
+    fn remove_from_entity(&self, entity: hecs::Entity, ui_actions: &mut Vec<EngineUiAction>) {
+        ui_actions.push(EngineUiAction::RemoveComponent(entity, "PhysicsMaterial"));
+    }
+}
