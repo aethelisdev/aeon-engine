@@ -227,7 +227,7 @@ pub fn spawn_phase_1_test_sandbox(world: &mut World) {
 
     // 7. Dynamic Bouncing Hazard Cubes
     let hazard_positions = [
-        ("Bouncing Cube Alpha", [5.0, 5.0, 3.0], SurfaceType::Metal),
+        ("Bouncing Cube Alpha", [5.0, 5.0, 3.0], SurfaceType::Rubber),
         ("Bouncing Cube Beta", [7.0, 8.0, 4.0], SurfaceType::Wood),
     ];
 

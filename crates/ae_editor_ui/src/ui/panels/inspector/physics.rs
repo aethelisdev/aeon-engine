@@ -522,7 +522,7 @@ impl EngineUi {
                 true,
                 |ui| {
                     let surface_labels = [
-                        "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass",
+                        "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass", "Rubber",
                     ];
                     let current_idx = match surface_type {
                         ae_core::ecs::SurfaceType::Default => 0,
@@ -532,6 +532,7 @@ impl EngineUi {
                         ae_core::ecs::SurfaceType::Flesh => 4,
                         ae_core::ecs::SurfaceType::Dirt => 5,
                         ae_core::ecs::SurfaceType::Glass => 6,
+                        ae_core::ecs::SurfaceType::Rubber => 7,
                     };
                     let mut selected = current_idx;
                     ui.horizontal(|ui| {
@@ -564,6 +565,7 @@ impl EngineUi {
                             4 => ae_core::ecs::SurfaceType::Flesh,
                             5 => ae_core::ecs::SurfaceType::Dirt,
                             6 => ae_core::ecs::SurfaceType::Glass,
+                            7 => ae_core::ecs::SurfaceType::Rubber,
                             _ => ae_core::ecs::SurfaceType::Default,
                         };
                         // Industry standard: auto-populate canonical preset values on surface change

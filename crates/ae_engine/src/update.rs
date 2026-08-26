@@ -547,6 +547,8 @@ impl AeEngine {
                         .get_physics_mesh_data(handle)
                         .map(|(v, i)| (v.as_slice(), i.as_slice()))
                 });
+            self.physics_world
+                .reset_simulation_poses(&mut self.ecs.world);
             self.physics_sync_dirty = false;
         }
         self.profiler.end_ui();

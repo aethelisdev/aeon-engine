@@ -7,8 +7,9 @@ use super::UiContext;
 pub fn handle_change_mode(ctx: &mut UiContext, mode: ae_core::modules::EngineMode) {
     if *ctx.mode != mode {
         if mode == ae_core::modules::EngineMode::Play {
-            // Backup scene before starting play mode
+            // Backup scene & editor camera before starting play mode
             ctx.editor.backup_scene(ctx.world);
+            ctx.editor.camera_backup = Some(ctx.camera.clone());
 
             // Automatically switch active tab to 3D Viewport for gameplay immersion
             ctx.ui
@@ -26,8 +27,11 @@ pub fn handle_change_mode(ctx: &mut UiContext, mode: ae_core::modules::EngineMod
         } else if *ctx.mode == ae_core::modules::EngineMode::Play
             && mode == ae_core::modules::EngineMode::Edit
         {
-            // Exiting Play mode back to Edit mode -> Restore scene
+            // Exiting Play mode back to Edit mode -> Restore scene & editor camera
             ctx.editor.restore_scene(ctx.world);
+            if let Some(cam_backup) = ctx.editor.camera_backup.take() {
+                *ctx.camera = cam_backup;
+            }
         }
         *ctx.mode = mode;
         log::info!("🎮 Engine mode changed to {:?}", mode);

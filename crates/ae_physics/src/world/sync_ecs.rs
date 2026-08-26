@@ -213,7 +213,9 @@ impl PhysicsWorld {
                                     needs_rebuild = true;
                                 } else {
                                     c.set_friction(target_friction);
+                                    c.set_friction_combine_rule(CoefficientCombineRule::Multiply);
                                     c.set_restitution(target_restitution);
+                                    c.set_restitution_combine_rule(CoefficientCombineRule::Average);
 
                                     // Detect if scale or shape dimensions changed in ECS
                                     if c.shape().shape_type() != new_collider.shape().shape_type() {
@@ -559,7 +561,7 @@ impl PhysicsWorld {
             .friction(friction)
             .friction_combine_rule(CoefficientCombineRule::Multiply)
             .restitution(restitution)
-            .restitution_combine_rule(CoefficientCombineRule::Max)
+            .restitution_combine_rule(CoefficientCombineRule::Average)
             .sensor(col.is_sensor)
             .contact_skin(0.02)
             .active_events(ActiveEvents::COLLISION_EVENTS)

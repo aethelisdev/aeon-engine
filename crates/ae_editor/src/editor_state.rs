@@ -129,10 +129,89 @@ impl EditorState {
             }
         }
 
+        // Restore existing entities and zero out any lingering gameplay physics velocities
         for (entity, snapshot) in &self.scene_backup {
             if world.contains(*entity) {
                 snapshot.apply(world, *entity);
+                if let Ok(mut vel) = world.get::<&mut ae_core::ecs::Velocity>(*entity) {
+                    vel.x = 0.0;
+                    vel.y = 0.0;
+                    vel.z = 0.0;
+                }
+                let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
+                let _ = world.remove_one::<ae_core::ecs::GlobalTransform>(*entity);
+            } else {
+                // Re-spawn entities that were despawned during play mode
+                let new_ent = snapshot.spawn(world);
+                let _ = world.insert_one(new_ent, ae_core::ecs::TransformDirty);
+                let _ = world.remove_one::<ae_core::ecs::GlobalTransform>(new_ent);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ae_core::ecs::{Position, Velocity};
+
+    #[test]
+    fn test_editor_scene_backup_and_restore() {
+        let mut world = hecs::World::new();
+        let e1 = world.spawn((
+            Position {
+                x: 10.0,
+                y: 5.0,
+                z: -2.0,
+            },
+            Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        ));
+        let e2 = world.spawn((Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },));
+
+        let mut editor = EditorState::default();
+        editor.backup_scene(&world);
+
+        // Simulate gameplay mutations
+        if let Ok(mut pos) = world.get::<&mut Position>(e1) {
+            pos.x = 999.0;
+            pos.y = -500.0;
+        }
+        if let Ok(mut vel) = world.get::<&mut Velocity>(e1) {
+            vel.y = -50.0;
+        }
+        // Despawn e2 in gameplay
+        world.despawn(e2).unwrap();
+        // Spawn temporary gameplay bullet
+        let _temp = world.spawn((Position {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },));
+
+        // Restore scene
+        editor.restore_scene(&mut world);
+
+        // e1 position restored
+        let pos1 = world.get::<&Position>(e1).unwrap();
+        assert_eq!(pos1.x, 10.0);
+        assert_eq!(pos1.y, 5.0);
+        assert_eq!(pos1.z, -2.0);
+
+        // e1 velocity zeroed
+        let vel1 = world.get::<&Velocity>(e1).unwrap();
+        assert_eq!(vel1.x, 0.0);
+        assert_eq!(vel1.y, 0.0);
+        assert_eq!(vel1.z, 0.0);
+
+        // Temporary bullet despawned and e2 re-spawned (total 2 entities)
+        assert_eq!(world.iter().count(), 2);
     }
 }

@@ -513,7 +513,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
         (
             "Bouncing Cube Alpha",
             [5.0, 5.0, 3.0],
-            ae_core::ecs::SurfaceType::Metal,
+            ae_core::ecs::SurfaceType::Rubber,
         ),
         (
             "Bouncing Cube Beta",

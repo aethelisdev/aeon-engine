@@ -157,6 +157,7 @@ pub enum SurfaceType {
     Flesh,
     Dirt,
     Glass,
+    Rubber,
 }
 
 /// Physical properties profile defining standard friction, restitution, and density parameters for a surface type.
@@ -181,12 +182,12 @@ impl SurfaceType {
             },
             Self::Metal => SurfaceProperties {
                 friction: 0.4,
-                restitution: 0.85,
+                restitution: 0.15,
                 density: 7800.0,
             },
             Self::Wood => SurfaceProperties {
                 friction: 0.6,
-                restitution: 0.25,
+                restitution: 0.15,
                 density: 700.0,
             },
             Self::Stone => SurfaceProperties {
@@ -205,9 +206,14 @@ impl SurfaceType {
                 density: 1500.0,
             },
             Self::Glass => SurfaceProperties {
-                friction: 0.08,
-                restitution: 0.35,
+                friction: 0.2,
+                restitution: 0.15,
                 density: 2500.0,
+            },
+            Self::Rubber => SurfaceProperties {
+                friction: 0.8,
+                restitution: 0.80,
+                density: 1100.0,
             },
         }
     }

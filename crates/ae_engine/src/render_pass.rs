@@ -2,9 +2,8 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::engine::AeEngine;
-use ae_core::ecs::{Light, Position, Velocity};
+use ae_core::ecs::{Light, Position};
 use ae_core::modules::EngineMode;
-use ae_editor::undo_redo::EntitySnapshot;
 use cgmath::InnerSpace;
 
 impl AeEngine {
@@ -320,65 +319,6 @@ impl AeEngine {
             self.set_cursor_grab(false);
         }
 
-        if self.previous_mode != self.mode {
-            self.previous_mode = self.mode;
-            if self.mode == EngineMode::Play {
-                self.set_cursor_grab(true);
-                self.editor.camera_backup = Some(self.camera.clone());
-                self.editor.scene_backup.clear();
-                for ent_ref in self.ecs.world.iter() {
-                    let ent = ent_ref.entity();
-                    self.editor
-                        .scene_backup
-                        .insert(ent, EntitySnapshot::capture(&self.ecs.world, ent));
-                }
-                self.physics_world
-                    .reset_simulation_poses(&mut self.ecs.world);
-            } else {
-                self.set_cursor_grab(false);
-                if let Some(cam_backup) = self.editor.camera_backup.take() {
-                    self.camera = cam_backup;
-                }
-                let entities: Vec<hecs::Entity> =
-                    self.ecs.world.iter().map(|e| e.entity()).collect();
-                for ent in entities {
-                    if let Some(backup) = self.editor.scene_backup.get(&ent) {
-                        backup.apply(&mut self.ecs.world, ent);
-                        if let Ok(mut vel) = self.ecs.world.get::<&mut Velocity>(ent) {
-                            vel.x = 0.0;
-                            vel.y = 0.0;
-                            vel.z = 0.0;
-                        }
-                        let _ = self.ecs.world.insert_one(ent, ae_core::ecs::TransformDirty);
-                        let _ = self
-                            .ecs
-                            .world
-                            .remove_one::<ae_core::ecs::GlobalTransform>(ent);
-                    } else {
-                        // Despawn newly created entities during play mode
-                        let _ = self.ecs.world.despawn(ent);
-                    }
-                }
-
-                // Re-spawn entities that were deleted during play mode
-                for (old_ent, backup) in &self.editor.scene_backup {
-                    if !self.ecs.world.contains(*old_ent) {
-                        let new_ent = backup.spawn(&mut self.ecs.world);
-                        let _ = self
-                            .ecs
-                            .world
-                            .insert_one(new_ent, ae_core::ecs::TransformDirty);
-                        let _ = self
-                            .ecs
-                            .world
-                            .remove_one::<ae_core::ecs::GlobalTransform>(new_ent);
-                    }
-                }
-
-                self.physics_world
-                    .reset_simulation_poses(&mut self.ecs.world);
-            }
-        }
         self.profiler.end_render();
         Ok(())
     }
