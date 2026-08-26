@@ -8,9 +8,11 @@ pub mod gameplay;
 pub mod physics;
 pub mod rendering;
 pub mod transform;
+pub mod ui;
 
 // Re-export all component types to preserve a flat, unified public API surface
 pub use gameplay::*;
 pub use physics::*;
 pub use rendering::*;
 pub use transform::*;
+pub use ui::*;

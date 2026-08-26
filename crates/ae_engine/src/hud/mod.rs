@@ -7,6 +7,6 @@
 pub mod in_game_hud;
 pub mod pause_menu;
 
-pub use ae_core::ui::PauseMenuUiTag;
-pub use in_game_hud::{InGameHudState, PlayerHealthBarTag, ScoreDisplayTag};
+pub use ae_core::ecs::{PlayerHealthBarTag, ScoreDisplayTag};
+pub use in_game_hud::InGameHudState;
 pub use pause_menu::InGamePauseState;

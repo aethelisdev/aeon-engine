@@ -63,8 +63,8 @@ impl HierarchyCache {
             }
             let ent = ent_ref.entity();
 
-            // Skip internal in-game UI entities (HUD, pause menus) from Scene Hierarchy tree
-            if ent_ref.get::<&ae_core::ui::UiElement>().is_some() {
+            // Skip internal pause menu UI entities from Scene Hierarchy tree
+            if ent_ref.get::<&ae_core::ui::PauseMenuUiTag>().is_some() {
                 continue;
             }
 
@@ -95,8 +95,30 @@ impl HierarchyCache {
                 }
             }
 
-            // 100% Data-Driven Component Icon Assignment (Strict Rule 21 Compliance)
-            let icon = if ent_ref.get::<&ae_core::ecs::Light>().is_some() {
+            // 100% Data-Driven Component Icon Assignment
+            let icon = if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
+                "❤️ "
+            } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
+                "⭐ "
+            } else if ent_ref.get::<&ae_core::ecs::ReticleTag>().is_some() {
+                "🎯 "
+            } else if ent_ref.get::<&ae_core::ecs::UiProgressBar>().is_some() {
+                "📊 "
+            } else if ent_ref.get::<&ae_core::ecs::UiButton>().is_some() {
+                "🔘 "
+            } else if ent_ref.get::<&ae_core::ecs::UiText>().is_some() {
+                "🔤 "
+            } else if ent_ref.get::<&ae_core::ecs::UiImage>().is_some() {
+                "🖼️ "
+            } else if ent_ref.get::<&ae_core::ecs::UiSlider>().is_some() {
+                "🎚️ "
+            } else if ent_ref.get::<&ae_core::ecs::UiCheckbox>().is_some() {
+                "☑️ "
+            } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
+                "📝 "
+            } else if ent_ref.get::<&ae_core::ecs::UiPanel>().is_some() {
+                "🟩 "
+            } else if ent_ref.get::<&ae_core::ecs::Light>().is_some() {
                 "💡 "
             } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
                 "🔊 "
@@ -349,7 +371,7 @@ impl EngineUi {
 
                 // ➕ Add Dropdown Menu
                 ui.menu_button("➕", |ui| {
-                    ui.set_min_width(160.0);
+                    ui.set_min_width(170.0);
                     ui.label(
                         egui::RichText::new("3D Shapes")
                             .size(11.0)
@@ -394,11 +416,79 @@ impl EngineUi {
                     }
                     ui.separator();
                     ui.label(
+                        egui::RichText::new("UI & HUD Elements")
+                            .size(11.0)
+                            .strong()
+                            .color(egui::Color32::from_rgb(0, 200, 255)),
+                    );
+                    if ui.button("🟩 Panel / Canvas Box").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::Panel,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("📊 Progress Bar").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::ProgressBar,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("❤️ Health Bar (Player Tag)").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::HealthBar,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🔤 Text Label").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::Text,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("⭐ Score Display (Score Tag)").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::ScoreDisplay,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🔘 Interactive Button").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::Button,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🖼️ Image / Icon").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::Image,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("🎚️ Numeric Slider").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::Slider,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("☑️ Toggle Checkbox").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::Checkbox,
+                        ));
+                        ui.close();
+                    }
+                    if ui.button("📝 Text Input Field").clicked() {
+                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                            crate::ui::UiElementType::TextInput,
+                        ));
+                        ui.close();
+                    }
+                    ui.separator();
+                    ui.label(
                         egui::RichText::new("Assets & Prefabs")
                             .size(11.0)
                             .strong()
                             .color(egui::Color32::from_gray(160)),
                     );
+
                     if ui.button("📁 3D Model...").clicked() {
                         ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
                         ui.close();

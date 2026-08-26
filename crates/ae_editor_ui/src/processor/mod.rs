@@ -69,6 +69,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::SpawnShape(shape) => {
                 spawning::handle_spawn_shape(ctx, shape)
             }
+            crate::ui::EngineUiAction::SpawnUiElement(ui_type) => {
+                spawning::handle_spawn_ui_element(ctx, ui_type)
+            }
             crate::ui::EngineUiAction::SelectEntity(ent_opt) => {
                 spawning::handle_select_entity(ctx, ent_opt)
             }

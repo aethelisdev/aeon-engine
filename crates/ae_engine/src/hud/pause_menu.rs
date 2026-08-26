@@ -37,8 +37,10 @@ impl GameState for InGamePauseState {
                     anchor: UiAnchor::Center,
                     offset: [0.0, -80.0],
                     size: [240.0, 40.0],
-                    visible: true,
+                    pivot: [0.5, 0.5],
                     z_index: 50,
+                    alpha: 1.0,
+                    visible: true,
                 },
                 UiText::new("GAME PAUSED", 26.0)
                     .with_color([1.0, 1.0, 1.0, 1.0])
@@ -54,8 +56,10 @@ impl GameState for InGamePauseState {
                     anchor: UiAnchor::Center,
                     offset: [0.0, -15.0],
                     size: [180.0, 36.0],
-                    visible: true,
+                    pivot: [0.5, 0.5],
                     z_index: 50,
+                    alpha: 1.0,
+                    visible: true,
                 },
                 UiButton::new("Resume"),
             ))
@@ -69,28 +73,17 @@ impl GameState for InGamePauseState {
                     anchor: UiAnchor::Center,
                     offset: [0.0, 35.0],
                     size: [180.0, 36.0],
-                    visible: true,
+                    pivot: [0.5, 0.5],
                     z_index: 50,
+                    alpha: 1.0,
+                    visible: true,
                 },
                 UiButton::new("Exit to Editor"),
             ))
         });
     }
 
-    fn on_update(&mut self, ctx: &mut StateContext<'_>, _dt: f32) -> StateTransition {
-        // Check button click interactions
-        for (btn,) in ctx.world.query_mut::<(&UiButton,)>().into_iter() {
-            if btn.clicked {
-                if btn.label == "Resume" {
-                    return StateTransition::Pop;
-                } else if btn.label == "Exit to Editor" {
-                    return StateTransition::ClearAndSet(Box::new(
-                        ae_core::state::DefaultPlayingState,
-                    ));
-                }
-            }
-        }
-
+    fn on_update(&mut self, _ctx: &mut StateContext<'_>, _dt: f32) -> StateTransition {
         StateTransition::None
     }
 

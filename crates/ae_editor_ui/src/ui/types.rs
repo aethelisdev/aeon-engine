@@ -20,6 +20,7 @@ pub enum EngineUiAction {
 
     // --- HIERARCHY ACTIONS ---
     SpawnShape(ae_core::ecs::Shape),
+    SpawnUiElement(UiElementType),
     DeleteSelected,
     StressTest(usize),
     AaaOpenWorldTest,
@@ -109,4 +110,19 @@ pub struct ConsoleEntry {
     pub target: String,
     pub msg: String,
     pub timestamp: String,
+}
+
+/// Canonical UI element type variants for spawning from the editor hierarchy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UiElementType {
+    Panel,
+    ProgressBar,
+    Text,
+    Button,
+    Image,
+    Slider,
+    Checkbox,
+    TextInput,
+    HealthBar,
+    ScoreDisplay,
 }

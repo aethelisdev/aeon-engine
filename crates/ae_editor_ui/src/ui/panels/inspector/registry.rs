@@ -133,6 +133,21 @@ impl InspectorUiRegistry {
         // 6. Hierarchy
         registry.register(super::parenting::ParentingUiHandler);
 
+        // 7. UI & HUD Primitives
+        registry.register(super::ui_components::UiElementUiHandler);
+        registry.register(super::ui_components::UiPanelUiHandler);
+        registry.register(super::ui_components::UiTextUiHandler);
+        registry.register(super::ui_components::UiProgressBarUiHandler);
+        registry.register(super::ui_components::UiButtonUiHandler);
+        registry.register(super::ui_components::UiImageUiHandler);
+        registry.register(super::ui_components::UiSliderUiHandler);
+        registry.register(super::ui_components::UiCheckboxUiHandler);
+        registry.register(super::ui_components::UiTextInputUiHandler);
+        registry.register(super::ui_components::UiLayoutGroupUiHandler);
+        registry.register(super::ui_components::PlayerHealthBarTagUiHandler);
+        registry.register(super::ui_components::ScoreDisplayTagUiHandler);
+        registry.register(super::ui_components::ReticleTagUiHandler);
+
         registry
     }
 

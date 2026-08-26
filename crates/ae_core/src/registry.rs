@@ -360,6 +360,56 @@ impl ComponentRegistry {
             "TransformDirty",
             ae_plugin_api::TransformDirty::default,
         );
+        registry.register_with_default::<ae_plugin_api::UiElement>(
+            "UiElement",
+            ae_plugin_api::UiElement::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiPanel>(
+            "UiPanel",
+            ae_plugin_api::UiPanel::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiText>(
+            "UiText",
+            ae_plugin_api::UiText::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiProgressBar>(
+            "UiProgressBar",
+            ae_plugin_api::UiProgressBar::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiButton>(
+            "UiButton",
+            ae_plugin_api::UiButton::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiImage>(
+            "UiImage",
+            ae_plugin_api::UiImage::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiSlider>(
+            "UiSlider",
+            ae_plugin_api::UiSlider::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiCheckbox>(
+            "UiCheckbox",
+            ae_plugin_api::UiCheckbox::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiTextInput>(
+            "UiTextInput",
+            ae_plugin_api::UiTextInput::default,
+        );
+        registry.register_with_default::<ae_plugin_api::UiLayoutGroup>(
+            "UiLayoutGroup",
+            ae_plugin_api::UiLayoutGroup::default,
+        );
+        registry.register_with_default::<ae_plugin_api::PlayerHealthBarTag>(
+            "PlayerHealthBarTag",
+            || ae_plugin_api::PlayerHealthBarTag,
+        );
+        registry.register_with_default::<ae_plugin_api::ScoreDisplayTag>("ScoreDisplayTag", || {
+            ae_plugin_api::ScoreDisplayTag
+        });
+        registry.register_with_default::<ae_plugin_api::ReticleTag>("ReticleTag", || {
+            ae_plugin_api::ReticleTag
+        });
 
         registry
     }

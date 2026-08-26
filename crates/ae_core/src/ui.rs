@@ -5,279 +5,29 @@
 //!
 //! Designed for 100% decoupling from any specific GUI library (such as egui,
 //! Slint, or custom WGPU GPU quad renderers). Game logic interacts solely with
-//! ECS components (`UiElement`, `UiText`, `UiProgressBar`, `UiButton`), while the
+//! ECS components (`UiElement`, `UiPanel`, `UiText`, `UiProgressBar`, `UiButton`, `UiImage`, `UiSlider`, `UiCheckbox`), while the
 //! `UiLayoutResolver` generates hardware-agnostic `UiDrawCommand` batches.
 //!
+
+pub use ae_plugin_api::{
+    PlayerHealthBarTag, ReticleTag, ScoreDisplayTag, UiAnchor, UiButton, UiCheckbox, UiElement,
+    UiImage, UiLayoutGroup, UiLayoutType, UiPanel, UiProgressBar, UiRect, UiSliceMode, UiSlider,
+    UiText, UiTextAlignment, UiTextInput,
+};
 
 /// Marker component for Pause Menu UI entities to allow clean teardown and HUD suppression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PauseMenuUiTag;
 
-/// Anchor points defining alignment on the screen canvas.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum UiAnchor {
-    #[default]
-    TopLeft,
-    TopCenter,
-    TopRight,
-    CenterLeft,
-    Center,
-    CenterRight,
-    BottomLeft,
-    BottomCenter,
-    BottomRight,
-}
-
-impl UiAnchor {
-    /// Computes the pixel origin `[x, y]` on a screen of size `(screen_w, screen_h)`.
-    #[inline]
-    pub fn compute_origin(self, screen_w: f32, screen_h: f32) -> [f32; 2] {
-        match self {
-            Self::TopLeft => [0.0, 0.0],
-            Self::TopCenter => [screen_w * 0.5, 0.0],
-            Self::TopRight => [screen_w, 0.0],
-            Self::CenterLeft => [0.0, screen_h * 0.5],
-            Self::Center => [screen_w * 0.5, screen_h * 0.5],
-            Self::CenterRight => [screen_w, screen_h * 0.5],
-            Self::BottomLeft => [0.0, screen_h],
-            Self::BottomCenter => [screen_w * 0.5, screen_h],
-            Self::BottomRight => [screen_w, screen_h],
-        }
-    }
-}
-
-/// Screen-space 2D bounding rectangle.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct UiRect {
-    pub min_x: f32,
-    pub min_y: f32,
-    pub max_x: f32,
-    pub max_y: f32,
-}
-
-impl UiRect {
-    /// Constructs a new rectangle from min and max coordinates.
-    pub fn new(min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
-        Self {
-            min_x,
-            min_y,
-            max_x,
-            max_y,
-        }
-    }
-
-    /// Computes width of the rectangle.
-    pub fn width(self) -> f32 {
-        (self.max_x - self.min_x).max(0.0)
-    }
-
-    /// Computes height of the rectangle.
-    pub fn height(self) -> f32 {
-        (self.max_y - self.min_y).max(0.0)
-    }
-
-    /// Checks if a 2D point lies within the rectangle bounds.
-    pub fn contains(self, point: [f32; 2]) -> bool {
-        point[0] >= self.min_x
-            && point[0] <= self.max_x
-            && point[1] >= self.min_y
-            && point[1] <= self.max_y
-    }
-}
-
-/// Primary UI positioning and visibility component.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct UiElement {
-    pub anchor: UiAnchor,
-    pub offset: [f32; 2],
-    pub size: [f32; 2],
-    pub visible: bool,
-    pub z_index: i32,
-}
-
-impl Default for UiElement {
-    fn default() -> Self {
-        Self {
-            anchor: UiAnchor::TopLeft,
-            offset: [0.0, 0.0],
-            size: [100.0, 30.0],
-            visible: true,
-            z_index: 0,
-        }
-    }
-}
-
-impl UiElement {
-    /// Creates a new positioned UI element.
-    pub fn new(anchor: UiAnchor, offset: [f32; 2], size: [f32; 2]) -> Self {
-        Self {
-            anchor,
-            offset,
-            size,
-            visible: true,
-            z_index: 0,
-        }
-    }
-
-    /// Computes screen-space bounding rectangle given canvas dimensions.
-    pub fn compute_rect(&self, screen_w: f32, screen_h: f32) -> UiRect {
-        let origin = self.anchor.compute_origin(screen_w, screen_h);
-        let center_x = origin[0] + self.offset[0];
-        let center_y = origin[1] + self.offset[1];
-        let half_w = self.size[0] * 0.5;
-        let half_h = self.size[1] * 0.5;
-
-        UiRect::new(
-            center_x - half_w,
-            center_y - half_h,
-            center_x + half_w,
-            center_y + half_h,
-        )
-    }
-}
-
-/// Text alignment option for UI rendering.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum UiTextAlignment {
-    #[default]
-    Left,
-    Center,
-    Right,
-}
-
-/// Text label component rendered on a UI element.
-#[derive(Debug, Clone, PartialEq)]
-pub struct UiText {
-    pub text: String,
-    pub font_size: f32,
-    pub color: [f32; 4],
-    pub alignment: UiTextAlignment,
-}
-
-impl UiText {
-    /// Creates a new text label with default white color and left alignment.
-    pub fn new(text: impl Into<String>, font_size: f32) -> Self {
-        Self {
-            text: text.into(),
-            font_size,
-            color: [1.0, 1.0, 1.0, 1.0],
-            alignment: UiTextAlignment::Left,
-        }
-    }
-
-    /// Builder method to specify text RGBA color.
-    pub fn with_color(mut self, color: [f32; 4]) -> Self {
-        self.color = color;
-        self
-    }
-
-    /// Builder method to specify text alignment.
-    pub fn with_alignment(mut self, alignment: UiTextAlignment) -> Self {
-        self.alignment = alignment;
-        self
-    }
-}
-
-/// Progress bar / health bar component for meters and gauges.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct UiProgressBar {
-    pub min: f32,
-    pub max: f32,
-    pub value: f32,
-    pub fill_color: [f32; 4],
-    pub background_color: [f32; 4],
-    pub border_color: [f32; 4],
-}
-
-impl Default for UiProgressBar {
-    fn default() -> Self {
-        Self {
-            min: 0.0,
-            max: 100.0,
-            value: 100.0,
-            fill_color: [0.2, 0.8, 0.2, 1.0], // Green
-            background_color: [0.08, 0.10, 0.14, 0.85],
-            border_color: [0.3, 0.3, 0.3, 1.0],
-        }
-    }
-}
-
-impl UiProgressBar {
-    /// Creates a new progress bar with specified max and initial value.
-    pub fn new(max: f32, initial_value: f32) -> Self {
-        Self {
-            min: 0.0,
-            max,
-            value: initial_value,
-            ..Default::default()
-        }
-    }
-
-    /// Computes normalized fill fraction `[0.0, 1.0]`.
-    pub fn fraction(self) -> f32 {
-        let range = self.max - self.min;
-        if range.abs() < f32::EPSILON {
-            0.0
-        } else {
-            ((self.value - self.min) / range).clamp(0.0, 1.0)
-        }
-    }
-}
-
-/// Interactive button component.
-#[derive(Debug, Clone, PartialEq)]
-pub struct UiButton {
-    pub label: String,
-    pub normal_color: [f32; 4],
-    pub hovered_color: [f32; 4],
-    pub pressed_color: [f32; 4],
-    pub is_hovered: bool,
-    pub is_pressed: bool,
-    pub clicked: bool,
-}
-
-impl UiButton {
-    /// Creates a new interactive UI button with default styling.
-    pub fn new(label: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-            normal_color: [0.18, 0.22, 0.30, 0.95],
-            hovered_color: [0.28, 0.42, 0.65, 1.0],
-            pressed_color: [0.14, 0.30, 0.50, 1.0],
-            is_hovered: false,
-            is_pressed: false,
-            clicked: false,
-        }
-    }
-}
-
-/// Image / Icon component rendered on a UI element.
-#[derive(Debug, Clone, PartialEq)]
-pub struct UiImage {
-    pub texture_name: String,
-    pub tint: [f32; 4],
-    pub uv_rect: [f32; 4],
-}
-
-impl UiImage {
-    /// Creates a new UI image.
-    pub fn new(texture_name: impl Into<String>) -> Self {
-        Self {
-            texture_name: texture_name.into(),
-            tint: [1.0, 1.0, 1.0, 1.0],
-            uv_rect: [0.0, 0.0, 1.0, 1.0],
-        }
-    }
-}
-
 /// Backend-agnostic drawing primitive emitted by the layout resolver.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UiDrawCommand {
-    /// Filled rectangle with optional border.
+    /// Filled rectangle with optional border and rounded corners.
     Rect {
         rect: UiRect,
         fill_color: [f32; 4],
         border_color: [f32; 4],
+        border_width: f32,
         border_radius: f32,
         z_index: i32,
     },
@@ -288,12 +38,13 @@ pub enum UiDrawCommand {
         font_size: f32,
         color: [f32; 4],
         alignment: UiTextAlignment,
+        shadow_color: Option<[f32; 4]>,
         z_index: i32,
     },
     /// Textured quad draw command.
     Image {
         rect: UiRect,
-        texture_name: String,
+        sprite_id: Option<u64>,
         uv_rect: [f32; 4],
         tint: [f32; 4],
         z_index: i32,
@@ -325,7 +76,23 @@ impl UiLayoutResolver {
     ) -> Vec<UiDrawCommand> {
         let mut commands = Vec::new();
 
-        // 1. Process buttons
+        // 1. Process Panels / Canvas Containers
+        for (elem, panel) in world.query::<(&UiElement, &UiPanel)>().iter() {
+            if !elem.visible {
+                continue;
+            }
+            let rect = elem.compute_rect(screen_w, screen_h);
+            commands.push(UiDrawCommand::Rect {
+                rect,
+                fill_color: panel.background_color,
+                border_color: panel.border_color,
+                border_width: panel.border_width,
+                border_radius: panel.corner_radius,
+                z_index: elem.z_index,
+            });
+        }
+
+        // 2. Process Buttons
         for (elem, btn) in world.query::<(&UiElement, &UiButton)>().iter() {
             if !elem.visible {
                 continue;
@@ -333,10 +100,10 @@ impl UiLayoutResolver {
             let rect = elem.compute_rect(screen_w, screen_h);
             let hovered = mouse_pos.map(|p| rect.contains(p)).unwrap_or(false);
 
-            let color = if btn.is_pressed {
-                btn.pressed_color
+            let color = if !btn.is_enabled {
+                btn.disabled_color
             } else if hovered {
-                btn.hovered_color
+                btn.hover_color
             } else {
                 btn.normal_color
             };
@@ -344,7 +111,8 @@ impl UiLayoutResolver {
             commands.push(UiDrawCommand::Rect {
                 rect,
                 fill_color: color,
-                border_color: [1.0, 1.0, 1.0, 0.4],
+                border_color: [0.3, 0.4, 0.5, 0.8],
+                border_width: 1.0,
                 border_radius: 4.0,
                 z_index: elem.z_index,
             });
@@ -354,31 +122,33 @@ impl UiLayoutResolver {
                     rect.min_x + rect.width() * 0.5,
                     rect.min_y + rect.height() * 0.5,
                 ],
-                text: btn.label.clone(),
+                text: btn.text.clone(),
                 font_size: 14.0,
                 color: [1.0, 1.0, 1.0, 1.0],
                 alignment: UiTextAlignment::Center,
+                shadow_color: Some([0.0, 0.0, 0.0, 0.6]),
                 z_index: elem.z_index + 1,
             });
         }
 
-        // 2. Process progress bars
+        // 3. Process Progress Bars
         for (elem, bar) in world.query::<(&UiElement, &UiProgressBar)>().iter() {
             if !elem.visible {
                 continue;
             }
             let rect = elem.compute_rect(screen_w, screen_h);
 
-            // Background
+            // Background track
             commands.push(UiDrawCommand::Rect {
                 rect,
                 fill_color: bar.background_color,
                 border_color: bar.border_color,
-                border_radius: 2.0,
+                border_width: 1.0,
+                border_radius: bar.corner_radius,
                 z_index: elem.z_index,
             });
 
-            // Fill
+            // Fill meter
             let fill_width = rect.width() * bar.fraction();
             if fill_width > 0.0 {
                 let fill_rect =
@@ -387,25 +157,113 @@ impl UiLayoutResolver {
                     rect: fill_rect,
                     fill_color: bar.fill_color,
                     border_color: [0.0, 0.0, 0.0, 0.0],
-                    border_radius: 2.0,
+                    border_width: 0.0,
+                    border_radius: bar.corner_radius,
                     z_index: elem.z_index + 1,
                 });
             }
         }
 
-        // 3. Process standalone texts
+        // 4. Process Sliders
+        for (elem, slider) in world.query::<(&UiElement, &UiSlider)>().iter() {
+            if !elem.visible {
+                continue;
+            }
+            let rect = elem.compute_rect(screen_w, screen_h);
+            let track_height = (rect.height() * 0.25).max(4.0);
+            let track_y = rect.min_y + (rect.height() - track_height) * 0.5;
+
+            // Track background
+            let track_rect = UiRect::new(rect.min_x, track_y, rect.max_x, track_y + track_height);
+            commands.push(UiDrawCommand::Rect {
+                rect: track_rect,
+                fill_color: slider.track_color,
+                border_color: [0.3, 0.4, 0.5, 0.8],
+                border_width: 1.0,
+                border_radius: 2.0,
+                z_index: elem.z_index,
+            });
+
+            // Slider thumb handle
+            let range = slider.max - slider.min;
+            let fraction = if range.abs() < 1e-4 {
+                0.0
+            } else {
+                ((slider.value - slider.min) / range).clamp(0.0, 1.0)
+            };
+            let thumb_size = rect.height() * 0.8;
+            let thumb_x = rect.min_x + (rect.width() - thumb_size) * fraction;
+            let thumb_rect = UiRect::new(
+                thumb_x,
+                rect.min_y + (rect.height() - thumb_size) * 0.5,
+                thumb_x + thumb_size,
+                rect.min_y + (rect.height() + thumb_size) * 0.5,
+            );
+            commands.push(UiDrawCommand::Rect {
+                rect: thumb_rect,
+                fill_color: slider.thumb_color,
+                border_color: [1.0, 1.0, 1.0, 0.9],
+                border_width: 1.0,
+                border_radius: thumb_size * 0.5,
+                z_index: elem.z_index + 1,
+            });
+        }
+
+        // 5. Process Checkboxes
+        for (elem, chk) in world.query::<(&UiElement, &UiCheckbox)>().iter() {
+            if !elem.visible {
+                continue;
+            }
+            let rect = elem.compute_rect(screen_w, screen_h);
+            let box_size = rect.height().min(20.0);
+            let box_rect = UiRect::new(
+                rect.min_x,
+                rect.min_y + (rect.height() - box_size) * 0.5,
+                rect.min_x + box_size,
+                rect.min_y + (rect.height() + box_size) * 0.5,
+            );
+
+            commands.push(UiDrawCommand::Rect {
+                rect: box_rect,
+                fill_color: if chk.is_checked {
+                    chk.check_color
+                } else {
+                    chk.box_color
+                },
+                border_color: [0.3, 0.4, 0.5, 0.8],
+                border_width: 1.0,
+                border_radius: 3.0,
+                z_index: elem.z_index,
+            });
+
+            // Label
+            commands.push(UiDrawCommand::Text {
+                pos: [
+                    rect.min_x + box_size + 8.0,
+                    rect.min_y + rect.height() * 0.5,
+                ],
+                text: chk.label.clone(),
+                font_size: 13.0,
+                color: [0.9, 0.9, 0.9, 1.0],
+                alignment: UiTextAlignment::Left,
+                shadow_color: Some([0.0, 0.0, 0.0, 0.6]),
+                z_index: elem.z_index + 1,
+            });
+        }
+
+        // 6. Process Standalone Texts
         for (elem, text) in world.query::<(&UiElement, &UiText)>().iter() {
             if !elem.visible {
                 continue;
             }
             let rect = elem.compute_rect(screen_w, screen_h);
             let pos = match text.alignment {
-                UiTextAlignment::Left => [rect.min_x, rect.min_y],
+                UiTextAlignment::Left => [rect.min_x, rect.min_y + rect.height() * 0.5],
                 UiTextAlignment::Center => [
                     rect.min_x + rect.width() * 0.5,
                     rect.min_y + rect.height() * 0.5,
                 ],
-                UiTextAlignment::Right => [rect.max_x, rect.min_y],
+                UiTextAlignment::Right => [rect.max_x, rect.min_y + rect.height() * 0.5],
             };
             commands.push(UiDrawCommand::Text {
                 pos,
@@ -413,11 +271,12 @@ impl UiLayoutResolver {
                 font_size: text.font_size,
                 color: text.color,
                 alignment: text.alignment,
+                shadow_color: text.shadow_color,
                 z_index: elem.z_index,
             });
         }
 
-        // 4. Process images
+        // 7. Process Images
         for (elem, img) in world.query::<(&UiElement, &UiImage)>().iter() {
             if !elem.visible {
                 continue;
@@ -425,7 +284,7 @@ impl UiLayoutResolver {
             let rect = elem.compute_rect(screen_w, screen_h);
             commands.push(UiDrawCommand::Image {
                 rect,
-                texture_name: img.texture_name.clone(),
+                sprite_id: img.sprite_id,
                 uv_rect: img.uv_rect,
                 tint: img.tint,
                 z_index: elem.z_index,
@@ -455,64 +314,53 @@ mod tests {
     #[test]
     fn test_ui_element_bounding_rect_calculation() {
         let elem = UiElement::new(UiAnchor::Center, [10.0, -20.0], [200.0, 50.0]);
-        let rect = elem.compute_rect(1000.0, 1000.0);
-        assert_eq!(rect.min_x, 500.0 + 10.0 - 100.0); // 410.0
-        assert_eq!(rect.max_x, 500.0 + 10.0 + 100.0); // 610.0
-        assert_eq!(rect.min_y, 500.0 - 20.0 - 25.0); // 455.0
-        assert_eq!(rect.max_y, 500.0 - 20.0 + 25.0); // 505.0
-        assert!(rect.contains([510.0, 480.0]));
-        assert!(!rect.contains([0.0, 0.0]));
+        let rect = elem.compute_rect(1920.0, 1080.0);
+
+        let center_x = 960.0 + 10.0;
+        let center_y = 540.0 - 20.0;
+        assert_eq!(rect.min_x, center_x - 100.0);
+        assert_eq!(rect.max_x, center_x + 100.0);
+        assert_eq!(rect.min_y, center_y - 25.0);
+        assert_eq!(rect.max_y, center_y + 25.0);
     }
 
     #[test]
     fn test_ui_progress_bar_fraction() {
-        let bar = UiProgressBar::new(200.0, 50.0);
-        assert_eq!(bar.fraction(), 0.25);
+        let mut bar = UiProgressBar {
+            min: 0.0,
+            max: 200.0,
+            value: 50.0,
+            ..Default::default()
+        };
+        assert!((bar.fraction() - 0.25).abs() < 1e-4);
 
-        let full_bar = UiProgressBar::new(100.0, 150.0);
-        assert_eq!(full_bar.fraction(), 1.0); // clamped to 1.0
+        bar.value = 300.0;
+        assert!((bar.fraction() - 1.0).abs() < 1e-4);
     }
 
     #[test]
-    fn test_ui_layout_resolver_emits_sorted_draw_commands() {
+    fn test_ui_layout_resolver_sorting() {
         let mut world = World::new();
 
-        // 1. Text at TopLeft
         world.spawn((
             UiElement {
-                anchor: UiAnchor::TopLeft,
-                offset: [20.0, 20.0],
-                size: [150.0, 30.0],
-                visible: true,
                 z_index: 10,
+                ..Default::default()
             },
-            UiText::new("Score: 500", 18.0),
+            UiText::new("Layer 10", 12.0),
         ));
 
-        // 2. Health bar at BottomLeft
         world.spawn((
             UiElement {
-                anchor: UiAnchor::BottomLeft,
-                offset: [100.0, -30.0],
-                size: [200.0, 20.0],
-                visible: true,
                 z_index: 0,
+                ..Default::default()
             },
-            UiProgressBar::new(100.0, 75.0),
+            UiPanel::default(),
         ));
 
-        let commands = UiLayoutResolver::resolve_draw_commands(
-            &world,
-            1920.0,
-            1080.0,
-            Some([100.0, 100.0]),
-            false,
-        );
-
-        assert!(!commands.is_empty());
-        // Lowest z_index (0, progress bar background) must come first
-        assert_eq!(commands[0].z_index(), 0);
-        // Text with z_index 10 must come last
-        assert_eq!(commands.last().unwrap().z_index(), 10);
+        let cmds = UiLayoutResolver::resolve_draw_commands(&world, 1920.0, 1080.0, None, false);
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0].z_index(), 0);
+        assert_eq!(cmds[1].z_index(), 10);
     }
 }

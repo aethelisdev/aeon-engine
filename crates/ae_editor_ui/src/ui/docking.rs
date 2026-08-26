@@ -163,9 +163,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                             if elem.visible {
                                 let btn_rect = elem.compute_rect(rect.width(), rect.height());
                                 if btn_rect.contains(mp) {
-                                    if btn.label == "Resume" {
+                                    if btn.text == "Resume" {
                                         self.ui_actions.push(EngineUiAction::ResumeGame);
-                                    } else if btn.label == "Exit to Editor" {
+                                    } else if btn.text == "Exit to Editor" {
                                         self.ui_actions.push(EngineUiAction::ChangeMode(
                                             ae_core::modules::EngineMode::Edit,
                                         ));

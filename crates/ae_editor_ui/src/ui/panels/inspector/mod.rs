@@ -14,6 +14,7 @@ pub mod panel;
 pub mod parenting;
 pub mod physics;
 pub mod registry;
+pub mod ui_components;
 pub mod widgets;
 
 pub use registry::{ComponentUiHandler, InspectorContext, InspectorUiRegistry};

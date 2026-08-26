@@ -595,6 +595,7 @@ pub fn render_ui_draw_commands(
                 rect,
                 fill_color,
                 border_color,
+                border_width,
                 border_radius,
                 ..
             } => {
@@ -620,12 +621,16 @@ pub fn render_ui_draw_commands(
                     (border_color[2] * 255.0) as u8,
                     (border_color[3] * 255.0) as u8,
                 );
-                let stroke_width = if border_color[3] > 0.01 { 1.0 } else { 0.0 };
+                let actual_stroke_width = if border_color[3] > 0.01 {
+                    *border_width
+                } else {
+                    0.0
+                };
                 painter.rect(
                     egui_rect,
                     egui::CornerRadius::same(*border_radius as u8),
                     fill,
-                    egui::Stroke::new(stroke_width, stroke_col),
+                    egui::Stroke::new(actual_stroke_width, stroke_col),
                     egui::StrokeKind::Outside,
                 );
             }
@@ -635,21 +640,37 @@ pub fn render_ui_draw_commands(
                 font_size,
                 color,
                 alignment,
+                shadow_color,
                 ..
             } => {
                 let egui_pos =
                     egui::pos2(viewport_rect.left() + pos[0], viewport_rect.top() + pos[1]);
+                let align = match alignment {
+                    ae_core::ui::UiTextAlignment::Left => egui::Align2::LEFT_CENTER,
+                    ae_core::ui::UiTextAlignment::Center => egui::Align2::CENTER_CENTER,
+                    ae_core::ui::UiTextAlignment::Right => egui::Align2::RIGHT_CENTER,
+                };
+                if let Some(shadow) = shadow_color {
+                    let shadow_col = egui::Color32::from_rgba_unmultiplied(
+                        (shadow[0] * 255.0) as u8,
+                        (shadow[1] * 255.0) as u8,
+                        (shadow[2] * 255.0) as u8,
+                        (shadow[3] * 255.0) as u8,
+                    );
+                    painter.text(
+                        egui::pos2(egui_pos.x + 1.0, egui_pos.y + 1.0),
+                        align,
+                        text,
+                        egui::FontId::proportional(*font_size),
+                        shadow_col,
+                    );
+                }
                 let text_col = egui::Color32::from_rgba_unmultiplied(
                     (color[0] * 255.0) as u8,
                     (color[1] * 255.0) as u8,
                     (color[2] * 255.0) as u8,
                     (color[3] * 255.0) as u8,
                 );
-                let align = match alignment {
-                    ae_core::ui::UiTextAlignment::Left => egui::Align2::LEFT_TOP,
-                    ae_core::ui::UiTextAlignment::Center => egui::Align2::CENTER_CENTER,
-                    ae_core::ui::UiTextAlignment::Right => egui::Align2::RIGHT_TOP,
-                };
                 painter.text(
                     egui_pos,
                     align,

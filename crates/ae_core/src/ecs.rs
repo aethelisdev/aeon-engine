@@ -8,9 +8,11 @@ use serde::{Deserialize, Serialize};
 pub use ae_plugin_api::{
     AssetHandle, BoundingBox, BoundingRadius, CharacterAction, CharacterController, Children,
     Collider, ColliderShape, Color, DestructibleTarget, EphemeralProjectile, GlobalTransform,
-    Hidden, Light, ModelId, MovingPlatform, Name, Parent, PhysicsMaterial, PlayerTag, Position,
-    RaycastHit, RigidBody, RigidBodyType, Rotation, Rotator, Scale, Shape, SpriteId, SurfaceType,
-    TransformDirty, TriggerZone, Velocity,
+    Hidden, Light, ModelId, MovingPlatform, Name, Parent, PhysicsMaterial, PlayerHealthBarTag,
+    PlayerTag, Position, RaycastHit, ReticleTag, RigidBody, RigidBodyType, Rotation, Rotator,
+    Scale, ScoreDisplayTag, Shape, SpriteId, SurfaceType, TransformDirty, TriggerZone, UiAnchor,
+    UiButton, UiCheckbox, UiElement, UiImage, UiLayoutGroup, UiLayoutType, UiPanel, UiProgressBar,
+    UiRect, UiSliceMode, UiSlider, UiText, UiTextAlignment, UiTextInput, Velocity,
 };
 
 pub use crate::registry::{ComponentHandler, ComponentRegistry, TypedComponentHandler};

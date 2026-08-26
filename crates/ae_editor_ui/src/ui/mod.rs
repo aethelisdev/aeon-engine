@@ -20,7 +20,7 @@ mod viewport_hud;
 // Re-exports
 pub use panel_layout::{PanelId, PanelLayoutState};
 pub use panels::hierarchy::{HierarchyCache, HierarchyRow};
-pub use types::{ConsoleEntry, EngineUiAction};
+pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
 
 /// Action payload sent from async native file dialog threads to the main UI thread.
 pub enum SceneDialogAction {
