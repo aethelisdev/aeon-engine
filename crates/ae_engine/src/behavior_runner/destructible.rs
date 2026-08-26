@@ -40,8 +40,20 @@ pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEvent
                     target.max_health
                 );
 
+                event_bus.send(ae_core::events::DamageEvent {
+                    source: hit.shooter,
+                    target: hit.target,
+                    amount: hit.damage,
+                    hit_point: Some(hit.hit_point),
+                    hit_normal: Some(hit.hit_normal),
+                });
+
                 if target.health <= 0.0 {
                     event_bus.send(TargetDestroyedEvent { target: hit.target });
+                    event_bus.send(ae_core::events::ActorKilledEvent {
+                        killer: hit.shooter,
+                        victim: hit.target,
+                    });
                     targets_to_destroy.push(hit.target);
                 }
             }

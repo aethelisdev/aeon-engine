@@ -40,14 +40,15 @@ pub static LOGGER: EditorLogger = EditorLogger {
 
 impl log::Log for EditorLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        // Here we can filter levels. For now, we allow <= Info (Info, Warn, Error).
-        // If we want Debug/Trace, we can adjust here.
-        metadata.level() <= Level::Debug
-        // ignore verbose wgpu/winit logs to prevent UI lag.
-        && !metadata.target().starts_with("wgpu")
-        && !metadata.target().starts_with("winit")
-        && !metadata.target().starts_with("mio")
-        && !metadata.target().starts_with("naga")
+        metadata.level() <= Level::Info
+            && !metadata.target().starts_with("wgpu")
+            && !metadata.target().starts_with("winit")
+            && !metadata.target().starts_with("mio")
+            && !metadata.target().starts_with("naga")
+            && !metadata.target().starts_with("tracing")
+            && !metadata.target().starts_with("calloop")
+            && !metadata.target().starts_with("sctk")
+            && !metadata.target().starts_with("wayland")
     }
 
     fn log(&self, record: &Record) {

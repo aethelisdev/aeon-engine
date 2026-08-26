@@ -14,9 +14,19 @@ pub fn process_trigger_events(world: &mut World, event_bus: &mut DynamicEventBus
         for ev in events {
             if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_a) {
                 zone.is_triggered = true;
+                event_bus.send(ae_core::events::TriggerEvent {
+                    trigger: ev.entity_a,
+                    activator: ev.entity_b,
+                    is_enter: true,
+                });
             }
             if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_b) {
                 zone.is_triggered = true;
+                event_bus.send(ae_core::events::TriggerEvent {
+                    trigger: ev.entity_b,
+                    activator: ev.entity_a,
+                    is_enter: true,
+                });
             }
         }
     }
@@ -25,9 +35,19 @@ pub fn process_trigger_events(world: &mut World, event_bus: &mut DynamicEventBus
         for ev in events {
             if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_a) {
                 zone.is_triggered = false;
+                event_bus.send(ae_core::events::TriggerEvent {
+                    trigger: ev.entity_a,
+                    activator: ev.entity_b,
+                    is_enter: false,
+                });
             }
             if let Ok(mut zone) = world.get::<&mut TriggerZone>(ev.entity_b) {
                 zone.is_triggered = false;
+                event_bus.send(ae_core::events::TriggerEvent {
+                    trigger: ev.entity_b,
+                    activator: ev.entity_a,
+                    is_enter: false,
+                });
             }
         }
     }
