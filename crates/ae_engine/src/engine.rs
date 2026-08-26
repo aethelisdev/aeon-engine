@@ -62,6 +62,8 @@ pub struct AeEngine {
     pub physics_sync_dirty: bool,
     /// Stack-based Game State Machine for high-level flow and mode transitions.
     pub state_manager: ae_core::state::StateManager,
+    /// In-Game HUD subsystem manager (Health Bar, Score Counter, Reticle).
+    pub in_game_hud: crate::hud::InGameHudState,
 }
 
 impl AeEngine {
@@ -216,6 +218,7 @@ impl AeEngine {
             texture_watcher: ae_texture::TextureFileWatcher::new(),
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
             state_manager: ae_core::state::StateManager::new(),
+            in_game_hud: crate::hud::InGameHudState::new(),
         };
 
         // Align physics fixed time step with EditorConfig frequency

@@ -11,6 +11,7 @@ pub enum EngineUiAction {
     SpawnSpriteAt(ae_renderer::asset::AssetHandle, [f32; 3]),
     SpawnSpritePathAt(std::path::PathBuf, [f32; 3]),
     ChangeMode(ae_core::modules::EngineMode),
+    ResumeGame,
 
     /// Triggers an ECS-wide asset garbage collection sweep.
     /// Identifies all unused CPU/GPU resources that are no longer referenced in the

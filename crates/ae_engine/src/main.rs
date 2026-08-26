@@ -4,7 +4,9 @@ pub mod behavior_runner;
 pub mod debug_renderer;
 pub mod engine;
 pub mod events;
+pub mod hud;
 pub mod icon;
+
 /// Aeon Engine — Main Entry Point
 /// Initializes the winit event loop, creates the application window with embedded icon,
 /// and delegates all event processing to `AeEngine`. Implements `ApplicationHandler` for

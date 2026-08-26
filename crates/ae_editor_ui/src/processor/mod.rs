@@ -34,7 +34,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
         match action {
             // --- ENGINE MODE & STATE ACTIONS ---
             crate::ui::EngineUiAction::ChangeMode(m) => system::handle_change_mode(ctx, m),
+            crate::ui::EngineUiAction::ResumeGame => {}
             crate::ui::EngineUiAction::Undo => system::handle_undo(ctx),
+
             crate::ui::EngineUiAction::Redo => system::handle_redo(ctx),
             crate::ui::EngineUiAction::UndoBatch(b) => system::handle_undo_batch(ctx, b),
             crate::ui::EngineUiAction::ToggleModule(module) => {

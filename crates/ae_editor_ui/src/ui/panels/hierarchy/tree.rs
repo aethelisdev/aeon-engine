@@ -63,11 +63,17 @@ impl HierarchyCache {
             }
             let ent = ent_ref.entity();
 
+            // Skip internal in-game UI entities (HUD, pause menus) from Scene Hierarchy tree
+            if ent_ref.get::<&ae_core::ui::UiElement>().is_some() {
+                continue;
+            }
+
             // Name component
             let name = ent_ref
                 .get::<&ae_core::ecs::Name>()
                 .map(|n| n.0.clone())
                 .unwrap_or_else(|| format!("Entity {:?}", ent));
+
             name_map.insert(ent, name);
 
             // Parent component

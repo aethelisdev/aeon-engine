@@ -312,11 +312,12 @@ impl AeEngine {
 
         self.process_ui_actions(ui_actions);
 
-        // Declarative Cursor Sync: Ensure cursor grab state matches current EngineMode
-        if self.mode == EngineMode::Edit && self.is_cursor_grabbed {
-            self.set_cursor_grab(false);
-        } else if self.mode == EngineMode::Play && !self.is_cursor_grabbed {
+        // Declarative Cursor Sync: Ensure cursor grab state matches current EngineMode and Pause state
+        let should_grab = self.mode == EngineMode::Play && !self.state_manager.is_paused();
+        if should_grab && !self.is_cursor_grabbed {
             self.set_cursor_grab(true);
+        } else if !should_grab && self.is_cursor_grabbed {
+            self.set_cursor_grab(false);
         }
 
         if self.previous_mode != self.mode {

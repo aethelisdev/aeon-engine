@@ -14,6 +14,11 @@ pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEvent
     if let Some(hits) = event_bus.receive::<RaycastHitEvent>() {
         for hit in hits {
             if let Ok(mut target) = world.get::<&mut DestructibleTarget>(hit.target) {
+                // If target is already dead (health <= 0.0), ignore subsequent hits!
+                if target.health <= 0.0 {
+                    continue;
+                }
+
                 target.health = (target.health - hit.damage).max(0.0);
 
                 // Save original color before applying flash if not currently flashing
@@ -53,6 +58,10 @@ pub fn process_destructible_hits(world: &mut World, event_bus: &mut DynamicEvent
                     event_bus.send(ae_core::events::ActorKilledEvent {
                         killer: hit.shooter,
                         victim: hit.target,
+                    });
+                    event_bus.send(ae_core::events::ScoreEvent {
+                        delta: 100,
+                        new_total: 100,
                     });
                     targets_to_destroy.push(hit.target);
                 }

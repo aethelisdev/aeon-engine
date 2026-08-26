@@ -137,9 +137,53 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                         .next()
                         .is_some();
 
-                    if has_character_action {
+                    let is_pause_menu_open = self
+                        .world
+                        .query::<&ae_core::ui::PauseMenuUiTag>()
+                        .iter()
+                        .next()
+                        .is_some();
+
+                    if has_character_action && !is_pause_menu_open {
                         crate::ui::viewport_hud::draw_play_mode_hud(ui.ctx(), rect);
                     }
+
+                    // Resolve & render backend-agnostic in-game UI draw commands
+                    let mouse_pos = ui
+                        .input(|i| i.pointer.hover_pos())
+                        .map(|p| [p.x - rect.left(), p.y - rect.top()]);
+                    let mouse_clicked = ui.input(|i| i.pointer.primary_clicked());
+
+                    if mouse_clicked && let Some(mp) = mouse_pos {
+                        for (elem, btn) in self
+                            .world
+                            .query::<(&ae_core::ui::UiElement, &ae_core::ui::UiButton)>()
+                            .iter()
+                        {
+                            if elem.visible {
+                                let btn_rect = elem.compute_rect(rect.width(), rect.height());
+                                if btn_rect.contains(mp) {
+                                    if btn.label == "Resume" {
+                                        self.ui_actions.push(EngineUiAction::ResumeGame);
+                                    } else if btn.label == "Exit to Editor" {
+                                        self.ui_actions.push(EngineUiAction::ChangeMode(
+                                            ae_core::modules::EngineMode::Edit,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let commands = ae_core::ui::UiLayoutResolver::resolve_draw_commands(
+                        self.world,
+                        rect.width(),
+                        rect.height(),
+                        mouse_pos,
+                        mouse_clicked,
+                    );
+                    let painter = ui.painter();
+                    crate::ui::viewport_hud::render_ui_draw_commands(painter, rect, &commands);
                 }
             }
             PanelId::Hierarchy => {

@@ -108,7 +108,10 @@ impl AeEngine {
             // ESC key releases mouse lock and returns to Edit mode
             if self.input.is_key_just_pressed(KeyCode::Escape) {
                 self.mode = EngineMode::Edit;
+                self.previous_mode = EngineMode::Edit;
                 self.set_cursor_grab(false);
+                self.in_game_hud.reset(&mut self.ecs.world);
+                self.state_manager = ae_core::state::StateManager::new();
             }
         }
 
@@ -130,17 +133,20 @@ impl AeEngine {
         if physics_enabled {
             while self.time.consume_fixed_step() {
                 if self.mode == EngineMode::Play {
-                    self.fixed_update_play_mode();
-                    self.physics_world.step(
-                        &mut self.ecs.world,
-                        |handle| {
-                            self.asset_manager
-                                .get_physics_mesh_data(handle)
-                                .map(|(v, i)| (v.as_slice(), i.as_slice()))
-                        },
-                        self.time.fixed_time_step,
-                        &mut self.event_bus,
-                    );
+                    let is_paused = self.state_manager.is_paused();
+                    if !is_paused {
+                        self.fixed_update_play_mode();
+                        self.physics_world.step(
+                            &mut self.ecs.world,
+                            |handle| {
+                                self.asset_manager
+                                    .get_physics_mesh_data(handle)
+                                    .map(|(v, i)| (v.as_slice(), i.as_slice()))
+                            },
+                            self.time.fixed_time_step,
+                            &mut self.event_bus,
+                        );
+                    }
                 }
             }
         } else {
@@ -277,6 +283,10 @@ impl AeEngine {
     }
 
     pub fn fixed_update_play_mode(&mut self) {
+        if self.state_manager.is_paused() {
+            return;
+        }
+
         ae_editor::modes::fixed_update_play_mode(
             &self.input,
             &mut self.ecs,
@@ -408,7 +418,7 @@ impl AeEngine {
     }
 
     pub fn update_play_mode(&mut self) {
-        ae_editor::modes::update_play_mode(&mut self.ecs, &mut self.camera, &mut self.editor);
+        let was_paused = self.state_manager.is_paused();
 
         // 1. Tick stack-based GameStateManager
         let mut state_cmd_buffer = ae_core::commands::EntityCommandBuffer::new();
@@ -419,6 +429,53 @@ impl AeEngine {
             self.time.delta_time,
         );
         state_cmd_buffer.apply(&mut self.ecs.world);
+
+        // 2. Toggle In-Game Pause overlay with 'P' key
+        if self
+            .input
+            .is_key_just_pressed(ae_editor::input::KeyCode::KeyP)
+        {
+            if self.state_manager.is_paused() {
+                self.state_manager.pop();
+                let mut pop_cmd = ae_core::commands::EntityCommandBuffer::new();
+                self.state_manager.update(
+                    &mut self.ecs.world,
+                    &mut self.event_bus,
+                    &mut pop_cmd,
+                    0.0,
+                );
+                pop_cmd.apply(&mut self.ecs.world);
+            } else {
+                self.state_manager.push(crate::hud::InGamePauseState::new());
+                let mut push_cmd = ae_core::commands::EntityCommandBuffer::new();
+                self.state_manager.update(
+                    &mut self.ecs.world,
+                    &mut self.event_bus,
+                    &mut push_cmd,
+                    0.0,
+                );
+                push_cmd.apply(&mut self.ecs.world);
+            }
+        }
+
+        let is_paused = self.state_manager.is_paused();
+
+        // Cursor grab synchronization with pause state
+        if is_paused && !was_paused {
+            self.set_cursor_grab(false);
+        } else if !is_paused && was_paused {
+            self.set_cursor_grab(true);
+        }
+
+        // 3. Tick In-Game HUD subsystem
+        self.in_game_hud
+            .update_from_events(&mut self.ecs.world, &mut self.event_bus);
+
+        if is_paused {
+            return;
+        }
+
+        ae_editor::modes::update_play_mode(&mut self.ecs, &mut self.camera, &mut self.editor);
 
         // Sync spatial grid in Play mode so moving player entities update their 3D cells and remain 100% visible
         self.spatial_grid.sync(&self.ecs.world);
@@ -449,6 +506,24 @@ impl AeEngine {
     /// Dispatches queued UI actions to the engine (within profiler UI timing).
     pub fn process_ui_actions(&mut self, actions: Vec<ae_editor_ui::ui::EngineUiAction>) {
         self.profiler.begin_ui();
+        for action in &actions {
+            if let ae_editor_ui::ui::EngineUiAction::ResumeGame = action
+                && self.state_manager.is_paused()
+            {
+                self.state_manager.pop();
+                let mut pop_cmd = ae_core::commands::EntityCommandBuffer::new();
+                self.state_manager.update(
+                    &mut self.ecs.world,
+                    &mut self.event_bus,
+                    &mut pop_cmd,
+                    0.0,
+                );
+                pop_cmd.apply(&mut self.ecs.world);
+                self.set_cursor_grab(true);
+            }
+        }
+
+        let old_mode = self.previous_mode;
         let mut ctx = ae_editor_ui::ui_processor::UiContext {
             mode: &mut self.mode,
             world: &mut self.ecs.world,
@@ -462,6 +537,11 @@ impl AeEngine {
             dialog_receivers: &mut self.dialog_receivers,
         };
         ae_editor_ui::ui_processor::process_ui_actions(&mut ctx, actions);
+        if self.mode != old_mode {
+            self.in_game_hud.reset(&mut self.ecs.world);
+            self.state_manager = ae_core::state::StateManager::new();
+            self.previous_mode = self.mode;
+        }
         self.profiler.end_ui();
         // Any UI action (spawn, delete, transform edit) may have changed ECS state.
         // Mark physics dirty so sync_ecs_to_physics runs once on the next frame.

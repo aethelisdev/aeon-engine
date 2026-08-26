@@ -15,6 +15,7 @@ pub mod spatial;
 pub mod state;
 pub mod telemetry;
 pub mod time;
+pub mod ui;
 
 pub use ae_plugin_api::Resources;
 pub use behavior::{Behavior, BehaviorContext, NativeBehavior};
@@ -22,4 +23,8 @@ pub use cgmath;
 pub use commands::{CommandFn, EntityCommandBuffer};
 pub use state::{
     DefaultPausedState, DefaultPlayingState, GameState, StateContext, StateManager, StateTransition,
+};
+pub use ui::{
+    PauseMenuUiTag, UiAnchor, UiButton, UiDrawCommand, UiElement, UiImage, UiLayoutResolver,
+    UiProgressBar, UiRect, UiText, UiTextAlignment,
 };

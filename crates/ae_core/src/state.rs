@@ -131,6 +131,12 @@ impl StateManager {
         self.stack.is_empty()
     }
 
+    /// Returns `true` if the active state is a pause state or if a pause overlay is stacked.
+    pub fn is_paused(&self) -> bool {
+        let name = self.active_state_name();
+        name == "Paused" || name == "InGamePauseMenu" || self.stack.len() > 1
+    }
+
     /// Schedules pushing a new state onto the top of the stack.
     pub fn push<S: GameState>(&mut self, state: S) {
         self.pending_transition = Some(StateTransition::Push(Box::new(state)));

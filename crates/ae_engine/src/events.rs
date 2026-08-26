@@ -52,7 +52,10 @@ impl AeEngine {
     ) {
         self.input.process_mouse_button_event(button, state);
 
-        if self.mode == EngineMode::Play && state == winit::event::ElementState::Pressed {
+        if self.mode == EngineMode::Play
+            && !self.state_manager.is_paused()
+            && state == winit::event::ElementState::Pressed
+        {
             self.set_cursor_grab(true);
         }
 
