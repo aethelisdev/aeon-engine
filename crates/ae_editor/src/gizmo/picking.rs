@@ -48,92 +48,94 @@ impl GizmoSystem {
                 }
             }
         } else {
-            let mut is_free_handle = false;
+            let axes = [
+                (ActiveAxis::X, self.oriented_axis(Vector3::unit_x())),
+                (ActiveAxis::Y, self.oriented_axis(Vector3::unit_y())),
+                (ActiveAxis::Z, self.oriented_axis(Vector3::unit_z())),
+            ];
+
+            for (axis, dir) in &axes {
+                let p1 = gizmo_pos + *dir * axis_len_world;
+                let (dist, _) = ray_segment_closest(ray_origin, ray_dir, gizmo_pos, p1);
+
+                if dist < min_dist {
+                    min_dist = dist;
+                    best_axis = *axis;
+                }
+            }
+
+            if self.mode == GizmoMode::Translate {
+                let radius = 0.03;
+                let offset_world = (radius * 8.0) * axis_len_world;
+                let size_world = (radius * 6.0) * axis_len_world;
+
+                let planes = [
+                    (ActiveAxis::PlaneXY, self.oriented_axis(Vector3::unit_z())),
+                    (ActiveAxis::PlaneXZ, self.oriented_axis(Vector3::unit_y())),
+                    (ActiveAxis::PlaneYZ, self.oriented_axis(Vector3::unit_x())),
+                ];
+
+                let mut closest_cam_dist = f32::MAX;
+
+                for (p_axis, normal) in &planes {
+                    if let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, *normal) {
+                        let local = hit - gizmo_pos;
+                        let mut in_quad = false;
+                        match p_axis {
+                            ActiveAxis::PlaneXY => {
+                                if local.x >= offset_world
+                                    && local.x <= offset_world + size_world
+                                    && local.y >= offset_world
+                                    && local.y <= offset_world + size_world
+                                {
+                                    in_quad = true;
+                                }
+                            }
+                            ActiveAxis::PlaneXZ => {
+                                if local.x >= offset_world
+                                    && local.x <= offset_world + size_world
+                                    && local.z >= offset_world
+                                    && local.z <= offset_world + size_world
+                                {
+                                    in_quad = true;
+                                }
+                            }
+                            ActiveAxis::PlaneYZ
+                                if local.y >= offset_world
+                                    && local.y <= offset_world + size_world
+                                    && local.z >= offset_world
+                                    && local.z <= offset_world + size_world =>
+                            {
+                                in_quad = true;
+                            }
+                            _ => {}
+                        }
+
+                        if in_quad {
+                            let cam_dist = (hit - camera_pos).magnitude();
+                            if cam_dist < closest_cam_dist {
+                                closest_cam_dist = cam_dist;
+                                best_axis = *p_axis;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Center Free-Transform O-Ring Check (Scale & Translate modes)
+            // Only activates when the user hovers tightly at the center root origin,
+            // giving natural priority to axis handles when moving along the arrows.
             if (self.mode == GizmoMode::Scale || self.mode == GizmoMode::Translate)
                 && let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, forward)
             {
                 let dist_center_plane = (hit - gizmo_pos).magnitude();
-                let o_ring_radius = axis_len_world * 0.15;
-                if dist_center_plane < o_ring_radius + pick_radius_world * 3.0 {
-                    is_free_handle = true;
-                }
-            }
+                let o_ring_radius = axis_len_world * 0.12;
+                let is_tight_center = dist_center_plane < o_ring_radius * 0.75;
+                let is_near_center_and_not_on_axis =
+                    dist_center_plane < o_ring_radius && min_dist > pick_radius_world * 0.6;
 
-            if is_free_handle {
-                best_axis = ActiveAxis::Free;
-            } else {
-                let axes = [
-                    (ActiveAxis::X, self.oriented_axis(Vector3::unit_x())),
-                    (ActiveAxis::Y, self.oriented_axis(Vector3::unit_y())),
-                    (ActiveAxis::Z, self.oriented_axis(Vector3::unit_z())),
-                ];
-
-                for (axis, dir) in &axes {
-                    let p1 = gizmo_pos + *dir * axis_len_world;
-                    let (dist, _) = ray_segment_closest(ray_origin, ray_dir, gizmo_pos, p1);
-
-                    if dist < min_dist {
-                        min_dist = dist;
-                        best_axis = *axis;
-                    }
-                }
-
-                if self.mode == GizmoMode::Translate {
-                    let radius = 0.03;
-                    let offset_world = (radius * 8.0) * axis_len_world;
-                    let size_world = (radius * 6.0) * axis_len_world;
-
-                    let planes = [
-                        (ActiveAxis::PlaneXY, self.oriented_axis(Vector3::unit_z())),
-                        (ActiveAxis::PlaneXZ, self.oriented_axis(Vector3::unit_y())),
-                        (ActiveAxis::PlaneYZ, self.oriented_axis(Vector3::unit_x())),
-                    ];
-
-                    let mut closest_cam_dist = f32::MAX;
-
-                    for (p_axis, normal) in &planes {
-                        if let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, *normal) {
-                            let local = hit - gizmo_pos;
-                            let mut in_quad = false;
-                            match p_axis {
-                                ActiveAxis::PlaneXY => {
-                                    if local.x >= offset_world
-                                        && local.x <= offset_world + size_world
-                                        && local.y >= offset_world
-                                        && local.y <= offset_world + size_world
-                                    {
-                                        in_quad = true;
-                                    }
-                                }
-                                ActiveAxis::PlaneXZ => {
-                                    if local.x >= offset_world
-                                        && local.x <= offset_world + size_world
-                                        && local.z >= offset_world
-                                        && local.z <= offset_world + size_world
-                                    {
-                                        in_quad = true;
-                                    }
-                                }
-                                ActiveAxis::PlaneYZ
-                                    if local.y >= offset_world
-                                        && local.y <= offset_world + size_world
-                                        && local.z >= offset_world
-                                        && local.z <= offset_world + size_world =>
-                                {
-                                    in_quad = true;
-                                }
-                                _ => {}
-                            }
-
-                            if in_quad {
-                                let cam_dist = (hit - camera_pos).magnitude();
-                                if cam_dist < closest_cam_dist {
-                                    closest_cam_dist = cam_dist;
-                                    best_axis = *p_axis;
-                                }
-                            }
-                        }
-                    }
+                if is_tight_center || is_near_center_and_not_on_axis {
+                    best_axis = ActiveAxis::Free;
                 }
             }
         }
