@@ -539,56 +539,86 @@ fn draw_designer_toolbar(ui: &mut egui::Ui, ctx: &mut UiDesignerContext<'_>) {
 
         // Quick Spawn Menu
         ui.menu_button("➕ Add Element", |ui| {
-            if ui.button("🟩 Panel / Canvas Box").clicked() {
+            ui.set_min_width(180.0);
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "🟩", "Panel / Canvas Box")
+                .clicked()
+            {
                 ctx.ui_actions
                     .push(EngineUiAction::SpawnUiElement(UiElementType::Panel));
                 ui.close();
             }
-            if ui.button("📊 Progress Bar").clicked() {
-                ctx.ui_actions
-                    .push(EngineUiAction::SpawnUiElement(UiElementType::ProgressBar));
-                ui.close();
-            }
-            if ui.button("❤️ Health Bar (Player Tag)").clicked() {
-                ctx.ui_actions
-                    .push(EngineUiAction::SpawnUiElement(UiElementType::HealthBar));
-                ui.close();
-            }
-            if ui.button("🔤 Text Label").clicked() {
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "🔤", "Text Label").clicked()
+            {
                 ctx.ui_actions
                     .push(EngineUiAction::SpawnUiElement(UiElementType::Text));
                 ui.close();
             }
-            if ui.button("⭐ Score Display (Score Tag)").clicked() {
-                ctx.ui_actions
-                    .push(EngineUiAction::SpawnUiElement(UiElementType::ScoreDisplay));
-                ui.close();
-            }
-            if ui.button("🔘 Button").clicked() {
-                ctx.ui_actions
-                    .push(EngineUiAction::SpawnUiElement(UiElementType::Button));
-                ui.close();
-            }
-            if ui.button("🖼️ Image").clicked() {
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "🖼️", "Image / Icon").clicked()
+            {
                 ctx.ui_actions
                     .push(EngineUiAction::SpawnUiElement(UiElementType::Image));
                 ui.close();
             }
-            if ui.button("🎚️ Slider").clicked() {
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "🔘", "Interactive Button")
+                .clicked()
+            {
+                ctx.ui_actions
+                    .push(EngineUiAction::SpawnUiElement(UiElementType::Button));
+                ui.close();
+            }
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "📊", "Progress Bar").clicked()
+            {
+                ctx.ui_actions
+                    .push(EngineUiAction::SpawnUiElement(UiElementType::ProgressBar));
+                ui.close();
+            }
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "🎚️", "Numeric Slider")
+                .clicked()
+            {
                 ctx.ui_actions
                     .push(EngineUiAction::SpawnUiElement(UiElementType::Slider));
                 ui.close();
             }
-            if ui.button("☑️ Checkbox").clicked() {
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "☑️", "Toggle Checkbox")
+                .clicked()
+            {
                 ctx.ui_actions
                     .push(EngineUiAction::SpawnUiElement(UiElementType::Checkbox));
                 ui.close();
             }
-            if ui.button("📝 Text Input").clicked() {
+            if crate::ui::panels::hierarchy::tree::dropdown_item(ui, "📝", "Text Input Field")
+                .clicked()
+            {
                 ctx.ui_actions
                     .push(EngineUiAction::SpawnUiElement(UiElementType::TextInput));
                 ui.close();
             }
+            ui.separator();
+            ui.menu_button("🎮 HUD Presets", |ui| {
+                ui.set_min_width(180.0);
+                if crate::ui::panels::hierarchy::tree::dropdown_item(
+                    ui,
+                    "❤️",
+                    "Health Bar (Player Tag)",
+                )
+                .clicked()
+                {
+                    ctx.ui_actions
+                        .push(EngineUiAction::SpawnUiElement(UiElementType::HealthBar));
+                    ui.close();
+                }
+                if crate::ui::panels::hierarchy::tree::dropdown_item(
+                    ui,
+                    "⭐",
+                    "Score Display (Score Tag)",
+                )
+                .clicked()
+                {
+                    ctx.ui_actions
+                        .push(EngineUiAction::SpawnUiElement(UiElementType::ScoreDisplay));
+                    ui.close();
+                }
+            });
         });
     });
 }

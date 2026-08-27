@@ -369,168 +369,169 @@ impl EngineUi {
                     hierarchy_search_query.clear();
                 }
 
-                // ➕ Add Dropdown Menu
+                // ➕ Add Dropdown Menu (Cascading Hierarchical Architecture)
                 ui.menu_button("➕", |ui| {
-                    ui.set_min_width(170.0);
-                    ui.label(
-                        egui::RichText::new("3D Shapes")
-                            .size(11.0)
-                            .strong()
-                            .color(egui::Color32::from_gray(160)),
-                    );
-                    if ui.button("📦 Cube").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                            ae_core::ecs::Shape::Cube,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🔮 Sphere").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                            ae_core::ecs::Shape::Sphere,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🧪 Cylinder").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                            ae_core::ecs::Shape::Cylinder,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("💊 Capsule").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                            ae_core::ecs::Shape::Capsule,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🍩 Torus").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                            ae_core::ecs::Shape::Torus,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("📐 Triangle").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
-                            ae_core::ecs::Shape::Triangle,
-                        ));
-                        ui.close();
-                    }
-                    ui.separator();
-                    ui.label(
-                        egui::RichText::new("UI & HUD Elements")
-                            .size(11.0)
-                            .strong()
-                            .color(egui::Color32::from_rgb(0, 200, 255)),
-                    );
-                    if ui.button("🟩 Panel / Canvas Box").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::Panel,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("📊 Progress Bar").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::ProgressBar,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("❤️ Health Bar (Player Tag)").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::HealthBar,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🔤 Text Label").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::Text,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("⭐ Score Display (Score Tag)").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::ScoreDisplay,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🔘 Interactive Button").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::Button,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🖼️ Image / Icon").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::Image,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("🎚️ Numeric Slider").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::Slider,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("☑️ Toggle Checkbox").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::Checkbox,
-                        ));
-                        ui.close();
-                    }
-                    if ui.button("📝 Text Input Field").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
-                            crate::ui::UiElementType::TextInput,
-                        ));
-                        ui.close();
-                    }
-                    ui.separator();
-                    ui.label(
-                        egui::RichText::new("Assets & Prefabs")
-                            .size(11.0)
-                            .strong()
-                            .color(egui::Color32::from_gray(160)),
-                    );
+                    ui.set_min_width(180.0);
 
-                    if ui.button("📁 3D Model...").clicked() {
-                        ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
-                        ui.close();
-                    }
-                    if ui.button("📦 Load Prefab...").clicked() {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Aeon Prefab", &["aeprefab"])
-                            .pick_file()
-                        {
-                            ui_actions.push(crate::ui::EngineUiAction::InstantiatePrefab(path));
+                    // 1. 3D Objects Submenu
+                    ui.menu_button("📦 3D Objects", |ui| {
+                        ui.set_min_width(180.0);
+                        if dropdown_item(ui, "📦", "Cube").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Cube,
+                            ));
+                            ui.close();
                         }
-                        ui.close();
-                    }
+                        if dropdown_item(ui, "🔮", "Sphere").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Sphere,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "🧪", "Cylinder").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Cylinder,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "💊", "Capsule").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Capsule,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "🍩", "Torus").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Torus,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "📐", "Triangle").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnShape(
+                                ae_core::ecs::Shape::Triangle,
+                            ));
+                            ui.close();
+                        }
+                    });
+
+                    // 2. UI & Canvas Elements Submenu
+                    ui.menu_button("🎨 UI & Canvas", |ui| {
+                        ui.set_min_width(180.0);
+                        if dropdown_item(ui, "🟩", "Panel / Canvas Box").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::Panel,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "🔤", "Text Label").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::Text,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "🖼️", "Image / Icon").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::Image,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "🔘", "Interactive Button").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::Button,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "📊", "Progress Bar").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::ProgressBar,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "🎚️", "Numeric Slider").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::Slider,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "☑️", "Toggle Checkbox").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::Checkbox,
+                            ));
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "📝", "Text Input Field").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                crate::ui::UiElementType::TextInput,
+                            ));
+                            ui.close();
+                        }
+                        ui.separator();
+                        ui.menu_button("🎮 HUD Presets", |ui| {
+                            ui.set_min_width(180.0);
+                            if dropdown_item(ui, "❤️", "Health Bar (Player Tag)").clicked() {
+                                ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                    crate::ui::UiElementType::HealthBar,
+                                ));
+                                ui.close();
+                            }
+                            if dropdown_item(ui, "⭐", "Score Display (Score Tag)").clicked() {
+                                ui_actions.push(crate::ui::EngineUiAction::SpawnUiElement(
+                                    crate::ui::UiElementType::ScoreDisplay,
+                                ));
+                                ui.close();
+                            }
+                        });
+                    });
+
+                    // 3. Assets & Prefabs Submenu
+                    ui.menu_button("📁 Assets & Prefabs", |ui| {
+                        ui.set_min_width(180.0);
+                        if dropdown_item(ui, "📁", "3D Model...").clicked() {
+                            ui_actions.push(crate::ui::EngineUiAction::OpenModelDialog);
+                            ui.close();
+                        }
+                        if dropdown_item(ui, "📦", "Load Prefab...").clicked() {
+                            if let Some(path) = rfd::FileDialog::new()
+                                .add_filter("Aeon Prefab", &["aeprefab"])
+                                .pick_file()
+                            {
+                                ui_actions.push(crate::ui::EngineUiAction::InstantiatePrefab(path));
+                            }
+                            ui.close();
+                        }
+                    });
+
                     ui.separator();
-                    if ui
-                        .button("🎮 Phase 1 Test Sandbox")
+
+                    // 4. Test Sandbox Quick Spawn
+                    if dropdown_item(ui, "🎮", "Phase 1 Test Sandbox")
                         .on_hover_text("Spawns complete interactive test sandbox: Player, Destructible Targets, Proximity Door, Moving Platform, Coins & Physics Cubes")
                         .clicked()
                     {
                         ui_actions.push(crate::ui::EngineUiAction::SpawnPhase1TestSandbox);
                         ui.close();
                     }
-                    ui.separator();
+
+                    // 5. Stress Benchmarks Submenu
                     ui.menu_button("⚡ Stress Benchmarks", |ui| {
-                        ui.set_min_width(170.0);
-                        if ui.button("🏰 OpenWorld (10km)").clicked() {
+                        ui.set_min_width(180.0);
+                        if dropdown_item(ui, "🏰", "OpenWorld (10km)").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::AaaOpenWorldTest);
                             ui.close();
                         }
-                        if ui.button("⚡ 10,000 Entities").clicked() {
+                        if dropdown_item(ui, "⚡", "10,000 Entities").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::StressTest(10_000));
                             ui.close();
                         }
-                        if ui.button("⚡ 100,000 Entities").clicked() {
+                        if dropdown_item(ui, "⚡", "100,000 Entities").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::StressTest(100_000));
                             ui.close();
                         }
-                        if ui.button("⚡ 10,000,000 Universe").clicked() {
+                        if dropdown_item(ui, "⚡", "10,000,000 Universe").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::StressTest(10_000_000));
                             ui.close();
                         }
-                        if ui.button("💥 Explode!").clicked() {
+                        if dropdown_item(ui, "💥", "Explode!").clicked() {
                             ui_actions.push(crate::ui::EngineUiAction::Explode);
                             ui.close();
                         }
@@ -627,4 +628,58 @@ impl EngineUi {
             });
         });
     }
+}
+
+/// Renders a neatly formatted, column-aligned dropdown menu item with a fixed-width icon column.
+/// Ensures all menu items have identical 18px icon centering and text starting at an exact
+/// horizontal coordinate regardless of varying Unicode emoji glyph widths.
+pub fn dropdown_item(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
+    let padding_x = 6.0;
+    let icon_width = 18.0;
+    let height = 22.0;
+    let item_width = 180.0;
+
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(item_width, height), egui::Sense::click());
+
+    if response.hovered() {
+        ui.painter().rect_filled(
+            rect,
+            egui::CornerRadius::same(4),
+            egui::Color32::from_rgb(38, 44, 58),
+        );
+    }
+
+    let icon_rect = egui::Rect::from_min_size(
+        egui::pos2(rect.min.x + padding_x, rect.min.y),
+        egui::vec2(icon_width, height),
+    );
+    let text_pos = egui::pos2(
+        rect.min.x + padding_x + icon_width + 6.0,
+        rect.min.y + (height - 12.0) * 0.5 - 1.0,
+    );
+
+    let (icon_color, text_color) = if response.hovered() {
+        (egui::Color32::WHITE, egui::Color32::WHITE)
+    } else {
+        (egui::Color32::from_gray(180), egui::Color32::from_gray(215))
+    };
+
+    ui.painter().text(
+        icon_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        icon,
+        egui::FontId::proportional(12.0),
+        icon_color,
+    );
+
+    ui.painter().text(
+        text_pos,
+        egui::Align2::LEFT_TOP,
+        label,
+        egui::FontId::proportional(12.0),
+        text_color,
+    );
+
+    response
 }

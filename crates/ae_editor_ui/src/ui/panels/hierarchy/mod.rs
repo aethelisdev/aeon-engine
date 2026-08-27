@@ -9,4 +9,4 @@
 
 pub mod tree;
 
-pub use tree::{HierarchyCache, HierarchyRow};
+pub use tree::{HierarchyCache, HierarchyRow, dropdown_item};
