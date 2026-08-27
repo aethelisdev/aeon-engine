@@ -168,6 +168,7 @@ impl RenderScene {
         camera: &crate::camera::Camera,
         _asset_manager: &crate::asset::AssetManager,
         selected_entities: &std::collections::HashSet<hecs::Entity>,
+        active_entity: Option<hecs::Entity>,
         spatial_grid: &ae_core::spatial::SpatialGrid,
     ) -> Self {
         // Will be overwritten by GraphicsSettings global sun state during Main Pass
@@ -196,6 +197,11 @@ impl RenderScene {
         > = std::collections::HashMap::with_capacity(16);
         let mut selected_primitive_instances = Vec::with_capacity(selected_entities.len().max(2));
         let mut selected_model_instances = Vec::with_capacity(selected_entities.len().max(2));
+        let mut entity_id_map: std::collections::HashMap<hecs::Entity, f32> =
+            std::collections::HashMap::with_capacity(selected_entities.len().max(4));
+        for (idx, &e) in selected_entities.iter().enumerate() {
+            entity_id_map.insert(e, ((idx % 250) + 1) as f32 / 255.0);
+        }
 
         // Use dedicated culling matrix (shorter zfar=400) to aggressively cull distant objects
         // on the CPU. The actual render matrix uses zfar=2000 for visual depth quality.
@@ -397,10 +403,16 @@ impl RenderScene {
                 }
 
                 if selected_entities.contains(&entity) {
+                    let mut sel_instance = instance;
+                    let is_primary = active_entity == Some(entity);
+                    let sel_level = if is_primary { 1.0 } else { 0.5 };
+                    let entity_id = entity_id_map.get(&entity).copied().unwrap_or(0.1);
+                    sel_instance.color = [sel_level, entity_id, 0.0, 1.0];
+
                     if let Some(m_handle) = active_model_handle {
-                        selected_model_instances.push((m_handle, instance));
+                        selected_model_instances.push((m_handle, sel_instance));
                     } else if let Some(s) = shape {
-                        selected_primitive_instances.push((*s, instance));
+                        selected_primitive_instances.push((*s, sel_instance));
                     }
                 }
 

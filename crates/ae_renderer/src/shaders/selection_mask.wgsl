@@ -12,6 +12,7 @@ struct InstanceInput {
     @location(3) model_matrix_1: vec4<f32>,
     @location(4) model_matrix_2: vec4<f32>,
     @location(5) model_matrix_3: vec4<f32>,
+    @location(7) color: vec4<f32>,
 };
 
 struct VertexInput {
@@ -20,6 +21,8 @@ struct VertexInput {
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
+    @location(0) selection_level: f32,
+    @location(1) entity_id: f32,
 };
 
 @vertex
@@ -34,10 +37,12 @@ fn vs_main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
 
     var out: VertexOutput;
     out.position = camera.view_proj * world_pos;
+    out.selection_level = instance.color.r;
+    out.entity_id = instance.color.g;
     return out;
 }
 
 @fragment
-fn fs_main() -> @location(0) f32 {
-    return 1.0;
+fn fs_main(in: VertexOutput) -> @location(0) vec2<f32> {
+    return vec2<f32>(in.selection_level, in.entity_id);
 }

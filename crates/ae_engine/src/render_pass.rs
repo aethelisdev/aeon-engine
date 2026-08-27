@@ -11,16 +11,17 @@ impl AeEngine {
     /// Passes the spatial grid reference to leverage high-performance culling.
     pub fn extract_render_scene(&self) -> ae_renderer::render::types::RenderScene {
         let empty_set = std::collections::HashSet::new();
-        let selected_set = if self.mode == EngineMode::Edit {
-            &self.editor.selected_entities_set
+        let (selected_set, active_ent) = if self.mode == EngineMode::Edit {
+            (&self.editor.selected_entities_set, self.ui.selected_entity)
         } else {
-            &empty_set
+            (&empty_set, None)
         };
         ae_renderer::render::types::RenderScene::extract(
             &self.ecs.world,
             &self.camera,
             &self.asset_manager,
             selected_set,
+            active_ent,
             &self.spatial_grid,
         )
     }

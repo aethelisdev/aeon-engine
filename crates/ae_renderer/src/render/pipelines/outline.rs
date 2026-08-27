@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+//! Selection Outline Render Pipeline and GPU Resource Manager.
+//!
+
 use wgpu::util::DeviceExt;
 
 /// Outline uniforms passed into the composite WGSL shader.
@@ -9,7 +12,8 @@ use wgpu::util::DeviceExt;
 pub struct OutlineUniforms {
     pub viewport_size: [f32; 2],
     pub _padding: [f32; 2],
-    pub outline_color: [f32; 4],
+    pub primary_color: [f32; 4],
+    pub secondary_color: [f32; 4],
 }
 
 /// Selection Outline rendering system managing mask generation and screen-space silhouette edge detection.
@@ -29,6 +33,7 @@ pub struct SelectionOutlinePass {
 }
 
 impl SelectionOutlinePass {
+    /// Creates a new SelectionOutlinePass instance with dedicated bind group layouts and shaders.
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -77,7 +82,8 @@ impl SelectionOutlinePass {
         let initial_uniforms = OutlineUniforms {
             viewport_size: [1280.0, 720.0],
             _padding: [0.0, 0.0],
-            outline_color: [1.0, 0.55, 0.05, 0.95],
+            primary_color: [1.0, 0.82, 0.15, 1.0], // Bright Gold (Active/Primary Selection)
+            secondary_color: [1.0, 0.50, 0.05, 0.95], // Warm Orange (Secondary Multi-Selection)
         };
         let outline_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Outline Uniform Buffer"),
@@ -112,6 +118,7 @@ impl SelectionOutlinePass {
         }
     }
 
+    /// Resizes the selection mask render targets and recreates bind groups matching viewport dimensions.
     pub fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
         if width == 0 || height == 0 || (self.width == width && self.height == height) {
             return;
@@ -122,7 +129,8 @@ impl SelectionOutlinePass {
         let uniforms = OutlineUniforms {
             viewport_size: [width as f32, height as f32],
             _padding: [0.0, 0.0],
-            outline_color: [1.0, 0.55, 0.05, 0.95],
+            primary_color: [1.0, 0.82, 0.15, 1.0], // Bright Gold (Active/Primary Selection)
+            secondary_color: [1.0, 0.50, 0.05, 0.95], // Warm Orange (Secondary Multi-Selection)
         };
         queue.write_buffer(
             &self.outline_uniform_buffer,
@@ -131,7 +139,7 @@ impl SelectionOutlinePass {
         );
 
         let mask_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Selection Mask Texture"),
+            label: Some("Selection Mask Texture (RG16Float)"),
             size: wgpu::Extent3d {
                 width,
                 height,
@@ -140,7 +148,7 @@ impl SelectionOutlinePass {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R8Unorm,
+            format: wgpu::TextureFormat::Rg16Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -190,7 +198,7 @@ impl SelectionOutlinePass {
 }
 
 /// Creates the Selection Outline pipelines for high-quality
-/// screen-space silhouette edge detection.
+/// screen-space silhouette edge detection with depth discontinuity support.
 pub(crate) fn create_outline_pipelines(
     device: &wgpu::Device,
     surface_format: wgpu::TextureFormat,
@@ -224,7 +232,7 @@ pub(crate) fn create_outline_pipelines(
             module: &mask_shader,
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
-                format: wgpu::TextureFormat::R8Unorm,
+                format: wgpu::TextureFormat::Rg16Float,
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             })],
