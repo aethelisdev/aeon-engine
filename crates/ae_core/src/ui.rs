@@ -291,6 +291,46 @@ impl UiLayoutResolver {
             });
         }
 
+        // 8. Process Text Input Fields
+        for (elem, input) in world.query::<(&UiElement, &UiTextInput)>().iter() {
+            if !elem.visible {
+                continue;
+            }
+            let rect = elem.compute_rect(screen_w, screen_h);
+
+            // Input field background box
+            let border_color = if input.is_focused {
+                [0.0, 0.75, 1.0, 1.0] // Focused cyan glow
+            } else {
+                [0.25, 0.35, 0.45, 0.8] // Default border
+            };
+            commands.push(UiDrawCommand::Rect {
+                rect,
+                fill_color: [0.08, 0.10, 0.14, 0.95],
+                border_color,
+                border_width: 1.0,
+                border_radius: 4.0,
+                z_index: elem.z_index,
+            });
+
+            // Display text or placeholder
+            let (display_text, text_color) = if !input.text.is_empty() {
+                (input.text.clone(), [0.95, 0.95, 0.95, 1.0])
+            } else {
+                (input.placeholder.clone(), [0.50, 0.55, 0.65, 0.75])
+            };
+
+            commands.push(UiDrawCommand::Text {
+                pos: [rect.min_x + 10.0, rect.min_y + rect.height() * 0.5],
+                text: display_text,
+                font_size: 13.0,
+                color: text_color,
+                alignment: UiTextAlignment::Left,
+                shadow_color: None,
+                z_index: elem.z_index + 1,
+            });
+        }
+
         // Sort commands by z_index ascending (lower drawn first)
         commands.sort_by_key(|cmd| cmd.z_index());
         commands
@@ -362,5 +402,47 @@ mod tests {
         assert_eq!(cmds.len(), 2);
         assert_eq!(cmds[0].z_index(), 0);
         assert_eq!(cmds[1].z_index(), 10);
+    }
+
+    #[test]
+    fn test_ui_text_input_resolver() {
+        let mut world = World::new();
+
+        world.spawn((
+            UiElement {
+                anchor: UiAnchor::Center,
+                offset: [0.0, 0.0],
+                size: [180.0, 32.0],
+                z_index: 5,
+                ..Default::default()
+            },
+            UiTextInput {
+                text: "Player1".to_string(),
+                placeholder: "Enter name...".to_string(),
+                max_length: Some(16),
+                is_focused: true,
+            },
+        ));
+
+        let cmds = UiLayoutResolver::resolve_draw_commands(&world, 1920.0, 1080.0, None, false);
+        assert_eq!(cmds.len(), 2); // 1 background box Rect + 1 Text
+        match &cmds[0] {
+            UiDrawCommand::Rect {
+                border_color,
+                z_index,
+                ..
+            } => {
+                assert_eq!(*z_index, 5);
+                assert!((border_color[1] - 0.75).abs() < 1e-3); // Cyan focused border
+            }
+            _ => panic!("Expected Rect command first"),
+        }
+        match &cmds[1] {
+            UiDrawCommand::Text { text, z_index, .. } => {
+                assert_eq!(*z_index, 6);
+                assert_eq!(text, "Player1");
+            }
+            _ => panic!("Expected Text command second"),
+        }
     }
 }

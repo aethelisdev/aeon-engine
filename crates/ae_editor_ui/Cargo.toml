@@ -20,6 +20,7 @@ ae_audio = { path = "../ae_audio" }
 ae_animation = { path = "../ae_animation" }
 ae_renderer = { path = "../ae_renderer" }
 ae_texture = { path = "../ae_texture" }
+ae_uidesign = { path = "../ae_uidesign" }
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 winit = "0.30.13"
 wgpu = "30.0.0"

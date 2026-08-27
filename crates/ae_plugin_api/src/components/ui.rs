@@ -257,11 +257,11 @@ impl Default for UiProgressBar {
         Self {
             min: 0.0,
             max: 100.0,
-            value: 100.0,
-            fill_color: [0.2, 0.85, 0.35, 1.0], // Neon Green
+            value: 65.0,
+            fill_color: [0.15, 0.55, 0.95, 1.0], // Azure Blue / Cyan standard UI color
             background_color: [0.08, 0.10, 0.14, 0.85],
-            border_color: [0.3, 0.4, 0.5, 0.8],
-            corner_radius: 3.0,
+            border_color: [0.25, 0.35, 0.45, 0.8],
+            corner_radius: 4.0,
         }
     }
 }

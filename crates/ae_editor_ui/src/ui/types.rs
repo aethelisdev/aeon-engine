@@ -113,16 +113,4 @@ pub struct ConsoleEntry {
 }
 
 /// Canonical UI element type variants for spawning from the editor hierarchy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum UiElementType {
-    Panel,
-    ProgressBar,
-    Text,
-    Button,
-    Image,
-    Slider,
-    Checkbox,
-    TextInput,
-    HealthBar,
-    ScoreDisplay,
-}
+pub use ae_uidesign::UiElementType;

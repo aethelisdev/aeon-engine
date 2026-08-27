@@ -103,6 +103,7 @@ dependencies = [
  "ae_editor",
  "ae_renderer",
  "ae_texture",
+ "ae_uidesign",
  "cgmath",
  "egui",
  "egui-wgpu",
@@ -221,6 +222,19 @@ dependencies = [
  "image",
  "log",
  "slotmap",
+]
+
+[[package]]
+name = "ae_uidesign"
+version = "0.8.0"
+dependencies = [
+ "ae_core",
+ "ae_plugin_api",
+ "egui",
+ "hecs",
+ "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
