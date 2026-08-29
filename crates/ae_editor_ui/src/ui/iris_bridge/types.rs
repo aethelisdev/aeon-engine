@@ -51,4 +51,6 @@ pub struct IrisOverlayEventResult {
     pub open_preferences: bool,
     /// Open about dialog request.
     pub open_about: bool,
+    /// Close about dialog request.
+    pub close_about: bool,
 }

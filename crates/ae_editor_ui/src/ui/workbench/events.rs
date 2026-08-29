@@ -24,11 +24,26 @@ impl EngineUi {
         if iris_res.open_about {
             self.show_about = true;
         }
+        if iris_res.close_about {
+            self.show_about = false;
+        }
         // Always pass event to egui state so pointer and drag states never get starved or desynchronized
         let response = self.state.on_window_event(window, event);
 
         if iris_res.consumed {
-            window.set_cursor(winit::window::CursorIcon::Default);
+            if let Some(ref targets) = self.iris_overlay.about_targets {
+                let p = self.iris_overlay.cursor_pos;
+                if targets.header_close_rect.contains_point(p)
+                    || targets.bottom_close_rect.contains_point(p)
+                    || targets.link_rect.contains_point(p)
+                {
+                    window.set_cursor(winit::window::CursorIcon::Pointer);
+                } else {
+                    window.set_cursor(winit::window::CursorIcon::Default);
+                }
+            } else {
+                window.set_cursor(winit::window::CursorIcon::Default);
+            }
             return true;
         }
 

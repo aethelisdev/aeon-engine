@@ -3,7 +3,6 @@
 
 pub mod edit;
 pub mod file;
-pub mod help;
 pub mod view;
 
 pub use edit::*;

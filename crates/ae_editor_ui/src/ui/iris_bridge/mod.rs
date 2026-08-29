@@ -6,10 +6,12 @@
 //! Manages the retained-mode `UiTree`, `IrisRenderer`, typography, interactive hover/click
 //! event routing, and `MenuBarBuilder`/`DropdownMenuBuilder` rendering directly on top of the editor frame.
 
+pub mod about;
 pub mod menubar;
 pub mod status_bar;
 pub mod types;
 
+pub use about::{AboutDialogTargets, build_about_dialog};
 pub use types::{ActiveMenu, DropdownAction, IrisOverlayEventResult};
 
 use crate::ui::EngineUiAction;
@@ -40,6 +42,8 @@ pub struct IrisEditorOverlay {
     pub dropdown_items: Vec<(Rect, DropdownAction)>,
     /// Cached bounding box of the active floating dropdown.
     pub dropdown_rect: Option<Rect>,
+    /// Cached bounding box and close button hit targets of the active About dialog.
+    pub about_targets: Option<AboutDialogTargets>,
     /// Last measured screen width.
     pub screen_width: f32,
     /// Last measured screen height.
@@ -62,6 +66,8 @@ pub struct OverlayUpdateParams<'a> {
     pub can_undo: bool,
     /// Whether redo is available.
     pub can_redo: bool,
+    /// Whether the About Aeon Engine modal dialogue is currently visible.
+    pub show_about: bool,
     /// Optional status notification message spans with text color.
     pub status_spans: Option<&'a [(String, Color)]>,
 }
@@ -86,6 +92,7 @@ impl IrisEditorOverlay {
             active_menu: None,
             dropdown_items: Vec::new(),
             dropdown_rect: None,
+            about_targets: None,
             screen_width: 1920.0,
             screen_height: 1080.0,
             is_visible: true,
@@ -108,6 +115,7 @@ impl IrisEditorOverlay {
         self.command_list.clear();
         self.dropdown_items.clear();
         self.dropdown_rect = None;
+        self.about_targets = None;
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -180,12 +188,25 @@ impl IrisEditorOverlay {
             self.dropdown_rect = Some(dd_rect);
         }
 
+        // 4. If About Aeon Engine modal dialogue is active, build its centered card
+        if params.show_about {
+            let (about_id, targets) =
+                build_about_dialog(&mut self.tree, screen_width, screen_height, self.cursor_pos);
+            if let Some(root_id) = self.tree.root() {
+                let _ = self.tree.add_child(root_id, about_id);
+            }
+            self.about_targets = Some(targets);
+        }
+
         // Populate DrawCommandList from resolved layout nodes
         self.populate_draw_commands(root);
     }
 
     /// Returns true if the given coordinate is over the menubar, status bar, or active dropdown.
     pub fn is_point_over_overlay(&self, point: Point) -> bool {
+        if self.about_targets.is_some() {
+            return true;
+        }
         if point.y <= Self::MENUBAR_HEIGHT {
             return true;
         }
@@ -205,6 +226,54 @@ impl IrisEditorOverlay {
     /// Intercepts and processes window mouse input and cursor movement events.
     pub fn handle_event(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
         let mut result = IrisOverlayEventResult::default();
+
+        // 0. If About modal is active, intercept clicks and escape key with highest priority
+        if let Some(ref targets) = self.about_targets {
+            match event {
+                WindowEvent::KeyboardInput {
+                    event:
+                        winit::event::KeyEvent {
+                            physical_key: winit::keyboard::PhysicalKey::Code(key),
+                            state: ElementState::Pressed,
+                            ..
+                        },
+                    ..
+                } => {
+                    if *key == winit::keyboard::KeyCode::Escape {
+                        result.close_about = true;
+                        result.consumed = true;
+                        return result;
+                    }
+                }
+                WindowEvent::MouseInput {
+                    state: ElementState::Pressed,
+                    button: WinitMouseButton::Left,
+                    ..
+                } => {
+                    let click_point = self.cursor_pos;
+                    if targets.header_close_rect.contains_point(click_point)
+                        || targets.bottom_close_rect.contains_point(click_point)
+                    {
+                        result.close_about = true;
+                        result.consumed = true;
+                        return result;
+                    }
+                    if targets.link_rect.contains_point(click_point) {
+                        about::open_url("https://mozilla.org/MPL/2.0/");
+                        result.consumed = true;
+                        return result;
+                    }
+                    if !targets.dialog_rect.contains_point(click_point) {
+                        result.close_about = true;
+                        result.consumed = true;
+                        return result;
+                    }
+                    result.consumed = true;
+                    return result;
+                }
+                _ => {}
+            }
+        }
 
         match event {
             WindowEvent::CursorMoved { position, .. } => {

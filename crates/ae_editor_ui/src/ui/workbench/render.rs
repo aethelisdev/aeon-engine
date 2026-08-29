@@ -4,7 +4,6 @@
 use crate::ui::dialogs;
 use crate::ui::docking;
 use crate::ui::iris_bridge::{self, IrisEditorOverlay};
-use crate::ui::menubar;
 use crate::ui::preferences;
 use crate::ui::types::EngineUiAction;
 use crate::ui::workbench::state::EngineUi;
@@ -118,7 +117,6 @@ impl EngineUi {
 
         // Destructure self fields to allow split borrows in the closure
         let show_preferences = &mut self.show_preferences;
-        let show_about = &mut self.show_about;
         let _should_save_scene = &mut self.should_save_scene;
         let _should_load_scene = &mut self.should_load_scene;
         let preferences_tab = &mut self.preferences_tab;
@@ -257,7 +255,6 @@ impl EngineUi {
             // Top-Level Modal Dialogs & Floating Overlays
             let mut collected_rects = ui_rects_collector.borrow_mut();
             dialogs::draw_dialogs(&ctx, is_loading_assets, &mut collected_rects);
-            menubar::help::draw_about_dialog(&ctx, show_about, &mut collected_rects);
 
             // Asset Browser Modals (New Folder, Rename, Delete confirmation)
             if let Some(rect) = crate::ui::panels::assets::file_ops::draw_file_operations_dialogs(
@@ -299,7 +296,17 @@ impl EngineUi {
         self.state
             .handle_platform_output(window, full_output.platform_output);
 
-        if self
+        if let Some(ref targets) = self.iris_overlay.about_targets {
+            let p = self.iris_overlay.cursor_pos;
+            if targets.header_close_rect.contains_point(p)
+                || targets.bottom_close_rect.contains_point(p)
+                || targets.link_rect.contains_point(p)
+            {
+                window.set_cursor(winit::window::CursorIcon::Pointer);
+            } else {
+                window.set_cursor(winit::window::CursorIcon::Default);
+            }
+        } else if self
             .iris_overlay
             .is_point_over_overlay(self.iris_overlay.cursor_pos)
         {
@@ -380,6 +387,7 @@ impl EngineUi {
                     layout_state: &self.layout_state,
                     can_undo: !undo_stack.is_empty(),
                     can_redo: !redo_stack.is_empty(),
+                    show_about: self.show_about,
                     status_spans: iris_spans.as_deref(),
                 });
             self.iris_overlay.render(
