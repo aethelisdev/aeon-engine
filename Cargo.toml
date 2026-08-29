@@ -15,3 +15,10 @@ members = [
     "crates/ae_engine",
 ]
 resolver = "2"
+
+[patch.crates-io]
+wgpu = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }
+wgpu-core = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }
+wgpu-hal = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }
+wgpu-types = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }
+naga = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }
