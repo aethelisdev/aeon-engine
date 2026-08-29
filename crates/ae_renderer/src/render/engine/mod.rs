@@ -5,8 +5,10 @@
 //!
 
 pub mod frame;
+pub mod iris_pass;
 pub mod skinning;
 pub mod state;
 
 pub use frame::*;
+pub use iris_pass::*;
 pub use state::*;

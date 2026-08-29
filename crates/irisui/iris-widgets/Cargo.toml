@@ -1,0 +1,11 @@
+[package]
+name = "iris-widgets"
+description = "Standard widget set and game-engine editor components for Iris UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+iris-core = { workspace = true }
+iris-layout = { workspace = true }
+thiserror = { workspace = true }

@@ -21,6 +21,7 @@ ae_core = { path = "../ae_core" }
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_texture = { path = "../ae_texture" }
 ae_animation = { path = "../ae_animation" }
+irisui = { workspace = true }
 
 
 

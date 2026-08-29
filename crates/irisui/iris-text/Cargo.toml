@@ -1,0 +1,15 @@
+[package]
+name = "iris-text"
+description = "GPU typography, font shaping, and glyph caching engine for Iris UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+iris-core = { workspace = true }
+cosmic-text = { workspace = true }
+glyphon = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }

@@ -1,0 +1,12 @@
+[package]
+name = "iris-layout"
+description = "Taffy-based layout engine adapter and caching subsystem for Iris UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+iris-core = { workspace = true }
+taffy = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }

@@ -1,0 +1,13 @@
+[package]
+name = "iris-dock"
+description = "Binary Split-Tree Docking and multi-pane management engine for Iris UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+iris-core.workspace = true
+slotmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

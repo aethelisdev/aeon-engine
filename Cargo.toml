@@ -13,8 +13,46 @@ members = [
     "crates/ae_animation",
     "crates/ae_uidesign",
     "crates/ae_engine",
+    "crates/irisui/iris-core",
+    "crates/irisui/iris-dock",
+    "crates/irisui/iris-layout",
+    "crates/irisui/iris-text",
+    "crates/irisui/iris-wgpu",
+    "crates/irisui/iris-widgets",
+    "crates/irisui/irisui",
 ]
+default-members = ["crates/ae_engine"]
 resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+
+[workspace.dependencies]
+iris-core = { path = "crates/irisui/iris-core" }
+iris-dock = { path = "crates/irisui/iris-dock" }
+iris-layout = { path = "crates/irisui/iris-layout" }
+iris-text = { path = "crates/irisui/iris-text" }
+iris-wgpu = { path = "crates/irisui/iris-wgpu" }
+iris-widgets = { path = "crates/irisui/iris-widgets" }
+irisui = { path = "crates/irisui/irisui" }
+
+slotmap = { version = "1.1.1", features = ["serde"] }
+bitflags = "2.8"
+bytemuck = { version = "1.21.0", features = ["derive"] }
+glam = "0.33.2"
+thiserror = "2.0.12"
+log = "0.4.33"
+env_logger = "0.11"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+taffy = "0.7.5"
+cosmic-text = "0.19.0"
+glyphon = "0.12.0"
+winit = { version = "0.30.9", features = ["rwh_06"] }
+pollster = "0.4"
+wgpu = { version = "30.0.1" }
 
 [patch.crates-io]
 wgpu = { git = "https://github.com/aethelisdev/aeongpu.git", branch = "aeon-v30" }

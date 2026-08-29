@@ -4,7 +4,7 @@ use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 
 /// Renders the "View" menu category under the top menu bar.
 /// Exposes toggles for screen layout adjustments, tool panel visibility, and layout reset.
-pub(super) fn draw_view_menu(ui: &mut egui::Ui, layout_state: &mut PanelLayoutState) {
+pub fn draw_view_menu(ui: &mut egui::Ui, layout_state: &mut PanelLayoutState) {
     ui.menu_button("View", |ui| {
         ui.set_width(super::MENU_ITEM_WIDTH);
 

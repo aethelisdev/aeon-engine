@@ -3,6 +3,7 @@
 /// Command enum representing all possible UI-driven actions.
 /// Each variant is dispatched from UI panels (Inspector, Hierarchy, Menu)
 /// and consumed by the engine loop to modify ECS, scene, or editor state.
+#[derive(Clone, Debug)]
 pub enum EngineUiAction {
     SpawnModel(ae_renderer::asset::AssetHandle),
     SpawnModelAt(ae_renderer::asset::AssetHandle, [f32; 3]),

@@ -5,12 +5,13 @@ use egui_wgpu::{Renderer, ScreenDescriptor};
 use egui_winit::State;
 use winit::{event::WindowEvent, window::Window};
 
+pub mod iris_bridge;
+pub mod panel_layout;
 pub mod panels;
 
 mod dialogs;
 mod docking;
-mod menubar;
-pub mod panel_layout;
+pub mod menubar;
 mod preferences;
 mod status_bar;
 mod style;
@@ -18,6 +19,8 @@ mod types;
 mod viewport_hud;
 
 // Re-exports
+pub use iris_bridge::IrisEditorOverlay;
+pub use menubar::*;
 pub use panel_layout::{PanelId, PanelLayoutState};
 pub use panels::hierarchy::{HierarchyCache, HierarchyRow};
 pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
@@ -145,6 +148,10 @@ pub struct EngineUi {
     pub asset_browser: crate::ui::panels::assets::AssetBrowserState,
     /// Persistent 2D UI Designer canvas state (aspect ratio, zoom, pan, grid snap).
     pub ui_designer_state: crate::ui::panels::UiDesignerState,
+    /// Pending UI actions queued from window event dispatchers.
+    pub pending_actions: Vec<EngineUiAction>,
+    /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
+    pub iris_overlay: IrisEditorOverlay,
 }
 
 impl EngineUi {
@@ -177,10 +184,14 @@ impl EngineUi {
             egui_wgpu::RendererOptions::default(),
         );
 
+        let iris_overlay = IrisEditorOverlay::new(device, output_color_format);
+
         Self {
             context,
             state,
             renderer,
+            iris_overlay,
+            pending_actions: Vec::new(),
             selected_entity: None,
             status_message: None,
             inspector_euler: [0.0; 3],
@@ -311,14 +322,43 @@ impl EngineUi {
         }
     }
 
-    /// Forwards winit window events to egui for input processing.
+    /// Forwards winit window events to egui and Iris UI for input processing.
     pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
+        let iris_res = self.iris_overlay.handle_event(event);
+        if let Some(act) = iris_res.ui_action {
+            self.pending_actions.push(act);
+        }
+        if let Some(panel) = iris_res.toggle_panel {
+            self.layout_state.activate_or_open(panel);
+        }
+        if iris_res.reset_layout {
+            self.layout_state.reset_to_default();
+        }
+        if iris_res.open_preferences {
+            self.show_preferences = true;
+        }
+        if iris_res.open_about {
+            self.show_about = true;
+        }
+        if iris_res.consumed {
+            window.set_cursor(winit::window::CursorIcon::Default);
+            return true;
+        }
+
         let response = self.state.on_window_event(window, event);
         response.consumed
     }
 
     /// Returns true if the point is over any UI panel, floating modal dialog, or outside the 3D viewport.
     pub fn is_point_over_ui_rects(&self, pos: egui::Pos2) -> bool {
+        if pos.y <= IrisEditorOverlay::MENUBAR_HEIGHT
+            || self
+                .iris_overlay
+                .is_point_over_overlay(irisui::prelude::Point::new(pos.x, pos.y))
+        {
+            return true;
+        }
+
         // 1. Outside 3D viewport -> 100% over an editor UI panel (Hierarchy, Inspector, Assets, Menus, etc.)
         if !self.last_viewport_rect.contains(pos) {
             return true;
@@ -356,6 +396,7 @@ impl EngineUi {
         let shaders = params.shaders;
         let enabled_modules = params.enabled_modules;
         let ui_actions = params.ui_actions;
+        ui_actions.append(&mut self.pending_actions);
 
         let alpha = 0.08f32;
         self.smoothed_fps = alpha * fps + (1.0 - alpha) * self.smoothed_fps;
@@ -596,6 +637,13 @@ impl EngineUi {
 
         self.state
             .handle_platform_output(window, full_output.platform_output);
+
+        if self
+            .iris_overlay
+            .is_point_over_overlay(self.iris_overlay.cursor_pos)
+        {
+            window.set_cursor(winit::window::CursorIcon::Default);
+        }
         let clipped_primitives = self
             .context
             .tessellate(full_output.shapes, full_output.pixels_per_point);
@@ -641,6 +689,25 @@ impl EngineUi {
         }
         for id in &full_output.textures_delta.free {
             self.renderer.free_texture(id);
+        }
+
+        // 4. Iris UI Overlay Render Pass (Menubar and active SDF UI overlays)
+        let win_size = window.inner_size();
+        if win_size.width > 0 && win_size.height > 0 {
+            self.iris_overlay.update_menu_bar(
+                win_size.width as f32,
+                *mode == ae_core::modules::EngineMode::Edit,
+                &self.layout_state,
+                !undo_stack.is_empty(),
+                !redo_stack.is_empty(),
+            );
+            self.iris_overlay.render(
+                device,
+                queue,
+                encoder,
+                window_surface_view,
+                (win_size.width, win_size.height),
+            );
         }
 
         // Check if viewport size changed to trigger re-registration on next frame

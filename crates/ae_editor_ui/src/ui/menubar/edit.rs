@@ -3,7 +3,7 @@
 /// Renders the "Edit" menu category under the top menu bar.
 /// Exposes historical commands (Undo/Redo command stacks) and triggers the
 /// global preferences modal dialog visibility state.
-pub(super) fn draw_edit_menu(
+pub fn draw_edit_menu(
     ui: &mut egui::Ui,
     undo_stack: &[ae_editor::undo_redo::Command],
     redo_stack: &[ae_editor::undo_redo::Command],

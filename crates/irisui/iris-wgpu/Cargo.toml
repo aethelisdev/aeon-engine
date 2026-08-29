@@ -1,0 +1,14 @@
+[package]
+name = "iris-wgpu"
+description = "GPU SDF rendering pipeline and shader backend for Iris UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+iris-core = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+glam = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

@@ -3,7 +3,7 @@
 /// Renders the "File" menu category under the top menu bar.
 /// Exposes commands for starting new projects, importing/saving scenes, and initiating
 /// safe engine shutdown via the Event Bus UI actions pipeline.
-pub(super) fn draw_file_menu(ui: &mut egui::Ui, ui_actions: &mut Vec<crate::ui::EngineUiAction>) {
+pub fn draw_file_menu(ui: &mut egui::Ui, ui_actions: &mut Vec<crate::ui::EngineUiAction>) {
     ui.menu_button("File", |ui| {
         ui.set_width(super::MENU_ITEM_WIDTH);
 
