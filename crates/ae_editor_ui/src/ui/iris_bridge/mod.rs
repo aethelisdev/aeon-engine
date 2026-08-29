@@ -7,6 +7,7 @@
 //! event routing, and `MenuBarBuilder`/`DropdownMenuBuilder` rendering directly on top of the editor frame.
 
 pub mod menubar;
+pub mod status_bar;
 pub mod types;
 
 pub use types::{ActiveMenu, DropdownAction, IrisOverlayEventResult};
@@ -17,7 +18,7 @@ use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSection, TextSystem};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
-/// Central state manager governing Iris UI editor overlays and menu bar rendering.
+/// Central state manager governing Iris UI editor overlays, menu bar, and status bar rendering.
 pub struct IrisEditorOverlay {
     /// Generational UI tree storing active overlay widget nodes.
     pub tree: UiTree,
@@ -41,15 +42,36 @@ pub struct IrisEditorOverlay {
     pub dropdown_rect: Option<Rect>,
     /// Last measured screen width.
     pub screen_width: f32,
-    /// Whether the top menu bar is visible.
+    /// Last measured screen height.
+    pub screen_height: f32,
+    /// Whether the editor overlays are visible.
     pub is_visible: bool,
     /// Target surface texture format.
     pub target_format: wgpu::TextureFormat,
 }
 
+/// Parameters required for reconstructing and resolving all Iris UI editor overlays.
+pub struct OverlayUpdateParams<'a> {
+    /// Screen dimensions (width, height) in physical pixels.
+    pub dimensions: (f32, f32),
+    /// Whether the editor is currently in Edit mode.
+    pub is_editing: bool,
+    /// Active panel layout state reference.
+    pub layout_state: &'a PanelLayoutState,
+    /// Whether undo is available.
+    pub can_undo: bool,
+    /// Whether redo is available.
+    pub can_redo: bool,
+    /// Optional status notification message spans with text color.
+    pub status_spans: Option<&'a [(String, Color)]>,
+}
+
 impl IrisEditorOverlay {
     /// Height of the top menubar panel in physical pixels (matching egui geometry).
     pub const MENUBAR_HEIGHT: f32 = menubar::MENUBAR_HEIGHT;
+
+    /// Height of the bottom status bar in physical pixels.
+    pub const STATUS_BAR_HEIGHT: f32 = status_bar::STATUS_BAR_HEIGHT;
 
     /// Initializes a new Iris UI editor overlay pipeline for the specified surface format.
     pub fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
@@ -65,21 +87,17 @@ impl IrisEditorOverlay {
             dropdown_items: Vec::new(),
             dropdown_rect: None,
             screen_width: 1920.0,
+            screen_height: 1080.0,
             is_visible: true,
             target_format,
         }
     }
 
-    /// Reconstructs and resolves layout for the top menu bar and any active dropdown.
-    pub fn update_menu_bar(
-        &mut self,
-        screen_width: f32,
-        is_editing: bool,
-        layout_state: &PanelLayoutState,
-        can_undo: bool,
-        can_redo: bool,
-    ) {
+    /// Reconstructs and resolves layout for the top menu bar, active dropdown, and bottom status bar.
+    pub fn update_overlays(&mut self, params: OverlayUpdateParams<'_>) {
+        let (screen_width, screen_height) = params.dimensions;
         self.screen_width = screen_width;
+        self.screen_height = screen_height;
 
         if !self.is_visible {
             self.command_list.clear();
@@ -100,30 +118,42 @@ impl IrisEditorOverlay {
             root_node.set_style(
                 Style::new()
                     .flex_col()
+                    .justify_content(JustifyContent::SpaceBetween)
                     .width(screen_width)
-                    .height(Self::MENUBAR_HEIGHT),
+                    .height(screen_height),
             );
         }
 
+        // 1. Top MenuBar
         let menu_bar_id = menubar::build_top_menu_bar(
             &mut self.tree,
             screen_width,
             self.cursor_pos,
             self.active_menu,
-            is_editing,
+            params.is_editing,
         );
         let _ = self.tree.add_child(root, menu_bar_id);
+
+        // 2. Bottom Diagnostics & Status Bar
+        let status_bar_id = status_bar::build_bottom_status_bar(
+            &mut self.tree,
+            status_bar::StatusBarParams {
+                screen_width,
+                screen_height,
+                status_spans: params.status_spans,
+            },
+        );
+        let _ = self.tree.add_child(root, status_bar_id);
 
         // Pre-measure all text nodes to populate intrinsic content_size
         self.measure_tree_text(root);
 
-        // Compute Taffy layout for the top menu bar
-        let _ = self.layout_engine.compute_layout(
-            &mut self.tree,
-            Size::new(screen_width, Self::MENUBAR_HEIGHT),
-        );
+        // Compute Taffy layout for top menu bar
+        let _ = self
+            .layout_engine
+            .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
 
-        // If a dropdown menu is open, build and position its floating popup
+        // 3. If a dropdown menu is open, build and position its floating popup
         if let Some(active) = self.active_menu {
             let anchor_x = match active {
                 ActiveMenu::File => 6.0,
@@ -138,9 +168,9 @@ impl IrisEditorOverlay {
                 active,
                 anchor_x,
                 self.cursor_pos,
-                layout_state,
-                can_undo,
-                can_redo,
+                params.layout_state,
+                params.can_undo,
+                params.can_redo,
             );
 
             if let Some(root_id) = self.tree.root() {
@@ -154,9 +184,14 @@ impl IrisEditorOverlay {
         self.populate_draw_commands(root);
     }
 
-    /// Returns true if the given coordinate is over the menubar or active dropdown.
+    /// Returns true if the given coordinate is over the menubar, status bar, or active dropdown.
     pub fn is_point_over_overlay(&self, point: Point) -> bool {
         if point.y <= Self::MENUBAR_HEIGHT {
+            return true;
+        }
+        if self.screen_height > Self::STATUS_BAR_HEIGHT
+            && point.y >= (self.screen_height - Self::STATUS_BAR_HEIGHT)
+        {
             return true;
         }
         if let Some(dd_rect) = self.dropdown_rect
@@ -189,10 +224,6 @@ impl IrisEditorOverlay {
                     } else if self.cursor_pos.x >= 186.0 && self.cursor_pos.x < 226.0 {
                         self.active_menu = Some(ActiveMenu::Help);
                     }
-                }
-
-                if self.is_point_over_overlay(self.cursor_pos) {
-                    result.consumed = true;
                 }
             }
             WindowEvent::MouseInput {

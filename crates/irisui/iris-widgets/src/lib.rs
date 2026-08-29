@@ -16,6 +16,7 @@ pub mod input;
 pub mod inspector;
 pub mod menubar;
 pub mod panel;
+pub mod status_bar;
 pub mod typography;
 
 pub use asset_card::{AssetCardBuilder, TreeItemBuilder};
@@ -26,6 +27,7 @@ pub use input::{
 pub use inspector::{ColorPickerBuilder, DropdownBuilder, PropertyRowBuilder};
 pub use menubar::{DropdownMenuBuilder, MenuBarBuilder};
 pub use panel::PanelBuilder;
+pub use status_bar::StatusBarBuilder;
 pub use typography::{LabelBuilder, SectionHeaderBuilder};
 
 #[cfg(test)]
@@ -141,5 +143,12 @@ mod tests {
         menu_bar.add_action_button("▶ Play", Color::GREEN, Color::WHITE, false);
         let menu_id = menu_bar.build();
         assert!(tree.get(menu_id).is_some());
+
+        let mut status_bar = StatusBarBuilder::new(&mut tree, 1920.0, 22.0);
+        status_bar.add_status_indicator("● Ready", Color::GREEN);
+        status_bar.add_diagnostics_pill("60 FPS", Color::WHITE, Color::hex("#22c55e"));
+        status_bar.add_right_label("Aeon Engine v0.8.0", Color::hex("#646470"));
+        let status_id = status_bar.build();
+        assert!(tree.get(status_id).is_some());
     }
 }

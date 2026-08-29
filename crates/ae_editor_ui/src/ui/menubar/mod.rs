@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use crate::ui::EngineUi;
-use crate::ui::panel_layout::PanelLayoutState;
 
 pub mod edit;
 pub mod file;
@@ -11,33 +9,6 @@ pub mod view;
 pub use edit::*;
 pub use file::*;
 pub use view::*;
-
-/// Parameters for drawing the top menu bar.
-pub struct MenuBarDrawParams<'a> {
-    pub show_preferences: &'a mut bool,
-    pub show_about: &'a mut bool,
-    pub layout_state: &'a mut PanelLayoutState,
-    pub undo_stack: &'a [ae_editor::undo_redo::Command],
-    pub redo_stack: &'a [ae_editor::undo_redo::Command],
-    pub is_editing: bool,
-    pub ui_actions: &'a mut Vec<crate::ui::EngineUiAction>,
-}
-
-impl EngineUi {
-    /// Renders the clean top menu bar panel of the engine editor.
-    /// Manages file options, history/preferences configuration, view settings,
-    /// modular panel anchors, and fast engine edit/play status toggling.
-    pub(super) fn draw_menu_bar(ui: &mut egui::Ui, _params: MenuBarDrawParams<'_>) {
-        egui::Panel::top("top_menu_bar")
-            .exact_size(crate::ui::IrisEditorOverlay::MENUBAR_HEIGHT)
-            .frame(
-                egui::Frame::new()
-                    .fill(egui::Color32::from_rgb(15, 15, 20))
-                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 48, 60))),
-            )
-            .show(ui, |_ui| {});
-    }
-}
 
 /// Standard menu item width for all top menu bar dropdowns.
 pub const MENU_ITEM_WIDTH: f32 = 205.0;

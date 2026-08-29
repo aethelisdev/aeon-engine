@@ -4,16 +4,19 @@
 //! Inspector UI Sub-module — Handles component editing, transform drag inputs, appearance, audio, and physics inspection.
 //!
 
+pub mod add_component;
 pub mod animation;
 pub mod appearance;
 pub mod audio;
 pub mod behavior;
 pub mod dynamic_reflection;
+pub mod header;
 pub mod lod;
 pub mod panel;
 pub mod parenting;
 pub mod physics;
 pub mod registry;
+pub mod transform;
 pub mod ui_components;
 pub mod widgets;
 

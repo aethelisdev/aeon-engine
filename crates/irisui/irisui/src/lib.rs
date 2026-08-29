@@ -59,7 +59,7 @@ pub mod prelude {
     pub use iris_widgets::{
         AssetCardBuilder, ButtonBuilder, CheckboxBuilder, ColorPickerBuilder, DragValueBuilder,
         DropdownBuilder, DropdownMenuBuilder, LabelBuilder, MenuBarBuilder, PanelBuilder,
-        PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, TabBuilder, TextInputBuilder,
-        TextInputState, TreeItemBuilder,
+        PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder,
+        TextInputBuilder, TextInputState, TreeItemBuilder,
     };
 }

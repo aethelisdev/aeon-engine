@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-use super::widgets::{
-    draw_inspector_card, draw_vec3_row, euler_deg_to_quaternion, quaternion_to_euler_deg,
-};
+
+//! # Entity Component Inspector Panel
+//!
+//! Orchestrates the inspection, reflection, modification, and prefab export of selected ECS entities.
+
+use super::add_component::draw_add_component_button;
+use super::header::draw_entity_header;
+use super::transform::{TransformCardParams, draw_transform_card};
+use super::widgets::{draw_inspector_card, quaternion_to_euler_deg};
 use crate::ui::{EngineUi, EngineUiAction};
 
 /// Parameters for drawing the Inspector panel contents.
@@ -57,447 +63,37 @@ impl EngineUi {
                             }
                         }
 
+                        // 1. Entity Name & Status Header
                         if let Ok(name) = world.get::<&ae_core::ecs::Name>(entity) {
-                            let mut temp_name = ctx.data_mut(|d| {
-                                d.get_temp::<String>(egui::Id::new(("name_edit", entity)))
-                                    .unwrap_or_else(|| name.0.clone())
-                            });
-
-                            egui::Frame::NONE
-                                .fill(egui::Color32::from_rgb(18, 20, 26))
-                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(38, 42, 54)))
-                                .corner_radius(egui::CornerRadius::same(5))
-                                .inner_margin(egui::Margin::symmetric(8, 6))
-                                .show(ui, |ui| {
-                                    ui.set_width(ui.available_width());
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            egui::RichText::new("🏷 Name:")
-                                                .strong()
-                                                .size(11.5)
-                                                .color(egui::Color32::from_gray(180)),
-                                        );
-                                        let old_name = name.0.clone();
-
-                                        let text_width = ui.available_width()
-                                            - if world
-                                                .get::<&ae_core::ecs::TransformDirty>(entity)
-                                                .is_ok()
-                                            {
-                                                60.0
-                                            } else {
-                                                0.0
-                                            };
-                                        let resp = ui.add_sized(
-                                            egui::vec2(text_width.max(60.0), 19.0),
-                                            egui::TextEdit::singleline(&mut temp_name),
-                                        );
-                                        if editor_state.focus_rename {
-                                            resp.request_focus();
-                                        }
-
-                                        if world
-                                            .get::<&ae_core::ecs::TransformDirty>(entity)
-                                            .is_ok()
-                                        {
-                                            ui.label(
-                                                egui::RichText::new("[DIRTY]")
-                                                    .color(egui::Color32::RED)
-                                                    .strong(),
-                                            )
-                                            .on_hover_text("Awaiting physics update...");
-                                        }
-                                        if resp.changed() && !selection_changed {
-                                            ctx.data_mut(|d| {
-                                                d.insert_temp(
-                                                    egui::Id::new(("name_edit", entity)),
-                                                    temp_name.clone(),
-                                                )
-                                            });
-                                        }
-
-                                        if resp.lost_focus() && !selection_changed && temp_name != old_name {
-                                            ui_actions.push(EngineUiAction::ModifyName(
-                                                entity, old_name, temp_name,
-                                            ));
-                                            ctx.data_mut(|d| {
-                                                d.remove::<String>(egui::Id::new((
-                                                    "name_edit",
-                                                    entity,
-                                                )))
-                                            });
-                                        }
-                                    });
-                                });
-                            ui.add_space(4.0);
-                        }
-
-                        {
-                            draw_inspector_card(
+                            draw_entity_header(
                                 ui,
-                                "Transform",
-                                "📐",
-                                egui::Color32::WHITE,
-                                false,
-                                |ui| {
-                                    ui.push_id(("transform_scope", entity), |ui| {
-                                        egui::Grid::new(("transform_grid", entity))
-                                            .num_columns(2)
-                                            .spacing([4.0, 4.0])
-                                            .show(ui, |ui| {
-                                                // 1. Position Row
-                                                let mut px = 0.0;
-                                                let mut py = 0.0;
-                                                let mut pz = 0.0;
-                                                if let Ok(pos) = world.get::<&ae_core::ecs::Position>(entity) {
-                                                    px = pos.x;
-                                                    py = pos.y;
-                                                    pz = pos.z;
-                                                }
-
-                                                let mut pos_arr = [px, py, pz];
-                                                let (
-                                                    changed,
-                                                    drag_started,
-                                                    drag_stopped,
-                                                    is_dragging,
-                                                    reset_clicked,
-                                                ) = draw_vec3_row(
-                                                    ui,
-                                                    "Position",
-                                                    &mut pos_arr,
-                                                    0.05,
-                                                    3,
-                                                    0.0,
-                                                );
-                                                px = pos_arr[0];
-                                                py = pos_arr[1];
-                                                pz = pos_arr[2];
-
-                                                if reset_clicked && !selection_changed {
-                                                    for &ent in &editor_state.selected_entities {
-                                                        if let Ok(old) = world.get::<&ae_core::ecs::Position>(ent) {
-                                                            ui_actions.push(EngineUiAction::ModifyPosition(
-                                                                ent,
-                                                                *old,
-                                                                ae_core::ecs::Position {
-                                                                    x: 0.0,
-                                                                    y: 0.0,
-                                                                    z: 0.0,
-                                                                },
-                                                            ));
-                                                        }
-                                                    }
-                                                }
-                                                let pos_id = egui::Id::new(("drag_pos", entity));
-                                                if drag_started && !selection_changed
-                                                    && let Ok(old) = world.get::<&ae_core::ecs::Position>(entity) {
-                                                        ctx.data_mut(|d| {
-                                                            d.insert_temp(
-                                                                pos_id,
-                                                                [old.x, old.y, old.z],
-                                                            )
-                                                        });
-                                                    }
-                                                if changed && !selection_changed {
-                                                    let new_p = ae_core::ecs::Position {
-                                                        x: px,
-                                                        y: py,
-                                                        z: pz,
-                                                    };
-                                                    if is_dragging {
-                                                        ui_actions.push(
-                                                            EngineUiAction::LiveUpdatePosition(
-                                                                entity, new_p,
-                                                            ),
-                                                        );
-                                                    } else {
-                                                        let old_pos = ctx
-                                                            .data(|d| d.get_temp::<[f32; 3]>(pos_id))
-                                                            .map(|arr| ae_core::ecs::Position {
-                                                                x: arr[0],
-                                                                y: arr[1],
-                                                                z: arr[2],
-                                                            })
-                                                            .unwrap_or_else(|| {
-                                                                if let Ok(p) = world.get::<&ae_core::ecs::Position>(entity) { *p } else { new_p }
-                                                            });
-                                                        ui_actions.push(
-                                                            EngineUiAction::ModifyPosition(
-                                                                entity, old_pos, new_p,
-                                                            ),
-                                                        );
-                                                    }
-                                                }
-                                                if drag_stopped && !selection_changed {
-                                                    let new_p = ae_core::ecs::Position {
-                                                        x: px,
-                                                        y: py,
-                                                        z: pz,
-                                                    };
-                                                    if let Some(arr) =
-                                                        ctx.data(|d| d.get_temp::<[f32; 3]>(pos_id))
-                                                    {
-                                                        let old_pos = ae_core::ecs::Position {
-                                                            x: arr[0],
-                                                            y: arr[1],
-                                                            z: arr[2],
-                                                        };
-                                                        if old_pos.x != new_p.x
-                                                            || old_pos.y != new_p.y
-                                                            || old_pos.z != new_p.z
-                                                        {
-                                                            ui_actions.push(
-                                                                EngineUiAction::ModifyPosition(
-                                                                    entity, old_pos, new_p,
-                                                                ),
-                                                            );
-                                                        }
-                                                    }
-                                                    ctx.data_mut(|d| {
-                                                        d.remove::<[f32; 3]>(pos_id)
-                                                    });
-                                                }
-
-                                                // 2. Rotation Row
-                                                if !selection_changed
-                                                    && !changed
-                                                    && !is_dragging
-                                                    && let Ok(rot) = world.get::<&ae_core::ecs::Rotation>(entity)
-                                                {
-                                                    *inspector_euler = quaternion_to_euler_deg(*rot);
-                                                }
-                                                let mut rx = inspector_euler[0];
-                                                let mut ry = inspector_euler[1];
-                                                let mut rz = inspector_euler[2];
-
-                                                let mut rot_arr = [rx, ry, rz];
-                                                let (
-                                                    rot_changed,
-                                                    rot_drag_started,
-                                                    rot_drag_stopped,
-                                                    rot_is_dragging,
-                                                    rot_reset_clicked,
-                                                ) = draw_vec3_row(
-                                                    ui,
-                                                    "Rotation",
-                                                    &mut rot_arr,
-                                                    1.0,
-                                                    1,
-                                                    0.0,
-                                                );
-                                                rx = rot_arr[0];
-                                                ry = rot_arr[1];
-                                                rz = rot_arr[2];
-
-                                                if rot_reset_clicked && !selection_changed {
-                                                    for &ent in &editor_state.selected_entities {
-                                                        if let Ok(old) = world.get::<&ae_core::ecs::Rotation>(ent) {
-                                                            ui_actions.push(EngineUiAction::ModifyRotation(
-                                                                ent,
-                                                                *old,
-                                                                ae_core::ecs::Rotation::identity(),
-                                                            ));
-                                                        }
-                                                    }
-                                                }
-                                                let rot_id = egui::Id::new(("drag_rot", entity));
-                                                if rot_drag_started && !selection_changed
-                                                    && let Ok(old) = world.get::<&ae_core::ecs::Rotation>(entity) {
-                                                        ctx.data_mut(|d| {
-                                                            d.insert_temp(
-                                                                rot_id,
-                                                                [old.x, old.y, old.z, old.w],
-                                                            )
-                                                        });
-                                                    }
-                                                if rot_changed && !selection_changed {
-                                                    inspector_euler[0] = rx;
-                                                    inspector_euler[1] = ry;
-                                                    inspector_euler[2] = rz;
-
-                                                    let new_r = euler_deg_to_quaternion(
-                                                        inspector_euler[0],
-                                                        inspector_euler[1],
-                                                        inspector_euler[2],
-                                                    );
-                                                    if rot_is_dragging {
-                                                        ui_actions.push(
-                                                            EngineUiAction::LiveUpdateRotation(
-                                                                entity, new_r,
-                                                            ),
-                                                        );
-                                                    } else {
-                                                        let old_rot = ctx
-                                                            .data(|d| d.get_temp::<[f32; 4]>(rot_id))
-                                                            .map(|arr| ae_core::ecs::Rotation {
-                                                                x: arr[0],
-                                                                y: arr[1],
-                                                                z: arr[2],
-                                                                w: arr[3],
-                                                            })
-                                                            .unwrap_or_else(|| {
-                                                                if let Ok(r) = world.get::<&ae_core::ecs::Rotation>(entity) { *r } else { new_r }
-                                                            });
-                                                        ui_actions.push(
-                                                            EngineUiAction::ModifyRotation(
-                                                                entity, old_rot, new_r,
-                                                            ),
-                                                        );
-                                                    }
-                                                }
-                                                if rot_drag_stopped && !selection_changed {
-                                                    let new_r = euler_deg_to_quaternion(
-                                                        inspector_euler[0],
-                                                        inspector_euler[1],
-                                                        inspector_euler[2],
-                                                    );
-                                                    if let Some(arr) =
-                                                        ctx.data(|d| d.get_temp::<[f32; 4]>(rot_id))
-                                                    {
-                                                        let old_rot = ae_core::ecs::Rotation {
-                                                            x: arr[0],
-                                                            y: arr[1],
-                                                            z: arr[2],
-                                                            w: arr[3],
-                                                        };
-                                                        if old_rot.x != new_r.x
-                                                            || old_rot.y != new_r.y
-                                                            || old_rot.z != new_r.z
-                                                            || old_rot.w != new_r.w
-                                                        {
-                                                            ui_actions.push(
-                                                                EngineUiAction::ModifyRotation(
-                                                                    entity, old_rot, new_r,
-                                                                ),
-                                                            );
-                                                        }
-                                                    }
-                                                    ctx.data_mut(|d| {
-                                                        d.remove::<[f32; 4]>(rot_id)
-                                                    });
-                                                }
-
-                                                // 3. Scale Row
-                                                let mut sx = 1.0;
-                                                let mut sy = 1.0;
-                                                let mut sz = 1.0;
-                                                if let Ok(scale) = world.get::<&ae_core::ecs::Scale>(entity) {
-                                                    sx = scale.x;
-                                                    sy = scale.y;
-                                                    sz = scale.z;
-                                                }
-
-                                                let mut scale_arr = [sx, sy, sz];
-                                                let (
-                                                    scale_changed,
-                                                    scale_drag_started,
-                                                    scale_drag_stopped,
-                                                    scale_is_dragging,
-                                                    scale_reset_clicked,
-                                                ) = draw_vec3_row(
-                                                    ui,
-                                                    "Scale",
-                                                    &mut scale_arr,
-                                                    0.01,
-                                                    3,
-                                                    1.0,
-                                                );
-                                                sx = scale_arr[0];
-                                                sy = scale_arr[1];
-                                                sz = scale_arr[2];
-
-                                                if scale_reset_clicked && !selection_changed {
-                                                    for &ent in &editor_state.selected_entities {
-                                                        if let Ok(old) = world.get::<&ae_core::ecs::Scale>(ent) {
-                                                            ui_actions.push(EngineUiAction::ModifyScale(
-                                                                ent,
-                                                                *old,
-                                                                ae_core::ecs::Scale {
-                                                                    x: 1.0,
-                                                                    y: 1.0,
-                                                                    z: 1.0,
-                                                                },
-                                                            ));
-                                                        }
-                                                    }
-                                                }
-                                                let scale_id = egui::Id::new(("drag_scale", entity));
-                                                if scale_drag_started && !selection_changed
-                                                    && let Ok(old) = world.get::<&ae_core::ecs::Scale>(entity) {
-                                                        ctx.data_mut(|d| {
-                                                            d.insert_temp(
-                                                                scale_id,
-                                                                [old.x, old.y, old.z],
-                                                            )
-                                                        });
-                                                    }
-                                                if scale_changed && !selection_changed {
-                                                    let new_s = ae_core::ecs::Scale {
-                                                        x: sx,
-                                                        y: sy,
-                                                        z: sz,
-                                                    };
-                                                    if scale_is_dragging {
-                                                        ui_actions.push(
-                                                            EngineUiAction::LiveUpdateScale(
-                                                                entity, new_s,
-                                                            ),
-                                                        );
-                                                    } else {
-                                                        let old_scale = ctx
-                                                            .data(|d| d.get_temp::<[f32; 3]>(scale_id))
-                                                            .map(|arr| ae_core::ecs::Scale {
-                                                                x: arr[0],
-                                                                y: arr[1],
-                                                                z: arr[2],
-                                                            })
-                                                            .unwrap_or_else(|| {
-                                                                if let Ok(s) = world.get::<&ae_core::ecs::Scale>(entity) { *s } else { new_s }
-                                                            });
-                                                        ui_actions.push(
-                                                            EngineUiAction::ModifyScale(
-                                                                entity, old_scale, new_s,
-                                                            ),
-                                                        );
-                                                    }
-                                                }
-                                                if scale_drag_stopped && !selection_changed {
-                                                    let new_s = ae_core::ecs::Scale {
-                                                        x: sx,
-                                                        y: sy,
-                                                        z: sz,
-                                                    };
-                                                    if let Some(arr) =
-                                                        ctx.data(|d| d.get_temp::<[f32; 3]>(scale_id))
-                                                    {
-                                                        let old_scale = ae_core::ecs::Scale {
-                                                            x: arr[0],
-                                                            y: arr[1],
-                                                            z: arr[2],
-                                                        };
-                                                        if old_scale.x != new_s.x
-                                                            || old_scale.y != new_s.y
-                                                            || old_scale.z != new_s.z
-                                                        {
-                                                            ui_actions.push(
-                                                                EngineUiAction::ModifyScale(
-                                                                    entity, old_scale, new_s,
-                                                                ),
-                                                            );
-                                                        }
-                                                    }
-                                                    ctx.data_mut(|d| {
-                                                        d.remove::<[f32; 3]>(scale_id)
-                                                    });
-                                                }
-                                            });
-                                    });
+                                &ctx,
+                                super::header::EntityHeaderParams {
+                                    world,
+                                    entity,
+                                    name: &name,
+                                    selection_changed,
+                                    focus_rename: editor_state.focus_rename,
+                                    ui_actions,
                                 },
                             );
                         }
 
-                        // --- DYNAMIC COMPONENT RENDERING VIA REGISTRY & REFLECTION ---
+                        // 2. Transform Card (Position, Rotation, Scale)
+                        draw_transform_card(
+                            ui,
+                            &ctx,
+                            TransformCardParams {
+                                world,
+                                entity,
+                                inspector_euler,
+                                selection_changed,
+                                editor_state,
+                                ui_actions,
+                            },
+                        );
+
+                        // 3. Dynamic Component Rendering Via Registry & Reflection
                         let mut ctx = super::registry::InspectorContext {
                             world,
                             entity,
@@ -512,7 +108,7 @@ impl EngineUi {
 
                         let mut rendered_component_types = std::collections::HashSet::new();
 
-                        // 1. Render specialized UI handlers from InspectorUiRegistry
+                        // 3a. Specialized UI handlers from InspectorUiRegistry
                         let ui_registry = super::registry::InspectorUiRegistry::global();
                         for handler in ui_registry.handlers() {
                             if handler.has_component(world, entity) {
@@ -521,7 +117,7 @@ impl EngineUi {
                             }
                         }
 
-                        // 2. Fallback: Automatically render any other component from ComponentRegistry using dynamic reflection!
+                        // 3b. Fallback: Automatically render via dynamic reflection
                         let comp_registry = ae_core::registry::ComponentRegistry::global();
                         for handler in comp_registry.handlers() {
                             let type_name = handler.type_name();
@@ -535,7 +131,7 @@ impl EngineUi {
                             }
                         }
 
-                        // --- MATERIAL / SUBMESH QUICK LINKS ---
+                        // 4. Material / Submesh Quick Links
                         if let Ok(model_id) = world.get::<&ae_core::ecs::ModelId>(entity) {
                             let submesh_count = models
                                 .get(model_id.0)
@@ -584,10 +180,10 @@ impl EngineUi {
                             );
                         }
 
-                        // --- BOTTOM ACTION BUTTONS ---
+                        // 5. Bottom Action Buttons (Add Component, Save as Prefab)
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
-                            Self::draw_add_component_button(ui, world, entity, ui_actions);
+                            draw_add_component_button(ui, world, entity, ui_actions);
                             if ui
                                 .button("💾 Save as Prefab")
                                 .on_hover_text(
@@ -619,69 +215,6 @@ impl EngineUi {
                     );
                 }
             });
-        });
-    }
-
-    /// Renders dynamic "Add Component" dropdown menu automatically categorized via InspectorUiRegistry & ComponentRegistry.
-    pub(super) fn draw_add_component_button(
-        ui: &mut egui::Ui,
-        world: &hecs::World,
-        entity: hecs::Entity,
-        ui_actions: &mut Vec<EngineUiAction>,
-    ) {
-        let ui_registry = super::registry::InspectorUiRegistry::global();
-        let grouped = ui_registry.grouped_by_category();
-        let mut handled_names = std::collections::HashSet::new();
-
-        ui.menu_button("➕ Add Component", |ui| {
-            for (category, handlers) in grouped {
-                for h in &handlers {
-                    handled_names.insert(h.component_name());
-                }
-
-                let available: Vec<_> = handlers
-                    .into_iter()
-                    .filter(|h| !h.has_component(world, entity))
-                    .collect();
-
-                if !available.is_empty() {
-                    ui.menu_button(category, |ui| {
-                        for handler in available {
-                            let (_, display_name) = handler.menu_category();
-                            let (_, icon, _) = handler.card_header();
-                            if ui.button(format!("{} {}", icon, display_name)).clicked() {
-                                handler.add_default_to_entity(world, entity, ui_actions);
-                                ui.close();
-                            }
-                        }
-                    });
-                }
-            }
-
-            // Fallback for custom / dynamically registered components from ComponentRegistry
-            let comp_registry = ae_core::registry::ComponentRegistry::global();
-            let dynamic_available: Vec<_> = comp_registry
-                .handlers()
-                .iter()
-                .filter(|h| {
-                    let name = h.type_name();
-                    !handled_names.contains(name)
-                        && !super::dynamic_reflection::is_internal_or_specialized(name)
-                        && !h.has_component(world, entity)
-                })
-                .collect();
-
-            if !dynamic_available.is_empty() {
-                ui.menu_button("Custom / Dynamic", |ui| {
-                    for handler in dynamic_available {
-                        let name = handler.type_name();
-                        if ui.button(format!("🧩 {}", name)).clicked() {
-                            ui_actions.push(EngineUiAction::AddComponent(entity, name));
-                            ui.close();
-                        }
-                    }
-                });
-            }
         });
     }
 }
