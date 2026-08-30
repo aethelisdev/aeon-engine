@@ -10,6 +10,7 @@ pub mod about;
 pub mod actions;
 pub mod events;
 pub mod hierarchy;
+pub mod inspector;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;

@@ -147,6 +147,24 @@ pub struct IrisEditorOverlay {
     pub hierarchy_is_search_focused: bool,
     /// Dispatched action queue for Scene Hierarchy panel interactions.
     pub hierarchy_actions: Vec<HierarchyAction>,
+    /// Cached interaction targets for Scene Inspector panel.
+    pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
+    /// Content area vertical scroll offset for Scene Inspector panel.
+    pub inspector_scroll_y: f32,
+    /// Whether `➕ Add Component` menu is open in Inspector.
+    pub inspector_is_add_menu_open: bool,
+    /// Currently open category submenu in Add Component menu.
+    pub inspector_active_submenu: Option<super::inspector::ComponentCategory>,
+    /// Currently open dropdown in Inspector.
+    pub inspector_active_dropdown: Option<super::inspector::InspectorDropdownId>,
+    /// Currently active number input editing state in Inspector: `(id, buffer)`.
+    pub inspector_active_number_input: Option<(super::inspector::InspectorNumberInputId, String)>,
+    /// Active continuous horizontal mouse drag state for Inspector numeric fields.
+    pub inspector_drag_number: Option<InspectorNumberDragState>,
+    /// Live entity rename text buffer if currently focused.
+    pub inspector_rename_buffer: Option<String>,
+    /// Dispatched action queue for Inspector panel interactions.
+    pub inspector_actions: Vec<super::inspector::InspectorAction>,
     /// Last recorded screen dimensions.
     pub last_dimensions: (f32, f32),
     /// Last recorded UI Zoom factor.
@@ -187,6 +205,91 @@ pub struct IrisEditorOverlay {
     pub target_format: wgpu::TextureFormat,
     /// Creation instant used for smooth sub-second continuous UI animations.
     pub start_time: std::time::Instant,
+}
+
+impl IrisEditorOverlay {
+    /// Evaluates the desired window cursor icon based on active dragging and hover states across overlays.
+    pub fn requested_cursor_icon(&self) -> winit::window::CursorIcon {
+        // 1. If actively dragging an Inspector numeric input, return EwResize (↔)
+        if self.inspector_drag_number.is_some() {
+            return winit::window::CursorIcon::EwResize;
+        }
+
+        let p = self.cursor_pos;
+
+        // 2. If hovering over any Inspector number input box, show EwResize (↔)
+        if let Some(ref targets) = self.inspector_targets {
+            if targets
+                .number_inputs
+                .iter()
+                .any(|(_, r, _, _, _)| r.contains_point(p))
+            {
+                return winit::window::CursorIcon::EwResize;
+            }
+            if targets
+                .dropdowns
+                .iter()
+                .any(|(_, r, _)| r.contains_point(p))
+                || targets
+                    .component_delete_btns
+                    .iter()
+                    .any(|(_, r)| r.contains_point(p))
+                || targets.add_component_btn_rect.contains_point(p)
+                || targets.save_prefab_btn_rect.contains_point(p)
+                || targets
+                    .add_palette_btn_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets
+                    .clear_palette_btn_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets.preset_btn_rect.is_some_and(|r| r.contains_point(p))
+                || targets
+                    .checkboxes
+                    .iter()
+                    .any(|(_, r, _)| r.contains_point(p))
+                || targets
+                    .palette_swatches
+                    .iter()
+                    .any(|(_, r, _)| r.contains_point(p))
+            {
+                return winit::window::CursorIcon::Pointer;
+            }
+            if let Some(popup_r) = targets.active_dropdown_popup_rect
+                && popup_r.contains_point(p)
+            {
+                return winit::window::CursorIcon::Pointer;
+            }
+        }
+
+        // 3. Hierarchy interactive items
+        if let Some(ref targets) = self.hierarchy_targets
+            && (targets.add_btn_rect.contains_point(p)
+                || targets.delete_btn_rect.is_some_and(|r| r.contains_point(p))
+                || targets
+                    .search_clear_btn_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets
+                    .entity_rows
+                    .iter()
+                    .any(|(_, row_r, _, _)| row_r.contains_point(p)))
+        {
+            return winit::window::CursorIcon::Pointer;
+        }
+
+        // 4. Viewport HUD interactive items
+        if let Some(ref hud) = self.viewport_hud_targets
+            && (hud.buttons.iter().any(|(_, r)| r.contains_point(p))
+                || hud
+                    .dropdown_triggers
+                    .iter()
+                    .any(|(_, r)| r.contains_point(p))
+                || hud.billboard_icons.iter().any(|(_, r)| r.contains_point(p)))
+        {
+            return winit::window::CursorIcon::Pointer;
+        }
+
+        winit::window::CursorIcon::Default
+    }
 }
 
 /// Parameters required for reconstructing and resolving all Iris UI editor overlays.
@@ -245,6 +348,14 @@ pub struct OverlayUpdateParams<'a> {
     pub stats_panel_rect: Option<Rect>,
     /// Bounding rectangle allocated for the Scene Hierarchy panel, if active.
     pub hierarchy_panel_rect: Option<Rect>,
+    /// Bounding rectangle allocated for the Scene Inspector panel, if active.
+    pub inspector_panel_rect: Option<Rect>,
+    /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
+    pub inspector_euler: &'a [f32; 3],
+    /// Hex color string cache for object appearance editing (e.g. `"#6699cc"`).
+    pub inspector_color_hex: &'a str,
+    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
+    pub saved_swatches: &'a [[f32; 4]],
     /// Whether the viewport coordinate grid is enabled.
     pub grid_enabled: bool,
     /// Smoothed FPS rate.
@@ -271,4 +382,23 @@ pub struct OverlayUpdateParams<'a> {
     pub gpu_backend: &'a str,
     /// Count of active entities in the ECS world.
     pub active_entities_count: usize,
+}
+
+/// Active horizontal mouse drag state for interactive Inspector numeric inputs.
+#[derive(Debug, Clone, Copy)]
+pub struct InspectorNumberDragState {
+    /// Target numeric input identifier.
+    pub id: super::inspector::InspectorNumberInputId,
+    /// Starting X coordinate of the cursor when mouse was pressed.
+    pub start_x: f32,
+    /// Starting value of the numeric field before dragging began.
+    pub start_val: f32,
+    /// Lower clamp bound.
+    pub min_val: f32,
+    /// Upper clamp bound.
+    pub max_val: f32,
+    /// Value delta per dragged pixel.
+    pub sensitivity: f32,
+    /// Whether mouse has dragged beyond threshold.
+    pub has_dragged: bool,
 }

@@ -58,6 +58,15 @@ impl IrisEditorOverlay {
             hierarchy_active_context_menu: None,
             hierarchy_is_search_focused: false,
             hierarchy_actions: Vec::new(),
+            inspector_targets: None,
+            inspector_scroll_y: 0.0,
+            inspector_is_add_menu_open: false,
+            inspector_active_submenu: None,
+            inspector_active_dropdown: None,
+            inspector_active_number_input: None,
+            inspector_drag_number: None,
+            inspector_rename_buffer: None,
+            inspector_actions: Vec::new(),
             last_dimensions: (0.0, 0.0),
             last_zoom_factor: 1.0,
             needs_layout_rebuild: false,
@@ -105,6 +114,7 @@ impl IrisEditorOverlay {
         self.preferences_targets = None;
         self.viewport_hud_targets = None;
         self.stats_targets = None;
+        self.inspector_targets = None;
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -243,6 +253,46 @@ impl IrisEditorOverlay {
             self.hierarchy_targets = Some(hier_targets);
         } else {
             self.hierarchy_targets = None;
+        }
+
+        // 5b. If Scene Inspector panel is active, build Scene Inspector panel (docked)
+        if let Some(inspector_rect) = params.inspector_panel_rect
+            && inspector_rect.width > 20.0
+            && inspector_rect.height > 20.0
+        {
+            let num_input_ref = self
+                .inspector_active_number_input
+                .as_ref()
+                .map(|(id, s)| (*id, s.as_str()));
+            let rename_buf_ref = self.inspector_rename_buffer.as_deref();
+
+            let insp_params = super::inspector::InspectorPanelParams {
+                panel_rect: inspector_rect,
+                world: params.world,
+                selected_entity: params.selected_entity,
+                inspector_euler: params.inspector_euler,
+                inspector_color_hex: params.inspector_color_hex,
+                saved_swatches: params.saved_swatches,
+                cursor_pos: self.cursor_pos,
+                scroll_y: self.inspector_scroll_y,
+                active_dropdown: self.inspector_active_dropdown,
+                active_submenu: self.inspector_active_submenu,
+                is_add_menu_open: self.inspector_is_add_menu_open,
+                active_number_input: num_input_ref,
+                active_rename_buffer: rename_buf_ref,
+                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+            };
+
+            let mut insp_targets = super::inspector::InspectorPanelTargets::default();
+            super::inspector::build_inspector_panel(
+                &mut self.tree,
+                root,
+                &insp_params,
+                &mut insp_targets,
+            );
+            self.inspector_targets = Some(insp_targets);
+        } else {
+            self.inspector_targets = None;
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked panels):

@@ -36,6 +36,38 @@ pub fn handle_add_component(ctx: &mut UiContext, entity: hecs::Entity, type_name
             );
             return;
         }
+        "Collider" => {
+            let _ = ctx
+                .world
+                .insert_one(entity, ae_core::ecs::Collider::default());
+            if ctx.world.get::<&ae_core::ecs::RigidBody>(entity).is_err() {
+                let _ = ctx
+                    .world
+                    .insert_one(entity, ae_core::ecs::RigidBody::default());
+            }
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!(
+                "➕ Added component 'Collider' & 'RigidBody' to entity {:?}",
+                entity
+            );
+            return;
+        }
+        "RigidBody" => {
+            let _ = ctx
+                .world
+                .insert_one(entity, ae_core::ecs::RigidBody::default());
+            if ctx.world.get::<&ae_core::ecs::Collider>(entity).is_err() {
+                let _ = ctx
+                    .world
+                    .insert_one(entity, ae_core::ecs::Collider::default());
+            }
+            let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+            log::info!(
+                "➕ Added component 'RigidBody' & 'Collider' to entity {:?}",
+                entity
+            );
+            return;
+        }
         _ => {}
     }
 

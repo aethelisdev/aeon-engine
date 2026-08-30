@@ -106,12 +106,18 @@ impl IrisEditorOverlay {
                 .name
                 .as_deref()
                 .map(|n| {
-                    n.contains("Popup")
+                    (n.contains("Popup")
                         || n.contains("AddMenu")
                         || n.contains("Submenu")
+                        || n.contains("SubItem")
                         || n.contains("ContextMenu")
-                        || n.contains("Dropdown")
+                        || n.starts_with("DropdownMenu")
+                        || n.starts_with("DropdownItem")
+                        || n.starts_with("DropdownIcon")
+                        || n.starts_with("DropdownShortcut")
                         || n.contains("Modal")
+                        || n.contains("About"))
+                        && !n.contains("Combo")
                 })
                 .unwrap_or(false);
 
@@ -212,6 +218,17 @@ impl IrisEditorOverlay {
                 active_popups.push(r);
             }
             if let Some((_, r, _, _)) = hier.active_context_menu {
+                active_popups.push(r);
+            }
+        }
+        if let Some(ref insp) = self.inspector_targets {
+            if let Some(r) = insp.active_add_menu_rect {
+                active_popups.push(r);
+            }
+            if let Some(r) = insp.active_submenu_rect {
+                active_popups.push(r);
+            }
+            if let Some(r) = insp.active_dropdown_popup_rect {
                 active_popups.push(r);
             }
         }

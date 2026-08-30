@@ -51,7 +51,7 @@ impl PanelId {
             Self::Hierarchy => "🏗️",
             Self::Stats => "📊",
             Self::Inspector => "⚙️",
-            Self::MaterialEditor => "🎨",
+            Self::MaterialEditor => "🌐",
             Self::Assets => "📂",
             Self::Console => "📜",
             Self::AnimationTimeline => "🎬",

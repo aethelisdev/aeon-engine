@@ -2,59 +2,16 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 use crate::editor_state::EditorState;
 use crate::input::{InputManager, KeyCode};
-use ae_core::ecs::{PlayerTag, Velocity};
-use cgmath::Rotation3;
+use ae_core::ecs::PlayerTag;
 
 /// Fixed-timestep update loop for Play Mode.
-/// Reads WASD keyboard input to drive player entity velocity,
-/// then advances the ECS physics simulation by one fixed time step.
+/// Advances the ECS transform hierarchy and velocity integration by one fixed time step.
+/// Player character movement is exclusively driven by `CharacterController` in the physics system.
 pub fn fixed_update_play_mode(
-    input: &InputManager,
+    _input: &InputManager,
     ecs: &mut ae_core::ecs::EcsManager,
     fixed_time_step: f32,
 ) {
-    let mut player_vel_z = 0.0;
-    let mut player_vel_x = 0.0;
-    let move_speed = 5.0;
-
-    if input.is_key_pressed(KeyCode::KeyW) {
-        player_vel_z -= move_speed;
-    }
-    if input.is_key_pressed(KeyCode::KeyS) {
-        player_vel_z += move_speed;
-    }
-    if input.is_key_pressed(KeyCode::KeyA) {
-        player_vel_x -= move_speed;
-    }
-    if input.is_key_pressed(KeyCode::KeyD) {
-        player_vel_x += move_speed;
-    }
-
-    for (ent, (_tag, vel)) in ecs
-        .world
-        .query::<(hecs::Entity, (&PlayerTag, &mut Velocity))>()
-        .iter()
-    {
-        if ecs
-            .world
-            .get::<&ae_core::ecs::CharacterController>(ent)
-            .is_ok()
-        {
-            continue;
-        }
-        vel.x = player_vel_x;
-        vel.z = player_vel_z;
-        if player_vel_x.abs() > 0.001 || player_vel_z.abs() > 0.001 {
-            let target_yaw = player_vel_x.atan2(player_vel_z);
-            let rot_quat = cgmath::Quaternion::from_angle_y(cgmath::Rad(target_yaw));
-            if let Ok(mut r) = ecs.world.get::<&mut ae_core::ecs::Rotation>(ent) {
-                r.x = rot_quat.v.x;
-                r.y = rot_quat.v.y;
-                r.z = rot_quat.v.z;
-                r.w = rot_quat.s;
-            }
-        }
-    }
     ecs.update(fixed_time_step);
 }
 

@@ -11,13 +11,8 @@ use egui::{Color32, CornerRadius, Rect, Stroke};
 pub struct EditorTabViewer<'a> {
     pub world: &'a hecs::World,
     pub selected_entity: &'a mut Option<hecs::Entity>,
-    pub last_selected_entity: &'a mut Option<hecs::Entity>,
-    pub inspector_euler: &'a mut [f32; 3],
-    pub inspector_color_hex: &'a mut String,
-    pub saved_swatches: &'a mut Vec<[f32; 4]>,
     pub is_editing: bool,
     pub ui_actions: &'a mut Vec<EngineUiAction>,
-    pub editor_state: &'a ae_editor::editor_state::EditorState,
     pub camera: &'a ae_renderer::camera::Camera,
     pub asset_browser: &'a mut crate::ui::panels::assets::AssetBrowserState,
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
@@ -29,6 +24,7 @@ pub struct EditorTabViewer<'a> {
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub stats_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub hierarchy_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub inspector_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
@@ -122,23 +118,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 ui.allocate_space(rect.size());
             }
             PanelId::Inspector => {
-                EngineUi::draw_inspector_content(
-                    ui,
-                    crate::ui::panels::inspector::panel::InspectorContentParams {
-                        world: self.world,
-                        selected_entity: self.selected_entity,
-                        last_selected_entity: self.last_selected_entity,
-                        inspector_euler: self.inspector_euler,
-                        inspector_color_hex: self.inspector_color_hex,
-                        saved_swatches: self.saved_swatches,
-                        is_editing: self.is_editing,
-                        ui_actions: self.ui_actions,
-                        editor_state: self.editor_state,
-                        camera: self.camera,
-                        models: self.models,
-                        textures: self.textures,
-                    },
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.inspector_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::MaterialEditor => {
                 EngineUi::draw_material_editor_content(

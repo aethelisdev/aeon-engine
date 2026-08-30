@@ -439,7 +439,7 @@ fn build_submenu(
 
         let row_id = tree.create_node();
         if let Some(node) = tree.get_mut(row_id) {
-            node.set_name(format!("SubItem_{}", label));
+            node.set_name(format!("SubmenuItem_{}", label));
             node.computed_rect = item_rect;
             node.style = Style::new().background(bg).border_radius(4.0);
         }
@@ -447,7 +447,7 @@ fn build_submenu(
 
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
-            node.set_name("SubItemIcon");
+            node.set_name("SubmenuItemIcon");
             node.set_text(icon);
             node.font_size = 11.0;
             node.line_height = item_h;
@@ -457,7 +457,7 @@ fn build_submenu(
 
         let lbl_id = tree.create_node();
         if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("SubItemLabel");
+            node.set_name("SubmenuItemLabel");
             node.set_text(label);
             node.font_size = 11.0;
             node.line_height = item_h;

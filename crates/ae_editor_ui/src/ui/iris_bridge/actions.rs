@@ -23,4 +23,9 @@ impl IrisEditorOverlay {
     pub fn take_hierarchy_actions(&mut self) -> Vec<HierarchyAction> {
         std::mem::take(&mut self.hierarchy_actions)
     }
+
+    /// Consumes and returns all queued Scene Inspector panel actions.
+    pub fn take_inspector_actions(&mut self) -> Vec<super::inspector::InspectorAction> {
+        std::mem::take(&mut self.inspector_actions)
+    }
 }

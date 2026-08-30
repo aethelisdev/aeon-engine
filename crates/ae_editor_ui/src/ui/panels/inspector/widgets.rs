@@ -134,7 +134,7 @@ pub(super) fn quaternion_to_euler_deg(q: ae_core::ecs::Rotation) -> [f32; 3] {
 }
 
 /// Converts Euler angles in degrees (X, Y, Z) to normalized quaternion rotation.
-pub(super) fn euler_deg_to_quaternion(
+pub(crate) fn euler_deg_to_quaternion(
     rx_deg: f32,
     ry_deg: f32,
     rz_deg: f32,

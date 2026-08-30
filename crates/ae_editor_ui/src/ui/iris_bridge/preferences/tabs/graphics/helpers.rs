@@ -265,7 +265,7 @@ pub fn build_dropdown_row(
 
     let lbl_id = tree.create_node();
     if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name("DropdownLabel");
+        node.set_name("ComboboxLabel");
         node.set_text(p.label);
         node.font_size = 11.5;
         node.line_height = 24.0;
@@ -279,7 +279,7 @@ pub fn build_dropdown_row(
 
     let combo_id = tree.create_node();
     if let Some(node) = tree.get_mut(combo_id) {
-        node.set_name("DropdownCombo");
+        node.set_name("ComboboxCard");
         node.computed_rect = combo_rect;
         let (bg, border_color) = if p.is_open {
             (
@@ -306,7 +306,7 @@ pub fn build_dropdown_row(
 
     let txt_id = tree.create_node();
     if let Some(node) = tree.get_mut(txt_id) {
-        node.set_name("DropdownComboText");
+        node.set_name("ComboboxText");
         let arrow = if p.is_open { "▲" } else { "▼" };
         node.set_text(format!("{}  {}", p.selected_text, arrow));
         node.font_size = 11.5;

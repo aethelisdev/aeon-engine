@@ -178,7 +178,10 @@ impl EngineUi {
                 is_hovering_interactive = true;
             }
 
-            if is_hovering_interactive {
+            let requested_cursor = self.iris_overlay.requested_cursor_icon();
+            if requested_cursor != winit::window::CursorIcon::Default {
+                window.set_cursor(requested_cursor);
+            } else if is_hovering_interactive {
                 window.set_cursor(winit::window::CursorIcon::Pointer);
             } else {
                 window.set_cursor(winit::window::CursorIcon::Default);
