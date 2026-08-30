@@ -163,6 +163,14 @@ pub struct IrisEditorOverlay {
     pub inspector_drag_number: Option<InspectorNumberDragState>,
     /// Live entity rename text buffer if currently focused.
     pub inspector_rename_buffer: Option<String>,
+    /// Live HEX color text input editing buffer if currently focused.
+    pub inspector_hex_buffer: Option<String>,
+    /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
+    pub inspector_hsv: [f32; 3],
+    /// Active mouse dragging mode on the 2D HSV color picker.
+    pub inspector_color_drag_mode: Option<InspectorColorDragMode>,
+    /// Whether the floating Color Picker popup is currently open.
+    pub inspector_is_color_picker_open: bool,
     /// Dispatched action queue for Inspector panel interactions.
     pub inspector_actions: Vec<super::inspector::InspectorAction>,
     /// Last recorded screen dimensions.
@@ -187,6 +195,8 @@ pub struct IrisEditorOverlay {
     pub preferences_dropdown: Option<PreferencesDropdownId>,
     /// Currently active slider drag descriptor: `(slider_id, track_rect, min_val, max_val)`.
     pub active_slider_drag: Option<(PreferencesSliderId, Rect, f32, f32)>,
+    /// Dispatched action queue for Preferences dialog interactions.
+    pub preferences_actions: Vec<super::preferences::PreferencesAction>,
     /// Live typing input buffer for the new folder modal.
     pub new_folder_buffer: String,
     /// Live typing input buffer for the rename modal.
@@ -205,20 +215,38 @@ pub struct IrisEditorOverlay {
     pub target_format: wgpu::TextureFormat,
     /// Creation instant used for smooth sub-second continuous UI animations.
     pub start_time: std::time::Instant,
+    /// Active search filter text query in Viewport Add Object popup.
+    pub viewport_search_query: String,
+    /// Whether search input box is focused in Viewport Add Object popup.
+    pub viewport_is_search_focused: bool,
 }
 
 impl IrisEditorOverlay {
-    /// Evaluates the desired window cursor icon based on active dragging and hover states across overlays.
+    /// Determines the appropriate mouse cursor icon based on current hover targets.
     pub fn requested_cursor_icon(&self) -> winit::window::CursorIcon {
-        // 1. If actively dragging an Inspector numeric input, return EwResize (↔)
+        let p = self.cursor_pos;
         if self.inspector_drag_number.is_some() {
             return winit::window::CursorIcon::EwResize;
         }
-
-        let p = self.cursor_pos;
-
-        // 2. If hovering over any Inspector number input box, show EwResize (↔)
+        if let Some(mode) = self.inspector_color_drag_mode {
+            return match mode {
+                InspectorColorDragMode::SaturationValue => winit::window::CursorIcon::Crosshair,
+                InspectorColorDragMode::Hue => winit::window::CursorIcon::NsResize,
+            };
+        }
         if let Some(ref targets) = self.inspector_targets {
+            if targets
+                .color_picker_sv_box_rect
+                .is_some_and(|r| r.contains_point(p))
+            {
+                return winit::window::CursorIcon::Crosshair;
+            }
+            if targets
+                .color_picker_hue_bar_rect
+                .is_some_and(|r| r.contains_point(p))
+            {
+                return winit::window::CursorIcon::NsResize;
+            }
             if targets
                 .number_inputs
                 .iter()
@@ -237,6 +265,10 @@ impl IrisEditorOverlay {
                 || targets.add_component_btn_rect.contains_point(p)
                 || targets.save_prefab_btn_rect.contains_point(p)
                 || targets
+                    .color_swatch_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets.hex_input_rect.is_some_and(|r| r.contains_point(p))
+                || targets
                     .add_palette_btn_rect
                     .is_some_and(|r| r.contains_point(p))
                 || targets
@@ -251,11 +283,19 @@ impl IrisEditorOverlay {
                     .palette_swatches
                     .iter()
                     .any(|(_, r, _)| r.contains_point(p))
+                || targets
+                    .color_picker_close_btn_rect
+                    .is_some_and(|r| r.contains_point(p))
             {
                 return winit::window::CursorIcon::Pointer;
             }
             if let Some(popup_r) = targets.active_dropdown_popup_rect
                 && popup_r.contains_point(p)
+            {
+                return winit::window::CursorIcon::Pointer;
+            }
+            if let Some(picker_r) = targets.color_picker_popup_rect
+                && picker_r.contains_point(p)
             {
                 return winit::window::CursorIcon::Pointer;
             }
@@ -401,4 +441,13 @@ pub struct InspectorNumberDragState {
     pub sensitivity: f32,
     /// Whether mouse has dragged beyond threshold.
     pub has_dragged: bool,
+}
+
+/// Dragging mode on the 2D HSV color picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InspectorColorDragMode {
+    /// Dragging on the 2D Saturation-Value box.
+    SaturationValue,
+    /// Dragging on the vertical Rainbow Hue spectrum bar.
+    Hue,
 }

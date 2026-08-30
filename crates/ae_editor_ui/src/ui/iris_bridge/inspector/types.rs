@@ -168,8 +168,14 @@ pub enum InspectorAction {
     SetNumberValue(InspectorNumberInputId, f32),
     /// Applies an object color change from the Appearance card.
     SetObjectColor(Color),
+    /// Focuses the HEX color text input for typing.
+    FocusHexInput,
+    /// Toggles the floating Color Picker popup.
+    ToggleColorPicker,
     /// Adds the current object color into the user's saved palette.
     AddColorToPalette(Color),
+    /// Clears custom user-saved swatches from the palette.
+    ClearCustomPalette,
     /// Removes a color swatch from the saved palette by index.
     RemoveColorFromPalette(usize),
     /// Selects a dropdown combo option.
@@ -244,10 +250,16 @@ pub struct InspectorPanelParams<'a> {
     pub active_submenu: Option<ComponentCategory>,
     /// Whether the top-level Add Component menu is open.
     pub is_add_menu_open: bool,
+    /// Whether the floating Color Picker popup is open.
+    pub is_color_picker_open: bool,
     /// Active numeric input field and its text editing buffer: `(FieldId, BufferText)`.
     pub active_number_input: Option<(InspectorNumberInputId, &'a str)>,
     /// Active entity rename text buffer if currently being edited.
     pub active_rename_buffer: Option<&'a str>,
+    /// Active HEX color text input editing buffer (e.g. `"#ffffff"`).
+    pub active_hex_buffer: Option<&'a str>,
+    /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
+    pub inspector_hsv: [f32; 3],
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
 }
@@ -273,6 +285,14 @@ pub struct InspectorPanelTargets {
     pub clear_palette_btn_rect: Option<Rect>,
     /// Palette color swatch pills: `(SwatchIndex, Rect, Color)`.
     pub palette_swatches: Vec<(usize, Rect, Color)>,
+    /// Floating Color Picker popup bounding box.
+    pub color_picker_popup_rect: Option<Rect>,
+    /// Floating Color Picker close `✖` button bounding box.
+    pub color_picker_close_btn_rect: Option<Rect>,
+    /// Floating Color Picker 2D Saturation-Value box bounding rect.
+    pub color_picker_sv_box_rect: Option<Rect>,
+    /// Floating Color Picker vertical Rainbow Hue bar bounding rect.
+    pub color_picker_hue_bar_rect: Option<Rect>,
     /// Physics material preset reset button hit-test rect.
     pub preset_btn_rect: Option<Rect>,
     /// Dropdown trigger combo boxes: `(DropdownId, Rect, CurrentSelectedIndex)`.

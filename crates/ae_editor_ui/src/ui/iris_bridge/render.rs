@@ -107,6 +107,8 @@ impl IrisEditorOverlay {
                 .as_deref()
                 .map(|n| {
                     (n.contains("Popup")
+                        || n.contains("ColorPicker")
+                        || n.contains("Picker")
                         || n.contains("AddMenu")
                         || n.contains("Submenu")
                         || n.contains("SubItem")
@@ -229,6 +231,9 @@ impl IrisEditorOverlay {
                 active_popups.push(r);
             }
             if let Some(r) = insp.active_dropdown_popup_rect {
+                active_popups.push(r);
+            }
+            if let Some(r) = insp.color_picker_popup_rect {
                 active_popups.push(r);
             }
         }

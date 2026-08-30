@@ -66,6 +66,10 @@ impl IrisEditorOverlay {
             inspector_active_number_input: None,
             inspector_drag_number: None,
             inspector_rename_buffer: None,
+            inspector_hex_buffer: None,
+            inspector_hsv: [180.0, 0.8, 0.9],
+            inspector_color_drag_mode: None,
+            inspector_is_color_picker_open: false,
             inspector_actions: Vec::new(),
             last_dimensions: (0.0, 0.0),
             last_zoom_factor: 1.0,
@@ -78,6 +82,9 @@ impl IrisEditorOverlay {
             preferences_scroll_y: 0.0,
             preferences_dropdown: None,
             active_slider_drag: None,
+            preferences_actions: Vec::new(),
+            viewport_search_query: String::new(),
+            viewport_is_search_focused: false,
             new_folder_buffer: String::new(),
             rename_buffer: String::new(),
             collapsed_sections: HashSet::new(),
@@ -265,6 +272,7 @@ impl IrisEditorOverlay {
                 .as_ref()
                 .map(|(id, s)| (*id, s.as_str()));
             let rename_buf_ref = self.inspector_rename_buffer.as_deref();
+            let hex_buf_ref = self.inspector_hex_buffer.as_deref();
 
             let insp_params = super::inspector::InspectorPanelParams {
                 panel_rect: inspector_rect,
@@ -278,8 +286,11 @@ impl IrisEditorOverlay {
                 active_dropdown: self.inspector_active_dropdown,
                 active_submenu: self.inspector_active_submenu,
                 is_add_menu_open: self.inspector_is_add_menu_open,
+                is_color_picker_open: self.inspector_is_color_picker_open,
                 active_number_input: num_input_ref,
                 active_rename_buffer: rename_buf_ref,
+                active_hex_buffer: hex_buf_ref,
+                inspector_hsv: self.inspector_hsv,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 

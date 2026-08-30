@@ -38,7 +38,22 @@ impl EngineUi {
                     self.handle_set_object_color(world, ui_actions, col);
                 }
                 InspectorAction::AddColorToPalette(col) => {
-                    self.saved_swatches.push([col.r, col.g, col.b, col.a]);
+                    if let Some(entity) = self.selected_entity {
+                        let arr = if col == irisui::prelude::Color::TRANSPARENT {
+                            world
+                                .get::<&ae_core::ecs::Color>(entity)
+                                .map(|c| [c.r, c.g, c.b, c.a])
+                                .unwrap_or([0.60, 0.75, 0.95, 1.0])
+                        } else {
+                            [col.r, col.g, col.b, col.a]
+                        };
+                        if !self.saved_swatches.contains(&arr) && self.saved_swatches.len() < 28 {
+                            self.saved_swatches.push(arr);
+                        }
+                    }
+                }
+                InspectorAction::ClearCustomPalette => {
+                    self.saved_swatches.clear();
                 }
                 InspectorAction::RemoveColorFromPalette(idx) => {
                     if idx < self.saved_swatches.len() {
@@ -184,6 +199,8 @@ impl EngineUi {
             let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
             let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
             self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
+            let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
+            self.iris_overlay.inspector_hsv = [h, s, v];
             ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
         }
     }

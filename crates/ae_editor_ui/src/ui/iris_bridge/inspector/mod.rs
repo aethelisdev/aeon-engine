@@ -8,6 +8,7 @@
 
 pub mod add_menu;
 pub mod appearance;
+pub mod color_picker_popup;
 pub mod components;
 pub mod dropdown_popup;
 pub mod events;
@@ -126,6 +127,9 @@ pub fn build_inspector_panel(
 
     // 9. Floating ComboBox Dropdown Popup (Z-Order Topmost)
     dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params, targets);
+
+    // 10. Floating Color Picker Popup (Z-Order Topmost)
+    color_picker_popup::build_color_picker_popup(tree, parent_id, params, targets);
 }
 
 /// Renders the empty state placeholder when no entity is selected in the editor.

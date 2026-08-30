@@ -13,6 +13,7 @@
 pub mod asset_card;
 pub mod button;
 pub mod canvas;
+pub mod color_picker;
 pub mod input;
 pub mod inspector;
 pub mod menubar;
@@ -23,6 +24,9 @@ pub mod typography;
 pub use asset_card::{AssetCardBuilder, TreeItemBuilder};
 pub use button::{ButtonBuilder, TabBuilder};
 pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
+pub use color_picker::{
+    HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, hsv_to_rgb, rgb_to_hsv,
+};
 pub use input::{
     CheckboxBuilder, DragValueBuilder, SliderBuilder, TextInputBuilder, TextInputState,
 };
