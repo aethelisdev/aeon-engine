@@ -93,10 +93,6 @@ pub struct EngineUi {
     pub displayed_fps: f32,
     /// The instant of the last FPS counter refresh.
     pub last_fps_update: std::time::Instant,
-    /// Pre-built flat snapshot of the scene hierarchy, rebuilt only when entity count changes.
-    /// Avoids O(N × k) random hecs lookups every frame; replaced by a single O(N) pass
-    /// on change, then zero-cost virtual-scrolled drawing on subsequent frames.
-    pub hierarchy_cache: crate::ui::panels::hierarchy::HierarchyCache,
     /// Egui texture ID of the registered WGPU viewport texture.
     pub viewport_texture_id: Option<egui::TextureId>,
     /// Last registered viewport texture width.
@@ -209,7 +205,6 @@ impl EngineUi {
             render_vertices: 0,
             gpu_adapter_name: String::new(),
             gpu_backend: String::new(),
-            hierarchy_cache: crate::ui::panels::hierarchy::HierarchyCache::new(),
             smoothed_fps: 60.0,
             displayed_fps: 60.0,
             last_fps_update: std::time::Instant::now(),

@@ -10,8 +10,6 @@ use egui::{Color32, CornerRadius, Rect, Stroke};
 /// Tab viewer context struct binding engine runtime state to `egui_dock`.
 pub struct EditorTabViewer<'a> {
     pub world: &'a hecs::World,
-    pub hierarchy_cache: &'a mut crate::ui::panels::hierarchy::HierarchyCache,
-    pub hierarchy_search_query: &'a mut String,
     pub selected_entity: &'a mut Option<hecs::Entity>,
     pub last_selected_entity: &'a mut Option<hecs::Entity>,
     pub inspector_euler: &'a mut [f32; 3],
@@ -30,6 +28,7 @@ pub struct EditorTabViewer<'a> {
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub stats_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub hierarchy_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
@@ -113,15 +112,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 }
             }
             PanelId::Hierarchy => {
-                EngineUi::draw_hierarchy_content(
-                    ui,
-                    self.world,
-                    self.hierarchy_cache,
-                    self.hierarchy_search_query,
-                    self.selected_entity,
-                    self.is_editing,
-                    self.ui_actions,
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.hierarchy_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::Stats => {
                 let rect = ui.available_rect_before_wrap();

@@ -126,7 +126,6 @@ impl EngineUi {
         let is_loading_assets = self.is_loading_assets;
         let status_message = &mut self.status_message;
         let layout_state = &mut self.layout_state;
-        let hierarchy_search_query = &mut self.hierarchy_search_query;
         let console_entries = &self.console_entries;
         let render_triangles = self.render_triangles;
         let render_vertices = self.render_vertices;
@@ -139,11 +138,11 @@ impl EngineUi {
         let gpu_pass_timings = self.gpu_pass_timings;
         let draw_call_stats = self.draw_call_stats;
         let vram_stats = self.vram_stats;
-        let hierarchy_cache = &mut self.hierarchy_cache;
         let ui_designer_state = &mut self.ui_designer_state;
 
         let viewport_rect = std::cell::Cell::new(egui::Rect::ZERO);
         let stats_rect_cell = std::cell::Cell::new(None);
+        let hierarchy_rect_cell = std::cell::Cell::new(None);
 
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
@@ -171,8 +170,6 @@ impl EngineUi {
             // 3. Central Tree Docking System (egui_dock - Tree-based split tab layout)
             let mut tab_viewer = docking::EditorTabViewer {
                 world,
-                hierarchy_cache,
-                hierarchy_search_query,
                 selected_entity,
                 last_selected_entity,
                 inspector_euler,
@@ -190,6 +187,7 @@ impl EngineUi {
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect,
                 stats_rect_out: &stats_rect_cell,
+                hierarchy_rect_out: &hierarchy_rect_cell,
                 enabled_modules,
                 ui_designer_state,
             };
@@ -611,6 +609,45 @@ impl EngineUi {
                 }
             }
 
+            for action in self.iris_overlay.take_hierarchy_actions() {
+                match action {
+                    iris_bridge::HierarchyAction::SelectEntity(ent) => {
+                        ui_actions.push(EngineUiAction::SelectEntity(ent));
+                    }
+                    iris_bridge::HierarchyAction::ToggleVisibility(ent) => {
+                        ui_actions.push(EngineUiAction::ToggleVisibility(ent));
+                    }
+                    iris_bridge::HierarchyAction::DeleteSelected => {
+                        ui_actions.push(EngineUiAction::DeleteSelected);
+                    }
+                    iris_bridge::HierarchyAction::SpawnShape(shape) => {
+                        ui_actions.push(EngineUiAction::SpawnShape(shape));
+                    }
+                    iris_bridge::HierarchyAction::SpawnUiElement(elem) => {
+                        ui_actions.push(EngineUiAction::SpawnUiElement(elem));
+                    }
+                    iris_bridge::HierarchyAction::OpenModelDialog => {
+                        ui_actions.push(EngineUiAction::OpenModelDialog);
+                    }
+                    iris_bridge::HierarchyAction::InstantiatePrefab(path) => {
+                        ui_actions.push(EngineUiAction::InstantiatePrefab(path));
+                    }
+                    iris_bridge::HierarchyAction::SpawnPhase1TestSandbox => {
+                        ui_actions.push(EngineUiAction::SpawnPhase1TestSandbox);
+                    }
+                    iris_bridge::HierarchyAction::StressTest(n) => {
+                        ui_actions.push(EngineUiAction::StressTest(n));
+                    }
+                    iris_bridge::HierarchyAction::AaaOpenWorldTest => {
+                        ui_actions.push(EngineUiAction::AaaOpenWorldTest);
+                    }
+                    iris_bridge::HierarchyAction::Explode => {
+                        ui_actions.push(EngineUiAction::Explode);
+                    }
+                    _ => {}
+                }
+            }
+
             if gs_changed {
                 ui_actions.push(EngineUiAction::UpdateGraphicsSettings(cur_gs.clone()));
             }
@@ -632,6 +669,10 @@ impl EngineUi {
             );
 
             let iris_stats_rect = stats_rect_cell
+                .get()
+                .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
+
+            let iris_hierarchy_rect = hierarchy_rect_cell
                 .get()
                 .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
 
@@ -663,6 +704,7 @@ impl EngineUi {
                     selected_entity: *selected_entity,
                     world,
                     stats_panel_rect: iris_stats_rect,
+                    hierarchy_panel_rect: iris_hierarchy_rect,
                     grid_enabled: *grid_enabled,
                     fps: smoothed_fps,
                     frame_pacing,

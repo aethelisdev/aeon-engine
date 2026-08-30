@@ -72,12 +72,66 @@ impl EngineUi {
             self.iris_overlay.rename_buffer.clear();
         }
 
+        // Hierarchy search bar live typing
+        if self.iris_overlay.hierarchy_is_search_focused
+            && let WindowEvent::KeyboardInput {
+                event: key_event, ..
+            } = event
+            && key_event.state == winit::event::ElementState::Pressed
+        {
+            if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) =
+                key_event.logical_key
+            {
+                self.iris_overlay.hierarchy_is_search_focused = false;
+                return true;
+            }
+            if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
+                key_event.logical_key
+            {
+                self.iris_overlay.hierarchy_search_query.pop();
+                return true;
+            }
+            if let Some(text) = &key_event.text {
+                for c in text.chars() {
+                    if !c.is_control() {
+                        self.iris_overlay.hierarchy_search_query.push(c);
+                    }
+                }
+                return true;
+            }
+        }
+
         // Always pass event to egui state so pointer and drag states never get starved or desynchronized
         let response = self.state.on_window_event(window, event);
 
         if iris_res.consumed {
             let mut is_hovering_interactive = false;
             let p = self.iris_overlay.cursor_pos;
+
+            if let Some(ref targets) = self.iris_overlay.hierarchy_targets
+                && (targets.add_btn_rect.contains_point(p)
+                    || targets.delete_btn_rect.is_some_and(|r| r.contains_point(p))
+                    || targets
+                        .search_clear_btn_rect
+                        .is_some_and(|r| r.contains_point(p))
+                    || targets
+                        .entity_rows
+                        .iter()
+                        .any(|(_, r, eye, _)| r.contains_point(p) || eye.contains_point(p))
+                    || targets
+                        .add_menu_items
+                        .iter()
+                        .any(|(r, _)| r.contains_point(p))
+                    || targets
+                        .submenu_items
+                        .iter()
+                        .any(|(r, _)| r.contains_point(p))
+                    || targets.active_context_menu.is_some_and(|(_, _, del, vis)| {
+                        del.contains_point(p) || vis.contains_point(p)
+                    }))
+            {
+                is_hovering_interactive = true;
+            }
 
             if let Some(ref targets) = self.iris_overlay.about_targets
                 && (targets.header_close_rect.contains_point(p)

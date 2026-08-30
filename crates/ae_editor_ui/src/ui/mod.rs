@@ -19,8 +19,8 @@ pub(crate) mod viewport_hud;
 
 // Re-exports for  engine consumption
 pub use iris_bridge::IrisEditorOverlay;
+pub use iris_bridge::hierarchy::{HierarchyAction, HierarchyPanelParams, HierarchyRow};
 pub use menubar::*;
 pub use panel_layout::{PanelId, PanelLayoutState};
-pub use panels::hierarchy::{HierarchyCache, HierarchyRow};
 pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
 pub use workbench::{EditorUiRenderParams, EngineUi, SceneDialogAction};
