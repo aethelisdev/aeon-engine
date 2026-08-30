@@ -18,7 +18,6 @@ pub mod console;
 pub mod hierarchy;
 pub mod inspector;
 pub mod material;
-pub mod stats;
 pub mod timeline;
 pub mod ui_designer;
 

@@ -57,9 +57,10 @@ pub mod prelude {
         TextureQuadPipeline,
     };
     pub use iris_widgets::{
-        AssetCardBuilder, ButtonBuilder, CheckboxBuilder, ColorPickerBuilder, DragValueBuilder,
-        DropdownBuilder, DropdownMenuBuilder, LabelBuilder, MenuBarBuilder, PanelBuilder,
-        PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder,
-        TextInputBuilder, TextInputState, TreeItemBuilder,
+        AssetCardBuilder, ButtonBuilder, CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold,
+        CheckboxBuilder, ColorPickerBuilder, DragValueBuilder, DropdownBuilder,
+        DropdownMenuBuilder, LabelBuilder, MenuBarBuilder, PanelBuilder, PropertyRowBuilder,
+        SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder, TextInputBuilder,
+        TextInputState, TreeItemBuilder,
     };
 }

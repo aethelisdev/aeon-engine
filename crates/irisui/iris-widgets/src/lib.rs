@@ -12,6 +12,7 @@
 
 pub mod asset_card;
 pub mod button;
+pub mod canvas;
 pub mod input;
 pub mod inspector;
 pub mod menubar;
@@ -21,6 +22,7 @@ pub mod typography;
 
 pub use asset_card::{AssetCardBuilder, TreeItemBuilder};
 pub use button::{ButtonBuilder, TabBuilder};
+pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
 pub use input::{
     CheckboxBuilder, DragValueBuilder, SliderBuilder, TextInputBuilder, TextInputState,
 };
@@ -150,5 +152,33 @@ mod tests {
         status_bar.add_right_label("Aeon Engine v0.8.0", Color::hex("#646470"));
         let status_id = status_bar.build();
         assert!(tree.get(status_id).is_some());
+    }
+
+    #[test]
+    fn test_canvas_and_chart_drawer() {
+        let mut tree = UiTree::new();
+        let canvas_id = CanvasBuilder::new(&mut tree)
+            .name("TestOscilloscope")
+            .rect(iris_core::Rect::new(0.0, 0.0, 300.0, 100.0))
+            .add_threshold(ChartThreshold::new(16.67, "60 FPS", Color::YELLOW))
+            .build();
+
+        assert!(tree.get(canvas_id).is_some());
+        let node = tree.get(canvas_id).unwrap();
+        assert_eq!(node.children.len(), 2); // 1 line + 1 label
+
+        let mut cmd_list = iris_wgpu::DrawCommandList::new();
+        let dummy_samples = [8.33f32, 16.67, 12.0, 24.0, 8.0, 16.0];
+        ChartDrawer::draw_polyline(
+            &mut cmd_list,
+            iris_core::Rect::new(0.0, 0.0, 300.0, 100.0),
+            |i| dummy_samples.get(i).copied(),
+            dummy_samples.len(),
+            36.0,
+            6,
+            |_| Color::GREEN,
+        );
+
+        assert_eq!(cmd_list.quads.len(), 5);
     }
 }

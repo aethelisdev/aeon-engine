@@ -143,6 +143,7 @@ impl EngineUi {
         let ui_designer_state = &mut self.ui_designer_state;
 
         let viewport_rect = std::cell::Cell::new(egui::Rect::ZERO);
+        let stats_rect_cell = std::cell::Cell::new(None);
 
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
@@ -186,21 +187,9 @@ impl EngineUi {
                 textures,
                 shaders,
                 console_entries,
-                wireframe_enabled,
-                grid_enabled,
-                fps: smoothed_fps,
-                frame_pacing,
-                frame_pacing_stats,
-                cpu_timings,
-                gpu_pass_timings,
-                draw_call_stats,
-                vram_stats,
-                render_triangles,
-                render_vertices,
-                gpu_adapter_name,
-                gpu_backend,
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect,
+                stats_rect_out: &stats_rect_cell,
                 enabled_modules,
                 ui_designer_state,
             };
@@ -584,7 +573,7 @@ impl EngineUi {
                         });
                     }
                     iris_bridge::ViewportHudAction::ToggleWireframe => {
-                        self.wireframe_enabled = !self.wireframe_enabled;
+                        *wireframe_enabled = !*wireframe_enabled;
                     }
                     iris_bridge::ViewportHudAction::SetGizmoMode(gmode) => {
                         self.gizmo_mode = gmode;
@@ -610,6 +599,18 @@ impl EngineUi {
                 }
             }
 
+            for action in self.iris_overlay.take_stats_actions() {
+                match action {
+                    iris_bridge::StatsPanelAction::ToggleWireframe => {
+                        *wireframe_enabled = !*wireframe_enabled;
+                    }
+                    iris_bridge::StatsPanelAction::ToggleGrid => {
+                        *grid_enabled = !*grid_enabled;
+                    }
+                    iris_bridge::StatsPanelAction::Scroll(_) => {}
+                }
+            }
+
             if gs_changed {
                 ui_actions.push(EngineUiAction::UpdateGraphicsSettings(cur_gs.clone()));
             }
@@ -629,6 +630,10 @@ impl EngineUi {
                 self.last_viewport_rect.width(),
                 self.last_viewport_rect.height(),
             );
+
+            let iris_stats_rect = stats_rect_cell
+                .get()
+                .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
 
             self.iris_overlay
                 .update_overlays(iris_bridge::OverlayUpdateParams {
@@ -657,6 +662,20 @@ impl EngineUi {
                     gizmo_space: self.gizmo_space,
                     selected_entity: *selected_entity,
                     world,
+                    stats_panel_rect: iris_stats_rect,
+                    grid_enabled: *grid_enabled,
+                    fps: smoothed_fps,
+                    frame_pacing,
+                    frame_pacing_stats: &frame_pacing_stats,
+                    cpu_timings: &cpu_timings,
+                    gpu_pass_timings: &gpu_pass_timings,
+                    draw_call_stats: &draw_call_stats,
+                    vram_stats: &vram_stats,
+                    render_triangles,
+                    render_vertices,
+                    gpu_adapter_name,
+                    gpu_backend,
+                    active_entities_count: world.len() as usize,
                 });
             self.iris_overlay.render(
                 device,

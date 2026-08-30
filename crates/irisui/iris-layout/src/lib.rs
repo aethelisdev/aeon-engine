@@ -32,6 +32,8 @@ pub struct LayoutEngine {
     node_map: HashMap<WidgetId, tf::NodeId>,
     /// Inverse map from Taffy's `NodeId` to `WidgetId`.
     id_map: HashMap<tf::NodeId, WidgetId>,
+    /// Last measured available size.
+    last_available_size: Option<Size>,
 }
 
 impl Default for LayoutEngine {
@@ -49,7 +51,17 @@ impl LayoutEngine {
             taffy: tf::TaffyTree::new(),
             node_map: HashMap::new(),
             id_map: HashMap::new(),
+            last_available_size: None,
         }
+    }
+
+    /// Clears internal Taffy state and node mappings when the UI tree is reset.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.taffy.clear();
+        self.node_map.clear();
+        self.id_map.clear();
+        self.last_available_size = None;
     }
 
     /// Computes layout for the entire UI tree if layout dirty flags are set.
@@ -65,6 +77,14 @@ impl LayoutEngine {
         let Some(root_id) = tree.root() else {
             return Ok(());
         };
+
+        // Fast path: If layout is not dirty and size matches, return immediately (0.00ms)
+        if self.last_available_size == Some(available_size)
+            && !tree.has_dirty_nodes(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN)
+        {
+            return Ok(());
+        }
+        self.last_available_size = Some(available_size);
 
         // Synchronize Taffy tree structure with UiTree
         self.sync_tree(tree, root_id)?;

@@ -1,15 +1,36 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Central font system and text layout measurement engine.
+//! Central font system, text layout measurement, and shaped glyph caching engine.
 
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache};
 use iris_core::{Size, TextAlign};
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct MeasureCacheKey {
+    text: String,
+    font_size_bits: u32,
+    line_height_bits: u32,
+    max_width_bits: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct ShapeCacheKey {
+    text: String,
+    font_size_bits: u32,
+    line_height_bits: u32,
+    bounds_width_bits: u32,
+    bounds_height_bits: u32,
+    align: u8,
+}
 
 /// Core text system managing font discovery, shaping caches, and layout measurement.
 pub struct TextSystem {
     font_system: FontSystem,
     swash_cache: SwashCache,
+    measure_cache: HashMap<MeasureCacheKey, Size>,
+    shape_cache: HashMap<ShapeCacheKey, Buffer>,
 }
 
 impl Default for TextSystem {
@@ -50,6 +71,8 @@ impl TextSystem {
         Self {
             font_system,
             swash_cache: SwashCache::new(),
+            measure_cache: HashMap::with_capacity(256),
+            shape_cache: HashMap::with_capacity(256),
         }
     }
 
@@ -71,7 +94,14 @@ impl TextSystem {
         (&mut self.font_system, &mut self.swash_cache)
     }
 
-    /// Measures the dimensions of a text string given font size and line height constraints.
+    /// Clears internal shaping and measurement caches if needed.
+    #[inline]
+    pub fn clear_cache(&mut self) {
+        self.measure_cache.clear();
+        self.shape_cache.clear();
+    }
+
+    /// Measures the dimensions of a text string given font size and line height constraints with caching.
     /// Used by the layout engine to calculate intrinsic widget `content_size`.
     pub fn measure_text(
         &mut self,
@@ -84,12 +114,29 @@ impl TextSystem {
             return Size::ZERO;
         }
 
+        let max_w_bits = max_width.unwrap_or(0.0).to_bits();
+        let key = MeasureCacheKey {
+            text: text.to_string(),
+            font_size_bits: font_size.to_bits(),
+            line_height_bits: line_height.to_bits(),
+            max_width_bits: max_w_bits,
+        };
+
+        if let Some(&cached) = self.measure_cache.get(&key) {
+            return cached;
+        }
+
         let metrics = Metrics::new(font_size, line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
         buffer.set_size(max_width, None);
         let attrs = Attrs::new().family(Family::Name("Noto Sans"));
-        buffer.set_text(text, &attrs, Shaping::Advanced, None);
+        let shaping = if text.is_ascii() {
+            Shaping::Basic
+        } else {
+            Shaping::Advanced
+        };
+        buffer.set_text(text, &attrs, shaping, None);
         buffer.shape_until_scroll(&mut self.font_system, false);
 
         let mut measured_width: f32 = 0.0;
@@ -101,10 +148,16 @@ impl TextSystem {
         }
 
         let measured_height = (line_count as f32) * line_height;
-        Size::new(measured_width.ceil(), measured_height.ceil())
+        let size = Size::new(measured_width.ceil(), measured_height.ceil());
+
+        if self.measure_cache.len() > 1024 {
+            self.measure_cache.clear();
+        }
+        self.measure_cache.insert(key, size);
+        size
     }
 
-    /// Creates and shapes a `cosmic_text::Buffer` for rendering a text section.
+    /// Creates and shapes a `cosmic_text::Buffer` for rendering a text section with caching.
     pub fn shape_text(
         &mut self,
         text: &str,
@@ -114,6 +167,25 @@ impl TextSystem {
         bounds_height: f32,
         align: TextAlign,
     ) -> Buffer {
+        let align_code = match align {
+            TextAlign::Left => 0,
+            TextAlign::Center => 1,
+            TextAlign::Right => 2,
+        };
+
+        let key = ShapeCacheKey {
+            text: text.to_string(),
+            font_size_bits: font_size.to_bits(),
+            line_height_bits: line_height.to_bits(),
+            bounds_width_bits: bounds_width.to_bits(),
+            bounds_height_bits: bounds_height.to_bits(),
+            align: align_code,
+        };
+
+        if let Some(cached) = self.shape_cache.get(&key) {
+            return cached.clone();
+        }
+
         let metrics = Metrics::new(font_size, line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
@@ -126,9 +198,19 @@ impl TextSystem {
         };
 
         let attrs = Attrs::new().family(Family::Name("Noto Sans"));
-        buffer.set_text(text, &attrs, Shaping::Advanced, Some(cosmic_align));
+        let shaping = if text.is_ascii() {
+            Shaping::Basic
+        } else {
+            Shaping::Advanced
+        };
+        buffer.set_text(text, &attrs, shaping, Some(cosmic_align));
 
         buffer.shape_until_scroll(&mut self.font_system, false);
+
+        if self.shape_cache.len() > 1024 {
+            self.shape_cache.clear();
+        }
+        self.shape_cache.insert(key, buffer.clone());
         buffer
     }
 }

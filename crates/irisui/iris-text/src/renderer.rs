@@ -18,6 +18,7 @@ pub struct TextRenderer {
     viewport: Viewport,
     _cache: Cache,
     buffers: Vec<Buffer>,
+    last_resolution: Option<(u32, u32)>,
 }
 
 impl TextRenderer {
@@ -42,7 +43,8 @@ impl TextRenderer {
             text_atlas,
             viewport,
             _cache: cache,
-            buffers: Vec::new(),
+            buffers: Vec::with_capacity(128),
+            last_resolution: None,
         }
     }
 
@@ -58,7 +60,10 @@ impl TextRenderer {
         let width = screen_size[0].max(1.0) as u32;
         let height = screen_size[1].max(1.0) as u32;
 
-        self.viewport.update(queue, Resolution { width, height });
+        if self.last_resolution != Some((width, height)) {
+            self.viewport.update(queue, Resolution { width, height });
+            self.last_resolution = Some((width, height));
+        }
 
         // Clear and rebuild buffers reusing existing allocation capacity
         self.buffers.clear();
@@ -74,42 +79,39 @@ impl TextRenderer {
             self.buffers.push(buffer);
         }
 
-        let text_areas: Vec<TextArea> = sections
-            .iter()
-            .zip(self.buffers.iter())
-            .map(|(sec, buf)| {
-                let y_offset = ((sec.bounds.height - sec.line_height) * 0.5).max(0.0);
-                let bounds = if let Some(clip) = sec.clip_bounds {
-                    TextBounds {
-                        left: clip.x.max(0.0) as i32,
-                        top: clip.y.max(0.0) as i32,
-                        right: clip.right().max(0.0) as i32,
-                        bottom: clip.bottom().max(0.0) as i32,
-                    }
-                } else {
-                    TextBounds {
-                        left: sec.bounds.x as i32,
-                        top: sec.bounds.y as i32,
-                        right: (sec.bounds.x + sec.bounds.width.max(200.0)) as i32,
-                        bottom: (sec.bounds.y + sec.bounds.height.max(40.0)) as i32,
-                    }
-                };
-                TextArea {
-                    buffer: buf,
-                    left: sec.bounds.x,
-                    top: sec.bounds.y + y_offset,
-                    scale: 1.0,
-                    bounds,
-                    default_color: cosmic_text::Color::rgba(
-                        (sec.color.r * 255.0) as u8,
-                        (sec.color.g * 255.0) as u8,
-                        (sec.color.b * 255.0) as u8,
-                        (sec.color.a * 255.0) as u8,
-                    ),
-                    custom_glyphs: &[],
+        let mut text_areas: Vec<TextArea> = Vec::with_capacity(sections.len());
+        for (sec, buf) in sections.iter().zip(self.buffers.iter()) {
+            let y_offset = ((sec.bounds.height - sec.line_height) * 0.5).max(0.0);
+            let bounds = if let Some(clip) = sec.clip_bounds {
+                TextBounds {
+                    left: clip.x.max(0.0) as i32,
+                    top: clip.y.max(0.0) as i32,
+                    right: clip.right().max(0.0) as i32,
+                    bottom: clip.bottom().max(0.0) as i32,
                 }
-            })
-            .collect();
+            } else {
+                TextBounds {
+                    left: sec.bounds.x as i32,
+                    top: sec.bounds.y as i32,
+                    right: (sec.bounds.x + sec.bounds.width.max(200.0)) as i32,
+                    bottom: (sec.bounds.y + sec.bounds.height.max(40.0)) as i32,
+                }
+            };
+            text_areas.push(TextArea {
+                buffer: buf,
+                left: sec.bounds.x,
+                top: sec.bounds.y + y_offset,
+                scale: 1.0,
+                bounds,
+                default_color: cosmic_text::Color::rgba(
+                    (sec.color.r * 255.0) as u8,
+                    (sec.color.g * 255.0) as u8,
+                    (sec.color.b * 255.0) as u8,
+                    (sec.color.a * 255.0) as u8,
+                ),
+                custom_glyphs: &[],
+            });
+        }
 
         let (font_sys, swash_c) = text_system.components_mut();
 

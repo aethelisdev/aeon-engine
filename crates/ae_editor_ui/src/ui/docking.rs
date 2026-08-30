@@ -26,22 +26,10 @@ pub struct EditorTabViewer<'a> {
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
     pub console_entries: &'a [ConsoleEntry],
-    pub wireframe_enabled: &'a mut bool,
-    pub grid_enabled: &'a mut bool,
-    pub fps: f32,
-    pub frame_pacing: &'a ae_core::telemetry::FrameRingBuffer<240>,
-    pub frame_pacing_stats: ae_core::telemetry::FramePacingStats,
-    pub cpu_timings: ae_core::telemetry::CpuSyncTimings,
-    pub gpu_pass_timings: ae_core::telemetry::GpuPassTimings,
-    pub draw_call_stats: ae_core::telemetry::DrawCallBreakdown,
-    pub vram_stats: ae_core::telemetry::VramStats,
-    pub render_triangles: u64,
-    pub render_vertices: u64,
-    pub gpu_adapter_name: &'a str,
-    pub gpu_backend: &'a str,
     pub viewport_texture_id: Option<egui::TextureId>,
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
+    pub stats_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
@@ -113,27 +101,6 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                         .map(|p| [p.x - rect.left(), p.y - rect.top()]);
                     let mouse_clicked = ui.input(|i| i.pointer.primary_clicked());
 
-                    if mouse_clicked && let Some(mp) = mouse_pos {
-                        for (elem, btn) in self
-                            .world
-                            .query::<(&ae_core::ui::UiElement, &ae_core::ui::UiButton)>()
-                            .iter()
-                        {
-                            if elem.visible {
-                                let btn_rect = elem.compute_rect(rect.width(), rect.height());
-                                if btn_rect.contains(mp) {
-                                    if btn.text == "Resume" {
-                                        self.ui_actions.push(EngineUiAction::ResumeGame);
-                                    } else if btn.text == "Exit to Editor" {
-                                        self.ui_actions.push(EngineUiAction::ChangeMode(
-                                            ae_core::modules::EngineMode::Edit,
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     let commands = ae_core::ui::UiLayoutResolver::resolve_draw_commands(
                         self.world,
                         rect.width(),
@@ -157,26 +124,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 );
             }
             PanelId::Stats => {
-                EngineUi::draw_stats_content(
-                    ui,
-                    crate::ui::panels::stats::StatsPanelContext {
-                        wireframe_enabled: self.wireframe_enabled,
-                        grid_enabled: self.grid_enabled,
-                        fps: self.fps,
-                        frame_pacing: self.frame_pacing,
-                        frame_pacing_stats: self.frame_pacing_stats,
-                        cpu_timings: self.cpu_timings,
-                        gpu_pass_timings: self.gpu_pass_timings,
-                        draw_call_stats: self.draw_call_stats,
-                        vram_stats: self.vram_stats,
-                        render_triangles: self.render_triangles,
-                        render_vertices: self.render_vertices,
-                        gpu_adapter_name: self.gpu_adapter_name,
-                        gpu_backend: self.gpu_backend,
-                        active_entities_count: self.world.len() as usize,
-                        selected_entity: *self.selected_entity,
-                    },
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.stats_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::Inspector => {
                 EngineUi::draw_inspector_content(

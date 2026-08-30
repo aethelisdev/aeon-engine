@@ -33,6 +33,7 @@ pub struct IrisRenderer {
     instance_capacity: usize,
     instance_count: u32,
     screen_size: [f32; 2],
+    uniform_buffer_dirty: bool,
 }
 
 impl IrisRenderer {
@@ -163,7 +164,8 @@ impl IrisRenderer {
             instance_buffer: None,
             instance_capacity: 0,
             instance_count: 0,
-            screen_size: [1.0, 1.0],
+            screen_size: [0.0, 0.0],
+            uniform_buffer_dirty: true,
         }
     }
 
@@ -175,19 +177,24 @@ impl IrisRenderer {
         screen_size: [f32; 2],
         quads: &[QuadInstance],
     ) {
-        self.screen_size = screen_size;
+        let size_changed = (self.screen_size[0] - screen_size[0]).abs() > 0.001
+            || (self.screen_size[1] - screen_size[1]).abs() > 0.001;
+
+        if size_changed || self.uniform_buffer_dirty {
+            let uniforms = GlobalUniforms {
+                screen_size,
+                _padding: [0.0, 0.0],
+            };
+            queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
+            self.screen_size = screen_size;
+            self.uniform_buffer_dirty = false;
+        }
+
         self.instance_count = quads.len() as u32;
 
         if self.instance_count == 0 {
             return;
         }
-
-        // Update uniforms
-        let uniforms = GlobalUniforms {
-            screen_size,
-            _padding: [0.0, 0.0],
-        };
-        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         // Ensure instance buffer has enough capacity
         let needed_capacity = quads.len();

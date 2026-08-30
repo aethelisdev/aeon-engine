@@ -10,6 +10,7 @@ pub mod about;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;
+pub mod stats;
 pub mod status_bar;
 pub mod types;
 pub mod viewport_hud;
@@ -19,6 +20,9 @@ pub use modals::*;
 pub use preferences::{
     PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesSliderId,
     PreferencesTargets, PreferencesToggleId, build_preferences_dialog,
+};
+pub use stats::{
+    StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelTargets, build_stats_panel,
 };
 pub use types::{ActiveMenu, DropdownAction, IrisOverlayEventResult};
 pub use viewport_hud::{
@@ -77,6 +81,22 @@ pub struct IrisEditorOverlay {
     pub viewport_hud_dropdown: Option<ViewportHudDropdownId>,
     /// Dispatched action queue for Viewport HUD interactions.
     pub viewport_hud_actions: Vec<ViewportHudAction>,
+    /// Cached interaction targets for Performance Stats & Telemetry panel.
+    pub stats_targets: Option<StatsPanelTargets>,
+    /// Persistent node handles for the Stats & Profiler panel in retained mode.
+    pub stats_nodes: Option<StatsPanelNodes>,
+    /// Last bounding rectangle allocated for the Stats & Profiler panel.
+    pub last_stats_rect: Option<Rect>,
+    /// Last recorded screen dimensions.
+    pub last_dimensions: (f32, f32),
+    /// Last recorded UI Zoom factor.
+    pub last_zoom_factor: f32,
+    /// Explicit flag requesting full layout reconstruction on invalidation.
+    pub needs_layout_rebuild: bool,
+    /// Content area vertical scroll offset for Stats & Telemetry panel.
+    pub stats_scroll_y: f32,
+    /// Dispatched action queue for Stats & Telemetry panel interactions.
+    pub stats_actions: Vec<StatsPanelAction>,
     /// Custom floating position coordinates for the Preferences panel.
     pub preferences_pos: Option<Point>,
     /// Active drag offset from window top-left when dragging the title bar.
@@ -161,6 +181,34 @@ pub struct OverlayUpdateParams<'a> {
     pub selected_entity: Option<hecs::Entity>,
     /// Active ECS world reference for billboard entity query.
     pub world: &'a hecs::World,
+    /// Bounding rectangle allocated for the Performance Stats panel, if active.
+    pub stats_panel_rect: Option<Rect>,
+    /// Whether the viewport coordinate grid is enabled.
+    pub grid_enabled: bool,
+    /// Smoothed FPS rate.
+    pub fps: f32,
+    /// Historical frame pacing ring buffer.
+    pub frame_pacing: &'a ae_core::telemetry::FrameRingBuffer<240>,
+    /// Calculated frametime variance, 1% low, and 0.1% low stats.
+    pub frame_pacing_stats: &'a ae_core::telemetry::FramePacingStats,
+    /// CPU thread synchronization timings breakdown.
+    pub cpu_timings: &'a ae_core::telemetry::CpuSyncTimings,
+    /// GPU render pass execution durations.
+    pub gpu_pass_timings: &'a ae_core::telemetry::GpuPassTimings,
+    /// Granular draw call metrics and batch counts.
+    pub draw_call_stats: &'a ae_core::telemetry::DrawCallBreakdown,
+    /// Categorized VRAM memory consumption.
+    pub vram_stats: &'a ae_core::telemetry::VramStats,
+    /// Total rendered triangles in current frame.
+    pub render_triangles: u64,
+    /// Total rendered vertices in current frame.
+    pub render_vertices: u64,
+    /// Hardware GPU adapter device name.
+    pub gpu_adapter_name: &'a str,
+    /// Active graphics API backend (e.g. Vulkan, Metal, DX12).
+    pub gpu_backend: &'a str,
+    /// Count of active entities in the ECS world.
+    pub active_entities_count: usize,
 }
 
 impl IrisEditorOverlay {
@@ -192,6 +240,14 @@ impl IrisEditorOverlay {
             viewport_hud_targets: None,
             viewport_hud_dropdown: None,
             viewport_hud_actions: Vec::new(),
+            stats_targets: None,
+            stats_nodes: None,
+            last_stats_rect: None,
+            last_dimensions: (0.0, 0.0),
+            last_zoom_factor: 1.0,
+            needs_layout_rebuild: false,
+            stats_scroll_y: 0.0,
+            stats_actions: Vec::new(),
             preferences_pos: None,
             preferences_drag_offset: None,
             preferences_tab: 0,
@@ -215,6 +271,11 @@ impl IrisEditorOverlay {
         std::mem::take(&mut self.viewport_hud_actions)
     }
 
+    /// Consumes and returns all queued Stats & Profiler panel actions.
+    pub fn take_stats_actions(&mut self) -> Vec<StatsPanelAction> {
+        std::mem::take(&mut self.stats_actions)
+    }
+
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.
     pub fn update_overlays(&mut self, params: OverlayUpdateParams<'_>) {
         let (screen_width, screen_height) = params.dimensions;
@@ -227,6 +288,7 @@ impl IrisEditorOverlay {
         }
 
         self.tree.clear();
+        self.layout_engine.clear();
         self.command_list.clear();
         self.dropdown_items.clear();
         self.dropdown_rect = None;
@@ -237,6 +299,7 @@ impl IrisEditorOverlay {
         self.loading_targets = None;
         self.preferences_targets = None;
         self.viewport_hud_targets = None;
+        self.stats_targets = None;
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -461,8 +524,59 @@ impl IrisEditorOverlay {
             self.viewport_hud_targets = Some(hud_targets);
         }
 
+        // 11. If Stats & Profiler panel is active, manage its retained lifecycle and dynamic updates
+        if let Some(stats_rect) = params.stats_panel_rect
+            && stats_rect.width > 20.0
+            && stats_rect.height > 20.0
+        {
+            let stats_params = StatsPanelParams {
+                panel_rect: stats_rect,
+                scroll_y: self.stats_scroll_y,
+                cursor_pos: self.cursor_pos,
+                wireframe_enabled: params.wireframe_enabled,
+                grid_enabled: params.grid_enabled,
+                fps: params.fps,
+                frame_pacing: params.frame_pacing,
+                frame_pacing_stats: params.frame_pacing_stats,
+                cpu_timings: params.cpu_timings,
+                gpu_pass_timings: params.gpu_pass_timings,
+                draw_call_stats: params.draw_call_stats,
+                vram_stats: params.vram_stats,
+                render_triangles: params.render_triangles,
+                render_vertices: params.render_vertices,
+                gpu_adapter_name: params.gpu_adapter_name,
+                gpu_backend: params.gpu_backend,
+                active_entities_count: params.active_entities_count,
+                selected_entity: params.selected_entity,
+            };
+
+            let mut stats_targets = StatsPanelTargets::default();
+            let nodes =
+                stats::build_stats_panel(&mut self.tree, root, &stats_params, &mut stats_targets);
+            stats::update_stats_panel_values(&mut self.tree, &nodes, &stats_params, &stats_targets);
+            self.stats_targets = Some(stats_targets);
+            self.stats_nodes = Some(nodes);
+            self.last_stats_rect = Some(stats_rect);
+            self.last_zoom_factor = params.zoom_factor;
+        } else {
+            self.stats_nodes = None;
+            self.stats_targets = None;
+            self.last_stats_rect = None;
+        }
+
         // Populate DrawCommandList from resolved layout nodes
         self.populate_draw_commands(root, None);
+
+        // Zero-Tree GPU Oscilloscope: directly push 60 curve quads into DrawCommandList
+        if let Some(ref nodes) = self.stats_nodes {
+            stats::append_oscilloscope_quads(
+                &mut self.command_list,
+                nodes.canvas_rect,
+                params.frame_pacing,
+            );
+        }
+
+        self.needs_layout_rebuild = false;
     }
 
     /// Returns true if the given coordinate is over the menubar, status bar, or active dropdown/modal.
@@ -505,6 +619,11 @@ impl IrisEditorOverlay {
             {
                 return true;
             }
+        }
+        if let Some(ref targets) = self.stats_targets
+            && targets.panel_rect.contains_point(point)
+        {
+            return true;
         }
         if point.y <= Self::MENUBAR_HEIGHT {
             return true;
@@ -1170,6 +1289,57 @@ impl IrisEditorOverlay {
             }
         }
 
+        // 0g. If Stats panel is active, intercept checkbox clicks
+        if let Some(ref stats_targets) = self.stats_targets
+            && let WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: WinitMouseButton::Left,
+                ..
+            } = event
+        {
+            let click_point = self.cursor_pos;
+            if let Some(wire_rect) = stats_targets.wireframe_checkbox_rect
+                && wire_rect.contains_point(click_point)
+            {
+                self.stats_actions.push(StatsPanelAction::ToggleWireframe);
+                result.consumed = true;
+                return result;
+            }
+            if let Some(grid_rect) = stats_targets.grid_checkbox_rect
+                && grid_rect.contains_point(click_point)
+            {
+                self.stats_actions.push(StatsPanelAction::ToggleGrid);
+                result.consumed = true;
+                return result;
+            }
+            if stats_targets.panel_rect.contains_point(click_point) {
+                result.consumed = true;
+                return result;
+            }
+        }
+
+        // 0h. Mouse Wheel scrolling for Stats panel and Preferences dialog
+        if let WindowEvent::MouseWheel { delta, .. } = event {
+            let delta_y = match delta {
+                winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 24.0,
+                winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+            };
+            if let Some(ref targets) = self.stats_targets
+                && targets.panel_rect.contains_point(self.cursor_pos)
+            {
+                self.stats_scroll_y = (self.stats_scroll_y - delta_y).max(0.0);
+                result.consumed = true;
+                return result;
+            }
+            if let Some(ref targets) = self.preferences_targets
+                && targets.card_rect.contains_point(self.cursor_pos)
+            {
+                self.preferences_scroll_y = (self.preferences_scroll_y - delta_y).max(0.0);
+                result.consumed = true;
+                return result;
+            }
+        }
+
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_pos = Point::new(position.x as f32, position.y as f32);
@@ -1297,35 +1467,38 @@ impl IrisEditorOverlay {
 
     /// Measures intrinsic text dimensions for all nodes with text content in the subtree.
     fn measure_tree_text(&mut self, current: WidgetId) {
-        let (font_size, line_height, text_content, children) = {
+        let (font_size, line_height, child_count) = {
             let Some(node) = self.tree.get(current) else {
                 return;
             };
-            (
-                node.font_size,
-                node.line_height,
-                node.text.clone(),
-                node.children.clone(),
-            )
+            (node.font_size, node.line_height, node.children.len())
         };
 
-        if let Some(text) = text_content {
+        if let Some(node) = self.tree.get(current)
+            && let Some(ref text) = node.text
+        {
             let measured = self
                 .text_system
-                .measure_text(&text, font_size, line_height, None);
-            if let Some(node) = self.tree.get_mut(current) {
-                node.content_size = measured;
+                .measure_text(text, font_size, line_height, None);
+            if let Some(node_mut) = self.tree.get_mut(current) {
+                node_mut.content_size = measured;
             }
         }
 
-        for child in children {
-            self.measure_tree_text(child);
+        for i in 0..child_count {
+            if let Some(child) = self
+                .tree
+                .get(current)
+                .and_then(|n| n.children.get(i).copied())
+            {
+                self.measure_tree_text(child);
+            }
         }
     }
 
     /// Recursively converts computed node bounds and styles into `DrawCommandList` instances.
     fn populate_draw_commands(&mut self, current: WidgetId, clip_rect: Option<Rect>) {
-        let (children, quad, next_clip) = {
+        let (child_count, quad, next_clip) = {
             let Some(node) = self.tree.get(current) else {
                 return;
             };
@@ -1363,15 +1536,21 @@ impl IrisEditorOverlay {
                 None
             };
 
-            (node.children.clone(), quad, child_clip)
+            (node.children.len(), quad, child_clip)
         };
 
         if let Some(q) = quad {
             self.command_list.push_quad(q);
         }
 
-        for child in children {
-            self.populate_draw_commands(child, next_clip);
+        for i in 0..child_count {
+            if let Some(child) = self
+                .tree
+                .get(current)
+                .and_then(|n| n.children.get(i).copied())
+            {
+                self.populate_draw_commands(child, next_clip);
+            }
         }
     }
 
