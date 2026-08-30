@@ -39,6 +39,8 @@ pub struct EngineUi {
     pub show_preferences: bool,
     pub show_about: bool,
     pub preferences_tab: u8,
+    /// Pending preferences actions to execute on the engine state.
+    pub pending_preferences_actions: Vec<crate::ui::iris_bridge::PreferencesAction>,
     pub should_save_scene: bool,
     pub should_load_scene: bool,
     pub active_scene_path: String,
@@ -175,6 +177,7 @@ impl EngineUi {
             show_preferences: false,
             show_about: false,
             preferences_tab: 1,
+            pending_preferences_actions: Vec::new(),
             should_save_scene: false,
             should_load_scene: false,
             active_scene_path: "scene.aee".to_string(),

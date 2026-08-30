@@ -43,8 +43,6 @@ pub struct EditorTabViewer<'a> {
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
-    pub gizmo_mode: &'a mut ae_editor::gizmo::GizmoMode,
-    pub gizmo_space: &'a mut ae_editor::gizmo::GizmoSpace,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
 
@@ -75,36 +73,11 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 }
                 self.viewport_rect_out.set(rect);
 
-                // Viewport Toolbar & HUD Overlays
+                // Viewport Toolbar & HUD Overlays are now 100% rendered via Iris UI GPU SDF pipeline in IrisEditorOverlay
                 let is_render_active = self
                     .enabled_modules
                     .contains(&ae_core::modules::EngineModule::Render);
                 if self.is_editing && is_render_active {
-                    crate::ui::viewport_hud::draw_viewport_toolbar(
-                        ui.ctx(),
-                        rect,
-                        self.wireframe_enabled,
-                        self.gizmo_mode,
-                        self.gizmo_space,
-                        self.camera,
-                        self.ui_actions,
-                    );
-                    crate::ui::viewport_hud::draw_camera_hud(ui.ctx(), rect, self.camera);
-                    crate::ui::viewport_hud::draw_scene_navigation_gizmo(
-                        ui.ctx(),
-                        rect,
-                        self.camera,
-                        self.ui_actions,
-                    );
-                    crate::ui::viewport_hud::draw_billboard_icons(
-                        ui.ctx(),
-                        rect,
-                        self.world,
-                        self.camera,
-                        *self.selected_entity,
-                        self.ui_actions,
-                    );
-
                     // Content Browser Drag-and-Drop Viewport Raycast Spawning
                     if self.asset_browser.drag_payload.is_some()
                         && let Some(mouse_pos) = ui.ctx().pointer_latest_pos()
@@ -132,23 +105,7 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                         }
                     }
                 } else if !self.is_editing && is_render_active {
-                    let has_character_action = self
-                        .world
-                        .query::<&ae_core::ecs::CharacterAction>()
-                        .iter()
-                        .next()
-                        .is_some();
-
-                    let is_pause_menu_open = self
-                        .world
-                        .query::<&ae_core::ui::PauseMenuUiTag>()
-                        .iter()
-                        .next()
-                        .is_some();
-
-                    if has_character_action && !is_pause_menu_open {
-                        crate::ui::viewport_hud::draw_play_mode_hud(ui.ctx(), rect);
-                    }
+                    // Play Mode HUD is rendered via Iris UI GPU SDF pipeline in IrisEditorOverlay
 
                     // Resolve & render backend-agnostic in-game UI draw commands
                     let mouse_pos = ui

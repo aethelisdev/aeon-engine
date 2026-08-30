@@ -21,6 +21,12 @@ impl EngineUi {
         if iris_res.open_preferences {
             self.show_preferences = true;
         }
+        if iris_res.close_preferences {
+            self.show_preferences = false;
+        }
+        if let Some(pref_act) = iris_res.preferences_action {
+            self.pending_preferences_actions.push(pref_act);
+        }
         if iris_res.open_about {
             self.show_about = true;
         }
@@ -77,6 +83,22 @@ impl EngineUi {
                 && (targets.header_close_rect.contains_point(p)
                     || targets.bottom_close_rect.contains_point(p)
                     || targets.link_rect.contains_point(p))
+            {
+                is_hovering_interactive = true;
+            }
+            if let Some(ref targets) = self.iris_overlay.preferences_targets
+                && (targets.close_button.contains_point(p)
+                    || targets.tabs.iter().any(|(_, r)| r.contains_point(p))
+                    || targets.toggles.iter().any(|(_, r)| r.contains_point(p))
+                    || targets
+                        .sliders
+                        .iter()
+                        .any(|(_, r, _, _, _)| r.contains_point(p))
+                    || targets.dropdowns.iter().any(|(_, r)| r.contains_point(p))
+                    || targets
+                        .active_dropdown_items
+                        .iter()
+                        .any(|(_, r, _)| r.contains_point(p)))
             {
                 is_hovering_interactive = true;
             }

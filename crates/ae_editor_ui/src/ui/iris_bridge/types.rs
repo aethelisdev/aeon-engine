@@ -53,6 +53,10 @@ pub struct IrisOverlayEventResult {
     pub open_about: bool,
     /// Close about dialog request.
     pub close_about: bool,
+    /// Close preferences dialog request.
+    pub close_preferences: bool,
+    /// Preferences action payload.
+    pub preferences_action: Option<super::preferences::PreferencesAction>,
     /// Confirm delete file request.
     pub confirm_delete: bool,
     /// Cancel delete file request.

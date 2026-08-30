@@ -13,7 +13,6 @@ pub mod workbench;
 
 pub(crate) mod docking;
 pub mod menubar;
-pub(crate) mod preferences;
 pub(crate) mod style;
 pub mod types;
 pub(crate) mod viewport_hud;

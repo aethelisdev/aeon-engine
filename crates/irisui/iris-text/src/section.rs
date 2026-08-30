@@ -21,6 +21,8 @@ pub struct TextSection<'a> {
     pub align: TextAlign,
     /// Bounding rectangle in screen-space coordinates where text should be placed.
     pub bounds: Rect,
+    /// Optional scissor clipping rectangle in screen-space coordinates.
+    pub clip_bounds: Option<Rect>,
 }
 
 impl<'a> TextSection<'a> {
@@ -34,6 +36,7 @@ impl<'a> TextSection<'a> {
             color: Color::WHITE,
             align: TextAlign::Left,
             bounds,
+            clip_bounds: None,
         }
     }
 
@@ -56,6 +59,13 @@ impl<'a> TextSection<'a> {
     #[inline]
     pub fn with_align(mut self, align: TextAlign) -> Self {
         self.align = align;
+        self
+    }
+
+    /// Sets the scissor clipping bounds.
+    #[inline]
+    pub fn with_clip(mut self, clip: Option<Rect>) -> Self {
+        self.clip_bounds = clip;
         self
     }
 }

@@ -73,6 +73,11 @@ pub fn handle_update_graphics_settings(
 /// Handles updating snapping parameters.
 pub fn handle_update_snap_settings(ctx: &mut UiContext, snap: ae_editor::snapping::SnapSettings) {
     ctx.editor.snapping = snap;
+    log::info!(
+        "🧲 Updated snapping settings: mode={:?}, grid={:.2}",
+        snap.mode,
+        snap.grid_size
+    );
 }
 
 /// Handles updating editor config settings.
@@ -81,11 +86,32 @@ pub fn handle_update_editor_config(
     cfg: ae_editor::editor_state::EditorConfig,
 ) {
     ctx.editor.config = cfg;
+    log::info!(
+        "⚙ Updated editor config: undo_limit={}, physics_hz={:.0} Hz",
+        ctx.editor.config.max_undo_history,
+        ctx.editor.config.physics_hz
+    );
 }
 
 /// Handles setting live editor updates toggle.
 pub fn handle_set_live_editor_updates(ctx: &mut UiContext, val: bool) {
     ctx.editor.enable_live_editor_updates = val;
+    let (msg, color) = if val {
+        (
+            "Live Editor Updates (Hot Reload) Enabled",
+            egui::Color32::from_rgb(70, 190, 120),
+        )
+    } else {
+        (
+            "Live Editor Updates (Hot Reload) Disabled",
+            egui::Color32::from_rgb(220, 140, 60),
+        )
+    };
+    ctx.ui.status_message = Some((vec![(msg.to_string(), color)], std::time::Instant::now()));
+    log::info!(
+        "🔄 Live Editor Updates (Hot Reload): {}",
+        if val { "Enabled" } else { "Disabled" }
+    );
 }
 
 /// Handles setting 3D viewport camera projection mode (Perspective vs Orthographic).

@@ -79,17 +79,27 @@ impl TextRenderer {
             .zip(self.buffers.iter())
             .map(|(sec, buf)| {
                 let y_offset = ((sec.bounds.height - sec.line_height) * 0.5).max(0.0);
+                let bounds = if let Some(clip) = sec.clip_bounds {
+                    TextBounds {
+                        left: clip.x.max(0.0) as i32,
+                        top: clip.y.max(0.0) as i32,
+                        right: clip.right().max(0.0) as i32,
+                        bottom: clip.bottom().max(0.0) as i32,
+                    }
+                } else {
+                    TextBounds {
+                        left: sec.bounds.x as i32,
+                        top: sec.bounds.y as i32,
+                        right: (sec.bounds.x + sec.bounds.width.max(200.0)) as i32,
+                        bottom: (sec.bounds.y + sec.bounds.height.max(40.0)) as i32,
+                    }
+                };
                 TextArea {
                     buffer: buf,
                     left: sec.bounds.x,
                     top: sec.bounds.y + y_offset,
                     scale: 1.0,
-                    bounds: TextBounds {
-                        left: sec.bounds.x as i32,
-                        top: sec.bounds.y as i32,
-                        right: (sec.bounds.x + sec.bounds.width.max(200.0)) as i32,
-                        bottom: (sec.bounds.y + sec.bounds.height.max(40.0)) as i32,
-                    },
+                    bounds,
                     default_color: cosmic_text::Color::rgba(
                         (sec.color.r * 255.0) as u8,
                         (sec.color.g * 255.0) as u8,

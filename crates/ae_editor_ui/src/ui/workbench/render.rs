@@ -3,7 +3,6 @@
 
 use crate::ui::docking;
 use crate::ui::iris_bridge::{self, IrisEditorOverlay};
-use crate::ui::preferences;
 use crate::ui::types::EngineUiAction;
 use crate::ui::workbench::state::EngineUi;
 use egui_wgpu::ScreenDescriptor;
@@ -115,10 +114,8 @@ impl EngineUi {
         self.context.set_zoom_factor(self.ui_zoom_factor);
 
         // Destructure self fields to allow split borrows in the closure
-        let show_preferences = &mut self.show_preferences;
         let _should_save_scene = &mut self.should_save_scene;
         let _should_load_scene = &mut self.should_load_scene;
-        let preferences_tab = &mut self.preferences_tab;
         let selected_entity = &mut self.selected_entity;
         let last_selected_entity = &mut self.last_selected_entity;
         let inspector_euler = &mut self.inspector_euler;
@@ -127,8 +124,6 @@ impl EngineUi {
         let wireframe_enabled = &mut self.wireframe_enabled;
         let grid_enabled = &mut self.grid_enabled;
         let is_loading_assets = self.is_loading_assets;
-        let gizmo_mode = &mut self.gizmo_mode;
-        let gizmo_space = &mut self.gizmo_space;
         let status_message = &mut self.status_message;
         let layout_state = &mut self.layout_state;
         let hierarchy_search_query = &mut self.hierarchy_search_query;
@@ -161,39 +156,6 @@ impl EngineUi {
                 .resizable(false)
                 .frame(egui::Frame::NONE)
                 .show(ui, |_ui| {});
-
-            // 1.5 PREFERENCES WINDOW
-            if *show_preferences {
-                let mut temp_gs = (*graphics_settings).clone();
-                let mut temp_snap = *snapping;
-                let mut temp_live_updates = editor_state.enable_live_editor_updates;
-                let mut temp_cfg = editor_state.config.clone();
-
-                let pref_resp =
-                    Self::draw_preferences_window(preferences::PreferencesWindowParams {
-                        show_preferences,
-                        preferences_tab,
-                        ctx: &ctx,
-                        graphics_settings: &mut temp_gs,
-                        snapping_settings: &mut temp_snap,
-                        enable_live_updates: &mut temp_live_updates,
-                        editor_config: &mut temp_cfg,
-                        enabled_modules,
-                        ui_actions,
-                        status_message,
-                    });
-
-                if temp_gs != *graphics_settings {
-                    ui_actions.push(EngineUiAction::UpdateGraphicsSettings(temp_gs));
-                }
-                ui_actions.push(EngineUiAction::UpdateSnapSettings(temp_snap));
-                ui_actions.push(EngineUiAction::SetLiveEditorUpdates(temp_live_updates));
-                ui_actions.push(EngineUiAction::UpdateEditorConfig(temp_cfg));
-
-                if let Some(rect) = pref_resp {
-                    ui_rects_collector.borrow_mut().push(rect);
-                }
-            }
 
             // 2. Bottom Status Bar Spacer (reserving bottom 22px for Iris UI StatusBar)
             let bottom_resp = egui::Panel::bottom("utility_bar_spacer")
@@ -240,8 +202,6 @@ impl EngineUi {
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect,
                 enabled_modules,
-                gizmo_mode,
-                gizmo_space,
                 ui_designer_state,
             };
 
@@ -416,6 +376,260 @@ impl EngineUi {
                 .as_ref()
                 .map(|r| (r.target_path.as_path(), r.is_folder));
 
+            let mut cur_gs = (*graphics_settings).clone();
+            let mut cur_snap = *snapping;
+            let mut cur_cfg = editor_state.config.clone();
+            let mut cur_live = editor_state.enable_live_editor_updates;
+            let mut gs_changed = false;
+            let mut snap_changed = false;
+            let mut cfg_changed = false;
+            let mut live_changed = false;
+
+            while let Some(act) = self.pending_preferences_actions.pop() {
+                match act {
+                    iris_bridge::PreferencesAction::Close => {
+                        self.show_preferences = false;
+                    }
+                    iris_bridge::PreferencesAction::SelectTab(t) => {
+                        self.preferences_tab = t;
+                        self.iris_overlay.preferences_tab = t;
+                    }
+                    iris_bridge::PreferencesAction::ToggleDropdown(dd) => {
+                        self.iris_overlay.preferences_dropdown = dd;
+                    }
+                    iris_bridge::PreferencesAction::SetUiScale(s) => {
+                        ui_actions.push(EngineUiAction::SetUiScale(s));
+                    }
+                    iris_bridge::PreferencesAction::Toggle(toggle_id) => match toggle_id {
+                        iris_bridge::PreferencesToggleId::ShadowsEnabled => {
+                            cur_gs.shadow_enabled = !cur_gs.shadow_enabled;
+                            gs_changed = true;
+                        }
+                        iris_bridge::PreferencesToggleId::BloomEnabled => {
+                            cur_gs.bloom_enabled = !cur_gs.bloom_enabled;
+                            gs_changed = true;
+                        }
+                        iris_bridge::PreferencesToggleId::FogEnabled => {
+                            cur_gs.fog_enabled = !cur_gs.fog_enabled;
+                            gs_changed = true;
+                        }
+                        iris_bridge::PreferencesToggleId::LiveUpdatesEnabled => {
+                            cur_live = !cur_live;
+                            live_changed = true;
+                        }
+                        iris_bridge::PreferencesToggleId::Module(m) => {
+                            ui_actions.push(EngineUiAction::ToggleModule(m));
+                        }
+                    },
+                    iris_bridge::PreferencesAction::SetSliderValue(slider_id, val) => {
+                        match slider_id {
+                            iris_bridge::PreferencesSliderId::ShadowBias => {
+                                cur_gs.shadow_bias = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::BloomIntensity => {
+                                cur_gs.bloom_intensity = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::SunPitch => {
+                                cur_gs.sun_pitch = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::SunYaw => {
+                                cur_gs.sun_yaw = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::AtmosphereDensity => {
+                                cur_gs.atmosphere_density = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::OzoneDensity => {
+                                cur_gs.ozone_density = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::SunDiscSize => {
+                                cur_gs.sun_disc_size = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::SunGlowStrength => {
+                                cur_gs.sun_glow_strength = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::CloudCoverage => {
+                                cur_gs.cloud_coverage = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::CloudDensity => {
+                                cur_gs.cloud_density = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::CloudSpeed => {
+                                cur_gs.cloud_speed = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::CloudEvolution => {
+                                cur_gs.cloud_evolution = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::CloudAltitude => {
+                                cur_gs.cloud_altitude = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::FogDistance => {
+                                cur_gs.fog_distance = val;
+                                gs_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::GridSize => {
+                                cur_snap.grid_size = val;
+                                snap_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::UndoHistoryLimit => {
+                                cur_cfg.max_undo_history = val as usize;
+                                cfg_changed = true;
+                            }
+                            iris_bridge::PreferencesSliderId::PhysicsFrequency => {
+                                cur_cfg.physics_hz = val;
+                                cfg_changed = true;
+                            }
+                        }
+                    }
+                    iris_bridge::PreferencesAction::SelectDropdownItem(dd_id, idx) => match dd_id {
+                        iris_bridge::PreferencesDropdownId::UiScale => {
+                            if let Some(&(scale_val, _)) =
+                                iris_bridge::preferences::tabs::general::UI_SCALES.get(idx)
+                            {
+                                ui_actions.push(EngineUiAction::SetUiScale(scale_val));
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::ShadowResolution => {
+                            if let Some(&res) =
+                                iris_bridge::preferences::tabs::graphics::SHADOW_RES_OPTIONS
+                                    .get(idx)
+                            {
+                                cur_gs.shadow_resolution = res;
+                                gs_changed = true;
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::ShadowCascades => {
+                            if let Some(&(cascades, _)) =
+                                iris_bridge::preferences::tabs::graphics::CASCADE_OPTIONS.get(idx)
+                            {
+                                cur_gs.shadow_cascades = cascades;
+                                gs_changed = true;
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::ShadowPcf => {
+                            if let Some(&pcf) =
+                                iris_bridge::preferences::tabs::graphics::PCF_OPTIONS.get(idx)
+                            {
+                                cur_gs.shadow_pcf = pcf;
+                                gs_changed = true;
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::FpsLimit => {
+                            if let Some(&fps) =
+                                iris_bridge::preferences::tabs::graphics::FPS_OPTIONS.get(idx)
+                            {
+                                cur_gs.fps_limit = fps;
+                                gs_changed = true;
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::MsaaSamples => {
+                            if let Some(&(samples, _)) =
+                                iris_bridge::preferences::tabs::graphics::MSAA_OPTIONS.get(idx)
+                            {
+                                cur_gs.msaa_samples = samples;
+                                gs_changed = true;
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::SkyQuality => {
+                            if let Some(&sky) =
+                                iris_bridge::preferences::tabs::graphics::SKY_OPTIONS.get(idx)
+                            {
+                                cur_gs.sky_quality = sky;
+                                gs_changed = true;
+                            }
+                        }
+                        iris_bridge::PreferencesDropdownId::SnapMode => {
+                            if let Some(&(mode, _)) =
+                                iris_bridge::preferences::tabs::SNAP_MODE_OPTIONS.get(idx)
+                            {
+                                cur_snap.mode = mode;
+                                snap_changed = true;
+                            }
+                        }
+                    },
+                    iris_bridge::PreferencesAction::Scroll(delta) => {
+                        self.iris_overlay.preferences_scroll_y =
+                            (self.iris_overlay.preferences_scroll_y + delta).max(0.0);
+                    }
+                    iris_bridge::PreferencesAction::ToggleSection(_) => {}
+                }
+            }
+
+            for action in self.iris_overlay.take_viewport_hud_actions() {
+                match action {
+                    iris_bridge::ViewportHudAction::SetCameraMode(cmode) => {
+                        ui_actions.push(EngineUiAction::SetCameraMode(cmode));
+                    }
+                    iris_bridge::ViewportHudAction::SetCameraTransform {
+                        pitch,
+                        yaw,
+                        position,
+                    } => {
+                        ui_actions.push(EngineUiAction::SetCameraTransform {
+                            pitch,
+                            yaw,
+                            position,
+                        });
+                    }
+                    iris_bridge::ViewportHudAction::ToggleWireframe => {
+                        self.wireframe_enabled = !self.wireframe_enabled;
+                    }
+                    iris_bridge::ViewportHudAction::SetGizmoMode(gmode) => {
+                        self.gizmo_mode = gmode;
+                    }
+                    iris_bridge::ViewportHudAction::ToggleGizmoSpace => {
+                        self.gizmo_space = self.gizmo_space.toggle();
+                    }
+                    iris_bridge::ViewportHudAction::ToggleSnapping => {
+                        cur_snap.mode = match cur_snap.mode {
+                            ae_editor::snapping::SnapMode::Off => {
+                                ae_editor::snapping::SnapMode::Toggle
+                            }
+                            _ => ae_editor::snapping::SnapMode::Off,
+                        };
+                        snap_changed = true;
+                    }
+                    iris_bridge::ViewportHudAction::SelectEntity(ent) => {
+                        ui_actions.push(EngineUiAction::SelectEntity(Some(ent)));
+                    }
+                    iris_bridge::ViewportHudAction::ToggleDropdown(dd) => {
+                        self.iris_overlay.viewport_hud_dropdown = dd;
+                    }
+                }
+            }
+
+            if gs_changed {
+                ui_actions.push(EngineUiAction::UpdateGraphicsSettings(cur_gs.clone()));
+            }
+            if snap_changed {
+                ui_actions.push(EngineUiAction::UpdateSnapSettings(cur_snap));
+            }
+            if cfg_changed {
+                ui_actions.push(EngineUiAction::UpdateEditorConfig(cur_cfg.clone()));
+            }
+            if live_changed {
+                ui_actions.push(EngineUiAction::SetLiveEditorUpdates(cur_live));
+            }
+
+            let iris_vp_rect = irisui::prelude::Rect::new(
+                self.last_viewport_rect.min.x,
+                self.last_viewport_rect.min.y,
+                self.last_viewport_rect.width(),
+                self.last_viewport_rect.height(),
+            );
+
             self.iris_overlay
                 .update_overlays(iris_bridge::OverlayUpdateParams {
                     dimensions: (win_size.width as f32, win_size.height as f32),
@@ -424,11 +638,25 @@ impl EngineUi {
                     can_undo: !undo_stack.is_empty(),
                     can_redo: !redo_stack.is_empty(),
                     show_about: self.show_about,
+                    show_preferences: self.show_preferences,
+                    graphics_settings: &cur_gs,
+                    snapping_settings: &cur_snap,
+                    editor_config: &cur_cfg,
+                    enable_live_updates: cur_live,
+                    enabled_modules,
+                    zoom_factor: self.ui_zoom_factor,
                     delete_target,
                     new_folder_parent,
                     rename_target,
                     is_loading_assets,
                     status_spans: iris_spans.as_deref(),
+                    viewport_rect: iris_vp_rect,
+                    camera,
+                    wireframe_enabled: self.wireframe_enabled,
+                    gizmo_mode: self.gizmo_mode,
+                    gizmo_space: self.gizmo_space,
+                    selected_entity: *selected_entity,
+                    world,
                 });
             self.iris_overlay.render(
                 device,
