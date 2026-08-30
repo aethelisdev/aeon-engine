@@ -27,20 +27,83 @@ impl EngineUi {
         if iris_res.close_about {
             self.show_about = false;
         }
+        if iris_res.confirm_delete
+            && let Some(target) = self.asset_browser.delete_confirmation.take()
+        {
+            let _ = crate::ui::panels::assets::file_ops::delete_asset_or_folder(&target);
+            if self.asset_browser.selected_asset.as_ref() == Some(&target) {
+                self.asset_browser.selected_asset = None;
+            }
+        }
+        if iris_res.cancel_delete {
+            self.asset_browser.delete_confirmation = None;
+        }
+
+        if let Some(folder_name) = iris_res.create_folder
+            && let Some(parent) = self.asset_browser.new_folder_parent.take()
+        {
+            let _ = crate::ui::panels::assets::file_ops::create_subfolder(&parent, &folder_name);
+            self.iris_overlay.new_folder_buffer.clear();
+            self.asset_browser.new_folder_name.clear();
+        }
+        if iris_res.cancel_new_folder {
+            self.asset_browser.new_folder_parent = None;
+            self.iris_overlay.new_folder_buffer.clear();
+            self.asset_browser.new_folder_name.clear();
+        }
+
+        if let Some(new_name) = iris_res.apply_rename
+            && let Some(ren) = self.asset_browser.rename_state.take()
+        {
+            let _ = crate::ui::panels::assets::file_ops::rename_asset_or_folder(
+                &ren.target_path,
+                &new_name,
+            );
+            self.iris_overlay.rename_buffer.clear();
+        }
+        if iris_res.cancel_rename {
+            self.asset_browser.rename_state = None;
+            self.iris_overlay.rename_buffer.clear();
+        }
+
         // Always pass event to egui state so pointer and drag states never get starved or desynchronized
         let response = self.state.on_window_event(window, event);
 
         if iris_res.consumed {
-            if let Some(ref targets) = self.iris_overlay.about_targets {
-                let p = self.iris_overlay.cursor_pos;
-                if targets.header_close_rect.contains_point(p)
+            let mut is_hovering_interactive = false;
+            let p = self.iris_overlay.cursor_pos;
+
+            if let Some(ref targets) = self.iris_overlay.about_targets
+                && (targets.header_close_rect.contains_point(p)
                     || targets.bottom_close_rect.contains_point(p)
-                    || targets.link_rect.contains_point(p)
-                {
-                    window.set_cursor(winit::window::CursorIcon::Pointer);
-                } else {
-                    window.set_cursor(winit::window::CursorIcon::Default);
-                }
+                    || targets.link_rect.contains_point(p))
+            {
+                is_hovering_interactive = true;
+            }
+            if let Some(ref targets) = self.iris_overlay.delete_targets
+                && (targets.header_close_rect.contains_point(p)
+                    || targets.confirm_btn_rect.contains_point(p)
+                    || targets.cancel_btn_rect.contains_point(p))
+            {
+                is_hovering_interactive = true;
+            }
+            if let Some(ref targets) = self.iris_overlay.new_folder_targets
+                && (targets.header_close_rect.contains_point(p)
+                    || targets.confirm_btn_rect.contains_point(p)
+                    || targets.cancel_btn_rect.contains_point(p))
+            {
+                is_hovering_interactive = true;
+            }
+            if let Some(ref targets) = self.iris_overlay.rename_targets
+                && (targets.header_close_rect.contains_point(p)
+                    || targets.confirm_btn_rect.contains_point(p)
+                    || targets.cancel_btn_rect.contains_point(p))
+            {
+                is_hovering_interactive = true;
+            }
+
+            if is_hovering_interactive {
+                window.set_cursor(winit::window::CursorIcon::Pointer);
             } else {
                 window.set_cursor(winit::window::CursorIcon::Default);
             }

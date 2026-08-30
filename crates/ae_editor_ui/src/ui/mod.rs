@@ -11,7 +11,6 @@ pub mod panel_layout;
 pub mod panels;
 pub mod workbench;
 
-pub(crate) mod dialogs;
 pub(crate) mod docking;
 pub mod menubar;
 pub(crate) mod preferences;

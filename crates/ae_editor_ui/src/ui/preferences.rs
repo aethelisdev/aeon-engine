@@ -170,9 +170,7 @@ impl EngineUi {
                                                     ui.painter().rect_filled(
                                                         tab_rect,
                                                         4.0,
-                                                        egui::Color32::from_rgba_premultiplied(
-                                                            255, 255, 255, 15,
-                                                        ),
+                                                        egui::Color32::from_rgb(28, 32, 42),
                                                     );
                                                 }
 

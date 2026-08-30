@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-use crate::ui::dialogs;
 use crate::ui::docking;
 use crate::ui::iris_bridge::{self, IrisEditorOverlay};
 use crate::ui::preferences;
@@ -252,18 +251,6 @@ impl EngineUi {
                     Self::draw_docking_system(ui, layout_state, &mut tab_viewer);
                 });
 
-            // Top-Level Modal Dialogs & Floating Overlays
-            let mut collected_rects = ui_rects_collector.borrow_mut();
-            dialogs::draw_dialogs(&ctx, is_loading_assets, &mut collected_rects);
-
-            // Asset Browser Modals (New Folder, Rename, Delete confirmation)
-            if let Some(rect) = crate::ui::panels::assets::file_ops::draw_file_operations_dialogs(
-                &ctx,
-                &mut self.asset_browser,
-            ) {
-                collected_rects.push(rect);
-            }
-
             // Quick Asset Inspector Modal (Only in Edit mode)
             if is_editing {
                 if let Some(rect) =
@@ -276,7 +263,7 @@ impl EngineUi {
                         ui_actions,
                     )
                 {
-                    collected_rects.push(rect);
+                    ui_rects_collector.borrow_mut().push(rect);
                 }
             } else {
                 self.asset_browser.preview_modal = None;
@@ -296,22 +283,47 @@ impl EngineUi {
         self.state
             .handle_platform_output(window, full_output.platform_output);
 
-        if let Some(ref targets) = self.iris_overlay.about_targets {
-            let p = self.iris_overlay.cursor_pos;
-            if targets.header_close_rect.contains_point(p)
+        let mut is_hovering_interactive = false;
+        let p = self.iris_overlay.cursor_pos;
+
+        if let Some(ref targets) = self.iris_overlay.about_targets
+            && (targets.header_close_rect.contains_point(p)
                 || targets.bottom_close_rect.contains_point(p)
-                || targets.link_rect.contains_point(p)
-            {
-                window.set_cursor(winit::window::CursorIcon::Pointer);
-            } else {
-                window.set_cursor(winit::window::CursorIcon::Default);
-            }
+                || targets.link_rect.contains_point(p))
+        {
+            is_hovering_interactive = true;
+        }
+        if let Some(ref targets) = self.iris_overlay.delete_targets
+            && (targets.header_close_rect.contains_point(p)
+                || targets.confirm_btn_rect.contains_point(p)
+                || targets.cancel_btn_rect.contains_point(p))
+        {
+            is_hovering_interactive = true;
+        }
+        if let Some(ref targets) = self.iris_overlay.new_folder_targets
+            && (targets.header_close_rect.contains_point(p)
+                || targets.confirm_btn_rect.contains_point(p)
+                || targets.cancel_btn_rect.contains_point(p))
+        {
+            is_hovering_interactive = true;
+        }
+        if let Some(ref targets) = self.iris_overlay.rename_targets
+            && (targets.header_close_rect.contains_point(p)
+                || targets.confirm_btn_rect.contains_point(p)
+                || targets.cancel_btn_rect.contains_point(p))
+        {
+            is_hovering_interactive = true;
+        }
+
+        if is_hovering_interactive {
+            window.set_cursor(winit::window::CursorIcon::Pointer);
         } else if self
             .iris_overlay
             .is_point_over_overlay(self.iris_overlay.cursor_pos)
         {
             window.set_cursor(winit::window::CursorIcon::Default);
         }
+
         let clipped_primitives = self
             .context
             .tessellate(full_output.shapes, full_output.pixels_per_point);
@@ -359,7 +371,7 @@ impl EngineUi {
             self.renderer.free_texture(id);
         }
 
-        // 4. Iris UI Overlay Render Pass (Menubar, Floating Popups, and Bottom Status Bar)
+        // 4. Iris UI Overlay Render Pass (Menubar, Modals, Splash, and Bottom Status Bar)
         let win_size = window.inner_size();
         if win_size.width > 0 && win_size.height > 0 {
             let iris_spans: Option<Vec<(String, irisui::prelude::Color)>> =
@@ -380,6 +392,30 @@ impl EngineUi {
                         .collect()
                 });
 
+            let delete_target = self.asset_browser.delete_confirmation.as_deref();
+
+            if self.asset_browser.new_folder_parent.is_some()
+                && self.iris_overlay.new_folder_buffer.is_empty()
+                && !self.asset_browser.new_folder_name.is_empty()
+            {
+                self.iris_overlay.new_folder_buffer = self.asset_browser.new_folder_name.clone();
+            }
+
+            let new_folder_parent = self.asset_browser.new_folder_parent.as_deref();
+
+            if let Some(ref ren) = self.asset_browser.rename_state
+                && self.iris_overlay.rename_buffer.is_empty()
+                && !ren.current_name.is_empty()
+            {
+                self.iris_overlay.rename_buffer = ren.current_name.clone();
+            }
+
+            let rename_target = self
+                .asset_browser
+                .rename_state
+                .as_ref()
+                .map(|r| (r.target_path.as_path(), r.is_folder));
+
             self.iris_overlay
                 .update_overlays(iris_bridge::OverlayUpdateParams {
                     dimensions: (win_size.width as f32, win_size.height as f32),
@@ -388,6 +424,10 @@ impl EngineUi {
                     can_undo: !undo_stack.is_empty(),
                     can_redo: !redo_stack.is_empty(),
                     show_about: self.show_about,
+                    delete_target,
+                    new_folder_parent,
+                    rename_target,
+                    is_loading_assets,
                     status_spans: iris_spans.as_deref(),
                 });
             self.iris_overlay.render(

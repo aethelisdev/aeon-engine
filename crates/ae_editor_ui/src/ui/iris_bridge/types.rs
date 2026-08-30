@@ -53,4 +53,16 @@ pub struct IrisOverlayEventResult {
     pub open_about: bool,
     /// Close about dialog request.
     pub close_about: bool,
+    /// Confirm delete file request.
+    pub confirm_delete: bool,
+    /// Cancel delete file request.
+    pub cancel_delete: bool,
+    /// Create new folder request with specified folder name.
+    pub create_folder: Option<String>,
+    /// Cancel new folder dialog request.
+    pub cancel_new_folder: bool,
+    /// Apply rename request with specified new name.
+    pub apply_rename: Option<String>,
+    /// Cancel rename dialog request.
+    pub cancel_rename: bool,
 }
