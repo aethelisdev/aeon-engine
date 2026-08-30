@@ -18,147 +18,120 @@ pub fn sync_hierarchy_rows(world: &hecs::World, out_rows: &mut Vec<HierarchyRow>
         return;
     }
 
-    let max_cap = entity_count;
-    let mut name_map: HashMap<hecs::Entity, String> = HashMap::with_capacity(max_cap);
+    // 1. Fast sparse parent query: only iterates entities with Parent component
     let mut parent_map: HashMap<hecs::Entity, hecs::Entity> = HashMap::new();
     let mut children_map: HashMap<hecs::Entity, Vec<hecs::Entity>> = HashMap::new();
-    let mut icon_map: HashMap<hecs::Entity, &'static str> = HashMap::with_capacity(max_cap);
-    let mut visibility_map: HashMap<hecs::Entity, bool> = HashMap::with_capacity(max_cap);
 
+    for (ent, p) in world
+        .query::<(hecs::Entity, &ae_core::ecs::Parent)>()
+        .iter()
+    {
+        if world.contains(p.0) {
+            parent_map.insert(ent, p.0);
+            children_map.entry(p.0).or_default().push(ent);
+        }
+    }
+
+    // 2. Ultra-fast flat path if no parenting exists in scene (e.g. 100k benchmarks)
+    if parent_map.is_empty() {
+        out_rows.reserve(entity_count);
+        for ent_ref in world.iter() {
+            if ent_ref.get::<&ae_core::ui::PauseMenuUiTag>().is_some() {
+                continue;
+            }
+            out_rows.push(HierarchyRow {
+                entity: ent_ref.entity(),
+                depth: 0,
+                has_children: false,
+            });
+        }
+        return;
+    }
+
+    // 3. Hierarchical path: DFS traversal starting from root nodes
+    out_rows.reserve(entity_count);
     for ent_ref in world.iter() {
         let ent = ent_ref.entity();
-
-        // Skip internal pause menu UI entities from Scene Hierarchy tree
         if ent_ref.get::<&ae_core::ui::PauseMenuUiTag>().is_some() {
             continue;
         }
-
-        // Entity Display Name
-        let name = ent_ref
-            .get::<&ae_core::ecs::Name>()
-            .map(|n| n.0.clone())
-            .unwrap_or_else(|| format!("Entity {:?}", ent));
-        name_map.insert(ent, name);
-
-        // Parent Link
-        if let Some(p) = ent_ref.get::<&ae_core::ecs::Parent>()
-            && world.contains(p.0)
-        {
-            parent_map.insert(ent, p.0);
-        }
-
-        // Children Links
-        if let Some(c) = ent_ref.get::<&ae_core::ecs::Children>() {
-            let valid_children: Vec<hecs::Entity> =
-                c.0.iter()
-                    .copied()
-                    .filter(|&ch| world.contains(ch))
-                    .collect();
-            if !valid_children.is_empty() {
-                children_map.insert(ent, valid_children);
-            }
-        }
-
-        // 100% Data-Driven Component Icon Assignment
-        let icon = if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
-            "❤️ "
-        } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
-            "⭐ "
-        } else if ent_ref.get::<&ae_core::ecs::ReticleTag>().is_some() {
-            "🎯 "
-        } else if ent_ref.get::<&ae_core::ecs::UiProgressBar>().is_some() {
-            "📊 "
-        } else if ent_ref.get::<&ae_core::ecs::UiButton>().is_some() {
-            "🔘 "
-        } else if ent_ref.get::<&ae_core::ecs::UiText>().is_some() {
-            "🔤 "
-        } else if ent_ref.get::<&ae_core::ecs::UiImage>().is_some() {
-            "🖼️ "
-        } else if ent_ref.get::<&ae_core::ecs::UiSlider>().is_some() {
-            "🎚️ "
-        } else if ent_ref.get::<&ae_core::ecs::UiCheckbox>().is_some() {
-            "☑️ "
-        } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
-            "📝 "
-        } else if ent_ref.get::<&ae_core::ecs::UiPanel>().is_some() {
-            "🟩 "
-        } else if ent_ref.get::<&ae_core::ecs::Light>().is_some() {
-            "💡 "
-        } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
-            "🔊 "
-        } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
-            "🎮 "
-        } else if ent_ref.get::<&ae_core::ecs::Rotator>().is_some() {
-            "🔄 "
-        } else if ent_ref.get::<&ae_core::ecs::MovingPlatform>().is_some() {
-            "🚡 "
-        } else if ent_ref.get::<&ae_core::ecs::TriggerZone>().is_some() {
-            "⚡ "
-        } else if ent_ref.get::<&ae_core::ecs::DestructibleTarget>().is_some() {
-            "🎯 "
-        } else if ent_ref.get::<&ae_core::ecs::CharacterAction>().is_some() {
-            "🔫 "
-        } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some() {
-            "📦 "
-        } else if ent_ref.get::<&ae_core::ecs::Shape>().is_some() {
-            "🎲 "
-        } else if ent_ref.get::<&ae_core::ecs::SpriteId>().is_some() {
-            "🖼 "
-        } else {
-            "📁 "
-        };
-        icon_map.insert(ent, icon);
-
-        // Visibility
-        let is_visible = ent_ref.get::<&ae_core::ecs::Hidden>().is_none();
-        visibility_map.insert(ent, is_visible);
-    }
-
-    // Two-way synchronization: ensure parent_map links exist in children_map
-    for (&child, &parent) in &parent_map {
-        let list = children_map.entry(parent).or_default();
-        if !list.contains(&child) {
-            list.push(child);
+        if !parent_map.contains_key(&ent) {
+            push_dfs_tree(ent, 0, &children_map, out_rows);
         }
     }
+}
 
-    // Collect roots
-    let mut roots: Vec<hecs::Entity> = name_map
-        .keys()
-        .copied()
-        .filter(|ent| !parent_map.contains_key(ent))
-        .collect();
-    roots.sort_by_key(|e| e.id());
-
-    // DFS Traversal
-    let mut stack: Vec<(hecs::Entity, usize)> = Vec::with_capacity(roots.len() * 2);
-    for &root in roots.iter().rev() {
-        stack.push((root, 0));
-    }
-
-    while let Some((ent, depth)) = stack.pop() {
-        let name = name_map.remove(&ent).unwrap_or_default();
-        let has_children = children_map
-            .get(&ent)
-            .map(|v| !v.is_empty())
-            .unwrap_or(false);
-        let icon = icon_map.get(&ent).copied().unwrap_or("📁 ");
-        let is_visible = visibility_map.get(&ent).copied().unwrap_or(true);
-
-        out_rows.push(HierarchyRow {
-            entity: ent,
-            name,
-            depth,
-            has_children,
-            icon,
-            is_visible,
-        });
-
-        if let Some(children) = children_map.get(&ent) {
-            for &child in children.iter().rev() {
-                stack.push((child, depth + 1));
-            }
+/// Helper function performing recursive DFS traversal into the hierarchy tree.
+fn push_dfs_tree(
+    ent: hecs::Entity,
+    depth: u16,
+    children_map: &HashMap<hecs::Entity, Vec<hecs::Entity>>,
+    out_rows: &mut Vec<HierarchyRow>,
+) {
+    let has_children = children_map.get(&ent).is_some_and(|v| !v.is_empty());
+    out_rows.push(HierarchyRow {
+        entity: ent,
+        depth,
+        has_children,
+    });
+    if let Some(children) = children_map.get(&ent) {
+        for &child in children {
+            push_dfs_tree(child, depth + 1, children_map, out_rows);
         }
+    }
+}
+
+/// Resolves the type icon for a visible entity based on its components.
+fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity) -> &'static str {
+    let Ok(ent_ref) = world.entity(entity) else {
+        return "📁 ";
+    };
+    if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
+        "❤️ "
+    } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
+        "⭐ "
+    } else if ent_ref.get::<&ae_core::ecs::ReticleTag>().is_some() {
+        "🎯 "
+    } else if ent_ref.get::<&ae_core::ecs::UiProgressBar>().is_some() {
+        "📊 "
+    } else if ent_ref.get::<&ae_core::ecs::UiButton>().is_some() {
+        "🔘 "
+    } else if ent_ref.get::<&ae_core::ecs::UiText>().is_some() {
+        "🔤 "
+    } else if ent_ref.get::<&ae_core::ecs::UiImage>().is_some() {
+        "🖼️ "
+    } else if ent_ref.get::<&ae_core::ecs::UiSlider>().is_some() {
+        "🎚️ "
+    } else if ent_ref.get::<&ae_core::ecs::UiCheckbox>().is_some() {
+        "☑️ "
+    } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
+        "📝 "
+    } else if ent_ref.get::<&ae_core::ecs::UiPanel>().is_some() {
+        "🟩 "
+    } else if ent_ref.get::<&ae_core::ecs::Light>().is_some() {
+        "💡 "
+    } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
+        "🔊 "
+    } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
+        "🎮 "
+    } else if ent_ref.get::<&ae_core::ecs::Rotator>().is_some() {
+        "🔄 "
+    } else if ent_ref.get::<&ae_core::ecs::MovingPlatform>().is_some() {
+        "🚡 "
+    } else if ent_ref.get::<&ae_core::ecs::TriggerZone>().is_some() {
+        "⚡ "
+    } else if ent_ref.get::<&ae_core::ecs::DestructibleTarget>().is_some() {
+        "🎯 "
+    } else if ent_ref.get::<&ae_core::ecs::CharacterAction>().is_some() {
+        "🔫 "
+    } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some() {
+        "📦 "
+    } else if ent_ref.get::<&ae_core::ecs::Shape>().is_some() {
+        "🎲 "
+    } else if ent_ref.get::<&ae_core::ecs::SpriteId>().is_some() {
+        "🖼 "
+    } else {
+        "📁 "
     }
 }
 
@@ -235,7 +208,15 @@ pub fn build_hierarchy_rows(
     } else {
         let mut cur_y = list_y - params.scroll_y;
         for row in rows {
-            if !row.name.to_lowercase().contains(&query_lower) {
+            let matches = if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity)
+            {
+                name_comp.0.to_lowercase().contains(&query_lower)
+            } else {
+                format!("Entity {:?}", row.entity)
+                    .to_lowercase()
+                    .contains(&query_lower)
+            };
+            if !matches {
                 continue;
             }
 
@@ -394,6 +375,7 @@ fn render_single_row(
     } else {
         prefix_x + 2.0
     };
+    let icon = resolve_entity_icon(params.world, row.entity);
     let icon_id = tree.create_node();
     let icon_color = if is_selected {
         Color::rgba(0.0, 0.95, 1.0, 1.0) // Cyan highlight
@@ -403,7 +385,7 @@ fn render_single_row(
 
     if let Some(node) = tree.get_mut(icon_id) {
         node.set_name("ComponentIcon");
-        node.set_text(row.icon);
+        node.set_text(icon);
         node.font_size = 12.0;
         node.line_height = row_h;
         node.text_color = icon_color;
@@ -421,7 +403,11 @@ fn render_single_row(
 
     if let Some(node) = tree.get_mut(name_id) {
         node.set_name("EntityName");
-        node.set_text(&row.name);
+        if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity) {
+            node.set_text(&name_comp.0);
+        } else {
+            node.set_text(format!("Entity {:?}", row.entity));
+        }
         node.font_size = 11.5;
         node.line_height = row_h;
         node.text_align = TextAlign::Center;
@@ -433,9 +419,13 @@ fn render_single_row(
     // 5. Eye Visibility Button (Right-aligned edge column)
     let eye_w = 20.0;
     let eye_rect = Rect::new(list_x + list_w - eye_w - 2.0, cur_y, eye_w, row_h);
+    let is_visible = params
+        .world
+        .get::<&ae_core::ecs::Hidden>(row.entity)
+        .is_err();
     let (eye_icon, eye_col) = if is_selected {
         ("👁", Color::rgba(0.0, 0.95, 1.0, 1.0))
-    } else if row.is_visible {
+    } else if is_visible {
         ("👁", Color::rgba(0.75, 0.78, 0.88, 0.90))
     } else {
         ("🚫", Color::rgba(0.92, 0.28, 0.28, 0.95))

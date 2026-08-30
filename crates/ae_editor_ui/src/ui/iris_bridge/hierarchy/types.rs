@@ -9,21 +9,15 @@
 use irisui::prelude::*;
 use std::path::PathBuf;
 
-/// Pre-flattened representation of a single entity row in the scene hierarchy tree.
-#[derive(Debug, Clone, PartialEq)]
+/// Pre-flattened lightweight POD representation of a single entity row in the scene hierarchy tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HierarchyRow {
     /// Target ECS entity.
     pub entity: hecs::Entity,
-    /// Human-readable display name.
-    pub name: String,
     /// Indentation nesting depth (0 = root entity).
-    pub depth: usize,
+    pub depth: u16,
     /// True if the entity has at least one valid child entity.
     pub has_children: bool,
-    /// Icon symbol representing the entity type (e.g. 📦, 🎮, 💡, 🔊, 📷).
-    pub icon: &'static str,
-    /// True if the entity is visible in the 3D viewport.
-    pub is_visible: bool,
 }
 
 /// Active hierarchical submenu currently open within the `➕` Add Menu.

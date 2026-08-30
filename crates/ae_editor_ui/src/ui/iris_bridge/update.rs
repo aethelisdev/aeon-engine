@@ -51,6 +51,7 @@ impl IrisEditorOverlay {
             stats_nodes: None,
             last_stats_rect: None,
             hierarchy_targets: None,
+            hierarchy_rows_cache: Vec::new(),
             hierarchy_scroll_y: 0.0,
             hierarchy_search_query: String::new(),
             hierarchy_is_add_menu_open: false,
@@ -256,6 +257,7 @@ impl IrisEditorOverlay {
                 root,
                 &hier_params,
                 &mut hier_targets,
+                &mut self.hierarchy_rows_cache,
             );
             self.hierarchy_targets = Some(hier_targets);
         } else {

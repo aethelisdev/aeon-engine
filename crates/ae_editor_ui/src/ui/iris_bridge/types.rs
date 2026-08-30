@@ -4,7 +4,7 @@
 //! Type definitions, actions, and event response structures for the Iris UI editor bridge.
 
 use super::about::AboutDialogTargets;
-use super::hierarchy::{AddSubmenuId, HierarchyAction, HierarchyPanelTargets};
+use super::hierarchy::{AddSubmenuId, HierarchyAction, HierarchyPanelTargets, HierarchyRow};
 use super::modals::*;
 use super::preferences::{PreferencesDropdownId, PreferencesSliderId, PreferencesTargets};
 use super::stats::{StatsPanelAction, StatsPanelNodes, StatsPanelTargets};
@@ -133,6 +133,8 @@ pub struct IrisEditorOverlay {
     pub last_stats_rect: Option<Rect>,
     /// Cached interaction targets for Scene Hierarchy panel.
     pub hierarchy_targets: Option<HierarchyPanelTargets>,
+    /// Persistent pre-allocated row cache for Scene Hierarchy to eliminate per-frame allocations.
+    pub hierarchy_rows_cache: Vec<HierarchyRow>,
     /// Content area vertical scroll offset for Scene Hierarchy panel.
     pub hierarchy_scroll_y: f32,
     /// Active search filter query for Scene Hierarchy panel.

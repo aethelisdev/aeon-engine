@@ -36,6 +36,7 @@ pub fn build_hierarchy_panel(
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
     targets: &mut HierarchyPanelTargets,
+    rows_cache: &mut Vec<HierarchyRow>,
 ) -> HierarchyPanelNodes {
     targets.panel_rect = params.panel_rect;
 
@@ -51,14 +52,12 @@ pub fn build_hierarchy_panel(
     // 1. Search Bar & Top Buttons Header
     let _header_nodes = build_hierarchy_header(tree, root_id, params, targets);
 
-    // 2. Sync and Flatten ECS Hierarchy Tree Rows
-    let total_entities = params.world.len() as usize;
-    let mut flat_rows = Vec::with_capacity(total_entities.min(1024));
-    sync_hierarchy_rows(params.world, &mut flat_rows);
-    let total_objects = flat_rows.len();
+    // 2. Sync and Flatten ECS Hierarchy Tree Rows into persistent cache
+    sync_hierarchy_rows(params.world, rows_cache);
+    let total_objects = rows_cache.len();
 
-    // 3. Scrollable Entity Rows
-    build_hierarchy_rows(tree, root_id, &flat_rows, params, targets);
+    // 3. Scrollable Entity Rows with O(1) Viewport Culling
+    build_hierarchy_rows(tree, root_id, rows_cache, params, targets);
 
     // 4. Footer Status Line
     build_hierarchy_footer(tree, root_id, total_objects, params);
