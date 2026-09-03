@@ -297,6 +297,7 @@ impl GizmoSystem {
         pass.set_bind_group(0, &self.bind_group, &[]);
 
         match self.mode {
+            GizmoMode::Select => {}
             GizmoMode::Translate => {
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -517,6 +518,7 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
         pass.set_bind_group(0, &self.bind_group, &[]);
 
         match self.mode {
+            GizmoMode::Select => {}
             GizmoMode::Translate => {
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

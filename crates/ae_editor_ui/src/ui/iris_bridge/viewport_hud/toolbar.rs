@@ -67,7 +67,7 @@ pub fn build_viewport_toolbar(
         + group_gap
         + sep_w
         + group_gap
-        + (gizmo_btn_w * 3.0 + inner_gap * 2.0)
+        + (gizmo_btn_w * 4.0 + inner_gap * 3.0)
         + group_gap
         + sep_w
         + group_gap
@@ -175,8 +175,9 @@ pub fn build_viewport_toolbar(
     add_divider(tree, bar_id, cur_x, btn_y + 4.0, 12.0);
     cur_x += sep_w + group_gap;
 
-    // ── 3. Gizmo Mode Controls (W E R) ──
+    // ── 3. Gizmo Mode Controls (Q W E R) ──
     let gizmo_modes = [
+        (GizmoMode::Select, "↖ Q"),
         (GizmoMode::Translate, "✛ W"),
         (GizmoMode::Rotate, "⟳ E"),
         (GizmoMode::Scale, "⤡ R"),

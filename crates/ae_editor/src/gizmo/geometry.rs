@@ -393,6 +393,7 @@ impl GizmoSystem {
         };
 
         match self.mode {
+            GizmoMode::Select => {}
             GizmoMode::Translate => {
                 let col = match self.active_axis {
                     ActiveAxis::X => [1.0, 0.2, 0.2],

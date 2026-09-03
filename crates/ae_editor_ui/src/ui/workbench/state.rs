@@ -158,7 +158,7 @@ impl EngineUi {
             wireframe_enabled: false,
             grid_enabled: true,
             is_loading_assets: false,
-            gizmo_mode: ae_editor::gizmo::GizmoMode::Translate,
+            gizmo_mode: ae_editor::gizmo::GizmoMode::Select,
             gizmo_space: ae_editor::gizmo::GizmoSpace::Local,
             inspector_color_hex: String::new(),
             saved_swatches: vec![

@@ -4,6 +4,7 @@
 use crate::editor_state::EditorState;
 use crate::input::InputManager;
 use ae_core::modules::EngineMode;
+use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
 /// Output signals produced by editor keyboard shortcut evaluation.
@@ -97,8 +98,12 @@ pub fn process_shortcuts(
         crate::actions::delete_selected(world, editor, ui_selected_entity);
     }
 
-    // --- EDIT MODE TRANSFORM SHORTCUTS (W, E, R, F) ---
-    if engine_mode == EngineMode::Edit {
+    // --- EDIT MODE TRANSFORM SHORTCUTS (Q, W, E, R, F) ---
+    // Suppress gizmo mode shortcuts while Right Mouse Button is held for Fly Camera navigation
+    if engine_mode == EngineMode::Edit && !input.is_mouse_button_pressed(MouseButton::Right) {
+        if input.is_key_just_pressed(KeyCode::KeyQ) {
+            result.new_gizmo_mode = Some(crate::gizmo::GizmoMode::Select);
+        }
         if input.is_key_just_pressed(KeyCode::KeyW) {
             result.new_gizmo_mode = Some(crate::gizmo::GizmoMode::Translate);
         }

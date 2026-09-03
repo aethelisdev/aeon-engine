@@ -17,6 +17,10 @@ impl GizmoSystem {
         cam_forward: Vector3<f32>,
         screen: &GizmoScreenParams,
     ) -> ActiveAxis {
+        if self.mode == GizmoMode::Select {
+            return ActiveAxis::None;
+        }
+
         let forward = cam_forward.normalize();
         let dist_cam = (camera_pos - gizmo_pos).dot(forward).abs().max(1e-6);
 

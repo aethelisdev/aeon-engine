@@ -72,6 +72,7 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
         {
             let mut dirtied_entities = Vec::new();
             match ui_gizmo_mode {
+                crate::gizmo::GizmoMode::Select => {}
                 crate::gizmo::GizmoMode::Translate => {
                     for &ent in &editor.selected_entities {
                         if let Some(start) = editor.multi_start_positions.get(&ent)

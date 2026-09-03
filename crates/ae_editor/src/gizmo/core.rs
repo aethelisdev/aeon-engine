@@ -3,11 +3,19 @@
 /// Gizmo core types and state — the coordinator struct lives here.
 use cgmath::{Quaternion, Vector3};
 
-/// The functional mode of the gizmo.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// The functional interaction mode of the 3D viewport gizmo system.
+/// Supports selection-only mode (`Select`) where gizmo handles are suppressed for an
+/// uncluttered viewport, as well as classic transform modes (`Translate`, `Rotate`, `Scale`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum GizmoMode {
+    /// Pure selection tool (Q): selects entities without drawing transform axis handles.
+    #[default]
+    Select,
+    /// Translation tool (W): draws 3-axis arrows and planar quads for spatial movement.
     Translate,
+    /// Rotation tool (E): draws 3-axis rotation rings for angular orientation.
     Rotate,
+    /// Scaling tool (R): draws 3-axis cuboids and a central uniform scaling cube.
     Scale,
 }
 
@@ -127,6 +135,7 @@ impl GizmoSystem {
     /// Checks if the given axis handle is allowed in the current gizmo mode.
     pub fn is_handle_allowed(&self, axis: ActiveAxis) -> bool {
         match self.mode {
+            GizmoMode::Select => false,
             GizmoMode::Translate => matches!(
                 axis,
                 ActiveAxis::X
