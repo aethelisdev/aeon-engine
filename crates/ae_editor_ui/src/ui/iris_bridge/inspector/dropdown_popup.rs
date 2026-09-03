@@ -95,7 +95,7 @@ fn get_dropdown_options(id: InspectorDropdownId) -> &'static [&'static str] {
             &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"]
         }
         InspectorDropdownId::SurfaceType => &[
-            "Flesh", "Default", "Metal", "Wood", "Stone", "Dirt", "Glass", "Rubber",
+            "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass", "Rubber",
         ],
         InspectorDropdownId::ShapeType => {
             &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"]

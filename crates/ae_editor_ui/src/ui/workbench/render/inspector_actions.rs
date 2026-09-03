@@ -544,11 +544,11 @@ fn handle_select_dropdown(
         }
         InspectorDropdownId::SurfaceType => {
             let surf = match opt_idx {
-                0 => ae_core::ecs::SurfaceType::Flesh,
-                1 => ae_core::ecs::SurfaceType::Default,
-                2 => ae_core::ecs::SurfaceType::Metal,
-                3 => ae_core::ecs::SurfaceType::Wood,
-                4 => ae_core::ecs::SurfaceType::Stone,
+                0 => ae_core::ecs::SurfaceType::Default,
+                1 => ae_core::ecs::SurfaceType::Metal,
+                2 => ae_core::ecs::SurfaceType::Wood,
+                3 => ae_core::ecs::SurfaceType::Stone,
+                4 => ae_core::ecs::SurfaceType::Flesh,
                 5 => ae_core::ecs::SurfaceType::Dirt,
                 6 => ae_core::ecs::SurfaceType::Glass,
                 7 => ae_core::ecs::SurfaceType::Rubber,

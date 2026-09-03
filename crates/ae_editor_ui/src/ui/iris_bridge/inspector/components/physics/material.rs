@@ -83,8 +83,8 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
         let mat_data = ctx
             .world
             .get::<&ae_core::ecs::PhysicsMaterial>(ctx.entity)
-            .map(|m| (m.friction, m.restitution))
-            .unwrap_or((0.70, 0.0));
+            .map(|m| (m.friction, m.restitution, m.surface_type.display_name()))
+            .unwrap_or((0.70, 0.0, "Default"));
 
         // Surface Type Dropdown + Preset Reset Button
         render_combobox_row_with_btn(
@@ -93,7 +93,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
             ctx,
             ComboboxWithButtonParams {
                 label: "Surface Type:",
-                selected_text: "Flesh",
+                selected_text: mat_data.2,
                 dropdown_id: InspectorDropdownId::SurfaceType,
                 btn_label: "↺ Preset",
                 row_y: cur_y,
@@ -141,7 +141,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
         let mat = ae_core::ecs::PhysicsMaterial {
             friction: 0.70,
             restitution: 0.0,
-            surface_type: ae_core::ecs::SurfaceType::Flesh,
+            surface_type: ae_core::ecs::SurfaceType::Default,
         };
         let _ = world.insert_one(entity, mat);
     }

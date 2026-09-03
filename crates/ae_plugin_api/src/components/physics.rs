@@ -227,6 +227,21 @@ impl SurfaceType {
     pub const fn default_restitution(&self) -> f32 {
         self.properties().restitution
     }
+
+    /// Returns the human-readable display name string for this surface type.
+    #[must_use]
+    pub const fn display_name(&self) -> &'static str {
+        match self {
+            Self::Default => "Default",
+            Self::Metal => "Metal",
+            Self::Wood => "Wood",
+            Self::Stone => "Stone",
+            Self::Flesh => "Flesh",
+            Self::Dirt => "Dirt",
+            Self::Glass => "Glass",
+            Self::Rubber => "Rubber",
+        }
+    }
 }
 
 /// Physics material properties defining friction, bounciness (restitution), and surface type.
