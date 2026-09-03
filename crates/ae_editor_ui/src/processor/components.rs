@@ -357,6 +357,7 @@ pub fn handle_toggle_visibility(ctx: &mut UiContext, entity: hecs::Entity) {
         let _ = ctx.world.insert_one(entity, ae_core::ecs::Hidden);
         log::info!("🚫 Entity {:?} HIDDEN", entity);
     }
+    let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
 }
 
 /// Handles modifying LOD thresholds of an entity.

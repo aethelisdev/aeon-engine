@@ -45,19 +45,30 @@ pub fn sync_hierarchy_rows(world: &hecs::World, out_rows: &mut Vec<HierarchyRow>
                 has_children: false,
             });
         }
+        out_rows.sort_by_key(|r| r.entity.id());
         return;
     }
 
-    // 3. Hierarchical path: DFS traversal starting from root nodes
+    // 3. Hierarchical path: DFS traversal starting from root nodes (sorted deterministically)
+    for children in children_map.values_mut() {
+        children.sort_by_key(|e| e.id());
+    }
+
     out_rows.reserve(entity_count);
+    let mut root_entities = Vec::with_capacity(entity_count);
     for ent_ref in world.iter() {
         let ent = ent_ref.entity();
         if ent_ref.get::<&ae_core::ui::PauseMenuUiTag>().is_some() {
             continue;
         }
         if !parent_map.contains_key(&ent) {
-            push_dfs_tree(ent, 0, &children_map, out_rows);
+            root_entities.push(ent);
         }
+    }
+    root_entities.sort_by_key(|e| e.id());
+
+    for root in root_entities {
+        push_dfs_tree(root, 0, &children_map, out_rows);
     }
 }
 
@@ -423,12 +434,16 @@ fn render_single_row(
         .world
         .get::<&ae_core::ecs::Hidden>(row.entity)
         .is_err();
-    let (eye_icon, eye_col) = if is_selected {
+    let (eye_icon, eye_col) = if !is_visible {
+        if is_selected {
+            ("🚫", Color::rgba(1.0, 0.40, 0.40, 1.0))
+        } else {
+            ("🚫", Color::rgba(0.92, 0.28, 0.28, 0.95))
+        }
+    } else if is_selected {
         ("👁", Color::rgba(0.0, 0.95, 1.0, 1.0))
-    } else if is_visible {
-        ("👁", Color::rgba(0.75, 0.78, 0.88, 0.90))
     } else {
-        ("🚫", Color::rgba(0.92, 0.28, 0.28, 0.95))
+        ("👁", Color::rgba(0.75, 0.78, 0.88, 0.90))
     };
 
     let eye_id = tree.create_node();
