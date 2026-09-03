@@ -216,7 +216,7 @@ impl DebugRenderer {
         world: &hecs::World,
         asset_manager: &ae_renderer::asset::AssetManager,
         view_proj: cgmath::Matrix4<f32>,
-        _selected_entities: &[hecs::Entity],
+        selected_entities: &[hecs::Entity],
     ) {
         let vp: [[f32; 4]; 4] = view_proj.into();
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&vp));
@@ -225,6 +225,7 @@ impl DebugRenderer {
         let color = [0.0, 1.0, 0.4]; // Green wireframe
 
         let mut query = world.query::<(
+            hecs::Entity,
             &ae_core::ecs::Collider,
             &ae_core::ecs::Position,
             Option<&ae_core::ecs::Rotation>,
@@ -232,9 +233,16 @@ impl DebugRenderer {
             Option<&ae_core::ecs::GlobalTransform>,
             Option<&ae_core::ecs::ModelId>,
             Option<&ae_core::ecs::CharacterController>,
+            Option<&ae_core::ecs::Hidden>,
         )>();
 
-        for (col, pos, rot, scale, global_transform, model_id, kcc_opt) in query.iter() {
+        for (entity, col, pos, rot, scale, global_transform, model_id, kcc_opt, hidden_opt) in
+            query.iter()
+        {
+            // Hide collider wireframes for hidden entities unless actively selected in the editor
+            if hidden_opt.is_some() && !selected_entities.contains(&entity) {
+                continue;
+            }
             let model = if let Some(gt) = global_transform {
                 gt.0
             } else {

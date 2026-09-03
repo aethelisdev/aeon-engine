@@ -26,6 +26,13 @@ pub fn build_billboard_icons(
         .query::<(Entity, &ae_core::ecs::Position)>()
         .iter()
     {
+        // Hide billboard icons for hidden entities unless actively selected in the editor
+        if params.world.get::<&ae_core::ecs::Hidden>(ent).is_ok()
+            && params.selected_entity != Some(ent)
+        {
+            continue;
+        }
+
         let is_light = params.world.get::<&ae_core::ecs::Light>(ent).is_ok();
         let is_audio_source = params.world.get::<&ae_audio::AudioSource>(ent).is_ok();
         let is_audio_listener = params.world.get::<&ae_audio::AudioListener>(ent).is_ok();
