@@ -176,14 +176,7 @@ impl Command {
                         if let Some(handler) = ComponentRegistry::global().get_by_name(type_name) {
                             let _ = handler.apply(world, *entity, old_data);
                         }
-                        if type_name == "Position"
-                            || type_name == "Rotation"
-                            || type_name == "Scale"
-                            || type_name == "RigidBody"
-                            || type_name == "Collider"
-                        {
-                            let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
-                        }
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Position(old, _) => {
                         let _ = world.insert_one(*entity, *old);
@@ -249,14 +242,7 @@ impl Command {
                         if let Some(handler) = ComponentRegistry::global().get_by_name(type_name) {
                             let _ = handler.apply(world, *entity, new_data);
                         }
-                        if type_name == "Position"
-                            || type_name == "Rotation"
-                            || type_name == "Scale"
-                            || type_name == "RigidBody"
-                            || type_name == "Collider"
-                        {
-                            let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
-                        }
+                        let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                     }
                     Property::Position(_, new) => {
                         let _ = world.insert_one(*entity, *new);
@@ -475,6 +461,55 @@ mod tests {
             let current_rb = world.get::<&RigidBody>(entity).unwrap();
             assert_eq!(current_rb.mass, 10.0);
             assert_eq!(current_rb.body_type, RigidBodyType::Static);
+        }
+    }
+
+    /// Tests that Property::Component for Velocity correctly undos, redos, and marks TransformDirty.
+    #[test]
+    fn test_generic_velocity_component_undo_redo() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Position::new(0.0, 0.0, 0.0),
+            ae_core::ecs::Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        ));
+
+        let old_vel = ae_core::ecs::Velocity {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let new_vel = ae_core::ecs::Velocity {
+            x: 5.0,
+            y: 10.0,
+            z: -2.5,
+        };
+
+        let prop = Property::from_component(&old_vel, &new_vel).unwrap();
+        let mut cmd = Command::Modify(entity, prop);
+
+        // Apply change (redo)
+        cmd.redo(&mut world);
+        {
+            let current_vel = world.get::<&ae_core::ecs::Velocity>(entity).unwrap();
+            assert_eq!(current_vel.x, 5.0);
+            assert_eq!(current_vel.y, 10.0);
+            assert_eq!(current_vel.z, -2.5);
+            assert!(world.get::<&ae_core::ecs::TransformDirty>(entity).is_ok());
+        }
+
+        // Revert change (undo)
+        let _ = world.remove_one::<ae_core::ecs::TransformDirty>(entity);
+        cmd.undo(&mut world);
+        {
+            let current_vel = world.get::<&ae_core::ecs::Velocity>(entity).unwrap();
+            assert_eq!(current_vel.x, 0.0);
+            assert_eq!(current_vel.y, 0.0);
+            assert_eq!(current_vel.z, 0.0);
+            assert!(world.get::<&ae_core::ecs::TransformDirty>(entity).is_ok());
         }
     }
 }

@@ -126,9 +126,10 @@ pub fn draw_dynamic_component_card(
         );
 
         if changed && let Ok(updated_bytes) = serde_json::to_vec(&json_val) {
-            ctx.ui_actions.push(EngineUiAction::ModifyComponent(
+            ctx.ui_actions.push(EngineUiAction::CommitComponentModify(
                 ctx.entity,
                 type_name,
+                bytes,
                 updated_bytes,
             ));
         }

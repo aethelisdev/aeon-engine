@@ -214,6 +214,28 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::ModifyComponent(ent, type_name, data) => {
                 components::handle_modify_component(ctx, ent, type_name, &data)
             }
+            crate::ui::EngineUiAction::CommitComponentModify(
+                ent,
+                type_name,
+                old_data,
+                new_data,
+            ) => {
+                components::handle_modify_component(ctx, ent, type_name, &new_data);
+                if old_data != new_data {
+                    ae_editor::history::push_undo(
+                        ctx.editor,
+                        ae_editor::undo_redo::Command::Modify(
+                            ent,
+                            ae_editor::undo_redo::Property::Component {
+                                type_name: type_name.to_string(),
+                                old_data,
+                                new_data,
+                            },
+                        ),
+                    );
+                    ctx.editor.redo_stack.clear();
+                }
+            }
             crate::ui::EngineUiAction::ModifyLodThresholds(ent, t1, t2) => {
                 components::handle_modify_lod_thresholds(ctx, ent, t1, t2)
             }

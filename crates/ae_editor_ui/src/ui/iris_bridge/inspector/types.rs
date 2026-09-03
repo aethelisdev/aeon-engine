@@ -85,6 +85,37 @@ pub enum InspectorNumberInputId {
     CameraFar,
 }
 
+impl InspectorNumberInputId {
+    /// Returns the canonical ComponentRegistry type name associated with this numeric field.
+    #[must_use]
+    pub fn component_name(self) -> &'static str {
+        match self {
+            Self::PosX | Self::PosY | Self::PosZ => "Position",
+            Self::RotX | Self::RotY | Self::RotZ => "Rotation",
+            Self::ScaleX | Self::ScaleY | Self::ScaleZ => "Scale",
+            Self::VelocityX | Self::VelocityY | Self::VelocityZ => "Velocity",
+            Self::ColliderHalfHeight
+            | Self::ColliderRadius
+            | Self::ColliderCenterY
+            | Self::ColliderBoxX
+            | Self::ColliderBoxY
+            | Self::ColliderBoxZ
+            | Self::ColliderFriction
+            | Self::ColliderRestitution => "Collider",
+            Self::PhysMatFriction | Self::PhysMatRestitution => "PhysicsMaterial",
+            Self::CharacterHeight
+            | Self::CharacterRadius
+            | Self::CharacterCenterY
+            | Self::CharacterMaxSlope
+            | Self::CharacterStepHeight => "CharacterController",
+            Self::ActionSpeedRange | Self::ActionCooldown => "CharacterAction",
+            Self::LightIntensity | Self::LightRange => "Light",
+            Self::RigidBodyMass | Self::RigidBodyGravity => "RigidBody",
+            Self::CameraFov | Self::CameraNear | Self::CameraFar => "Camera",
+        }
+    }
+}
+
 /// Dropdown selector identifier inside the Inspector panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InspectorDropdownId {
@@ -100,6 +131,21 @@ pub enum InspectorDropdownId {
     CameraProjection,
     /// 3D Shape Type (Cube, Sphere, Cylinder, Capsule, Torus, Plane).
     ShapeType,
+}
+
+impl InspectorDropdownId {
+    /// Returns the canonical ComponentRegistry type name associated with this dropdown selector.
+    #[must_use]
+    pub fn component_name(self) -> &'static str {
+        match self {
+            Self::RigidBodyType => "RigidBody",
+            Self::ColliderShape => "Collider",
+            Self::SurfaceType => "PhysicsMaterial",
+            Self::LightType => "Light",
+            Self::CameraProjection => "Camera",
+            Self::ShapeType => "Shape",
+        }
+    }
 }
 
 /// 8-Category classification for the `➕ Add Component` cascading menu.
@@ -198,6 +244,10 @@ pub enum InspectorAction {
     CloseAddSubmenu,
     /// Resets Physics Material properties to the active SurfaceType preset.
     ResetPhysMatPreset,
+    /// Signals that numeric input editing has begun, capturing pre-edit component state.
+    StartNumberEdit(InspectorNumberInputId),
+    /// Signals that numeric input editing has completed, committing undo history if value changed.
+    CommitNumberEdit(InspectorNumberInputId),
 }
 
 /// Transform axis group for reset actions.
@@ -224,6 +274,19 @@ pub enum ComponentCheckboxId {
     LightCastShadows,
     /// UI Button interactable state.
     UiInteractable,
+}
+
+impl ComponentCheckboxId {
+    /// Returns the canonical ComponentRegistry type name associated with this boolean checkbox.
+    #[must_use]
+    pub fn component_name(self) -> &'static str {
+        match self {
+            Self::ColliderIsSensor => "Collider",
+            Self::AudioLoop | Self::AudioSpatial => "AudioSource",
+            Self::LightCastShadows => "Light",
+            Self::UiInteractable => "UiButton",
+        }
+    }
 }
 
 /// Input parameters supplied to the Inspector panel layout builder.

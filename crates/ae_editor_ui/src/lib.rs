@@ -79,4 +79,63 @@ mod tests {
         assert!((child_gt.0.w.y - 5.0).abs() < 0.001);
         assert!((child_gt.0.w.z - 10.0).abs() < 0.001);
     }
+
+    /// Tests that CommitComponentModify pushes an undo command and undoes/redoes correctly.
+    #[test]
+    fn test_commit_component_modify_undo_redo() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Position::new(0.0, 0.0, 0.0),
+            Velocity {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+        ));
+
+        let mut editor = ae_editor::editor_state::EditorState::default();
+        let old_vel = Velocity {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+        let new_vel = Velocity {
+            x: 10.0,
+            y: 20.0,
+            z: 30.0,
+        };
+
+        let old_data = serde_json::to_vec(&old_vel).unwrap();
+        let new_data = serde_json::to_vec(&new_vel).unwrap();
+
+        // Simulate CommitComponentModify processing
+        let _ = world.insert_one(entity, new_vel);
+        ae_editor::history::push_undo(
+            &mut editor,
+            ae_editor::undo_redo::Command::Modify(
+                entity,
+                ae_editor::undo_redo::Property::Component {
+                    type_name: "Velocity".to_string(),
+                    old_data,
+                    new_data,
+                },
+            ),
+        );
+        assert_eq!(editor.undo_stack.len(), 1);
+
+        // Verify current value
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().x, 10.0);
+
+        // Undo
+        ae_editor::history::undo(&mut editor, &mut world);
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().x, 1.0);
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().y, 2.0);
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().z, 3.0);
+
+        // Redo
+        ae_editor::history::redo(&mut editor, &mut world);
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().x, 10.0);
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().y, 20.0);
+        assert_eq!(world.get::<&Velocity>(entity).unwrap().z, 30.0);
+    }
 }

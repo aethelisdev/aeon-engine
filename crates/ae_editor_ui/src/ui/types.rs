@@ -64,6 +64,7 @@ pub enum EngineUiAction {
     AddComponent(hecs::Entity, &'static str),
     RemoveComponent(hecs::Entity, &'static str),
     ModifyComponent(hecs::Entity, &'static str, Vec<u8>),
+    CommitComponentModify(hecs::Entity, &'static str, Vec<u8>, Vec<u8>),
 
     // --- SCENE/SYSTEM ACTIONS ---
     OpenModelDialog,

@@ -163,6 +163,8 @@ pub struct IrisEditorOverlay {
     pub inspector_active_number_input: Option<(super::inspector::InspectorNumberInputId, String)>,
     /// Active continuous horizontal mouse drag state for Inspector numeric fields.
     pub inspector_drag_number: Option<InspectorNumberDragState>,
+    /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
+    pub inspector_edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
     /// Live entity rename text buffer if currently focused.
     pub inspector_rename_buffer: Option<String>,
     /// Live HEX color text input editing buffer if currently focused.

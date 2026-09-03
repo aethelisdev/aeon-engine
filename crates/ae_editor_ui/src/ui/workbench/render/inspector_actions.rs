@@ -78,8 +78,30 @@ impl EngineUi {
                         ));
                     }
                 }
+                InspectorAction::StartNumberEdit(num_id) => {
+                    if let Some(entity) = self.selected_entity {
+                        let comp_name = num_id.component_name();
+                        let registry = ae_core::registry::ComponentRegistry::global();
+                        if let Some(handler) = registry.get_by_name(comp_name)
+                            && let Some(old_bytes) = handler.capture(world, entity)
+                        {
+                            self.iris_overlay.inspector_edit_start_snapshot =
+                                Some((entity, comp_name, old_bytes));
+                        }
+                    }
+                }
                 InspectorAction::SetNumberValue(num_id, val) => {
                     if let Some(entity) = self.selected_entity {
+                        if self.iris_overlay.inspector_edit_start_snapshot.is_none() {
+                            let comp_name = num_id.component_name();
+                            let registry = ae_core::registry::ComponentRegistry::global();
+                            if let Some(handler) = registry.get_by_name(comp_name)
+                                && let Some(old_bytes) = handler.capture(world, entity)
+                            {
+                                self.iris_overlay.inspector_edit_start_snapshot =
+                                    Some((entity, comp_name, old_bytes));
+                            }
+                        }
                         handle_set_number_value(
                             world,
                             entity,
@@ -89,27 +111,93 @@ impl EngineUi {
                         );
                     }
                 }
+                InspectorAction::CommitNumberEdit(num_id) => {
+                    if let Some(entity) = self.selected_entity {
+                        let comp_name = num_id.component_name();
+                        if let Some((snap_entity, snap_comp_name, old_bytes)) =
+                            self.iris_overlay.inspector_edit_start_snapshot.take()
+                            && snap_entity == entity
+                            && snap_comp_name == comp_name
+                        {
+                            let registry = ae_core::registry::ComponentRegistry::global();
+                            if let Some(handler) = registry.get_by_name(comp_name)
+                                && let Some(new_bytes) = handler.capture(world, entity)
+                                && old_bytes != new_bytes
+                            {
+                                ui_actions.push(EngineUiAction::CommitComponentModify(
+                                    entity, comp_name, old_bytes, new_bytes,
+                                ));
+                            }
+                        }
+                    }
+                }
                 InspectorAction::SelectDropdown(dd_id, opt_idx) => {
                     if let Some(entity) = self.selected_entity {
+                        let comp_name = dd_id.component_name();
+                        let registry = ae_core::registry::ComponentRegistry::global();
+                        let old_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
                         handle_select_dropdown(world, entity, dd_id, opt_idx);
+                        let new_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
+                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                            && old != new
+                        {
+                            ui_actions.push(EngineUiAction::CommitComponentModify(
+                                entity, comp_name, old, new,
+                            ));
+                        }
                     }
                 }
                 InspectorAction::ToggleCheckbox(cb_id) => {
-                    if let Some(entity) = self.selected_entity
-                        && let ComponentCheckboxId::ColliderIsSensor = cb_id
-                        && let Ok(mut c) = world.get::<&mut ae_core::ecs::Collider>(entity)
-                    {
-                        c.is_sensor = !c.is_sensor;
+                    if let Some(entity) = self.selected_entity {
+                        let comp_name = cb_id.component_name();
+                        let registry = ae_core::registry::ComponentRegistry::global();
+                        let old_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
+                        if let ComponentCheckboxId::ColliderIsSensor = cb_id
+                            && let Ok(mut c) = world.get::<&mut ae_core::ecs::Collider>(entity)
+                        {
+                            c.is_sensor = !c.is_sensor;
+                        }
+                        let new_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
+                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                            && old != new
+                        {
+                            ui_actions.push(EngineUiAction::CommitComponentModify(
+                                entity, comp_name, old, new,
+                            ));
+                        }
                     }
                 }
                 InspectorAction::ResetPhysMatPreset => {
                     if let Some(entity) = self.selected_entity {
+                        let comp_name = "PhysicsMaterial";
+                        let registry = ae_core::registry::ComponentRegistry::global();
+                        let old_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
                         let surf = world
                             .get::<&ae_core::ecs::PhysicsMaterial>(entity)
                             .map(|m| m.surface_type)
                             .unwrap_or(ae_core::ecs::SurfaceType::Default);
                         if let Ok(mut m) = world.get::<&mut ae_core::ecs::PhysicsMaterial>(entity) {
                             *m = ae_core::ecs::PhysicsMaterial::from_preset(surf);
+                        }
+                        let new_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
+                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                            && old != new
+                        {
+                            ui_actions.push(EngineUiAction::CommitComponentModify(
+                                entity, comp_name, old, new,
+                            ));
                         }
                     }
                 }

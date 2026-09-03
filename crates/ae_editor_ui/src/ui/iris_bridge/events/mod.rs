@@ -199,6 +199,9 @@ impl IrisEditorOverlay {
                     // Click in-place without dragging -> activate direct numeric text editing
                     self.inspector_active_number_input =
                         Some((drag.id, format!("{:.2}", drag.start_val)));
+                } else {
+                    self.inspector_actions
+                        .push(super::inspector::InspectorAction::CommitNumberEdit(drag.id));
                 }
                 result.consumed = true;
                 return result;
@@ -534,6 +537,7 @@ impl IrisEditorOverlay {
                         match *key {
                             winit::keyboard::KeyCode::Escape => {
                                 self.inspector_active_number_input = None;
+                                self.inspector_edit_start_snapshot = None;
                                 result.consumed = true;
                                 return result;
                             }
@@ -544,6 +548,9 @@ impl IrisEditorOverlay {
                                 {
                                     self.inspector_actions.push(
                                         super::inspector::InspectorAction::SetNumberValue(id, v),
+                                    );
+                                    self.inspector_actions.push(
+                                        super::inspector::InspectorAction::CommitNumberEdit(id),
                                     );
                                 }
                                 result.consumed = true;
@@ -782,6 +789,8 @@ impl IrisEditorOverlay {
                         self.inspector_actions.push(
                             super::inspector::InspectorAction::SetNumberValue(prev_id, v),
                         );
+                        self.inspector_actions
+                            .push(super::inspector::InspectorAction::CommitNumberEdit(prev_id));
                     }
                     let sensitivity = match num_id {
                         super::inspector::InspectorNumberInputId::RotX
@@ -804,6 +813,8 @@ impl IrisEditorOverlay {
                         | super::inspector::InspectorNumberInputId::ColliderCenterY => 0.05,
                         _ => 0.02,
                     };
+                    self.inspector_actions
+                        .push(super::inspector::InspectorAction::StartNumberEdit(num_id));
                     self.inspector_drag_number =
                         Some(crate::ui::iris_bridge::types::InspectorNumberDragState {
                             id: num_id,
@@ -825,6 +836,8 @@ impl IrisEditorOverlay {
             {
                 self.inspector_actions
                     .push(super::inspector::InspectorAction::SetNumberValue(id, v));
+                self.inspector_actions
+                    .push(super::inspector::InspectorAction::CommitNumberEdit(id));
             }
 
             // If click was outside hex input while editing, commit value
