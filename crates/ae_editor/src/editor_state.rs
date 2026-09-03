@@ -120,6 +120,8 @@ impl EditorState {
     }
 
     /// Restores all backed-up entity snapshots when returning from Play Mode to Edit Mode.
+    /// Preserves original scene entity states, including user-configured initial velocities,
+    /// while cleanly removing transient components or entities created during gameplay.
     pub fn restore_scene(&self, world: &mut hecs::World) {
         // Despawn temporary entities spawned during gameplay that were not in the scene backup
         let current_entities: Vec<hecs::Entity> = world.iter().map(|e| e.entity()).collect();
@@ -129,14 +131,13 @@ impl EditorState {
             }
         }
 
-        // Restore existing entities and zero out any lingering gameplay physics velocities
+        // Restore existing entities to pre-play snapshot state
         for (entity, snapshot) in &self.scene_backup {
             if world.contains(*entity) {
                 snapshot.apply(world, *entity);
-                if let Ok(mut vel) = world.get::<&mut ae_core::ecs::Velocity>(*entity) {
-                    vel.x = 0.0;
-                    vel.y = 0.0;
-                    vel.z = 0.0;
+                // If velocity was not present in the pre-play snapshot, clean up any transient gameplay velocity
+                if !snapshot.has::<ae_core::ecs::Velocity>() {
+                    let _ = world.remove_one::<ae_core::ecs::Velocity>(*entity);
                 }
                 let _ = world.insert_one(*entity, ae_core::ecs::TransformDirty);
                 let _ = world.remove_one::<ae_core::ecs::GlobalTransform>(*entity);
@@ -165,9 +166,9 @@ mod tests {
                 z: -2.0,
             },
             Velocity {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
+                x: 1.5,
+                y: 2.0,
+                z: -3.0,
             },
         ));
         let e2 = world.spawn((Position {
@@ -185,7 +186,9 @@ mod tests {
             pos.y = -500.0;
         }
         if let Ok(mut vel) = world.get::<&mut Velocity>(e1) {
+            vel.x = 100.0;
             vel.y = -50.0;
+            vel.z = 200.0;
         }
         // Despawn e2 in gameplay
         world.despawn(e2).unwrap();
@@ -205,11 +208,11 @@ mod tests {
         assert_eq!(pos1.y, 5.0);
         assert_eq!(pos1.z, -2.0);
 
-        // e1 velocity zeroed
+        // e1 velocity restored to initial backup value (not zeroed out)
         let vel1 = world.get::<&Velocity>(e1).unwrap();
-        assert_eq!(vel1.x, 0.0);
-        assert_eq!(vel1.y, 0.0);
-        assert_eq!(vel1.z, 0.0);
+        assert_eq!(vel1.x, 1.5);
+        assert_eq!(vel1.y, 2.0);
+        assert_eq!(vel1.z, -3.0);
 
         // Temporary bullet despawned and e2 re-spawned (total 2 entities)
         assert_eq!(world.iter().count(), 2);
