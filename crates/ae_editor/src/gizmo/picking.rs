@@ -38,16 +38,61 @@ impl GizmoSystem {
                 (ActiveAxis::Z, self.oriented_axis(Vector3::unit_z())),
             ];
 
+            let view_dir_world = (camera_pos - gizmo_pos).normalize();
             let mut min_cam_dist = f32::MAX;
+
             for (axis, normal) in &planes {
-                if let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, *normal) {
-                    let d_center = (hit - gizmo_pos).magnitude();
-                    if (d_center - radius).abs() < pick_radius_world * 2.5 {
-                        let cam_d = (hit - camera_pos).magnitude();
-                        if cam_d < min_cam_dist {
-                            min_cam_dist = cam_d;
-                            best_axis = *axis;
+                let denom = ray_dir.dot(*normal);
+                if denom.abs() >= 0.25 {
+                    // Standard ring plane intersection for face-on and moderate angles
+                    if let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, *normal) {
+                        let d_center = (hit - gizmo_pos).magnitude();
+                        if (d_center - radius).abs() < pick_radius_world * 2.5 {
+                            // Ensure hit point is on the front hemisphere facing the camera
+                            let to_hit = (hit - gizmo_pos).normalize();
+                            if to_hit.dot(view_dir_world) >= -0.05 {
+                                let cam_d = (hit - camera_pos).magnitude();
+                                if cam_d < min_cam_dist {
+                                    min_cam_dist = cam_d;
+                                    best_axis = *axis;
+                                }
+                            }
                         }
+                    }
+                } else {
+                    // Edge-on view fallback: ray is near-parallel to ring plane (|denom| < 0.25).
+                    // Test intersection against camera view plane passing through gizmo center.
+                    if let Some(hit_cam) = ray_plane(ray_origin, ray_dir, gizmo_pos, forward) {
+                        let local_hit = hit_cam - gizmo_pos;
+                        let dist_to_ring_plane = local_hit.dot(*normal).abs();
+                        let dist_from_center = local_hit.magnitude();
+
+                        if dist_to_ring_plane < pick_radius_world * 2.2
+                            && dist_from_center >= radius * 0.2
+                            && dist_from_center <= radius + pick_radius_world * 1.5
+                        {
+                            let cam_d = (hit_cam - camera_pos).magnitude();
+                            if cam_d < min_cam_dist {
+                                min_cam_dist = cam_d;
+                                best_axis = *axis;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Feature B: Outer screen-space rotation ring picking in view plane.
+            // Only select Screen axis when explicitly hovering on the outer perimeter,
+            // strictly preventing it from hijacking clicks near the inner 3D axis rings.
+            let outer_radius = radius * 1.15;
+            if let Some(hit) = ray_plane(ray_origin, ray_dir, gizmo_pos, forward) {
+                let d_center = (hit - gizmo_pos).magnitude();
+                if (d_center - outer_radius).abs() < pick_radius_world * 1.3
+                    && d_center > radius + pick_radius_world * 0.3
+                {
+                    let cam_d = (hit - camera_pos).magnitude();
+                    if cam_d < min_cam_dist {
+                        best_axis = ActiveAxis::Screen;
                     }
                 }
             }

@@ -4,7 +4,7 @@
 //! # Viewport Floating Toolbar Builder
 //!
 //! Renders the top-left floating glass toolbar containing camera projection modes,
-//! shading mode selector, W/E/R gizmo operation buttons, and coordinate space toggle.
+//! shading mode selector, Q/W/E/R gizmo operation buttons, and coordinate space toggle.
 
 use super::types::{
     ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets,
@@ -13,7 +13,7 @@ use ae_editor::gizmo::{GizmoMode, GizmoSpace};
 use ae_renderer::camera::ProjectionMode;
 use irisui::prelude::*;
 
-/// Builds the top-left floating toolbar matching the native  engine aesthetic.
+/// Builds the top-left floating viewport toolbar with projection, shading, gizmo mode, and coordinate space controls.
 pub fn build_viewport_toolbar(
     tree: &mut UiTree,
     parent_id: WidgetId,

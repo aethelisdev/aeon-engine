@@ -3,7 +3,7 @@
 use super::selection::create_ray;
 use crate::editor_state::EditorState;
 use ae_core::ecs::{Position, Rotation, Scale};
-use cgmath::{EuclideanSpace, Euler, Quaternion, Rad, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Quaternion, Rad, Rotation3, Vector3};
 
 /// Parameters for processing gizmo drag interactions.
 pub struct GizmoDragParams<'a> {
@@ -125,33 +125,30 @@ pub fn handle_gizmo_drag(params: GizmoDragParams<'_>) {
                             && let Ok(mut r) = ecs.world.get::<&mut Rotation>(ent)
                         {
                             let step = 15.0;
-                            let rx = if editor.snapping.current_enabled {
-                                crate::snapping::rotate::snap_rotation(d.x, step)
-                            } else {
-                                d.x
+                            let (axis_vec, raw_angle) = match gizmo_system.active_axis {
+                                crate::gizmo::ActiveAxis::X => (Vector3::unit_x(), d.x),
+                                crate::gizmo::ActiveAxis::Y => (Vector3::unit_y(), d.y),
+                                crate::gizmo::ActiveAxis::Z => (Vector3::unit_z(), d.z),
+                                crate::gizmo::ActiveAxis::Screen => {
+                                    (camera.get_forward().normalize(), d.x)
+                                }
+                                _ => (Vector3::unit_y(), 0.0),
                             };
-                            let ry = if editor.snapping.current_enabled {
-                                crate::snapping::rotate::snap_rotation(d.y, step)
+                            let angle = if editor.snapping.current_enabled {
+                                crate::snapping::rotate::snap_rotation(raw_angle, step)
                             } else {
-                                d.y
+                                raw_angle
                             };
-                            let rz = if editor.snapping.current_enabled {
-                                crate::snapping::rotate::snap_rotation(d.z, step)
-                            } else {
-                                d.z
-                            };
+                            let q_delta = Quaternion::from_axis_angle(axis_vec, Rad(angle));
 
-                            let q_delta = Quaternion::from(Euler {
-                                x: Rad(rx),
-                                y: Rad(ry),
-                                z: Rad(rz),
-                            });
-                            let q_new = if ui_gizmo_space == crate::gizmo::space::GizmoSpace::Local
-                            {
-                                start_rot * q_delta
-                            } else {
-                                q_delta * start_rot
-                            };
+                            let q_new =
+                                if gizmo_system.active_axis == crate::gizmo::ActiveAxis::Screen {
+                                    q_delta * start_rot
+                                } else if ui_gizmo_space == crate::gizmo::space::GizmoSpace::Local {
+                                    start_rot * q_delta
+                                } else {
+                                    q_delta * start_rot
+                                };
                             r.x = q_new.v.x;
                             r.y = q_new.v.y;
                             r.z = q_new.v.z;
@@ -210,8 +207,8 @@ pub fn gizmo_screen_params(
     crate::gizmo::GizmoScreenParams {
         viewport_height_px: window_size.1 as f32,
         camera_fovy_deg: camera.fovy,
-        axis_length_px: 80.0,
-        pick_radius_px: 8.0,
+        axis_length_px: 96.0,
+        pick_radius_px: 14.0,
         camera_mode: camera.mode,
         ortho_scale: camera.ortho_scale,
     }

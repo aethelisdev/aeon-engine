@@ -4,7 +4,7 @@
 //! Multi-viewport and detached floating window docking management.
 //!
 //! Enables tabs to be dragged out of the main window into independent operating system
-//! floating windows ( 5 style multi-monitor workflow) and docked back .
+//! floating windows (multi-monitor workflow) and docked back .
 
 use crate::tree::{DockNodeId, DockTree};
 use iris_core::{Point, Rect};

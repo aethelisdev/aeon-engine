@@ -34,7 +34,7 @@ mod tests {
             GlobalTransform(cgmath::Matrix4::identity()),
         ));
 
-        // Spawn child (Küp)
+        // Spawn child entity
         let child = world.spawn((
             Position {
                 x: 10.0,

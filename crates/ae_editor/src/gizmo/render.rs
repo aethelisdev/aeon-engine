@@ -10,14 +10,14 @@ use super::core::{ActiveAxis, GizmoMode, GizmoScreenParams, GizmoSystem};
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub(crate) struct GizmoVertex {
     pub(crate) position: [f32; 3],
-    pub(crate) color: [f32; 3],
+    pub(crate) color: [f32; 4],
     pub(crate) uv: [f32; 2],
 }
 
 impl GizmoVertex {
     const ATTRIBS: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![
         0 => Float32x3, // position
-        1 => Float32x3, // color
+        1 => Float32x4, // color (RGBA)
         2 => Float32x2  // uv for SDF anti-aliased circles
     ];
 
@@ -51,6 +51,8 @@ pub struct GizmoOverlayPrepareParams<'a> {
     pub screen: &'a GizmoScreenParams,
     pub cam_right: Vector3<f32>,
     pub cam_up: Vector3<f32>,
+    pub cam_forward: Vector3<f32>,
+    pub cam_pos: Vector3<f32>,
 }
 
 impl GizmoSystem {
@@ -62,7 +64,6 @@ impl GizmoSystem {
         msaa_samples: u32,
     ) -> Self {
         let vertices = Self::build_axis_vertices(1.0, false);
-        let rotate_vertices = Self::build_rotation_vertices(1.0);
         let scale_vertices = Self::build_axis_vertices(1.0, true);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -71,10 +72,11 @@ impl GizmoSystem {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
-        let rotate_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Gizmo Rotate Vertex Buffer"),
-            contents: bytemuck::cast_slice(&rotate_vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+        let rotate_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Gizmo Rotate Dynamic Vertex Buffer"),
+            size: (std::mem::size_of::<GizmoVertex>() * 12288) as wgpu::BufferAddress,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let scale_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -208,6 +210,8 @@ impl GizmoSystem {
             drag_scale_factor: 1.0,
             cam_right: std::cell::Cell::new(Vector3::unit_x()),
             cam_up: std::cell::Cell::new(Vector3::unit_y()),
+            cam_forward: std::cell::Cell::new(-Vector3::unit_z()),
+            cam_pos: std::cell::Cell::new(Vector3::new(0.0, 0.0, 5.0)),
             entity_rotation: Quaternion::new(1.0, 0.0, 0.0, 0.0),
             vertex_buffer,
             rotate_vertex_buffer,
@@ -219,7 +223,6 @@ impl GizmoSystem {
             mesh_pipeline,
             line_pipeline,
             num_vertices: vertices.len() as u32,
-            num_rotate_vertices: rotate_vertices.len() as u32,
             num_scale_vertices: scale_vertices.len() as u32,
         }
     }
@@ -325,20 +328,23 @@ impl GizmoSystem {
                 }
             }
             GizmoMode::Rotate => {
-                pass.set_pipeline(&self.mesh_pipeline);
-                pass.set_vertex_buffer(0, self.rotate_vertex_buffer.slice(..));
-
-                if self.is_dragging && self.active_axis != ActiveAxis::None {
-                    let verts_per_axis = self.num_rotate_vertices / 3;
-                    let range = match self.active_axis {
-                        ActiveAxis::X => 0..verts_per_axis,
-                        ActiveAxis::Y => verts_per_axis..(verts_per_axis * 2),
-                        ActiveAxis::Z => (verts_per_axis * 2)..self.num_rotate_vertices,
-                        _ => 0..self.num_rotate_vertices,
-                    };
-                    pass.draw(range, 0..1);
-                } else {
-                    pass.draw(0..self.num_rotate_vertices, 0..1);
+                let rotate_vertices = self.build_dynamic_rotation_vertices(1.0);
+                if !rotate_vertices.is_empty() {
+                    let write_len = rotate_vertices.len().min(12288);
+                    queue.write_buffer(
+                        &self.rotate_vertex_buffer,
+                        0,
+                        bytemuck::cast_slice(&rotate_vertices[..write_len]),
+                    );
+                    pass.set_pipeline(&self.mesh_pipeline);
+                    pass.set_vertex_buffer(
+                        0,
+                        self.rotate_vertex_buffer.slice(
+                            0..(std::mem::size_of::<GizmoVertex>() * write_len)
+                                as wgpu::BufferAddress,
+                        ),
+                    );
+                    pass.draw(0..write_len as u32, 0..1);
                 }
 
                 // Draw the O-ring (camera-facing 360-degree circle in the center) using mesh_pipeline!
@@ -384,12 +390,13 @@ impl GizmoSystem {
                             };
 
                         let color = match self.active_axis {
-                            ActiveAxis::X => [1.0, 0.2, 0.2],
-                            ActiveAxis::Y => [0.2, 1.0, 0.2],
-                            ActiveAxis::Z => [0.2, 0.4, 1.0],
-                            _ => [1.0, 1.0, 1.0],
+                            ActiveAxis::X => [1.0, 0.2, 0.2, 0.6],
+                            ActiveAxis::Y => [0.2, 1.0, 0.2, 0.6],
+                            ActiveAxis::Z => [0.2, 0.4, 1.0, 0.6],
+                            ActiveAxis::Screen => [1.0, 0.9, 0.2, 0.6],
+                            _ => [1.0, 1.0, 1.0, 0.6],
                         };
-                        let dark_col = [color[0] * 0.2, color[1] * 0.2, color[2] * 0.2];
+                        let dark_col = [color[0] * 0.4, color[1] * 0.4, color[2] * 0.4, color[3]];
                         let r = 0.95;
 
                         let mut pie_vertices = Vec::new();
@@ -489,6 +496,8 @@ impl GizmoSystem {
     pub fn prepare_overlay(&self, params: GizmoOverlayPrepareParams<'_>) {
         self.cam_right.set(params.cam_right);
         self.cam_up.set(params.cam_up);
+        self.cam_forward.set(params.cam_forward);
+        self.cam_pos.set(params.cam_pos);
 
         let dist = params.camera_distance.max(1e-6);
         let axis_len_world = params.screen.axis_length_world(dist);
@@ -546,20 +555,23 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                 }
             }
             GizmoMode::Rotate => {
-                pass.set_pipeline(&self.mesh_pipeline);
-                pass.set_vertex_buffer(0, self.rotate_vertex_buffer.slice(..));
-
-                if self.is_dragging && self.active_axis != ActiveAxis::None {
-                    let verts_per_axis = self.num_rotate_vertices / 3;
-                    let range = match self.active_axis {
-                        ActiveAxis::X => 0..verts_per_axis,
-                        ActiveAxis::Y => verts_per_axis..(verts_per_axis * 2),
-                        ActiveAxis::Z => (verts_per_axis * 2)..self.num_rotate_vertices,
-                        _ => 0..self.num_rotate_vertices,
-                    };
-                    pass.draw(range, 0..1);
-                } else {
-                    pass.draw(0..self.num_rotate_vertices, 0..1);
+                let rotate_vertices = self.build_dynamic_rotation_vertices(1.0);
+                if !rotate_vertices.is_empty() {
+                    let write_len = rotate_vertices.len().min(12288);
+                    queue.write_buffer(
+                        &self.rotate_vertex_buffer,
+                        0,
+                        bytemuck::cast_slice(&rotate_vertices[..write_len]),
+                    );
+                    pass.set_pipeline(&self.mesh_pipeline);
+                    pass.set_vertex_buffer(
+                        0,
+                        self.rotate_vertex_buffer.slice(
+                            0..(std::mem::size_of::<GizmoVertex>() * write_len)
+                                as wgpu::BufferAddress,
+                        ),
+                    );
+                    pass.draw(0..write_len as u32, 0..1);
                 }
 
                 // Draw the O-ring (camera-facing 360-degree circle in the center) using mesh_pipeline!
@@ -605,12 +617,13 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                             };
 
                         let color = match self.active_axis {
-                            ActiveAxis::X => [1.0, 0.2, 0.2],
-                            ActiveAxis::Y => [0.2, 1.0, 0.2],
-                            ActiveAxis::Z => [0.2, 0.4, 1.0],
-                            _ => [1.0, 1.0, 1.0],
+                            ActiveAxis::X => [1.0, 0.2, 0.2, 0.6],
+                            ActiveAxis::Y => [0.2, 1.0, 0.2, 0.6],
+                            ActiveAxis::Z => [0.2, 0.4, 1.0, 0.6],
+                            ActiveAxis::Screen => [1.0, 0.9, 0.2, 0.6],
+                            _ => [1.0, 1.0, 1.0, 0.6],
                         };
-                        let dark_col = [color[0] * 0.2, color[1] * 0.2, color[2] * 0.2];
+                        let dark_col = [color[0] * 0.4, color[1] * 0.4, color[2] * 0.4, color[3]];
                         let r = 0.95;
 
                         let mut pie_vertices = Vec::new();

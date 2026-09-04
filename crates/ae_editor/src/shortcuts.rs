@@ -22,11 +22,11 @@ pub struct ShortcutResult {
     pub trigger_save_scene_as: bool,
     /// Signal to focus the camera on the selected entity (F).
     pub trigger_focus_selected: bool,
-    /// Updated gizmo mode if W/E/R keys were pressed in Edit mode.
+    /// Updated gizmo mode if Q/W/E/R keys were pressed in Edit mode.
     pub new_gizmo_mode: Option<crate::gizmo::GizmoMode>,
 }
 
-/// Evaluates all keyboard shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, Ctrl+S, Ctrl+Shift+S, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, W/E/R/F).
+/// Evaluates all keyboard shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, Ctrl+S, Ctrl+Shift+S, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Q/W/E/R/F).
 /// Directly dispatches ECS & editor actions (copy/paste, delete, duplicate, rename)
 /// and returns a `ShortcutResult` for engine-level signals (undo/redo, open scene, save scene, camera focus).
 pub fn process_shortcuts(

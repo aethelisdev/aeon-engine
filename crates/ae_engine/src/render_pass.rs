@@ -135,6 +135,8 @@ impl AeEngine {
                                 screen: &screen,
                                 cam_right: right_dir,
                                 cam_up: up_dir,
+                                cam_forward: cam_f,
+                                cam_pos,
                             },
                         );
                         Some(&self.gizmo_system as &dyn ae_renderer::render::OverlayRenderer)

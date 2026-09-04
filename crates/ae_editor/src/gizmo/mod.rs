@@ -19,6 +19,8 @@ pub mod picking;
 pub mod render;
 /// Euler angle delta computation from drag vectors.
 pub mod rotate;
+/// Procedural geometry algorithms for view-aligned rotation gizmo handles (arcs, screen ring, fading).
+pub mod rotation_geometry;
 /// Coordinate space enum (`GizmoSpace`) — World vs Local axis orientation.
 pub mod space;
 /// Axis-constrained translation delta computation.

@@ -38,6 +38,7 @@ pub fn calculate_rotate_drag(
         ActiveAxis::X => Some(Vector3::new(angle, 0.0, 0.0)),
         ActiveAxis::Y => Some(Vector3::new(0.0, angle, 0.0)),
         ActiveAxis::Z => Some(Vector3::new(0.0, 0.0, angle)),
+        ActiveAxis::Screen => Some(Vector3::new(angle, 0.0, 0.0)),
         _ => None,
     }
 }

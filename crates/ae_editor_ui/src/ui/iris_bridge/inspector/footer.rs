@@ -26,9 +26,9 @@ pub fn build_inspector_footer(
     let padding_x = 8.0;
     let footer_h = 24.0;
     let footer_y = params.panel_rect.bottom() - footer_h - 6.0;
-    let base_x = params.panel_rect.x + padding_x; // Sola yasla (Left-aligned)
+    let base_x = params.panel_rect.x + padding_x; // Left-aligned
     let btn_gap = 8.0;
-    let btn_w = 112.0; // Kompakt genişlik (Image 2 & 3)
+    let btn_w = 112.0; // Compact width
 
     // 1. `➕ Add Component` Button
     let add_rect = Rect::new(base_x, footer_y, btn_w, footer_h);

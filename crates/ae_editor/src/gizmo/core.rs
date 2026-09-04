@@ -21,6 +21,7 @@ pub enum GizmoMode {
 
 /// Active or hovered axis state.
 /// - `None`: No axis is active or hovered.
+/// - `Screen`: Camera-facing outer view rotation ring.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ActiveAxis {
     None,
@@ -28,6 +29,7 @@ pub enum ActiveAxis {
     Y,
     Z,
     Free,
+    Screen,
     PlaneXY,
     PlaneXZ,
     PlaneYZ,
@@ -102,6 +104,8 @@ pub struct GizmoSystem {
     pub(crate) drag_scale_factor: f32,
     pub(crate) cam_right: std::cell::Cell<Vector3<f32>>,
     pub(crate) cam_up: std::cell::Cell<Vector3<f32>>,
+    pub(crate) cam_forward: std::cell::Cell<Vector3<f32>>,
+    pub(crate) cam_pos: std::cell::Cell<Vector3<f32>>,
     /// The selected entity's rotation quaternion, used to orient gizmo axes in Local space.
     /// Updated by the engine each frame before gizmo rendering and input processing.
     pub entity_rotation: Quaternion<f32>,
@@ -117,7 +121,6 @@ pub struct GizmoSystem {
     pub(crate) mesh_pipeline: wgpu::RenderPipeline,
     pub(crate) line_pipeline: wgpu::RenderPipeline,
     pub(crate) num_vertices: u32,
-    pub(crate) num_rotate_vertices: u32,
     pub(crate) num_scale_vertices: u32,
 }
 
@@ -146,7 +149,10 @@ impl GizmoSystem {
                     | ActiveAxis::PlaneXZ
                     | ActiveAxis::PlaneYZ
             ),
-            GizmoMode::Rotate => matches!(axis, ActiveAxis::X | ActiveAxis::Y | ActiveAxis::Z),
+            GizmoMode::Rotate => matches!(
+                axis,
+                ActiveAxis::X | ActiveAxis::Y | ActiveAxis::Z | ActiveAxis::Screen
+            ),
             GizmoMode::Scale => matches!(
                 axis,
                 ActiveAxis::X | ActiveAxis::Y | ActiveAxis::Z | ActiveAxis::Free

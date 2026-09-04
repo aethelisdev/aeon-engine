@@ -13,13 +13,13 @@ var<uniform> gizmo_uniform: GizmoUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) color: vec3<f32>,
+    @location(1) color: vec4<f32>,
     @location(2) uv: vec2<f32>,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec3<f32>,
+    @location(0) color: vec4<f32>,
     @location(1) uv: vec2<f32>,
 };
 
@@ -47,12 +47,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let delta = max(fwidth(dist), 0.001);
         let alpha = 1.0 - smoothstep(ring_half_width - delta, ring_half_width + delta, dist);
         
-        if (alpha <= 0.01) {
+        let final_alpha = in.color.a * alpha;
+        if (final_alpha <= 0.01) {
             discard;
         }
-        return vec4<f32>(in.color, alpha);
+        return vec4<f32>(in.color.rgb, final_alpha);
     }
 
-    // Mode 2: Standard 3D geometry
-    return vec4<f32>(in.color, 1.0);
+    // Mode 2: Standard 3D geometry with per-vertex alpha for edge-on fading
+    if (in.color.a <= 0.01) {
+        discard;
+    }
+    return in.color;
 }

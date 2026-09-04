@@ -8,68 +8,6 @@ use super::render::GizmoVertex;
 use cgmath::{InnerSpace, Rotation as _, Vector3};
 
 impl GizmoSystem {
-    /// Generates a torus (donut) mesh as TriangleList vertices.
-    /// Used for rotation ring handles.
-    /// ### Arguments
-    /// * `major_radius` - The radius from the center of the torus to the center of the tube.
-    /// * `minor_radius` - The radius of the tube itself.
-    /// * `segments` - Number of segments around the major circumference.
-    /// * `cross_segments` - Number of segments around the minor tube circumference.
-    /// * `color` - RGB color of the torus vertices.
-    /// * `axis` - The active axis defining the rotation plane of the torus (X, Y, or Z).
-    pub(crate) fn build_torus(
-        major_radius: f32,
-        minor_radius: f32,
-        segments: usize,
-        cross_segments: usize,
-        color: [f32; 3],
-        axis: ActiveAxis,
-    ) -> Vec<GizmoVertex> {
-        let mut vertices = Vec::new();
-
-        for i in 0..segments {
-            let a1 = (i as f32) / (segments as f32) * std::f32::consts::TAU;
-            let a2 = ((i + 1) as f32) / (segments as f32) * std::f32::consts::TAU;
-
-            let (sin1, cos1) = a1.sin_cos();
-            let (sin2, cos2) = a2.sin_cos();
-
-            for j in 0..cross_segments {
-                let ca1 = (j as f32) / (cross_segments as f32) * std::f32::consts::TAU;
-                let ca2 = ((j + 1) as f32) / (cross_segments as f32) * std::f32::consts::TAU;
-
-                let (csin1, ccos1) = ca1.sin_cos();
-                let (csin2, ccos2) = ca2.sin_cos();
-
-                let cp = |a_cos: f32, a_sin: f32, ca_cos: f32, ca_sin: f32| -> [f32; 3] {
-                    let rx = (major_radius + minor_radius * ca_cos) * a_cos;
-                    let ry = (major_radius + minor_radius * ca_cos) * a_sin;
-                    let rz = minor_radius * ca_sin;
-
-                    match axis {
-                        ActiveAxis::X => [rz, rx, ry],
-                        ActiveAxis::Y => [rx, rz, ry],
-                        ActiveAxis::Z => [rx, ry, rz],
-                        _ => [0., 0., 0.],
-                    }
-                };
-
-                let p1 = cp(cos1, sin1, ccos1, csin1);
-                let p2 = cp(cos2, sin2, ccos1, csin1);
-                let p3 = cp(cos2, sin2, ccos2, csin2);
-                let p4 = cp(cos1, sin1, ccos2, csin2);
-
-                let v = |p| GizmoVertex {
-                    position: p,
-                    color,
-                    uv: [0.0, 0.0],
-                };
-                vertices.extend_from_slice(&[v(p1), v(p2), v(p3), v(p1), v(p3), v(p4)]);
-            }
-        }
-        vertices
-    }
-
     /// Generates a colored quad on the specified plane for planar translation handles.
     /// ### Arguments
     /// * `offset` - Distance from the center where the plane quad starts.
@@ -79,7 +17,7 @@ impl GizmoSystem {
     pub(crate) fn build_plane_quad(
         offset: f32,
         size: f32,
-        color: [f32; 3],
+        color: [f32; 4],
         axis: ActiveAxis,
     ) -> Vec<GizmoVertex> {
         let v = |p: [f32; 3]| GizmoVertex {
@@ -114,45 +52,6 @@ impl GizmoSystem {
         b
     }
 
-    /// Generates 3D orthogonal rotation ring geometry (X=Red, Y=Green, Z=Blue).
-    /// ### Arguments
-    /// * `radius` - Major radius of the rotation torus handles.
-    pub(crate) fn build_rotation_vertices(radius: f32) -> Vec<GizmoVertex> {
-        let mut vertices = Vec::new();
-        let thickness = radius * 0.04;
-
-        let red = [1.0, 0.2, 0.2];
-        let green = [0.2, 1.0, 0.2];
-        let blue = [0.2, 0.4, 1.0];
-
-        vertices.extend(Self::build_torus(
-            radius,
-            thickness,
-            64,
-            12,
-            red,
-            ActiveAxis::X,
-        ));
-        vertices.extend(Self::build_torus(
-            radius,
-            thickness,
-            64,
-            12,
-            green,
-            ActiveAxis::Y,
-        ));
-        vertices.extend(Self::build_torus(
-            radius,
-            thickness,
-            64,
-            12,
-            blue,
-            ActiveAxis::Z,
-        ));
-
-        vertices
-    }
-
     /// Generates a cylinder + cone/cube arrow for one axis.
     /// ### Arguments
     /// * `len` - Total length of the arrow.
@@ -165,7 +64,7 @@ impl GizmoSystem {
         len: f32,
         radius: f32,
         segments: usize,
-        color: [f32; 3],
+        color: [f32; 4],
         axis: ActiveAxis,
         is_scale: bool,
     ) -> Vec<GizmoVertex> {
@@ -250,9 +149,9 @@ impl GizmoSystem {
         let mut vertices = Vec::new();
         let radius = len * 0.03;
 
-        let red = [1.0, 0.2, 0.2];
-        let green = [0.2, 1.0, 0.2];
-        let blue = [0.2, 0.4, 1.0];
+        let red = [1.0, 0.2, 0.2, 1.0];
+        let green = [0.2, 1.0, 0.2, 1.0];
+        let blue = [0.2, 0.4, 1.0, 1.0];
 
         vertices.extend(Self::build_arrow(
             len,
@@ -284,24 +183,28 @@ impl GizmoSystem {
             let offset = radius * 8.0; // Moved further out (was 4.0)
             let p_size = radius * 6.0; // Larger for easier grabbing (was 3.0)
 
+            let p_blue = [0.2, 0.4, 1.0, 0.4];
+            let p_green = [0.2, 1.0, 0.2, 0.4];
+            let p_red = [1.0, 0.2, 0.2, 0.4];
+
             // Planar handles are colored by their normal's orthogonal axis.
             // XY Plane ignores Z, so it is blue.
             vertices.extend(Self::build_plane_quad(
                 offset,
                 p_size,
-                blue,
+                p_blue,
                 ActiveAxis::PlaneXY,
             ));
             vertices.extend(Self::build_plane_quad(
                 offset,
                 p_size,
-                green,
+                p_green,
                 ActiveAxis::PlaneXZ,
             ));
             vertices.extend(Self::build_plane_quad(
                 offset,
                 p_size,
-                red,
+                p_red,
                 ActiveAxis::PlaneYZ,
             ));
         }
@@ -320,7 +223,7 @@ impl GizmoSystem {
 
         // Red Center Point always drawn exactly in the middle of all three gizmo modes!
         let s = 0.015; // Slightly smaller and sleeker (was 0.02)
-        let red = [1.0, 0.2, 0.2]; // Bright red center point
+        let red = [1.0, 0.2, 0.2, 1.0]; // Bright red center point
         lines.push(GizmoVertex {
             position: [-s, 0.0, 0.0],
             color: red,
@@ -370,7 +273,7 @@ impl GizmoSystem {
                            start: Vector3<f32>,
                            dir: Vector3<f32>,
                            length: f32,
-                           color: [f32; 3]| {
+                           color: [f32; 4]| {
             let num_dashes = 40;
             let step = length / num_dashes as f32;
             let dash_ratio = 0.5;
@@ -396,13 +299,13 @@ impl GizmoSystem {
             GizmoMode::Select => {}
             GizmoMode::Translate => {
                 let col = match self.active_axis {
-                    ActiveAxis::X => [1.0, 0.2, 0.2],
-                    ActiveAxis::Y => [0.2, 1.0, 0.2],
-                    ActiveAxis::Z => [0.2, 0.4, 1.0],
-                    ActiveAxis::PlaneXY => [0.2, 0.4, 1.0],
-                    ActiveAxis::PlaneXZ => [0.2, 1.0, 0.2],
-                    ActiveAxis::PlaneYZ => [1.0, 0.2, 0.2],
-                    _ => [1.0, 1.0, 1.0],
+                    ActiveAxis::X => [1.0, 0.2, 0.2, 1.0],
+                    ActiveAxis::Y => [0.2, 1.0, 0.2, 1.0],
+                    ActiveAxis::Z => [0.2, 0.4, 1.0, 1.0],
+                    ActiveAxis::PlaneXY => [0.2, 0.4, 1.0, 1.0],
+                    ActiveAxis::PlaneXZ => [0.2, 1.0, 0.2, 1.0],
+                    ActiveAxis::PlaneYZ => [1.0, 0.2, 0.2, 1.0],
+                    _ => [1.0, 1.0, 1.0, 1.0],
                 };
 
                 // 1) Axis line (1D) or plane axis lines (2D)
@@ -497,21 +400,21 @@ impl GizmoSystem {
                 };
                 lines.push(GizmoVertex {
                     position: start_pos.into(),
-                    color: [1.0, 1.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
                     uv: [0.0, 0.0],
                 });
                 lines.push(GizmoVertex {
                     position: local_end.into(),
-                    color: [1.0, 1.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
                     uv: [0.0, 0.0],
                 });
             }
             GizmoMode::Scale => {
                 let col = match self.active_axis {
-                    ActiveAxis::X => [1.0, 0.2, 0.2],
-                    ActiveAxis::Y => [0.2, 1.0, 0.2],
-                    ActiveAxis::Z => [0.2, 0.4, 1.0],
-                    _ => [0.9, 0.9, 0.9],
+                    ActiveAxis::X => [1.0, 0.2, 0.2, 1.0],
+                    ActiveAxis::Y => [0.2, 1.0, 0.2, 1.0],
+                    ActiveAxis::Z => [0.2, 0.4, 1.0, 1.0],
+                    _ => [0.9, 0.9, 0.9, 1.0],
                 };
 
                 // 1) Scale axis line (1D)
@@ -563,7 +466,7 @@ impl GizmoSystem {
                         start_pos,
                         (local_end - start_pos).normalize(),
                         mag * 2.0,
-                        [1.0, 1.0, 1.0],
+                        [1.0, 1.0, 1.0, 1.0],
                     );
                 }
             }
@@ -577,12 +480,12 @@ impl GizmoSystem {
                 };
                 lines.push(GizmoVertex {
                     position: local_start_on_ring.into(),
-                    color: [1.0, 1.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
                     uv: [0.0, 0.0],
                 });
                 lines.push(GizmoVertex {
                     position: local_end.into(),
-                    color: [1.0, 1.0, 1.0],
+                    color: [1.0, 1.0, 1.0, 1.0],
                     uv: [0.0, 0.0],
                 });
             }
@@ -597,9 +500,9 @@ impl GizmoSystem {
         let radius = 0.16 * self.drag_scale_factor;
 
         let color = if self.is_dragging || self.hovered_axis == ActiveAxis::Free {
-            [1.0, 1.0, 1.0] // White when dragging or hovered
+            [1.0, 1.0, 1.0, 1.0] // White when dragging or hovered
         } else {
-            [0.85, 0.85, 0.85] // Light gray otherwise
+            [0.85, 0.85, 0.85, 1.0] // Light gray otherwise
         };
 
         let cam_right = self.cam_right.get();

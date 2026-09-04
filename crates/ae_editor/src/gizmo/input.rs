@@ -4,7 +4,7 @@ use super::core::GizmoScreenParams;
 use super::core::{ActiveAxis, GizmoMode, GizmoSystem};
 use super::math::ray_plane;
 /// Gizmo input — handles the drag lifecycle (start, calculate, end).
-use cgmath::{InnerSpace, Vector3};
+use cgmath::{InnerSpace, Quaternion, Rad, Rotation as _, Rotation3 as _, Vector3};
 
 /// Input parameters for evaluating Gizmo interaction and ray casting.
 pub struct GizmoInputParams<'a> {
@@ -55,6 +55,7 @@ impl GizmoSystem {
         let up_dir = right_dir.cross(cam_f).normalize();
         self.cam_right.set(right_dir);
         self.cam_up.set(up_dir);
+        self.cam_forward.set(cam_f);
 
         // 1) Update hover only when not dragging (stabilizes state)
         if !self.is_dragging {
@@ -108,24 +109,52 @@ impl GizmoSystem {
         self.drag_gizmo_pos = gizmo_pos;
         self.drag_scale_factor = 1.0;
 
+        let cam_f = cam_forward.normalize();
         if self.mode == GizmoMode::Rotate {
             let axis_normal = match self.active_axis {
                 ActiveAxis::X => self.oriented_axis(Vector3::unit_x()),
                 ActiveAxis::Y => self.oriented_axis(Vector3::unit_y()),
                 ActiveAxis::Z => self.oriented_axis(Vector3::unit_z()),
+                ActiveAxis::Screen => cam_f,
                 ActiveAxis::PlaneYZ => self.oriented_axis(Vector3::unit_x()),
                 ActiveAxis::PlaneXZ => self.oriented_axis(Vector3::unit_y()),
                 ActiveAxis::PlaneXY => self.oriented_axis(Vector3::unit_z()),
-                _ => cam_forward.normalize(),
+                _ => cam_f,
             };
-            let cam_f = cam_forward.normalize();
-            if cam_f.dot(axis_normal).abs() > 0.15 {
-                self.drag_plane_normal = axis_normal;
+            self.drag_plane_normal = axis_normal;
+
+            // Intersect with camera view plane passing through gizmo_pos.
+            // This is completely stable across all view angles and never suffers from glancing singularities.
+            let hit = ray_plane(ray_origin, ray_dir, gizmo_pos, cam_f).unwrap_or(gizmo_pos);
+            self.drag_start_world = hit;
+            self.drag_current_hit = hit;
+
+            let local_hit = hit - gizmo_pos;
+            let proj = local_hit - axis_normal * local_hit.dot(axis_normal);
+            let mut start_vec = if proj.magnitude2() > 0.001 {
+                proj.normalize()
             } else {
-                self.drag_plane_normal = cam_f;
+                let tangent = cam_f.cross(axis_normal);
+                if tangent.magnitude2() > 0.001 {
+                    tangent.normalize()
+                } else {
+                    let alt = axis_normal.cross(Vector3::unit_y());
+                    if alt.magnitude2() > 0.001 {
+                        alt.normalize()
+                    } else {
+                        axis_normal.cross(Vector3::unit_x()).normalize()
+                    }
+                }
+            };
+
+            if start_vec.magnitude2().is_nan() || start_vec.magnitude2() < 0.001 {
+                start_vec = Vector3::new(1., 0., 0.);
             }
+            self.drag_start_vector = start_vec;
+            self.drag_current_vector = start_vec;
+
+            return true;
         } else {
-            let cam_f = cam_forward.normalize();
             self.drag_plane_normal = match self.active_axis {
                 ActiveAxis::X => {
                     let axis_dir = self.oriented_axis(Vector3::unit_x());
@@ -184,6 +213,7 @@ impl GizmoSystem {
         self.drag_start_world = hit;
         self.drag_current_hit = hit;
         let mut start_vec = (hit - gizmo_pos).normalize();
+
         if start_vec.magnitude2().is_nan() || start_vec.magnitude2() < 0.001 {
             start_vec = Vector3::new(1., 0., 0.);
         }
@@ -204,27 +234,73 @@ impl GizmoSystem {
             return None;
         }
 
-        let current_hit = ray_plane(
-            ray_origin,
-            ray_dir,
-            self.drag_gizmo_pos,
-            self.drag_plane_normal,
-        )?;
-        self.drag_current_hit = current_hit;
-
         if self.mode == GizmoMode::Rotate {
-            let current_vec = (current_hit - self.drag_gizmo_pos).normalize();
-            if current_vec.magnitude2() < 0.001 || current_vec.x.is_nan() {
+            let cam_f = self.cam_forward.get();
+            let hit_cam = ray_plane(ray_origin, ray_dir, self.drag_gizmo_pos, cam_f)?;
+            self.drag_current_hit = hit_cam;
+
+            if self.active_axis == ActiveAxis::Screen {
+                let v_start = (self.drag_start_world - self.drag_gizmo_pos).normalize();
+                let v_curr = (hit_cam - self.drag_gizmo_pos).normalize();
+                if v_start.magnitude2() > 0.001 && v_curr.magnitude2() > 0.001 {
+                    let cross = v_start.cross(v_curr);
+                    let angle =
+                        v_start.dot(v_curr).clamp(-1.0, 1.0).acos() * cross.dot(cam_f).signum();
+                    let q = Quaternion::from_axis_angle(cam_f, Rad(angle));
+                    self.drag_current_vector = q.rotate_vector(self.drag_start_vector).normalize();
+                    return Some(Vector3::new(angle, 0.0, 0.0));
+                }
                 return None;
             }
-            self.drag_current_vector = current_vec;
-            super::rotate::calculate_rotate_drag(
-                self.active_axis,
-                self.drag_start_vector,
-                current_vec,
-                self.drag_plane_normal,
-            )
+
+            let normal = self.drag_plane_normal;
+            let tangent = cam_f.cross(normal);
+            let tangent_len = tangent.magnitude();
+
+            let angle = if tangent_len > 0.001 {
+                let u_tangent = tangent / tangent_len;
+                let delta_tangent = (hit_cam - self.drag_start_world).dot(u_tangent);
+                let theta_tangent = delta_tangent / self.drag_scale;
+
+                let v0 = self.drag_start_world - self.drag_gizmo_pos;
+                let v1 = hit_cam - self.drag_gizmo_pos;
+                let cross = v0.cross(v1);
+                let theta_arc = v0.normalize().dot(v1.normalize()).clamp(-1.0, 1.0).acos()
+                    * cross.dot(normal).signum();
+
+                // Smooth blend between arc rotation (when face-on, tangent_len < 0.3)
+                // and tangent dragging (when edge-on or tilted, tangent_len >= 0.7):
+                let w = ((tangent_len - 0.30) / 0.40).clamp(0.0, 1.0);
+                if theta_arc.is_nan() {
+                    theta_tangent
+                } else {
+                    (1.0 - w) * theta_arc + w * theta_tangent
+                }
+            } else {
+                let v0 = (self.drag_start_world - self.drag_gizmo_pos).normalize();
+                let v1 = (hit_cam - self.drag_gizmo_pos).normalize();
+                let cross = v0.cross(v1);
+                v0.dot(v1).clamp(-1.0, 1.0).acos() * cross.dot(normal).signum()
+            };
+
+            let q = Quaternion::from_axis_angle(normal, Rad(angle));
+            self.drag_current_vector = q.rotate_vector(self.drag_start_vector).normalize();
+
+            match self.active_axis {
+                ActiveAxis::X => Some(Vector3::new(angle, 0.0, 0.0)),
+                ActiveAxis::Y => Some(Vector3::new(0.0, angle, 0.0)),
+                ActiveAxis::Z => Some(Vector3::new(0.0, 0.0, angle)),
+                _ => None,
+            }
         } else {
+            let current_hit = ray_plane(
+                ray_origin,
+                ray_dir,
+                self.drag_gizmo_pos,
+                self.drag_plane_normal,
+            )?;
+            self.drag_current_hit = current_hit;
+
             // Both Translate and Scale use the same axis-constrained delta logic
             if self.mode == GizmoMode::Scale && self.active_axis == ActiveAxis::Free {
                 // Ratio-based uniform scale drag logic with O-ring radius clamp to prevent division by zero / hypersensitivity!
