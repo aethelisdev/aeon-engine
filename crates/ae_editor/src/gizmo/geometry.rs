@@ -141,21 +141,79 @@ impl GizmoSystem {
         vertices
     }
 
-    /// Builds complete axis geometry (3 arrows + optional planar handles).
+    /// Builds dynamic axis geometry (arrows + planar handles) with real-time hover and active drag highlighting.
+    /// Applies subtle luminance highlighting ("hafif parlatma") to the hovered axis handle while preserving
+    /// its distinctive color identity (Red for X, Green for Y, Blue for Z), and vibrant saturation when dragging.
     /// ### Arguments
-    /// * `len` - Length of each axis arrow.
-    /// * `is_scale` - True if generating geometry for scale mode (cubes), false for translate mode (cones/planes).
-    pub(crate) fn build_axis_vertices(len: f32, is_scale: bool) -> Vec<GizmoVertex> {
+    /// * `len` - Length of each axis arrow in local units.
+    /// * `is_scale` - True for scale mode (cube tips), false for translation mode (cone tips + planar handles).
+    pub(crate) fn build_dynamic_axis_vertices(&self, len: f32, is_scale: bool) -> Vec<GizmoVertex> {
+        Self::build_axis_vertices_styled(
+            len,
+            is_scale,
+            self.hovered_axis,
+            self.active_axis,
+            self.is_dragging,
+        )
+    }
+
+    /// Internal procedural constructor for styled axis geometry with explicit hover and drag states.
+    pub(crate) fn build_axis_vertices_styled(
+        len: f32,
+        is_scale: bool,
+        hovered_axis: ActiveAxis,
+        active_axis: ActiveAxis,
+        is_dragging: bool,
+    ) -> Vec<GizmoVertex> {
         let mut vertices = Vec::new();
         let radius = len * 0.03;
 
-        let red = [1.0, 0.2, 0.2, 1.0];
-        let green = [0.2, 1.0, 0.2, 1.0];
-        let blue = [0.2, 0.4, 1.0, 1.0];
+        let red = if is_dragging && active_axis == ActiveAxis::X {
+            [1.0, 0.25, 0.25, 1.0]
+        } else if hovered_axis == ActiveAxis::X {
+            [1.0, 0.32, 0.32, 1.0] // Subtle, rich red hover highlight (preserves saturation)
+        } else {
+            [0.9, 0.2, 0.2, 1.0]
+        };
+
+        let green = if is_dragging && active_axis == ActiveAxis::Y {
+            [0.25, 1.0, 0.25, 1.0]
+        } else if hovered_axis == ActiveAxis::Y {
+            [0.28, 0.98, 0.28, 1.0] // Subtle, rich green hover highlight (preserves saturation)
+        } else {
+            [0.2, 0.85, 0.2, 1.0]
+        };
+
+        let blue = if is_dragging && active_axis == ActiveAxis::Z {
+            [0.25, 0.5, 1.0, 1.0]
+        } else if hovered_axis == ActiveAxis::Z {
+            [0.28, 0.55, 1.0, 1.0] // Subtle, rich blue hover highlight (preserves saturation)
+        } else {
+            [0.2, 0.45, 1.0, 1.0]
+        };
+
+        let r_x = if hovered_axis == ActiveAxis::X || (is_dragging && active_axis == ActiveAxis::X)
+        {
+            radius * 1.08
+        } else {
+            radius
+        };
+        let r_y = if hovered_axis == ActiveAxis::Y || (is_dragging && active_axis == ActiveAxis::Y)
+        {
+            radius * 1.08
+        } else {
+            radius
+        };
+        let r_z = if hovered_axis == ActiveAxis::Z || (is_dragging && active_axis == ActiveAxis::Z)
+        {
+            radius * 1.08
+        } else {
+            radius
+        };
 
         vertices.extend(Self::build_arrow(
             len,
-            radius,
+            r_x,
             16,
             red,
             ActiveAxis::X,
@@ -163,7 +221,7 @@ impl GizmoSystem {
         ));
         vertices.extend(Self::build_arrow(
             len,
-            radius,
+            r_y,
             16,
             green,
             ActiveAxis::Y,
@@ -171,45 +229,93 @@ impl GizmoSystem {
         ));
         vertices.extend(Self::build_arrow(
             len,
-            radius,
+            r_z,
             16,
             blue,
             ActiveAxis::Z,
             is_scale,
         ));
 
-        // Add Planar Handles for Free/Planar Translation
+        // Add planar handle quads only in translation mode
         if !is_scale {
-            let offset = radius * 8.0; // Moved further out (was 4.0)
-            let p_size = radius * 6.0; // Larger for easier grabbing (was 3.0)
+            let offset = len * 0.3;
+            let p_size = len * 0.22;
 
-            let p_blue = [0.2, 0.4, 1.0, 0.4];
-            let p_green = [0.2, 1.0, 0.2, 0.4];
-            let p_red = [1.0, 0.2, 0.2, 0.4];
+            let p_size_xy = if hovered_axis == ActiveAxis::PlaneXY
+                || (is_dragging && active_axis == ActiveAxis::PlaneXY)
+            {
+                p_size * 1.05
+            } else {
+                p_size
+            };
+            let p_size_xz = if hovered_axis == ActiveAxis::PlaneXZ
+                || (is_dragging && active_axis == ActiveAxis::PlaneXZ)
+            {
+                p_size * 1.05
+            } else {
+                p_size
+            };
+            let p_size_yz = if hovered_axis == ActiveAxis::PlaneYZ
+                || (is_dragging && active_axis == ActiveAxis::PlaneYZ)
+            {
+                p_size * 1.05
+            } else {
+                p_size
+            };
 
-            // Planar handles are colored by their normal's orthogonal axis.
-            // XY Plane ignores Z, so it is blue.
+            let p_blue = if is_dragging && active_axis == ActiveAxis::PlaneXY {
+                [0.25, 0.5, 1.0, 0.8]
+            } else if hovered_axis == ActiveAxis::PlaneXY {
+                [0.28, 0.55, 1.0, 0.55] // Subtle blue planar hover highlight
+            } else {
+                [0.2, 0.45, 1.0, 0.4]
+            };
+
+            let p_green = if is_dragging && active_axis == ActiveAxis::PlaneXZ {
+                [0.2, 1.0, 0.2, 0.8]
+            } else if hovered_axis == ActiveAxis::PlaneXZ {
+                [0.28, 0.98, 0.28, 0.55] // Subtle green planar hover highlight
+            } else {
+                [0.2, 0.85, 0.2, 0.4]
+            };
+
+            let p_red = if is_dragging && active_axis == ActiveAxis::PlaneYZ {
+                [1.0, 0.2, 0.2, 0.8]
+            } else if hovered_axis == ActiveAxis::PlaneYZ {
+                [1.0, 0.32, 0.32, 0.55] // Subtle red planar hover highlight
+            } else {
+                [0.9, 0.2, 0.2, 0.4]
+            };
+
             vertices.extend(Self::build_plane_quad(
                 offset,
-                p_size,
+                p_size_xy,
                 p_blue,
                 ActiveAxis::PlaneXY,
             ));
             vertices.extend(Self::build_plane_quad(
                 offset,
-                p_size,
+                p_size_xz,
                 p_green,
                 ActiveAxis::PlaneXZ,
             ));
             vertices.extend(Self::build_plane_quad(
                 offset,
-                p_size,
+                p_size_yz,
                 p_red,
                 ActiveAxis::PlaneYZ,
             ));
         }
 
         vertices
+    }
+
+    /// Builds complete axis geometry (3 arrows + optional planar handles).
+    /// ### Arguments
+    /// * `len` - Length of each axis arrow.
+    /// * `is_scale` - True if generating geometry for scale mode (cubes), false for translate mode (cones/planes).
+    pub(crate) fn build_axis_vertices(len: f32, is_scale: bool) -> Vec<GizmoVertex> {
+        Self::build_axis_vertices_styled(len, is_scale, ActiveAxis::None, ActiveAxis::None, false)
     }
 
     /// Generates dynamic dashed interaction/guidelines during dragging or scaling.
@@ -536,5 +642,54 @@ impl GizmoSystem {
             v(p_br, [1.0, -1.0]),
             v(p_tr, [1.0, 1.0]),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dynamic_axis_vertices_hover_highlight() {
+        let idle_verts = GizmoSystem::build_axis_vertices_styled(
+            1.0,
+            false,
+            ActiveAxis::None,
+            ActiveAxis::None,
+            false,
+        );
+        let hovered_x_verts = GizmoSystem::build_axis_vertices_styled(
+            1.0,
+            false,
+            ActiveAxis::X,
+            ActiveAxis::None,
+            false,
+        );
+
+        assert_eq!(idle_verts.len(), hovered_x_verts.len());
+        // First vertex of X arrow should have higher luminance in green and blue channels when hovered
+        let idle_x_col = idle_verts[0].color;
+        let hovered_x_col = hovered_x_verts[0].color;
+        assert!(hovered_x_col[0] >= idle_x_col[0]);
+        assert!(hovered_x_col[1] > idle_x_col[1]); // Green channel elevated for luminance highlight
+        assert!(hovered_x_col[2] > idle_x_col[2]); // Blue channel elevated for luminance highlight
+    }
+
+    #[test]
+    fn test_dynamic_axis_scale_vertices() {
+        let scale_verts = GizmoSystem::build_axis_vertices_styled(
+            1.0,
+            true,
+            ActiveAxis::Y,
+            ActiveAxis::None,
+            false,
+        );
+        assert!(!scale_verts.is_empty());
+        // Verify vertices are finite
+        for v in &scale_verts {
+            assert!(v.position[0].is_finite());
+            assert!(v.position[1].is_finite());
+            assert!(v.position[2].is_finite());
+        }
     }
 }

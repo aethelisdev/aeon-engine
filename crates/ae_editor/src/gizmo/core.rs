@@ -122,6 +122,8 @@ pub struct GizmoSystem {
     pub(crate) line_pipeline: wgpu::RenderPipeline,
     pub(crate) num_vertices: u32,
     pub(crate) num_scale_vertices: u32,
+    pub(crate) last_translate_state: std::cell::Cell<(ActiveAxis, ActiveAxis)>,
+    pub(crate) last_scale_state: std::cell::Cell<(ActiveAxis, ActiveAxis)>,
 }
 
 impl GizmoSystem {

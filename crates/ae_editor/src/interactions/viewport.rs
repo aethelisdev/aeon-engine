@@ -4,6 +4,8 @@ use super::gizmo_drag::handle_gizmo_drag;
 use super::selection::{on_left_click_pressed, on_left_click_released};
 use crate::editor_state::EditorState;
 use crate::input::InputManager;
+use ae_core::ecs::{GlobalTransform, Position, Rotation};
+use cgmath::{EuclideanSpace, Quaternion, Vector3};
 
 /// Parameters for handling cursor movement in the viewport.
 pub struct CursorMoveParams {
@@ -64,6 +66,59 @@ pub fn handle_cursor_moved(
             window_size: local_size,
             cursor_pos: (local_x as f64, local_y as f64),
         });
+    } else if is_edit_mode && !editor.right_mouse_pressed {
+        let logical_x = x as f32 / scale_factor;
+        let logical_y = y as f32 / scale_factor;
+        let is_inside_viewport = logical_x >= last_viewport_rect.min_x
+            && logical_x <= last_viewport_rect.max_x
+            && logical_y >= last_viewport_rect.min_y
+            && logical_y <= last_viewport_rect.max_y;
+
+        if is_inside_viewport {
+            let (local_x, local_y, local_size) =
+                map_window_to_viewport(x, y, window_size, last_viewport_rect, scale_factor);
+            if let Some(&selected_ent) = editor.selected_entities.first()
+                && let Some(ray) =
+                    super::selection::create_ray(camera, local_size, local_x, local_y)
+            {
+                let gizmo_world_pos =
+                    if let Ok(gt) = ecs.world.get::<&GlobalTransform>(selected_ent) {
+                        let mat = gt.0;
+                        Some(Vector3::new(mat.w.x, mat.w.y, mat.w.z))
+                    } else if let Ok(pos0) = ecs.world.get::<&Position>(selected_ent) {
+                        Some(Vector3::new(pos0.x, pos0.y, pos0.z))
+                    } else {
+                        None
+                    };
+
+                if let Some(pos) = gizmo_world_pos {
+                    let camera_pos = camera.position.to_vec();
+                    let cam_forward = camera.get_forward();
+                    let gizmo_screen = super::gizmo_drag::gizmo_screen_params(camera, local_size);
+
+                    gizmo_system.space = ui_gizmo_space;
+                    gizmo_system.mode = ui_gizmo_mode;
+                    if let Ok(r) = ecs.world.get::<&Rotation>(selected_ent) {
+                        gizmo_system.entity_rotation = Quaternion::new(r.w, r.x, r.y, r.z);
+                    }
+
+                    gizmo_system.check_intersection(
+                        ray.origin.to_vec(),
+                        ray.direction,
+                        pos,
+                        camera_pos,
+                        cam_forward,
+                        &gizmo_screen,
+                    );
+                } else {
+                    gizmo_system.hovered_axis = crate::gizmo::ActiveAxis::None;
+                }
+            } else {
+                gizmo_system.hovered_axis = crate::gizmo::ActiveAxis::None;
+            }
+        } else {
+            gizmo_system.hovered_axis = crate::gizmo::ActiveAxis::None;
+        }
     }
 }
 

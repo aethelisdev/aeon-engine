@@ -162,13 +162,12 @@ impl GizmoSystem {
         let color = if self.is_dragging && self.active_axis == ActiveAxis::Screen {
             [1.0, 0.9, 0.2, 0.95] // High-visibility yellow when actively rotating
         } else if self.hovered_axis == ActiveAxis::Screen {
-            [1.0, 1.0, 1.0, 0.9] // White when hovered
+            [0.9, 0.92, 0.98, 0.8] // Refined gentle highlight when hovered
         } else {
             [0.75, 0.75, 0.8, 0.55] // Semi-transparent clean outer guide
         };
 
         let mut vertices = Vec::with_capacity(segments * cross_segments * 6);
-
         for i in 0..segments {
             let a1 = (i as f32) / (segments as f32) * std::f32::consts::TAU;
             let a2 = ((i + 1) as f32) / (segments as f32) * std::f32::consts::TAU;
@@ -243,21 +242,21 @@ impl GizmoSystem {
         let red = if self.is_dragging && self.active_axis == ActiveAxis::X {
             [1.0, 0.25, 0.25] // Vibrant axis red when actively rotating X
         } else if self.hovered_axis == ActiveAxis::X {
-            [1.0, 0.85, 0.2] // Golden yellow hover indicator
+            [1.0, 0.32, 0.32] // Subtle, rich red hover highlight (preserves saturation)
         } else {
             [0.9, 0.2, 0.2] // Base axis red
         };
         let green = if self.is_dragging && self.active_axis == ActiveAxis::Y {
             [0.25, 1.0, 0.25] // Vibrant axis green when actively rotating Y
         } else if self.hovered_axis == ActiveAxis::Y {
-            [1.0, 0.85, 0.2] // Golden yellow hover indicator
+            [0.28, 0.98, 0.28] // Subtle, rich green hover highlight (preserves saturation)
         } else {
             [0.2, 0.85, 0.2] // Base axis green
         };
         let blue = if self.is_dragging && self.active_axis == ActiveAxis::Z {
             [0.25, 0.5, 1.0] // Vibrant axis blue when actively rotating Z
         } else if self.hovered_axis == ActiveAxis::Z {
-            [1.0, 0.85, 0.2] // Golden yellow hover indicator
+            [0.28, 0.55, 1.0] // Subtle, rich blue hover highlight (preserves saturation)
         } else {
             [0.2, 0.45, 1.0] // Base axis blue
         };
@@ -268,7 +267,7 @@ impl GizmoSystem {
                 ActiveAxis::X => {
                     vertices.extend(Self::build_torus_ring(&TorusRingDescriptor {
                         major_radius: radius,
-                        minor_radius: thickness,
+                        minor_radius: thickness * 1.15,
                         segments: 64,
                         cross_segments: 8,
                         base_color: red,
@@ -280,7 +279,7 @@ impl GizmoSystem {
                 ActiveAxis::Y => {
                     vertices.extend(Self::build_torus_ring(&TorusRingDescriptor {
                         major_radius: radius,
-                        minor_radius: thickness,
+                        minor_radius: thickness * 1.15,
                         segments: 64,
                         cross_segments: 8,
                         base_color: green,
@@ -292,7 +291,7 @@ impl GizmoSystem {
                 ActiveAxis::Z => {
                     vertices.extend(Self::build_torus_ring(&TorusRingDescriptor {
                         major_radius: radius,
-                        minor_radius: thickness,
+                        minor_radius: thickness * 1.15,
                         segments: 64,
                         cross_segments: 8,
                         base_color: blue,
@@ -304,7 +303,7 @@ impl GizmoSystem {
                 ActiveAxis::Screen => {
                     vertices.extend(self.build_screen_rotation_ring(
                         radius * 1.15,
-                        thickness * 0.6,
+                        thickness * 0.75,
                         64,
                         8,
                     ));
@@ -312,10 +311,31 @@ impl GizmoSystem {
                 _ => {}
             }
         } else {
-            // When idle: show 180-degree front arcs for all axes (never vanishing) + outer screen ring
+            // When idle/hovered: show 180-degree front arcs for all axes (never vanishing) + outer screen ring
+            let r_x = if self.hovered_axis == ActiveAxis::X {
+                thickness * 1.10
+            } else {
+                thickness
+            };
+            let r_y = if self.hovered_axis == ActiveAxis::Y {
+                thickness * 1.10
+            } else {
+                thickness
+            };
+            let r_z = if self.hovered_axis == ActiveAxis::Z {
+                thickness * 1.10
+            } else {
+                thickness
+            };
+            let r_screen = if self.hovered_axis == ActiveAxis::Screen {
+                thickness * 0.70
+            } else {
+                thickness * 0.6
+            };
+
             vertices.extend(Self::build_torus_ring(&TorusRingDescriptor {
                 major_radius: radius,
-                minor_radius: thickness,
+                minor_radius: r_x,
                 segments: 32,
                 cross_segments: 8,
                 base_color: red,
@@ -325,7 +345,7 @@ impl GizmoSystem {
             }));
             vertices.extend(Self::build_torus_ring(&TorusRingDescriptor {
                 major_radius: radius,
-                minor_radius: thickness,
+                minor_radius: r_y,
                 segments: 32,
                 cross_segments: 8,
                 base_color: green,
@@ -335,7 +355,7 @@ impl GizmoSystem {
             }));
             vertices.extend(Self::build_torus_ring(&TorusRingDescriptor {
                 major_radius: radius,
-                minor_radius: thickness,
+                minor_radius: r_z,
                 segments: 32,
                 cross_segments: 8,
                 base_color: blue,
@@ -343,7 +363,7 @@ impl GizmoSystem {
                 is_full_360: false,
                 view_dir_local,
             }));
-            vertices.extend(self.build_screen_rotation_ring(radius * 1.15, thickness * 0.6, 48, 8));
+            vertices.extend(self.build_screen_rotation_ring(radius * 1.15, r_screen, 48, 8));
         }
 
         vertices

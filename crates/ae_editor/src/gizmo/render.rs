@@ -67,9 +67,9 @@ impl GizmoSystem {
         let scale_vertices = Self::build_axis_vertices(1.0, true);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Gizmo Static Vertex Buffer"),
+            label: Some("Gizmo Translate Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let rotate_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -82,7 +82,7 @@ impl GizmoSystem {
         let scale_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Gizmo Scale Vertex Buffer"),
             contents: bytemuck::cast_slice(&scale_vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let interaction_vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -224,6 +224,8 @@ impl GizmoSystem {
             line_pipeline,
             num_vertices: vertices.len() as u32,
             num_scale_vertices: scale_vertices.len() as u32,
+            last_translate_state: std::cell::Cell::new((ActiveAxis::None, ActiveAxis::None)),
+            last_scale_state: std::cell::Cell::new((ActiveAxis::None, ActiveAxis::None)),
         }
     }
 
@@ -302,6 +304,12 @@ impl GizmoSystem {
         match self.mode {
             GizmoMode::Select => {}
             GizmoMode::Translate => {
+                let current_state = (self.hovered_axis, self.active_axis);
+                if self.last_translate_state.get() != current_state {
+                    let verts = self.build_dynamic_axis_vertices(1.0, false);
+                    queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&verts));
+                    self.last_translate_state.set(current_state);
+                }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 pass.draw(0..self.num_vertices, 0..1);
@@ -461,6 +469,12 @@ impl GizmoSystem {
                 }
             }
             GizmoMode::Scale => {
+                let current_state = (self.hovered_axis, self.active_axis);
+                if self.last_scale_state.get() != current_state {
+                    let verts = self.build_dynamic_axis_vertices(1.0, true);
+                    queue.write_buffer(&self.scale_vertex_buffer, 0, bytemuck::cast_slice(&verts));
+                    self.last_scale_state.set(current_state);
+                }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.scale_vertex_buffer.slice(..));
                 pass.draw(0..self.num_scale_vertices, 0..1);
@@ -529,6 +543,12 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
         match self.mode {
             GizmoMode::Select => {}
             GizmoMode::Translate => {
+                let current_state = (self.hovered_axis, self.active_axis);
+                if self.last_translate_state.get() != current_state {
+                    let verts = self.build_dynamic_axis_vertices(1.0, false);
+                    queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&verts));
+                    self.last_translate_state.set(current_state);
+                }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 pass.draw(0..self.num_vertices, 0..1);
@@ -688,6 +708,12 @@ impl ae_renderer::render::OverlayRenderer for GizmoSystem {
                 }
             }
             GizmoMode::Scale => {
+                let current_state = (self.hovered_axis, self.active_axis);
+                if self.last_scale_state.get() != current_state {
+                    let verts = self.build_dynamic_axis_vertices(1.0, true);
+                    queue.write_buffer(&self.scale_vertex_buffer, 0, bytemuck::cast_slice(&verts));
+                    self.last_scale_state.set(current_state);
+                }
                 pass.set_pipeline(&self.mesh_pipeline);
                 pass.set_vertex_buffer(0, self.scale_vertex_buffer.slice(..));
                 pass.draw(0..self.num_scale_vertices, 0..1);
