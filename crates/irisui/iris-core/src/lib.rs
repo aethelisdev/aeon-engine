@@ -218,4 +218,24 @@ mod tests {
             )]
         );
     }
+
+    #[test]
+    fn test_node_texture_uv_and_tint() {
+        let mut tree = UiTree::new();
+        let id1 = tree.create_node();
+        let id2 = tree.create_node();
+
+        let node = WidgetNode::new(id1)
+            .with_texture_uv([0.25, 0.0, 0.50, 1.0])
+            .with_texture_tint(Color::rgba(0.9, 0.9, 1.0, 0.8));
+
+        assert_eq!(node.texture_uv, Some([0.25, 0.0, 0.50, 1.0]));
+        assert_eq!(node.texture_tint, Some(Color::rgba(0.9, 0.9, 1.0, 0.8)));
+
+        let mut node2 = WidgetNode::new(id2);
+        node2.set_texture_uv([0.5, 0.0, 0.75, 1.0]);
+        node2.set_texture_tint(Color::WHITE);
+        assert_eq!(node2.texture_uv, Some([0.5, 0.0, 0.75, 1.0]));
+        assert_eq!(node2.texture_tint, Some(Color::WHITE));
+    }
 }

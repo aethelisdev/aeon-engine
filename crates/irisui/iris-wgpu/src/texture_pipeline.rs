@@ -199,7 +199,7 @@ impl TextureQuadPipeline {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
@@ -315,5 +315,29 @@ impl TextureQuadPipeline {
         render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.draw_indexed(0..6, 0, 0..1);
+    }
+
+    /// Returns a reference to the underlying textured quad render pipeline.
+    #[inline]
+    pub fn pipeline(&self) -> &wgpu::RenderPipeline {
+        &self.pipeline
+    }
+
+    /// Returns a reference to the globals bind group containing screen dimensions.
+    #[inline]
+    pub fn bind_group_globals(&self) -> &wgpu::BindGroup {
+        &self.bind_group_globals
+    }
+
+    /// Returns a reference to the static unit quad vertex buffer.
+    #[inline]
+    pub fn vertex_buffer(&self) -> &wgpu::Buffer {
+        &self.vertex_buffer
+    }
+
+    /// Returns a reference to the static unit quad index buffer.
+    #[inline]
+    pub fn index_buffer(&self) -> &wgpu::Buffer {
+        &self.index_buffer
     }
 }

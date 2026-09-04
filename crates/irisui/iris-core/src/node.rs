@@ -30,6 +30,10 @@ pub struct WidgetNode {
     pub content_size: Size,
     /// Optional text payload displayed by this node.
     pub text: Option<String>,
+    /// Optional texture UV coordinate rectangle `[min_u, min_v, max_u, max_v]` for icon/image rendering.
+    pub texture_uv: Option<[f32; 4]>,
+    /// Optional tint color multiplier for textured quad rendering.
+    pub texture_tint: Option<Color>,
     /// Font size in pixels.
     pub font_size: f32,
     /// Line height in pixels.
@@ -64,6 +68,8 @@ impl WidgetNode {
             computed_rect: Rect::ZERO,
             content_size: Size::ZERO,
             text: None,
+            texture_uv: None,
+            texture_tint: None,
             font_size: Self::DEFAULT_FONT_SIZE,
             line_height: Self::DEFAULT_LINE_HEIGHT,
             text_color: Color::WHITE,
@@ -79,6 +85,32 @@ impl WidgetNode {
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
+    }
+
+    /// Sets the texture UV sub-rectangle for rendering an icon or image (builder style).
+    #[inline]
+    pub fn with_texture_uv(mut self, uv: [f32; 4]) -> Self {
+        self.texture_uv = Some(uv);
+        self
+    }
+
+    /// Sets the texture UV sub-rectangle on an existing mutable reference.
+    #[inline]
+    pub fn set_texture_uv(&mut self, uv: [f32; 4]) {
+        self.texture_uv = Some(uv);
+    }
+
+    /// Sets the texture tint color multiplier (builder style).
+    #[inline]
+    pub fn with_texture_tint(mut self, tint: Color) -> Self {
+        self.texture_tint = Some(tint);
+        self
+    }
+
+    /// Sets the texture tint color multiplier on an existing mutable reference.
+    #[inline]
+    pub fn set_texture_tint(&mut self, tint: Color) {
+        self.texture_tint = Some(tint);
     }
 
     /// Sets the debug name of the node on an existing mutable reference.

@@ -96,6 +96,7 @@ impl IrisEditorOverlay {
             is_visible: true,
             target_format,
             start_time: std::time::Instant::now(),
+            tools_texture: None,
         }
     }
 

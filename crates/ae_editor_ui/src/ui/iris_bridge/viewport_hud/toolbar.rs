@@ -14,19 +14,22 @@ use ae_renderer::camera::ProjectionMode;
 use irisui::prelude::*;
 
 /// Builds the top-left floating viewport toolbar with projection, shading, gizmo mode, and coordinate space controls.
+/// Configured with 32×32 pixel square tool buttons with subtle rounded corners (`border_radius: 4.0`)
+/// providing clear click targets, spacious icon framing, and distinct modular grouping.
 pub fn build_viewport_toolbar(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &ViewportHudParams<'_>,
     targets: &mut ViewportHudTargets,
 ) {
-    let bar_x = params.viewport_rect.x + 8.0;
-    let bar_y = params.viewport_rect.y + 6.0;
-    let bar_h = 26.0;
-    let btn_h = 20.0;
-    let btn_y = bar_y + 3.0;
+    let box_y = params.viewport_rect.y + 6.0;
+    let box_h = 32.0;
+    let corner_radius = 4.0;
+    let group_gap = 8.0;
 
-    // 1. Camera Projection label & dynamic width
+    let mut cur_x = params.viewport_rect.x + 8.0;
+
+    // ── 1. View Modes Box: Camera Projection & Shading ──
     let is_persp = params.camera.mode == ProjectionMode::Perspective;
     let is_top = !is_persp && params.camera.pitch.0 < -1.5;
     let is_front = !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0 > 1.5;
@@ -34,66 +37,41 @@ pub fn build_viewport_toolbar(
         !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
 
     let (camera_label, cam_w) = if is_persp {
-        ("🎥 Perspective", 92.0)
+        ("🎥 Perspective", 88.0)
     } else if is_top {
-        ("📐 Top", 64.0)
+        ("📐 Top", 56.0)
     } else if is_front {
-        ("📐 Front", 70.0)
+        ("📐 Front", 62.0)
     } else if is_right {
-        ("📐 Right", 70.0)
+        ("📐 Right", 62.0)
     } else {
-        ("📐 Ortho", 70.0)
+        ("📐 Ortho", 62.0)
     };
 
-    // 2. Shading Mode label & dynamic width
     let (shading_label, sh_w) = if params.wireframe_enabled {
-        ("🕸 Wireframe", 86.0)
+        ("🕸 Wireframe", 80.0)
     } else {
-        ("💡 Lit", 48.0)
+        ("💡 Lit", 46.0)
     };
 
-    let gizmo_btn_w = 28.0;
-    let space_w = 58.0;
-    let sep_w = 1.0;
-    let group_gap = 6.0;
-    let inner_gap = 2.0;
+    let view_box_w = cam_w + 1.0 + sh_w;
+    let view_box_rect = Rect::new(cur_x, box_y, view_box_w, box_h);
 
-    let total_w = 6.0
-        + cam_w
-        + group_gap
-        + sep_w
-        + group_gap
-        + sh_w
-        + group_gap
-        + sep_w
-        + group_gap
-        + (gizmo_btn_w * 4.0 + inner_gap * 3.0)
-        + group_gap
-        + sep_w
-        + group_gap
-        + space_w
-        + 6.0;
-
-    let bar_rect = Rect::new(bar_x, bar_y, total_w, bar_h);
-
-    // Floating Toolbar Base Frame
-    let bar_id = tree.create_node();
-    if let Some(node) = tree.get_mut(bar_id) {
-        node.set_name("ViewportToolbar");
-        node.computed_rect = bar_rect;
+    let view_box_id = tree.create_node();
+    if let Some(node) = tree.get_mut(view_box_id) {
+        node.set_name("ViewModesBox");
+        node.computed_rect = view_box_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.07, 0.08, 0.10, 0.95))
-            .border(1.0, Color::rgba(0.18, 0.19, 0.24, 0.90))
-            .border_radius(4.0)
-            .box_shadow(0.0, 4.0, 10.0, Color::rgba(0.0, 0.0, 0.0, 0.50));
+            .background(Color::rgba(0.12, 0.13, 0.16, 0.92))
+            .border(1.0, Color::rgba(0.24, 0.26, 0.32, 0.85))
+            .corner_radii(CornerRadii::all(corner_radius))
+            .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
     }
-    let _ = tree.add_child(parent_id, bar_id);
+    let _ = tree.add_child(parent_id, view_box_id);
 
-    let mut cur_x = bar_x + 6.0;
-
-    // ── 1. Camera Projection Dropdown ──
+    // 1.1 Camera Mode Button
     let is_cam_open = params.active_dropdown == Some(ViewportHudDropdownId::CameraMode);
-    let cam_rect = Rect::new(cur_x, btn_y, cam_w, btn_h);
+    let cam_rect = Rect::new(cur_x, box_y, cam_w, box_h);
     let is_cam_hover = cam_rect.contains_point(params.cursor_pos);
 
     let cam_btn_id = tree.create_node();
@@ -101,25 +79,30 @@ pub fn build_viewport_toolbar(
         node.set_name("CameraModeBtn");
         node.computed_rect = cam_rect;
         let bg = if is_cam_open || is_cam_hover {
-            Color::rgba(0.18, 0.20, 0.26, 1.0)
+            Color::rgba(0.20, 0.23, 0.30, 0.90)
         } else {
-            Color::rgba(0.10, 0.11, 0.14, 0.70)
+            Color::TRANSPARENT
         };
-        node.style = Style::new().background(bg).border_radius(3.0);
+        node.style = Style::new().background(bg).corner_radii(CornerRadii::new(
+            corner_radius,
+            0.0,
+            0.0,
+            corner_radius,
+        ));
     }
-    let _ = tree.add_child(bar_id, cam_btn_id);
+    let _ = tree.add_child(view_box_id, cam_btn_id);
 
     let cam_txt_id = tree.create_node();
     if let Some(node) = tree.get_mut(cam_txt_id) {
         node.set_name("CameraModeText");
         node.set_text(camera_label);
         node.font_size = 11.0;
-        node.line_height = btn_h;
+        node.line_height = box_h;
         node.text_align = TextAlign::Center;
         node.text_color = if is_cam_open || is_cam_hover {
             Color::rgba(1.0, 1.0, 1.0, 1.0)
         } else {
-            Color::rgba(0.90, 0.92, 0.96, 1.0)
+            Color::rgba(0.85, 0.88, 0.94, 1.0)
         };
         node.computed_rect = cam_rect;
     }
@@ -127,15 +110,13 @@ pub fn build_viewport_toolbar(
     targets
         .dropdown_triggers
         .push((ViewportHudDropdownId::CameraMode, cam_rect));
-    cur_x += cam_w + group_gap;
 
-    // Divider 1
-    add_divider(tree, bar_id, cur_x, btn_y + 4.0, 12.0);
-    cur_x += sep_w + group_gap;
+    // Divider between Camera and Shading
+    add_divider(tree, view_box_id, cur_x + cam_w, box_y + 5.0, box_h - 10.0);
 
-    // ── 2. Shading Mode Dropdown ──
+    // 1.2 Shading Mode Button
     let is_sh_open = params.active_dropdown == Some(ViewportHudDropdownId::ShadingMode);
-    let sh_rect = Rect::new(cur_x, btn_y, sh_w, btn_h);
+    let sh_rect = Rect::new(cur_x + cam_w + 1.0, box_y, sh_w, box_h);
     let is_sh_hover = sh_rect.contains_point(params.cursor_pos);
 
     let sh_btn_id = tree.create_node();
@@ -143,25 +124,30 @@ pub fn build_viewport_toolbar(
         node.set_name("ShadingModeBtn");
         node.computed_rect = sh_rect;
         let bg = if is_sh_open || is_sh_hover {
-            Color::rgba(0.18, 0.20, 0.26, 1.0)
+            Color::rgba(0.20, 0.23, 0.30, 0.90)
         } else {
-            Color::rgba(0.10, 0.11, 0.14, 0.70)
+            Color::TRANSPARENT
         };
-        node.style = Style::new().background(bg).border_radius(3.0);
+        node.style = Style::new().background(bg).corner_radii(CornerRadii::new(
+            0.0,
+            corner_radius,
+            corner_radius,
+            0.0,
+        ));
     }
-    let _ = tree.add_child(bar_id, sh_btn_id);
+    let _ = tree.add_child(view_box_id, sh_btn_id);
 
     let sh_txt_id = tree.create_node();
     if let Some(node) = tree.get_mut(sh_txt_id) {
         node.set_name("ShadingModeText");
         node.set_text(shading_label);
         node.font_size = 11.0;
-        node.line_height = btn_h;
+        node.line_height = box_h;
         node.text_align = TextAlign::Center;
         node.text_color = if is_sh_open || is_sh_hover {
             Color::rgba(1.0, 1.0, 1.0, 1.0)
         } else {
-            Color::rgba(0.90, 0.92, 0.96, 1.0)
+            Color::rgba(0.85, 0.88, 0.94, 1.0)
         };
         node.computed_rect = sh_rect;
     }
@@ -169,100 +155,125 @@ pub fn build_viewport_toolbar(
     targets
         .dropdown_triggers
         .push((ViewportHudDropdownId::ShadingMode, sh_rect));
-    cur_x += sh_w + group_gap;
 
-    // Divider 2
-    add_divider(tree, bar_id, cur_x, btn_y + 4.0, 12.0);
-    cur_x += sep_w + group_gap;
+    cur_x += view_box_w + group_gap;
 
-    // ── 3. Gizmo Mode Controls (Q W E R) ──
+    // ── 2. Gizmo Tool Buttons: 4 Large 32×32 Square Boxes with Subtle Rounded Corners ──
+    let btn_size = 32.0;
+    let btn_gap = 4.0;
+
     let gizmo_modes = [
-        (GizmoMode::Select, "↖ Q"),
-        (GizmoMode::Translate, "✛ W"),
-        (GizmoMode::Rotate, "⟳ E"),
-        (GizmoMode::Scale, "⤡ R"),
+        (GizmoMode::Select, [0.00, 0.0, 0.25, 1.0]),
+        (GizmoMode::Translate, [0.25, 0.0, 0.50, 1.0]),
+        (GizmoMode::Rotate, [0.50, 0.0, 0.75, 1.0]),
+        (GizmoMode::Scale, [0.75, 0.0, 1.00, 1.0]),
     ];
 
-    for (mode, label) in gizmo_modes {
+    for (mode, uv) in gizmo_modes {
         let is_selected = params.gizmo_mode == mode;
-        let g_rect = Rect::new(cur_x, btn_y, gizmo_btn_w, btn_h);
+        let g_rect = Rect::new(cur_x, box_y, btn_size, btn_size);
         let is_hover = g_rect.contains_point(params.cursor_pos);
+
+        let (bg, border_color) = if is_selected {
+            (
+                Color::rgba(0.06, 0.46, 0.92, 1.0),
+                Color::rgba(0.25, 0.60, 1.0, 0.95),
+            )
+        } else if is_hover {
+            (
+                Color::rgba(0.20, 0.23, 0.30, 0.95),
+                Color::rgba(0.35, 0.40, 0.50, 0.90),
+            )
+        } else {
+            (
+                Color::rgba(0.12, 0.13, 0.16, 0.92),
+                Color::rgba(0.24, 0.26, 0.32, 0.85),
+            )
+        };
 
         let g_id = tree.create_node();
         if let Some(node) = tree.get_mut(g_id) {
             node.set_name("GizmoBtn");
             node.computed_rect = g_rect;
-            let bg = match (is_selected, is_hover) {
-                (true, true) => Color::rgba(0.0, 0.58, 0.80, 1.0),
-                (true, false) => Color::rgba(0.0, 0.47, 0.65, 1.0),
-                (false, true) => Color::rgba(0.18, 0.20, 0.26, 1.0),
-                (false, false) => Color::rgba(0.10, 0.11, 0.14, 0.80),
-            };
-            node.style = Style::new().background(bg).border_radius(3.0);
+            node.style = Style::new()
+                .background(bg)
+                .border(1.0, border_color)
+                .corner_radii(CornerRadii::all(corner_radius))
+                .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
         }
-        let _ = tree.add_child(bar_id, g_id);
+        let _ = tree.add_child(parent_id, g_id);
 
-        let g_txt = tree.create_node();
-        if let Some(node) = tree.get_mut(g_txt) {
-            node.set_name("GizmoBtnText");
-            node.set_text(label);
-            node.font_size = 11.0;
-            node.line_height = btn_h;
-            node.text_align = TextAlign::Center;
-            node.text_color = if is_selected || is_hover {
+        let icon_size = 22.0;
+        let icon_x = g_rect.x + (btn_size - icon_size) * 0.5;
+        let icon_y = g_rect.y + (btn_size - icon_size) * 0.5;
+        let icon_rect = Rect::new(icon_x, icon_y, icon_size, icon_size);
+
+        let g_icon = tree.create_node();
+        if let Some(node) = tree.get_mut(g_icon) {
+            node.set_name("GizmoBtnIcon");
+            node.computed_rect = icon_rect;
+            node.set_texture_uv(uv);
+            let tint = if is_selected {
                 Color::rgba(1.0, 1.0, 1.0, 1.0)
+            } else if is_hover {
+                Color::rgba(0.95, 0.98, 1.0, 1.0)
             } else {
-                Color::rgba(0.63, 0.63, 0.63, 1.0)
+                Color::rgba(0.80, 0.84, 0.90, 0.90)
             };
-            node.computed_rect = g_rect;
+            node.set_texture_tint(tint);
         }
-        let _ = tree.add_child(g_id, g_txt);
+        let _ = tree.add_child(g_id, g_icon);
+
         targets
             .buttons
             .push((ViewportHudAction::SetGizmoMode(mode), g_rect));
-        cur_x += gizmo_btn_w + inner_gap;
+
+        cur_x += btn_size + btn_gap;
     }
-    cur_x += group_gap - inner_gap;
 
-    // Divider 3
-    add_divider(tree, bar_id, cur_x, btn_y + 4.0, 12.0);
-    cur_x += sep_w + group_gap;
+    cur_x += group_gap - btn_gap;
 
-    // ── 4. World / Local Space Toggle ──
+    // ── 3. Coordinate Space Box (World / Local) ──
     let is_local = params.gizmo_space == GizmoSpace::Local;
     let space_label = if is_local { "🏠 Local" } else { "🌍 World" };
-    let space_rect = Rect::new(cur_x, btn_y, space_w, btn_h);
+    let space_w = 64.0;
+    let space_rect = Rect::new(cur_x, box_y, space_w, box_h);
     let is_space_hover = space_rect.contains_point(params.cursor_pos);
 
-    let space_id = tree.create_node();
-    if let Some(node) = tree.get_mut(space_id) {
-        node.set_name("GizmoSpaceBtn");
+    let space_box_id = tree.create_node();
+    if let Some(node) = tree.get_mut(space_box_id) {
+        node.set_name("GizmoSpaceBox");
         node.computed_rect = space_rect;
-        let bg = match (is_local, is_space_hover) {
-            (true, true) => Color::rgba(0.68, 0.37, 0.12, 1.0),
-            (true, false) => Color::rgba(0.55, 0.29, 0.10, 1.0),
-            (false, true) => Color::rgba(0.18, 0.20, 0.26, 1.0),
-            (false, false) => Color::rgba(0.10, 0.11, 0.14, 0.80),
+        let bg = if is_local {
+            Color::rgba(0.55, 0.28, 0.08, 0.92)
+        } else if is_space_hover {
+            Color::rgba(0.20, 0.23, 0.30, 0.95)
+        } else {
+            Color::rgba(0.12, 0.13, 0.16, 0.92)
         };
-        node.style = Style::new().background(bg).border_radius(3.0);
+        node.style = Style::new()
+            .background(bg)
+            .border(1.0, Color::rgba(0.24, 0.26, 0.32, 0.85))
+            .corner_radii(CornerRadii::all(corner_radius))
+            .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
     }
-    let _ = tree.add_child(bar_id, space_id);
+    let _ = tree.add_child(parent_id, space_box_id);
 
     let space_txt = tree.create_node();
     if let Some(node) = tree.get_mut(space_txt) {
         node.set_name("GizmoSpaceText");
         node.set_text(space_label);
         node.font_size = 11.0;
-        node.line_height = btn_h;
+        node.line_height = box_h;
         node.text_align = TextAlign::Center;
         node.text_color = if is_local || is_space_hover {
             Color::rgba(1.0, 1.0, 1.0, 1.0)
         } else {
-            Color::rgba(0.70, 0.70, 0.70, 1.0)
+            Color::rgba(0.85, 0.88, 0.94, 1.0)
         };
         node.computed_rect = space_rect;
     }
-    let _ = tree.add_child(space_id, space_txt);
+    let _ = tree.add_child(space_box_id, space_txt);
     targets
         .buttons
         .push((ViewportHudAction::ToggleGizmoSpace, space_rect));

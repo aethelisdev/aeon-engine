@@ -42,4 +42,30 @@ mod tests {
         assert_eq!(quad.border_width, [2.0, 2.0, 2.0, 2.0]);
         assert_eq!(quad.corner_radii, [12.0, 12.0, 12.0, 12.0]);
     }
+
+    #[test]
+    fn test_texture_quad_command_stream() {
+        let mut list = DrawCommandList::new();
+        assert!(list.commands.is_empty());
+        assert!(list.texture_quads.is_empty());
+
+        let tq = TextureQuadInstance {
+            rect: [10.0, 10.0, 24.0, 24.0],
+            uv_rect: [0.0, 0.0, 0.25, 1.0],
+            tint: [1.0, 1.0, 1.0, 1.0],
+            clip_rect: [0.0, 0.0, 0.0, 0.0],
+        };
+        list.push_texture_quad(tq);
+
+        assert_eq!(list.texture_quads.len(), 1);
+        assert_eq!(list.commands.len(), 1);
+        assert_eq!(
+            list.commands[0],
+            DrawCommand::DrawTexture { instance_index: 0 }
+        );
+
+        list.clear();
+        assert!(list.commands.is_empty());
+        assert!(list.texture_quads.is_empty());
+    }
 }

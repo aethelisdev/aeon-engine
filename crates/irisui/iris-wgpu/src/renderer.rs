@@ -34,6 +34,12 @@ pub struct IrisRenderer {
     instance_count: u32,
     screen_size: [f32; 2],
     uniform_buffer_dirty: bool,
+    /// Dedicated texture quad pipeline for rendering images, icons, and embedded viewports.
+    pub texture_pipeline: crate::texture_pipeline::TextureQuadPipeline,
+    texture_instance_buffer: Option<wgpu::Buffer>,
+    texture_instance_capacity: usize,
+    /// Active texture bind group used for textured quad draw commands.
+    pub texture_bind_group: Option<wgpu::BindGroup>,
 }
 
 impl IrisRenderer {
@@ -155,6 +161,9 @@ impl IrisRenderer {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let texture_pipeline =
+            crate::texture_pipeline::TextureQuadPipeline::new(device, target_format);
+
         Self {
             pipeline,
             bind_group,
@@ -166,7 +175,17 @@ impl IrisRenderer {
             instance_count: 0,
             screen_size: [0.0, 0.0],
             uniform_buffer_dirty: true,
+            texture_pipeline,
+            texture_instance_buffer: None,
+            texture_instance_capacity: 0,
+            texture_bind_group: None,
         }
+    }
+
+    /// Sets the active texture bind group to be used for textured quad draw commands.
+    #[inline]
+    pub fn set_texture_bind_group(&mut self, bind_group: Option<wgpu::BindGroup>) {
+        self.texture_bind_group = bind_group;
     }
 
     /// Prepares buffers and uploads instance data to the GPU before rendering.
@@ -225,6 +244,29 @@ impl IrisRenderer {
         command_list: &crate::command::DrawCommandList,
     ) {
         self.prepare(device, queue, screen_size, &command_list.quads);
+
+        self.texture_pipeline.update_globals(queue, screen_size);
+
+        if !command_list.texture_quads.is_empty() {
+            let needed_capacity = command_list.texture_quads.len();
+            if self.texture_instance_capacity < needed_capacity {
+                let new_capacity = (needed_capacity * 2).max(16);
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("Iris UI Instanced Texture Quad Buffer"),
+                    size: (new_capacity
+                        * std::mem::size_of::<crate::texture_pipeline::TextureQuadInstance>())
+                        as u64,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+                self.texture_instance_buffer = Some(buffer);
+                self.texture_instance_capacity = new_capacity;
+            }
+
+            if let Some(ref buffer) = self.texture_instance_buffer {
+                queue.write_buffer(buffer, 0, bytemuck::cast_slice(&command_list.texture_quads));
+            }
+        }
     }
 
     /// Executes sequential draw commands and updates hardware scissor rects in exact Z-order.
@@ -234,20 +276,32 @@ impl IrisRenderer {
         command_list: &'rp crate::command::DrawCommandList,
         screen_size: (u32, u32),
     ) {
-        let Some(ref instance_buf) = self.instance_buffer else {
-            return;
-        };
+        #[derive(Copy, Clone, PartialEq, Eq)]
+        enum ActivePipeline {
+            None,
+            Sdf,
+            Texture,
+        }
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_vertex_buffer(1, instance_buf.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        let mut active_pipe = ActivePipeline::None;
 
         for cmd in &command_list.commands {
             match *cmd {
                 crate::command::DrawCommand::DrawSdfQuads { start, count } => {
-                    if count > 0 {
+                    if count > 0
+                        && let Some(ref instance_buf) = self.instance_buffer
+                    {
+                        if active_pipe != ActivePipeline::Sdf {
+                            render_pass.set_pipeline(&self.pipeline);
+                            render_pass.set_bind_group(0, &self.bind_group, &[]);
+                            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                            render_pass.set_vertex_buffer(1, instance_buf.slice(..));
+                            render_pass.set_index_buffer(
+                                self.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint16,
+                            );
+                            active_pipe = ActivePipeline::Sdf;
+                        }
                         render_pass.draw_indexed(0..6, 0, start..(start + count));
                     }
                 }
@@ -266,7 +320,33 @@ impl IrisRenderer {
                 crate::command::DrawCommand::ResetScissor => {
                     render_pass.set_scissor_rect(0, 0, screen_size.0.max(1), screen_size.1.max(1));
                 }
-                crate::command::DrawCommand::DrawTexture { .. } => {}
+                crate::command::DrawCommand::DrawTexture { instance_index } => {
+                    if let (Some(tex_buf), Some(tex_bg)) =
+                        (&self.texture_instance_buffer, &self.texture_bind_group)
+                    {
+                        if active_pipe != ActivePipeline::Texture {
+                            render_pass.set_pipeline(self.texture_pipeline.pipeline());
+                            render_pass.set_bind_group(
+                                0,
+                                self.texture_pipeline.bind_group_globals(),
+                                &[],
+                            );
+                            render_pass.set_bind_group(1, tex_bg, &[]);
+                            render_pass.set_vertex_buffer(
+                                0,
+                                self.texture_pipeline.vertex_buffer().slice(..),
+                            );
+                            render_pass.set_vertex_buffer(1, tex_buf.slice(..));
+                            render_pass.set_index_buffer(
+                                self.texture_pipeline.index_buffer().slice(..),
+                                wgpu::IndexFormat::Uint16,
+                            );
+                            active_pipe = ActivePipeline::Texture;
+                        }
+                        let inst = instance_index..(instance_index + 1);
+                        render_pass.draw_indexed(0..6, 0, inst);
+                    }
+                }
             }
         }
     }

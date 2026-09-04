@@ -223,6 +223,8 @@ pub struct IrisEditorOverlay {
     pub viewport_search_query: String,
     /// Whether search input box is focused in Viewport Add Object popup.
     pub viewport_is_search_focused: bool,
+    /// Texture resources and bind group for the editor tools icon atlas (`editor_tools.png`).
+    pub tools_texture: Option<(wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
 }
 
 impl IrisEditorOverlay {
