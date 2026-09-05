@@ -19,6 +19,9 @@ impl EngineUi {
                 && let Ok(mut lock) = ae_editor::editor_logger::LOGGER.logs.lock()
             {
                 lock.clear();
+                ae_editor::editor_logger::LOGGER
+                    .log_count
+                    .store(0, std::sync::atomic::Ordering::Relaxed);
             }
         });
         ui.separator();

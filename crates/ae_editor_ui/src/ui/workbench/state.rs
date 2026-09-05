@@ -278,6 +278,9 @@ impl EngineUi {
                     .collect();
                 self.console_last_count = current_total;
             }
+        } else if current_total == 0 && !self.console_entries.is_empty() {
+            self.console_entries.clear();
+            self.console_last_count = 0;
         }
     }
 }

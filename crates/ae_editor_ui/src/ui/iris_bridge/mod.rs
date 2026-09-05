@@ -8,6 +8,7 @@
 
 pub mod about;
 pub mod actions;
+pub mod console;
 pub mod events;
 pub mod hierarchy;
 pub mod icons;
@@ -23,6 +24,9 @@ pub mod update;
 pub mod viewport_hud;
 
 pub use about::{AboutDialogTargets, build_about_dialog};
+pub use console::{
+    ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelTargets, build_console_panel,
+};
 pub use hierarchy::{
     AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow,
     build_hierarchy_panel, handle_hierarchy_click, handle_hierarchy_hover,

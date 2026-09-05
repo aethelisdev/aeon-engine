@@ -97,15 +97,39 @@ pub fn build_hierarchy_header(
             18.0
         })
     .max(20.0);
+    let text_start_x = if params.is_search_focused && params.search_query.is_empty() {
+        search_x + 24.5
+    } else {
+        search_x + 22.0
+    };
     if let Some(node) = tree.get_mut(search_text_id) {
         node.set_name("SearchQueryText");
         node.set_text(display_text);
         node.font_size = 11.5;
         node.line_height = header_h;
         node.text_color = text_color;
-        node.computed_rect = Rect::new(search_x + 22.0, header_y, text_w, header_h);
+        node.computed_rect = Rect::new(text_start_x, header_y, text_w, header_h);
     }
     let _ = tree.add_child(search_box_id, search_text_id);
+
+    // Blinking Caret Cursor (500ms cycle)
+    if params.is_search_focused && params.blink_caret {
+        let caret_x = if params.search_query.is_empty() {
+            search_x + 22.0
+        } else {
+            (search_x + 22.0 + (params.search_query.len() as f32 * 6.8))
+                .min(search_x + search_w - 24.0)
+        };
+        let caret_id = tree.create_node();
+        if let Some(node) = tree.get_mut(caret_id) {
+            node.set_name("HierarchySearchCaret");
+            node.computed_rect = Rect::new(caret_x, header_y + 4.0, 1.5, header_h - 8.0);
+            node.style = Style::new()
+                .background(Color::rgba(0.0, 0.90, 1.0, 1.0))
+                .border_radius(0.75);
+        }
+        let _ = tree.add_child(search_box_id, caret_id);
+    }
 
     // Clear Search "✖" Button
     let mut clear_btn_id = None;

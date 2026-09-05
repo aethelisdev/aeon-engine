@@ -3,7 +3,6 @@
 /// Tree Docking Coordinator (`egui_dock` — Multi-zone split and tab dock layout)
 /// Implements `egui_dock::TabViewer` for all Aeon Engine panels and the central 3D Viewport.
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
-use crate::ui::types::ConsoleEntry;
 use crate::ui::{EngineUi, EngineUiAction};
 use egui::{Color32, CornerRadius, Rect, Stroke};
 
@@ -18,13 +17,13 @@ pub struct EditorTabViewer<'a> {
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
-    pub console_entries: &'a [ConsoleEntry],
     pub viewport_texture_id: Option<egui::TextureId>,
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub stats_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub hierarchy_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub inspector_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub console_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
@@ -144,7 +143,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 );
             }
             PanelId::Console => {
-                EngineUi::draw_console_content(ui, self.console_entries, self.ui_actions);
+                let rect = ui.available_rect_before_wrap();
+                self.console_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::AnimationTimeline => {
                 EngineUi::draw_timeline_content(

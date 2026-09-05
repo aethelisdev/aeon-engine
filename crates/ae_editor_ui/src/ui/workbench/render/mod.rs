@@ -110,6 +110,7 @@ impl EngineUi {
             stats_panel_rect: egui_out.stats_rect,
             hierarchy_panel_rect: egui_out.hierarchy_rect,
             inspector_panel_rect: egui_out.inspector_rect,
+            console_panel_rect: egui_out.console_rect,
         });
 
         // 4. Viewport Texture Re-registration Check

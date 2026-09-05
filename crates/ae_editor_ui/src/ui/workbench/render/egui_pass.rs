@@ -19,6 +19,7 @@ pub struct EguiPassOutput {
     pub stats_rect: Option<egui::Rect>,
     pub hierarchy_rect: Option<egui::Rect>,
     pub inspector_rect: Option<egui::Rect>,
+    pub console_rect: Option<egui::Rect>,
 }
 
 impl EngineUi {
@@ -77,6 +78,7 @@ impl EngineUi {
         let stats_rect_cell = std::cell::Cell::new(None);
         let hierarchy_rect_cell = std::cell::Cell::new(None);
         let inspector_rect_cell = std::cell::Cell::new(None);
+        let console_rect_cell = std::cell::Cell::new(None);
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
         let full_output = self.context.run_ui(raw_input, |ui| {
@@ -111,12 +113,12 @@ impl EngineUi {
                 models: params.models,
                 textures: params.textures,
                 shaders: params.shaders,
-                console_entries: &self.console_entries,
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect_cell,
                 stats_rect_out: &stats_rect_cell,
                 hierarchy_rect_out: &hierarchy_rect_cell,
                 inspector_rect_out: &inspector_rect_cell,
+                console_rect_out: &console_rect_cell,
                 enabled_modules: params.enabled_modules,
                 ui_designer_state: &mut self.ui_designer_state,
             };
@@ -248,6 +250,7 @@ impl EngineUi {
             stats_rect: stats_rect_cell.get(),
             hierarchy_rect: hierarchy_rect_cell.get(),
             inspector_rect: inspector_rect_cell.get(),
+            console_rect: console_rect_cell.get(),
         }
     }
 }

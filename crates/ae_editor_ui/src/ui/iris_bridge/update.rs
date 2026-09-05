@@ -78,6 +78,13 @@ impl IrisEditorOverlay {
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
             stats_actions: Vec::new(),
+            console_targets: None,
+            console_scroll_y: 0.0,
+            console_filter: super::console::ConsoleFilterLevel::All,
+            console_search_query: String::new(),
+            console_is_search_focused: false,
+            console_auto_scroll: true,
+            console_actions: Vec::new(),
             preferences_pos: None,
             preferences_drag_offset: None,
             preferences_tab: 0,
@@ -125,6 +132,7 @@ impl IrisEditorOverlay {
         self.viewport_hud_targets = None;
         self.stats_targets = None;
         self.inspector_targets = None;
+        self.console_targets = None;
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -251,6 +259,7 @@ impl IrisEditorOverlay {
                 active_context_menu: self.hierarchy_active_context_menu,
                 cursor_pos: self.cursor_pos,
                 is_search_focused: self.hierarchy_is_search_focused,
+                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
             let mut hier_targets = HierarchyPanelTargets::default();
@@ -308,6 +317,35 @@ impl IrisEditorOverlay {
             self.inspector_targets = Some(insp_targets);
         } else {
             self.inspector_targets = None;
+        }
+
+        // 5c. If Developer Console panel is active, build Console panel (docked)
+        if let Some(console_rect) = params.console_panel_rect
+            && console_rect.width > 20.0
+            && console_rect.height > 20.0
+        {
+            let console_params = super::console::ConsolePanelParams {
+                panel_rect: console_rect,
+                entries: params.console_entries,
+                scroll_y: self.console_scroll_y,
+                filter: self.console_filter,
+                search_query: &self.console_search_query,
+                is_search_focused: self.console_is_search_focused,
+                auto_scroll: self.console_auto_scroll,
+                cursor_pos: self.cursor_pos,
+                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+            };
+
+            let mut console_targets = super::console::ConsolePanelTargets::default();
+            super::console::build_console_panel(
+                &mut self.tree,
+                root,
+                &console_params,
+                &mut console_targets,
+            );
+            self.console_targets = Some(console_targets);
+        } else {
+            self.console_targets = None;
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked panels):

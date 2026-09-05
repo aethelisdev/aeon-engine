@@ -83,6 +83,8 @@ pub struct IrisOverlayEventResult {
     pub apply_rename: Option<String>,
     /// Cancel rename dialog request.
     pub cancel_rename: bool,
+    /// Whether to clear the cached console log entries in the editor UI state.
+    pub clear_console_entries: bool,
 }
 
 /// Central state manager governing Iris UI editor overlays, menu bar, modal dialogs, and status bar rendering.
@@ -149,6 +151,20 @@ pub struct IrisEditorOverlay {
     pub hierarchy_is_search_focused: bool,
     /// Dispatched action queue for Scene Hierarchy panel interactions.
     pub hierarchy_actions: Vec<HierarchyAction>,
+    /// Cached interaction targets for Developer Console panel.
+    pub console_targets: Option<super::console::ConsolePanelTargets>,
+    /// Content area vertical scroll offset for Developer Console panel.
+    pub console_scroll_y: f32,
+    /// Active log level severity filter for Developer Console panel.
+    pub console_filter: super::console::ConsoleFilterLevel,
+    /// Active search filter text query for Developer Console panel.
+    pub console_search_query: String,
+    /// Whether search input box is focused in Developer Console panel.
+    pub console_is_search_focused: bool,
+    /// Whether Developer Console automatically scrolls down when new logs arrive.
+    pub console_auto_scroll: bool,
+    /// Dispatched action queue for Developer Console panel interactions.
+    pub console_actions: Vec<super::console::ConsoleAction>,
     /// Cached interaction targets for Scene Inspector panel.
     pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
     /// Content area vertical scroll offset for Scene Inspector panel.
@@ -396,6 +412,10 @@ pub struct OverlayUpdateParams<'a> {
     pub hierarchy_panel_rect: Option<Rect>,
     /// Bounding rectangle allocated for the Scene Inspector panel, if active.
     pub inspector_panel_rect: Option<Rect>,
+    /// Bounding rectangle allocated for the Developer Console panel, if active.
+    pub console_panel_rect: Option<Rect>,
+    /// Slice of active in-memory log entries for Developer Console rendering.
+    pub console_entries: &'a [crate::ui::types::ConsoleEntry],
     /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
     pub inspector_euler: &'a [f32; 3],
     /// Hex color string cache for object appearance editing (e.g. `"#6699cc"`).

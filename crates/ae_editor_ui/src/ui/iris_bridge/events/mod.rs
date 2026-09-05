@@ -3,6 +3,7 @@
 
 //! Event routing, hit-testing, and interaction dispatch subsystem for Iris UI editor overlays.
 
+pub mod console;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;
@@ -83,6 +84,11 @@ impl IrisEditorOverlay {
             }
         }
         if let Some(ref targets) = self.stats_targets
+            && targets.panel_rect.contains_point(point)
+        {
+            return true;
+        }
+        if let Some(ref targets) = self.console_targets
             && targets.panel_rect.contains_point(point)
         {
             return true;
@@ -404,6 +410,11 @@ impl IrisEditorOverlay {
                 result.consumed = true;
                 return result;
             }
+        }
+
+        // 0g2. If Developer Console panel is active, handle console window events
+        if let Some(console_res) = self.handle_console_window_event(event) {
+            return console_res;
         }
 
         // 0h. Mouse Wheel scrolling for Stats panel, Hierarchy panel, and Preferences dialog

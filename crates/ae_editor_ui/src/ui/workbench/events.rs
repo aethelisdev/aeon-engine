@@ -72,6 +72,11 @@ impl EngineUi {
             self.iris_overlay.rename_buffer.clear();
         }
 
+        if iris_res.clear_console_entries {
+            self.console_entries.clear();
+            self.console_last_count = 0;
+        }
+
         // Hierarchy search bar live typing
         if self.iris_overlay.hierarchy_is_search_focused
             && let WindowEvent::KeyboardInput {

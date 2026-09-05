@@ -133,4 +133,6 @@ pub struct HierarchyPanelParams<'a> {
     pub cursor_pos: Point,
     /// Search input focused state.
     pub is_search_focused: bool,
+    /// Caret blink phase indicator for text inputs.
+    pub blink_caret: bool,
 }
