@@ -10,6 +10,7 @@ pub mod about;
 pub mod actions;
 pub mod events;
 pub mod hierarchy;
+pub mod icons;
 pub mod inspector;
 pub mod menubar;
 pub mod modals;
@@ -26,6 +27,7 @@ pub use hierarchy::{
     AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow,
     build_hierarchy_panel, handle_hierarchy_click, handle_hierarchy_hover,
 };
+pub use icons::*;
 pub use modals::*;
 pub use preferences::{
     PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesSliderId,

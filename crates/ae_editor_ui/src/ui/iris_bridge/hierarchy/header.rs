@@ -6,8 +6,8 @@
 //! Renders the top search bar input box, clear button, `➕` Add Menu button,
 //! and `🗑` Delete Selected entity button with pixel-perfect visual styling.
 
-use super::rows::HIERARCHY_ICON_PLUS;
 use super::types::{HierarchyPanelParams, HierarchyPanelTargets};
+use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
 
 /// Output node handles created during header initialization.
@@ -173,7 +173,7 @@ pub fn build_hierarchy_header(
     if let Some(node) = tree.get_mut(plus_id) {
         node.set_name("AddEntityPlusIcon");
         node.computed_rect = Rect::new(plus_x, plus_y, plus_size, plus_size);
-        node.set_texture_uv(HIERARCHY_ICON_PLUS);
+        node.set_texture_uv(ICON_PLUS);
         node.set_texture_tint(icon_col);
     }
     let _ = tree.add_child(add_btn_id, plus_id);

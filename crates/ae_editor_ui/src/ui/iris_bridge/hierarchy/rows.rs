@@ -92,15 +92,15 @@ fn push_dfs_tree(
     }
 }
 
-/// UV coordinates for Scene Hierarchy icons in `editor_atlas.png`.
-pub const HIERARCHY_ICON_EYE_OPEN: [f32; 4] = [0.00, 0.25, 0.25, 0.50];
-pub const HIERARCHY_ICON_EYE_CLOSED: [f32; 4] = [0.25, 0.25, 0.50, 0.50];
-pub const HIERARCHY_ICON_FOLDER: [f32; 4] = [0.50, 0.25, 0.75, 0.50];
-pub const HIERARCHY_ICON_CUBE: [f32; 4] = [0.75, 0.25, 1.00, 0.50];
-pub const HIERARCHY_ICON_LIGHT: [f32; 4] = [0.00, 0.50, 0.25, 0.75];
-pub const HIERARCHY_ICON_CAMERA: [f32; 4] = [0.25, 0.50, 0.50, 0.75];
-pub const HIERARCHY_ICON_SPHERE: [f32; 4] = [0.50, 0.50, 0.75, 0.75];
-pub const HIERARCHY_ICON_PLUS: [f32; 4] = [0.75, 0.50, 1.00, 0.75];
+use crate::ui::iris_bridge::icons::*;
+
+/// Legacy aliases for Scene Hierarchy icons in `editor_atlas.png`.
+pub use crate::ui::iris_bridge::icons::{
+    ICON_CAMERA as HIERARCHY_ICON_CAMERA, ICON_CUBE as HIERARCHY_ICON_CUBE,
+    ICON_EYE_CLOSED as HIERARCHY_ICON_EYE_CLOSED, ICON_EYE_OPEN as HIERARCHY_ICON_EYE_OPEN,
+    ICON_FOLDER as HIERARCHY_ICON_FOLDER, ICON_LIGHT as HIERARCHY_ICON_LIGHT,
+    ICON_PLUS as HIERARCHY_ICON_PLUS, ICON_SPHERE as HIERARCHY_ICON_SPHERE,
+};
 
 /// Represents an entity icon either from the hardware texture atlas or text glyph fallback.
 #[derive(Clone, Copy, Debug)]
@@ -117,7 +117,7 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
         } else {
             Color::rgba(0.96, 0.97, 1.0, 0.92)
         };
-        return EntityIcon::Texture(HIERARCHY_ICON_FOLDER, folder_color);
+        return EntityIcon::Texture(ICON_FOLDER, folder_color);
     };
 
     let base_tint = if is_selected {
@@ -149,7 +149,7 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
                 }
             }
         };
-        EntityIcon::Texture(HIERARCHY_ICON_LIGHT, tint)
+        EntityIcon::Texture(ICON_LIGHT, tint)
     } else if ent_ref.get::<&ae_audio::AudioListener>().is_some()
         || ent_ref.get::<&ae_core::camera::Camera>().is_some()
     {
@@ -158,16 +158,16 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
         } else {
             Color::rgba(0.40, 0.75, 1.0, 1.0)
         };
-        EntityIcon::Texture(HIERARCHY_ICON_CAMERA, cam_tint)
+        EntityIcon::Texture(ICON_CAMERA, cam_tint)
     } else if let Some(shape) = ent_ref.get::<&ae_core::ecs::Shape>() {
         match *shape {
-            ae_core::ecs::Shape::Sphere => EntityIcon::Texture(HIERARCHY_ICON_SPHERE, base_tint),
-            _ => EntityIcon::Texture(HIERARCHY_ICON_CUBE, base_tint),
+            ae_core::ecs::Shape::Sphere => EntityIcon::Texture(ICON_SPHERE, base_tint),
+            _ => EntityIcon::Texture(ICON_CUBE, base_tint),
         }
     } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some()
         || ent_ref.get::<&ae_core::ecs::UiPanel>().is_some()
     {
-        EntityIcon::Texture(HIERARCHY_ICON_CUBE, base_tint)
+        EntityIcon::Texture(ICON_CUBE, base_tint)
     } else if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
         EntityIcon::Text("❤️ ")
     } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
@@ -189,7 +189,12 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
     } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
         EntityIcon::Text("📝 ")
     } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
-        EntityIcon::Text("🔊 ")
+        let audio_tint = if is_selected {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else {
+            Color::rgba(0.40, 0.75, 1.0, 1.0)
+        };
+        EntityIcon::Texture(ICON_AUDIO, audio_tint)
     } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
         EntityIcon::Text("🎮 ")
     } else if ent_ref.get::<&ae_core::ecs::Rotator>().is_some() {
@@ -210,7 +215,7 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
         } else {
             Color::rgba(0.96, 0.97, 1.0, 0.92)
         };
-        EntityIcon::Texture(HIERARCHY_ICON_FOLDER, folder_color)
+        EntityIcon::Texture(ICON_FOLDER, folder_color)
     }
 }
 
@@ -515,11 +520,11 @@ fn render_single_row(
         .is_err();
 
     let (eye_uv, eye_col) = if !is_visible {
-        (HIERARCHY_ICON_EYE_CLOSED, Color::rgba(1.0, 1.0, 1.0, 1.0))
+        (ICON_EYE_CLOSED, Color::rgba(1.0, 1.0, 1.0, 1.0))
     } else if is_selected {
-        (HIERARCHY_ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
+        (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
     } else {
-        (HIERARCHY_ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
+        (ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
     };
 
     let eye_id = tree.create_node();

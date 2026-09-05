@@ -7,6 +7,7 @@
 //! and renders interactive billboard icon badges with selection highlights.
 
 use super::types::{ViewportHudParams, ViewportHudTargets};
+use crate::ui::iris_bridge::icons::{ICON_AUDIO, ICON_CAMERA, ICON_LIGHT};
 use hecs::Entity;
 use irisui::prelude::*;
 
@@ -41,14 +42,12 @@ pub fn build_billboard_icons(
             continue;
         }
 
-        let glyph = if is_light {
-            "💡"
+        let icon_uv = if is_light {
+            ICON_LIGHT
         } else if is_audio_source {
-            "🔊"
-        } else if is_audio_listener {
-            "👂"
+            ICON_AUDIO
         } else {
-            "📦"
+            ICON_CAMERA
         };
 
         // Project 3D position to Clip Space
@@ -108,16 +107,29 @@ pub fn build_billboard_icons(
         }
         let _ = tree.add_child(parent_id, icon_id);
 
-        let txt_id = tree.create_node();
-        if let Some(node) = tree.get_mut(txt_id) {
-            node.set_name("BillboardGlyph");
-            node.set_text(glyph);
-            node.font_size = 12.0;
-            node.line_height = icon_size;
-            node.text_align = TextAlign::Center;
-            node.computed_rect = icon_rect;
+        let inner_size = 15.0;
+        let inner_x = icon_rect.x + (icon_size - inner_size) * 0.5;
+        let inner_y = icon_rect.y + (icon_size - inner_size) * 0.5;
+
+        let badge_ic_id = tree.create_node();
+        if let Some(node) = tree.get_mut(badge_ic_id) {
+            node.set_name("BillboardBadgeIcon");
+            node.computed_rect = Rect::new(inner_x, inner_y, inner_size, inner_size);
+            node.set_texture_uv(icon_uv);
+            let tint = if is_selected {
+                Color::WHITE
+            } else if is_hover {
+                Color::rgba(0.0, 0.95, 1.0, 1.0)
+            } else if is_light {
+                Color::rgba(1.0, 0.88, 0.35, 1.0)
+            } else if is_audio_source {
+                Color::rgba(0.40, 0.75, 1.0, 1.0)
+            } else {
+                Color::rgba(0.85, 0.88, 0.95, 1.0)
+            };
+            node.set_texture_tint(tint);
         }
-        let _ = tree.add_child(icon_id, txt_id);
+        let _ = tree.add_child(icon_id, badge_ic_id);
 
         targets.billboard_icons.push((ent, icon_rect));
     }

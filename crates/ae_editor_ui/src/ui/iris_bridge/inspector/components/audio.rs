@@ -180,7 +180,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("AudioPickBtnIcon");
-            node.texture_uv = Some(crate::ui::iris_bridge::hierarchy::rows::HIERARCHY_ICON_FOLDER);
+            node.texture_uv = Some(crate::ui::iris_bridge::icons::ICON_FOLDER);
             let tint = if is_btn_hovered {
                 Color::WHITE
             } else {

@@ -78,12 +78,12 @@ pub fn render_viewport_hud_dropdown_popup(
         ViewportHudDropdownId::ShadingMode => {
             let opts = vec![
                 (
-                    "💡 Lit".to_string(),
+                    "Lit".to_string(),
                     ViewportHudAction::ToggleWireframe,
                     !params.wireframe_enabled,
                 ),
                 (
-                    "🕸 Wireframe".to_string(),
+                    "Wireframe".to_string(),
                     ViewportHudAction::ToggleWireframe,
                     params.wireframe_enabled,
                 ),

@@ -73,7 +73,7 @@ pub fn build_inspector_footer(
     if let Some(node) = tree.get_mut(plus_id) {
         node.set_name("AddComponentPlusIcon");
         node.computed_rect = Rect::new(icon_x, icon_y, icon_size, icon_size);
-        node.set_texture_uv(crate::ui::iris_bridge::hierarchy::rows::HIERARCHY_ICON_PLUS);
+        node.set_texture_uv(crate::ui::iris_bridge::icons::ICON_PLUS);
         node.set_texture_tint(text_col);
     }
     let _ = tree.add_child(add_comp_btn_id, plus_id);

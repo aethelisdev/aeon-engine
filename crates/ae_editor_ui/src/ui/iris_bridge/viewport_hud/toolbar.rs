@@ -9,6 +9,10 @@
 use super::types::{
     ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets,
 };
+use crate::ui::iris_bridge::icons::{
+    ICON_CUBE, ICON_LIGHT, ICON_LOCAL, ICON_ROTATE, ICON_SCALE, ICON_SELECT, ICON_TRANSLATE,
+    ICON_WIREFRAME, ICON_WORLD,
+};
 use ae_editor::gizmo::{GizmoMode, GizmoSpace};
 use ae_renderer::camera::ProjectionMode;
 use irisui::prelude::*;
@@ -48,10 +52,10 @@ pub fn build_viewport_toolbar(
         ("📐 Ortho", 62.0)
     };
 
-    let (shading_label, sh_w) = if params.wireframe_enabled {
-        ("🕸 Wireframe", 80.0)
+    let (sh_icon_uv, shading_label, sh_w) = if params.wireframe_enabled {
+        (ICON_WIREFRAME, "Wireframe", 88.0)
     } else {
-        ("💡 Lit", 46.0)
+        (ICON_LIGHT, "Lit", 54.0)
     };
 
     let view_box_w = cam_w + 1.0 + sh_w;
@@ -107,7 +111,7 @@ pub fn build_viewport_toolbar(
             node.set_name("PerspectiveCubeIcon");
             node.computed_rect =
                 Rect::new(cube_icon_x, cube_icon_y, cube_icon_size, cube_icon_size);
-            node.set_texture_uv([0.75, 0.25, 1.00, 0.50]);
+            node.set_texture_uv(ICON_CUBE);
             node.set_texture_tint(cam_text_color);
         }
         let _ = tree.add_child(cam_btn_id, cube_id);
@@ -166,6 +170,24 @@ pub fn build_viewport_toolbar(
     }
     let _ = tree.add_child(view_box_id, sh_btn_id);
 
+    let sh_text_color = if is_sh_open || is_sh_hover {
+        Color::rgba(1.0, 1.0, 1.0, 1.0)
+    } else {
+        Color::rgba(0.85, 0.88, 0.94, 1.0)
+    };
+
+    let sh_icon_size = 15.0;
+    let sh_icon_x = cur_x + cam_w + 1.0 + 8.0;
+    let sh_icon_y = box_y + (box_h - sh_icon_size) * 0.5;
+    let sh_icon_id = tree.create_node();
+    if let Some(node) = tree.get_mut(sh_icon_id) {
+        node.set_name("ShadingModeIcon");
+        node.computed_rect = Rect::new(sh_icon_x, sh_icon_y, sh_icon_size, sh_icon_size);
+        node.set_texture_uv(sh_icon_uv);
+        node.set_texture_tint(sh_text_color);
+    }
+    let _ = tree.add_child(sh_btn_id, sh_icon_id);
+
     let sh_txt_id = tree.create_node();
     if let Some(node) = tree.get_mut(sh_txt_id) {
         node.set_name("ShadingModeText");
@@ -173,12 +195,8 @@ pub fn build_viewport_toolbar(
         node.font_size = 11.0;
         node.line_height = box_h;
         node.text_align = TextAlign::Center;
-        node.text_color = if is_sh_open || is_sh_hover {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.85, 0.88, 0.94, 1.0)
-        };
-        node.computed_rect = sh_rect;
+        node.text_color = sh_text_color;
+        node.computed_rect = Rect::new(cur_x + cam_w + 1.0 + 22.0, box_y, sh_w - 22.0, box_h);
     }
     let _ = tree.add_child(sh_btn_id, sh_txt_id);
     targets
@@ -192,10 +210,10 @@ pub fn build_viewport_toolbar(
     let btn_gap = 4.0;
 
     let gizmo_modes = [
-        (GizmoMode::Select, [0.00, 0.00, 0.25, 0.25]),
-        (GizmoMode::Translate, [0.25, 0.00, 0.50, 0.25]),
-        (GizmoMode::Rotate, [0.50, 0.00, 0.75, 0.25]),
-        (GizmoMode::Scale, [0.75, 0.00, 1.00, 0.25]),
+        (GizmoMode::Select, ICON_SELECT),
+        (GizmoMode::Translate, ICON_TRANSLATE),
+        (GizmoMode::Rotate, ICON_ROTATE),
+        (GizmoMode::Scale, ICON_SCALE),
     ];
 
     for (mode, uv) in gizmo_modes {
@@ -262,47 +280,54 @@ pub fn build_viewport_toolbar(
 
     cur_x += group_gap - btn_gap;
 
-    // ── 3. Coordinate Space Box (World / Local) ──
+    // ── 3. Coordinate Space Box (World / Local) — 32×32 Square Button ──
     let is_local = params.gizmo_space == GizmoSpace::Local;
-    let space_label = if is_local { "🏠 Local" } else { "🌍 World" };
-    let space_w = 64.0;
-    let space_rect = Rect::new(cur_x, box_y, space_w, box_h);
+    let space_rect = Rect::new(cur_x, box_y, btn_size, btn_size);
     let is_space_hover = space_rect.contains_point(params.cursor_pos);
+
+    let (bg, border_color) = if is_space_hover {
+        (
+            Color::rgba(0.20, 0.23, 0.30, 0.95),
+            Color::rgba(0.35, 0.40, 0.50, 0.90),
+        )
+    } else {
+        (
+            Color::rgba(0.12, 0.13, 0.16, 0.92),
+            Color::rgba(0.24, 0.26, 0.32, 0.85),
+        )
+    };
 
     let space_box_id = tree.create_node();
     if let Some(node) = tree.get_mut(space_box_id) {
         node.set_name("GizmoSpaceBox");
         node.computed_rect = space_rect;
-        let bg = if is_local {
-            Color::rgba(0.55, 0.28, 0.08, 0.92)
-        } else if is_space_hover {
-            Color::rgba(0.20, 0.23, 0.30, 0.95)
-        } else {
-            Color::rgba(0.12, 0.13, 0.16, 0.92)
-        };
         node.style = Style::new()
             .background(bg)
-            .border(1.0, Color::rgba(0.24, 0.26, 0.32, 0.85))
+            .border(1.0, border_color)
             .corner_radii(CornerRadii::all(corner_radius))
             .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
     }
     let _ = tree.add_child(parent_id, space_box_id);
 
-    let space_txt = tree.create_node();
-    if let Some(node) = tree.get_mut(space_txt) {
-        node.set_name("GizmoSpaceText");
-        node.set_text(space_label);
-        node.font_size = 11.0;
-        node.line_height = box_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_local || is_space_hover {
+    let space_uv = if is_local { ICON_LOCAL } else { ICON_WORLD };
+    let space_icon_size = 22.0;
+    let space_icon_x = cur_x + (btn_size - space_icon_size) * 0.5;
+    let space_icon_y = box_y + (btn_size - space_icon_size) * 0.5;
+
+    let space_icon_id = tree.create_node();
+    if let Some(node) = tree.get_mut(space_icon_id) {
+        node.set_name("GizmoSpaceIcon");
+        node.computed_rect =
+            Rect::new(space_icon_x, space_icon_y, space_icon_size, space_icon_size);
+        node.set_texture_uv(space_uv);
+        let icon_tint = if is_local || is_space_hover {
             Color::rgba(1.0, 1.0, 1.0, 1.0)
         } else {
             Color::rgba(0.85, 0.88, 0.94, 1.0)
         };
-        node.computed_rect = space_rect;
+        node.set_texture_tint(icon_tint);
     }
-    let _ = tree.add_child(space_box_id, space_txt);
+    let _ = tree.add_child(space_box_id, space_icon_id);
     targets
         .buttons
         .push((ViewportHudAction::ToggleGizmoSpace, space_rect));

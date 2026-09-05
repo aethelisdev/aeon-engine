@@ -6,8 +6,8 @@
 //! Renders the cascading multi-level dropdown menus for spawning 3D shapes,
 //! 2D UI elements, HUD presets, asset imports, and stress test benchmarks.
 
-use super::rows::{HIERARCHY_ICON_CUBE, HIERARCHY_ICON_FOLDER, HIERARCHY_ICON_SPHERE};
 use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets};
+use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
 use irisui::prelude::*;
 
 /// Visual icon representation for menu items (either text emoji or texture quad from atlas).
@@ -51,7 +51,7 @@ pub fn build_add_menu(
 
     let root_items = [
         AddMenuCategoryItem {
-            icon: MenuItemIcon::Texture(HIERARCHY_ICON_CUBE),
+            icon: MenuItemIcon::Texture(ICON_CUBE),
             label: "3D Objects",
             has_sub: true,
             sub_id: Some(AddSubmenuId::Objects3D),
@@ -65,7 +65,7 @@ pub fn build_add_menu(
             action: None,
         },
         AddMenuCategoryItem {
-            icon: MenuItemIcon::Texture(HIERARCHY_ICON_FOLDER),
+            icon: MenuItemIcon::Texture(ICON_FOLDER),
             label: "Assets & Prefabs",
             has_sub: true,
             sub_id: Some(AddSubmenuId::AssetsPrefabs),
@@ -254,13 +254,13 @@ fn build_submenu(
     )> = match submenu_id {
         AddSubmenuId::Objects3D => vec![
             (
-                MenuItemIcon::Texture(HIERARCHY_ICON_CUBE),
+                MenuItemIcon::Texture(ICON_CUBE),
                 "Cube",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cube)),
                 None,
             ),
             (
-                MenuItemIcon::Texture(HIERARCHY_ICON_SPHERE),
+                MenuItemIcon::Texture(ICON_SPHERE),
                 "Sphere",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Sphere)),
                 None,
@@ -383,13 +383,13 @@ fn build_submenu(
         ],
         AddSubmenuId::AssetsPrefabs => vec![
             (
-                MenuItemIcon::Texture(HIERARCHY_ICON_CUBE),
+                MenuItemIcon::Texture(ICON_CUBE),
                 "3D Model...",
                 Some(HierarchyAction::OpenModelDialog),
                 None,
             ),
             (
-                MenuItemIcon::Texture(HIERARCHY_ICON_FOLDER),
+                MenuItemIcon::Texture(ICON_FOLDER),
                 "Load Prefab...",
                 Some(HierarchyAction::OpenLoadPrefabDialog),
                 None,
