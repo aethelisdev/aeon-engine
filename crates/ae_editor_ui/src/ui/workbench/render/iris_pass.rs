@@ -32,6 +32,7 @@ pub struct IrisPassParams<'a> {
     pub hierarchy_panel_rect: Option<egui::Rect>,
     pub inspector_panel_rect: Option<egui::Rect>,
     pub console_panel_rect: Option<egui::Rect>,
+    pub assets_panel_rect: Option<egui::Rect>,
 }
 
 impl EngineUi {
@@ -120,6 +121,15 @@ impl EngineUi {
             .console_panel_rect
             .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
 
+        let iris_assets_rect = params
+            .assets_panel_rect
+            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
+
+        self.iris_overlay
+            .ensure_tools_texture(params.device, params.queue);
+        self.iris_overlay
+            .ensure_asset_thumbnails(params.queue, &self.asset_browser.cached_items);
+
         self.iris_overlay
             .update_overlays(iris_bridge::OverlayUpdateParams {
                 dimensions: (win_size.width as f32, win_size.height as f32),
@@ -151,6 +161,8 @@ impl EngineUi {
                 hierarchy_panel_rect: iris_hierarchy_rect,
                 inspector_panel_rect: iris_inspector_rect,
                 console_panel_rect: iris_console_rect,
+                assets_panel_rect: iris_assets_rect,
+                asset_browser: &self.asset_browser,
                 console_entries: &self.console_entries,
                 inspector_euler: &mut self.inspector_euler,
                 inspector_color_hex: &mut self.inspector_color_hex,

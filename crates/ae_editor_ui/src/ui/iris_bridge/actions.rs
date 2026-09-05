@@ -28,4 +28,9 @@ impl IrisEditorOverlay {
     pub fn take_inspector_actions(&mut self) -> Vec<super::inspector::InspectorAction> {
         std::mem::take(&mut self.inspector_actions)
     }
+
+    /// Consumes and returns all queued Content / Asset Browser panel actions.
+    pub fn take_assets_actions(&mut self) -> Vec<super::assets::AssetsPanelAction> {
+        std::mem::take(&mut self.assets_actions)
+    }
 }

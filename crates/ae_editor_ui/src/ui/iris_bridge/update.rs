@@ -85,6 +85,19 @@ impl IrisEditorOverlay {
             console_is_search_focused: false,
             console_auto_scroll: true,
             console_actions: Vec::new(),
+            assets_targets: None,
+            assets_scroll_y: 0.0,
+            assets_tree_scroll_y: 0.0,
+            assets_search_query: String::new(),
+            assets_current_folder: std::path::PathBuf::from("assets"),
+            assets_is_search_focused: false,
+            assets_click_tracker: super::assets::AssetClickTracker::default(),
+            assets_actions: Vec::new(),
+            assets_context_menu: None,
+            assets_preview_modal: None,
+            assets_selected_asset: None,
+            thumbnail_layers: std::collections::HashMap::new(),
+            next_thumbnail_layer: 16,
             preferences_pos: None,
             preferences_drag_offset: None,
             preferences_tab: 0,
@@ -133,6 +146,12 @@ impl IrisEditorOverlay {
         self.stats_targets = None;
         self.inspector_targets = None;
         self.console_targets = None;
+        self.assets_targets = None;
+
+        if !self.assets_is_search_focused {
+            self.assets_search_query = params.asset_browser.search_query.clone();
+        }
+        self.assets_current_folder = params.asset_browser.current_folder.clone();
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -346,6 +365,81 @@ impl IrisEditorOverlay {
             self.console_targets = Some(console_targets);
         } else {
             self.console_targets = None;
+        }
+
+        // 5d. If Content / Asset Browser panel is active, build Assets panel (docked)
+        if let Some(assets_rect) = params.assets_panel_rect
+            && assets_rect.width > 20.0
+            && assets_rect.height > 20.0
+        {
+            let is_root_folder =
+                params.asset_browser.current_folder == std::path::Path::new("assets");
+            let query_lower = self.assets_search_query.trim().to_ascii_lowercase();
+
+            let filtered_items: Vec<_> = params
+                .asset_browser
+                .cached_items
+                .iter()
+                .filter(|item| {
+                    if !is_root_folder
+                        && !item.path.starts_with(&params.asset_browser.current_folder)
+                    {
+                        return false;
+                    }
+                    if params.asset_browser.active_category
+                        != crate::ui::panels::assets::types::AssetCategory::All
+                        && item.category != params.asset_browser.active_category
+                    {
+                        return false;
+                    }
+                    if !query_lower.is_empty()
+                        && !item.name.to_ascii_lowercase().contains(&query_lower)
+                        && !item
+                            .relative_path
+                            .to_ascii_lowercase()
+                            .contains(&query_lower)
+                    {
+                        return false;
+                    }
+                    true
+                })
+                .cloned()
+                .collect();
+
+            self.assets_selected_asset = params.asset_browser.selected_asset.clone();
+
+            let assets_params = super::assets::AssetsPanelParams {
+                panel_rect: assets_rect,
+                screen_size: (self.screen_width, self.screen_height),
+                current_folder: &self.assets_current_folder,
+                search_query: &self.assets_search_query,
+                is_search_focused: self.assets_is_search_focused,
+                active_category: params.asset_browser.active_category,
+                view_mode: params.asset_browser.view_mode,
+                selected_asset: params.asset_browser.selected_asset.as_deref(),
+                cached_items: &params.asset_browser.cached_items,
+                filtered_items: &filtered_items,
+                sidebar_width: params.asset_browser.sidebar_width,
+                sidebar_collapsed: params.asset_browser.sidebar_collapsed,
+                scroll_y: self.assets_scroll_y,
+                tree_scroll_y: self.assets_tree_scroll_y,
+                cursor_pos: self.cursor_pos,
+                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+                active_context_menu: self.assets_context_menu.as_ref(),
+                active_preview_modal: self.assets_preview_modal.as_ref(),
+                thumbnail_layers: &self.thumbnail_layers,
+            };
+
+            let mut assets_targets = super::assets::AssetsPanelTargets::default();
+            super::assets::build_assets_panel(
+                &mut self.tree,
+                root,
+                &assets_params,
+                &mut assets_targets,
+            );
+            self.assets_targets = Some(assets_targets);
+        } else {
+            self.assets_targets = None;
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked panels):

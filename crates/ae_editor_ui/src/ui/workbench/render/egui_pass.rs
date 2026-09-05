@@ -20,6 +20,7 @@ pub struct EguiPassOutput {
     pub hierarchy_rect: Option<egui::Rect>,
     pub inspector_rect: Option<egui::Rect>,
     pub console_rect: Option<egui::Rect>,
+    pub assets_rect: Option<egui::Rect>,
 }
 
 impl EngineUi {
@@ -79,6 +80,7 @@ impl EngineUi {
         let hierarchy_rect_cell = std::cell::Cell::new(None);
         let inspector_rect_cell = std::cell::Cell::new(None);
         let console_rect_cell = std::cell::Cell::new(None);
+        let assets_rect_cell = std::cell::Cell::new(None);
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
         let full_output = self.context.run_ui(raw_input, |ui| {
@@ -112,13 +114,13 @@ impl EngineUi {
                 asset_browser: &mut self.asset_browser,
                 models: params.models,
                 textures: params.textures,
-                shaders: params.shaders,
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect_cell,
                 stats_rect_out: &stats_rect_cell,
                 hierarchy_rect_out: &hierarchy_rect_cell,
                 inspector_rect_out: &inspector_rect_cell,
                 console_rect_out: &console_rect_cell,
+                assets_rect_out: &assets_rect_cell,
                 enabled_modules: params.enabled_modules,
                 ui_designer_state: &mut self.ui_designer_state,
             };
@@ -145,6 +147,14 @@ impl EngineUi {
                 }
             } else {
                 self.asset_browser.preview_modal = None;
+            }
+
+            // Draw floating cursor tooltip when dragging an asset across the editor
+            if self.asset_browser.drag_payload.is_some() {
+                crate::ui::panels::assets::drag_drop::draw_drag_cursor_tooltip(
+                    &ctx,
+                    &self.asset_browser,
+                );
             }
 
             // Clean up status message after duration
@@ -251,6 +261,7 @@ impl EngineUi {
             hierarchy_rect: hierarchy_rect_cell.get(),
             inspector_rect: inspector_rect_cell.get(),
             console_rect: console_rect_cell.get(),
+            assets_rect: assets_rect_cell.get(),
         }
     }
 }

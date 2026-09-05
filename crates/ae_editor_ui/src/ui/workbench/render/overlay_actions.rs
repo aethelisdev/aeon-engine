@@ -317,4 +317,98 @@ impl EngineUi {
             }
         }
     }
+
+    /// Drains and processes queued actions from the Content / Asset Browser panel.
+    pub fn process_assets_actions(&mut self, ui_actions: &mut Vec<EngineUiAction>) {
+        for action in self.iris_overlay.take_assets_actions() {
+            match action {
+                iris_bridge::AssetsPanelAction::NavigateFolder(path) => {
+                    self.asset_browser.current_folder = path;
+                }
+                iris_bridge::AssetsPanelAction::SelectAsset(opt) => {
+                    self.asset_browser.selected_asset = opt;
+                }
+                iris_bridge::AssetsPanelAction::SelectCategory(cat) => {
+                    self.asset_browser.active_category = cat;
+                }
+                iris_bridge::AssetsPanelAction::SetViewMode(mode) => {
+                    self.asset_browser.view_mode = mode;
+                }
+                iris_bridge::AssetsPanelAction::ToggleSidebar => {
+                    self.asset_browser.sidebar_collapsed = !self.asset_browser.sidebar_collapsed;
+                }
+                iris_bridge::AssetsPanelAction::SearchInput(query) => {
+                    self.asset_browser.search_query = query;
+                }
+                iris_bridge::AssetsPanelAction::ClearSearch => {
+                    self.asset_browser.search_query.clear();
+                }
+                iris_bridge::AssetsPanelAction::OpenImportDialog => {
+                    ui_actions.push(EngineUiAction::OpenModelDialog);
+                }
+                iris_bridge::AssetsPanelAction::RevealFolder(path) => {
+                    let _ = crate::ui::panels::assets::file_ops::open_in_file_explorer(&path);
+                }
+                iris_bridge::AssetsPanelAction::CleanVram => {
+                    ui_actions.push(EngineUiAction::GarbageCollect);
+                }
+                iris_bridge::AssetsPanelAction::OpenCreateSubfolder(parent) => {
+                    self.asset_browser.new_folder_parent = Some(parent);
+                    self.asset_browser.new_folder_name.clear();
+                }
+                iris_bridge::AssetsPanelAction::SpawnAsset(path, cat) => match cat {
+                    crate::ui::panels::assets::types::AssetCategory::Models3D => {
+                        ui_actions.push(EngineUiAction::SpawnModelPathAt(path, [0.0, 0.0, 0.0]));
+                    }
+                    crate::ui::panels::assets::types::AssetCategory::Textures2D => {
+                        ui_actions.push(EngineUiAction::SpawnSpritePathAt(path, [0.0, 0.0, 0.0]));
+                    }
+                    crate::ui::panels::assets::types::AssetCategory::Scenes => {
+                        ui_actions.push(EngineUiAction::LoadSceneFromPath(path));
+                    }
+                    _ => {}
+                },
+                iris_bridge::AssetsPanelAction::InspectAsset(item) => {
+                    self.asset_browser.preview_modal =
+                        Some(crate::ui::panels::assets::types::PreviewModalState {
+                            item,
+                            orbit_yaw: 0.0,
+                            orbit_pitch: 0.3,
+                            zoom_distance: 1.0,
+                            show_wireframe: true,
+                            channel_mask: [true, true, true, true],
+                            wgsl_source: None,
+                        });
+                }
+                iris_bridge::AssetsPanelAction::OpenRename(path, name, is_folder) => {
+                    self.asset_browser.rename_state =
+                        Some(crate::ui::panels::assets::types::RenamingState {
+                            target_path: path,
+                            current_name: name,
+                            is_folder,
+                        });
+                }
+                iris_bridge::AssetsPanelAction::OpenDelete(path) => {
+                    self.asset_browser.delete_confirmation = Some(path);
+                }
+                iris_bridge::AssetsPanelAction::CopyPath(path) => {
+                    log::info!("Asset file path copied: {}", path.display());
+                }
+                iris_bridge::AssetsPanelAction::StartAssetDrag(item) => {
+                    self.asset_browser.drag_payload =
+                        Some(crate::ui::panels::assets::types::AssetDragPayload {
+                            path: item.path,
+                            name: item.name,
+                            category: item.category,
+                            model_handle: item.model_handle,
+                            texture_handle: item.texture_handle,
+                        });
+                }
+                iris_bridge::AssetsPanelAction::EndAssetDrag => {
+                    self.asset_browser.drag_payload = None;
+                }
+                _ => {}
+            }
+        }
+    }
 }

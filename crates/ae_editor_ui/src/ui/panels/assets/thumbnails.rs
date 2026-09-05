@@ -66,15 +66,36 @@ pub fn get_or_load_thumbnail(
     Some(handle)
 }
 
+/// Generates a 64x64 raw RGBA byte buffer for the given asset.
+pub fn generate_thumbnail_rgba_64(path: &Path, category: AssetCategory) -> Option<Vec<u8>> {
+    match category {
+        AssetCategory::Textures2D => rasterize_image_thumbnail(path, 64, 64),
+        AssetCategory::Models3D => Some(
+            rasterize_model_thumbnail(path, 64, 64)
+                .unwrap_or_else(|| rasterize_fallback_cube(64, 64)),
+        ),
+        AssetCategory::Shaders => Some(rasterize_shader_thumbnail(64, 64)),
+        AssetCategory::Scenes => Some(rasterize_scene_thumbnail(64, 64)),
+        AssetCategory::Materials => Some(rasterize_material_thumbnail(64, 64)),
+        AssetCategory::Audio => Some(rasterize_audio_thumbnail(64, 64)),
+        AssetCategory::All => None,
+    }
+}
+
+/// Decodes an image from disk and downscales it to `width x height` raw RGBA bytes.
+fn rasterize_image_thumbnail(path: &Path, width: u32, height: u32) -> Option<Vec<u8>> {
+    let img = image::open(path).ok()?;
+    let thumbnail = img.thumbnail_exact(width, height);
+    Some(thumbnail.to_rgba8().into_raw())
+}
+
 /// Decodes an image from disk and downscales it to `THUMBNAIL_SIZE x THUMBNAIL_SIZE`.
 fn decode_and_downscale_image(path: &Path) -> Option<ColorImage> {
-    let img = image::open(path).ok()?;
-    let thumbnail = img.thumbnail_exact(THUMBNAIL_SIZE, THUMBNAIL_SIZE);
-    let rgba = thumbnail.to_rgba8();
-    let width = rgba.width() as usize;
-    let height = rgba.height() as usize;
+    let raw = rasterize_image_thumbnail(path, THUMBNAIL_SIZE, THUMBNAIL_SIZE)?;
+    let width = THUMBNAIL_SIZE as usize;
+    let height = THUMBNAIL_SIZE as usize;
 
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &rgba))
+    Some(ColorImage::from_rgba_unmultiplied([width, height], &raw))
 }
 
 /// Raw vertex, normal, and index data extracted for 3D thumbnail rendering.
@@ -144,6 +165,13 @@ fn extract_model_geometry(path: &Path) -> Option<RawModelGeometry> {
 
 /// Renders a 96x96 studio thumbnail of a 3D model using depth-buffered software rasterization.
 fn render_model_thumbnail(path: &Path) -> Option<ColorImage> {
+    let px = rasterize_model_thumbnail(path, THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize)?;
+    let w = THUMBNAIL_SIZE as usize;
+    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
+}
+
+/// Software depth-buffered rasterizer for 3D model thumbnails.
+fn rasterize_model_thumbnail(path: &Path, width: usize, height: usize) -> Option<Vec<u8>> {
     let geom = extract_model_geometry(path)?;
     if geom.vertices.is_empty() {
         return None;
@@ -152,8 +180,6 @@ fn render_model_thumbnail(path: &Path) -> Option<ColorImage> {
     let normals = geom.normals;
     let indices = geom.indices;
 
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
     let mut pixels = vec![0u8; width * height * 4];
     let mut z_buffer = vec![f32::INFINITY; width * height];
 
@@ -216,6 +242,7 @@ fn render_model_thumbnail(path: &Path) -> Option<ColorImage> {
         light_dir[2] / len_l,
     ];
 
+    let scale_factor = (width as f32) * (26.0 / 96.0);
     let transform_point = |v: &[f32; 3]| -> ([f32; 3], f32, f32) {
         let x0 = (v[0] - center[0]) * scale;
         let y0 = (v[1] - center[1]) * scale;
@@ -227,8 +254,8 @@ fn render_model_thumbnail(path: &Path) -> Option<ColorImage> {
         let y2 = y0 * cos_p - z1 * sin_p;
         let z2 = y0 * sin_p + z1 * cos_p;
 
-        let screen_x = (x1 * 26.0) + (width as f32 * 0.5);
-        let screen_y = (-y2 * 26.0) + (height as f32 * 0.52);
+        let screen_x = (x1 * scale_factor) + (width as f32 * 0.5);
+        let screen_y = (-y2 * scale_factor) + (height as f32 * 0.52);
 
         ([x1, y2, z2], screen_x, screen_y)
     };
@@ -344,13 +371,18 @@ fn render_model_thumbnail(path: &Path) -> Option<ColorImage> {
         }
     }
 
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
+    Some(pixels)
 }
 
 /// Fallback 3D wireframe isometric cube thumbnail for models without direct GLTF parsing.
 fn render_fallback_wireframe_cube_thumbnail() -> ColorImage {
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
+    let px = rasterize_fallback_cube(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
+    let w = THUMBNAIL_SIZE as usize;
+    ColorImage::from_rgba_unmultiplied([w, w], &px)
+}
+
+/// Rasterizes fallback cube thumbnail pixels.
+fn rasterize_fallback_cube(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
 
     for y in 0..height {
@@ -371,16 +403,21 @@ fn render_fallback_wireframe_cube_thumbnail() -> ColorImage {
         }
     }
 
-    ColorImage::from_rgba_unmultiplied([width, height], &pixels)
+    pixels
 }
 
 /// Renders a 3D Material/Shader preview sphere with glowing WGSL core.
 fn render_shader_thumbnail() -> Option<ColorImage> {
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
+    let px = rasterize_shader_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
+    let w = THUMBNAIL_SIZE as usize;
+    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
+}
+
+/// Rasterizes shader thumbnail preview sphere into RGBA pixels.
+fn rasterize_shader_thumbnail(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
 
-    let radius = 34.0f32;
+    let radius = (width as f32) * (34.0 / 96.0);
     let center_x = width as f32 * 0.5;
     let center_y = height as f32 * 0.5;
     let light_dir = [-0.5f32, 0.7, 0.5];
@@ -436,13 +473,18 @@ fn render_shader_thumbnail() -> Option<ColorImage> {
         }
     }
 
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
+    pixels
 }
 
 /// Renders a 3D isometric scene preview grid with coordinate axes.
 fn render_scene_thumbnail() -> Option<ColorImage> {
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
+    let px = rasterize_scene_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
+    let w = THUMBNAIL_SIZE as usize;
+    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
+}
+
+/// Rasterizes 3D isometric scene preview grid with coordinate axes into RGBA pixels.
+fn rasterize_scene_thumbnail(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
 
     for y in 0..height {
@@ -466,11 +508,13 @@ fn render_scene_thumbnail() -> Option<ColorImage> {
     // Draw stylized 3D isometric perspective grid lines
     let center_x = width as isize / 2;
     let center_y = (height as isize * 55) / 100;
+    let step_max = (width as isize * 32) / 96;
+    let offset_scale = (width as isize * 11) / 96;
 
     for i in -3..=3 {
-        let offset = i * 11;
+        let offset = i * offset_scale;
         // Diagonal grid line 1
-        for step in -32..=32 {
+        for step in -step_max..=step_max {
             let px = center_x + step + offset;
             let py = center_y + (step / 2) - (offset / 2);
             if px >= 0 && px < width as isize && py >= 0 && py < height as isize {
@@ -481,7 +525,7 @@ fn render_scene_thumbnail() -> Option<ColorImage> {
             }
         }
         // Diagonal grid line 2
-        for step in -32..=32 {
+        for step in -step_max..=step_max {
             let px = center_x + step - offset;
             let py = center_y - (step / 2) - (offset / 2);
             if px >= 0 && px < width as isize && py >= 0 && py < height as isize {
@@ -494,9 +538,10 @@ fn render_scene_thumbnail() -> Option<ColorImage> {
     }
 
     // Center scene beacon dot
-    for dy in -3..=3 {
-        for dx in -3..=3 {
-            if dx * dx + dy * dy <= 9 {
+    let beacon_r = ((width as isize * 3) / 96).max(2);
+    for dy in -beacon_r..=beacon_r {
+        for dx in -beacon_r..=beacon_r {
+            if dx * dx + dy * dy <= beacon_r * beacon_r {
                 let px = (center_x + dx) as usize;
                 let py = (center_y + dy) as usize;
                 if px < width && py < height {
@@ -509,16 +554,21 @@ fn render_scene_thumbnail() -> Option<ColorImage> {
         }
     }
 
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
+    pixels
 }
 
 /// Renders a PBR material preview sphere.
 fn render_material_thumbnail() -> Option<ColorImage> {
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
+    let px = rasterize_material_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
+    let w = THUMBNAIL_SIZE as usize;
+    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
+}
+
+/// Rasterizes PBR material preview sphere into RGBA pixels.
+fn rasterize_material_thumbnail(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
 
-    let radius = 34.0f32;
+    let radius = (width as f32) * (34.0 / 96.0);
     let center_x = width as f32 * 0.5;
     let center_y = height as f32 * 0.5;
     let light_dir = [-0.55f32, 0.72, 0.42];
@@ -573,13 +623,18 @@ fn render_material_thumbnail() -> Option<ColorImage> {
         }
     }
 
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
+    pixels
 }
 
 /// Renders an acoustic audio waveform preview thumbnail.
 fn render_audio_thumbnail() -> Option<ColorImage> {
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
+    let px = rasterize_audio_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
+    let w = THUMBNAIL_SIZE as usize;
+    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
+}
+
+/// Rasterizes acoustic audio waveform preview thumbnail into RGBA pixels.
+fn rasterize_audio_thumbnail(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
 
     for y in 0..height {
@@ -602,14 +657,20 @@ fn render_audio_thumbnail() -> Option<ColorImage> {
 
     // Draw dynamic audio waveform bars
     let bar_count = 14;
-    let bar_width = 4;
-    let gap = 2;
-    let start_x = (width - (bar_count * (bar_width + gap) - gap)) / 2;
+    let bar_width = ((width * 4) / 96).max(2);
+    let gap = ((width * 2) / 96).max(1);
+    let total_w = bar_count * (bar_width + gap) - gap;
+    let start_x = if width > total_w {
+        (width - total_w) / 2
+    } else {
+        0
+    };
     let center_y = height / 2;
 
-    let bar_heights = [8, 14, 22, 34, 28, 38, 26, 32, 20, 26, 16, 24, 12, 6];
+    let base_heights = [8, 14, 22, 34, 28, 38, 26, 32, 20, 26, 16, 24, 12, 6];
 
-    for (i, &h) in bar_heights.iter().enumerate() {
+    for (i, &h_base) in base_heights.iter().enumerate() {
+        let h = (h_base * height) / 96;
         let bx = start_x + i * (bar_width + gap);
         let top_y = center_y.saturating_sub(h / 2);
         let bot_y = (center_y + h / 2).min(height - 1);
@@ -626,5 +687,5 @@ fn render_audio_thumbnail() -> Option<ColorImage> {
         }
     }
 
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &pixels))
+    pixels
 }

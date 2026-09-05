@@ -14,7 +14,7 @@ use super::super::super::types::ComponentCategory;
 use super::super::physics::render_component_header;
 use irisui::prelude::*;
 
-/// Inspector handler for `🎚️ UiSlider` component.
+/// Inspector handler for UiSlider component.
 pub struct UiSliderHandler;
 
 impl ComponentInspectorHandler for UiSliderHandler {

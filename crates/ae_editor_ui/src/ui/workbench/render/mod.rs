@@ -68,6 +68,14 @@ impl EngineUi {
 
         self.process_inspector_actions(params.world, params.ui_actions);
 
+        crate::ui::panels::assets::scanner::rescan_assets_if_needed(
+            &mut self.asset_browser,
+            params.models,
+            params.textures,
+            params.shaders,
+        );
+        self.process_assets_actions(params.ui_actions);
+
         if gs_changed {
             params
                 .ui_actions
@@ -111,6 +119,7 @@ impl EngineUi {
             hierarchy_panel_rect: egui_out.hierarchy_rect,
             inspector_panel_rect: egui_out.inspector_rect,
             console_panel_rect: egui_out.console_rect,
+            assets_panel_rect: egui_out.assets_rect,
         });
 
         // 4. Viewport Texture Re-registration Check

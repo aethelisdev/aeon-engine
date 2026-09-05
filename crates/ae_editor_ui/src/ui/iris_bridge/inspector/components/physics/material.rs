@@ -18,7 +18,7 @@ use crate::ui::iris_bridge::inspector::types::{
 };
 use irisui::prelude::*;
 
-/// Inspector handler for `🧱 Physics Material`.
+/// Inspector handler for Physics Material.
 pub struct PhysicsMaterialHandler;
 
 impl ComponentInspectorHandler for PhysicsMaterialHandler {

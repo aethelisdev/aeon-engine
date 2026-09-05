@@ -8,6 +8,7 @@
 
 pub mod about;
 pub mod actions;
+pub mod assets;
 pub mod console;
 pub mod events;
 pub mod hierarchy;
@@ -24,6 +25,10 @@ pub mod update;
 pub mod viewport_hud;
 
 pub use about::{AboutDialogTargets, build_about_dialog};
+pub use assets::{
+    AssetClickTracker, AssetsPanelAction, AssetsPanelParams, AssetsPanelTargets,
+    build_assets_panel, handle_assets_panel_event,
+};
 pub use console::{
     ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelTargets, build_console_panel,
 };

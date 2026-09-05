@@ -75,7 +75,7 @@ pub enum AssetViewMode {
 }
 
 /// Metadata item model representing an individual asset on disk or in GPU memory.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AssetItem {
     /// File stem or display name.
     pub name: String,

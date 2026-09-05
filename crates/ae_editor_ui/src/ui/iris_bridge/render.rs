@@ -271,6 +271,14 @@ impl IrisEditorOverlay {
                 active_popups.push(r);
             }
         }
+        if let Some(ref assets) = self.assets_targets {
+            if let Some(ref ctx_menu) = assets.context_menu {
+                active_popups.push(ctx_menu.card_rect);
+            }
+            if let Some(ref modal) = assets.preview_modal {
+                active_popups.push(modal.dialog_rect);
+            }
+        }
 
         let sections = Self::collect_text_sections_from_tree(&self.tree, &active_popups);
         if let Some(txt_renderer) = &mut self.text_renderer {
@@ -293,6 +301,64 @@ impl IrisEditorOverlay {
             text_renderer: self.text_renderer.as_ref(),
             screen_size,
         });
+    }
+
+    /// Uploads dynamic 64x64 thumbnail previews for active asset browser items into the 2D Texture Array.
+    pub fn ensure_asset_thumbnails(
+        &mut self,
+        queue: &wgpu::Queue,
+        items: &[crate::ui::panels::assets::types::AssetItem],
+    ) {
+        let Some((ref texture, _, _)) = self.tools_texture else {
+            return;
+        };
+
+        for item in items {
+            if self.next_thumbnail_layer >= 256 {
+                break;
+            }
+            if self.thumbnail_layers.contains_key(&item.path) {
+                continue;
+            }
+
+            if let Some(rgba) = crate::ui::panels::assets::thumbnails::generate_thumbnail_rgba_64(
+                &item.path,
+                item.category,
+            ) {
+                let layer = self.next_thumbnail_layer;
+                let mips = ae_texture::generate_mipmap_chain(64, 64, &rgba);
+
+                for (mip_level, level_data) in mips.iter().enumerate() {
+                    let mip_size = wgpu::Extent3d {
+                        width: level_data.width,
+                        height: level_data.height,
+                        depth_or_array_layers: 1,
+                    };
+                    queue.write_texture(
+                        wgpu::TexelCopyTextureInfo {
+                            texture,
+                            mip_level: mip_level as u32,
+                            origin: wgpu::Origin3d {
+                                x: 0,
+                                y: 0,
+                                z: layer,
+                            },
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        &level_data.bytes,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(4 * level_data.width),
+                            rows_per_image: Some(level_data.height),
+                        },
+                        mip_size,
+                    );
+                }
+
+                self.thumbnail_layers.insert(item.path.clone(), layer);
+                self.next_thumbnail_layer += 1;
+            }
+        }
     }
 
     /// Ensures that the editor tools 2D texture array (`editor_atlas.png`) is loaded into GPU memory.
@@ -318,7 +384,7 @@ impl IrisEditorOverlay {
         let tile_size = 64u32;
         let cols = width / tile_size;
         let rows = height / tile_size;
-        let layer_count = (cols * rows).max(1);
+        let layer_count = 256u32;
 
         // 64x64 tile has 7 mip levels (64, 32, 16, 8, 4, 2, 1)
         let mip_level_count = (tile_size as f32).log2().floor() as u32 + 1;

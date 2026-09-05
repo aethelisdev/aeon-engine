@@ -16,7 +16,6 @@ pub struct EditorTabViewer<'a> {
     pub asset_browser: &'a mut crate::ui::panels::assets::AssetBrowserState,
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-    pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
     pub viewport_texture_id: Option<egui::TextureId>,
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
@@ -24,6 +23,7 @@ pub struct EditorTabViewer<'a> {
     pub hierarchy_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub inspector_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub console_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub assets_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
@@ -132,15 +132,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 );
             }
             PanelId::Assets => {
-                EngineUi::draw_assets_content(
-                    ui,
-                    self.asset_browser,
-                    self.models,
-                    self.textures,
-                    self.shaders,
-                    self.is_editing,
-                    self.ui_actions,
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.assets_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::Console => {
                 let rect = ui.available_rect_before_wrap();

@@ -165,6 +165,32 @@ pub struct IrisEditorOverlay {
     pub console_auto_scroll: bool,
     /// Dispatched action queue for Developer Console panel interactions.
     pub console_actions: Vec<super::console::ConsoleAction>,
+    /// Cached interaction targets for Content / Asset Browser panel.
+    pub assets_targets: Option<super::assets::AssetsPanelTargets>,
+    /// Content area vertical scroll offset for Asset Browser panel.
+    pub assets_scroll_y: f32,
+    /// Folder tree sidebar vertical scroll offset for Asset Browser panel.
+    pub assets_tree_scroll_y: f32,
+    /// Active search filter text query in Asset Browser panel.
+    pub assets_search_query: String,
+    /// Current folder path in Asset Browser panel.
+    pub assets_current_folder: std::path::PathBuf,
+    /// Whether search input box is focused in Asset Browser panel.
+    pub assets_is_search_focused: bool,
+    /// Double-click tracking state for asset spawning.
+    pub assets_click_tracker: super::assets::AssetClickTracker,
+    /// Dispatched action queue for Asset Browser panel interactions.
+    pub assets_actions: Vec<super::assets::AssetsPanelAction>,
+    /// Active right-click context menu in Asset Browser: `(target, click_pos)`.
+    pub assets_context_menu: Option<(super::assets::AssetsContextMenuTarget, Point)>,
+    /// Active Quick Asset Preview modal state in Asset Browser.
+    pub assets_preview_modal: Option<super::assets::AssetPreviewModalState>,
+    /// Currently selected asset path in Asset Browser.
+    pub assets_selected_asset: Option<std::path::PathBuf>,
+    /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (16..255).
+    pub thumbnail_layers: std::collections::HashMap<std::path::PathBuf, u32>,
+    /// Next available layer index in the 2D Texture Array (16..255).
+    pub next_thumbnail_layer: u32,
     /// Cached interaction targets for Scene Inspector panel.
     pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
     /// Content area vertical scroll offset for Scene Inspector panel.
@@ -350,6 +376,55 @@ impl IrisEditorOverlay {
             return winit::window::CursorIcon::Pointer;
         }
 
+        // 5. Assets panel interactive items
+        if let Some(ref targets) = self.assets_targets {
+            if let Some(ref pm) = targets.preview_modal {
+                if pm.close_btn_rect.contains_point(p)
+                    || pm.reveal_btn_rect.contains_point(p)
+                    || pm.action_btn_rect.is_some_and(|r| r.contains_point(p))
+                {
+                    return winit::window::CursorIcon::Pointer;
+                }
+                if pm.orbit_canvas_rect.is_some_and(|r| r.contains_point(p)) {
+                    return winit::window::CursorIcon::Grab;
+                }
+            }
+            if let Some(ref cm) = targets.context_menu
+                && cm.card_rect.contains_point(p)
+            {
+                return winit::window::CursorIcon::Pointer;
+            }
+            if targets.import_btn_rect.contains_point(p)
+                || targets.reveal_btn_rect.contains_point(p)
+                || targets.clean_btn_rect.contains_point(p)
+                || targets.grid_toggle_rect.contains_point(p)
+                || targets.list_toggle_rect.contains_point(p)
+                || targets.sidebar_toggle_btn_rect.contains_point(p)
+                || targets
+                    .search_clear_btn_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets
+                    .new_subfolder_btn_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets.breadcrumbs.iter().any(|b| b.rect.contains_point(p))
+                || targets
+                    .category_chips
+                    .iter()
+                    .any(|(_, r)| r.contains_point(p))
+                || targets
+                    .folder_nodes
+                    .iter()
+                    .any(|n| n.row_rect.contains_point(p))
+                || targets.grid_cards.iter().any(|c| c.rect.contains_point(p))
+                || targets.list_rows.iter().any(|r| r.rect.contains_point(p))
+            {
+                return winit::window::CursorIcon::Pointer;
+            }
+            if targets.search_input_rect.contains_point(p) {
+                return winit::window::CursorIcon::Text;
+            }
+        }
+
         winit::window::CursorIcon::Default
     }
 }
@@ -414,6 +489,10 @@ pub struct OverlayUpdateParams<'a> {
     pub inspector_panel_rect: Option<Rect>,
     /// Bounding rectangle allocated for the Developer Console panel, if active.
     pub console_panel_rect: Option<Rect>,
+    /// Bounding rectangle allocated for the Content / Asset Browser panel, if active.
+    pub assets_panel_rect: Option<Rect>,
+    /// Reference to persistent asset browser state for Content Browser rendering.
+    pub asset_browser: &'a crate::ui::panels::assets::AssetBrowserState,
     /// Slice of active in-memory log entries for Developer Console rendering.
     pub console_entries: &'a [crate::ui::types::ConsoleEntry],
     /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
