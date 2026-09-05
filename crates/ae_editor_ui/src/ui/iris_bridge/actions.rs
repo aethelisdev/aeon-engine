@@ -33,4 +33,9 @@ impl IrisEditorOverlay {
     pub fn take_assets_actions(&mut self) -> Vec<super::assets::AssetsPanelAction> {
         std::mem::take(&mut self.assets_actions)
     }
+
+    /// Consumes and returns all queued Animation Timeline Studio panel actions.
+    pub fn take_timeline_actions(&mut self) -> Vec<super::timeline::TimelineAction> {
+        std::mem::take(&mut self.timeline_actions)
+    }
 }

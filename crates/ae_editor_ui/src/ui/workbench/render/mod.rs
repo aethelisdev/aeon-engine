@@ -75,6 +75,7 @@ impl EngineUi {
             params.shaders,
         );
         self.process_assets_actions(params.ui_actions);
+        self.process_timeline_actions(params.world, params.ui_actions);
 
         if gs_changed {
             params
@@ -120,6 +121,7 @@ impl EngineUi {
             inspector_panel_rect: egui_out.inspector_rect,
             console_panel_rect: egui_out.console_rect,
             assets_panel_rect: egui_out.assets_rect,
+            timeline_panel_rect: egui_out.timeline_rect,
         });
 
         // 4. Viewport Texture Re-registration Check

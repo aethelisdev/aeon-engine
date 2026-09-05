@@ -98,6 +98,10 @@ impl IrisEditorOverlay {
             assets_selected_asset: None,
             thumbnail_layers: std::collections::HashMap::new(),
             next_thumbnail_layer: 16,
+            timeline_targets: None,
+            timeline_is_dragging: false,
+            timeline_actions: Vec::new(),
+            timeline_selected_entity: None,
             preferences_pos: None,
             preferences_drag_offset: None,
             preferences_tab: 0,
@@ -152,6 +156,7 @@ impl IrisEditorOverlay {
             self.assets_search_query = params.asset_browser.search_query.clone();
         }
         self.assets_current_folder = params.asset_browser.current_folder.clone();
+        self.timeline_selected_entity = params.selected_entity;
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -440,6 +445,33 @@ impl IrisEditorOverlay {
             self.assets_targets = Some(assets_targets);
         } else {
             self.assets_targets = None;
+        }
+
+        // 5f. Animation Timeline Studio panel (if docked and active)
+        if let Some(timeline_rect) = params.timeline_panel_rect {
+            let anim_player = params
+                .selected_entity
+                .and_then(|ent| params.world.get::<&ae_animation::AnimationPlayer>(ent).ok());
+
+            let timeline_params = super::timeline::TimelinePanelParams {
+                panel_rect: timeline_rect,
+                entity: params.selected_entity,
+                animation_player: anim_player.as_deref(),
+                cursor_pos: self.cursor_pos,
+                is_dragging_scrubber: self.timeline_is_dragging,
+            };
+
+            let mut timeline_targets = super::timeline::TimelinePanelTargets::default();
+            super::timeline::build_timeline_panel(
+                &mut self.tree,
+                root,
+                &timeline_params,
+                &mut timeline_targets,
+            );
+            self.timeline_targets = Some(timeline_targets);
+        } else {
+            self.timeline_targets = None;
+            self.timeline_is_dragging = false;
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked panels):

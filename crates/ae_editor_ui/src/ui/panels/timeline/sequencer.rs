@@ -3,9 +3,9 @@
 use crate::ui::{EngineUi, EngineUiAction};
 
 impl EngineUi {
-    /// Renders the internal content of the Animation Timeline Studio.
-    /// Exposes skeletal animation transport controls (Play/Pause/Stop/Loop/Speed),
-    /// interactive drag scrubber, time ruler markings, and active clip playback tracking.
+    /// Legacy egui fallback renderer for the Animation Timeline Studio.
+    /// The active engine editor renders the timeline using the hardware-accelerated
+    /// 100% Iris UI GPU SDF pipeline in [`crate::ui::iris_bridge::timeline`].
     pub fn draw_timeline_content(
         ui: &mut egui::Ui,
         world: &hecs::World,

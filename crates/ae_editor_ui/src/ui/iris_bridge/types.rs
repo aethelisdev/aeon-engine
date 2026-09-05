@@ -191,6 +191,14 @@ pub struct IrisEditorOverlay {
     pub thumbnail_layers: std::collections::HashMap<std::path::PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (16..255).
     pub next_thumbnail_layer: u32,
+    /// Cached interaction targets for Animation Timeline Studio panel.
+    pub timeline_targets: Option<super::timeline::TimelinePanelTargets>,
+    /// Whether user is actively dragging the timeline scrubber playhead needle.
+    pub timeline_is_dragging: bool,
+    /// Dispatched action queue for Animation Timeline Studio panel interactions.
+    pub timeline_actions: Vec<super::timeline::TimelineAction>,
+    /// Selected entity handle cached for timeline interactions.
+    pub timeline_selected_entity: Option<hecs::Entity>,
     /// Cached interaction targets for Scene Inspector panel.
     pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
     /// Content area vertical scroll offset for Scene Inspector panel.
@@ -491,6 +499,8 @@ pub struct OverlayUpdateParams<'a> {
     pub console_panel_rect: Option<Rect>,
     /// Bounding rectangle allocated for the Content / Asset Browser panel, if active.
     pub assets_panel_rect: Option<Rect>,
+    /// Bounding rectangle allocated for the Animation Timeline Studio panel, if active.
+    pub timeline_panel_rect: Option<Rect>,
     /// Reference to persistent asset browser state for Content Browser rendering.
     pub asset_browser: &'a crate::ui::panels::assets::AssetBrowserState,
     /// Slice of active in-memory log entries for Developer Console rendering.

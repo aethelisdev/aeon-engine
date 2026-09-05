@@ -21,6 +21,7 @@ pub struct EguiPassOutput {
     pub inspector_rect: Option<egui::Rect>,
     pub console_rect: Option<egui::Rect>,
     pub assets_rect: Option<egui::Rect>,
+    pub timeline_rect: Option<egui::Rect>,
 }
 
 impl EngineUi {
@@ -81,6 +82,7 @@ impl EngineUi {
         let inspector_rect_cell = std::cell::Cell::new(None);
         let console_rect_cell = std::cell::Cell::new(None);
         let assets_rect_cell = std::cell::Cell::new(None);
+        let timeline_rect_cell = std::cell::Cell::new(None);
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
         let full_output = self.context.run_ui(raw_input, |ui| {
@@ -121,6 +123,7 @@ impl EngineUi {
                 inspector_rect_out: &inspector_rect_cell,
                 console_rect_out: &console_rect_cell,
                 assets_rect_out: &assets_rect_cell,
+                timeline_rect_out: &timeline_rect_cell,
                 enabled_modules: params.enabled_modules,
                 ui_designer_state: &mut self.ui_designer_state,
             };
@@ -262,6 +265,7 @@ impl EngineUi {
             inspector_rect: inspector_rect_cell.get(),
             console_rect: console_rect_cell.get(),
             assets_rect: assets_rect_cell.get(),
+            timeline_rect: timeline_rect_cell.get(),
         }
     }
 }

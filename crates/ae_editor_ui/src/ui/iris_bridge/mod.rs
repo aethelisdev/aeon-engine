@@ -20,6 +20,7 @@ pub mod preferences;
 pub mod render;
 pub mod stats;
 pub mod status_bar;
+pub mod timeline;
 pub mod types;
 pub mod update;
 pub mod viewport_hud;
@@ -44,6 +45,10 @@ pub use preferences::{
 };
 pub use stats::{
     StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelTargets, build_stats_panel,
+};
+pub use timeline::{
+    TimelineAction, TimelinePanelParams, TimelinePanelTargets, build_timeline_panel,
+    handle_timeline_click, handle_timeline_drag,
 };
 pub use types::{
     ActiveMenu, DropdownAction, IrisEditorOverlay, IrisOverlayEventResult, OverlayUpdateParams,

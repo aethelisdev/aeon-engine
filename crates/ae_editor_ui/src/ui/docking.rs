@@ -24,6 +24,7 @@ pub struct EditorTabViewer<'a> {
     pub inspector_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub console_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub assets_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub timeline_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
@@ -142,12 +143,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 ui.allocate_space(rect.size());
             }
             PanelId::AnimationTimeline => {
-                EngineUi::draw_timeline_content(
-                    ui,
-                    self.world,
-                    *self.selected_entity,
-                    self.ui_actions,
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.timeline_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::UiDesigner => {
                 crate::ui::panels::draw_ui_designer_panel(

@@ -8,6 +8,7 @@ pub mod console;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;
+pub mod timeline;
 
 use super::hierarchy::{self, HierarchyAction};
 use super::stats::StatsPanelAction;
@@ -104,6 +105,11 @@ impl IrisEditorOverlay {
             if targets.panel_rect.contains_point(point) {
                 return true;
             }
+        }
+        if let Some(ref targets) = self.timeline_targets
+            && targets.panel_rect.contains_point(point)
+        {
+            return true;
         }
         if let Some(ref targets) = self.inspector_targets {
             if let Some(picker_rect) = targets.color_picker_popup_rect
@@ -432,6 +438,11 @@ impl IrisEditorOverlay {
         // 0g3. If Content / Asset Browser panel is active, handle assets window events
         if let Some(assets_res) = self.handle_assets_window_event(event) {
             return assets_res;
+        }
+
+        // 0g4. If Animation Timeline Studio panel is active, handle timeline window events
+        if let Some(timeline_res) = self.handle_timeline_window_event(event) {
+            return timeline_res;
         }
 
         // 0h. Mouse Wheel scrolling for Stats panel, Hierarchy panel, and Preferences dialog
