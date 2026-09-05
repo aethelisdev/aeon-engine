@@ -39,6 +39,7 @@ pub enum EngineUiAction {
         pitch: cgmath::Rad<f32>,
         yaw: cgmath::Rad<f32>,
         position: cgmath::Point3<f32>,
+        mode: Option<ae_renderer::camera::ProjectionMode>,
     },
 
     // --- INSPECTOR MODIFICATION ACTIONS ---

@@ -43,13 +43,13 @@ pub fn build_viewport_toolbar(
     let (camera_label, cam_w) = if is_persp {
         ("Perspective", 98.0)
     } else if is_top {
-        ("📐 Top", 56.0)
+        ("📐 Top", 58.0)
     } else if is_front {
-        ("📐 Front", 62.0)
+        ("📐 Front", 64.0)
     } else if is_right {
-        ("📐 Right", 62.0)
+        ("📐 Right", 64.0)
     } else {
-        ("📐 Ortho", 62.0)
+        ("📐 Ortho", 64.0)
     };
 
     let (sh_icon_uv, shading_label, sh_w) = if params.wireframe_enabled {

@@ -146,6 +146,7 @@ pub fn build_scene_navigation_compass(
                     pitch: target_pitch,
                     yaw: target_yaw,
                     position: target_pos,
+                    mode: None,
                 },
                 knob_rect,
             ));
@@ -190,6 +191,7 @@ pub fn build_scene_navigation_compass(
                     pitch: target_pitch,
                     yaw: target_yaw,
                     position: target_pos,
+                    mode: None,
                 },
                 dot_rect,
             ));

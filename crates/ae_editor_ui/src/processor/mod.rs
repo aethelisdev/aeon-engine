@@ -254,7 +254,8 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
                 pitch,
                 yaw,
                 position,
-            } => system::handle_set_camera_transform(ctx, pitch, yaw, position),
+                mode,
+            } => system::handle_set_camera_transform(ctx, pitch, yaw, position, mode),
             crate::ui::EngineUiAction::UpdateGraphicsSettings(settings) => {
                 system::handle_update_graphics_settings(ctx, settings)
             }

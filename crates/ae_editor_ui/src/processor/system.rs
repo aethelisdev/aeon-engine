@@ -119,16 +119,20 @@ pub fn handle_set_camera_mode(ctx: &mut UiContext, mode: ae_renderer::camera::Pr
     ctx.camera.mode = mode;
 }
 
-/// Handles snapping 3D viewport camera orientation to standard axes.
+/// Handles snapping 3D viewport camera orientation to standard axes and optionally updates projection mode.
 pub fn handle_set_camera_transform(
     ctx: &mut UiContext,
     pitch: cgmath::Rad<f32>,
     yaw: cgmath::Rad<f32>,
     pos: cgmath::Point3<f32>,
+    mode: Option<ae_renderer::camera::ProjectionMode>,
 ) {
     ctx.camera.pitch = pitch;
     ctx.camera.yaw = yaw;
     ctx.camera.position = pos;
+    if let Some(m) = mode {
+        ctx.camera.mode = m;
+    }
 }
 
 /// Handles triggering ECS asset garbage collection sweep.

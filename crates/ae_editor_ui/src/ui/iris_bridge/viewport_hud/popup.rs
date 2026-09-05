@@ -35,6 +35,7 @@ pub fn render_viewport_hud_dropdown_popup(
                 !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0 > 1.5;
             let is_right =
                 !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
+            let is_ortho = !is_persp && !is_top && !is_front && !is_right;
 
             let target = params.camera.target;
             let d = 10.0;
@@ -46,11 +47,17 @@ pub fn render_viewport_hud_dropdown_popup(
                     is_persp,
                 ),
                 (
+                    "📐 Orthographic".to_string(),
+                    ViewportHudAction::SetCameraMode(ProjectionMode::Orthographic),
+                    is_ortho,
+                ),
+                (
                     "📐 Top".to_string(),
                     ViewportHudAction::SetCameraTransform {
                         pitch: cgmath::Rad(-std::f32::consts::FRAC_PI_2 + 0.001),
                         yaw: cgmath::Rad(0.0),
                         position: cgmath::Point3::new(target.x, target.y + d, target.z),
+                        mode: Some(ProjectionMode::Orthographic),
                     },
                     is_top,
                 ),
@@ -60,6 +67,7 @@ pub fn render_viewport_hud_dropdown_popup(
                         pitch: cgmath::Rad(0.0),
                         yaw: cgmath::Rad(std::f32::consts::FRAC_PI_2),
                         position: cgmath::Point3::new(target.x, target.y, target.z - d),
+                        mode: Some(ProjectionMode::Orthographic),
                     },
                     is_front,
                 ),
@@ -69,6 +77,7 @@ pub fn render_viewport_hud_dropdown_popup(
                         pitch: cgmath::Rad(0.0),
                         yaw: cgmath::Rad(0.0),
                         position: cgmath::Point3::new(target.x + d, target.y, target.z),
+                        mode: Some(ProjectionMode::Orthographic),
                     },
                     is_right,
                 ),
@@ -96,7 +105,7 @@ pub fn render_viewport_hud_dropdown_popup(
     let popup_rect = Rect::new(
         btn_rect.x,
         btn_rect.y + btn_rect.height + 2.0,
-        btn_rect.width.max(120.0),
+        btn_rect.width.max(130.0),
         popup_h,
     );
     targets.active_dropdown_popup_rect = Some(popup_rect);
@@ -154,5 +163,101 @@ pub fn render_viewport_hud_dropdown_popup(
         targets
             .active_dropdown_items
             .push((action, item_rect, label));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ae_editor::gizmo::{GizmoMode, GizmoSpace};
+    use ae_editor::snapping::SnapSettings;
+    use ae_renderer::camera::{Camera, ProjectionMode};
+    use hecs::World;
+
+    /// Tests that the camera mode dropdown provides Perspective, Orthographic, and orthogonal presets
+    /// that properly enforce `ProjectionMode::Orthographic`.
+    #[test]
+    fn test_camera_mode_dropdown_options_and_orthographic_mode() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let camera = Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+        let snapping = SnapSettings::default();
+        let world = World::new();
+
+        let params = ViewportHudParams {
+            viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
+            camera: &camera,
+            wireframe_enabled: false,
+            gizmo_mode: GizmoMode::Select,
+            gizmo_space: GizmoSpace::World,
+            snapping: &snapping,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_dropdown: Some(ViewportHudDropdownId::CameraMode),
+            selected_entity: None,
+            world: &world,
+            is_editing: true,
+        };
+
+        let mut targets = ViewportHudTargets::default();
+        targets.dropdown_triggers.push((
+            ViewportHudDropdownId::CameraMode,
+            Rect::new(10.0, 10.0, 100.0, 30.0),
+        ));
+
+        render_viewport_hud_dropdown_popup(
+            &mut tree,
+            root,
+            ViewportHudDropdownId::CameraMode,
+            &params,
+            &mut targets,
+        );
+
+        assert_eq!(targets.active_dropdown_items.len(), 5);
+
+        let labels: Vec<&str> = targets
+            .active_dropdown_items
+            .iter()
+            .map(|(_, _, l)| l.as_str())
+            .collect();
+        assert_eq!(
+            labels,
+            vec![
+                "Perspective",
+                "📐 Orthographic",
+                "📐 Top",
+                "📐 Front",
+                "📐 Right"
+            ]
+        );
+
+        // Verify that Orthographic sets camera mode
+        assert_eq!(
+            targets.active_dropdown_items[1].0,
+            ViewportHudAction::SetCameraMode(ProjectionMode::Orthographic)
+        );
+
+        // Verify that Top, Front, Right include mode: Some(ProjectionMode::Orthographic)
+        for idx in [2, 3, 4] {
+            match &targets.active_dropdown_items[idx].0 {
+                ViewportHudAction::SetCameraTransform { mode, .. } => {
+                    assert_eq!(*mode, Some(ProjectionMode::Orthographic));
+                }
+                other => panic!(
+                    "Expected SetCameraTransform action at index {}, got {:?}",
+                    idx, other
+                ),
+            }
+        }
     }
 }

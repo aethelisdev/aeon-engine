@@ -26,7 +26,7 @@ pub enum ViewportHudDropdownId {
 pub enum ViewportHudAction {
     /// Sets camera projection mode.
     SetCameraMode(ProjectionMode),
-    /// Sets camera orientation angles and eye position.
+    /// Sets camera orientation angles and eye position, optionally switching projection mode.
     SetCameraTransform {
         /// Camera pitch in radians.
         pitch: cgmath::Rad<f32>,
@@ -34,6 +34,8 @@ pub enum ViewportHudAction {
         yaw: cgmath::Rad<f32>,
         /// Camera position in world space.
         position: cgmath::Point3<f32>,
+        /// Optional camera projection mode to switch into synchronously.
+        mode: Option<ProjectionMode>,
     },
     /// Toggles wireframe overlay rendering mode.
     ToggleWireframe,

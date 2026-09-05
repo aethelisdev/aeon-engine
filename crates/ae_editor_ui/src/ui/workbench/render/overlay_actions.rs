@@ -223,11 +223,13 @@ impl EngineUi {
                     pitch,
                     yaw,
                     position,
+                    mode,
                 } => {
                     ui_actions.push(EngineUiAction::SetCameraTransform {
                         pitch,
                         yaw,
                         position,
+                        mode,
                     });
                 }
                 iris_bridge::ViewportHudAction::ToggleWireframe => {
