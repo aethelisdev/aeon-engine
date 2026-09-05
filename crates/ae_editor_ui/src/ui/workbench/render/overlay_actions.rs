@@ -293,6 +293,9 @@ impl EngineUi {
                 iris_bridge::HierarchyAction::OpenModelDialog => {
                     ui_actions.push(EngineUiAction::OpenModelDialog);
                 }
+                iris_bridge::HierarchyAction::OpenLoadPrefabDialog => {
+                    ui_actions.push(EngineUiAction::OpenLoadPrefabDialog);
+                }
                 iris_bridge::HierarchyAction::InstantiatePrefab(path) => {
                     ui_actions.push(EngineUiAction::InstantiatePrefab(path));
                 }

@@ -162,6 +162,18 @@ impl EngineUi {
                             && let Ok(mut c) = world.get::<&mut ae_core::ecs::Collider>(entity)
                         {
                             c.is_sensor = !c.is_sensor;
+                        } else if let ComponentCheckboxId::AudioLoop = cb_id
+                            && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                        {
+                            a.looping = !a.looping;
+                        } else if let ComponentCheckboxId::AudioSpatial = cb_id
+                            && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                        {
+                            a.is_spatial = !a.is_spatial;
+                        } else if let ComponentCheckboxId::AudioPlayOnStart = cb_id
+                            && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                        {
+                            a.play_on_start = !a.play_on_start;
                         }
                         let new_bytes = registry
                             .get_by_name(comp_name)
@@ -199,6 +211,31 @@ impl EngineUi {
                                 entity, comp_name, old, new,
                             ));
                         }
+                    }
+                }
+                InspectorAction::PickAudioFile => {
+                    if let Some(entity) = self.selected_entity
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Audio Files", &["wav", "ogg", "mp3", "flac"])
+                            .pick_file()
+                    {
+                        let path_str = path.to_string_lossy().to_string();
+                        if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
+                            a.sound_path = path_str;
+                            a.is_playing = true;
+                        }
+                    }
+                }
+                InspectorAction::ToggleAudioPlayback => {
+                    if let Some(entity) = self.selected_entity
+                        && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                    {
+                        a.is_playing = !a.is_playing;
+                    }
+                }
+                InspectorAction::Unparent => {
+                    if let Some(entity) = self.selected_entity {
+                        ui_actions.push(EngineUiAction::UnparentEntity(entity));
                     }
                 }
                 _ => {}
@@ -499,6 +536,16 @@ fn handle_set_number_value(
         InspectorNumberInputId::RigidBodyGravity => {
             if let Ok(mut rb) = world.get::<&mut ae_core::ecs::RigidBody>(entity) {
                 rb.gravity_scale = val;
+            }
+        }
+        InspectorNumberInputId::AudioVolume => {
+            if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
+                a.volume = val.clamp(0.0, 2.0);
+            }
+        }
+        InspectorNumberInputId::AudioPitch => {
+            if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
+                a.pitch = val.clamp(0.1, 3.0);
             }
         }
         _ => {}

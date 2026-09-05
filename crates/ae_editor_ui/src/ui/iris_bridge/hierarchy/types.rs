@@ -50,6 +50,8 @@ pub enum HierarchyAction {
     SpawnUiElement(crate::ui::UiElementType),
     /// Open the 3D model asset import file picker dialog.
     OpenModelDialog,
+    /// Open the prefab asset import file picker dialog.
+    OpenLoadPrefabDialog,
     /// Instantiate a prefab from the given filesystem path.
     InstantiatePrefab(PathBuf),
     /// Spawns the complete interactive test sandbox.

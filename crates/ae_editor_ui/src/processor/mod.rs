@@ -270,6 +270,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
 
             // --- SCENE & PREFAB I/O ACTIONS ---
             crate::ui::EngineUiAction::OpenModelDialog => scene_io::handle_open_model_dialog(ctx),
+            crate::ui::EngineUiAction::OpenLoadPrefabDialog => {
+                scene_io::handle_open_load_prefab_dialog(ctx)
+            }
             crate::ui::EngineUiAction::OpenSaveSceneDialog => {
                 scene_io::handle_open_save_scene_dialog(ctx)
             }

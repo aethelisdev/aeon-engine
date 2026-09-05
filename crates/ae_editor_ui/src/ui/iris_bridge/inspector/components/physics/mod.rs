@@ -3,7 +3,7 @@
 
 //! # Physics Component Inspector Cards
 //!
-//! Provides handlers for `🛡️ Collider`, `⚙ RigidBody`, and `🧱 Physics Material`
+//! Provides handlers for Collider, RigidBody, and Physics Material
 //! along with common UI widget and numeric card rendering helpers.
 
 pub mod collider;

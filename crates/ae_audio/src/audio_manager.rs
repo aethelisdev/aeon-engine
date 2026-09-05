@@ -17,7 +17,7 @@ use std::io::BufReader;
 pub struct AudioManager {
     _stream: Option<rodio::OutputStream>,
     stream_handle: Option<rodio::OutputStreamHandle>,
-    sinks: HashMap<hecs::Entity, rodio::Sink>,
+    sinks: HashMap<hecs::Entity, (rodio::Sink, String)>,
     master_volume: f32,
     is_muted: bool,
 }
@@ -80,8 +80,17 @@ impl AudioManager {
 
     /// Triggers sound playback for a specific entity's `AudioSource`.
     pub fn play_sound(&mut self, entity: hecs::Entity, source: &AudioSource) -> bool {
-        if self.is_muted || self.stream_handle.is_none() {
+        if self.is_muted {
             return false;
+        }
+
+        // Lazy reconnect if hardware output stream was unavailable at startup
+        if self.stream_handle.is_none()
+            && let Ok((stream, handle)) = rodio::OutputStream::try_default()
+        {
+            log::info!("🔊 Audio Manager reconnected to hardware output device.");
+            self._stream = Some(stream);
+            self.stream_handle = Some(handle);
         }
 
         let handle = match &self.stream_handle {
@@ -93,7 +102,10 @@ impl AudioManager {
             return false;
         }
 
-        let file = match File::open(&source.sound_path) {
+        let file = match File::open(&source.sound_path).or_else(|_| {
+            let fallback = std::path::Path::new("assets").join(&source.sound_path);
+            File::open(fallback)
+        }) {
             Ok(f) => f,
             Err(e) => {
                 log::warn!("Failed to open sound file '{:?}': {}", source.sound_path, e);
@@ -131,7 +143,7 @@ impl AudioManager {
             sink.append(decoder);
         }
 
-        self.sinks.insert(entity, sink);
+        self.sinks.insert(entity, (sink, source.sound_path.clone()));
         log::info!(
             "🔊 Playing sound {:?} on entity {:?}",
             source.sound_path,
@@ -142,7 +154,7 @@ impl AudioManager {
 
     /// Stops sound playback for a specific entity's `AudioSource`.
     pub fn stop_sound(&mut self, entity: hecs::Entity) {
-        if let Some(sink) = self.sinks.remove(&entity) {
+        if let Some((sink, _)) = self.sinks.remove(&entity) {
             sink.stop();
         }
     }
@@ -160,14 +172,14 @@ impl AudioManager {
     ) {
         // --- MODULE ISOLATION: Pause all hardware audio sinks if disabled ---
         if !is_audio_enabled || self.is_muted {
-            for sink in self.sinks.values() {
+            for (sink, _) in self.sinks.values() {
                 sink.pause();
             }
             return;
         }
 
         // Unpause any paused sinks when re-enabled
-        for sink in self.sinks.values() {
+        for (sink, _) in self.sinks.values() {
             if sink.is_paused() {
                 sink.play();
             }
@@ -186,26 +198,35 @@ impl AudioManager {
             listener_right = Vec3::X; // Default listener right axis
         }
 
-        // 2. Remove stopped/finished sinks OR sinks whose AudioSource component was removed (Trash Icon)
-        self.sinks.retain(|entity, sink| {
-            let has_source = world.get::<&AudioSource>(*entity).is_ok();
-            let active = !sink.empty() && has_source;
-            if !active {
+        // 2. Remove stopped/finished sinks OR sinks whose AudioSource component was removed or stopped
+        self.sinks.retain(|entity, (sink, _)| {
+            let is_active = if let Ok(source) = world.get::<&AudioSource>(*entity) {
+                !sink.empty() && source.is_playing
+            } else {
+                false
+            };
+            if !is_active {
                 sink.stop();
                 if let Ok(mut src) = world.get::<&mut AudioSource>(*entity) {
                     src.is_playing = false;
                 }
             }
-            active
+            is_active
         });
 
-        // 3. Process AudioSource entities
-        for (entity, pos, source) in world
-            .query::<(hecs::Entity, &Position, &mut AudioSource)>()
-            .iter()
-        {
+        // 3. Process AudioSource entities (without hard Position dependency)
+        for (entity, source) in world.query::<(hecs::Entity, &mut AudioSource)>().iter() {
+            // Check if active sink sound_path has changed
+            if let Some((_, active_path)) = self.sinks.get(&entity)
+                && active_path != &source.sound_path
+            {
+                self.stop_sound(entity);
+            }
+
             // Auto-play on start or resume if is_playing is true but sink is missing
-            if (source.play_on_start || source.is_playing) && !self.sinks.contains_key(&entity) {
+            let should_start =
+                (source.play_on_start || source.is_playing) && !self.sinks.contains_key(&entity);
+            if should_start && !source.sound_path.trim().is_empty() {
                 let success = self.play_sound(entity, source);
                 source.is_playing = success;
                 source.play_on_start = false;
@@ -213,9 +234,11 @@ impl AudioManager {
 
             // Update spatial 3D volume & attenuation
             if source.is_playing
-                && let Some(sink) = self.sinks.get(&entity)
+                && let Some((sink, _)) = self.sinks.get(&entity)
             {
-                if source.is_spatial {
+                if source.is_spatial
+                    && let Ok(pos) = world.get::<&Position>(entity)
+                {
                     let emitter_pos = Vec3::new(pos.x, pos.y, pos.z);
                     let attenuation = SpatialAudioMath::compute_distance_attenuation(
                         emitter_pos,

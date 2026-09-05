@@ -19,7 +19,7 @@ use crate::ui::iris_bridge::inspector::types::{
 };
 use irisui::prelude::*;
 
-/// Inspector handler for `🛡️ Collider`.
+/// Inspector handler for Collider.
 pub struct ColliderHandler;
 
 impl ComponentInspectorHandler for ColliderHandler {

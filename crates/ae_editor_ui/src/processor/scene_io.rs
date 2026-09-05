@@ -20,6 +20,20 @@ pub fn handle_open_model_dialog(ctx: &mut UiContext) {
     });
 }
 
+/// Handles triggering prefab load file dialog.
+pub fn handle_open_load_prefab_dialog(ctx: &mut UiContext) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    ctx.dialog_receivers.push(rx);
+    std::thread::spawn(move || {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Aeon Prefab (*.prefab, *.json)", &["prefab", "json"])
+            .pick_file()
+        {
+            let _ = tx.send(path);
+        }
+    });
+}
+
 /// Handles triggering save scene file dialog.
 pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();

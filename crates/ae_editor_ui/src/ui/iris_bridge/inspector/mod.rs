@@ -11,6 +11,7 @@ pub mod appearance;
 pub mod color_picker_popup;
 pub mod components;
 pub mod dropdown_popup;
+pub mod dynamic_card;
 pub mod events;
 pub mod footer;
 pub mod header;
@@ -118,6 +119,10 @@ pub fn build_inspector_panel(
             content_y += comp_h + card_gap;
         }
     }
+
+    // 6b. Dynamic Component Reflection Cards from ComponentRegistry
+    ctx.base_y = content_y;
+    dynamic_card::render_dynamic_component_cards(tree, container_id, &mut ctx);
 
     // 7. Bottom Action Bar (Fixed at bottom)
     footer::build_inspector_footer(tree, panel_root_id, params, targets);

@@ -83,6 +83,10 @@ pub enum InspectorNumberInputId {
     CameraNear,
     /// Camera far plane.
     CameraFar,
+    /// AudioSource volume gain (0.0 to 2.0).
+    AudioVolume,
+    /// AudioSource pitch playback multiplier (0.1 to 3.0).
+    AudioPitch,
 }
 
 impl InspectorNumberInputId {
@@ -112,6 +116,7 @@ impl InspectorNumberInputId {
             Self::LightIntensity | Self::LightRange => "Light",
             Self::RigidBodyMass | Self::RigidBodyGravity => "RigidBody",
             Self::CameraFov | Self::CameraNear | Self::CameraFar => "Camera",
+            Self::AudioVolume | Self::AudioPitch => "AudioSource",
         }
     }
 }
@@ -248,6 +253,12 @@ pub enum InspectorAction {
     StartNumberEdit(InspectorNumberInputId),
     /// Signals that numeric input editing has completed, committing undo history if value changed.
     CommitNumberEdit(InspectorNumberInputId),
+    /// Opens native file dialog to select sound asset for AudioSource.
+    PickAudioFile,
+    /// Toggles play/stop preview playback for AudioSource on inspected entity.
+    ToggleAudioPlayback,
+    /// Unparents the inspected entity from its parent.
+    Unparent,
 }
 
 /// Transform axis group for reset actions.
@@ -270,6 +281,8 @@ pub enum ComponentCheckboxId {
     AudioLoop,
     /// AudioSource spatial 3D audio flag.
     AudioSpatial,
+    /// AudioSource play on start flag.
+    AudioPlayOnStart,
     /// Light shadow casting flag.
     LightCastShadows,
     /// UI Button interactable state.
@@ -282,7 +295,7 @@ impl ComponentCheckboxId {
     pub fn component_name(self) -> &'static str {
         match self {
             Self::ColliderIsSensor => "Collider",
-            Self::AudioLoop | Self::AudioSpatial => "AudioSource",
+            Self::AudioLoop | Self::AudioSpatial | Self::AudioPlayOnStart => "AudioSource",
             Self::LightCastShadows => "Light",
             Self::UiInteractable => "UiButton",
         }
@@ -380,6 +393,12 @@ pub struct InspectorPanelTargets {
     pub active_submenu_rect: Option<Rect>,
     /// Interactive items inside the cascading Add Component submenu: `(ComponentName, Rect)`.
     pub submenu_components: Vec<(&'static str, Rect)>,
+    /// Audio file picker `📁` button hit-test rect.
+    pub audio_pick_btn_rect: Option<Rect>,
+    /// Audio play/stop preview toggle button hit-test rect.
+    pub audio_play_btn_rect: Option<Rect>,
+    /// Unparent `❌` button hit-test rect.
+    pub unparent_btn_rect: Option<Rect>,
 }
 
 /// Parameter descriptor for rendering a compact numeric input row.

@@ -193,6 +193,38 @@ impl AssetLoader for ShaderAssetLoader {
     }
 }
 
+/// Prefab Asset Loader for serialized entity templates (.prefab, .json).
+pub struct PrefabAssetLoader;
+
+impl AssetLoader for PrefabAssetLoader {
+    fn supported_extensions(&self) -> &'static [&'static str] {
+        &["prefab", "json"]
+    }
+
+    fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
+        match ae_editor::prefab::Prefab::load_from_file(path) {
+            Ok(prefab) => {
+                let ent = prefab.instantiate(&mut engine.ecs.world, None);
+                engine.ui.selected_entity = Some(ent);
+                engine.ui.status_message = Some((
+                    vec![(
+                        format!("Prefab '{}' loaded successfully!", final_name),
+                        egui::Color32::LIGHT_BLUE,
+                    )],
+                    std::time::Instant::now(),
+                ));
+            }
+            Err(e) => {
+                log::error!("Failed to load prefab from {:?}: {}", path, e);
+                engine.ui.status_message = Some((
+                    vec![(format!("Error loading prefab: {}", e), egui::Color32::RED)],
+                    std::time::Instant::now(),
+                ));
+            }
+        }
+    }
+}
+
 /// Central registry managing all file format asset loaders.
 #[derive(Default)]
 pub struct AssetLoaderRegistry {
@@ -233,6 +265,7 @@ impl AssetLoaderRegistry {
         registry.register(GltfAssetLoader);
         registry.register(FbxAssetLoader);
         registry.register(ShaderAssetLoader);
+        registry.register(PrefabAssetLoader);
         registry
     }
 

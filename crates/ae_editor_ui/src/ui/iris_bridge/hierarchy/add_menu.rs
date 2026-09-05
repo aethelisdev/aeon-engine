@@ -391,7 +391,7 @@ fn build_submenu(
             (
                 MenuItemIcon::Texture(HIERARCHY_ICON_FOLDER),
                 "Load Prefab...",
-                None,
+                Some(HierarchyAction::OpenLoadPrefabDialog),
                 None,
             ),
         ],

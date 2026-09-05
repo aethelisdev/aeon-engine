@@ -177,6 +177,30 @@ pub fn handle_inspector_click(
         }
     }
 
+    // 18. Audio File Picker Button
+    if let Some(pick_rect) = targets.audio_pick_btn_rect
+        && pick_rect.contains_point(pos)
+    {
+        out_actions.push(InspectorAction::PickAudioFile);
+        return true;
+    }
+
+    // 19. Audio Play/Stop Preview Toggle Button
+    if let Some(play_rect) = targets.audio_play_btn_rect
+        && play_rect.contains_point(pos)
+    {
+        out_actions.push(InspectorAction::ToggleAudioPlayback);
+        return true;
+    }
+
+    // 19. Unparent `❌` Button
+    if let Some(unparent_rect) = targets.unparent_btn_rect
+        && unparent_rect.contains_point(pos)
+    {
+        out_actions.push(InspectorAction::Unparent);
+        return true;
+    }
+
     // 18. If clicking outside menus while an Add Menu is open, dismiss it
     if targets.active_add_menu_rect.is_some() || targets.active_dropdown_popup_rect.is_some() {
         out_actions.push(InspectorAction::CloseAddComponentMenu);

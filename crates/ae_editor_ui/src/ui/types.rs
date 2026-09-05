@@ -75,6 +75,7 @@ pub enum EngineUiAction {
     SaveSceneToPath(std::path::PathBuf),
     LoadSceneFromPath(std::path::PathBuf),
     SaveEntityAsPrefab(hecs::Entity, std::path::PathBuf),
+    OpenLoadPrefabDialog,
     InstantiatePrefab(std::path::PathBuf),
     Undo,
     Redo,

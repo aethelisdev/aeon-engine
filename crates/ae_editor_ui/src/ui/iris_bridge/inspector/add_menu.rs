@@ -29,7 +29,7 @@ pub fn build_add_component_menu(
     let menu_w = 175.0;
     let item_h = 22.0;
 
-    let categories = [
+    let all_categories = [
         ComponentCategory::Animation,
         ComponentCategory::Audio,
         ComponentCategory::Gameplay,
@@ -39,6 +39,15 @@ pub fn build_add_component_menu(
         ComponentCategory::UiHud,
         ComponentCategory::CustomDynamic,
     ];
+
+    let categories: Vec<ComponentCategory> = all_categories
+        .into_iter()
+        .filter(|&cat| category_has_available(cat, params.world, params.selected_entity))
+        .collect();
+
+    if categories.is_empty() {
+        return;
+    }
 
     let total_h = (categories.len() as f32) * item_h + 8.0;
     let menu_y = (targets.add_component_btn_rect.y - total_h - 2.0).max(30.0);
@@ -139,6 +148,51 @@ pub fn build_add_component_menu(
     }
 }
 
+/// Checks if a component category has at least one attachable component for the entity.
+fn category_has_available(
+    cat: ComponentCategory,
+    world: &hecs::World,
+    entity: Option<hecs::Entity>,
+) -> bool {
+    if cat == ComponentCategory::CustomDynamic {
+        let registry = InspectorRegistry::global();
+        let handled_names: std::collections::HashSet<_> = registry
+            .handlers()
+            .iter()
+            .map(|h| h.component_name())
+            .collect();
+        let comp_registry = ae_core::registry::ComponentRegistry::global();
+        comp_registry.handlers().iter().any(|h| {
+            let name = h.type_name();
+            !handled_names.contains(name)
+                && !crate::ui::panels::inspector::dynamic_reflection::is_internal_or_specialized(
+                    name,
+                )
+                && if let Some(ent) = entity {
+                    !h.has_component(world, ent)
+                } else {
+                    true
+                }
+        })
+    } else {
+        let registry = InspectorRegistry::global();
+        registry.find_by_category(cat).into_iter().any(|h| {
+            if let Some(ent) = entity {
+                !h.has_component(world, ent)
+            } else {
+                true
+            }
+        })
+    }
+}
+
+/// Component item descriptor representing an attachable entry in the submenu.
+struct SubmenuItemEntry {
+    comp_name: &'static str,
+    display_title: &'static str,
+    icon: &'static str,
+}
+
 /// Builds the cascading flyout submenu for a specific component category.
 fn build_category_submenu(
     tree: &mut UiTree,
@@ -149,26 +203,62 @@ fn build_category_submenu(
     params: &InspectorPanelParams<'_>,
     targets: &mut InspectorPanelTargets,
 ) {
-    let registry = InspectorRegistry::global();
-    let all_handlers = registry.find_by_category(cat);
-    let handlers: Vec<_> = all_handlers
-        .into_iter()
-        .filter(|h| {
-            if let Some(entity) = params.selected_entity {
-                !h.has_component(params.world, entity)
-            } else {
-                true
-            }
-        })
-        .collect();
+    let items: Vec<SubmenuItemEntry> = if cat == ComponentCategory::CustomDynamic {
+        let registry = InspectorRegistry::global();
+        let handled_names: std::collections::HashSet<_> = registry
+            .handlers()
+            .iter()
+            .map(|h| h.component_name())
+            .collect();
+        let comp_registry = ae_core::registry::ComponentRegistry::global();
+        comp_registry
+            .handlers()
+            .iter()
+            .filter(|h| {
+                let name = h.type_name();
+                !handled_names.contains(name)
+                    && !crate::ui::panels::inspector::dynamic_reflection::is_internal_or_specialized(
+                        name,
+                    )
+                    && if let Some(entity) = params.selected_entity {
+                        !h.has_component(params.world, entity)
+                    } else {
+                        true
+                    }
+            })
+            .map(|h| SubmenuItemEntry {
+                comp_name: h.type_name(),
+                display_title: h.type_name(),
+                icon: "🧩",
+            })
+            .collect()
+    } else {
+        let registry = InspectorRegistry::global();
+        let all_handlers = registry.find_by_category(cat);
+        all_handlers
+            .into_iter()
+            .filter(|h| {
+                if let Some(entity) = params.selected_entity {
+                    !h.has_component(params.world, entity)
+                } else {
+                    true
+                }
+            })
+            .map(|h| SubmenuItemEntry {
+                comp_name: h.component_name(),
+                display_title: h.display_title(),
+                icon: h.icon(),
+            })
+            .collect()
+    };
 
-    if handlers.is_empty() {
+    if items.is_empty() {
         return;
     }
 
     let item_h = 22.0;
     let sub_w = 210.0;
-    let total_h = (handlers.len() as f32) * item_h + 8.0;
+    let total_h = (items.len() as f32) * item_h + 8.0;
 
     let sub_rect = Rect::new(sub_x, sub_y, sub_w, total_h);
     targets.active_submenu_rect = Some(sub_rect);
@@ -187,7 +277,7 @@ fn build_category_submenu(
 
     let mut cur_y = sub_y + 4.0;
 
-    for handler in handlers {
+    for item in items {
         let item_rect = Rect::new(sub_x + 4.0, cur_y, sub_w - 8.0, item_h);
         let is_hovered = item_rect.contains_point(params.cursor_pos);
 
@@ -199,7 +289,7 @@ fn build_category_submenu(
 
         let row_id = tree.create_node();
         if let Some(node) = tree.get_mut(row_id) {
-            node.set_name(format!("SubmenuItem_{}", handler.component_name()));
+            node.set_name(format!("SubmenuItem_{}", item.comp_name));
             node.computed_rect = item_rect;
             node.style = Style::new().background(bg).border_radius(3.0);
         }
@@ -209,7 +299,7 @@ fn build_category_submenu(
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("SubmenuItemIcon");
-            node.set_text(handler.icon());
+            node.set_text(item.icon);
             node.font_size = 11.0;
             node.line_height = item_h;
             node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
@@ -220,7 +310,7 @@ fn build_category_submenu(
         let lbl_id = tree.create_node();
         if let Some(node) = tree.get_mut(lbl_id) {
             node.set_name("SubmenuItemLabel");
-            node.set_text(handler.display_title());
+            node.set_text(item.display_title);
             node.font_size = 11.0;
             node.line_height = item_h;
             node.text_color = text_col;
@@ -229,9 +319,7 @@ fn build_category_submenu(
         }
         let _ = tree.add_child(row_id, lbl_id);
 
-        targets
-            .submenu_components
-            .push((handler.component_name(), item_rect));
+        targets.submenu_components.push((item.comp_name, item_rect));
         cur_y += item_h;
     }
 }
