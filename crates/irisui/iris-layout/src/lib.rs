@@ -205,22 +205,22 @@ impl LayoutEngine {
                 FlexDirection::ColumnReverse => tf::FlexDirection::ColumnReverse,
             },
             align_items: Some(match style.align_items {
-                AlignItems::FlexStart => tf::AlignItems::FlexStart,
-                AlignItems::FlexEnd => tf::AlignItems::FlexEnd,
-                AlignItems::Center => tf::AlignItems::Center,
-                AlignItems::Stretch => tf::AlignItems::Stretch,
+                AlignItems::FlexStart => tf::AlignItems::FLEX_START,
+                AlignItems::FlexEnd => tf::AlignItems::FLEX_END,
+                AlignItems::Center => tf::AlignItems::CENTER,
+                AlignItems::Stretch => tf::AlignItems::STRETCH,
             }),
             justify_content: Some(match style.justify_content {
-                JustifyContent::FlexStart => tf::JustifyContent::FlexStart,
-                JustifyContent::FlexEnd => tf::JustifyContent::FlexEnd,
-                JustifyContent::Center => tf::JustifyContent::Center,
-                JustifyContent::SpaceBetween => tf::JustifyContent::SpaceBetween,
-                JustifyContent::SpaceAround => tf::JustifyContent::SpaceAround,
-                JustifyContent::SpaceEvenly => tf::JustifyContent::SpaceEvenly,
+                JustifyContent::FlexStart => tf::JustifyContent::FLEX_START,
+                JustifyContent::FlexEnd => tf::JustifyContent::FLEX_END,
+                JustifyContent::Center => tf::JustifyContent::CENTER,
+                JustifyContent::SpaceBetween => tf::JustifyContent::SPACE_BETWEEN,
+                JustifyContent::SpaceAround => tf::JustifyContent::SPACE_AROUND,
+                JustifyContent::SpaceEvenly => tf::JustifyContent::SPACE_EVENLY,
             }),
             gap: tf::Size {
-                width: tf::LengthPercentage::Length(style.gap),
-                height: tf::LengthPercentage::Length(style.gap),
+                width: tf::LengthPercentage::length(style.gap),
+                height: tf::LengthPercentage::length(style.gap),
             },
             padding: Self::convert_insets(&style.padding),
             margin: Self::convert_insets_margin(&style.margin),
@@ -239,32 +239,33 @@ impl LayoutEngine {
             + style.border.width.bottom;
 
         if let Some(w) = style.width {
-            tf_style.size.width = tf::Dimension::Length(w);
+            tf_style.size.width = tf::Dimension::length(w);
         } else if node.content_size.width > 0.0 {
             let total_w = node.content_size.width + pad_h;
-            tf_style.min_size.width = tf::Dimension::Length(total_w);
-            tf_style.size.width = tf::Dimension::Length(total_w);
+            tf_style.min_size.width = tf::LengthPercentageAuto::length(total_w);
+            tf_style.size.width = tf::Dimension::length(total_w);
         }
 
         if let Some(h) = style.height {
-            tf_style.size.height = tf::Dimension::Length(h);
+            tf_style.size.height = tf::Dimension::length(h);
         } else if node.content_size.height > 0.0 {
             let total_h = node.content_size.height + pad_v;
-            tf_style.min_size.height = tf::Dimension::Length(total_h);
+            tf_style.min_size.height = tf::LengthPercentageAuto::length(total_h);
+            tf_style.size.height = tf::Dimension::length(total_h);
         }
 
         if let Some(min_w) = style.min_width {
-            tf_style.min_size.width = tf::Dimension::Length(min_w);
+            tf_style.min_size.width = tf::LengthPercentageAuto::length(min_w);
         }
         if let Some(min_h) = style.min_height {
-            tf_style.min_size.height = tf::Dimension::Length(min_h);
+            tf_style.min_size.height = tf::LengthPercentageAuto::length(min_h);
         }
 
         if let Some(max_w) = style.max_width {
-            tf_style.max_size.width = tf::Dimension::Length(max_w);
+            tf_style.max_size.width = tf::LengthPercentageAuto::length(max_w);
         }
         if let Some(max_h) = style.max_height {
-            tf_style.max_size.height = tf::Dimension::Length(max_h);
+            tf_style.max_size.height = tf::LengthPercentageAuto::length(max_h);
         }
 
         tf_style
@@ -273,20 +274,20 @@ impl LayoutEngine {
     /// Converts inner padding insets into Taffy length percentage rects.
     fn convert_insets(insets: &Insets) -> tf::Rect<tf::LengthPercentage> {
         tf::Rect {
-            top: tf::LengthPercentage::Length(insets.top),
-            right: tf::LengthPercentage::Length(insets.right),
-            bottom: tf::LengthPercentage::Length(insets.bottom),
-            left: tf::LengthPercentage::Length(insets.left),
+            top: tf::LengthPercentage::length(insets.top),
+            right: tf::LengthPercentage::length(insets.right),
+            bottom: tf::LengthPercentage::length(insets.bottom),
+            left: tf::LengthPercentage::length(insets.left),
         }
     }
 
     /// Converts outer margin insets into Taffy auto length percentage rects.
     fn convert_insets_margin(insets: &Insets) -> tf::Rect<tf::LengthPercentageAuto> {
         tf::Rect {
-            top: tf::LengthPercentageAuto::Length(insets.top),
-            right: tf::LengthPercentageAuto::Length(insets.right),
-            bottom: tf::LengthPercentageAuto::Length(insets.bottom),
-            left: tf::LengthPercentageAuto::Length(insets.left),
+            top: tf::LengthPercentageAuto::length(insets.top),
+            right: tf::LengthPercentageAuto::length(insets.right),
+            bottom: tf::LengthPercentageAuto::length(insets.bottom),
+            left: tf::LengthPercentageAuto::length(insets.left),
         }
     }
 }
