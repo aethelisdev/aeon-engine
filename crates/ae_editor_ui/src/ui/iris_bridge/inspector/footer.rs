@@ -35,40 +35,65 @@ pub fn build_inspector_footer(
     targets.add_component_btn_rect = add_rect;
     let is_add_hovered = add_rect.contains_point(params.cursor_pos);
 
+    let (bg, border, text_col) = if params.is_add_menu_open {
+        (
+            Color::rgba(0.118, 0.125, 0.145, 1.0),
+            Color::rgba(0.353, 0.376, 0.439, 0.95),
+            Color::WHITE,
+        )
+    } else if is_add_hovered {
+        (
+            Color::rgba(0.200, 0.208, 0.235, 1.0),
+            Color::rgba(0.271, 0.282, 0.329, 0.95),
+            Color::WHITE,
+        )
+    } else {
+        (
+            Color::rgba(0.157, 0.165, 0.188, 0.98),
+            Color::rgba(0.212, 0.220, 0.259, 0.85),
+            Color::rgba(0.886, 0.894, 0.918, 1.0),
+        )
+    };
+
     let add_comp_btn_id = tree.create_node();
     if let Some(node) = tree.get_mut(add_comp_btn_id) {
         node.set_name("AddComponentBtn");
         node.computed_rect = add_rect;
-        let (bg, border, text_col) = if params.is_add_menu_open {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.353, 0.376, 0.439, 0.95),
-                Color::WHITE,
-            )
-        } else if is_add_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-                Color::WHITE,
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-                Color::rgba(0.886, 0.894, 0.918, 1.0),
-            )
-        };
         node.style = Style::new()
             .background(bg)
             .border(1.0, border)
             .border_radius(5.0);
-        node.set_text("➕ Add Component");
-        node.font_size = 11.0;
-        node.line_height = footer_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = text_col;
     }
     let _ = tree.add_child(parent_id, add_comp_btn_id);
+
+    let icon_size = 12.0;
+    let icon_x = add_rect.x + 8.0;
+    let icon_y = add_rect.y + (footer_h - icon_size) * 0.5;
+    let plus_id = tree.create_node();
+    if let Some(node) = tree.get_mut(plus_id) {
+        node.set_name("AddComponentPlusIcon");
+        node.computed_rect = Rect::new(icon_x, icon_y, icon_size, icon_size);
+        node.set_texture_uv(crate::ui::iris_bridge::hierarchy::rows::HIERARCHY_ICON_PLUS);
+        node.set_texture_tint(text_col);
+    }
+    let _ = tree.add_child(add_comp_btn_id, plus_id);
+
+    let text_id = tree.create_node();
+    if let Some(node) = tree.get_mut(text_id) {
+        node.set_name("AddComponentBtnText");
+        node.computed_rect = Rect::new(
+            add_rect.x + 23.0,
+            add_rect.y,
+            add_rect.width - 25.0,
+            footer_h,
+        );
+        node.set_text("Add Component");
+        node.font_size = 11.0;
+        node.line_height = footer_h;
+        node.text_align = TextAlign::Left;
+        node.text_color = text_col;
+    }
+    let _ = tree.add_child(add_comp_btn_id, text_id);
 
     // 2. `💾 Save as Prefab` Button
     let save_rect = Rect::new(base_x + btn_w + btn_gap, footer_y, btn_w, footer_h);

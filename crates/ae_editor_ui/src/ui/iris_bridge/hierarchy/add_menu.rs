@@ -6,7 +6,7 @@
 //! Renders the cascading multi-level dropdown menus for spawning 3D shapes,
 //! 2D UI elements, HUD presets, asset imports, and stress test benchmarks.
 
-use super::rows::{HIERARCHY_ICON_CUBE, HIERARCHY_ICON_FOLDER};
+use super::rows::{HIERARCHY_ICON_CUBE, HIERARCHY_ICON_FOLDER, HIERARCHY_ICON_SPHERE};
 use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets};
 use irisui::prelude::*;
 
@@ -260,7 +260,7 @@ fn build_submenu(
                 None,
             ),
             (
-                MenuItemIcon::Text("🔮"),
+                MenuItemIcon::Texture(HIERARCHY_ICON_SPHERE),
                 "Sphere",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Sphere)),
                 None,

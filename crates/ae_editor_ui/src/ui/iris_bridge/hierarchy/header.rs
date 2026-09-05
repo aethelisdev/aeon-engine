@@ -6,6 +6,7 @@
 //! Renders the top search bar input box, clear button, `➕` Add Menu button,
 //! and `🗑` Delete Selected entity button with pixel-perfect visual styling.
 
+use super::rows::HIERARCHY_ICON_PLUS;
 use super::types::{HierarchyPanelParams, HierarchyPanelTargets};
 use irisui::prelude::*;
 
@@ -134,40 +135,48 @@ pub fn build_hierarchy_header(
     targets.add_btn_rect = add_rect;
 
     let is_add_hovered = add_rect.contains_point(params.cursor_pos);
+    let (bg, border, icon_col) = if params.is_add_menu_open {
+        (
+            Color::rgba(0.0, 0.38, 0.50, 0.95),
+            Color::rgba(0.0, 0.90, 1.0, 0.90),
+            Color::rgba(0.0, 0.95, 1.0, 1.0),
+        )
+    } else if is_add_hovered {
+        (
+            Color::rgba(0.30, 0.34, 0.42, 0.95),
+            Color::rgba(0.45, 0.50, 0.60, 0.85),
+            Color::WHITE,
+        )
+    } else {
+        (
+            Color::rgba(0.24, 0.27, 0.34, 0.95), // Elevated slate
+            Color::rgba(0.35, 0.39, 0.48, 0.70),
+            Color::rgba(0.85, 0.88, 0.95, 1.0),
+        )
+    };
+
     let add_btn_id = tree.create_node();
     if let Some(node) = tree.get_mut(add_btn_id) {
         node.set_name("AddEntityButton");
         node.computed_rect = add_rect;
-        let (bg, border, text_col) = if params.is_add_menu_open {
-            (
-                Color::rgba(0.0, 0.38, 0.50, 0.95),
-                Color::rgba(0.0, 0.90, 1.0, 0.90),
-                Color::rgba(0.0, 0.95, 1.0, 1.0),
-            )
-        } else if is_add_hovered {
-            (
-                Color::rgba(0.30, 0.34, 0.42, 0.95),
-                Color::rgba(0.45, 0.50, 0.60, 0.85),
-                Color::WHITE,
-            )
-        } else {
-            (
-                Color::rgba(0.24, 0.27, 0.34, 0.95), // Elevated slate
-                Color::rgba(0.35, 0.39, 0.48, 0.70),
-                Color::rgba(0.85, 0.88, 0.95, 1.0),
-            )
-        };
         node.style = Style::new()
             .background(bg)
             .border(1.0, border)
             .border_radius(4.0);
-        node.set_text("+");
-        node.font_size = 15.0;
-        node.line_height = header_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = text_col;
     }
     let _ = tree.add_child(parent_id, add_btn_id);
+
+    let plus_size = 14.0;
+    let plus_x = add_rect.x + (btn_size - plus_size) * 0.5;
+    let plus_y = add_rect.y + (header_h - plus_size) * 0.5;
+    let plus_id = tree.create_node();
+    if let Some(node) = tree.get_mut(plus_id) {
+        node.set_name("AddEntityPlusIcon");
+        node.computed_rect = Rect::new(plus_x, plus_y, plus_size, plus_size);
+        node.set_texture_uv(HIERARCHY_ICON_PLUS);
+        node.set_texture_tint(icon_col);
+    }
+    let _ = tree.add_child(add_btn_id, plus_id);
 
     // 3. "🗑" Delete Entity Button (Elevated Slate `#383d4a`, permanently visible)
     let del_x = add_x + btn_size + btn_gap;

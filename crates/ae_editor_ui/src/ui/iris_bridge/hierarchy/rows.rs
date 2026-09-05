@@ -97,6 +97,10 @@ pub const HIERARCHY_ICON_EYE_OPEN: [f32; 4] = [0.00, 0.25, 0.25, 0.50];
 pub const HIERARCHY_ICON_EYE_CLOSED: [f32; 4] = [0.25, 0.25, 0.50, 0.50];
 pub const HIERARCHY_ICON_FOLDER: [f32; 4] = [0.50, 0.25, 0.75, 0.50];
 pub const HIERARCHY_ICON_CUBE: [f32; 4] = [0.75, 0.25, 1.00, 0.50];
+pub const HIERARCHY_ICON_LIGHT: [f32; 4] = [0.00, 0.50, 0.25, 0.75];
+pub const HIERARCHY_ICON_CAMERA: [f32; 4] = [0.25, 0.50, 0.50, 0.75];
+pub const HIERARCHY_ICON_SPHERE: [f32; 4] = [0.50, 0.50, 0.75, 0.75];
+pub const HIERARCHY_ICON_PLUS: [f32; 4] = [0.75, 0.50, 1.00, 0.75];
 
 /// Represents an entity icon either from the hardware texture atlas or text glyph fallback.
 #[derive(Clone, Copy, Debug)]
@@ -116,16 +120,54 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
         return EntityIcon::Texture(HIERARCHY_ICON_FOLDER, folder_color);
     };
 
-    if ent_ref.get::<&ae_core::ecs::Shape>().is_some()
-        || ent_ref.get::<&ae_core::ecs::ModelId>().is_some()
-        || ent_ref.get::<&ae_core::ecs::UiPanel>().is_some()
-    {
-        let cube_color = if is_selected {
+    let base_tint = if is_selected {
+        Color::rgba(0.0, 0.95, 1.0, 1.0)
+    } else {
+        Color::rgba(1.0, 1.0, 1.0, 1.0)
+    };
+
+    if let Some(light) = ent_ref.get::<&ae_core::ecs::Light>() {
+        let tint = if is_selected {
             Color::rgba(0.0, 0.95, 1.0, 1.0)
         } else {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
+            let is_default_white = (light.color[0] - 1.0).abs() < 0.05
+                && (light.color[1] - 1.0).abs() < 0.05
+                && (light.color[2] - 1.0).abs() < 0.05;
+            if is_default_white {
+                Color::rgba(1.0, 0.88, 0.35, 1.0)
+            } else {
+                let max_c = light.color[0].max(light.color[1]).max(light.color[2]);
+                if max_c > 0.01 {
+                    Color::rgba(
+                        (light.color[0] / max_c).max(0.3),
+                        (light.color[1] / max_c).max(0.3),
+                        (light.color[2] / max_c).max(0.3),
+                        1.0,
+                    )
+                } else {
+                    Color::rgba(1.0, 0.88, 0.35, 1.0)
+                }
+            }
         };
-        EntityIcon::Texture(HIERARCHY_ICON_CUBE, cube_color)
+        EntityIcon::Texture(HIERARCHY_ICON_LIGHT, tint)
+    } else if ent_ref.get::<&ae_audio::AudioListener>().is_some()
+        || ent_ref.get::<&ae_core::camera::Camera>().is_some()
+    {
+        let cam_tint = if is_selected {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else {
+            Color::rgba(0.40, 0.75, 1.0, 1.0)
+        };
+        EntityIcon::Texture(HIERARCHY_ICON_CAMERA, cam_tint)
+    } else if let Some(shape) = ent_ref.get::<&ae_core::ecs::Shape>() {
+        match *shape {
+            ae_core::ecs::Shape::Sphere => EntityIcon::Texture(HIERARCHY_ICON_SPHERE, base_tint),
+            _ => EntityIcon::Texture(HIERARCHY_ICON_CUBE, base_tint),
+        }
+    } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some()
+        || ent_ref.get::<&ae_core::ecs::UiPanel>().is_some()
+    {
+        EntityIcon::Texture(HIERARCHY_ICON_CUBE, base_tint)
     } else if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
         EntityIcon::Text("❤️ ")
     } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
@@ -146,8 +188,6 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
         EntityIcon::Text("☑️ ")
     } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
         EntityIcon::Text("📝 ")
-    } else if ent_ref.get::<&ae_core::ecs::Light>().is_some() {
-        EntityIcon::Text("💡 ")
     } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
         EntityIcon::Text("🔊 ")
     } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
