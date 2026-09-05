@@ -513,4 +513,53 @@ impl EngineUi {
             }
         }
     }
+
+    /// Dispatches all pending Material & Surface Studio panel actions.
+    pub fn process_material_actions(&mut self, ui_actions: &mut Vec<EngineUiAction>) {
+        for action in self.iris_overlay.take_material_actions() {
+            match action {
+                iris_bridge::MaterialAction::AssignTextureToEntity(ent, path) => {
+                    ui_actions.push(EngineUiAction::AssignTextureToEntity(ent, path));
+                }
+                iris_bridge::MaterialAction::RemoveTextureFromEntity(ent) => {
+                    ui_actions.push(EngineUiAction::RemoveTextureFromEntity(ent));
+                }
+                iris_bridge::MaterialAction::SetModelSubmeshAlphaMode(model_id, idx, mode) => {
+                    ui_actions.push(EngineUiAction::SetModelSubmeshAlphaMode(
+                        model_id, idx, mode,
+                    ));
+                }
+                iris_bridge::MaterialAction::SetModelSubmeshTexture(model_id, idx, path) => {
+                    ui_actions.push(EngineUiAction::SetModelSubmeshTexture(model_id, idx, path));
+                }
+                iris_bridge::MaterialAction::PickAndAssignEntityTexture(ent) => {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+                        .pick_file()
+                    {
+                        ui_actions.push(EngineUiAction::AssignTextureToEntity(
+                            ent,
+                            path.to_string_lossy().to_string(),
+                        ));
+                    }
+                }
+                iris_bridge::MaterialAction::PickAndSetSubmeshTexture(model_id, idx) => {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Texture Image", &["png", "jpg", "jpeg", "tga", "bmp"])
+                        .pick_file()
+                    {
+                        ui_actions.push(EngineUiAction::SetModelSubmeshTexture(
+                            model_id,
+                            idx,
+                            path.to_string_lossy().to_string(),
+                        ));
+                    }
+                }
+                iris_bridge::MaterialAction::AddColorComponent(ent) => {
+                    ui_actions.push(EngineUiAction::AddComponent(ent, "Color"));
+                }
+                iris_bridge::MaterialAction::Scroll(_) => {}
+            }
+        }
+    }
 }

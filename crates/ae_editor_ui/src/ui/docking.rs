@@ -14,14 +14,13 @@ pub struct EditorTabViewer<'a> {
     pub ui_actions: &'a mut Vec<EngineUiAction>,
     pub camera: &'a ae_renderer::camera::Camera,
     pub asset_browser: &'a mut crate::ui::panels::assets::AssetBrowserState,
-    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     pub viewport_texture_id: Option<egui::TextureId>,
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub stats_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub hierarchy_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub inspector_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub material_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub console_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub assets_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub timeline_rect_out: &'a std::cell::Cell<Option<Rect>>,
@@ -123,14 +122,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 ui.allocate_space(rect.size());
             }
             PanelId::MaterialEditor => {
-                EngineUi::draw_material_editor_content(
-                    ui,
-                    self.world,
-                    *self.selected_entity,
-                    self.textures,
-                    self.models,
-                    self.ui_actions,
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.material_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
             PanelId::Assets => {
                 let rect = ui.available_rect_before_wrap();

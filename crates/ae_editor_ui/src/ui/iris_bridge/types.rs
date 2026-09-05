@@ -199,6 +199,14 @@ pub struct IrisEditorOverlay {
     pub timeline_actions: Vec<super::timeline::TimelineAction>,
     /// Selected entity handle cached for timeline interactions.
     pub timeline_selected_entity: Option<hecs::Entity>,
+    /// Cached interaction targets for Material & Surface Studio panel.
+    pub material_targets: Option<super::material::MaterialPanelTargets>,
+    /// Content area vertical scroll offset for Material & Surface Studio panel.
+    pub material_scroll_y: f32,
+    /// Dispatched action queue for Material & Surface Studio panel interactions.
+    pub material_actions: Vec<super::material::MaterialAction>,
+    /// Selected entity handle cached for material panel interactions.
+    pub material_selected_entity: Option<hecs::Entity>,
     /// Cached interaction targets for Scene Inspector panel.
     pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
     /// Content area vertical scroll offset for Scene Inspector panel.
@@ -433,6 +441,28 @@ impl IrisEditorOverlay {
             }
         }
 
+        // 6. Material & Surface Studio interactive items
+        if let Some(ref targets) = self.material_targets
+            && (targets
+                .btn_change_texture
+                .is_some_and(|r| r.contains_point(p))
+                || targets
+                    .btn_remove_texture
+                    .is_some_and(|r| r.contains_point(p))
+                || targets.btn_add_texture.is_some_and(|r| r.contains_point(p))
+                || targets.btn_add_color.is_some_and(|r| r.contains_point(p))
+                || targets
+                    .submesh_alpha_buttons
+                    .iter()
+                    .any(|(_, _, _, r)| r.contains_point(p))
+                || targets
+                    .submesh_texture_buttons
+                    .iter()
+                    .any(|(_, _, r)| r.contains_point(p)))
+        {
+            return winit::window::CursorIcon::Pointer;
+        }
+
         winit::window::CursorIcon::Default
     }
 }
@@ -501,6 +531,12 @@ pub struct OverlayUpdateParams<'a> {
     pub assets_panel_rect: Option<Rect>,
     /// Bounding rectangle allocated for the Animation Timeline Studio panel, if active.
     pub timeline_panel_rect: Option<Rect>,
+    /// Bounding rectangle allocated for the Material & Surface Studio panel, if active.
+    pub material_panel_rect: Option<Rect>,
+    /// GPU texture asset repository for material panel inspection.
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    /// GPU 3D model asset repository for material panel inspection.
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     /// Reference to persistent asset browser state for Content Browser rendering.
     pub asset_browser: &'a crate::ui::panels::assets::AssetBrowserState,
     /// Slice of active in-memory log entries for Developer Console rendering.

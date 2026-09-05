@@ -14,6 +14,7 @@ pub mod events;
 pub mod hierarchy;
 pub mod icons;
 pub mod inspector;
+pub mod material;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;
@@ -38,6 +39,10 @@ pub use hierarchy::{
     build_hierarchy_panel, handle_hierarchy_click, handle_hierarchy_hover,
 };
 pub use icons::*;
+pub use material::{
+    MaterialAction, MaterialPanelParams, MaterialPanelTargets, build_material_panel,
+    handle_material_click, handle_material_scroll,
+};
 pub use modals::*;
 pub use preferences::{
     PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesSliderId,

@@ -19,6 +19,7 @@ pub struct EguiPassOutput {
     pub stats_rect: Option<egui::Rect>,
     pub hierarchy_rect: Option<egui::Rect>,
     pub inspector_rect: Option<egui::Rect>,
+    pub material_rect: Option<egui::Rect>,
     pub console_rect: Option<egui::Rect>,
     pub assets_rect: Option<egui::Rect>,
     pub timeline_rect: Option<egui::Rect>,
@@ -80,6 +81,7 @@ impl EngineUi {
         let stats_rect_cell = std::cell::Cell::new(None);
         let hierarchy_rect_cell = std::cell::Cell::new(None);
         let inspector_rect_cell = std::cell::Cell::new(None);
+        let material_rect_cell = std::cell::Cell::new(None);
         let console_rect_cell = std::cell::Cell::new(None);
         let assets_rect_cell = std::cell::Cell::new(None);
         let timeline_rect_cell = std::cell::Cell::new(None);
@@ -114,13 +116,12 @@ impl EngineUi {
                 ui_actions: params.ui_actions,
                 camera: params.camera,
                 asset_browser: &mut self.asset_browser,
-                models: params.models,
-                textures: params.textures,
                 viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect_cell,
                 stats_rect_out: &stats_rect_cell,
                 hierarchy_rect_out: &hierarchy_rect_cell,
                 inspector_rect_out: &inspector_rect_cell,
+                material_rect_out: &material_rect_cell,
                 console_rect_out: &console_rect_cell,
                 assets_rect_out: &assets_rect_cell,
                 timeline_rect_out: &timeline_rect_cell,
@@ -263,6 +264,7 @@ impl EngineUi {
             stats_rect: stats_rect_cell.get(),
             hierarchy_rect: hierarchy_rect_cell.get(),
             inspector_rect: inspector_rect_cell.get(),
+            material_rect: material_rect_cell.get(),
             console_rect: console_rect_cell.get(),
             assets_rect: assets_rect_cell.get(),
             timeline_rect: timeline_rect_cell.get(),

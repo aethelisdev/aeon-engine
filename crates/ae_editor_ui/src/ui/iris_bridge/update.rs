@@ -102,6 +102,10 @@ impl IrisEditorOverlay {
             timeline_is_dragging: false,
             timeline_actions: Vec::new(),
             timeline_selected_entity: None,
+            material_targets: None,
+            material_scroll_y: 0.0,
+            material_actions: Vec::new(),
+            material_selected_entity: None,
             preferences_pos: None,
             preferences_drag_offset: None,
             preferences_tab: 0,
@@ -151,12 +155,14 @@ impl IrisEditorOverlay {
         self.inspector_targets = None;
         self.console_targets = None;
         self.assets_targets = None;
+        self.material_targets = None;
 
         if !self.assets_is_search_focused {
             self.assets_search_query = params.asset_browser.search_query.clone();
         }
         self.assets_current_folder = params.asset_browser.current_folder.clone();
         self.timeline_selected_entity = params.selected_entity;
+        self.material_selected_entity = params.selected_entity;
 
         let Ok(root) = self.tree.create_root() else {
             return;
@@ -472,6 +478,30 @@ impl IrisEditorOverlay {
         } else {
             self.timeline_targets = None;
             self.timeline_is_dragging = false;
+        }
+
+        // 5g. Material & Surface Studio panel (if docked and active)
+        if let Some(material_rect) = params.material_panel_rect {
+            let material_params = super::material::MaterialPanelParams {
+                panel_rect: material_rect,
+                entity: params.selected_entity,
+                world: params.world,
+                textures: params.textures,
+                models: params.models,
+                cursor_pos: self.cursor_pos,
+                scroll_y: self.material_scroll_y,
+            };
+
+            let mut material_targets = super::material::MaterialPanelTargets::default();
+            super::material::build_material_panel(
+                &mut self.tree,
+                root,
+                &material_params,
+                &mut material_targets,
+            );
+            self.material_targets = Some(material_targets);
+        } else {
+            self.material_targets = None;
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked panels):

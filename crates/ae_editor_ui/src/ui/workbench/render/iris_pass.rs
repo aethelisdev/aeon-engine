@@ -34,6 +34,9 @@ pub struct IrisPassParams<'a> {
     pub console_panel_rect: Option<egui::Rect>,
     pub assets_panel_rect: Option<egui::Rect>,
     pub timeline_panel_rect: Option<egui::Rect>,
+    pub material_panel_rect: Option<egui::Rect>,
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
 }
 
 impl EngineUi {
@@ -130,6 +133,10 @@ impl EngineUi {
             .timeline_panel_rect
             .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
 
+        let iris_material_rect = params
+            .material_panel_rect
+            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
+
         self.iris_overlay
             .ensure_tools_texture(params.device, params.queue);
         self.iris_overlay
@@ -168,6 +175,9 @@ impl EngineUi {
                 console_panel_rect: iris_console_rect,
                 assets_panel_rect: iris_assets_rect,
                 timeline_panel_rect: iris_timeline_rect,
+                material_panel_rect: iris_material_rect,
+                textures: params.textures,
+                models: params.models,
                 asset_browser: &self.asset_browser,
                 console_entries: &self.console_entries,
                 inspector_euler: &mut self.inspector_euler,

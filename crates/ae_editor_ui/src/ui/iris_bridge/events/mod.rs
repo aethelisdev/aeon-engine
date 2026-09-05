@@ -5,6 +5,7 @@
 
 pub mod assets;
 pub mod console;
+pub mod material;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;
@@ -107,6 +108,11 @@ impl IrisEditorOverlay {
             }
         }
         if let Some(ref targets) = self.timeline_targets
+            && targets.panel_rect.contains_point(point)
+        {
+            return true;
+        }
+        if let Some(ref targets) = self.material_targets
             && targets.panel_rect.contains_point(point)
         {
             return true;
@@ -443,6 +449,11 @@ impl IrisEditorOverlay {
         // 0g4. If Animation Timeline Studio panel is active, handle timeline window events
         if let Some(timeline_res) = self.handle_timeline_window_event(event) {
             return timeline_res;
+        }
+
+        // 0g5. If Material & Surface Studio panel is active, handle material window events
+        if let Some(material_res) = self.handle_material_window_event(event) {
+            return material_res;
         }
 
         // 0h. Mouse Wheel scrolling for Stats panel, Hierarchy panel, and Preferences dialog

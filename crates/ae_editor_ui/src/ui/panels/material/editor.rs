@@ -3,9 +3,9 @@
 use crate::ui::{EngineUi, EngineUiAction};
 
 impl EngineUi {
-    /// Renders the internal content of the Material & Submesh Editor panel.
-    /// Exposes PBR texture assignments, submesh material slots, alpha transparency modes,
-    /// texture tiling repeat modes, and anisotropic filtering settings for the selected 3D model or 2D sprite.
+    /// Legacy egui drawing routine for the Material & Submesh Editor panel.
+    /// Active editor docking rendering has been migrated to 100% native Iris UI GPU SDF
+    /// under [`crate::ui::iris_bridge::material`]. This method is retained for fallback reference.
     pub fn draw_material_editor_content(
         ui: &mut egui::Ui,
         world: &hecs::World,

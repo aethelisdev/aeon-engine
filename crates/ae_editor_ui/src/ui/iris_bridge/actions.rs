@@ -38,4 +38,9 @@ impl IrisEditorOverlay {
     pub fn take_timeline_actions(&mut self) -> Vec<super::timeline::TimelineAction> {
         std::mem::take(&mut self.timeline_actions)
     }
+
+    /// Consumes and returns all queued Material & Surface Studio panel actions.
+    pub fn take_material_actions(&mut self) -> Vec<super::material::MaterialAction> {
+        std::mem::take(&mut self.material_actions)
+    }
 }
