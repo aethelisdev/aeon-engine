@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 // Iris UI GPU Textured Quad Shader
-// Renders 2D texture views (viewports, thumbnails, custom render passes) inside UI bounds.
+// Renders 2D texture array views (editor icon layers, textures) inside UI bounds.
 
 struct Uniforms {
     screen_size: vec2<f32>,
@@ -13,7 +13,7 @@ struct Uniforms {
 var<uniform> u_globals: Uniforms;
 
 @group(1) @binding(0)
-var t_diffuse: texture_2d<f32>;
+var t_diffuse: texture_2d_array<f32>;
 @group(1) @binding(1)
 var s_diffuse: sampler;
 
@@ -23,7 +23,7 @@ struct VertexInput {
 
 struct InstanceInput {
     @location(1) rect: vec4<f32>,        // [x, y, width, height]
-    @location(2) uv_rect: vec4<f32>,     // [min_u, min_v, max_u, max_v]
+    @location(2) uv_rect: vec4<f32>,     // [min_u, min_v, max_u, layer_index]
     @location(3) tint: vec4<f32>,        // Tint RGBA
     @location(4) clip_rect: vec4<f32>,   // [min_x, min_y, max_x, max_y]
 };
@@ -34,6 +34,7 @@ struct VertexOutput {
     @location(1) tint: vec4<f32>,
     @location(2) screen_pos: vec2<f32>,
     @location(3) clip_bounds: vec4<f32>,
+    @location(4) @interpolate(flat) layer_index: u32,
 };
 
 @vertex
@@ -48,10 +49,12 @@ fn vs_main(
     let ndc_y = 1.0 - (pixel_pos.y / u_globals.screen_size.y) * 2.0;
 
     out.clip_position = vec4<f32>(ndc_x, ndc_y, 0.0, 1.0);
-    out.uv = mix(instance.uv_rect.xy, instance.uv_rect.zw, vertex.position);
+    let uv_max = vec2<f32>(instance.uv_rect.z, instance.uv_rect.z);
+    out.uv = mix(instance.uv_rect.xy, uv_max, vertex.position);
     out.tint = instance.tint;
     out.screen_pos = pixel_pos;
     out.clip_bounds = instance.clip_rect;
+    out.layer_index = u32(round(instance.uv_rect.w));
 
     return out;
 }
@@ -66,6 +69,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    let sampled = textureSample(t_diffuse, s_diffuse, in.uv);
+    let sampled = textureSample(t_diffuse, s_diffuse, in.uv, in.layer_index);
     return sampled * in.tint;
 }

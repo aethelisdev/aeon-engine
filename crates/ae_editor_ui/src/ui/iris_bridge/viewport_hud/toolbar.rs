@@ -41,7 +41,7 @@ pub fn build_viewport_toolbar(
         !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
 
     let (camera_label, cam_w) = if is_persp {
-        ("Perspective", 94.0)
+        ("Perspective", 98.0)
     } else if is_top {
         ("📐 Top", 56.0)
     } else if is_front {
@@ -53,9 +53,9 @@ pub fn build_viewport_toolbar(
     };
 
     let (sh_icon_uv, shading_label, sh_w) = if params.wireframe_enabled {
-        (ICON_WIREFRAME, "Wireframe", 88.0)
+        (ICON_WIREFRAME, "Wireframe", 94.0)
     } else {
-        (ICON_LIGHT, "Lit", 54.0)
+        (ICON_LIGHT, "Lit", 60.0)
     };
 
     let view_box_w = cam_w + 1.0 + sh_w;
@@ -103,8 +103,8 @@ pub fn build_viewport_toolbar(
     };
 
     if is_persp {
-        let cube_icon_size = 15.0;
-        let cube_icon_x = cur_x + 8.0;
+        let cube_icon_size = 19.0;
+        let cube_icon_x = cur_x + 6.0;
         let cube_icon_y = box_y + (box_h - cube_icon_size) * 0.5;
         let cube_id = tree.create_node();
         if let Some(node) = tree.get_mut(cube_id) {
@@ -124,7 +124,7 @@ pub fn build_viewport_toolbar(
             node.line_height = box_h;
             node.text_align = TextAlign::Center;
             node.text_color = cam_text_color;
-            node.computed_rect = Rect::new(cur_x + 22.0, box_y, cam_w - 22.0, box_h);
+            node.computed_rect = Rect::new(cur_x + 27.0, box_y, cam_w - 27.0, box_h);
         }
         let _ = tree.add_child(cam_btn_id, cam_txt_id);
     } else {
@@ -176,8 +176,8 @@ pub fn build_viewport_toolbar(
         Color::rgba(0.85, 0.88, 0.94, 1.0)
     };
 
-    let sh_icon_size = 15.0;
-    let sh_icon_x = cur_x + cam_w + 1.0 + 8.0;
+    let sh_icon_size = 18.0;
+    let sh_icon_x = cur_x + cam_w + 1.0 + 6.0;
     let sh_icon_y = box_y + (box_h - sh_icon_size) * 0.5;
     let sh_icon_id = tree.create_node();
     if let Some(node) = tree.get_mut(sh_icon_id) {
@@ -196,7 +196,7 @@ pub fn build_viewport_toolbar(
         node.line_height = box_h;
         node.text_align = TextAlign::Center;
         node.text_color = sh_text_color;
-        node.computed_rect = Rect::new(cur_x + cam_w + 1.0 + 22.0, box_y, sh_w - 22.0, box_h);
+        node.computed_rect = Rect::new(cur_x + cam_w + 1.0 + 26.0, box_y, sh_w - 26.0, box_h);
     }
     let _ = tree.add_child(sh_btn_id, sh_txt_id);
     targets

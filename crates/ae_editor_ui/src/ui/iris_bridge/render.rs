@@ -295,7 +295,10 @@ impl IrisEditorOverlay {
         });
     }
 
-    /// Ensures that the editor tools texture atlas (`editor_tools.png`) is loaded into GPU memory.
+    /// Ensures that the editor tools 2D texture array (`editor_atlas.png`) is loaded into GPU memory.
+    /// The master atlas is loaded and sliced into 16 isolated 64x64 pixel layers. Each layer receives
+    /// its own independent mipmap chain, physically eliminating texture atlas seam bleeding and
+    /// filtering artifacts while maintaining full icon resolution and crispness.
     pub fn ensure_tools_texture(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         if self.tools_texture.is_some() {
             return;
@@ -310,18 +313,24 @@ impl IrisEditorOverlay {
         };
         let rgba = img.to_rgba8();
         let (width, height) = rgba.dimensions();
+        let raw_rgba = rgba.as_raw();
+
+        let tile_size = 64u32;
+        let cols = width / tile_size;
+        let rows = height / tile_size;
+        let layer_count = (cols * rows).max(1);
+
+        // 64x64 tile has 7 mip levels (64, 32, 16, 8, 4, 2, 1)
+        let mip_level_count = (tile_size as f32).log2().floor() as u32 + 1;
 
         let size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
+            width: tile_size,
+            height: tile_size,
+            depth_or_array_layers: layer_count,
         };
 
-        let mipmaps = ae_texture::generate_mipmap_chain(width, height, &rgba);
-        let mip_level_count = mipmaps.len() as u32;
-
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Iris UI Editor Tools Texture"),
+            label: Some("Iris UI Editor Tools Texture Array"),
             size,
             mip_level_count,
             sample_count: 1,
@@ -331,30 +340,54 @@ impl IrisEditorOverlay {
             view_formats: &[],
         });
 
-        for (mip_level, level_data) in mipmaps.iter().enumerate() {
-            let mip_size = wgpu::Extent3d {
-                width: level_data.width,
-                height: level_data.height,
-                depth_or_array_layers: 1,
-            };
-            queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: mip_level as u32,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                &level_data.bytes,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * level_data.width),
-                    rows_per_image: Some(level_data.height),
-                },
-                mip_size,
-            );
+        for r in 0..rows {
+            for c in 0..cols {
+                let layer = r * cols + c;
+                let mut tile_bytes = Vec::with_capacity((tile_size * tile_size * 4) as usize);
+                for y in 0..tile_size {
+                    let src_y = r * tile_size + y;
+                    let src_x = c * tile_size;
+                    let start = ((src_y * width + src_x) * 4) as usize;
+                    let end = start + (tile_size as usize * 4);
+                    tile_bytes.extend_from_slice(&raw_rgba[start..end]);
+                }
+
+                let mips = ae_texture::generate_mipmap_chain(tile_size, tile_size, &tile_bytes);
+
+                for (mip_level, level_data) in mips.iter().enumerate() {
+                    let mip_size = wgpu::Extent3d {
+                        width: level_data.width,
+                        height: level_data.height,
+                        depth_or_array_layers: 1,
+                    };
+                    queue.write_texture(
+                        wgpu::TexelCopyTextureInfo {
+                            texture: &texture,
+                            mip_level: mip_level as u32,
+                            origin: wgpu::Origin3d {
+                                x: 0,
+                                y: 0,
+                                z: layer,
+                            },
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        &level_data.bytes,
+                        wgpu::TexelCopyBufferLayout {
+                            offset: 0,
+                            bytes_per_row: Some(4 * level_data.width),
+                            rows_per_image: Some(level_data.height),
+                        },
+                        mip_size,
+                    );
+                }
+            }
         }
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("Iris UI Editor Tools Texture Array View"),
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
         let bind_group = self
             .renderer
             .texture_pipeline

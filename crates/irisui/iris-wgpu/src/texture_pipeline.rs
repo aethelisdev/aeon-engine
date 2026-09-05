@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! GPU textured quad pipeline for embedding viewports, images, and framebuffers in Iris UI.
+//! GPU textured quad pipeline for rendering 2D texture array views and editor icons in Iris UI.
 
 use bytemuck::{Pod, Zeroable};
 use iris_core::{Color, Rect};
@@ -22,13 +22,13 @@ struct UnitVertex {
     position: [f32; 2],
 }
 
-/// Instance data for textured quad drawing.
+/// Instance data for textured quad drawing across 2D texture array layers.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 pub struct TextureQuadInstance {
     /// Bounding rectangle in pixels `[x, y, width, height]`.
     pub rect: [f32; 4],
-    /// UV coordinate rectangle `[min_u, min_v, max_u, max_v]`.
+    /// UV coordinate rectangle and layer index `[min_u, min_v, max_u, layer_index]`.
     pub uv_rect: [f32; 4],
     /// Color multiplier `[r, g, b, a]`.
     pub tint: [f32; 4],
@@ -114,7 +114,7 @@ impl TextureQuadPipeline {
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
                             multisampled: false,
                         },
                         count: None,
