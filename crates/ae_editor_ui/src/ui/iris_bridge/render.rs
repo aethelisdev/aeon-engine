@@ -302,10 +302,10 @@ impl IrisEditorOverlay {
         }
 
         const TOOLS_ICON_BYTES: &[u8] =
-            include_bytes!("../../../../../assets/icons/editor_tools.png");
+            include_bytes!("../../../../../assets/icons/editor_atlas.png");
 
         let Ok(img) = image::load_from_memory(TOOLS_ICON_BYTES) else {
-            log::warn!("Failed to decode editor_tools.png texture atlas");
+            log::warn!("Failed to decode editor_atlas.png texture atlas");
             return;
         };
         let rgba = img.to_rgba8();
@@ -317,10 +317,13 @@ impl IrisEditorOverlay {
             depth_or_array_layers: 1,
         };
 
+        let mipmaps = ae_texture::generate_mipmap_chain(width, height, &rgba);
+        let mip_level_count = mipmaps.len() as u32;
+
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Iris UI Editor Tools Texture"),
             size,
-            mip_level_count: 1,
+            mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -328,21 +331,28 @@ impl IrisEditorOverlay {
             view_formats: &[],
         });
 
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &rgba,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * width),
-                rows_per_image: Some(height),
-            },
-            size,
-        );
+        for (mip_level, level_data) in mipmaps.iter().enumerate() {
+            let mip_size = wgpu::Extent3d {
+                width: level_data.width,
+                height: level_data.height,
+                depth_or_array_layers: 1,
+            };
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: mip_level as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &level_data.bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * level_data.width),
+                    rows_per_image: Some(level_data.height),
+                },
+                mip_size,
+            );
+        }
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = self

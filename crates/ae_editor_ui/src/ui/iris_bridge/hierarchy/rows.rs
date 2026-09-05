@@ -92,57 +92,85 @@ fn push_dfs_tree(
     }
 }
 
+/// UV coordinates for Scene Hierarchy icons in `editor_atlas.png`.
+pub const HIERARCHY_ICON_EYE_OPEN: [f32; 4] = [0.00, 0.25, 0.25, 0.50];
+pub const HIERARCHY_ICON_EYE_CLOSED: [f32; 4] = [0.25, 0.25, 0.50, 0.50];
+pub const HIERARCHY_ICON_FOLDER: [f32; 4] = [0.50, 0.25, 0.75, 0.50];
+pub const HIERARCHY_ICON_CUBE: [f32; 4] = [0.75, 0.25, 1.00, 0.50];
+
+/// Represents an entity icon either from the hardware texture atlas or text glyph fallback.
+#[derive(Clone, Copy, Debug)]
+enum EntityIcon {
+    Texture([f32; 4], Color),
+    Text(&'static str),
+}
+
 /// Resolves the type icon for a visible entity based on its components.
-fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity) -> &'static str {
+fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: bool) -> EntityIcon {
     let Ok(ent_ref) = world.entity(entity) else {
-        return "📁 ";
+        let folder_color = if is_selected {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else {
+            Color::rgba(0.96, 0.97, 1.0, 0.92)
+        };
+        return EntityIcon::Texture(HIERARCHY_ICON_FOLDER, folder_color);
     };
-    if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
-        "❤️ "
+
+    if ent_ref.get::<&ae_core::ecs::Shape>().is_some()
+        || ent_ref.get::<&ae_core::ecs::ModelId>().is_some()
+        || ent_ref.get::<&ae_core::ecs::UiPanel>().is_some()
+    {
+        let cube_color = if is_selected {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else {
+            Color::rgba(1.0, 1.0, 1.0, 1.0)
+        };
+        EntityIcon::Texture(HIERARCHY_ICON_CUBE, cube_color)
+    } else if ent_ref.get::<&ae_core::ecs::PlayerHealthBarTag>().is_some() {
+        EntityIcon::Text("❤️ ")
     } else if ent_ref.get::<&ae_core::ecs::ScoreDisplayTag>().is_some() {
-        "⭐ "
+        EntityIcon::Text("⭐ ")
     } else if ent_ref.get::<&ae_core::ecs::ReticleTag>().is_some() {
-        "🎯 "
+        EntityIcon::Text("🎯 ")
     } else if ent_ref.get::<&ae_core::ecs::UiProgressBar>().is_some() {
-        "📊 "
+        EntityIcon::Text("📊 ")
     } else if ent_ref.get::<&ae_core::ecs::UiButton>().is_some() {
-        "🔘 "
+        EntityIcon::Text("🔘 ")
     } else if ent_ref.get::<&ae_core::ecs::UiText>().is_some() {
-        "🔤 "
+        EntityIcon::Text("🔤 ")
     } else if ent_ref.get::<&ae_core::ecs::UiImage>().is_some() {
-        "🖼️ "
+        EntityIcon::Text("🖼️ ")
     } else if ent_ref.get::<&ae_core::ecs::UiSlider>().is_some() {
-        "🎚️ "
+        EntityIcon::Text("🎚️ ")
     } else if ent_ref.get::<&ae_core::ecs::UiCheckbox>().is_some() {
-        "☑️ "
+        EntityIcon::Text("☑️ ")
     } else if ent_ref.get::<&ae_core::ecs::UiTextInput>().is_some() {
-        "📝 "
-    } else if ent_ref.get::<&ae_core::ecs::UiPanel>().is_some() {
-        "🟩 "
+        EntityIcon::Text("📝 ")
     } else if ent_ref.get::<&ae_core::ecs::Light>().is_some() {
-        "💡 "
+        EntityIcon::Text("💡 ")
     } else if ent_ref.get::<&ae_audio::AudioSource>().is_some() {
-        "🔊 "
+        EntityIcon::Text("🔊 ")
     } else if ent_ref.get::<&ae_core::ecs::PlayerTag>().is_some() {
-        "🎮 "
+        EntityIcon::Text("🎮 ")
     } else if ent_ref.get::<&ae_core::ecs::Rotator>().is_some() {
-        "🔄 "
+        EntityIcon::Text("🔄 ")
     } else if ent_ref.get::<&ae_core::ecs::MovingPlatform>().is_some() {
-        "🚡 "
+        EntityIcon::Text("🚡 ")
     } else if ent_ref.get::<&ae_core::ecs::TriggerZone>().is_some() {
-        "⚡ "
+        EntityIcon::Text("⚡ ")
     } else if ent_ref.get::<&ae_core::ecs::DestructibleTarget>().is_some() {
-        "🎯 "
+        EntityIcon::Text("🎯 ")
     } else if ent_ref.get::<&ae_core::ecs::CharacterAction>().is_some() {
-        "🔫 "
-    } else if ent_ref.get::<&ae_core::ecs::ModelId>().is_some() {
-        "📦 "
-    } else if ent_ref.get::<&ae_core::ecs::Shape>().is_some() {
-        "🎲 "
+        EntityIcon::Text("🔫 ")
     } else if ent_ref.get::<&ae_core::ecs::SpriteId>().is_some() {
-        "🖼 "
+        EntityIcon::Text("🖼 ")
     } else {
-        "📁 "
+        let folder_color = if is_selected {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else {
+            Color::rgba(0.96, 0.97, 1.0, 0.92)
+        };
+        EntityIcon::Texture(HIERARCHY_ICON_FOLDER, folder_color)
     }
 }
 
@@ -386,21 +414,32 @@ fn render_single_row(
     } else {
         prefix_x + 2.0
     };
-    let icon = resolve_entity_icon(params.world, row.entity);
+    let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
+    let comp_icon_size = 16.0;
+    let comp_icon_y = cur_y + (row_h - comp_icon_size) * 0.5;
     let icon_id = tree.create_node();
-    let icon_color = if is_selected {
-        Color::rgba(0.0, 0.95, 1.0, 1.0) // Cyan highlight
-    } else {
-        Color::WHITE
-    };
 
     if let Some(node) = tree.get_mut(icon_id) {
         node.set_name("ComponentIcon");
-        node.set_text(icon);
-        node.font_size = 12.0;
-        node.line_height = row_h;
-        node.text_color = icon_color;
-        node.computed_rect = Rect::new(icon_x, cur_y, 16.0, row_h);
+        match comp_icon {
+            EntityIcon::Texture(uv, tint) => {
+                node.computed_rect = Rect::new(icon_x, comp_icon_y, comp_icon_size, comp_icon_size);
+                node.set_texture_uv(uv);
+                node.set_texture_tint(tint);
+            }
+            EntityIcon::Text(icon_str) => {
+                node.computed_rect = Rect::new(icon_x, cur_y, 16.0, row_h);
+                node.set_text(icon_str);
+                node.font_size = 12.0;
+                node.line_height = row_h;
+                let icon_color = if is_selected {
+                    Color::rgba(0.0, 0.95, 1.0, 1.0)
+                } else {
+                    Color::WHITE
+                };
+                node.text_color = icon_color;
+            }
+        }
     }
     let _ = tree.add_child(row_id, icon_id);
 
@@ -428,33 +467,30 @@ fn render_single_row(
     let _ = tree.add_child(row_id, name_id);
 
     // 5. Eye Visibility Button (Right-aligned edge column)
-    let eye_w = 20.0;
+    let eye_w = 22.0;
     let eye_rect = Rect::new(list_x + list_w - eye_w - 2.0, cur_y, eye_w, row_h);
     let is_visible = params
         .world
         .get::<&ae_core::ecs::Hidden>(row.entity)
         .is_err();
-    let (eye_icon, eye_col) = if !is_visible {
-        if is_selected {
-            ("🚫", Color::rgba(1.0, 0.40, 0.40, 1.0))
-        } else {
-            ("🚫", Color::rgba(0.92, 0.28, 0.28, 0.95))
-        }
+
+    let (eye_uv, eye_col) = if !is_visible {
+        (HIERARCHY_ICON_EYE_CLOSED, Color::rgba(1.0, 1.0, 1.0, 1.0))
     } else if is_selected {
-        ("👁", Color::rgba(0.0, 0.95, 1.0, 1.0))
+        (HIERARCHY_ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
     } else {
-        ("👁", Color::rgba(0.75, 0.78, 0.88, 0.90))
+        (HIERARCHY_ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
     };
 
     let eye_id = tree.create_node();
+    let eye_icon_size = 18.0;
+    let eye_icon_x = eye_rect.x + (eye_w - eye_icon_size) * 0.5;
+    let eye_icon_y = eye_rect.y + (row_h - eye_icon_size) * 0.5;
     if let Some(node) = tree.get_mut(eye_id) {
         node.set_name("EyeVisibilityButton");
-        node.set_text(eye_icon);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = eye_col;
-        node.computed_rect = eye_rect;
+        node.computed_rect = Rect::new(eye_icon_x, eye_icon_y, eye_icon_size, eye_icon_size);
+        node.set_texture_uv(eye_uv);
+        node.set_texture_tint(eye_col);
     }
     let _ = tree.add_child(row_id, eye_id);
 

@@ -37,7 +37,7 @@ pub fn build_viewport_toolbar(
         !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
 
     let (camera_label, cam_w) = if is_persp {
-        ("🎥 Perspective", 88.0)
+        ("Perspective", 94.0)
     } else if is_top {
         ("📐 Top", 56.0)
     } else if is_front {
@@ -92,21 +92,50 @@ pub fn build_viewport_toolbar(
     }
     let _ = tree.add_child(view_box_id, cam_btn_id);
 
-    let cam_txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(cam_txt_id) {
-        node.set_name("CameraModeText");
-        node.set_text(camera_label);
-        node.font_size = 11.0;
-        node.line_height = box_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_cam_open || is_cam_hover {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.85, 0.88, 0.94, 1.0)
-        };
-        node.computed_rect = cam_rect;
+    let cam_text_color = if is_cam_open || is_cam_hover {
+        Color::rgba(1.0, 1.0, 1.0, 1.0)
+    } else {
+        Color::rgba(0.85, 0.88, 0.94, 1.0)
+    };
+
+    if is_persp {
+        let cube_icon_size = 15.0;
+        let cube_icon_x = cur_x + 8.0;
+        let cube_icon_y = box_y + (box_h - cube_icon_size) * 0.5;
+        let cube_id = tree.create_node();
+        if let Some(node) = tree.get_mut(cube_id) {
+            node.set_name("PerspectiveCubeIcon");
+            node.computed_rect =
+                Rect::new(cube_icon_x, cube_icon_y, cube_icon_size, cube_icon_size);
+            node.set_texture_uv([0.75, 0.25, 1.00, 0.50]);
+            node.set_texture_tint(cam_text_color);
+        }
+        let _ = tree.add_child(cam_btn_id, cube_id);
+
+        let cam_txt_id = tree.create_node();
+        if let Some(node) = tree.get_mut(cam_txt_id) {
+            node.set_name("CameraModeText");
+            node.set_text(camera_label);
+            node.font_size = 11.0;
+            node.line_height = box_h;
+            node.text_align = TextAlign::Center;
+            node.text_color = cam_text_color;
+            node.computed_rect = Rect::new(cur_x + 22.0, box_y, cam_w - 22.0, box_h);
+        }
+        let _ = tree.add_child(cam_btn_id, cam_txt_id);
+    } else {
+        let cam_txt_id = tree.create_node();
+        if let Some(node) = tree.get_mut(cam_txt_id) {
+            node.set_name("CameraModeText");
+            node.set_text(camera_label);
+            node.font_size = 11.0;
+            node.line_height = box_h;
+            node.text_align = TextAlign::Center;
+            node.text_color = cam_text_color;
+            node.computed_rect = cam_rect;
+        }
+        let _ = tree.add_child(cam_btn_id, cam_txt_id);
     }
-    let _ = tree.add_child(cam_btn_id, cam_txt_id);
     targets
         .dropdown_triggers
         .push((ViewportHudDropdownId::CameraMode, cam_rect));
@@ -163,10 +192,10 @@ pub fn build_viewport_toolbar(
     let btn_gap = 4.0;
 
     let gizmo_modes = [
-        (GizmoMode::Select, [0.00, 0.0, 0.25, 1.0]),
-        (GizmoMode::Translate, [0.25, 0.0, 0.50, 1.0]),
-        (GizmoMode::Rotate, [0.50, 0.0, 0.75, 1.0]),
-        (GizmoMode::Scale, [0.75, 0.0, 1.00, 1.0]),
+        (GizmoMode::Select, [0.00, 0.00, 0.25, 0.25]),
+        (GizmoMode::Translate, [0.25, 0.00, 0.50, 0.25]),
+        (GizmoMode::Rotate, [0.50, 0.00, 0.75, 0.25]),
+        (GizmoMode::Scale, [0.75, 0.00, 1.00, 0.25]),
     ];
 
     for (mode, uv) in gizmo_modes {

@@ -41,7 +41,7 @@ pub fn render_viewport_hud_dropdown_popup(
 
             let opts = vec![
                 (
-                    "🎥 Perspective".to_string(),
+                    "Perspective".to_string(),
                     ViewportHudAction::SetCameraMode(ProjectionMode::Perspective),
                     is_persp,
                 ),

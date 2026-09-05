@@ -6,12 +6,21 @@
 //! Renders the cascading multi-level dropdown menus for spawning 3D shapes,
 //! 2D UI elements, HUD presets, asset imports, and stress test benchmarks.
 
+use super::rows::{HIERARCHY_ICON_CUBE, HIERARCHY_ICON_FOLDER};
 use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets};
 use irisui::prelude::*;
 
+/// Visual icon representation for menu items (either text emoji or texture quad from atlas).
+#[derive(Clone, Copy, PartialEq)]
+enum MenuItemIcon {
+    Text(&'static str),
+    Texture([f32; 4]),
+    Separator,
+}
+
 /// Descriptor for a top-level category item in the Add Menu.
 struct AddMenuCategoryItem {
-    icon: &'static str,
+    icon: MenuItemIcon,
     label: &'static str,
     has_sub: bool,
     sub_id: Option<AddSubmenuId>,
@@ -42,42 +51,42 @@ pub fn build_add_menu(
 
     let root_items = [
         AddMenuCategoryItem {
-            icon: "📦",
+            icon: MenuItemIcon::Texture(HIERARCHY_ICON_CUBE),
             label: "3D Objects",
             has_sub: true,
             sub_id: Some(AddSubmenuId::Objects3D),
             action: None,
         },
         AddMenuCategoryItem {
-            icon: "🎨",
+            icon: MenuItemIcon::Text("🎨"),
             label: "UI & Canvas",
             has_sub: true,
             sub_id: Some(AddSubmenuId::UiCanvas),
             action: None,
         },
         AddMenuCategoryItem {
-            icon: "📁",
+            icon: MenuItemIcon::Texture(HIERARCHY_ICON_FOLDER),
             label: "Assets & Prefabs",
             has_sub: true,
             sub_id: Some(AddSubmenuId::AssetsPrefabs),
             action: None,
         },
         AddMenuCategoryItem {
-            icon: "─",
+            icon: MenuItemIcon::Separator,
             label: "",
             has_sub: false,
             sub_id: None,
             action: None,
         },
         AddMenuCategoryItem {
-            icon: "🎮",
+            icon: MenuItemIcon::Text("🎮"),
             label: "Phase 1 Test Sandbox",
             has_sub: false,
             sub_id: None,
             action: Some(HierarchyAction::SpawnPhase1TestSandbox),
         },
         AddMenuCategoryItem {
-            icon: "⚡",
+            icon: MenuItemIcon::Text("⚡"),
             label: "Stress Benchmarks",
             has_sub: true,
             sub_id: Some(AddSubmenuId::StressBenchmarks),
@@ -92,13 +101,13 @@ pub fn build_add_menu(
     let card_rect = Rect::new(menu_x, menu_y, menu_w, total_h);
     targets.active_add_menu_rect = Some(card_rect);
 
-    // Root Add Menu Card Container
+    // Root Add Menu Card Container (100% opaque background prevents any bleed-through of underlying rows)
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AddMenuCard");
         node.computed_rect = card_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
+            .background(Color::rgba(0.06, 0.07, 0.10, 1.0))
             .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85)) // Cyan border
             .border_radius(6.0)
             .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
@@ -109,7 +118,7 @@ pub fn build_add_menu(
     let mut submenu_anchor_y = cur_y;
 
     for item in &root_items {
-        if item.icon == "─" {
+        if item.icon == MenuItemIcon::Separator {
             let sep_id = tree.create_node();
             if let Some(node) = tree.get_mut(sep_id) {
                 node.set_name("MenuSeparator");
@@ -146,14 +155,30 @@ pub fn build_add_menu(
         }
         let _ = tree.add_child(card_id, row_id);
 
-        // Icon
+        // Icon (text emoji or atlas texture quad)
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("ItemIcon");
-            node.set_text(item.icon);
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
+            match item.icon {
+                MenuItemIcon::Text(txt) => {
+                    node.set_text(txt);
+                    node.font_size = 11.0;
+                    node.line_height = item_h;
+                    node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
+                }
+                MenuItemIcon::Texture(uv) => {
+                    node.texture_uv = Some(uv);
+                    node.texture_tint = Some(Color::WHITE);
+                    let ic_size = 14.0;
+                    node.computed_rect = Rect::new(
+                        item_rect.x + 6.0,
+                        cur_y + (item_h - ic_size) * 0.5,
+                        ic_size,
+                        ic_size,
+                    );
+                }
+                MenuItemIcon::Separator => {}
+            }
         }
         let _ = tree.add_child(row_id, ic_id);
 
@@ -221,40 +246,45 @@ fn build_submenu(
     params: &HierarchyPanelParams<'_>,
     targets: &mut HierarchyPanelTargets,
 ) {
-    let items: Vec<(&str, &str, Option<HierarchyAction>, Option<AddSubmenuId>)> = match submenu_id {
+    let items: Vec<(
+        MenuItemIcon,
+        &str,
+        Option<HierarchyAction>,
+        Option<AddSubmenuId>,
+    )> = match submenu_id {
         AddSubmenuId::Objects3D => vec![
             (
-                "📦",
+                MenuItemIcon::Texture(HIERARCHY_ICON_CUBE),
                 "Cube",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cube)),
                 None,
             ),
             (
-                "🔮",
+                MenuItemIcon::Text("🔮"),
                 "Sphere",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Sphere)),
                 None,
             ),
             (
-                "🧪",
+                MenuItemIcon::Text("🧪"),
                 "Cylinder",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cylinder)),
                 None,
             ),
             (
-                "💊",
+                MenuItemIcon::Text("💊"),
                 "Capsule",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Capsule)),
                 None,
             ),
             (
-                "🍩",
+                MenuItemIcon::Text("🍩"),
                 "Torus",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Torus)),
                 None,
             ),
             (
-                "📐",
+                MenuItemIcon::Text("📐"),
                 "Triangle",
                 Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Triangle)),
                 None,
@@ -262,7 +292,7 @@ fn build_submenu(
         ],
         AddSubmenuId::UiCanvas => vec![
             (
-                "🟩",
+                MenuItemIcon::Text("🟩"),
                 "Panel / Canvas Box",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::Panel,
@@ -270,7 +300,7 @@ fn build_submenu(
                 None,
             ),
             (
-                "🔤",
+                MenuItemIcon::Text("🔤"),
                 "Text Label",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::Text,
@@ -278,15 +308,7 @@ fn build_submenu(
                 None,
             ),
             (
-                "🖼️",
-                "Image / Icon",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Image,
-                )),
-                None,
-            ),
-            (
-                "🔘",
+                MenuItemIcon::Text("🔘"),
                 "Interactive Button",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::Button,
@@ -294,7 +316,15 @@ fn build_submenu(
                 None,
             ),
             (
-                "📊",
+                MenuItemIcon::Text("🖼️"),
+                "Image / Icon",
+                Some(HierarchyAction::SpawnUiElement(
+                    crate::ui::UiElementType::Image,
+                )),
+                None,
+            ),
+            (
+                MenuItemIcon::Text("📊"),
                 "Progress Bar",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::ProgressBar,
@@ -302,7 +332,7 @@ fn build_submenu(
                 None,
             ),
             (
-                "🎚️",
+                MenuItemIcon::Text("🎚️"),
                 "Numeric Slider",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::Slider,
@@ -310,7 +340,7 @@ fn build_submenu(
                 None,
             ),
             (
-                "☑️",
+                MenuItemIcon::Text("☑️"),
                 "Toggle Checkbox",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::Checkbox,
@@ -318,19 +348,24 @@ fn build_submenu(
                 None,
             ),
             (
-                "📝",
+                MenuItemIcon::Text("📝"),
                 "Text Input Field",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::TextInput,
                 )),
                 None,
             ),
-            ("─", "", None, None),
-            ("🎮", "HUD Presets ▸", None, Some(AddSubmenuId::HudPresets)),
+            (MenuItemIcon::Separator, "", None, None),
+            (
+                MenuItemIcon::Text("🎮"),
+                "HUD Presets ▸",
+                None,
+                Some(AddSubmenuId::HudPresets),
+            ),
         ],
         AddSubmenuId::HudPresets => vec![
             (
-                "❤️",
+                MenuItemIcon::Text("❤️"),
                 "Health Bar (Player Tag)",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::HealthBar,
@@ -338,7 +373,7 @@ fn build_submenu(
                 None,
             ),
             (
-                "⭐",
+                MenuItemIcon::Text("⭐"),
                 "Score Display (Score Tag)",
                 Some(HierarchyAction::SpawnUiElement(
                     crate::ui::UiElementType::ScoreDisplay,
@@ -348,46 +383,56 @@ fn build_submenu(
         ],
         AddSubmenuId::AssetsPrefabs => vec![
             (
-                "📁",
+                MenuItemIcon::Texture(HIERARCHY_ICON_CUBE),
                 "3D Model...",
                 Some(HierarchyAction::OpenModelDialog),
                 None,
             ),
-            ("📦", "Load Prefab...", None, None), // Triggers rfd::FileDialog in handler
+            (
+                MenuItemIcon::Texture(HIERARCHY_ICON_FOLDER),
+                "Load Prefab...",
+                None,
+                None,
+            ),
         ],
         AddSubmenuId::StressBenchmarks => vec![
             (
-                "🏰",
+                MenuItemIcon::Text("🏰"),
                 "OpenWorld (10km)",
                 Some(HierarchyAction::AaaOpenWorldTest),
                 None,
             ),
             (
-                "⚡",
+                MenuItemIcon::Text("⚡"),
                 "10,000 Entities",
                 Some(HierarchyAction::StressTest(10_000)),
                 None,
             ),
             (
-                "⚡",
+                MenuItemIcon::Text("⚡"),
                 "100,000 Entities",
                 Some(HierarchyAction::StressTest(100_000)),
                 None,
             ),
             (
-                "⚡",
+                MenuItemIcon::Text("⚡"),
                 "10,000,000 Universe",
                 Some(HierarchyAction::StressTest(10_000_000)),
                 None,
             ),
-            ("💥", "Explode!", Some(HierarchyAction::Explode), None),
+            (
+                MenuItemIcon::Text("💥"),
+                "Explode!",
+                Some(HierarchyAction::Explode),
+                None,
+            ),
         ],
     };
 
     let item_h = 24.0;
     let mut total_h = 8.0;
     for (ic, _, _, _) in &items {
-        if *ic == "─" {
+        if *ic == MenuItemIcon::Separator {
             total_h += 5.0;
         } else {
             total_h += item_h;
@@ -398,12 +443,13 @@ fn build_submenu(
     let card_rect = Rect::new(sub_x, sub_y, sub_w, total_h);
     targets.active_submenu_rect = Some(card_rect);
 
+    // Submenu Card Container (100% opaque background prevents any bleed-through of underlying rows)
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AddSubmenuCard");
         node.computed_rect = card_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
+            .background(Color::rgba(0.06, 0.07, 0.10, 1.0))
             .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
             .border_radius(6.0)
             .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
@@ -413,7 +459,7 @@ fn build_submenu(
     let mut cur_y = sub_y + 4.0;
 
     for (icon, label, action_opt, sub_opt) in items {
-        if icon == "─" {
+        if icon == MenuItemIcon::Separator {
             let sep_id = tree.create_node();
             if let Some(node) = tree.get_mut(sep_id) {
                 node.set_name("SubmenuSeparator");
@@ -448,10 +494,26 @@ fn build_submenu(
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("SubmenuItemIcon");
-            node.set_text(icon);
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
+            match icon {
+                MenuItemIcon::Text(txt) => {
+                    node.set_text(txt);
+                    node.font_size = 11.0;
+                    node.line_height = item_h;
+                    node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
+                }
+                MenuItemIcon::Texture(uv) => {
+                    node.texture_uv = Some(uv);
+                    node.texture_tint = Some(Color::WHITE);
+                    let ic_size = 14.0;
+                    node.computed_rect = Rect::new(
+                        item_rect.x + 6.0,
+                        cur_y + (item_h - ic_size) * 0.5,
+                        ic_size,
+                        ic_size,
+                    );
+                }
+                MenuItemIcon::Separator => {}
+            }
         }
         let _ = tree.add_child(row_id, ic_id);
 
