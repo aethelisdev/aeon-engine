@@ -184,7 +184,14 @@ impl PhysicsWorld {
                                     let n = manifold.data.normal;
                                     normal = Some([n.x, n.y, n.z]);
                                     if let Some(pt) = manifold.data.solver_contacts.first() {
-                                        contact_point = Some([pt.point.x, pt.point.y, pt.point.z]);
+                                        // In Rapier 0.35+, solver contacts store body/collider local anchors.
+                                        // Transform anchor1 to world space using the first collider's global pose.
+                                        let p = if let Some(c1) = self.collider_set.get(h1) {
+                                            c1.position() * pt.anchor1
+                                        } else {
+                                            pt.anchor1
+                                        };
+                                        contact_point = Some([p.x, p.y, p.z]);
                                         break;
                                     }
                                 }

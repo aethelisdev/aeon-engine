@@ -5,7 +5,7 @@ edition = "2024"
 description = "Aeon Engine - Decoupled Rapier3D physics simulation system"
 
 [dependencies]
-rapier3d = "0.34.0"
+rapier3d = "0.35.3"
 glam = "0.33"
 hecs = "0.11.0"
 log = "0.4.33"
