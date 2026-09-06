@@ -77,6 +77,7 @@ impl EngineUi {
         self.process_assets_actions(params.ui_actions);
         self.process_timeline_actions(params.world, params.ui_actions);
         self.process_material_actions(params.ui_actions);
+        self.process_ui_designer_actions(params.world, params.ui_actions);
 
         if gs_changed {
             params
@@ -124,6 +125,7 @@ impl EngineUi {
             assets_panel_rect: egui_out.assets_rect,
             timeline_panel_rect: egui_out.timeline_rect,
             material_panel_rect: egui_out.material_rect,
+            ui_designer_panel_rect: egui_out.ui_designer_rect,
             textures: params.textures,
             models: params.models,
         });

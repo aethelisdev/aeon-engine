@@ -51,6 +51,34 @@ pub fn draw_ui_designer_panel(ui: &mut egui::Ui, ctx: &mut UiDesignerContext<'_>
                     }
                 }
             }
+            ae_uidesign::UiDesignerAction::SetAspectRatio(ratio) => {
+                ctx.state.aspect_ratio = ratio;
+            }
+            ae_uidesign::UiDesignerAction::SetZoom(zoom) => {
+                ctx.state.zoom = zoom;
+            }
+            ae_uidesign::UiDesignerAction::ToggleGrid => {
+                ctx.state.show_grid = !ctx.state.show_grid;
+            }
+            ae_uidesign::UiDesignerAction::ToggleAnchorGuides => {
+                ctx.state.show_anchor_guides = !ctx.state.show_anchor_guides;
+            }
+            ae_uidesign::UiDesignerAction::CycleGridSnap => {
+                ctx.state.snap_grid = match ctx.state.snap_grid {
+                    None => Some(8.0),
+                    Some(8.0) => Some(16.0),
+                    Some(16.0) => Some(32.0),
+                    _ => None,
+                };
+            }
+            ae_uidesign::UiDesignerAction::ResetView => {
+                ctx.state.zoom = 1.0;
+                ctx.state.pan_offset = [0.0, 0.0];
+            }
+            ae_uidesign::UiDesignerAction::PanCanvas(delta) => {
+                ctx.state.pan_offset[0] += delta[0];
+                ctx.state.pan_offset[1] += delta[1];
+            }
         }
     }
 }

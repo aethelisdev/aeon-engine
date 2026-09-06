@@ -23,6 +23,7 @@ pub struct EguiPassOutput {
     pub console_rect: Option<egui::Rect>,
     pub assets_rect: Option<egui::Rect>,
     pub timeline_rect: Option<egui::Rect>,
+    pub ui_designer_rect: Option<egui::Rect>,
 }
 
 impl EngineUi {
@@ -85,6 +86,7 @@ impl EngineUi {
         let console_rect_cell = std::cell::Cell::new(None);
         let assets_rect_cell = std::cell::Cell::new(None);
         let timeline_rect_cell = std::cell::Cell::new(None);
+        let ui_designer_rect_cell = std::cell::Cell::new(None);
         let ui_rects_collector = std::cell::RefCell::new(Vec::new());
 
         let full_output = self.context.run_ui(raw_input, |ui| {
@@ -111,7 +113,6 @@ impl EngineUi {
             // 3. Central Tree Docking System (egui_dock - Tree-based split tab layout)
             let mut tab_viewer = docking::EditorTabViewer {
                 world: params.world,
-                selected_entity: &mut self.selected_entity,
                 is_editing,
                 ui_actions: params.ui_actions,
                 camera: params.camera,
@@ -125,8 +126,8 @@ impl EngineUi {
                 console_rect_out: &console_rect_cell,
                 assets_rect_out: &assets_rect_cell,
                 timeline_rect_out: &timeline_rect_cell,
+                ui_designer_rect_out: &ui_designer_rect_cell,
                 enabled_modules: params.enabled_modules,
-                ui_designer_state: &mut self.ui_designer_state,
             };
 
             egui::CentralPanel::default()
@@ -268,6 +269,7 @@ impl EngineUi {
             console_rect: console_rect_cell.get(),
             assets_rect: assets_rect_cell.get(),
             timeline_rect: timeline_rect_cell.get(),
+            ui_designer_rect: ui_designer_rect_cell.get(),
         }
     }
 }

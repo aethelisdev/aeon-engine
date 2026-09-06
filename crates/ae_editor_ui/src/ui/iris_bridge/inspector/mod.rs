@@ -18,12 +18,14 @@ pub mod header;
 pub mod registry;
 pub mod transform;
 pub mod types;
+pub mod ui_transform;
 
 pub use events::handle_inspector_click;
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use types::{
     ComponentCategory, ComponentCheckboxId, InspectorAction, InspectorDropdownId,
-    InspectorNumberInputId, InspectorPanelParams, InspectorPanelTargets, TransformAxisType,
+    InspectorNumberInputId, InspectorPanelParams, InspectorPanelTargets, InspectorTextInputId,
+    TransformAxisType,
 };
 
 use irisui::prelude::*;
@@ -37,6 +39,7 @@ pub fn build_inspector_panel(
 ) {
     targets.transform_reset_btns.clear();
     targets.number_inputs.clear();
+    targets.text_inputs.clear();
     targets.palette_swatches.clear();
     targets.dropdowns.clear();
     targets.checkboxes.clear();
@@ -100,15 +103,23 @@ pub fn build_inspector_panel(
         card_w,
     };
 
-    // 4. Transform Card
-    ctx.base_y = content_y;
-    let t_h = transform::build_transform_card(tree, container_id, &mut ctx);
-    content_y += t_h + card_gap;
+    // 4. Primary Transform / Layout Card
+    // Industry standard ( RectTransform /  UMG Slot): 2D UI elements use 2D Screen Transform
+    let is_ui_element = params.world.get::<&ae_core::ecs::UiElement>(entity).is_ok();
+    if is_ui_element {
+        ctx.base_y = content_y;
+        let ui_t_h = ui_transform::build_ui_transform_card(tree, container_id, &mut ctx);
+        content_y += ui_t_h + card_gap;
+    } else {
+        ctx.base_y = content_y;
+        let t_h = transform::build_transform_card(tree, container_id, &mut ctx);
+        content_y += t_h + card_gap;
 
-    // 5. Appearance Card
-    ctx.base_y = content_y;
-    let a_h = appearance::build_appearance_card(tree, container_id, &mut ctx);
-    content_y += a_h + card_gap;
+        // 5. 3D Appearance Card
+        ctx.base_y = content_y;
+        let a_h = appearance::build_appearance_card(tree, container_id, &mut ctx);
+        content_y += a_h + card_gap;
+    }
 
     // 6. Extensible Registry Component Cards
     let registry = InspectorRegistry::global();
@@ -164,3 +175,6 @@ fn render_empty_selection_view(
     }
     let _ = tree.add_child(parent_id, msg_id);
 }
+
+#[cfg(test)]
+mod tests;

@@ -12,11 +12,18 @@
 //! - `UiImage`
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::types::ComponentCategory;
-use super::super::physics::render_component_header;
+use super::super::super::types::{
+    ComboboxRowParams, CompactNumericRowParams, ComponentCategory, ComponentCheckboxId,
+    InspectorDropdownId, InspectorNumberInputId, InspectorTextInputId,
+};
+use super::super::physics::{
+    render_checkbox_row, render_combobox_row, render_component_header, render_numeric_row_compact,
+};
+use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
-/// Inspector handler for UiElement`.
+/// Inspector handler for `UiElement`.
+/// Handled as the primary 2D Screen Transform (RectTransform) card at the top of the Inspector.
 pub struct UiElementHandler;
 
 impl ComponentInspectorHandler for UiElementHandler {
@@ -40,83 +47,18 @@ impl ComponentInspectorHandler for UiElementHandler {
         ComponentCategory::UiHud
     }
 
-    fn has_component(&self, world: &hecs::World, entity: hecs::Entity) -> bool {
-        world.get::<&ae_core::ecs::UiElement>(entity).is_ok()
+    fn has_component(&self, _world: &hecs::World, _entity: hecs::Entity) -> bool {
+        // Rendered as the primary 2D Screen Transform card at the top of the Inspector (replacing 3D Transform)
+        false
     }
 
     fn render_card(
         &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
+        _tree: &mut UiTree,
+        _parent_id: WidgetId,
+        _ctx: &mut ComponentRenderContext<'_>,
     ) -> f32 {
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 2.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
-
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiElementCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
-            tree,
-            card_id,
-            ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-
-        let (offset, size) = ctx
-            .world
-            .get::<&ae_core::ecs::UiElement>(ctx.entity)
-            .map(|st| (st.offset, st.size))
-            .unwrap_or(([0.0, 0.0], [100.0, 30.0]));
-
-        let lbl1_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl1_id) {
-            node.set_name("ScreenPosInfo");
-            node.set_text(format!("Offset: ({:.0}, {:.0}) px", offset[0], offset[1]));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.75, 0.78, 0.88, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
-        }
-        let _ = tree.add_child(card_id, lbl1_id);
-
-        let lbl2_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl2_id) {
-            node.set_name("ScreenSizeInfo");
-            node.set_text(format!("Size: {:.0} × {:.0} px", size[0], size[1]));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.75, 0.78, 0.88, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y + row_h + 3.0,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
-        }
-        let _ = tree.add_child(card_id, lbl2_id);
-
-        card_h
+        0.0
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -167,7 +109,8 @@ impl ComponentInspectorHandler for UiPanelHandler {
 
         let padding = 8.0;
         let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
+        let row_gap = 4.0;
+        let card_h = 24.0 + 2.0 * (row_h + row_gap) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
         let card_id = tree.create_node();
@@ -191,25 +134,38 @@ impl ComponentInspectorHandler for UiPanelHandler {
             self.component_name(),
         );
 
-        let cur_y = ctx.base_y + padding + 22.0;
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiPanelProps");
-            node.set_text(format!(
-                "Border: {:.1} px  |  Radius: {:.1} px",
-                border_w, radius
-            ));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
+        let mut cur_y = ctx.base_y + padding + 22.0;
+
+        render_numeric_row_compact(
+            tree,
+            card_id,
+            ctx,
+            CompactNumericRowParams {
+                label: "Border Width",
+                input_id: InspectorNumberInputId::UiBorderWidth,
+                val: border_w,
+                row_y: cur_y,
+                label_w: 80.0,
+                box_w: 60.0,
+                unit: Some("px"),
+            },
+        );
+        cur_y += row_h + row_gap;
+
+        render_numeric_row_compact(
+            tree,
+            card_id,
+            ctx,
+            CompactNumericRowParams {
+                label: "Corner Radius",
+                input_id: InspectorNumberInputId::UiCornerRadius,
+                val: radius,
+                row_y: cur_y,
+                label_w: 80.0,
+                box_w: 60.0,
+                unit: Some("px"),
+            },
+        );
 
         card_h
     }
@@ -253,15 +209,17 @@ impl ComponentInspectorHandler for UiTextHandler {
         parent_id: WidgetId,
         ctx: &mut ComponentRenderContext<'_>,
     ) -> f32 {
-        let (txt, font_size) = if let Ok(t) = ctx.world.get::<&ae_core::ecs::UiText>(ctx.entity) {
-            (t.text.clone(), t.font_size)
-        } else {
-            ("Label".to_string(), 14.0)
-        };
+        let (txt, font_size, alignment) =
+            if let Ok(t) = ctx.world.get::<&ae_core::ecs::UiText>(ctx.entity) {
+                (t.text.clone(), t.font_size, t.alignment)
+            } else {
+                ("Label".to_string(), 14.0, UiTextAlignment::Left)
+            };
 
         let padding = 8.0;
         let row_h = 22.0;
-        let card_h = 24.0 + 2.0 * (row_h + 3.0) + padding * 2.0;
+        let row_gap = 4.0;
+        let card_h = 24.0 + 3.0 * (row_h + row_gap) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
         let card_id = tree.create_node();
@@ -287,38 +245,132 @@ impl ComponentInspectorHandler for UiTextHandler {
 
         let mut cur_y = ctx.base_y + padding + 22.0;
 
-        let lbl1_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl1_id) {
-            node.set_name("UiTextContent");
-            node.set_text(format!("Text: \"{}\"", txt));
+        // Interactive Text String Input Field
+        let lbl_w = 42.0;
+        let input_w = (ctx.card_w - padding * 2.0 - lbl_w - 6.0).max(60.0);
+        let box_rect = Rect::new(ctx.base_x + padding + lbl_w + 4.0, cur_y, input_w, row_h);
+
+        let lbl_id = tree.create_node();
+        if let Some(node) = tree.get_mut(lbl_id) {
+            node.set_name("UiTextLabelPrefix");
+            node.set_text("Text");
             node.font_size = 11.0;
             node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
-        }
-        let _ = tree.add_child(card_id, lbl1_id);
-        cur_y += row_h + 3.0;
-
-        let lbl2_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl2_id) {
-            node.set_name("UiTextFontSize");
-            node.set_text(format!("Font Size: {:.0} pt", font_size));
-            node.font_size = 10.5;
-            node.line_height = row_h;
             node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
+            node.computed_rect = Rect::new(ctx.base_x + padding, cur_y, lbl_w, row_h);
         }
-        let _ = tree.add_child(card_id, lbl2_id);
+        let _ = tree.add_child(card_id, lbl_id);
+
+        let is_editing = matches!(
+            ctx.params.active_text_input,
+            Some((InspectorTextInputId::UiTextContent, _))
+        );
+        let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
+
+        let (bg, border_col) = if is_editing {
+            (
+                Color::rgba(0.118, 0.125, 0.145, 1.0),
+                Color::rgba(0.0, 0.85, 1.0, 0.95),
+            )
+        } else if is_hovered {
+            (
+                Color::rgba(0.157, 0.169, 0.200, 1.0),
+                Color::rgba(0.235, 0.247, 0.286, 0.95),
+            )
+        } else {
+            (
+                Color::rgba(0.125, 0.133, 0.153, 0.98),
+                Color::rgba(0.180, 0.192, 0.227, 0.85),
+            )
+        };
+
+        let box_id = tree.create_node();
+        if let Some(node) = tree.get_mut(box_id) {
+            node.set_name("UiTextBox");
+            node.computed_rect = box_rect;
+            node.style = Style::new()
+                .background(bg)
+                .border(1.0, border_col)
+                .border_radius(4.0);
+        }
+        let _ = tree.add_child(card_id, box_id);
+
+        let display_text = if is_editing {
+            let buf = match ctx.params.active_text_input {
+                Some((InspectorTextInputId::UiTextContent, b)) => b,
+                _ => "",
+            };
+            if ctx.params.blink_caret {
+                format!("{}|", buf)
+            } else {
+                buf.to_string()
+            }
+        } else if txt.is_empty() {
+            "Empty text...".to_string()
+        } else {
+            txt.clone()
+        };
+
+        let text_col = if is_editing {
+            Color::WHITE
+        } else if txt.is_empty() {
+            Color::rgba(0.45, 0.48, 0.55, 1.0)
+        } else {
+            Color::rgba(0.886, 0.894, 0.918, 1.0)
+        };
+
+        let txt_id = tree.create_node();
+        if let Some(node) = tree.get_mut(txt_id) {
+            node.set_name("UiTextBoxText");
+            node.set_text(display_text);
+            node.font_size = 11.0;
+            node.line_height = row_h;
+            node.text_align = TextAlign::Left;
+            node.text_color = text_col;
+            node.computed_rect =
+                Rect::new(box_rect.x + 6.0, box_rect.y, box_rect.width - 12.0, row_h);
+        }
+        let _ = tree.add_child(box_id, txt_id);
+
+        ctx.targets
+            .text_inputs
+            .push((InspectorTextInputId::UiTextContent, box_rect, txt));
+        cur_y += row_h + row_gap;
+
+        render_numeric_row_compact(
+            tree,
+            card_id,
+            ctx,
+            CompactNumericRowParams {
+                label: "Font Size",
+                input_id: InspectorNumberInputId::UiFontSize,
+                val: font_size,
+                row_y: cur_y,
+                label_w: 80.0,
+                box_w: 60.0,
+                unit: Some("pt"),
+            },
+        );
+        cur_y += row_h + row_gap;
+
+        let (align_str, _align_idx) = match alignment {
+            UiTextAlignment::Left => ("Left", 0),
+            UiTextAlignment::Center => ("Center", 1),
+            UiTextAlignment::Right => ("Right", 2),
+        };
+
+        render_combobox_row(
+            tree,
+            card_id,
+            ctx,
+            ComboboxRowParams {
+                label: "Align",
+                selected_text: align_str,
+                dropdown_id: InspectorDropdownId::UiTextAlignment,
+                label_w: 52.0,
+                row_y: cur_y,
+            },
+        );
 
         card_h
     }
@@ -489,6 +541,12 @@ impl ComponentInspectorHandler for UiButtonHandler {
         parent_id: WidgetId,
         ctx: &mut ComponentRenderContext<'_>,
     ) -> f32 {
+        let is_enabled = ctx
+            .world
+            .get::<&ae_core::ecs::UiButton>(ctx.entity)
+            .map(|b| b.is_enabled)
+            .unwrap_or(true);
+
         let padding = 8.0;
         let row_h = 22.0;
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
@@ -513,6 +571,17 @@ impl ComponentInspectorHandler for UiButtonHandler {
             self.display_title(),
             self.header_color(),
             self.component_name(),
+        );
+
+        let cur_y = ctx.base_y + padding + 22.0;
+        render_checkbox_row(
+            tree,
+            card_id,
+            ctx,
+            "Enabled",
+            ComponentCheckboxId::UiInteractable,
+            is_enabled,
+            cur_y,
         );
 
         card_h

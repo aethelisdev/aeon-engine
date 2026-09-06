@@ -30,8 +30,8 @@ pub fn draw_canvas_area(ui: &mut egui::Ui, ctx: &mut UiDesignerContext<'_>) {
     let canvas_w = screen_w * base_scale;
     let canvas_h = screen_h * base_scale;
 
-    let center_x = available_rect.center().x + ctx.state.pan_offset.x;
-    let center_y = available_rect.center().y + ctx.state.pan_offset.y;
+    let center_x = available_rect.center().x + ctx.state.pan_offset[0];
+    let center_y = available_rect.center().y + ctx.state.pan_offset[1];
 
     let canvas_rect = egui::Rect::from_center_size(
         egui::pos2(center_x, center_y),
@@ -284,7 +284,9 @@ pub fn draw_canvas_area(ui: &mut egui::Ui, ctx: &mut UiDesignerContext<'_>) {
             }
         } else {
             // Pan virtual canvas
-            ctx.state.pan_offset += response.drag_delta();
+            let delta = response.drag_delta();
+            ctx.state.pan_offset[0] += delta.x;
+            ctx.state.pan_offset[1] += delta.y;
         }
     }
 

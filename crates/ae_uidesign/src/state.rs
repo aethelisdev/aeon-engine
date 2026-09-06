@@ -14,7 +14,7 @@ pub struct UiDesignerState {
     /// Viewport zoom scale factor (default = 1.0).
     pub zoom: f32,
     /// 2D pan offset in pixels.
-    pub pan_offset: egui::Vec2,
+    pub pan_offset: [f32; 2],
     /// Grid snapping interval in pixels (None = free placement).
     pub snap_grid: Option<f32>,
     /// Whether visual anchor pins and distance guidelines are visible.
@@ -30,7 +30,7 @@ impl Default for UiDesignerState {
         Self {
             aspect_ratio: CanvasAspectRatio::Ratio16x9,
             zoom: 1.0,
-            pan_offset: egui::Vec2::ZERO,
+            pan_offset: [0.0, 0.0],
             snap_grid: Some(8.0),
             show_anchor_guides: true,
             show_grid: true,

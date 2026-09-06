@@ -131,6 +131,37 @@ impl EngineUi {
                         }
                     }
                 }
+                InspectorAction::SetTextValue(text_id, val) => {
+                    if let Some(entity) = self.selected_entity {
+                        let comp_name = text_id.component_name();
+                        let registry = ae_core::registry::ComponentRegistry::global();
+                        let old_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
+                        match text_id {
+                            crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextContent => {
+                                if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiText>(entity) {
+                                    t.text = val;
+                                }
+                            }
+                            crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextInputPlaceholder => {
+                                if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiTextInput>(entity) {
+                                    t.placeholder = val;
+                                }
+                            }
+                        }
+                        let new_bytes = registry
+                            .get_by_name(comp_name)
+                            .and_then(|h| h.capture(world, entity));
+                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                            && old != new
+                        {
+                            ui_actions.push(EngineUiAction::CommitComponentModify(
+                                entity, comp_name, old, new,
+                            ));
+                        }
+                    }
+                }
                 InspectorAction::SelectDropdown(dd_id, opt_idx) => {
                     if let Some(entity) = self.selected_entity {
                         let comp_name = dd_id.component_name();
@@ -174,6 +205,14 @@ impl EngineUi {
                             && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
                         {
                             a.play_on_start = !a.play_on_start;
+                        } else if let ComponentCheckboxId::UiVisible = cb_id
+                            && let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity)
+                        {
+                            u.visible = !u.visible;
+                        } else if let ComponentCheckboxId::UiInteractable = cb_id
+                            && let Ok(mut b) = world.get::<&mut ae_core::ecs::UiButton>(entity)
+                        {
+                            b.is_enabled = !b.is_enabled;
                         }
                         let new_bytes = registry
                             .get_by_name(comp_name)
@@ -548,6 +587,76 @@ fn handle_set_number_value(
                 a.pitch = val.clamp(0.1, 3.0);
             }
         }
+        InspectorNumberInputId::UiOffsetX => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.offset[0] = val;
+            }
+        }
+        InspectorNumberInputId::UiOffsetY => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.offset[1] = val;
+            }
+        }
+        InspectorNumberInputId::UiSizeW => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.size[0] = val.max(1.0);
+            }
+        }
+        InspectorNumberInputId::UiSizeH => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.size[1] = val.max(1.0);
+            }
+        }
+        InspectorNumberInputId::UiPivotX => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.pivot[0] = val.clamp(0.0, 1.0);
+            }
+        }
+        InspectorNumberInputId::UiPivotY => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.pivot[1] = val.clamp(0.0, 1.0);
+            }
+        }
+        InspectorNumberInputId::UiZIndex => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.z_index = val as i32;
+            }
+        }
+        InspectorNumberInputId::UiAlpha => {
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.alpha = val.clamp(0.0, 1.0);
+            }
+        }
+        InspectorNumberInputId::UiFontSize => {
+            if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiText>(entity) {
+                t.font_size = val.clamp(6.0, 256.0);
+            }
+        }
+        InspectorNumberInputId::UiBorderWidth => {
+            if let Ok(mut p) = world.get::<&mut ae_core::ecs::UiPanel>(entity) {
+                p.border_width = val.max(0.0);
+            }
+        }
+        InspectorNumberInputId::UiCornerRadius => {
+            if let Ok(mut p) = world.get::<&mut ae_core::ecs::UiPanel>(entity) {
+                p.corner_radius = val.max(0.0);
+            }
+        }
+        InspectorNumberInputId::UiProgressMin => {
+            if let Ok(mut pb) = world.get::<&mut ae_core::ecs::UiProgressBar>(entity) {
+                pb.min = val;
+            }
+        }
+        InspectorNumberInputId::UiProgressMax => {
+            if let Ok(mut pb) = world.get::<&mut ae_core::ecs::UiProgressBar>(entity) {
+                pb.max = val;
+            }
+        }
+        InspectorNumberInputId::UiProgressVal => {
+            if let Ok(mut pb) = world.get::<&mut ae_core::ecs::UiProgressBar>(entity) {
+                pb.value = val;
+            }
+        }
         _ => {}
     }
 }
@@ -617,6 +726,34 @@ fn handle_select_dropdown(
             };
             if let Ok(mut s) = world.get::<&mut ae_core::ecs::Shape>(entity) {
                 *s = shp;
+            }
+        }
+        InspectorDropdownId::UiAnchor => {
+            let anchor = match opt_idx {
+                0 => ae_core::ecs::UiAnchor::TopLeft,
+                1 => ae_core::ecs::UiAnchor::TopCenter,
+                2 => ae_core::ecs::UiAnchor::TopRight,
+                3 => ae_core::ecs::UiAnchor::CenterLeft,
+                4 => ae_core::ecs::UiAnchor::Center,
+                5 => ae_core::ecs::UiAnchor::CenterRight,
+                6 => ae_core::ecs::UiAnchor::BottomLeft,
+                7 => ae_core::ecs::UiAnchor::BottomCenter,
+                8 => ae_core::ecs::UiAnchor::BottomRight,
+                _ => ae_core::ecs::UiAnchor::Center,
+            };
+            if let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity) {
+                u.anchor = anchor;
+            }
+        }
+        InspectorDropdownId::UiTextAlignment => {
+            let align = match opt_idx {
+                0 => ae_core::ui::UiTextAlignment::Left,
+                1 => ae_core::ui::UiTextAlignment::Center,
+                2 => ae_core::ui::UiTextAlignment::Right,
+                _ => ae_core::ui::UiTextAlignment::Left,
+            };
+            if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiText>(entity) {
+                t.alignment = align;
             }
         }
         _ => {}

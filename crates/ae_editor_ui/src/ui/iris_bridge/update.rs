@@ -65,6 +65,9 @@ impl IrisEditorOverlay {
             inspector_active_submenu: None,
             inspector_active_dropdown: None,
             inspector_active_number_input: None,
+            inspector_active_text_input: None,
+            shift_held: false,
+            alt_held: false,
             inspector_drag_number: None,
             inspector_edit_start_snapshot: None,
             inspector_rename_buffer: None,
@@ -106,6 +109,13 @@ impl IrisEditorOverlay {
             material_scroll_y: 0.0,
             material_actions: Vec::new(),
             material_selected_entity: None,
+            ui_designer_targets: None,
+            ui_designer_actions: Vec::new(),
+            ui_designer_is_aspect_open: false,
+            ui_designer_is_add_menu_open: false,
+            ui_designer_drag_state: None,
+            ui_designer_is_panning: false,
+            ui_designer_last_cursor: Point::new(0.0, 0.0),
             preferences_pos: None,
             preferences_drag_offset: None,
             preferences_tab: 0,
@@ -156,6 +166,7 @@ impl IrisEditorOverlay {
         self.console_targets = None;
         self.assets_targets = None;
         self.material_targets = None;
+        self.ui_designer_targets = None;
 
         if !self.assets_is_search_focused {
             self.assets_search_query = params.asset_browser.search_query.clone();
@@ -314,6 +325,10 @@ impl IrisEditorOverlay {
                 .inspector_active_number_input
                 .as_ref()
                 .map(|(id, s)| (*id, s.as_str()));
+            let text_input_ref = self
+                .inspector_active_text_input
+                .as_ref()
+                .map(|(id, s)| (*id, s.as_str()));
             let rename_buf_ref = self.inspector_rename_buffer.as_deref();
             let hex_buf_ref = self.inspector_hex_buffer.as_deref();
 
@@ -331,6 +346,7 @@ impl IrisEditorOverlay {
                 is_add_menu_open: self.inspector_is_add_menu_open,
                 is_color_picker_open: self.inspector_is_color_picker_open,
                 active_number_input: num_input_ref,
+                active_text_input: text_input_ref,
                 active_rename_buffer: rename_buf_ref,
                 active_hex_buffer: hex_buf_ref,
                 inspector_hsv: self.inspector_hsv,
@@ -504,6 +520,25 @@ impl IrisEditorOverlay {
             self.material_targets = None;
         }
 
+        // 5f. If 2D Visual UI Designer panel is active in dock, build its native Iris UI tree
+        if let Some(designer_rect) = params.ui_designer_panel_rect {
+            let designer_params = super::ui_designer::UiDesignerPanelParams {
+                panel_rect: designer_rect,
+                world: params.world,
+                selected_entity: params.selected_entity,
+                cursor_pos: self.cursor_pos,
+                state: params.ui_designer_state,
+                is_aspect_dropdown_open: self.ui_designer_is_aspect_open,
+                is_add_menu_open: self.ui_designer_is_add_menu_open,
+            };
+
+            let targets =
+                super::ui_designer::build_ui_designer_panel(&mut self.tree, root, &designer_params);
+            self.ui_designer_targets = Some(targets);
+        } else {
+            self.ui_designer_targets = None;
+        }
+
         // 6. FLOATING OVERLAYS (Rendered on top of docked panels):
         // 6a. If a dropdown menu is open, build its floating popup
         if let Some(active) = self.active_menu {
@@ -658,6 +693,27 @@ impl IrisEditorOverlay {
                 let _ = self.tree.add_child(root_id, loading_id);
             }
             self.loading_targets = Some(targets);
+        }
+
+        // 6h. Hierarchy Add Menu and Context Menu (Rendered as topmost floating overlays)
+        if let Some(ref mut hier_targets) = self.hierarchy_targets
+            && let Some(hier_rect) = params.hierarchy_panel_rect
+        {
+            let hier_params = hierarchy::HierarchyPanelParams {
+                panel_rect: hier_rect,
+                world: params.world,
+                selected_entity: params.selected_entity,
+                search_query: &self.hierarchy_search_query,
+                is_editing: params.is_editing,
+                scroll_y: self.hierarchy_scroll_y,
+                active_submenu: self.hierarchy_active_submenu,
+                is_add_menu_open: self.hierarchy_is_add_menu_open,
+                active_context_menu: self.hierarchy_active_context_menu,
+                cursor_pos: self.cursor_pos,
+                is_search_focused: self.hierarchy_is_search_focused,
+                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+            };
+            hierarchy::build_hierarchy_overlays(&mut self.tree, root, &hier_params, hier_targets);
         }
 
         // Populate DrawCommandList from resolved layout nodes

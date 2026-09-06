@@ -120,7 +120,7 @@ pub fn draw_designer_toolbar(ui: &mut egui::Ui, ctx: &mut UiDesignerContext<'_>)
         }
         if ui.button("100%").on_hover_text("Reset Zoom").clicked() {
             ctx.state.zoom = 1.0;
-            ctx.state.pan_offset = egui::Vec2::ZERO;
+            ctx.state.pan_offset = [0.0, 0.0];
         }
 
         ui.separator();

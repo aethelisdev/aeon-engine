@@ -43,4 +43,9 @@ impl IrisEditorOverlay {
     pub fn take_material_actions(&mut self) -> Vec<super::material::MaterialAction> {
         std::mem::take(&mut self.material_actions)
     }
+
+    /// Consumes and returns all queued 2D Visual UI Designer panel actions.
+    pub fn take_ui_designer_actions(&mut self) -> Vec<super::ui_designer::UiDesignerAction> {
+        std::mem::take(&mut self.ui_designer_actions)
+    }
 }

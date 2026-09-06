@@ -62,13 +62,23 @@ pub fn build_hierarchy_panel(
     // 4. Footer Status Line
     build_hierarchy_footer(tree, root_id, total_objects, params);
 
-    // 5. Right-Click Entity Context Menu (if open)
-    build_context_menu(tree, root_id, params, targets);
-
-    // 6. Cascading `➕` Add Entity Dropdown Menu (if open)
-    build_add_menu(tree, root_id, params, targets);
-
     HierarchyPanelNodes { root_id }
+}
+
+/// Builds floating overlays for the Scene Hierarchy panel (Context Menu and Add Menu).
+/// Ensures menus are attached to the root layer on top of all docked panels,
+/// preventing any bleed-through or clipping by neighboring dock tabs.
+pub fn build_hierarchy_overlays(
+    tree: &mut UiTree,
+    overlay_root: WidgetId,
+    params: &HierarchyPanelParams<'_>,
+    targets: &mut HierarchyPanelTargets,
+) {
+    // 1. Right-Click Entity Context Menu (if open)
+    build_context_menu(tree, overlay_root, params, targets);
+
+    // 2. Cascading `➕` Add Entity Dropdown Menu (if open)
+    build_add_menu(tree, overlay_root, params, targets);
 }
 
 /// Handles interactive mouse clicks on the Scene Hierarchy panel.

@@ -10,6 +10,7 @@ pub mod menubar;
 pub mod modals;
 pub mod preferences;
 pub mod timeline;
+pub mod ui_designer;
 
 use super::hierarchy::{self, HierarchyAction};
 use super::stats::StatsPanelAction;
@@ -117,6 +118,21 @@ impl IrisEditorOverlay {
         {
             return true;
         }
+        if let Some(ref targets) = self.ui_designer_targets {
+            if let Some(ref popup_r) = targets.aspect_popup_rect
+                && popup_r.contains_point(point)
+            {
+                return true;
+            }
+            if let Some(ref popup_r) = targets.add_popup_rect
+                && popup_r.contains_point(point)
+            {
+                return true;
+            }
+            if targets.panel_rect.contains_point(point) {
+                return true;
+            }
+        }
         if let Some(ref targets) = self.inspector_targets {
             if let Some(picker_rect) = targets.color_picker_popup_rect
                 && picker_rect.contains_point(point)
@@ -156,6 +172,12 @@ impl IrisEditorOverlay {
     pub fn handle_event(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
         let mut result = IrisOverlayEventResult::default();
 
+        // Track modifier keys for accelerated / fine-tune dragging
+        if let WindowEvent::ModifiersChanged(modifiers) = event {
+            self.shift_held = modifiers.state().shift_key();
+            self.alt_held = modifiers.state().alt_key();
+        }
+
         // ALWAYS update real-time cursor_pos at the very start of handle_event
         if let WindowEvent::CursorMoved { position, .. } = event {
             self.cursor_pos = Point::new(position.x as f32, position.y as f32);
@@ -166,7 +188,14 @@ impl IrisEditorOverlay {
                 if delta.abs() > 2.0 {
                     drag.has_dragged = true;
                     self.inspector_active_number_input = None;
-                    let new_val = (drag.start_val + delta * drag.sensitivity)
+                    let speed_mult = if self.shift_held {
+                        5.0
+                    } else if self.alt_held {
+                        0.1
+                    } else {
+                        1.0
+                    };
+                    let new_val = (drag.start_val + delta * drag.sensitivity * speed_mult)
                         .clamp(drag.min_val, drag.max_val);
                     self.inspector_actions
                         .push(super::inspector::InspectorAction::SetNumberValue(
@@ -456,6 +485,11 @@ impl IrisEditorOverlay {
             return material_res;
         }
 
+        // 0g6. If 2D Visual UI Designer panel is active, handle UI Designer window events
+        if let Some(ui_designer_res) = self.handle_ui_designer_window_event(event) {
+            return ui_designer_res;
+        }
+
         // 0h. Mouse Wheel scrolling for Stats panel, Hierarchy panel, and Preferences dialog
         if let WindowEvent::MouseWheel { delta, .. } = event {
             let delta_y = match delta {
@@ -542,8 +576,9 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 0k. Inspector Keyboard Input (Number input editing, Entity Rename, and Hex color input)
+        // 0k. Inspector Keyboard Input (Number input editing, Text field editing, Entity Rename, and Hex color input)
         if self.inspector_active_number_input.is_some()
+            || self.inspector_active_text_input.is_some()
             || self.inspector_rename_buffer.is_some()
             || self.inspector_hex_buffer.is_some()
         {
@@ -555,6 +590,11 @@ impl IrisEditorOverlay {
                                 buf.push(c);
                             }
                         }
+                        result.consumed = true;
+                        return result;
+                    }
+                    if let Some((_, ref mut buf)) = self.inspector_active_text_input {
+                        buf.push_str(text);
                         result.consumed = true;
                         return result;
                     }
@@ -583,6 +623,42 @@ impl IrisEditorOverlay {
                         },
                     ..
                 } => {
+                    if self.inspector_active_text_input.is_some() {
+                        match *key {
+                            winit::keyboard::KeyCode::Escape => {
+                                self.inspector_active_text_input = None;
+                                result.consumed = true;
+                                return result;
+                            }
+                            winit::keyboard::KeyCode::Enter
+                            | winit::keyboard::KeyCode::NumpadEnter => {
+                                if let Some((id, buf)) = self.inspector_active_text_input.take() {
+                                    self.inspector_actions.push(
+                                        super::inspector::InspectorAction::SetTextValue(id, buf),
+                                    );
+                                }
+                                result.consumed = true;
+                                return result;
+                            }
+                            winit::keyboard::KeyCode::Backspace => {
+                                if let Some((_, ref mut buf)) = self.inspector_active_text_input {
+                                    buf.pop();
+                                }
+                                result.consumed = true;
+                                return result;
+                            }
+                            _ => {
+                                if let Some(t) = text
+                                    && let Some((_, ref mut buf)) = self.inspector_active_text_input
+                                    && !t.chars().any(|c| c.is_control())
+                                {
+                                    buf.push_str(t);
+                                    result.consumed = true;
+                                    return result;
+                                }
+                            }
+                        }
+                    }
                     if self.inspector_active_number_input.is_some() {
                         match *key {
                             winit::keyboard::KeyCode::Escape => {
@@ -828,7 +904,26 @@ impl IrisEditorOverlay {
                 }
             }
 
-            // 2. Check if a number input box is clicked
+            // 2. Check if a string text input box is clicked
+            for &(text_id, box_rect, ref cur_val) in &insp_targets.text_inputs {
+                if box_rect.contains_point(click_point) {
+                    if let Some((prev_id, prev_buf)) = self.inspector_active_text_input.take()
+                        && prev_id != text_id
+                    {
+                        self.inspector_actions.push(
+                            super::inspector::InspectorAction::SetTextValue(prev_id, prev_buf),
+                        );
+                    }
+                    self.inspector_active_text_input = Some((text_id, cur_val.clone()));
+                    self.inspector_active_number_input = None;
+                    self.inspector_rename_buffer = None;
+                    self.inspector_hex_buffer = None;
+                    result.consumed = true;
+                    return result;
+                }
+            }
+
+            // 2b. Check if a number input box is clicked
             for &(num_id, box_rect, min_val, max_val, cur_val) in &insp_targets.number_inputs {
                 if box_rect.contains_point(click_point) {
                     // If switching from another active number input, commit previous first
@@ -843,6 +938,20 @@ impl IrisEditorOverlay {
                             .push(super::inspector::InspectorAction::CommitNumberEdit(prev_id));
                     }
                     let sensitivity = match num_id {
+                        super::inspector::InspectorNumberInputId::UiOffsetX
+                        | super::inspector::InspectorNumberInputId::UiOffsetY
+                        | super::inspector::InspectorNumberInputId::UiSizeW
+                        | super::inspector::InspectorNumberInputId::UiSizeH => 1.0,
+                        super::inspector::InspectorNumberInputId::UiFontSize
+                        | super::inspector::InspectorNumberInputId::UiBorderWidth
+                        | super::inspector::InspectorNumberInputId::UiCornerRadius
+                        | super::inspector::InspectorNumberInputId::UiProgressVal
+                        | super::inspector::InspectorNumberInputId::UiProgressMin
+                        | super::inspector::InspectorNumberInputId::UiProgressMax
+                        | super::inspector::InspectorNumberInputId::UiZIndex => 0.5,
+                        super::inspector::InspectorNumberInputId::UiAlpha
+                        | super::inspector::InspectorNumberInputId::UiPivotX
+                        | super::inspector::InspectorNumberInputId::UiPivotY => 0.01,
                         super::inspector::InspectorNumberInputId::RotX
                         | super::inspector::InspectorNumberInputId::RotY
                         | super::inspector::InspectorNumberInputId::RotZ
@@ -852,8 +961,8 @@ impl IrisEditorOverlay {
                         | super::inspector::InspectorNumberInputId::ScaleZ => 0.01,
                         super::inspector::InspectorNumberInputId::PosX
                         | super::inspector::InspectorNumberInputId::PosY
-                        | super::inspector::InspectorNumberInputId::PosZ
-                        | super::inspector::InspectorNumberInputId::RigidBodyMass
+                        | super::inspector::InspectorNumberInputId::PosZ => 0.1,
+                        super::inspector::InspectorNumberInputId::RigidBodyMass
                         | super::inspector::InspectorNumberInputId::RigidBodyGravity
                         | super::inspector::InspectorNumberInputId::ColliderBoxX
                         | super::inspector::InspectorNumberInputId::ColliderBoxY
@@ -861,7 +970,7 @@ impl IrisEditorOverlay {
                         | super::inspector::InspectorNumberInputId::ColliderHalfHeight
                         | super::inspector::InspectorNumberInputId::ColliderRadius
                         | super::inspector::InspectorNumberInputId::ColliderCenterY => 0.05,
-                        _ => 0.02,
+                        _ => 0.05,
                     };
                     self.inspector_actions
                         .push(super::inspector::InspectorAction::StartNumberEdit(num_id));
@@ -888,6 +997,12 @@ impl IrisEditorOverlay {
                     .push(super::inspector::InspectorAction::SetNumberValue(id, v));
                 self.inspector_actions
                     .push(super::inspector::InspectorAction::CommitNumberEdit(id));
+            }
+
+            // If click was outside text input while editing, commit value
+            if let Some((id, buf)) = self.inspector_active_text_input.take() {
+                self.inspector_actions
+                    .push(super::inspector::InspectorAction::SetTextValue(id, buf));
             }
 
             // If click was outside hex input while editing, commit value

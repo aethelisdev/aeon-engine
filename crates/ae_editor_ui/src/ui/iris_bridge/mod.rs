@@ -23,6 +23,7 @@ pub mod stats;
 pub mod status_bar;
 pub mod timeline;
 pub mod types;
+pub mod ui_designer;
 pub mod update;
 pub mod viewport_hud;
 
@@ -36,7 +37,8 @@ pub use console::{
 };
 pub use hierarchy::{
     AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow,
-    build_hierarchy_panel, handle_hierarchy_click, handle_hierarchy_hover,
+    build_hierarchy_overlays, build_hierarchy_panel, handle_hierarchy_click,
+    handle_hierarchy_hover,
 };
 pub use icons::*;
 pub use material::{
@@ -57,6 +59,11 @@ pub use timeline::{
 };
 pub use types::{
     ActiveMenu, DropdownAction, IrisEditorOverlay, IrisOverlayEventResult, OverlayUpdateParams,
+};
+pub use ui_designer::{
+    CanvasAspectRatio, UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelTargets,
+    UiDesignerState, UiDragState, UiElementType, build_ui_designer_panel, handle_ui_designer_click,
+    handle_ui_designer_drag, handle_ui_designer_scroll,
 };
 pub use viewport_hud::{
     ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets,

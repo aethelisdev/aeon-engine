@@ -9,7 +9,6 @@ use egui::{Color32, CornerRadius, Rect, Stroke};
 /// Tab viewer context struct binding engine runtime state to `egui_dock`.
 pub struct EditorTabViewer<'a> {
     pub world: &'a hecs::World,
-    pub selected_entity: &'a mut Option<hecs::Entity>,
     pub is_editing: bool,
     pub ui_actions: &'a mut Vec<EngineUiAction>,
     pub camera: &'a ae_renderer::camera::Camera,
@@ -24,8 +23,8 @@ pub struct EditorTabViewer<'a> {
     pub console_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub assets_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub timeline_rect_out: &'a std::cell::Cell<Option<Rect>>,
+    pub ui_designer_rect_out: &'a std::cell::Cell<Option<Rect>>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
-    pub ui_designer_state: &'a mut crate::ui::panels::UiDesignerState,
 }
 
 impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
@@ -142,15 +141,9 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 ui.allocate_space(rect.size());
             }
             PanelId::UiDesigner => {
-                crate::ui::panels::draw_ui_designer_panel(
-                    ui,
-                    &mut crate::ui::panels::UiDesignerContext {
-                        world: self.world,
-                        selected_entity: *self.selected_entity,
-                        ui_actions: self.ui_actions,
-                        state: self.ui_designer_state,
-                    },
-                );
+                let rect = ui.available_rect_before_wrap();
+                self.ui_designer_rect_out.set(Some(rect));
+                ui.allocate_space(rect.size());
             }
         }
     }

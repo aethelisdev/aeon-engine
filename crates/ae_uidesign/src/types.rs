@@ -126,4 +126,18 @@ pub enum UiDesignerAction {
         entity: hecs::Entity,
         offset: [f32; 2],
     },
+    /// Sets the target canvas aspect ratio preset.
+    SetAspectRatio(CanvasAspectRatio),
+    /// Sets the canvas zoom factor.
+    SetZoom(f32),
+    /// Toggles the background grid display.
+    ToggleGrid,
+    /// Toggles visual anchor guidelines and pins.
+    ToggleAnchorGuides,
+    /// Cycles through grid snap presets (Free, 8px, 16px, 32px).
+    CycleGridSnap,
+    /// Resets the pan offset and zoom to standard 1.0x centered view.
+    ResetView,
+    /// Adjusts the 2D pan offset in pixels.
+    PanCanvas([f32; 2]),
 }

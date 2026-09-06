@@ -207,6 +207,20 @@ pub struct IrisEditorOverlay {
     pub material_actions: Vec<super::material::MaterialAction>,
     /// Selected entity handle cached for material panel interactions.
     pub material_selected_entity: Option<hecs::Entity>,
+    /// Cached interaction targets for 2D Visual UI Designer panel.
+    pub ui_designer_targets: Option<super::ui_designer::UiDesignerPanelTargets>,
+    /// Dispatched action queue for 2D Visual UI Designer panel interactions.
+    pub ui_designer_actions: Vec<super::ui_designer::UiDesignerAction>,
+    /// Whether the Aspect Ratio dropdown popup is open in the UI Designer.
+    pub ui_designer_is_aspect_open: bool,
+    /// Whether the Add Element palette popup is open in the UI Designer.
+    pub ui_designer_is_add_menu_open: bool,
+    /// Active element dragging state in the UI Designer.
+    pub ui_designer_drag_state: Option<ae_uidesign::UiDragState>,
+    /// Whether user is currently panning the UI Designer virtual canvas.
+    pub ui_designer_is_panning: bool,
+    /// Last mouse cursor coordinates recorded during UI Designer dragging or panning.
+    pub ui_designer_last_cursor: Point,
     /// Cached interaction targets for Scene Inspector panel.
     pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
     /// Content area vertical scroll offset for Scene Inspector panel.
@@ -219,6 +233,12 @@ pub struct IrisEditorOverlay {
     pub inspector_active_dropdown: Option<super::inspector::InspectorDropdownId>,
     /// Currently active number input editing state in Inspector: `(id, buffer)`.
     pub inspector_active_number_input: Option<(super::inspector::InspectorNumberInputId, String)>,
+    /// Currently active string text input editing state in Inspector: `(id, buffer)`.
+    pub inspector_active_text_input: Option<(super::inspector::InspectorTextInputId, String)>,
+    /// Whether Shift modifier key is currently held down.
+    pub shift_held: bool,
+    /// Whether Alt modifier key is currently held down.
+    pub alt_held: bool,
     /// Active continuous horizontal mouse drag state for Inspector numeric fields.
     pub inspector_drag_number: Option<InspectorNumberDragState>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
@@ -463,6 +483,28 @@ impl IrisEditorOverlay {
             return winit::window::CursorIcon::Pointer;
         }
 
+        // 7. 2D Visual UI Designer interactive items
+        if let Some(ref targets) = self.ui_designer_targets
+            && (targets.btn_aspect.is_some_and(|r| r.contains_point(p))
+                || targets.btn_zoom_out.is_some_and(|r| r.contains_point(p))
+                || targets.btn_zoom_reset.is_some_and(|r| r.contains_point(p))
+                || targets.btn_zoom_in.is_some_and(|r| r.contains_point(p))
+                || targets.btn_snap.is_some_and(|r| r.contains_point(p))
+                || targets.btn_anchors.is_some_and(|r| r.contains_point(p))
+                || targets.btn_grid.is_some_and(|r| r.contains_point(p))
+                || targets.btn_add_element.is_some_and(|r| r.contains_point(p))
+                || targets
+                    .aspect_popup_rect
+                    .is_some_and(|r| r.contains_point(p))
+                || targets.add_popup_rect.is_some_and(|r| r.contains_point(p))
+                || targets
+                    .element_rects
+                    .iter()
+                    .any(|(_, r)| r.contains_point(p)))
+        {
+            return winit::window::CursorIcon::Pointer;
+        }
+
         winit::window::CursorIcon::Default
     }
 }
@@ -533,6 +575,10 @@ pub struct OverlayUpdateParams<'a> {
     pub timeline_panel_rect: Option<Rect>,
     /// Bounding rectangle allocated for the Material & Surface Studio panel, if active.
     pub material_panel_rect: Option<Rect>,
+    /// Bounding rectangle allocated for the 2D Visual UI Designer panel, if active.
+    pub ui_designer_panel_rect: Option<Rect>,
+    /// Reference to persistent UI Designer state for canvas and toolbar rendering.
+    pub ui_designer_state: &'a ae_uidesign::UiDesignerState,
     /// GPU texture asset repository for material panel inspection.
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     /// GPU 3D model asset repository for material panel inspection.

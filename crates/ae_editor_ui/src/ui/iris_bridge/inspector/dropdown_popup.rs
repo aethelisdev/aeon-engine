@@ -102,5 +102,17 @@ fn get_dropdown_options(id: InspectorDropdownId) -> &'static [&'static str] {
         }
         InspectorDropdownId::LightType => &["Point", "Directional", "Spot"],
         InspectorDropdownId::CameraProjection => &["Perspective", "Orthographic"],
+        InspectorDropdownId::UiAnchor => &[
+            "Top-Left",
+            "Top-Center",
+            "Top-Right",
+            "Center-Left",
+            "Center",
+            "Center-Right",
+            "Bottom-Left",
+            "Bottom-Center",
+            "Bottom-Right",
+        ],
+        InspectorDropdownId::UiTextAlignment => &["Left", "Center", "Right"],
     }
 }

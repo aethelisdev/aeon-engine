@@ -87,6 +87,34 @@ pub enum InspectorNumberInputId {
     AudioVolume,
     /// AudioSource pitch playback multiplier (0.1 to 3.0).
     AudioPitch,
+    /// 2D Screen UI Element Offset X (px).
+    UiOffsetX,
+    /// 2D Screen UI Element Offset Y (px).
+    UiOffsetY,
+    /// 2D Screen UI Element Size Width (px).
+    UiSizeW,
+    /// 2D Screen UI Element Size Height (px).
+    UiSizeH,
+    /// 2D Screen UI Element Pivot X (0.0 to 1.0).
+    UiPivotX,
+    /// 2D Screen UI Element Pivot Y (0.0 to 1.0).
+    UiPivotY,
+    /// 2D Screen UI Element Z-Index layer ordering.
+    UiZIndex,
+    /// 2D Screen UI Element Opacity Alpha (0.0 to 1.0).
+    UiAlpha,
+    /// 2D Screen UI Text font size (pt).
+    UiFontSize,
+    /// 2D Screen UI Panel border width (px).
+    UiBorderWidth,
+    /// 2D Screen UI Panel corner radius (px).
+    UiCornerRadius,
+    /// 2D Screen UI ProgressBar minimum value.
+    UiProgressMin,
+    /// 2D Screen UI ProgressBar maximum value.
+    UiProgressMax,
+    /// 2D Screen UI ProgressBar current value.
+    UiProgressVal,
 }
 
 impl InspectorNumberInputId {
@@ -117,6 +145,17 @@ impl InspectorNumberInputId {
             Self::RigidBodyMass | Self::RigidBodyGravity => "RigidBody",
             Self::CameraFov | Self::CameraNear | Self::CameraFar => "Camera",
             Self::AudioVolume | Self::AudioPitch => "AudioSource",
+            Self::UiOffsetX
+            | Self::UiOffsetY
+            | Self::UiSizeW
+            | Self::UiSizeH
+            | Self::UiPivotX
+            | Self::UiPivotY
+            | Self::UiZIndex
+            | Self::UiAlpha => "UiElement",
+            Self::UiFontSize => "UiText",
+            Self::UiBorderWidth | Self::UiCornerRadius => "UiPanel",
+            Self::UiProgressMin | Self::UiProgressMax | Self::UiProgressVal => "UiProgressBar",
         }
     }
 }
@@ -136,6 +175,10 @@ pub enum InspectorDropdownId {
     CameraProjection,
     /// 3D Shape Type (Cube, Sphere, Cylinder, Capsule, Torus, Plane).
     ShapeType,
+    /// 2D Screen UI Element Anchor Preset.
+    UiAnchor,
+    /// 2D Screen UI Text horizontal alignment.
+    UiTextAlignment,
 }
 
 impl InspectorDropdownId {
@@ -149,6 +192,8 @@ impl InspectorDropdownId {
             Self::LightType => "Light",
             Self::CameraProjection => "Camera",
             Self::ShapeType => "Shape",
+            Self::UiAnchor => "UiElement",
+            Self::UiTextAlignment => "UiText",
         }
     }
 }
@@ -259,6 +304,28 @@ pub enum InspectorAction {
     ToggleAudioPlayback,
     /// Unparents the inspected entity from its parent.
     Unparent,
+    /// Sets a string text property on a component.
+    SetTextValue(InspectorTextInputId, String),
+}
+
+/// String text input field identifier inside the Inspector panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InspectorTextInputId {
+    /// UiText component string content.
+    UiTextContent,
+    /// UiTextInput component placeholder string.
+    UiTextInputPlaceholder,
+}
+
+impl InspectorTextInputId {
+    /// Returns the canonical ComponentRegistry type name associated with this text field.
+    #[must_use]
+    pub fn component_name(self) -> &'static str {
+        match self {
+            Self::UiTextContent => "UiText",
+            Self::UiTextInputPlaceholder => "UiTextInput",
+        }
+    }
 }
 
 /// Transform axis group for reset actions.
@@ -287,6 +354,8 @@ pub enum ComponentCheckboxId {
     LightCastShadows,
     /// UI Button interactable state.
     UiInteractable,
+    /// UI Element visible state flag.
+    UiVisible,
 }
 
 impl ComponentCheckboxId {
@@ -298,6 +367,7 @@ impl ComponentCheckboxId {
             Self::AudioLoop | Self::AudioSpatial | Self::AudioPlayOnStart => "AudioSource",
             Self::LightCastShadows => "Light",
             Self::UiInteractable => "UiButton",
+            Self::UiVisible => "UiElement",
         }
     }
 }
@@ -330,6 +400,8 @@ pub struct InspectorPanelParams<'a> {
     pub is_color_picker_open: bool,
     /// Active numeric input field and its text editing buffer: `(FieldId, BufferText)`.
     pub active_number_input: Option<(InspectorNumberInputId, &'a str)>,
+    /// Active string text input field and its buffer: `(FieldId, BufferText)`.
+    pub active_text_input: Option<(InspectorTextInputId, &'a str)>,
     /// Active entity rename text buffer if currently being edited.
     pub active_rename_buffer: Option<&'a str>,
     /// Active HEX color text input editing buffer (e.g. `"#ffffff"`).
@@ -351,6 +423,8 @@ pub struct InspectorPanelTargets {
     pub transform_reset_btns: Vec<(TransformAxisType, Rect)>,
     /// Numeric drag/input pill boxes: `(FieldId, Rect, Min, Max, CurrentValue)`.
     pub number_inputs: Vec<(InspectorNumberInputId, Rect, f32, f32, f32)>,
+    /// String text input boxes: `(FieldId, Rect, CurrentValue)`.
+    pub text_inputs: Vec<(InspectorTextInputId, Rect, String)>,
     /// Color swatch box hit-test rect on the Appearance card.
     pub color_swatch_rect: Option<Rect>,
     /// Hex input box hit-test rect on the Appearance card.
