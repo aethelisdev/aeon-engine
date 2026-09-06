@@ -110,7 +110,7 @@ impl EngineUi {
                 .borrow_mut()
                 .push(bottom_resp.response.rect);
 
-            // 3. Central Tree Docking System (egui_dock - Tree-based split tab layout)
+            // 3. Central Tree Docking System (iris-dock - Tree-based split tab layout)
             let mut tab_viewer = docking::EditorTabViewer {
                 world: params.world,
                 is_editing,

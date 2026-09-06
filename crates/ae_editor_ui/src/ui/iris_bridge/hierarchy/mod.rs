@@ -45,7 +45,9 @@ pub fn build_hierarchy_panel(
     if let Some(node) = tree.get_mut(root_id) {
         node.set_name("HierarchyPanelRoot");
         node.computed_rect = params.panel_rect;
-        node.style = Style::new().background(Color::rgba(0.06, 0.07, 0.09, 1.0));
+        node.style = Style::new()
+            .background(Color::rgba(0.06, 0.07, 0.09, 1.0))
+            .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);
 

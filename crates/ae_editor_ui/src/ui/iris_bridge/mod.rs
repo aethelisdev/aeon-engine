@@ -11,6 +11,7 @@ pub mod actions;
 pub mod assets;
 pub mod console;
 pub mod events;
+pub mod floating_layer;
 pub mod hierarchy;
 pub mod icons;
 pub mod inspector;
@@ -25,6 +26,7 @@ pub mod timeline;
 pub mod types;
 pub mod ui_designer;
 pub mod update;
+pub mod update_panels;
 pub mod viewport_hud;
 
 pub use about::{AboutDialogTargets, build_about_dialog};

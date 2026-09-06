@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// Tree Docking Coordinator (`egui_dock` — Multi-zone split and tab dock layout)
-/// Implements `egui_dock::TabViewer` for all Aeon Engine panels and the central 3D Viewport.
+
+//! Tree Docking Coordinator (`iris-dock` — Multi-zone split and tab dock layout).
+//!
+//! Implements `irisui::dock::TabViewer` for all Aeon Engine panels and the central 3D Viewport.
+//!
+
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use crate::ui::{EngineUi, EngineUiAction};
-use egui::{Color32, CornerRadius, Rect, Stroke};
+use egui::{Color32, Pos2, Rect};
 
-/// Tab viewer context struct binding engine runtime state to `egui_dock`.
+/// Tab viewer context struct binding engine runtime state to `iris-dock`.
 pub struct EditorTabViewer<'a> {
     pub world: &'a hecs::World,
     pub is_editing: bool,
@@ -27,30 +31,27 @@ pub struct EditorTabViewer<'a> {
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
 }
 
-impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
-    type Tab = PanelId;
-
-    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
-        egui::Id::new(format!("tab_{:?}", tab))
-    }
-
-    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        format!("{} {}", tab.icon(), tab.title()).into()
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-        match tab {
+impl<'a> EditorTabViewer<'a> {
+    /// Renders panel content into the allocated rectangle or registers its bounding box for Iris UI SDF overlay rendering.
+    pub fn render_content(&mut self, ui: &mut egui::Ui, panel: PanelId, content_rect: Rect) {
+        match panel {
             PanelId::Viewport => {
-                let rect = ui.available_rect_before_wrap();
+                let rect = content_rect;
                 if let Some(texture_id) = self.viewport_texture_id {
-                    ui.image(egui::load::SizedTexture {
-                        id: texture_id,
-                        size: rect.size(),
-                    });
+                    ui.painter().image(
+                        texture_id,
+                        rect,
+                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
                 } else {
-                    ui.centered_and_justified(|ui| {
-                        ui.label("Rendering viewport...");
-                    });
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Rendering viewport...",
+                        egui::FontId::proportional(14.0),
+                        Color32::GRAY,
+                    );
                 }
                 self.viewport_rect_out.set(rect);
 
@@ -106,104 +107,59 @@ impl<'a> egui_dock::TabViewer for EditorTabViewer<'a> {
                 }
             }
             PanelId::Hierarchy => {
-                let rect = ui.available_rect_before_wrap();
-                self.hierarchy_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.hierarchy_rect_out.set(Some(content_rect));
             }
             PanelId::Stats => {
-                let rect = ui.available_rect_before_wrap();
-                self.stats_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.stats_rect_out.set(Some(content_rect));
             }
             PanelId::Inspector => {
-                let rect = ui.available_rect_before_wrap();
-                self.inspector_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.inspector_rect_out.set(Some(content_rect));
             }
             PanelId::MaterialEditor => {
-                let rect = ui.available_rect_before_wrap();
-                self.material_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.material_rect_out.set(Some(content_rect));
             }
             PanelId::Assets => {
-                let rect = ui.available_rect_before_wrap();
-                self.assets_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.assets_rect_out.set(Some(content_rect));
             }
             PanelId::Console => {
-                let rect = ui.available_rect_before_wrap();
-                self.console_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.console_rect_out.set(Some(content_rect));
             }
             PanelId::AnimationTimeline => {
-                let rect = ui.available_rect_before_wrap();
-                self.timeline_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.timeline_rect_out.set(Some(content_rect));
             }
             PanelId::UiDesigner => {
-                let rect = ui.available_rect_before_wrap();
-                self.ui_designer_rect_out.set(Some(rect));
-                ui.allocate_space(rect.size());
+                self.ui_designer_rect_out.set(Some(content_rect));
             }
         }
     }
+}
 
-    fn is_closeable(&self, tab: &Self::Tab) -> bool {
+impl<'a> irisui::dock::TabViewer<PanelId> for EditorTabViewer<'a> {
+    fn title(&self, tab: &PanelId) -> String {
+        format!("{} {}", tab.icon(), tab.title())
+    }
+
+    fn closeable(&self, tab: &PanelId) -> bool {
         *tab != PanelId::Viewport
     }
 
-    fn clear_background(&self, tab: &Self::Tab) -> bool {
+    fn on_close(&mut self, tab: &mut PanelId) -> bool {
+        *tab != PanelId::Viewport
+    }
+
+    fn clear_background(&self, tab: &PanelId) -> bool {
         // Viewport clears its own RTT background
         *tab != PanelId::Viewport
     }
 }
 
-/// Configures the visual style of the `egui_dock` tree to match the Aeon Dark Cyan theme.
-pub fn create_aeon_dock_style(ctx: &egui::Context) -> egui_dock::Style {
-    let mut style = egui_dock::Style::from_egui(ctx.global_style().as_ref());
-
-    // 1. Tab Bar & Main Surface
-    style.tab_bar.bg_fill = Color32::from_rgb(15, 15, 20);
-    style.tab_bar.height = 24.0;
-    style.main_surface_border_stroke = Stroke::new(1.0, Color32::from_rgb(45, 48, 60));
-
-    // 2. Resizable Split Dividers
-    style.separator.color_idle = Color32::from_rgb(45, 48, 60);
-    style.separator.color_hovered = Color32::from_rgb(0, 229, 255);
-    style.separator.color_dragged = Color32::from_rgb(0, 229, 255);
-    style.separator.width = 2.0;
-    style.separator.extra = 4.0;
-
-    // 3. Tab Styling & Aeon Cyan Line Highlight
-    style.tab.tab_body.bg_fill = Color32::from_rgb(20, 20, 25);
-    style.tab.tab_body.corner_radius = CornerRadius {
-        nw: 4,
-        ne: 4,
-        sw: 0,
-        se: 0,
-    };
-    style.tab.active.text_color = Color32::from_rgb(0, 229, 255);
-    style.tab.active.bg_fill = Color32::from_rgb(20, 20, 25);
-    style.tab.focused.text_color = Color32::from_rgb(0, 229, 255);
-    style.tab.focused.bg_fill = Color32::from_rgb(20, 20, 25);
-    style.tab.inactive.text_color = Color32::from_rgb(160, 160, 175);
-    style.tab.inactive.bg_fill = Color32::from_rgb(18, 19, 24);
-    style.tab.hovered.text_color = Color32::WHITE;
-    style.tab.hovered.bg_fill = Color32::from_rgb(28, 30, 38);
-
-    style
-}
-
 impl EngineUi {
-    /// Renders the complete tree docking system using `egui_dock`.
+    /// Renders the complete tree docking system using native `iris-dock`.
     pub(super) fn draw_docking_system(
         ui: &mut egui::Ui,
         layout_state: &mut PanelLayoutState,
         tab_viewer: &mut EditorTabViewer<'_>,
     ) {
-        let style = create_aeon_dock_style(ui.ctx());
-        egui_dock::DockArea::new(&mut layout_state.dock_state)
-            .style(style)
-            .show_inside(ui, tab_viewer);
+        crate::ui::docking_render::render_iris_dock(ui, layout_state, tab_viewer);
     }
 }

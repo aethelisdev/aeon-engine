@@ -303,6 +303,8 @@ pub struct IrisEditorOverlay {
     pub viewport_is_search_focused: bool,
     /// Texture resources and bind group for the editor tools icon atlas (`editor_tools.png`).
     pub tools_texture: Option<(wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
+    /// Active bounding rectangles of all independent floating windows for solid occlusion and text culling.
+    pub floating_window_rects: Vec<Rect>,
 }
 
 impl IrisEditorOverlay {

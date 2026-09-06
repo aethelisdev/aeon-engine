@@ -218,6 +218,20 @@ impl EngineUi {
         }
 
         // 3. Floating dialogs (Preferences, About, Loading overlay, etc.)
-        self.ui_rects.iter().any(|rect| rect.contains(pos))
+        if self.ui_rects.iter().any(|rect| rect.contains(pos)) {
+            return true;
+        }
+
+        // 4. Detached floating windows
+        self.layout_state
+            .dock_state
+            .floating_windows
+            .iter()
+            .any(|w| {
+                pos.x >= w.rect.x
+                    && pos.x <= w.rect.x + w.rect.width
+                    && pos.y >= w.rect.y
+                    && pos.y <= w.rect.y + w.rect.height
+            })
     }
 }

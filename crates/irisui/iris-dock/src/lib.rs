@@ -11,15 +11,39 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod context_menu;
 pub mod drag_drop;
+pub mod floating;
 pub mod layout;
+pub mod navigator;
 pub mod state;
+pub mod style;
+pub mod tab_bar;
+pub mod tab_viewer;
 pub mod tree;
 pub mod viewport;
 
-pub use drag_drop::{DockDragState, DropZone, calculate_drop_preview_rect, calculate_drop_zone};
-pub use layout::{ComputedDockLayout, LeafLayoutInfo, SplitterLayoutInfo, compute_dock_layout};
+pub use context_menu::{TabContextMenuAction, TabContextMenuState};
+pub use drag_drop::{
+    DockDragState, DropZone, calculate_drop_preview_rect, calculate_drop_zone,
+    calculate_leaf_half_drop_zone, calculate_screen_drop_zone,
+};
+pub use floating::FloatingWindow;
+pub use layout::{
+    ComputedDockLayout, ComputedFloatingLayout, DockLayoutOptions, LeafLayoutInfo,
+    SplitterLayoutInfo, compute_dock_layout, compute_dock_layout_advanced,
+    compute_dock_layout_with_options, compute_dock_layout_with_viewer, compute_floating_layouts,
+};
+pub use navigator::{
+    DockNavigatorGeometry, DockNavigatorStyle, FloatingTabBadgeParams, build_dock_navigator_nodes,
+    build_drop_preview_node, build_floating_tab_badge, hit_test_navigator,
+};
 pub use state::{ActiveSplitterDrag, DockState};
+pub use style::DockStyle;
+pub use tab_bar::{
+    TabBarLayoutInfo, TabLayoutInfo, calculate_tab_reorder_index, compute_tab_bar_layout,
+};
+pub use tab_viewer::{SimpleTabViewer, TabViewer};
 pub use tree::{DockError, DockNode, DockNodeId, DockTree, SplitDirection};
 pub use viewport::{FloatingDockWindow, FloatingWindowId, MultiViewportManager};
 

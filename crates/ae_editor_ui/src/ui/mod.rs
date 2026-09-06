@@ -12,6 +12,8 @@ pub mod panels;
 pub mod workbench;
 
 pub(crate) mod docking;
+pub(crate) mod docking_floating;
+pub(crate) mod docking_render;
 pub mod menubar;
 pub(crate) mod style;
 pub mod types;

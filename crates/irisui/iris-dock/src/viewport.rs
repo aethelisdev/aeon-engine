@@ -96,7 +96,7 @@ impl<T: Clone + PartialEq> MultiViewportManager<T> {
             .remove(&window_id)
             .ok_or(crate::tree::DockError::NodeNotFound)?;
 
-        let tabs_to_dock = window.tree.all_tabs();
+        let mut tabs_to_dock = window.tree.all_tabs();
 
         if tabs_to_dock.is_empty() {
             return Ok(());
@@ -108,37 +108,25 @@ impl<T: Clone + PartialEq> MultiViewportManager<T> {
                     self.main_tree.add_tab(target_leaf, tab)?;
                 }
             }
-            crate::drag_drop::DropZone::Left => {
-                self.main_tree.split(
-                    target_leaf,
-                    crate::tree::SplitDirection::Horizontal,
-                    0.5,
-                    tabs_to_dock,
-                )?;
+            crate::drag_drop::DropZone::Left
+            | crate::drag_drop::DropZone::Right
+            | crate::drag_drop::DropZone::Top
+            | crate::drag_drop::DropZone::Bottom => {
+                let first_tab = tabs_to_dock.remove(0);
+                let new_leaf = self.main_tree.dock_tab(target_leaf, drop_zone, first_tab)?;
+                for tab in tabs_to_dock {
+                    self.main_tree.add_tab(new_leaf, tab)?;
+                }
             }
-            crate::drag_drop::DropZone::Right => {
-                self.main_tree.split(
-                    target_leaf,
-                    crate::tree::SplitDirection::Horizontal,
-                    0.5,
-                    tabs_to_dock,
-                )?;
-            }
-            crate::drag_drop::DropZone::Top => {
-                self.main_tree.split(
-                    target_leaf,
-                    crate::tree::SplitDirection::Vertical,
-                    0.5,
-                    tabs_to_dock,
-                )?;
-            }
-            crate::drag_drop::DropZone::Bottom => {
-                self.main_tree.split(
-                    target_leaf,
-                    crate::tree::SplitDirection::Vertical,
-                    0.5,
-                    tabs_to_dock,
-                )?;
+            crate::drag_drop::DropZone::ScreenLeft
+            | crate::drag_drop::DropZone::ScreenRight
+            | crate::drag_drop::DropZone::ScreenTop
+            | crate::drag_drop::DropZone::ScreenBottom => {
+                let first_tab = tabs_to_dock.remove(0);
+                let new_leaf = self.main_tree.dock_root(drop_zone, first_tab)?;
+                for tab in tabs_to_dock {
+                    self.main_tree.add_tab(new_leaf, tab)?;
+                }
             }
         }
 

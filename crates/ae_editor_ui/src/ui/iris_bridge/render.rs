@@ -7,6 +7,15 @@ use super::types::IrisEditorOverlay;
 use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSection};
 
+/// Context parameters for recursive text section extraction.
+struct TextCollectionContext<'a> {
+    clip_rect: Option<Rect>,
+    active_popup_rects: &'a [Rect],
+    floating_window_rects: &'a [Rect],
+    is_inside_popup: bool,
+    is_inside_floating: bool,
+}
+
 impl IrisEditorOverlay {
     /// Recursively converts computed node bounds and styles into `DrawCommandList` instances.
     pub(crate) fn populate_draw_commands(&mut self, current: WidgetId, clip_rect: Option<Rect>) {
@@ -98,17 +107,18 @@ impl IrisEditorOverlay {
     pub fn collect_text_sections_from_tree<'a>(
         tree: &'a UiTree,
         active_popup_rects: &[Rect],
+        floating_window_rects: &[Rect],
     ) -> Vec<TextSection<'a>> {
         let mut sections = Vec::new();
         if let Some(root) = tree.root() {
-            Self::collect_node_text_from_tree(
-                tree,
-                root,
-                None,
+            let ctx = TextCollectionContext {
+                clip_rect: None,
                 active_popup_rects,
-                false,
-                &mut sections,
-            );
+                floating_window_rects,
+                is_inside_popup: false,
+                is_inside_floating: false,
+            };
+            Self::collect_node_text_from_tree(tree, root, &ctx, &mut sections);
         }
         sections
     }
@@ -117,9 +127,7 @@ impl IrisEditorOverlay {
     fn collect_node_text_from_tree<'a>(
         tree: &'a UiTree,
         current: WidgetId,
-        clip_rect: Option<Rect>,
-        active_popup_rects: &[Rect],
-        is_inside_popup: bool,
+        ctx: &TextCollectionContext<'_>,
         sections: &mut Vec<TextSection<'a>>,
     ) {
         let Some(node) = tree.get(current) else {
@@ -129,7 +137,7 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let child_is_inside_popup = is_inside_popup
+        let child_is_inside_popup = ctx.is_inside_popup
             || node
                 .name
                 .as_deref()
@@ -151,13 +159,20 @@ impl IrisEditorOverlay {
                 })
                 .unwrap_or(false);
 
+        let child_is_inside_floating = ctx.is_inside_floating
+            || node
+                .name
+                .as_deref()
+                .map(|n| n.starts_with("FloatingWindow"))
+                .unwrap_or(false);
+
         let child_clip = if node.style.clip_children {
-            match clip_rect {
+            match ctx.clip_rect {
                 Some(existing) => Some(existing.intersect(node.computed_rect)),
                 None => Some(node.computed_rect),
             }
         } else {
-            clip_rect
+            ctx.clip_rect
         };
 
         if let Some(text) = &node.text
@@ -165,7 +180,7 @@ impl IrisEditorOverlay {
             && node.computed_rect.width > 0.0
             && node.computed_rect.height > 0.0
         {
-            let is_visible_in_clip = match clip_rect {
+            let is_visible_in_clip = match ctx.clip_rect {
                 Some(clip) => {
                     node.computed_rect.right() > clip.x
                         && node.computed_rect.x < clip.right()
@@ -176,7 +191,7 @@ impl IrisEditorOverlay {
             };
 
             let is_occluded_by_popup = if !child_is_inside_popup {
-                active_popup_rects.iter().any(|popup| {
+                ctx.active_popup_rects.iter().any(|popup| {
                     node.computed_rect.right() > popup.x
                         && node.computed_rect.x < popup.right()
                         && node.computed_rect.bottom() > popup.y
@@ -186,26 +201,38 @@ impl IrisEditorOverlay {
                 false
             };
 
-            if is_visible_in_clip && !is_occluded_by_popup {
+            let is_occluded_by_floating = if !child_is_inside_popup && !child_is_inside_floating {
+                ctx.floating_window_rects.iter().any(|floating| {
+                    node.computed_rect.right() > floating.x
+                        && node.computed_rect.x < floating.right()
+                        && node.computed_rect.bottom() > floating.y
+                        && node.computed_rect.y < floating.bottom()
+                })
+            } else {
+                false
+            };
+
+            if is_visible_in_clip && !is_occluded_by_popup && !is_occluded_by_floating {
                 sections.push(
                     TextSection::new(text.clone(), node.computed_rect)
                         .with_font_size(node.font_size, node.line_height)
                         .with_color(node.text_color)
                         .with_align(node.text_align)
-                        .with_clip(clip_rect),
+                        .with_clip(ctx.clip_rect),
                 );
             }
         }
 
+        let child_ctx = TextCollectionContext {
+            clip_rect: child_clip,
+            active_popup_rects: ctx.active_popup_rects,
+            floating_window_rects: ctx.floating_window_rects,
+            is_inside_popup: child_is_inside_popup,
+            is_inside_floating: child_is_inside_floating,
+        };
+
         for &child in &node.children {
-            Self::collect_node_text_from_tree(
-                tree,
-                child,
-                child_clip,
-                active_popup_rects,
-                child_is_inside_popup,
-                sections,
-            );
+            Self::collect_node_text_from_tree(tree, child, &child_ctx, sections);
         }
     }
 
@@ -280,7 +307,11 @@ impl IrisEditorOverlay {
             }
         }
 
-        let sections = Self::collect_text_sections_from_tree(&self.tree, &active_popups);
+        let sections = Self::collect_text_sections_from_tree(
+            &self.tree,
+            &active_popups,
+            &self.floating_window_rects,
+        );
         if let Some(txt_renderer) = &mut self.text_renderer {
             txt_renderer.prepare(
                 device,

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// Modular panel identification, tree docking state (`egui_dock`),
+/// Modular panel identification, tree docking state (`iris_dock`),
 /// and layout persistence for the Aeon Engine editor interface.
-use egui_dock::DockState;
+use irisui::dock::{DockState, DockTree};
 use serde::{Deserialize, Serialize};
 
 /// Unique identifier for each editor tool panel.
@@ -89,44 +89,58 @@ impl PanelId {
     }
 }
 
-/// Constructs the default tree layout using `egui_dock`.
+/// Constructs the default tree layout using `iris_dock`.
 /// **Layout Topology:**
 /// - Center: `[Viewport, UiDesigner]` (Tabbed 3D & 2D workspace)
 /// - Left Split (15%): `[Hierarchy, Stats]`
 /// - Right Split (19%): `[Inspector, MaterialEditor]`
 /// - Bottom Split (19%): `[Assets, Console, AnimationTimeline]`
 pub fn create_default_dock_state() -> DockState<PanelId> {
-    let mut dock_state = DockState::new(vec![PanelId::Viewport, PanelId::UiDesigner]);
+    let mut tree = DockTree::new();
+    let center = tree.create_leaf(vec![PanelId::Viewport, PanelId::UiDesigner]);
+    tree.set_root(center);
 
-    // Split Left: Hierarchy & Stats (15% width)
-    let [center, _left] = dock_state.main_surface_mut().split_left(
-        egui_dock::NodeIndex::root(),
-        0.15,
-        vec![PanelId::Hierarchy, PanelId::Stats],
-    );
+    // 1. Split Left: Hierarchy (active) + Stats at ratio 0.14 (14% width)
+    let (_left_leaf, center_right) = tree
+        .split_ordered(
+            center,
+            irisui::dock::SplitDirection::Horizontal,
+            0.14,
+            vec![PanelId::Hierarchy, PanelId::Stats],
+            true,
+        )
+        .expect("Left split succeeds");
 
-    // Split Right: Inspector & Material Editor (19% width)
-    let [center, _right] = dock_state.main_surface_mut().split_right(
-        center,
-        0.81,
-        vec![PanelId::Inspector, PanelId::MaterialEditor],
-    );
+    // 2. Split Right: Inspector (active) + Material Editor at ratio 0.82 (18% of remainder, ~15% screen width)
+    let (center_leaf, _right_leaf) = tree
+        .split_ordered(
+            center_right,
+            irisui::dock::SplitDirection::Horizontal,
+            0.82,
+            vec![PanelId::Inspector, PanelId::MaterialEditor],
+            false,
+        )
+        .expect("Right split succeeds");
 
-    // Split Below Center: Assets, Console, Animation Timeline (19% height)
-    let [_center, _bottom] = dock_state.main_surface_mut().split_below(
-        center,
-        0.81,
-        vec![
-            PanelId::Assets,
-            PanelId::Console,
-            PanelId::AnimationTimeline,
-        ],
-    );
+    // 3. Split Below Center: Assets (active) + Console + Animation Timeline at ratio 0.80 (20% of center, ~18% screen height)
+    let (_viewport_leaf, _bottom_leaf) = tree
+        .split_ordered(
+            center_leaf,
+            irisui::dock::SplitDirection::Vertical,
+            0.80,
+            vec![
+                PanelId::Assets,
+                PanelId::Console,
+                PanelId::AnimationTimeline,
+            ],
+            false,
+        )
+        .expect("Bottom split succeeds");
 
-    dock_state
+    DockState::new(tree).with_min_pane_size(60.0)
 }
 
-/// Persistent layout state managing the `egui_dock` tree across the editor.
+/// Persistent layout state managing the `iris_dock` tree across the editor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PanelLayoutState {
     /// Full tree docking state.
@@ -154,15 +168,16 @@ impl PanelLayoutState {
 
     /// Checks if a panel currently exists anywhere in the docking tree.
     pub fn is_panel_visible(&self, panel: PanelId) -> bool {
-        self.dock_state.find_tab(&panel).is_some()
+        self.dock_state.tree.find_tab(&panel).is_some()
     }
 
     /// Focuses an existing panel tab in the tree or opens it in a focused leaf.
     pub fn activate_or_open(&mut self, panel: PanelId) {
-        if let Some(location) = self.dock_state.find_tab(&panel) {
-            let _ = self.dock_state.set_active_tab(location);
+        if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
+            let _ = self.dock_state.tree.set_active_tab(leaf, idx);
+            self.dock_state.tree.set_focused_leaf(Some(leaf));
         } else {
-            self.dock_state.push_to_focused_leaf(panel);
+            let _ = self.dock_state.tree.push_to_focused_leaf(panel);
         }
     }
 }
@@ -187,8 +202,8 @@ pub mod tests {
     fn test_reset_to_default() {
         let mut layout = PanelLayoutState::new_default();
         // Remove a tab
-        if let Some(loc) = layout.dock_state.find_tab(&PanelId::Stats) {
-            layout.dock_state.remove_tab(loc);
+        if let Some((leaf, idx)) = layout.dock_state.tree.find_tab(&PanelId::Stats) {
+            let _ = layout.dock_state.tree.remove_tab(leaf, idx);
         }
         assert!(!layout.is_panel_visible(PanelId::Stats));
 
@@ -201,8 +216,8 @@ pub mod tests {
     fn test_activate_or_open_tab() {
         let mut layout = PanelLayoutState::new_default();
         // Remove Console
-        if let Some(loc) = layout.dock_state.find_tab(&PanelId::Console) {
-            layout.dock_state.remove_tab(loc);
+        if let Some((leaf, idx)) = layout.dock_state.tree.find_tab(&PanelId::Console) {
+            let _ = layout.dock_state.tree.remove_tab(leaf, idx);
         }
         assert!(!layout.is_panel_visible(PanelId::Console));
 

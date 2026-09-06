@@ -54,7 +54,9 @@ pub fn build_inspector_panel(
     if let Some(node) = tree.get_mut(panel_root_id) {
         node.set_name("InspectorPanelRoot");
         node.computed_rect = params.panel_rect;
-        node.style = Style::new().background(Color::rgba(0.075, 0.078, 0.090, 0.98));
+        node.style = Style::new()
+            .background(Color::rgba(0.075, 0.078, 0.090, 0.98))
+            .clip_children(true);
     }
     let _ = tree.add_child(parent_id, panel_root_id);
 
