@@ -7,6 +7,60 @@ use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use irisui::prelude::*;
 
 impl IrisEditorOverlay {
+    /// Returns true if the coordinate is over an active floating modal dialog, Preferences window, or menubar dropdown.
+    /// When true, underlying dock splitters, tabs, and panel controls MUST NOT receive click or drag interactions.
+    pub fn is_point_over_modal_or_dropdown(&self, point: Point) -> bool {
+        if point.y <= Self::MENUBAR_HEIGHT {
+            return true;
+        }
+        if self
+            .about_targets
+            .as_ref()
+            .is_some_and(|t| t.dialog_rect.contains_point(point))
+            || self
+                .delete_targets
+                .as_ref()
+                .is_some_and(|t| t.dialog_rect.contains_point(point))
+            || self
+                .new_folder_targets
+                .as_ref()
+                .is_some_and(|t| t.dialog_rect.contains_point(point))
+            || self
+                .rename_targets
+                .as_ref()
+                .is_some_and(|t| t.dialog_rect.contains_point(point))
+            || self.loading_targets.as_ref().is_some_and(|t| {
+                t.card_rect.contains_point(point) || t.scrim_rect.contains_point(point)
+            })
+            || self
+                .assets_targets
+                .as_ref()
+                .and_then(|a| a.preview_modal.as_ref())
+                .is_some_and(|m| m.dialog_rect.contains_point(point))
+            || self
+                .assets_targets
+                .as_ref()
+                .and_then(|a| a.context_menu.as_ref())
+                .is_some_and(|c| c.card_rect.contains_point(point))
+        {
+            return true;
+        }
+        if let Some(ref targets) = self.preferences_targets
+            && (targets.card_rect.contains_point(point)
+                || targets
+                    .active_dropdown_popup_rect
+                    .is_some_and(|r| r.contains_point(point)))
+        {
+            return true;
+        }
+        if let Some(dd_rect) = self.dropdown_rect
+            && dd_rect.contains_point(point)
+        {
+            return true;
+        }
+        false
+    }
+
     /// Returns true if the given coordinate is over the menubar, status bar, active dropdown/modal,
     /// or active interactive editor panels (respecting floating window occlusion).
     pub fn is_point_over_overlay(&self, point: Point) -> bool {

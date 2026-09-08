@@ -10,7 +10,6 @@ use super::modals::{
     self, build_delete_modal, build_loading_overlay, build_new_folder_modal, build_rename_modal,
 };
 use super::preferences::{self, build_preferences_dialog};
-use super::stats;
 use super::status_bar;
 use super::types::{ActiveMenu, IrisEditorOverlay, OverlayUpdateParams};
 use irisui::prelude::*;
@@ -228,12 +227,42 @@ impl IrisEditorOverlay {
             screen_width,
             (screen_height - Self::MENUBAR_HEIGHT - Self::STATUS_BAR_HEIGHT).max(0.0),
         );
+        let pref_rect = if params.show_preferences {
+            let (left, top) = if let Some(pos) = self.preferences_pos {
+                (pos.x, pos.y)
+            } else {
+                (
+                    ((screen_width - preferences::PREF_CARD_WIDTH) * 0.5).max(0.0),
+                    ((screen_height - preferences::PREF_CARD_HEIGHT) * 0.5).max(28.0),
+                )
+            };
+            Some(Rect::new(
+                left,
+                top,
+                preferences::PREF_CARD_WIDTH,
+                preferences::PREF_CARD_HEIGHT,
+            ))
+        } else {
+            None
+        };
+        let is_cursor_occluded = self.is_point_over_modal_or_dropdown(self.cursor_pos)
+            || pref_rect.is_some_and(|r| r.contains_point(self.cursor_pos))
+            || params
+                .layout_state
+                .dock_state
+                .floating_windows
+                .iter()
+                .any(|w| {
+                    Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
+                        .contains_point(self.cursor_pos)
+                });
         let dock_frame = super::native_dock::build_native_dock(
             &mut self.tree,
             root,
             params.layout_state,
             workspace_rect,
             self.cursor_pos,
+            is_cursor_occluded,
         );
         self.native_dock_frame = Some(dock_frame);
 
@@ -500,17 +529,8 @@ impl IrisEditorOverlay {
             hierarchy::build_hierarchy_overlays(&mut self.tree, root, &hier_params, hier_targets);
         }
 
-        // Populate DrawCommandList from resolved layout nodes
-        self.populate_draw_commands(root, None);
-
-        // Zero-Tree GPU Oscilloscope: directly push 60 curve quads into DrawCommandList
-        if let Some(ref nodes) = self.stats_nodes {
-            stats::append_oscilloscope_quads(
-                &mut self.command_list,
-                nodes.canvas_rect,
-                params.frame_pacing,
-            );
-        }
+        // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
+        self.populate_draw_commands(root, None, Some(params.frame_pacing));
 
         self.needs_layout_rebuild = false;
     }

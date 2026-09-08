@@ -316,7 +316,35 @@ impl IrisEditorOverlay {
         if self.inspector_drag_number.is_some() {
             return winit::window::CursorIcon::EwResize;
         }
-        if let Some(ref frame) = self.native_dock_frame {
+        // 1. Floating window resize edges
+        for rect in &self.floating_window_rects {
+            if rect.contains_point(p) {
+                const MARGIN: f32 = 6.0;
+                let on_left = p.x <= rect.x + MARGIN;
+                let on_right = p.x >= rect.right() - MARGIN;
+                let on_top = p.y <= rect.y + MARGIN;
+                let on_bottom = p.y >= rect.bottom() - MARGIN;
+
+                if (on_top && on_left) || (on_bottom && on_right) {
+                    return winit::window::CursorIcon::NwseResize;
+                } else if (on_top && on_right) || (on_bottom && on_left) {
+                    return winit::window::CursorIcon::NeswResize;
+                } else if on_left || on_right {
+                    return winit::window::CursorIcon::ColResize;
+                } else if on_top || on_bottom {
+                    return winit::window::CursorIcon::RowResize;
+                }
+            }
+        }
+
+        // 2. Occlusion check: underlying docked splitters must not change cursor if occluded
+        let is_occluded = self.is_point_over_modal_or_dropdown(p)
+            || self
+                .floating_window_rects
+                .iter()
+                .any(|r| r.contains_point(p));
+
+        if !is_occluded && let Some(ref frame) = self.native_dock_frame {
             for splitter in &frame.splitter_targets {
                 if splitter.rect.contains_point(p) {
                     return match splitter.direction {

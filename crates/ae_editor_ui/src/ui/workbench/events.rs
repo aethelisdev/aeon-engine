@@ -253,6 +253,12 @@ impl EngineUi {
                 button: MouseButton::Left,
                 ..
             } => {
+                // 0. If click is over an active floating modal (Preferences, About, Modals, Dropdowns),
+                // underlying floating windows and dock splitters/tabs MUST NOT be touched!
+                if self.iris_overlay.is_point_over_modal_or_dropdown(p) {
+                    return true;
+                }
+
                 // 1. Check Floating Window controls (highest priority among panels)
                 let mut floating_dock_back = None;
                 let mut floating_close = None;
@@ -384,7 +390,20 @@ impl EngineUi {
                 }
 
                 // 2. Check Native Dock Frame targets (Tabs, Close buttons, Splitters)
-                if !dock_consumed && let Some(ref frame) = self.iris_overlay.native_dock_frame {
+                let is_over_floating =
+                    self.layout_state
+                        .dock_state
+                        .floating_windows
+                        .iter()
+                        .any(|w| {
+                            Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
+                                .contains_point(p)
+                        });
+
+                if !dock_consumed
+                    && !is_over_floating
+                    && let Some(ref frame) = self.iris_overlay.native_dock_frame
+                {
                     // Close buttons
                     if let Some(target) = frame
                         .close_targets

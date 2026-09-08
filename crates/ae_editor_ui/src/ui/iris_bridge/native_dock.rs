@@ -91,6 +91,7 @@ pub fn build_native_dock(
     layout_state: &PanelLayoutState,
     workspace_rect: Rect,
     cursor_pos: Point,
+    is_cursor_occluded: bool,
 ) -> NativeDockFrame {
     let computed = compute_dock_layout(
         &layout_state.dock_state.tree,
@@ -144,7 +145,7 @@ pub fn build_native_dock(
                 tab_w,
                 leaf.tab_bar_rect.height,
             );
-            let is_tab_hovered = tab_rect.contains_point(cursor_pos);
+            let is_tab_hovered = !is_cursor_occluded && tab_rect.contains_point(cursor_pos);
 
             let bg_color = if active {
                 Color::rgba(0.086, 0.094, 0.118, 1.0)
@@ -203,7 +204,7 @@ pub fn build_native_dock(
                     14.0,
                     tab_rect.height - 6.0,
                 );
-                let is_close_hovered = close_rect.contains_point(cursor_pos);
+                let is_close_hovered = !is_cursor_occluded && close_rect.contains_point(cursor_pos);
                 let close_col = if is_close_hovered {
                     Color::rgba(1.0, 0.35, 0.35, 1.0)
                 } else {
@@ -240,7 +241,9 @@ pub fn build_native_dock(
             .active_splitter
             .as_ref()
             .is_some_and(|s| s.node_id == splitter.node_id);
-        let is_hovered = splitter.rect.contains_point(cursor_pos) && !is_dragging_splitter;
+        let is_hovered = !is_cursor_occluded
+            && splitter.rect.contains_point(cursor_pos)
+            && !is_dragging_splitter;
 
         let splitter_col = if is_splitter_active || is_hovered {
             Color::rgba(0.0, 0.898, 1.0, 0.90)

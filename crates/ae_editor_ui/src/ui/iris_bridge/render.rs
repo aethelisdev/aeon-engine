@@ -18,8 +18,13 @@ struct TextCollectionContext<'a> {
 
 impl IrisEditorOverlay {
     /// Recursively converts computed node bounds and styles into `DrawCommandList` instances.
-    pub(crate) fn populate_draw_commands(&mut self, current: WidgetId, clip_rect: Option<Rect>) {
-        let (child_count, quad, tex_quad, ext_quad, next_clip) = {
+    pub(crate) fn populate_draw_commands(
+        &mut self,
+        current: WidgetId,
+        clip_rect: Option<Rect>,
+        frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
+    ) {
+        let (child_count, quad, tex_quad, ext_quad, is_oscilloscope, canvas_rect, next_clip) = {
             let Some(node) = self.tree.get(current) else {
                 return;
             };
@@ -102,7 +107,18 @@ impl IrisEditorOverlay {
                 None
             };
 
-            (node.children.len(), quad, tex_quad, ext_quad, child_clip)
+            let is_oscilloscope = node.name.as_deref() == Some("OscilloscopeCanvas");
+            let canvas_rect = node.computed_rect;
+
+            (
+                node.children.len(),
+                quad,
+                tex_quad,
+                ext_quad,
+                is_oscilloscope,
+                canvas_rect,
+                child_clip,
+            )
         };
 
         if let Some(q) = quad {
@@ -114,6 +130,9 @@ impl IrisEditorOverlay {
         if let Some((id, eq)) = ext_quad {
             self.command_list.push_external_texture_quad(id, eq);
         }
+        if is_oscilloscope && let Some(pacing) = frame_pacing {
+            super::stats::append_oscilloscope_quads(&mut self.command_list, canvas_rect, pacing);
+        }
 
         for i in 0..child_count {
             if let Some(child) = self
@@ -121,7 +140,7 @@ impl IrisEditorOverlay {
                 .get(current)
                 .and_then(|n| n.children.get(i).copied())
             {
-                self.populate_draw_commands(child, next_clip);
+                self.populate_draw_commands(child, next_clip, frame_pacing);
             }
         }
     }
@@ -165,7 +184,7 @@ impl IrisEditorOverlay {
                 .name
                 .as_deref()
                 .map(|n| {
-                    (n.contains("Popup")
+                    n.contains("Popup")
                         || n.contains("ColorPicker")
                         || n.contains("Picker")
                         || n.contains("AddMenu")
@@ -177,8 +196,9 @@ impl IrisEditorOverlay {
                         || n.starts_with("DropdownIcon")
                         || n.starts_with("DropdownShortcut")
                         || n.contains("Modal")
-                        || n.contains("About"))
-                        && !n.contains("Combo")
+                        || n.contains("About")
+                        || n.starts_with("Preferences")
+                        || n.starts_with("Pref")
                 })
                 .unwrap_or(false);
 
@@ -203,9 +223,120 @@ impl IrisEditorOverlay {
             && node.computed_rect.width > 0.0
             && node.computed_rect.height > 0.0
         {
-            let is_visible_in_clip = match ctx.clip_rect {
+            let mut effective_clip = ctx.clip_rect;
+
+            // Estimate visual horizontal footprint of the text inside computed_rect
+            let text_char_count = text.chars().count() as f32;
+            let approx_text_width = text_char_count * (node.font_size * 0.62);
+            let (text_min_x, text_max_x) = match node.text_align {
+                TextAlign::Left => (
+                    node.computed_rect.x,
+                    (node.computed_rect.x + approx_text_width).min(node.computed_rect.right()),
+                ),
+                TextAlign::Right => (
+                    (node.computed_rect.right() - approx_text_width).max(node.computed_rect.x),
+                    node.computed_rect.right(),
+                ),
+                TextAlign::Center => {
+                    let cx = node.computed_rect.x + node.computed_rect.width * 0.5;
+                    (
+                        (cx - approx_text_width * 0.5).max(node.computed_rect.x),
+                        (cx + approx_text_width * 0.5).min(node.computed_rect.right()),
+                    )
+                }
+            };
+
+            let mut is_fully_occluded = false;
+
+            // Test against active popups and modal dialogs
+            if !child_is_inside_popup {
+                for popup in ctx.active_popup_rects {
+                    let vert_overlap = node.computed_rect.bottom() > popup.y
+                        && node.computed_rect.y < popup.bottom();
+                    if !vert_overlap {
+                        continue;
+                    }
+                    let horiz_overlap = text_max_x > popup.x && text_min_x < popup.right();
+                    if !horiz_overlap {
+                        continue;
+                    }
+
+                    // If text is completely covered by the popup, suppress it
+                    if text_min_x >= popup.x
+                        && text_max_x <= popup.right()
+                        && node.computed_rect.y >= popup.y
+                        && node.computed_rect.bottom() <= popup.bottom()
+                    {
+                        is_fully_occluded = true;
+                        break;
+                    }
+
+                    // If text starts outside popup and extends into it from left, clip right bound
+                    if text_min_x < popup.x && text_max_x > popup.x {
+                        let clip_sub = Rect::new(0.0, 0.0, popup.x, 100_000.0);
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                    // If text starts inside popup and extends out to the right, clip left bound
+                    if text_min_x < popup.right() && text_max_x > popup.right() {
+                        let clip_sub = Rect::new(popup.right(), 0.0, 100_000.0, 100_000.0);
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                }
+            }
+
+            // Test against foreground floating windows
+            if !child_is_inside_popup && !child_is_inside_floating && !is_fully_occluded {
+                for floating in ctx.floating_window_rects {
+                    let vert_overlap = node.computed_rect.bottom() > floating.y
+                        && node.computed_rect.y < floating.bottom();
+                    if !vert_overlap {
+                        continue;
+                    }
+                    let horiz_overlap = text_max_x > floating.x && text_min_x < floating.right();
+                    if !horiz_overlap {
+                        continue;
+                    }
+
+                    // If text is completely covered by the floating window, suppress it
+                    if text_min_x >= floating.x
+                        && text_max_x <= floating.right()
+                        && node.computed_rect.y >= floating.y
+                        && node.computed_rect.bottom() <= floating.bottom()
+                    {
+                        is_fully_occluded = true;
+                        break;
+                    }
+
+                    // If text starts outside floating window and extends into it from left, clip right bound
+                    if text_min_x < floating.x && text_max_x > floating.x {
+                        let clip_sub = Rect::new(0.0, 0.0, floating.x, 100_000.0);
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                    // If text starts inside floating window and extends out to the right, clip left bound
+                    if text_min_x < floating.right() && text_max_x > floating.right() {
+                        let clip_sub = Rect::new(floating.right(), 0.0, 100_000.0, 100_000.0);
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                }
+            }
+
+            let is_visible_in_clip = match effective_clip {
                 Some(clip) => {
-                    node.computed_rect.right() > clip.x
+                    clip.width > 0.0
+                        && clip.height > 0.0
+                        && node.computed_rect.right() > clip.x
                         && node.computed_rect.x < clip.right()
                         && node.computed_rect.bottom() > clip.y
                         && node.computed_rect.y < clip.bottom()
@@ -213,35 +344,13 @@ impl IrisEditorOverlay {
                 None => true,
             };
 
-            let is_occluded_by_popup = if !child_is_inside_popup {
-                ctx.active_popup_rects.iter().any(|popup| {
-                    node.computed_rect.right() > popup.x
-                        && node.computed_rect.x < popup.right()
-                        && node.computed_rect.bottom() > popup.y
-                        && node.computed_rect.y < popup.bottom()
-                })
-            } else {
-                false
-            };
-
-            let is_occluded_by_floating = if !child_is_inside_popup && !child_is_inside_floating {
-                ctx.floating_window_rects.iter().any(|floating| {
-                    node.computed_rect.right() > floating.x
-                        && node.computed_rect.x < floating.right()
-                        && node.computed_rect.bottom() > floating.y
-                        && node.computed_rect.y < floating.bottom()
-                })
-            } else {
-                false
-            };
-
-            if is_visible_in_clip && !is_occluded_by_popup && !is_occluded_by_floating {
+            if is_visible_in_clip && !is_fully_occluded {
                 sections.push(
                     TextSection::new(text.clone(), node.computed_rect)
                         .with_font_size(node.font_size, node.line_height)
                         .with_color(node.text_color)
                         .with_align(node.text_align)
-                        .with_clip(ctx.clip_rect),
+                        .with_clip(effective_clip),
                 );
             }
         }
@@ -286,10 +395,26 @@ impl IrisEditorOverlay {
         if let Some(r) = self.dropdown_rect {
             active_popups.push(r);
         }
-        if let Some(ref t) = self.preferences_targets
-            && let Some(r) = t.active_dropdown_popup_rect
-        {
-            active_popups.push(r);
+        if let Some(ref t) = self.preferences_targets {
+            active_popups.push(t.card_rect);
+            if let Some(r) = t.active_dropdown_popup_rect {
+                active_popups.push(r);
+            }
+        }
+        if let Some(ref t) = self.about_targets {
+            active_popups.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.delete_targets {
+            active_popups.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.new_folder_targets {
+            active_popups.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.rename_targets {
+            active_popups.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.loading_targets {
+            active_popups.push(t.card_rect);
         }
         if let Some(ref hud) = self.viewport_hud_targets
             && let Some(r) = hud.active_dropdown_popup_rect
