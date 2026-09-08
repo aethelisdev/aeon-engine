@@ -17,6 +17,8 @@ pub struct IrisPassParams<'a> {
     pub encoder: &'a mut wgpu::CommandEncoder,
     pub window: &'a Window,
     pub window_surface_view: &'a wgpu::TextureView,
+    pub viewport_texture_view: Option<&'a wgpu::TextureView>,
+    pub viewport_rect: egui::Rect,
     pub is_hovering_interactive: bool,
     pub is_editing: bool,
     pub undo_stack: &'a [ae_editor::undo_redo::Command],
@@ -43,6 +45,17 @@ pub struct IrisPassParams<'a> {
 impl EngineUi {
     /// Updates Iris UI overlays (Menubar, Toolbar, Inspector, Hierarchy, Modals) and renders them to WGPU.
     pub fn execute_iris_pass(&mut self, params: IrisPassParams<'_>) {
+        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
+        self.iris_overlay.floating_window_rects = self
+            .layout_state
+            .dock_state
+            .floating_windows
+            .iter()
+            .map(|w| {
+                irisui::core::geometry::Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
+            })
+            .collect();
+
         // Resolve active window cursor icon
         let requested_cursor = self.iris_overlay.requested_cursor_icon();
         if requested_cursor != winit::window::CursorIcon::Default {
@@ -104,10 +117,10 @@ impl EngineUi {
             .map(|r| (r.target_path.as_path(), r.is_folder));
 
         let iris_vp_rect = irisui::prelude::Rect::new(
-            self.last_viewport_rect.min.x,
-            self.last_viewport_rect.min.y,
-            self.last_viewport_rect.width(),
-            self.last_viewport_rect.height(),
+            params.viewport_rect.min.x,
+            params.viewport_rect.min.y,
+            params.viewport_rect.width(),
+            params.viewport_rect.height(),
         );
 
         let iris_stats_rect = params
@@ -146,6 +159,8 @@ impl EngineUi {
             .ensure_tools_texture(params.device, params.queue);
         self.iris_overlay
             .ensure_asset_thumbnails(params.queue, &self.asset_browser.cached_items);
+        self.iris_overlay
+            .set_viewport_texture(params.device, params.viewport_texture_view);
 
         self.iris_overlay
             .update_overlays(iris_bridge::OverlayUpdateParams {
@@ -167,6 +182,7 @@ impl EngineUi {
                 rename_target,
                 is_loading_assets: self.is_loading_assets,
                 status_spans: iris_spans.as_deref(),
+                has_viewport_texture: params.viewport_texture_view.is_some(),
                 viewport_rect: iris_vp_rect,
                 camera: params.camera,
                 wireframe_enabled: self.wireframe_enabled,

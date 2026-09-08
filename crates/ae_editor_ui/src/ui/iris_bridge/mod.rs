@@ -29,7 +29,11 @@ pub mod types;
 pub mod ui_designer;
 pub mod update;
 pub mod update_panels;
+pub mod viewport_content;
 pub mod viewport_hud;
+pub mod viewport_texture;
+
+pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
 pub use about::{AboutDialogTargets, build_about_dialog};
 pub use assets::{

@@ -41,7 +41,7 @@ pub mod prelude {
     };
     pub use iris_core::geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
     pub use iris_core::id::WidgetId;
-    pub use iris_core::node::WidgetNode;
+    pub use iris_core::node::{ExternalTextureId, WidgetNode};
     pub use iris_core::style::{AlignItems, FlexDirection, JustifyContent, Style, TextAlign};
     pub use iris_core::tree::UiTree;
 
@@ -60,8 +60,8 @@ pub mod prelude {
     pub use iris_layout::{LayoutEngine, LayoutError};
     pub use iris_text::{TextRenderer, TextSection, TextSystem};
     pub use iris_wgpu::{
-        DrawCommand, DrawCommandList, IrisRenderer, QuadInstance, TextureQuadInstance,
-        TextureQuadPipeline,
+        DrawCommand, DrawCommandList, ExternalTexturePipeline, ExternalTextureQuadInstance,
+        ExternalTextures, IrisRenderer, QuadInstance, TextureQuadInstance, TextureQuadPipeline,
     };
     pub use iris_widgets::{
         AssetCardBuilder, ButtonBuilder, CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold,

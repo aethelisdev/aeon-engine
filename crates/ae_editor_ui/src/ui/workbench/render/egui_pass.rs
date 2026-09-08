@@ -30,27 +30,6 @@ impl EngineUi {
     /// Executes the primary egui frame, managing viewport textures, central docking layout,
     /// tessellation, and the egui WGPU command encoder pass.
     pub fn execute_egui_pass(&mut self, params: &mut EditorUiRenderParams<'_>) -> EguiPassOutput {
-        // Register/Update viewport texture if provided
-        if let Some(view) = params.viewport_texture_view {
-            if let Some(id) = self.viewport_texture_id {
-                self.renderer.update_egui_texture_from_wgpu_texture(
-                    params.device,
-                    view,
-                    wgpu::FilterMode::Linear,
-                    id,
-                );
-            } else {
-                let id = self.renderer.register_native_texture(
-                    params.device,
-                    view,
-                    wgpu::FilterMode::Linear,
-                );
-                self.viewport_texture_id = Some(id);
-            }
-        } else if let Some(old_id) = self.viewport_texture_id.take() {
-            self.renderer.free_texture(&old_id);
-        }
-
         // Handle Ctrl + / - / 0 UI Zoom Shortcuts and apply active UI scaling
         let zoom_delta = self.context.input(|i| {
             if i.modifiers.ctrl {
@@ -117,7 +96,6 @@ impl EngineUi {
                 ui_actions: params.ui_actions,
                 camera: params.camera,
                 asset_browser: &mut self.asset_browser,
-                viewport_texture_id: self.viewport_texture_id,
                 viewport_rect_out: &viewport_rect_cell,
                 stats_rect_out: &stats_rect_cell,
                 hierarchy_rect_out: &hierarchy_rect_cell,

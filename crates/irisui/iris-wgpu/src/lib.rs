@@ -12,11 +12,15 @@
 #![warn(missing_docs)]
 
 pub mod command;
+pub mod external_texture_pipeline;
+pub mod external_textures;
 pub mod quad;
 pub mod renderer;
 pub mod texture_pipeline;
 
 pub use command::{DrawCommand, DrawCommandList};
+pub use external_texture_pipeline::{ExternalTexturePipeline, ExternalTextureQuadInstance};
+pub use external_textures::ExternalTextures;
 pub use quad::QuadInstance;
 pub use renderer::IrisRenderer;
 pub use texture_pipeline::{TextureQuadInstance, TextureQuadPipeline};
@@ -67,5 +71,32 @@ mod tests {
         list.clear();
         assert!(list.commands.is_empty());
         assert!(list.texture_quads.is_empty());
+    }
+
+    #[test]
+    fn test_external_texture_quad_command_stream() {
+        use iris_core::node::ExternalTextureId;
+
+        let mut list = DrawCommandList::new();
+        assert!(list.external_texture_quads.is_empty());
+
+        let ext_id = ExternalTextureId(42);
+        let eq =
+            ExternalTextureQuadInstance::new(Rect::new(0.0, 0.0, 800.0, 600.0), Color::WHITE, None);
+        list.push_external_texture_quad(ext_id, eq);
+
+        assert_eq!(list.external_texture_quads.len(), 1);
+        assert_eq!(list.commands.len(), 1);
+        assert_eq!(
+            list.commands[0],
+            DrawCommand::DrawExternalTexture {
+                id: ext_id,
+                instance_index: 0,
+            }
+        );
+
+        list.clear();
+        assert!(list.commands.is_empty());
+        assert!(list.external_texture_quads.is_empty());
     }
 }

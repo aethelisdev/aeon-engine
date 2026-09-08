@@ -549,6 +549,8 @@ pub struct OverlayUpdateParams<'a> {
     pub is_loading_assets: bool,
     /// Optional status notification message spans with text color.
     pub status_spans: Option<&'a [(String, Color)]>,
+    /// Whether the resolved 3D viewport render target texture is present.
+    pub has_viewport_texture: bool,
     /// Screen rectangle bounding the 3D viewport canvas.
     pub viewport_rect: Rect,
     /// Reference to the active 3D camera.

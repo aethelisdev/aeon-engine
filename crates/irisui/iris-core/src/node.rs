@@ -9,6 +9,10 @@ use crate::geometry::{Point, Rect, Size};
 use crate::id::WidgetId;
 use crate::style::{Style, TextAlign};
 
+/// Type-safe host identifier for externally managed 2D textures (e.g. 3D Viewport render target).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExternalTextureId(pub u64);
+
 /// A single node in the Retained-Mode UI tree stored in the central arena.
 /// Each node holds hierarchical relationships (parent and children references via `WidgetId`),
 /// current style parameters, fine-grained dirty flags, cached layout coordinates, and optional text payload.
@@ -34,6 +38,8 @@ pub struct WidgetNode {
     pub texture_uv: Option<[f32; 4]>,
     /// Optional tint color multiplier for textured quad rendering.
     pub texture_tint: Option<Color>,
+    /// Optional external texture identifier for drawing host-owned 2D images (e.g. Viewport RTT).
+    pub external_texture: Option<ExternalTextureId>,
     /// Font size in pixels.
     pub font_size: f32,
     /// Line height in pixels.
@@ -70,6 +76,7 @@ impl WidgetNode {
             text: None,
             texture_uv: None,
             texture_tint: None,
+            external_texture: None,
             font_size: Self::DEFAULT_FONT_SIZE,
             line_height: Self::DEFAULT_LINE_HEIGHT,
             text_color: Color::WHITE,
@@ -111,6 +118,19 @@ impl WidgetNode {
     #[inline]
     pub fn set_texture_tint(&mut self, tint: Color) {
         self.texture_tint = Some(tint);
+    }
+
+    /// Sets the external texture identifier (builder style).
+    #[inline]
+    pub fn with_external_texture(mut self, id: ExternalTextureId) -> Self {
+        self.external_texture = Some(id);
+        self
+    }
+
+    /// Sets the external texture identifier on an existing mutable reference.
+    #[inline]
+    pub fn set_external_texture(&mut self, id: Option<ExternalTextureId>) {
+        self.external_texture = id;
     }
 
     /// Sets the debug name of the node on an existing mutable reference.

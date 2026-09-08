@@ -8,7 +8,7 @@
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use crate::ui::{EngineUi, EngineUiAction};
-use egui::{Color32, Pos2, Rect};
+use egui::Rect;
 
 /// Tab viewer context struct binding engine runtime state to `iris-dock`.
 pub struct EditorTabViewer<'a> {
@@ -17,7 +17,6 @@ pub struct EditorTabViewer<'a> {
     pub ui_actions: &'a mut Vec<EngineUiAction>,
     pub camera: &'a ae_renderer::camera::Camera,
     pub asset_browser: &'a mut crate::ui::panels::assets::AssetBrowserState,
-    pub viewport_texture_id: Option<egui::TextureId>,
 
     pub viewport_rect_out: &'a std::cell::Cell<Rect>,
     pub stats_rect_out: &'a std::cell::Cell<Option<Rect>>,
@@ -37,22 +36,6 @@ impl<'a> EditorTabViewer<'a> {
         match panel {
             PanelId::Viewport => {
                 let rect = content_rect;
-                if let Some(texture_id) = self.viewport_texture_id {
-                    ui.painter().image(
-                        texture_id,
-                        rect,
-                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
-                        Color32::WHITE,
-                    );
-                } else {
-                    ui.painter().text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Rendering viewport...",
-                        egui::FontId::proportional(14.0),
-                        Color32::GRAY,
-                    );
-                }
                 self.viewport_rect_out.set(rect);
 
                 // Viewport Toolbar & HUD Overlays are now 100% rendered via Iris UI GPU SDF pipeline in IrisEditorOverlay

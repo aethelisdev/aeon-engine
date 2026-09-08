@@ -19,7 +19,7 @@ struct TextCollectionContext<'a> {
 impl IrisEditorOverlay {
     /// Recursively converts computed node bounds and styles into `DrawCommandList` instances.
     pub(crate) fn populate_draw_commands(&mut self, current: WidgetId, clip_rect: Option<Rect>) {
-        let (child_count, quad, tex_quad, next_clip) = {
+        let (child_count, quad, tex_quad, ext_quad, next_clip) = {
             let Some(node) = self.tree.get(current) else {
                 return;
             };
@@ -82,7 +82,27 @@ impl IrisEditorOverlay {
                 None
             };
 
-            (node.children.len(), quad, tex_quad, child_clip)
+            let ext_quad = if let Some(id) = node.external_texture {
+                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
+                    let tint = node.texture_tint.unwrap_or(Color::WHITE);
+                    let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
+                    Some((
+                        id,
+                        ExternalTextureQuadInstance::with_uv(
+                            node.computed_rect,
+                            uv,
+                            tint,
+                            clip_rect,
+                        ),
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            (node.children.len(), quad, tex_quad, ext_quad, child_clip)
         };
 
         if let Some(q) = quad {
@@ -90,6 +110,9 @@ impl IrisEditorOverlay {
         }
         if let Some(tq) = tex_quad {
             self.command_list.push_texture_quad(tq);
+        }
+        if let Some((id, eq)) = ext_quad {
+            self.command_list.push_external_texture_quad(id, eq);
         }
 
         for i in 0..child_count {

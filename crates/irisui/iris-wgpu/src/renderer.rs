@@ -40,6 +40,10 @@ pub struct IrisRenderer {
     texture_instance_capacity: usize,
     /// Active texture bind group used for textured quad draw commands.
     pub texture_bind_group: Option<wgpu::BindGroup>,
+    /// Dedicated external texture pipeline for compositing host-owned 2D render targets.
+    pub external_pipeline: crate::external_texture_pipeline::ExternalTexturePipeline,
+    /// Persistent resource table managing external texture registrations and bind groups.
+    pub external_textures: crate::external_textures::ExternalTextures,
 }
 
 impl IrisRenderer {
@@ -164,6 +168,10 @@ impl IrisRenderer {
         let texture_pipeline =
             crate::texture_pipeline::TextureQuadPipeline::new(device, target_format);
 
+        let external_pipeline =
+            crate::external_texture_pipeline::ExternalTexturePipeline::new(device, target_format);
+        let external_textures = crate::external_textures::ExternalTextures::default();
+
         Self {
             pipeline,
             bind_group,
@@ -179,6 +187,8 @@ impl IrisRenderer {
             texture_instance_buffer: None,
             texture_instance_capacity: 0,
             texture_bind_group: None,
+            external_pipeline,
+            external_textures,
         }
     }
 
@@ -267,6 +277,13 @@ impl IrisRenderer {
                 queue.write_buffer(buffer, 0, bytemuck::cast_slice(&command_list.texture_quads));
             }
         }
+
+        self.external_pipeline.prepare_instances(
+            device,
+            queue,
+            screen_size,
+            &command_list.external_texture_quads,
+        );
     }
 
     /// Executes sequential draw commands and updates hardware scissor rects in exact Z-order.
@@ -281,6 +298,7 @@ impl IrisRenderer {
             None,
             Sdf,
             Texture,
+            ExternalTexture,
         }
 
         let mut active_pipe = ActivePipeline::None;
@@ -345,6 +363,16 @@ impl IrisRenderer {
                         }
                         let inst = instance_index..(instance_index + 1);
                         render_pass.draw_indexed(0..6, 0, inst);
+                    }
+                }
+                crate::command::DrawCommand::DrawExternalTexture { id, instance_index } => {
+                    if let Some(bind_group) = self.external_textures.get(id) {
+                        self.external_pipeline.render_instance(
+                            render_pass,
+                            bind_group,
+                            instance_index,
+                        );
+                        active_pipe = ActivePipeline::ExternalTexture;
                     }
                 }
             }

@@ -107,6 +107,8 @@ impl EngineUi {
             encoder: params.encoder,
             window: params.window,
             window_surface_view: params.window_surface_view,
+            viewport_texture_view: params.viewport_texture_view,
+            viewport_rect: egui_out.viewport_rect,
             is_hovering_interactive: egui_out.is_hovering_interactive,
             is_editing: *params.mode == ae_core::modules::EngineMode::Edit,
             undo_stack: params.undo_stack,
@@ -144,9 +146,6 @@ impl EngineUi {
         if new_rect.width() != self.viewport_rect_width
             || new_rect.height() != self.viewport_rect_height
         {
-            if let Some(old_id) = self.viewport_texture_id.take() {
-                self.renderer.free_texture(&old_id);
-            }
             self.viewport_rect_width = new_rect.width();
             self.viewport_rect_height = new_rect.height();
         }

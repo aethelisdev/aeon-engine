@@ -3,8 +3,10 @@
 
 //! Draw command stream for interleaved Z-ordered UI compositing and hardware scissor clipping.
 
+use crate::external_texture_pipeline::ExternalTextureQuadInstance;
 use crate::quad::QuadInstance;
 use crate::texture_pipeline::TextureQuadInstance;
+use iris_core::node::ExternalTextureId;
 
 /// Individual render command in an interleaved, Z-ordered UI draw list.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,6 +21,13 @@ pub enum DrawCommand {
     /// Draw a textured quad (e.g. 3D engine viewport, image, or thumbnail).
     DrawTexture {
         /// Index of the texture instance in the texture quad buffer.
+        instance_index: u32,
+    },
+    /// Draw an externally owned 2D texture (e.g. 3D engine viewport render target).
+    DrawExternalTexture {
+        /// External texture identifier in the external texture table.
+        id: ExternalTextureId,
+        /// Index of the external texture instance in the external instance buffer.
         instance_index: u32,
     },
     /// Set hardware scissor clipping rectangle.
@@ -45,6 +54,8 @@ pub struct DrawCommandList {
     pub quads: Vec<QuadInstance>,
     /// Flattened texture quad instances.
     pub texture_quads: Vec<TextureQuadInstance>,
+    /// Flattened external texture quad instances.
+    pub external_texture_quads: Vec<ExternalTextureQuadInstance>,
 }
 
 impl DrawCommandList {
@@ -58,6 +69,7 @@ impl DrawCommandList {
         self.commands.clear();
         self.quads.clear();
         self.texture_quads.clear();
+        self.external_texture_quads.clear();
     }
 
     /// Appends an SDF quad to the active batch or begins a new batch.
@@ -81,6 +93,18 @@ impl DrawCommandList {
         self.texture_quads.push(tex_quad);
         self.commands
             .push(DrawCommand::DrawTexture { instance_index });
+    }
+
+    /// Appends an external texture quad drawing command.
+    pub fn push_external_texture_quad(
+        &mut self,
+        id: ExternalTextureId,
+        quad: ExternalTextureQuadInstance,
+    ) {
+        let instance_index = self.external_texture_quads.len() as u32;
+        self.external_texture_quads.push(quad);
+        self.commands
+            .push(DrawCommand::DrawExternalTexture { id, instance_index });
     }
 
     /// Sets the active hardware scissor rectangle for subsequent draw calls.

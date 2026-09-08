@@ -93,8 +93,6 @@ pub struct EngineUi {
     pub displayed_fps: f32,
     /// The instant of the last FPS counter refresh.
     pub last_fps_update: std::time::Instant,
-    /// Egui texture ID of the registered WGPU viewport texture.
-    pub viewport_texture_id: Option<egui::TextureId>,
     /// Last registered viewport texture width.
     pub viewport_rect_width: f32,
     /// Last registered viewport texture height.
@@ -208,7 +206,6 @@ impl EngineUi {
             smoothed_fps: 60.0,
             displayed_fps: 60.0,
             last_fps_update: std::time::Instant::now(),
-            viewport_texture_id: None,
             viewport_rect_width: 0.0,
             viewport_rect_height: 0.0,
             last_viewport_rect: egui::Rect::ZERO,

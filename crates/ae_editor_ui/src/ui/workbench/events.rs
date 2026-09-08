@@ -8,6 +8,17 @@ use winit::{event::WindowEvent, window::Window};
 impl EngineUi {
     /// Forwards winit window events to egui and Iris UI for input processing.
     pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
+        // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
+        self.iris_overlay.floating_window_rects = self
+            .layout_state
+            .dock_state
+            .floating_windows
+            .iter()
+            .map(|w| {
+                irisui::core::geometry::Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
+            })
+            .collect();
+
         let iris_res = self.iris_overlay.handle_event(event);
         if let Some(act) = iris_res.ui_action {
             self.pending_actions.push(act);
@@ -199,39 +210,94 @@ impl EngineUi {
 
     /// Returns true if the point is over any UI panel, floating modal dialog, or outside the 3D viewport.
     pub fn is_point_over_ui_rects(&self, pos: egui::Pos2) -> bool {
+        let point = irisui::prelude::Point::new(pos.x, pos.y);
+
+        // 1. Top menubar & active modal dialogs / preferences / popups (always highest z-order)
         if pos.y <= IrisEditorOverlay::MENUBAR_HEIGHT
-            || self
-                .iris_overlay
-                .is_point_over_overlay(irisui::prelude::Point::new(pos.x, pos.y))
+            || self.iris_overlay.about_targets.is_some()
+            || self.iris_overlay.delete_targets.is_some()
+            || self.iris_overlay.new_folder_targets.is_some()
+            || self.iris_overlay.rename_targets.is_some()
+            || self.iris_overlay.loading_targets.is_some()
+            || self.iris_overlay.assets_preview_modal.is_some()
+            || egui::Popup::is_any_open(&self.context)
+            || self.ui_rects.iter().any(|rect| rect.contains(pos))
         {
             return true;
         }
 
-        // 1. Outside 3D viewport -> 100% over an editor UI panel (Hierarchy, Inspector, Assets, Menus, etc.)
-        if !self.last_viewport_rect.contains(pos) {
+        if let Some(ref targets) = self.iris_overlay.preferences_targets
+            && (targets.card_rect.contains_point(point)
+                || targets
+                    .active_dropdown_popup_rect
+                    .is_some_and(|r| r.contains_point(point)))
+        {
             return true;
         }
 
-        // 2. Open popups / context menus
-        if egui::Popup::is_any_open(&self.context) {
+        if let Some(dd_rect) = self.iris_overlay.dropdown_rect
+            && dd_rect.contains_point(point)
+        {
             return true;
         }
 
-        // 3. Floating dialogs (Preferences, About, Loading overlay, etc.)
-        if self.ui_rects.iter().any(|rect| rect.contains(pos)) {
-            return true;
+        // 2. If the point is inside the active 3D viewport canvas (docked or floating)
+        if self.last_viewport_rect.contains(pos) {
+            // Check if there are Viewport HUD interactive controls (toolbar buttons, dropdown, compass, billboard icons)
+            if let Some(ref hud) = self.iris_overlay.viewport_hud_targets {
+                if let Some(dd_rect) = hud.active_dropdown_popup_rect
+                    && dd_rect.contains_point(point)
+                {
+                    return true;
+                }
+                if hud.buttons.iter().any(|(_, r)| r.contains_point(point))
+                    || hud
+                        .dropdown_triggers
+                        .iter()
+                        .any(|(_, r)| r.contains_point(point))
+                    || hud
+                        .compass_knobs
+                        .iter()
+                        .any(|(_, r)| r.contains_point(point))
+                    || hud
+                        .billboard_icons
+                        .iter()
+                        .any(|(_, r)| r.contains_point(point))
+                {
+                    return true;
+                }
+            }
+
+            // Check if another detached floating window occludes this viewport point
+            let is_occluded_by_other_floating = self
+                .layout_state
+                .dock_state
+                .floating_windows
+                .iter()
+                .any(|w| {
+                    let contains_viewport = w
+                        .tree
+                        .all_tabs()
+                        .contains(&crate::ui::panel_layout::PanelId::Viewport);
+                    if !contains_viewport {
+                        pos.x >= w.rect.x
+                            && pos.x <= w.rect.x + w.rect.width
+                            && pos.y >= w.rect.y
+                            && pos.y <= w.rect.y + w.rect.height
+                    } else {
+                        false
+                    }
+                });
+
+            if is_occluded_by_other_floating {
+                return true;
+            }
+
+            // Directly over the 3D viewport canvas: mouse input belongs 100% to 3D scene
+            return false;
         }
 
-        // 4. Detached floating windows
-        self.layout_state
-            .dock_state
-            .floating_windows
-            .iter()
-            .any(|w| {
-                pos.x >= w.rect.x
-                    && pos.x <= w.rect.x + w.rect.width
-                    && pos.y >= w.rect.y
-                    && pos.y <= w.rect.y + w.rect.height
-            })
+        // 3. Point is outside 3D viewport canvas -> belongs to UI panels
+        true
     }
 }

@@ -13,7 +13,6 @@ use super::preferences::{self, build_preferences_dialog};
 use super::stats;
 use super::status_bar;
 use super::types::{ActiveMenu, IrisEditorOverlay, OverlayUpdateParams};
-use super::viewport_hud::{self, ViewportHudParams, ViewportHudTargets};
 use irisui::prelude::*;
 use irisui::text::TextSystem;
 use std::collections::HashSet;
@@ -221,35 +220,19 @@ impl IrisEditorOverlay {
             .layout_engine
             .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
 
-        // 3. If Viewport canvas is valid, build Viewport HUD (docked)
-        if params.viewport_rect.width > 20.0 && params.viewport_rect.height > 20.0 {
-            let mut hud_targets = ViewportHudTargets::default();
-            viewport_hud::build_viewport_hud(
-                &mut self.tree,
-                root,
-                &ViewportHudParams {
-                    viewport_rect: params.viewport_rect,
-                    camera: params.camera,
-                    wireframe_enabled: params.wireframe_enabled,
-                    gizmo_mode: params.gizmo_mode,
-                    gizmo_space: params.gizmo_space,
-                    snapping: params.snapping_settings,
-                    cursor_pos: self.cursor_pos,
-                    active_dropdown: self.viewport_hud_dropdown,
-                    selected_entity: params.selected_entity,
-                    world: params.world,
-                    is_editing: params.is_editing,
-                },
-                &mut hud_targets,
-            );
-            self.viewport_hud_targets = Some(hud_targets);
-        }
-
-        // 4. Layer 0: Render all DOCKED panels first (Z-Index: Background Workspace Layer)
         let is_floating = |panel: crate::ui::panel_layout::PanelId| {
             super::floating_layer::is_panel_in_floating_window(params.layout_state, panel)
         };
 
+        // 3. If Viewport canvas is valid and docked, build Viewport content (3D scene texture + HUD)
+        if !is_floating(crate::ui::panel_layout::PanelId::Viewport)
+            && params.viewport_rect.width > 20.0
+            && params.viewport_rect.height > 20.0
+        {
+            self.build_viewport_content(root, params.viewport_rect, &params);
+        }
+
+        // 4. Layer 0: Render all DOCKED panels first (Z-Index: Background Workspace Layer)
         if !is_floating(crate::ui::panel_layout::PanelId::Hierarchy) {
             self.build_hierarchy_panel_if_active(root, &params);
         }
@@ -310,7 +293,16 @@ impl IrisEditorOverlay {
                 crate::ui::panel_layout::PanelId::UiDesigner => {
                     self.build_ui_designer_panel_if_active(container_id, &params);
                 }
-                _ => {}
+                crate::ui::panel_layout::PanelId::Viewport => {
+                    let vp_rect = super::floating_layer::active_panel_content_rect(
+                        params.layout_state,
+                        crate::ui::panel_layout::PanelId::Viewport,
+                    )
+                    .unwrap_or(params.viewport_rect);
+                    if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
+                        self.build_viewport_content(container_id, vp_rect, &params);
+                    }
+                }
             }
         }
 

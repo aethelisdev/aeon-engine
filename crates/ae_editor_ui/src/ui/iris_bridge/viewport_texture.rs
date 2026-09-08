@@ -7,7 +7,7 @@ use super::IrisEditorOverlay;
 use irisui::prelude::ExternalTextureId;
 
 /// Stable identity reserved for the editor's resolved 3D viewport image.
-pub(crate) const VIEWPORT_TEXTURE_ID: ExternalTextureId = ExternalTextureId(0);
+pub const VIEWPORT_TEXTURE_ID: ExternalTextureId = ExternalTextureId(0);
 
 impl IrisEditorOverlay {
     /// Updates the reusable D2 binding when the renderer replaces the viewport texture view.

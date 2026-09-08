@@ -165,7 +165,7 @@ impl RenderState {
             }
 
             if let Some(render_ui) = ui_renderer {
-                let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.egui_view);
+                let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.view);
                 self.last_viewport_rect = render_ui(
                     &self.device,
                     &self.queue,
@@ -379,7 +379,7 @@ impl RenderState {
 
         let ui_timer = std::time::Instant::now();
         if let Some(render_ui) = ui_renderer {
-            let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.egui_view);
+            let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.view);
             self.last_viewport_rect = render_ui(
                 &self.device,
                 &self.queue,
