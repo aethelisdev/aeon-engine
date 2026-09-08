@@ -42,7 +42,7 @@ pub fn build_viewport_hud(
             popup::render_viewport_hud_dropdown_popup(tree, parent_id, active_dd, params, targets);
         }
     } else {
-        // Play Mode HUD
-        play_hud::build_play_hud(tree, parent_id, params);
+        // Play Mode HUD & In-Game Pause Menu Overlay
+        play_hud::build_play_hud(tree, parent_id, params, targets);
     }
 }

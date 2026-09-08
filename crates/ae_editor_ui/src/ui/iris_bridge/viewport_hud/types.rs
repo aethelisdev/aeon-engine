@@ -49,6 +49,10 @@ pub enum ViewportHudAction {
     SelectEntity(Entity),
     /// Toggles a dropdown popup menu open or closed.
     ToggleDropdown(Option<ViewportHudDropdownId>),
+    /// Resumes active in-game gameplay from the pause overlay.
+    ResumeGame,
+    /// Exits in-game play mode and returns to editor mode.
+    ExitToEditor,
 }
 
 /// Hit-test interaction target collection for Viewport HUD widgets.

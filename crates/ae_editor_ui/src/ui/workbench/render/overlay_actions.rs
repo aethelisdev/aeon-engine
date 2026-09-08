@@ -256,6 +256,14 @@ impl EngineUi {
                 iris_bridge::ViewportHudAction::ToggleDropdown(dd) => {
                     self.iris_overlay.viewport_hud_dropdown = dd;
                 }
+                iris_bridge::ViewportHudAction::ResumeGame => {
+                    ui_actions.push(EngineUiAction::ResumeGame);
+                }
+                iris_bridge::ViewportHudAction::ExitToEditor => {
+                    ui_actions.push(EngineUiAction::ChangeMode(
+                        ae_core::modules::EngineMode::Edit,
+                    ));
+                }
             }
         }
     }
