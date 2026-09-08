@@ -13,6 +13,12 @@ impl IrisEditorOverlay {
         if point.y <= Self::MENUBAR_HEIGHT {
             return true;
         }
+        // Floating dropdown popup from menubar has highest z-order
+        if let Some(dd_rect) = self.dropdown_rect
+            && dd_rect.contains_point(point)
+        {
+            return true;
+        }
         if self
             .about_targets
             .as_ref()
@@ -53,11 +59,6 @@ impl IrisEditorOverlay {
         {
             return true;
         }
-        if let Some(dd_rect) = self.dropdown_rect
-            && dd_rect.contains_point(point)
-        {
-            return true;
-        }
         false
     }
 
@@ -67,6 +68,12 @@ impl IrisEditorOverlay {
         // 1. Top Menubar and active modal dialogs (About, Preferences, Delete, Rename, Loading, Dropdowns)
         // These always have the absolute highest z-order above everything else.
         if point.y <= Self::MENUBAR_HEIGHT {
+            return true;
+        }
+        // Floating dropdown popup from menubar has highest z-order above docked panels and modals
+        if let Some(dd_rect) = self.dropdown_rect
+            && dd_rect.contains_point(point)
+        {
             return true;
         }
         if self.about_targets.is_some()
@@ -83,12 +90,6 @@ impl IrisEditorOverlay {
                 || targets
                     .active_dropdown_popup_rect
                     .is_some_and(|r| r.contains_point(point)))
-        {
-            return true;
-        }
-        // Floating dropdown popup from menubar has highest z-order above docked panels
-        if let Some(dd_rect) = self.dropdown_rect
-            && dd_rect.contains_point(point)
         {
             return true;
         }

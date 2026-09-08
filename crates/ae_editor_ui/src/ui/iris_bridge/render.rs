@@ -205,6 +205,7 @@ impl IrisEditorOverlay {
                     || n.starts_with("DropdownItem")
                     || n.starts_with("DropdownIcon")
                     || n.starts_with("DropdownShortcut")
+                    || n.starts_with("DropdownLabel")
             })
             .unwrap_or(false);
         let child_is_inside_dropdown = ctx.is_inside_dropdown || is_dropdown_element;
@@ -265,6 +266,7 @@ impl IrisEditorOverlay {
                 }
             };
 
+            let text_center_x = (text_min_x + text_max_x) * 0.5;
             let text_center_y = node.computed_rect.y + node.computed_rect.height * 0.5;
             let mut is_fully_occluded = false;
 
@@ -283,8 +285,8 @@ impl IrisEditorOverlay {
                     }
 
                     // If text center is covered by the dropdown popup, suppress it completely
-                    if text_min_x >= popup.x
-                        && text_max_x <= popup.right()
+                    if text_center_x >= popup.x
+                        && text_center_x <= popup.right()
                         && text_center_y >= popup.y
                         && text_center_y <= popup.bottom()
                     {
@@ -323,8 +325,8 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    if text_min_x >= modal.x
-                        && text_max_x <= modal.right()
+                    if text_center_x >= modal.x
+                        && text_center_x <= modal.right()
                         && text_center_y >= modal.y
                         && text_center_y <= modal.bottom()
                     {
@@ -366,8 +368,8 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    if text_min_x >= floating.x
-                        && text_max_x <= floating.right()
+                    if text_center_x >= floating.x
+                        && text_center_x <= floating.right()
                         && text_center_y >= floating.y
                         && text_center_y <= floating.bottom()
                     {

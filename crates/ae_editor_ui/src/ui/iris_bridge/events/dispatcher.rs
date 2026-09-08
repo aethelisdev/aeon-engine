@@ -35,17 +35,25 @@ impl IrisEditorOverlay {
             return result;
         }
 
-        // 5. Preferences Modal Dialog
+        // 5. Top Menubar and Dropdowns (Prioritized above modal dialogs whenever a dropdown
+        // is open or the cursor is positioned over the menubar header)
+        if (self.active_menu.is_some() || self.cursor_pos.y <= Self::MENUBAR_HEIGHT)
+            && let Some(mb_res) = self.handle_menubar_event(event)
+        {
+            return mb_res;
+        }
+
+        // 6. Preferences Modal Dialog
         if let Some(pref_result) = self.handle_preferences_event(event) {
             return pref_result;
         }
 
-        // 6. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
+        // 7. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
         if let Some(modal_result) = self.handle_modal_events(event) {
             return modal_result;
         }
 
-        // 7. Top Menubar and Dropdowns (Highest priority above docked panels)
+        // 8. Top Menubar and Dropdowns (Fallback interaction route)
         if let Some(mb_res) = self.handle_menubar_event(event) {
             return mb_res;
         }

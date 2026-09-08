@@ -354,32 +354,6 @@ impl IrisEditorOverlay {
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked and floating panels):
-        // 6a. If a dropdown menu is open, build its floating popup
-        if let Some(active) = self.active_menu {
-            let anchor_x = match active {
-                ActiveMenu::File => 6.0,
-                ActiveMenu::Edit => 44.0,
-                ActiveMenu::View => 84.0,
-                ActiveMenu::Window => 126.0,
-                ActiveMenu::Help => 186.0,
-            };
-
-            let (dropdown_id, items, dd_rect) = menubar::build_floating_dropdown(
-                &mut self.tree,
-                active,
-                anchor_x,
-                self.cursor_pos,
-                params.layout_state,
-                params.can_undo,
-                params.can_redo,
-            );
-
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, dropdown_id);
-            }
-            self.dropdown_items = items;
-            self.dropdown_rect = Some(dd_rect);
-        }
 
         // 6b. If Preferences dialogue is active, build its floating card
         if params.show_preferences {
@@ -539,6 +513,34 @@ impl IrisEditorOverlay {
             params.layout_state,
             workspace_rect,
         );
+
+        // 6j. Top Menubar Dropdown Popup (Rendered as topmost overlay above all docked panels,
+        // floating windows, and modal dialogs so it always has absolute top visual hierarchy)
+        if let Some(active) = self.active_menu {
+            let anchor_x = match active {
+                ActiveMenu::File => 6.0,
+                ActiveMenu::Edit => 44.0,
+                ActiveMenu::View => 84.0,
+                ActiveMenu::Window => 126.0,
+                ActiveMenu::Help => 186.0,
+            };
+
+            let (dropdown_id, items, dd_rect) = menubar::build_floating_dropdown(
+                &mut self.tree,
+                active,
+                anchor_x,
+                self.cursor_pos,
+                params.layout_state,
+                params.can_undo,
+                params.can_redo,
+            );
+
+            if let Some(root_id) = self.tree.root() {
+                let _ = self.tree.add_child(root_id, dropdown_id);
+            }
+            self.dropdown_items = items;
+            self.dropdown_rect = Some(dd_rect);
+        }
 
         // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
         self.populate_draw_commands(root, None, Some(params.frame_pacing));
