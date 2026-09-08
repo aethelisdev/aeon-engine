@@ -157,7 +157,7 @@ pub struct AssetsContextMenuTargets {
     pub target: AssetsContextMenuTarget,
 }
 
-/// State container for the -style interactive Asset Preview modal.
+/// State container for the interactive Asset Preview modal.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssetPreviewModalState {
     /// Inspected asset metadata.

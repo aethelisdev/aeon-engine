@@ -13,6 +13,32 @@ use crate::style::{Style, TextAlign};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExternalTextureId(pub u64);
 
+/// Semantic functional role of a UI node for layout, rendering, and occlusion management.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WidgetRole {
+    /// Default general-purpose container or leaf widget.
+    #[default]
+    Default,
+    /// Thin visual divider separator.
+    Separator,
+    /// Small icon indicator inside a dropdown item.
+    DropdownIcon,
+    /// Keyboard shortcut text label inside a dropdown item.
+    DropdownShortcut,
+    /// Main text label inside a dropdown item.
+    DropdownLabel,
+    /// Clickable menu or dropdown row item.
+    DropdownItem,
+    /// Floating popup or dropdown menu container.
+    DropdownPopup,
+    /// Modal dialog card or window (e.g. Preferences, About, Asset Preview).
+    ModalWindow,
+    /// Floating draggable tool window.
+    FloatingWindow,
+    /// Canvas for drawing real-time audio or profiler oscilloscope curves.
+    OscilloscopeCanvas,
+}
+
 /// A single node in the Retained-Mode UI tree stored in the central arena.
 /// Each node holds hierarchical relationships (parent and children references via `WidgetId`),
 /// current style parameters, fine-grained dirty flags, cached layout coordinates, and optional text payload.
@@ -52,6 +78,8 @@ pub struct WidgetNode {
     pub visible: bool,
     /// Whether this node can receive mouse and keyboard interaction events.
     pub interactive: bool,
+    /// Semantic functional role for layout, rendering, and occlusion management.
+    pub role: WidgetRole,
     /// Optional debug name for inspection and profiling.
     pub name: Option<String>,
 }
@@ -83,8 +111,23 @@ impl WidgetNode {
             text_align: TextAlign::Left,
             visible: true,
             interactive: true,
+            role: WidgetRole::Default,
             name: None,
         }
+    }
+
+    /// Sets the semantic functional role of the node (builder style).
+    #[inline]
+    pub fn with_role(mut self, role: WidgetRole) -> Self {
+        self.role = role;
+        self
+    }
+
+    /// Sets the semantic functional role on an existing mutable reference.
+    #[inline]
+    pub fn set_role(&mut self, role: WidgetRole) -> &mut Self {
+        self.role = role;
+        self
     }
 
     /// Sets the debug name of the node (builder style).
@@ -190,5 +233,26 @@ impl WidgetNode {
     #[inline]
     pub fn hit_test(&self, point: Point) -> bool {
         self.visible && self.interactive && self.computed_rect.contains_point(point)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_widget_role_default_and_mutation() {
+        let dummy_id = WidgetId::default();
+        let mut node = WidgetNode::new(dummy_id);
+        assert_eq!(node.role, WidgetRole::Default);
+
+        node.set_role(WidgetRole::DropdownPopup);
+        assert_eq!(node.role, WidgetRole::DropdownPopup);
+
+        let modal_node = WidgetNode::new(dummy_id).with_role(WidgetRole::ModalWindow);
+        assert_eq!(modal_node.role, WidgetRole::ModalWindow);
+
+        let canvas_node = WidgetNode::new(dummy_id).with_role(WidgetRole::OscilloscopeCanvas);
+        assert_eq!(canvas_node.role, WidgetRole::OscilloscopeCanvas);
     }
 }

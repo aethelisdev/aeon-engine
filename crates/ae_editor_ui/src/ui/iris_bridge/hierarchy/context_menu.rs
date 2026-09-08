@@ -37,6 +37,7 @@ pub fn build_context_menu(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("EntityContextMenuCard");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
             .background(Color::rgba(0.06, 0.07, 0.10, 0.98))

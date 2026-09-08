@@ -44,6 +44,7 @@ pub fn build_aspect_ratio_popup(
     let popup_id = tree.create_node();
     if let Some(node) = tree.get_mut(popup_id) {
         node.set_name("AspectRatioPopup");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = popup_rect;
         node.style = Style::new()
             .background(Color::rgba(0.090, 0.095, 0.110, 0.98))
@@ -142,6 +143,7 @@ pub fn build_add_element_popup(
     let popup_id = tree.create_node();
     if let Some(node) = tree.get_mut(popup_id) {
         node.set_name("AddElementPopup");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = popup_rect;
         node.style = Style::new()
             .background(Color::rgba(0.090, 0.095, 0.110, 0.98))

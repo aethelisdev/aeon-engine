@@ -58,6 +58,7 @@ pub fn build_asset_preview_modal(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("PreviewModalCard");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = dialog_rect;
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.09, 0.12, 0.99))

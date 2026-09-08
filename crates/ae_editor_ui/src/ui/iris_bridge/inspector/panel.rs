@@ -95,7 +95,7 @@ pub fn build_inspector_panel(
     };
 
     // 4. Primary Transform / Layout Card
-    // Industry standard ( RectTransform /  UMG Slot): 2D UI elements use 2D Screen Transform
+    // 2D Screen Transform: UI elements use screen coordinates
     let is_ui_element = params.world.get::<&ae_core::ecs::UiElement>(entity).is_ok();
     if is_ui_element {
         ctx.base_y = content_y;

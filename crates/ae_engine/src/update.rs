@@ -462,8 +462,11 @@ impl AeEngine {
         // Cursor grab synchronization with pause state
         if is_paused && !was_paused {
             self.set_cursor_grab(false);
+            self.editor.mouse_delta = (0.0, 0.0);
+            self.input.clear_pressed_keys();
         } else if !is_paused && was_paused {
             self.set_cursor_grab(true);
+            self.editor.mouse_delta = (0.0, 0.0);
         }
 
         // 3. Tick In-Game HUD subsystem
@@ -471,6 +474,7 @@ impl AeEngine {
             .update_from_events(&mut self.ecs.world, &mut self.event_bus);
 
         if is_paused {
+            self.editor.mouse_delta = (0.0, 0.0);
             return;
         }
 
@@ -519,6 +523,7 @@ impl AeEngine {
                 );
                 pop_cmd.apply(&mut self.ecs.world);
                 self.set_cursor_grab(true);
+                self.editor.mouse_delta = (0.0, 0.0);
             }
         }
 

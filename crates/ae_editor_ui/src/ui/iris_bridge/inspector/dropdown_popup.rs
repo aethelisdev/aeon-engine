@@ -48,6 +48,7 @@ pub fn build_inspector_dropdown_popup(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("InspectorDropdownPopup");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = popup_rect;
         node.style = Style::new()
             .background(Color::rgba(0.086, 0.090, 0.106, 0.98))

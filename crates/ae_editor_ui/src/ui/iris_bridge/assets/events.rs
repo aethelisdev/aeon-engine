@@ -612,7 +612,7 @@ pub fn handle_assets_panel_event(
                 _ => {}
             }
         } else if ctx.targets.preview_modal.is_none() {
-            // 5c. Spacebar: Quick Asset Preview ( style)
+            // 5c. Spacebar: Quick Asset Preview modal
             if matches!(logical_key, Key::Named(NamedKey::Space))
                 && let Some(sel_path) = ctx.selected_asset
             {

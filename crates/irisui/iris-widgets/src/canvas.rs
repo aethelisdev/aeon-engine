@@ -6,7 +6,7 @@
 //! Provides first-class, zero-allocation hardware-accelerated 2D canvas drawing and charting
 //! components for game engine tools, timelines, telemetry graphs, and node graph wires.
 
-use iris_core::{Color, Rect, Style, TextAlign, UiTree, WidgetId};
+use iris_core::{Color, Rect, Style, TextAlign, UiTree, WidgetId, WidgetRole};
 use iris_wgpu::{DrawCommandList, QuadInstance};
 
 /// Visual threshold milestone line configuration for time-series and profiler charts.
@@ -66,6 +66,7 @@ pub struct CanvasBuilder<'a> {
     tree: &'a mut UiTree,
     parent_id: Option<WidgetId>,
     name: String,
+    role: WidgetRole,
     rect: Rect,
     style: ChartStyle,
     thresholds: Vec<ChartThreshold>,
@@ -78,6 +79,7 @@ impl<'a> CanvasBuilder<'a> {
             tree,
             parent_id: None,
             name: "GpuCanvas".into(),
+            role: WidgetRole::OscilloscopeCanvas,
             rect: Rect::ZERO,
             style: ChartStyle::default(),
             thresholds: Vec::new(),
@@ -87,6 +89,12 @@ impl<'a> CanvasBuilder<'a> {
     /// Assigns the parent widget handle.
     pub fn parent(mut self, parent: WidgetId) -> Self {
         self.parent_id = Some(parent);
+        self
+    }
+
+    /// Sets the semantic role of the canvas node.
+    pub fn role(mut self, role: WidgetRole) -> Self {
+        self.role = role;
         self
     }
 
@@ -119,6 +127,7 @@ impl<'a> CanvasBuilder<'a> {
         let canvas_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(canvas_id) {
             node.set_name(self.name);
+            node.set_role(self.role);
             node.computed_rect = self.rect;
             node.style = Style::new()
                 .background(self.style.background_color)

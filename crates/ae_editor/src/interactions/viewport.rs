@@ -42,10 +42,6 @@ pub fn handle_cursor_moved(
     let dy = y - editor.last_cursor_pos.1;
     editor.last_cursor_pos = (x, y);
 
-    // Accumulate mouse_delta for camera orbit look in Play mode and Edit mode
-    editor.mouse_delta.0 += dx as f32;
-    editor.mouse_delta.1 += dy as f32;
-
     if editor.right_mouse_pressed
         && is_edit_mode
         && camera.mode != ae_core::camera::ProjectionMode::Orthographic

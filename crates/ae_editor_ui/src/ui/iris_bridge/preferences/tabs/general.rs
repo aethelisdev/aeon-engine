@@ -252,6 +252,7 @@ pub fn build_general_tab(
             let popup_id = tree.create_node();
             if let Some(node) = tree.get_mut(popup_id) {
                 node.set_name("UiScalePopup");
+                node.set_role(WidgetRole::DropdownPopup);
                 node.computed_rect = popup_rect;
                 node.style = Style::new()
                     .background(Color::rgba(0.08, 0.09, 0.13, 0.98))

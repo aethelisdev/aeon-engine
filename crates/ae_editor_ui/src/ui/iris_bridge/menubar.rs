@@ -338,12 +338,7 @@ pub fn build_floating_dropdown(
 
     for child_id in children {
         if let Some(child_node) = tree.get_mut(child_id) {
-            if child_node
-                .name
-                .as_deref()
-                .unwrap_or_default()
-                .contains("Separator")
-            {
+            if child_node.role == WidgetRole::Separator {
                 child_node.computed_rect =
                     Rect::new(anchor_x + 6.0, layout_y + 3.0, width - 12.0, 1.0);
                 layout_y += 7.0;
@@ -353,20 +348,24 @@ pub fn build_floating_dropdown(
 
                 let row_children = child_node.children.clone();
                 let has_icon = row_children.iter().any(|&cid| {
-                    tree.get(cid).and_then(|n| n.name.as_deref()) == Some("DropdownIcon")
+                    tree.get(cid)
+                        .map(|n| n.role == WidgetRole::DropdownIcon)
+                        .unwrap_or(false)
                 });
                 let has_shortcut = row_children.iter().any(|&cid| {
-                    tree.get(cid).and_then(|n| n.name.as_deref()) == Some("DropdownShortcut")
+                    tree.get(cid)
+                        .map(|n| n.role == WidgetRole::DropdownShortcut)
+                        .unwrap_or(false)
                 });
 
                 for sub_id in row_children {
                     if let Some(sub_node) = tree.get_mut(sub_id) {
-                        match sub_node.name.as_deref() {
-                            Some("DropdownIcon") => {
+                        match sub_node.role {
+                            WidgetRole::DropdownIcon => {
                                 sub_node.computed_rect =
                                     Rect::new(row_rect.x + 6.0, layout_y + 5.0, 18.0, 14.0);
                             }
-                            Some("DropdownShortcut") => {
+                            WidgetRole::DropdownShortcut => {
                                 sub_node.computed_rect = Rect::new(
                                     row_rect.x + row_rect.width - 70.0,
                                     layout_y + 5.0,

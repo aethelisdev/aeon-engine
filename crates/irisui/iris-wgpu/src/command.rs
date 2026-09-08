@@ -45,7 +45,7 @@ pub enum DrawCommand {
     ResetScissor,
 }
 
-/// Ordered list of draw commands and instanced batches for pixel-perfect Z-order compositing.
+/// Ordered list of draw commands and instanced batches for pixel-accurate Z-order compositing.
 #[derive(Debug, Default)]
 pub struct DrawCommandList {
     /// Sequential draw and scissor commands in exact front-to-back/back-to-front Z-order.

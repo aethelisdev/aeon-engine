@@ -68,6 +68,8 @@ pub fn update_play_mode(
         let arm_distance = 6.0_f32;
         camera.position = target_pos - forward * arm_distance;
         camera.target = target_pos;
+    } else {
+        camera.target = camera.position + camera.get_forward();
     }
 }
 
@@ -150,5 +152,57 @@ pub fn handle_mouse_look(
         camera.pitch = max_pitch;
     } else if camera.pitch < -max_pitch {
         camera.pitch = -max_pitch;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ae_core::camera::Camera;
+    use ae_core::ecs::{EcsManager, Position};
+
+    fn make_test_camera() -> Camera {
+        Camera {
+            position: cgmath::Point3::new(0.0, 0.0, 0.0),
+            yaw: cgmath::Rad(1.23),
+            pitch: cgmath::Rad(-0.25),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+            mode: ae_core::camera::ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    /// Verifies that update_play_mode preserves camera orientation and orbit position exactly when mouse_delta is zero.
+    #[test]
+    fn test_update_play_mode_zero_delta_preserves_camera() {
+        let mut ecs = EcsManager::new();
+        let _player = ecs.world.spawn((PlayerTag, Position::new(10.0, 0.0, 5.0)));
+
+        let mut camera = make_test_camera();
+        let mut editor = EditorState {
+            mouse_delta: (0.0, 0.0),
+            ..Default::default()
+        };
+
+        // Run play mode update
+        update_play_mode(&mut ecs, &mut camera, &mut editor);
+
+        let initial_pos = camera.position;
+        let initial_target = camera.target;
+        let initial_yaw = camera.yaw;
+        let initial_pitch = camera.pitch;
+
+        // Run second frame with zero mouse delta
+        update_play_mode(&mut ecs, &mut camera, &mut editor);
+
+        assert_eq!(camera.yaw, initial_yaw);
+        assert_eq!(camera.pitch, initial_pitch);
+        assert_eq!(camera.position, initial_pos);
+        assert_eq!(camera.target, initial_target);
+        assert_eq!(editor.mouse_delta, (0.0, 0.0));
     }
 }

@@ -4,7 +4,7 @@
 //! # Scene Hierarchy Header and Search Bar Builder
 //!
 //! Renders the top search bar input box, clear button, `➕` Add Menu button,
-//! and `🗑` Delete Selected entity button with pixel-perfect visual styling.
+//! and `🗑` Delete Selected entity button with clean visual alignment.
 
 use super::types::{HierarchyPanelParams, HierarchyPanelTargets};
 use crate::ui::iris_bridge::icons::ICON_PLUS;

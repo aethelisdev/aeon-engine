@@ -77,6 +77,7 @@ pub fn build_assets_context_menu(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AssetsContextMenuCard");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
             .background(Color::rgba(0.07, 0.08, 0.11, 0.98))

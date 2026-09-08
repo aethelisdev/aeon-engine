@@ -81,6 +81,7 @@ pub fn build_about_dialog(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AboutDialogCard");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = dialog_rect;
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.08, 0.10, 0.98))

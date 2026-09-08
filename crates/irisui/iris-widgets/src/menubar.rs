@@ -3,7 +3,9 @@
 
 //! Top application menu bar and dropdown menu item builders.
 
-use iris_core::{AlignItems, Color, Insets, JustifyContent, Style, TextAlign, UiTree, WidgetId};
+use iris_core::{
+    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, UiTree, WidgetId, WidgetRole,
+};
 
 /// Helper builder for the top horizontal application menu bar.
 pub struct MenuBarBuilder<'a> {
@@ -162,6 +164,7 @@ impl<'a> DropdownMenuBuilder<'a> {
         let node_id = tree.create_node();
         if let Some(node) = tree.get_mut(node_id) {
             node.set_name("DropdownMenu");
+            node.set_role(WidgetRole::DropdownPopup);
             node.set_style(
                 Style::new()
                     .flex_col()
@@ -202,6 +205,7 @@ impl<'a> DropdownMenuBuilder<'a> {
             let icon_id = self.tree.create_node();
             if let Some(node) = self.tree.get_mut(icon_id) {
                 node.set_name("DropdownIcon");
+                node.set_role(WidgetRole::DropdownIcon);
                 node.set_text(icon);
                 node.font_size = 12.0;
                 node.line_height = 14.0;
@@ -214,6 +218,7 @@ impl<'a> DropdownMenuBuilder<'a> {
         let label_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(label_id) {
             node.set_name("DropdownLabel");
+            node.set_role(WidgetRole::DropdownLabel);
             node.set_text(label);
             node.font_size = 12.0;
             node.line_height = 14.0;
@@ -226,6 +231,7 @@ impl<'a> DropdownMenuBuilder<'a> {
             let sc_id = self.tree.create_node();
             if let Some(sc_node) = self.tree.get_mut(sc_id) {
                 sc_node.set_name("DropdownShortcut");
+                sc_node.set_role(WidgetRole::DropdownShortcut);
                 sc_node.set_text(sc);
                 sc_node.font_size = 11.0;
                 sc_node.line_height = 14.0;
@@ -245,6 +251,7 @@ impl<'a> DropdownMenuBuilder<'a> {
 
         if let Some(row_node) = self.tree.get_mut(row_id) {
             row_node.set_name("DropdownItem");
+            row_node.set_role(WidgetRole::DropdownItem);
             row_node.set_style(
                 Style::new()
                     .height(24.0)
@@ -267,6 +274,7 @@ impl<'a> DropdownMenuBuilder<'a> {
         let sep_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(sep_id) {
             node.set_name("DropdownSeparator");
+            node.set_role(WidgetRole::Separator);
             node.set_style(
                 Style::new()
                     .height(1.0)

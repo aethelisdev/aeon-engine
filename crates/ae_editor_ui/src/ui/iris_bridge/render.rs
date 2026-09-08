@@ -109,7 +109,7 @@ impl IrisEditorOverlay {
                 None
             };
 
-            let is_oscilloscope = node.name.as_deref() == Some("OscilloscopeCanvas");
+            let is_oscilloscope = node.role == WidgetRole::OscilloscopeCanvas;
             let canvas_rect = node.computed_rect;
 
             (
@@ -190,44 +190,21 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let is_dropdown_element = node
-            .name
-            .as_deref()
-            .map(|n| {
-                n.contains("Popup")
-                    || n.contains("ColorPicker")
-                    || n.contains("Picker")
-                    || n.contains("AddMenu")
-                    || n.contains("Submenu")
-                    || n.contains("SubItem")
-                    || n.contains("ContextMenu")
-                    || n.starts_with("DropdownMenu")
-                    || n.starts_with("DropdownItem")
-                    || n.starts_with("DropdownIcon")
-                    || n.starts_with("DropdownShortcut")
-                    || n.starts_with("DropdownLabel")
-            })
-            .unwrap_or(false);
+        let is_dropdown_element = matches!(
+            node.role,
+            WidgetRole::DropdownPopup
+                | WidgetRole::DropdownItem
+                | WidgetRole::DropdownIcon
+                | WidgetRole::DropdownShortcut
+                | WidgetRole::DropdownLabel
+        );
         let child_is_inside_dropdown = ctx.is_inside_dropdown || is_dropdown_element;
 
-        let is_modal_element = node
-            .name
-            .as_deref()
-            .map(|n| {
-                n.contains("Modal")
-                    || n.contains("About")
-                    || n.starts_with("Preferences")
-                    || n.starts_with("Pref")
-            })
-            .unwrap_or(false);
+        let is_modal_element = node.role == WidgetRole::ModalWindow;
         let child_is_inside_modal = ctx.is_inside_modal || is_modal_element;
 
-        let child_is_inside_floating = ctx.is_inside_floating
-            || node
-                .name
-                .as_deref()
-                .map(|n| n.starts_with("FloatingWindow"))
-                .unwrap_or(false);
+        let is_floating_element = node.role == WidgetRole::FloatingWindow;
+        let child_is_inside_floating = ctx.is_inside_floating || is_floating_element;
 
         let child_clip = if node.style.clip_children {
             match ctx.clip_rect {

@@ -118,7 +118,7 @@ pub fn build_console_rows(
         }
         let _ = tree.add_child(viewport_node_id, row_id);
 
-        // Left accent strip indicator on hover ( /  IDE standard)
+        // Left accent strip indicator on hover (docking standard)
         if is_hovered {
             let hover_bar_id = tree.create_node();
             if let Some(node) = tree.get_mut(hover_bar_id) {

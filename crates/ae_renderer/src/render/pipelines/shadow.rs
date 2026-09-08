@@ -53,7 +53,7 @@ pub(crate) fn create_shadow_pipeline(
 
 /// Creates the Alpha-Tested Cutout Shadow rendering pipeline.
 /// Executes `fs_shadow_cutout` to discard transparent texels during shadow pass,
-/// enabling pixel-perfect shadows for foliage, hair, clothing, and decals.
+/// enabling crisp shadows for foliage, hair, clothing, and decals.
 pub(crate) fn create_shadow_cutout_pipeline(
     device: &wgpu::Device,
     light_space_bgl_vs: &wgpu::BindGroupLayout,

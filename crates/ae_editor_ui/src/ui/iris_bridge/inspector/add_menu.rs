@@ -58,6 +58,7 @@ pub fn build_add_component_menu(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AddComponentMenuPopup");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
             .background(Color::rgba(0.086, 0.090, 0.106, 0.98))
@@ -262,6 +263,7 @@ fn build_category_submenu(
     let sub_id = tree.create_node();
     if let Some(node) = tree.get_mut(sub_id) {
         node.set_name("AddComponentSubmenuPopup");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = sub_rect;
         node.style = Style::new()
             .background(Color::rgba(0.086, 0.090, 0.106, 0.98))

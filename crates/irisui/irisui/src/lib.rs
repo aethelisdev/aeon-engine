@@ -41,7 +41,7 @@ pub mod prelude {
     };
     pub use iris_core::geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
     pub use iris_core::id::WidgetId;
-    pub use iris_core::node::{ExternalTextureId, WidgetNode};
+    pub use iris_core::node::{ExternalTextureId, WidgetNode, WidgetRole};
     pub use iris_core::style::{AlignItems, FlexDirection, JustifyContent, Style, TextAlign};
     pub use iris_core::tree::UiTree;
 

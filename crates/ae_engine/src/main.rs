@@ -238,7 +238,7 @@ impl ApplicationHandler for AeApp {
 
             WindowEvent::RedrawRequested => {
                 // Handles OS-initiated draw events (e.g. during window resizing or dragging on Win32 modal loops).
-                // Ensures perfect window repainting and immediate Win32 client area validation, preventing UI freezing.
+                // Ensures reliable window repainting and immediate Win32 client area validation, preventing UI freezing.
                 self.update_and_render(event_loop);
             }
 

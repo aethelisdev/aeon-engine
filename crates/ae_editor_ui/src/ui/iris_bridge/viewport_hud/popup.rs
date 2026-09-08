@@ -113,6 +113,7 @@ pub fn render_viewport_hud_dropdown_popup(
     let popup_id = tree.create_node();
     if let Some(node) = tree.get_mut(popup_id) {
         node.set_name("ViewportHudPopup");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = popup_rect;
         node.style = Style::new()
             .background(Color::rgba(0.07, 0.08, 0.11, 0.98))

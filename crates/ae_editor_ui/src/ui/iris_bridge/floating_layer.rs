@@ -81,6 +81,7 @@ pub fn build_floating_windows(
         let win_container = tree.create_node();
         if let Some(node) = tree.get_mut(win_container) {
             node.set_name(format!("FloatingWindow_{}", win.id));
+            node.set_role(WidgetRole::FloatingWindow);
             node.computed_rect = win_rect;
             node.style = Style::new().width(win.rect.width).height(win.rect.height);
         }

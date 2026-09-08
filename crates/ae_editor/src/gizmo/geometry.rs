@@ -601,7 +601,7 @@ impl GizmoSystem {
 
     /// Generates the uniform scale / center O-ring as an anti-aliased, zero-aliasing Screen-Space SDF Quad.
     /// Generates a camera-aligned Quad billboard with normalized `[-1.0, 1.0]` UVs.
-    /// The fragment shader renders a mathematically perfect, sub-pixel anti-aliased circular ring with `fwidth()`.
+    /// The fragment shader renders an analytic sub-pixel anti-aliased circular ring with `fwidth()`.
     pub(crate) fn build_o_ring_mesh(&self) -> Vec<GizmoVertex> {
         let radius = 0.16 * self.drag_scale_factor;
 

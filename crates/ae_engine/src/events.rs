@@ -109,8 +109,12 @@ impl AeEngine {
                     // Warp cursor to the center of the window so it is safely away from any menu buttons
                     let w = self.render_state.size.width as f64;
                     let h = self.render_state.size.height as f64;
+                    let center_x = w / 2.0;
+                    let center_y = h / 2.0;
                     let _ = window
-                        .set_cursor_position(winit::dpi::PhysicalPosition::new(w / 2.0, h / 2.0));
+                        .set_cursor_position(winit::dpi::PhysicalPosition::new(center_x, center_y));
+                    self.editor.last_cursor_pos = (center_x, center_y);
+                    self.editor.mouse_delta = (0.0, 0.0);
                 }
             }
         } else if self.is_cursor_grabbed || self.mode == EngineMode::Edit {
@@ -173,7 +177,10 @@ impl AeEngine {
     /// Handles raw device events (such as hardware un-clamped MouseMotion) for rock solid cross-platform camera control.
     pub fn handle_device_event(&mut self, event: &winit::event::DeviceEvent) {
         if let winit::event::DeviceEvent::MouseMotion { delta: (dx, dy) } = event
-            && (self.editor.right_mouse_pressed || self.mode == EngineMode::Play)
+            && (self.editor.right_mouse_pressed
+                || (self.mode == EngineMode::Play
+                    && self.is_cursor_grabbed
+                    && !self.state_manager.is_paused()))
         {
             self.editor.mouse_delta.0 += *dx as f32;
             self.editor.mouse_delta.1 += *dy as f32;
