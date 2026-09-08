@@ -410,11 +410,7 @@ impl EngineUi {
                         .iter()
                         .find(|t| t.rect.contains_point(p))
                     {
-                        let _ = self
-                            .layout_state
-                            .dock_state
-                            .tree
-                            .remove_tab(target.leaf, target.tab_index);
+                        self.layout_state.close_tab(target.leaf, target.tab_index);
                         dock_consumed = true;
                     }
                     // Tab pills (switch active tab and prepare drag)

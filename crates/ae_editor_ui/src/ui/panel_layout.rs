@@ -171,14 +171,66 @@ impl PanelLayoutState {
         self.dock_state.tree.find_tab(&panel).is_some()
     }
 
-    /// Focuses an existing panel tab in the tree or opens it in a focused leaf.
+    /// Closes a tab at the specified leaf and index, collapsing any emptied leaf containers.
+    pub fn close_tab(&mut self, leaf: irisui::dock::DockNodeId, tab_idx: usize) {
+        let _ = self.dock_state.tree.remove_tab(leaf, tab_idx);
+        self.dock_state.tree.collapse_empty_leaves();
+    }
+
+    /// Focuses an existing panel tab in the tree or opens it relative to its canonical partner/anchor.
     pub fn activate_or_open(&mut self, panel: PanelId) {
         if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
             let _ = self.dock_state.tree.set_active_tab(leaf, idx);
             self.dock_state.tree.set_focused_leaf(Some(leaf));
-        } else {
-            let _ = self.dock_state.tree.push_to_focused_leaf(panel);
+            return;
         }
+
+        let ideal_partner = match panel {
+            PanelId::Hierarchy => PanelId::Stats,
+            PanelId::Stats => PanelId::Hierarchy,
+            PanelId::Inspector => PanelId::MaterialEditor,
+            PanelId::MaterialEditor => PanelId::Inspector,
+            PanelId::Assets => PanelId::Console,
+            PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
+            PanelId::Viewport => PanelId::UiDesigner,
+            PanelId::UiDesigner => PanelId::Viewport,
+        };
+
+        // 1. Try docking as a tab alongside ideal partner leaf
+        if let Some((partner_leaf, _)) = self.dock_state.tree.find_tab(&ideal_partner)
+            && let Ok(idx) = self.dock_state.tree.add_tab(partner_leaf, panel)
+        {
+            let _ = self.dock_state.tree.set_active_tab(partner_leaf, idx);
+            self.dock_state.tree.set_focused_leaf(Some(partner_leaf));
+            return;
+        }
+
+        // 2. Try docking relative to Viewport (the central anchor of the editor)
+        if let Some((viewport_leaf, _)) = self.dock_state.tree.find_tab(&PanelId::Viewport) {
+            let res = match panel {
+                PanelId::Hierarchy | PanelId::Stats => {
+                    self.dock_state.tree.split_left(viewport_leaf, panel)
+                }
+                PanelId::Inspector | PanelId::MaterialEditor => {
+                    self.dock_state.tree.split_right(viewport_leaf, panel)
+                }
+                PanelId::Assets | PanelId::Console | PanelId::AnimationTimeline => {
+                    self.dock_state.tree.split_below(viewport_leaf, panel)
+                }
+                PanelId::Viewport | PanelId::UiDesigner => self
+                    .dock_state
+                    .tree
+                    .add_tab(viewport_leaf, panel)
+                    .map(|_| viewport_leaf),
+            };
+            if let Ok(new_leaf) = res {
+                self.dock_state.tree.set_focused_leaf(Some(new_leaf));
+                return;
+            }
+        }
+
+        // 3. Fallback to focused leaf or root
+        let _ = self.dock_state.tree.push_to_focused_leaf(panel);
     }
 
     /// Docks a floating window back to its canonical home leaf in the tree.
@@ -299,5 +351,32 @@ pub mod tests {
         // Re-open Console
         layout.activate_or_open(PanelId::Console);
         assert!(layout.is_panel_visible(PanelId::Console));
+    }
+
+    #[test]
+    fn test_close_tab_collapses_empty_leaf() {
+        let mut layout = PanelLayoutState::new_default();
+        // Remove both Inspector and MaterialEditor from the right leaf
+        let (leaf, idx) = layout
+            .dock_state
+            .tree
+            .find_tab(&PanelId::Inspector)
+            .unwrap();
+        layout.close_tab(leaf, idx);
+        assert!(!layout.is_panel_visible(PanelId::Inspector));
+        // Leaf still exists because MaterialEditor is present
+        assert!(layout.dock_state.tree.iter().any(|(id, _)| id == leaf));
+
+        let (leaf2, idx2) = layout
+            .dock_state
+            .tree
+            .find_tab(&PanelId::MaterialEditor)
+            .unwrap();
+        assert_eq!(leaf, leaf2);
+        layout.close_tab(leaf2, idx2);
+        assert!(!layout.is_panel_visible(PanelId::MaterialEditor));
+
+        // Now that all tabs in the leaf were closed, the leaf is collapsed and pruned from tree
+        assert!(layout.dock_state.tree.iter().all(|(id, _)| id != leaf));
     }
 }

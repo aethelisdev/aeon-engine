@@ -96,6 +96,9 @@ impl EngineUi {
         // Cache all active UI bounds for point occlusion testing (exclude 3D viewport canvas)
         self.ui_rects.clear();
         for leaf in &computed.leaves {
+            if leaf.tabs.is_empty() {
+                continue;
+            }
             let is_viewport = leaf.tabs.get(leaf.active_tab) == Some(&PanelId::Viewport);
             if is_viewport {
                 // For docked viewport leaf, only the top tab strip is UI; canvas belongs to 3D scene

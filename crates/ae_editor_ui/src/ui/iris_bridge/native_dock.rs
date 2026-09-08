@@ -105,6 +105,10 @@ pub fn build_native_dock(
 
     // 1. Render all leaf panel backgrounds and tab strips
     for leaf in &computed.leaves {
+        if leaf.tabs.is_empty() {
+            continue;
+        }
+
         // Base panel background quad with subtle dark border
         add_rect_node(
             tree,
