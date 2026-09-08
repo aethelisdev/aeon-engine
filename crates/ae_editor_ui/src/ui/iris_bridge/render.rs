@@ -7,12 +7,14 @@ use super::types::IrisEditorOverlay;
 use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSection};
 
-/// Context parameters for recursive text section extraction.
+/// Context parameters for recursive text section extraction with strict multi-layer Z-hierarchy.
 struct TextCollectionContext<'a> {
     clip_rect: Option<Rect>,
-    active_popup_rects: &'a [Rect],
+    active_dropdown_rects: &'a [Rect],
+    active_modal_rects: &'a [Rect],
     floating_window_rects: &'a [Rect],
-    is_inside_popup: bool,
+    is_inside_dropdown: bool,
+    is_inside_modal: bool,
     is_inside_floating: bool,
 }
 
@@ -130,34 +132,43 @@ impl IrisEditorOverlay {
         if let Some((id, eq)) = ext_quad {
             self.command_list.push_external_texture_quad(id, eq);
         }
-        if is_oscilloscope && let Some(pacing) = frame_pacing {
-            super::stats::append_oscilloscope_quads(&mut self.command_list, canvas_rect, pacing);
+
+        // Render oscilloscope telemetry trace at exact canvas Z-order
+        if is_oscilloscope && let Some(ring) = frame_pacing {
+            super::stats::append_oscilloscope_quads(&mut self.command_list, canvas_rect, ring);
         }
 
         for i in 0..child_count {
-            if let Some(child) = self
-                .tree
-                .get(current)
-                .and_then(|n| n.children.get(i).copied())
-            {
-                self.populate_draw_commands(child, next_clip, frame_pacing);
-            }
+            let child_id = {
+                let Some(node) = self.tree.get(current) else {
+                    break;
+                };
+                if i < node.children.len() {
+                    node.children[i]
+                } else {
+                    break;
+                }
+            };
+            self.populate_draw_commands(child_id, next_clip, frame_pacing);
         }
     }
 
     /// Collects text rendering sections from all visible layout nodes in the tree.
     pub fn collect_text_sections_from_tree<'a>(
         tree: &'a UiTree,
-        active_popup_rects: &[Rect],
+        active_dropdown_rects: &[Rect],
+        active_modal_rects: &[Rect],
         floating_window_rects: &[Rect],
     ) -> Vec<TextSection<'a>> {
         let mut sections = Vec::new();
         if let Some(root) = tree.root() {
             let ctx = TextCollectionContext {
                 clip_rect: None,
-                active_popup_rects,
+                active_dropdown_rects,
+                active_modal_rects,
                 floating_window_rects,
-                is_inside_popup: false,
+                is_inside_dropdown: false,
+                is_inside_modal: false,
                 is_inside_floating: false,
             };
             Self::collect_node_text_from_tree(tree, root, &ctx, &mut sections);
@@ -179,28 +190,36 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let child_is_inside_popup = ctx.is_inside_popup
-            || node
-                .name
-                .as_deref()
-                .map(|n| {
-                    n.contains("Popup")
-                        || n.contains("ColorPicker")
-                        || n.contains("Picker")
-                        || n.contains("AddMenu")
-                        || n.contains("Submenu")
-                        || n.contains("SubItem")
-                        || n.contains("ContextMenu")
-                        || n.starts_with("DropdownMenu")
-                        || n.starts_with("DropdownItem")
-                        || n.starts_with("DropdownIcon")
-                        || n.starts_with("DropdownShortcut")
-                        || n.contains("Modal")
-                        || n.contains("About")
-                        || n.starts_with("Preferences")
-                        || n.starts_with("Pref")
-                })
-                .unwrap_or(false);
+        let is_dropdown_element = node
+            .name
+            .as_deref()
+            .map(|n| {
+                n.contains("Popup")
+                    || n.contains("ColorPicker")
+                    || n.contains("Picker")
+                    || n.contains("AddMenu")
+                    || n.contains("Submenu")
+                    || n.contains("SubItem")
+                    || n.contains("ContextMenu")
+                    || n.starts_with("DropdownMenu")
+                    || n.starts_with("DropdownItem")
+                    || n.starts_with("DropdownIcon")
+                    || n.starts_with("DropdownShortcut")
+            })
+            .unwrap_or(false);
+        let child_is_inside_dropdown = ctx.is_inside_dropdown || is_dropdown_element;
+
+        let is_modal_element = node
+            .name
+            .as_deref()
+            .map(|n| {
+                n.contains("Modal")
+                    || n.contains("About")
+                    || n.starts_with("Preferences")
+                    || n.starts_with("Pref")
+            })
+            .unwrap_or(false);
+        let child_is_inside_modal = ctx.is_inside_modal || is_modal_element;
 
         let child_is_inside_floating = ctx.is_inside_floating
             || node
@@ -246,11 +265,13 @@ impl IrisEditorOverlay {
                 }
             };
 
+            let text_center_y = node.computed_rect.y + node.computed_rect.height * 0.5;
             let mut is_fully_occluded = false;
 
-            // Test against active popups and modal dialogs
-            if !child_is_inside_popup {
-                for popup in ctx.active_popup_rects {
+            // 1. Dropdown menus and popups are top-most. Everything EXCEPT elements inside
+            // this specific dropdown popup hierarchy must be occluded by active dropdowns.
+            if !child_is_inside_dropdown {
+                for popup in ctx.active_dropdown_rects {
                     let vert_overlap = node.computed_rect.bottom() > popup.y
                         && node.computed_rect.y < popup.bottom();
                     if !vert_overlap {
@@ -261,17 +282,17 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    // If text is completely covered by the popup, suppress it
+                    // If text center is covered by the dropdown popup, suppress it completely
                     if text_min_x >= popup.x
                         && text_max_x <= popup.right()
-                        && node.computed_rect.y >= popup.y
-                        && node.computed_rect.bottom() <= popup.bottom()
+                        && text_center_y >= popup.y
+                        && text_center_y <= popup.bottom()
                     {
                         is_fully_occluded = true;
                         break;
                     }
 
-                    // If text starts outside popup and extends into it from left, clip right bound
+                    // Scissor clip if partially overlapping horizontally
                     if text_min_x < popup.x && text_max_x > popup.x {
                         let clip_sub = Rect::new(0.0, 0.0, popup.x, 100_000.0);
                         effective_clip = match effective_clip {
@@ -279,7 +300,6 @@ impl IrisEditorOverlay {
                             None => Some(clip_sub),
                         };
                     }
-                    // If text starts inside popup and extends out to the right, clip left bound
                     if text_min_x < popup.right() && text_max_x > popup.right() {
                         let clip_sub = Rect::new(popup.right(), 0.0, 100_000.0, 100_000.0);
                         effective_clip = match effective_clip {
@@ -290,8 +310,51 @@ impl IrisEditorOverlay {
                 }
             }
 
-            // Test against foreground floating windows
-            if !child_is_inside_popup && !child_is_inside_floating && !is_fully_occluded {
+            // 2. Modal dialogs occlude background docked panels, but do NOT occlude dropdowns or their own content
+            if !child_is_inside_dropdown && !child_is_inside_modal && !is_fully_occluded {
+                for modal in ctx.active_modal_rects {
+                    let vert_overlap = node.computed_rect.bottom() > modal.y
+                        && node.computed_rect.y < modal.bottom();
+                    if !vert_overlap {
+                        continue;
+                    }
+                    let horiz_overlap = text_max_x > modal.x && text_min_x < modal.right();
+                    if !horiz_overlap {
+                        continue;
+                    }
+
+                    if text_min_x >= modal.x
+                        && text_max_x <= modal.right()
+                        && text_center_y >= modal.y
+                        && text_center_y <= modal.bottom()
+                    {
+                        is_fully_occluded = true;
+                        break;
+                    }
+
+                    if text_min_x < modal.x && text_max_x > modal.x {
+                        let clip_sub = Rect::new(0.0, 0.0, modal.x, 100_000.0);
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                    if text_min_x < modal.right() && text_max_x > modal.right() {
+                        let clip_sub = Rect::new(modal.right(), 0.0, 100_000.0, 100_000.0);
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                }
+            }
+
+            // 3. Floating windows occlude background docked panels, but do NOT occlude modals or dropdowns
+            if !child_is_inside_dropdown
+                && !child_is_inside_modal
+                && !child_is_inside_floating
+                && !is_fully_occluded
+            {
                 for floating in ctx.floating_window_rects {
                     let vert_overlap = node.computed_rect.bottom() > floating.y
                         && node.computed_rect.y < floating.bottom();
@@ -303,17 +366,15 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    // If text is completely covered by the floating window, suppress it
                     if text_min_x >= floating.x
                         && text_max_x <= floating.right()
-                        && node.computed_rect.y >= floating.y
-                        && node.computed_rect.bottom() <= floating.bottom()
+                        && text_center_y >= floating.y
+                        && text_center_y <= floating.bottom()
                     {
                         is_fully_occluded = true;
                         break;
                     }
 
-                    // If text starts outside floating window and extends into it from left, clip right bound
                     if text_min_x < floating.x && text_max_x > floating.x {
                         let clip_sub = Rect::new(0.0, 0.0, floating.x, 100_000.0);
                         effective_clip = match effective_clip {
@@ -321,7 +382,6 @@ impl IrisEditorOverlay {
                             None => Some(clip_sub),
                         };
                     }
-                    // If text starts inside floating window and extends out to the right, clip left bound
                     if text_min_x < floating.right() && text_max_x > floating.right() {
                         let clip_sub = Rect::new(floating.right(), 0.0, 100_000.0, 100_000.0);
                         effective_clip = match effective_clip {
@@ -357,9 +417,11 @@ impl IrisEditorOverlay {
 
         let child_ctx = TextCollectionContext {
             clip_rect: child_clip,
-            active_popup_rects: ctx.active_popup_rects,
+            active_dropdown_rects: ctx.active_dropdown_rects,
+            active_modal_rects: ctx.active_modal_rects,
             floating_window_rects: ctx.floating_window_rects,
-            is_inside_popup: child_is_inside_popup,
+            is_inside_dropdown: child_is_inside_dropdown,
+            is_inside_modal: child_is_inside_modal,
             is_inside_floating: child_is_inside_floating,
         };
 
@@ -403,73 +465,76 @@ impl IrisEditorOverlay {
             self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
         }
 
-        let mut active_popups: Vec<Rect> = Vec::new();
+        let mut active_dropdown_rects: Vec<Rect> = Vec::new();
+        let mut active_modal_rects: Vec<Rect> = Vec::new();
+
         if let Some(r) = self.dropdown_rect {
-            active_popups.push(r);
+            active_dropdown_rects.push(r);
         }
         if let Some(ref t) = self.preferences_targets {
-            active_popups.push(t.card_rect);
+            active_modal_rects.push(t.card_rect);
             if let Some(r) = t.active_dropdown_popup_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
         }
         if let Some(ref t) = self.about_targets {
-            active_popups.push(t.dialog_rect);
+            active_modal_rects.push(t.dialog_rect);
         }
         if let Some(ref t) = self.delete_targets {
-            active_popups.push(t.dialog_rect);
+            active_modal_rects.push(t.dialog_rect);
         }
         if let Some(ref t) = self.new_folder_targets {
-            active_popups.push(t.dialog_rect);
+            active_modal_rects.push(t.dialog_rect);
         }
         if let Some(ref t) = self.rename_targets {
-            active_popups.push(t.dialog_rect);
+            active_modal_rects.push(t.dialog_rect);
         }
         if let Some(ref t) = self.loading_targets {
-            active_popups.push(t.card_rect);
+            active_modal_rects.push(t.card_rect);
         }
         if let Some(ref hud) = self.viewport_hud_targets
             && let Some(r) = hud.active_dropdown_popup_rect
         {
-            active_popups.push(r);
+            active_dropdown_rects.push(r);
         }
         if let Some(ref hier) = self.hierarchy_targets {
             if let Some(r) = hier.active_add_menu_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
             if let Some(r) = hier.active_submenu_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
             if let Some((_, r, _, _)) = hier.active_context_menu {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
         }
         if let Some(ref insp) = self.inspector_targets {
             if let Some(r) = insp.active_add_menu_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
             if let Some(r) = insp.active_submenu_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
             if let Some(r) = insp.active_dropdown_popup_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
             if let Some(r) = insp.color_picker_popup_rect {
-                active_popups.push(r);
+                active_dropdown_rects.push(r);
             }
         }
         if let Some(ref assets) = self.assets_targets {
             if let Some(ref ctx_menu) = assets.context_menu {
-                active_popups.push(ctx_menu.card_rect);
+                active_dropdown_rects.push(ctx_menu.card_rect);
             }
             if let Some(ref modal) = assets.preview_modal {
-                active_popups.push(modal.dialog_rect);
+                active_modal_rects.push(modal.dialog_rect);
             }
         }
 
         let sections = Self::collect_text_sections_from_tree(
             &self.tree,
-            &active_popups,
+            &active_dropdown_rects,
+            &active_modal_rects,
             &self.floating_window_rects,
         );
         if let Some(txt_renderer) = &mut self.text_renderer {
