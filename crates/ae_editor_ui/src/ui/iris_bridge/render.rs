@@ -266,7 +266,6 @@ impl IrisEditorOverlay {
                 }
             };
 
-            let text_center_x = (text_min_x + text_max_x) * 0.5;
             let text_center_y = node.computed_rect.y + node.computed_rect.height * 0.5;
             let mut is_fully_occluded = false;
 
@@ -284,9 +283,9 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    // If text center is covered by the dropdown popup, suppress it completely
-                    if text_center_x >= popup.x
-                        && text_center_x <= popup.right()
+                    // If text is 100% covered horizontally and vertically by popup, suppress it completely
+                    if text_min_x >= popup.x
+                        && text_max_x <= popup.right()
                         && text_center_y >= popup.y
                         && text_center_y <= popup.bottom()
                     {
@@ -301,8 +300,7 @@ impl IrisEditorOverlay {
                             Some(c) => Some(c.intersect(clip_sub)),
                             None => Some(clip_sub),
                         };
-                    }
-                    if text_min_x < popup.right() && text_max_x > popup.right() {
+                    } else if text_min_x < popup.right() && text_max_x > popup.right() {
                         let clip_sub = Rect::new(popup.right(), 0.0, 100_000.0, 100_000.0);
                         effective_clip = match effective_clip {
                             Some(c) => Some(c.intersect(clip_sub)),
@@ -325,8 +323,8 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    if text_center_x >= modal.x
-                        && text_center_x <= modal.right()
+                    if text_min_x >= modal.x
+                        && text_max_x <= modal.right()
                         && text_center_y >= modal.y
                         && text_center_y <= modal.bottom()
                     {
@@ -340,8 +338,7 @@ impl IrisEditorOverlay {
                             Some(c) => Some(c.intersect(clip_sub)),
                             None => Some(clip_sub),
                         };
-                    }
-                    if text_min_x < modal.right() && text_max_x > modal.right() {
+                    } else if text_min_x < modal.right() && text_max_x > modal.right() {
                         let clip_sub = Rect::new(modal.right(), 0.0, 100_000.0, 100_000.0);
                         effective_clip = match effective_clip {
                             Some(c) => Some(c.intersect(clip_sub)),
@@ -368,8 +365,8 @@ impl IrisEditorOverlay {
                         continue;
                     }
 
-                    if text_center_x >= floating.x
-                        && text_center_x <= floating.right()
+                    if text_min_x >= floating.x
+                        && text_max_x <= floating.right()
                         && text_center_y >= floating.y
                         && text_center_y <= floating.bottom()
                     {
@@ -383,8 +380,7 @@ impl IrisEditorOverlay {
                             Some(c) => Some(c.intersect(clip_sub)),
                             None => Some(clip_sub),
                         };
-                    }
-                    if text_min_x < floating.right() && text_max_x > floating.right() {
+                    } else if text_min_x < floating.right() && text_max_x > floating.right() {
                         let clip_sub = Rect::new(floating.right(), 0.0, 100_000.0, 100_000.0);
                         effective_clip = match effective_clip {
                             Some(c) => Some(c.intersect(clip_sub)),
