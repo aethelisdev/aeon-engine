@@ -482,3 +482,99 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         "Inspector Rotation row must immediately reflect undone component value"
     );
 }
+
+#[test]
+fn test_inspector_numeric_input_clamping_and_non_negative_invariants() {
+    use super::types::InspectorNumberInputId;
+
+    // 1. Collider Box Extents cannot be negative or zero
+    assert_eq!(
+        InspectorNumberInputId::ColliderBoxX.clamp_value(-100.0),
+        0.001
+    );
+    assert_eq!(
+        InspectorNumberInputId::ColliderBoxY.clamp_value(-0.5),
+        0.001
+    );
+    assert_eq!(
+        InspectorNumberInputId::ColliderBoxZ.clamp_value(-1000.0),
+        0.001
+    );
+    assert_eq!(InspectorNumberInputId::ColliderBoxX.clamp_value(5.0), 5.0);
+
+    // 2. Collider Radius and Height cannot be negative
+    assert_eq!(
+        InspectorNumberInputId::ColliderRadius.clamp_value(-50.0),
+        0.001
+    );
+    assert_eq!(
+        InspectorNumberInputId::ColliderHalfHeight.clamp_value(-10.0),
+        0.001
+    );
+
+    // 3. RigidBody mass cannot be negative or zero
+    assert_eq!(
+        InspectorNumberInputId::RigidBodyMass.clamp_value(-100.0),
+        0.001
+    );
+    assert_eq!(
+        InspectorNumberInputId::RigidBodyMass.clamp_value(0.0),
+        0.001
+    );
+    assert_eq!(
+        InspectorNumberInputId::RigidBodyMass.clamp_value(25.0),
+        25.0
+    );
+
+    // 4. UI dimensions and opacity invariants
+    assert_eq!(InspectorNumberInputId::UiSizeW.clamp_value(-100.0), 1.0);
+    assert_eq!(InspectorNumberInputId::UiSizeH.clamp_value(0.0), 1.0);
+    assert_eq!(InspectorNumberInputId::UiAlpha.clamp_value(-0.5), 0.0);
+    assert_eq!(InspectorNumberInputId::UiAlpha.clamp_value(1.5), 1.0);
+
+    // 5. Physics friction and restitution invariants
+    assert_eq!(
+        InspectorNumberInputId::ColliderFriction.clamp_value(-2.0),
+        0.0
+    );
+    assert_eq!(
+        InspectorNumberInputId::ColliderRestitution.clamp_value(-1.0),
+        0.0
+    );
+    assert_eq!(
+        InspectorNumberInputId::ColliderRestitution.clamp_value(2.0),
+        1.0
+    );
+
+    // 6. Verify handle_set_number_value enforces clamping on Collider entity in hecs::World
+    let mut world = hecs::World::new();
+    let ent = world.spawn((ae_core::ecs::Collider {
+        shape: ae_core::ecs::ColliderShape::Box {
+            half_extents: [0.5, 0.5, 0.5],
+        },
+        friction: 0.7,
+        restitution: 0.0,
+        is_sensor: false,
+    },));
+
+    let mut euler = [0.0, 0.0, 0.0];
+    crate::ui::workbench::render::inspector_actions::handle_set_number_value(
+        &world,
+        ent,
+        InspectorNumberInputId::ColliderBoxX,
+        -100.0,
+        &mut euler,
+    );
+
+    let col = world.get::<&ae_core::ecs::Collider>(ent).unwrap();
+    if let ae_core::ecs::ColliderShape::Box { half_extents } = col.shape {
+        assert!(
+            half_extents[0] > 0.0,
+            "Half extent X must be clamped to positive value, got {}",
+            half_extents[0]
+        );
+        assert_eq!(half_extents[0], 0.001);
+    } else {
+        panic!("Expected Box shape");
+    }
+}

@@ -272,9 +272,10 @@ fn build_axis_row(
         }
         let _ = tree.add_child(box_node_id, txt_id);
 
+        let (min_val, max_val) = input_id.valid_range();
         ctx.targets
             .number_inputs
-            .push((input_id, box_rect, -10_000.0, 10_000.0, val));
+            .push((input_id, box_rect, min_val, max_val, val));
 
         cur_box_x += box_w + 3.0;
     }

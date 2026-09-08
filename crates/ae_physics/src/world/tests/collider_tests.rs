@@ -324,4 +324,86 @@ mod tests {
         let hit = hit.unwrap();
         assert_eq!(hit.entity, target_entity);
     }
+
+    #[test]
+    fn test_collider_non_positive_dimension_resilience() {
+        let mut physics = PhysicsWorld::new();
+        let mut world = World::new();
+
+        // Spawn box with negative half-extents and negative mass
+        world.spawn((
+            Position {
+                x: 0.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale::one(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: -100.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [-10.0, -5.0, 0.0],
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        // Spawn sphere with negative radius
+        world.spawn((
+            Position {
+                x: 5.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale::one(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Sphere { radius: -2.5 },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        // Spawn capsule with negative half_height and radius
+        world.spawn((
+            Position {
+                x: -5.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale::one(),
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 1.0,
+            },
+            Collider {
+                shape: ColliderShape::Capsule {
+                    half_height: -1.0,
+                    radius: -0.5,
+                    center_y: 0.0,
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        // Stepping physics must not panic or fail with degenerate Rapier bounds
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+    }
 }

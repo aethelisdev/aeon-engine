@@ -287,7 +287,7 @@ impl PhysicsWorld {
                             RigidBodyType::Static => RigidBodyBuilder::fixed(),
                             RigidBodyType::Dynamic => RigidBodyBuilder::dynamic()
                                 .gravity_scale(rb.gravity_scale)
-                                .additional_mass(rb.mass)
+                                .additional_mass(rb.mass.max(1e-4))
                                 .linear_damping(0.05)
                                 .angular_damping(0.05)
                                 .ccd_enabled(true),
@@ -465,13 +465,13 @@ impl PhysicsWorld {
 
         let col_builder = match col.shape {
             ColliderShape::Box { half_extents } => ColliderBuilder::cuboid(
-                half_extents[0] * sx,
-                half_extents[1] * sy,
-                half_extents[2] * sz,
+                half_extents[0].abs().max(1e-4) * sx,
+                half_extents[1].abs().max(1e-4) * sy,
+                half_extents[2].abs().max(1e-4) * sz,
             ),
             ColliderShape::Sphere { radius } => {
                 let s = sx.max(sy).max(sz);
-                ColliderBuilder::ball(radius * s)
+                ColliderBuilder::ball(radius.abs().max(1e-4) * s)
             }
             ColliderShape::Capsule {
                 half_height,
@@ -484,11 +484,11 @@ impl PhysicsWorld {
                 } else {
                     center_y
                 };
-                ColliderBuilder::capsule_y(half_height * sy, radius * s_xz).translation(Vec3::new(
-                    0.0,
-                    offset_y * sy,
-                    0.0,
-                ))
+                ColliderBuilder::capsule_y(
+                    half_height.abs().max(1e-4) * sy,
+                    radius.abs().max(1e-4) * s_xz,
+                )
+                .translation(Vec3::new(0.0, offset_y * sy, 0.0))
             }
             ColliderShape::Trimesh => {
                 if let Ok(model_id) = world.get::<&ModelId>(entity) {

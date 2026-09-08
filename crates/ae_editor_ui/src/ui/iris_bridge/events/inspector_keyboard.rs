@@ -131,10 +131,13 @@ impl IrisEditorOverlay {
                                     &session.buffer,
                                     session.initial_val,
                                 ) {
+                                    let clamped_v = session
+                                        .id
+                                        .clamp_value(v.clamp(session.min_val, session.max_val));
                                     self.inspector_actions.push(InspectorAction::SetNumberValue(
                                         session.entity,
                                         session.id,
-                                        v,
+                                        clamped_v,
                                     ));
                                     self.inspector_actions
                                         .push(InspectorAction::CommitNumberEdit(

@@ -345,12 +345,7 @@ fn build_dual_number_row(
         }
         let _ = tree.add_child(box_node_id, txt_node_id);
 
-        let (min_val, max_val) = match input_id {
-            InspectorNumberInputId::UiAlpha => (0.0, 1.0),
-            InspectorNumberInputId::UiPivotX | InspectorNumberInputId::UiPivotY => (0.0, 1.0),
-            InspectorNumberInputId::UiSizeW | InspectorNumberInputId::UiSizeH => (1.0, 10_000.0),
-            _ => (-10_000.0, 10_000.0),
-        };
+        let (min_val, max_val) = input_id.valid_range();
 
         ctx.targets
             .number_inputs

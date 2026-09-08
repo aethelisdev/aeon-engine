@@ -158,6 +158,58 @@ impl InspectorNumberInputId {
             Self::UiProgressMin | Self::UiProgressMax | Self::UiProgressVal => "UiProgressBar",
         }
     }
+
+    /// Returns the valid numerical range `[min, max]` allowed for this property.
+    /// Prevents physics solver singularities, negative extents, negative mass, and invalid ranges.
+    #[must_use]
+    pub fn valid_range(self) -> (f32, f32) {
+        match self {
+            Self::PosX | Self::PosY | Self::PosZ => (-100_000.0, 100_000.0),
+            Self::RotX | Self::RotY | Self::RotZ => (-36_000.0, 36_000.0),
+            Self::ScaleX | Self::ScaleY | Self::ScaleZ => (-10_000.0, 10_000.0),
+            Self::VelocityX | Self::VelocityY | Self::VelocityZ => (-100_000.0, 100_000.0),
+            Self::ColliderBoxX | Self::ColliderBoxY | Self::ColliderBoxZ => (0.001, 10_000.0),
+            Self::ColliderHalfHeight => (0.001, 10_000.0),
+            Self::ColliderRadius => (0.001, 10_000.0),
+            Self::ColliderCenterY => (-10_000.0, 10_000.0),
+            Self::ColliderFriction | Self::PhysMatFriction => (0.0, 100.0),
+            Self::ColliderRestitution | Self::PhysMatRestitution => (0.0, 1.0),
+            Self::CharacterHeight => (0.05, 1_000.0),
+            Self::CharacterRadius => (0.01, 500.0),
+            Self::CharacterCenterY => (-1_000.0, 1_000.0),
+            Self::CharacterMaxSlope => (0.0, 89.9),
+            Self::CharacterStepHeight => (0.0, 100.0),
+            Self::ActionSpeedRange => (0.0, 10_000.0),
+            Self::ActionCooldown => (0.0, 3_600.0),
+            Self::LightIntensity => (0.0, 1_000_000.0),
+            Self::LightRange => (0.01, 10_000.0),
+            Self::RigidBodyMass => (0.001, 100_000.0),
+            Self::RigidBodyGravity => (-100.0, 100.0),
+            Self::CameraFov => (1.0, 179.0),
+            Self::CameraNear => (0.001, 1_000.0),
+            Self::CameraFar => (0.01, 100_000.0),
+            Self::AudioVolume => (0.0, 10.0),
+            Self::AudioPitch => (0.05, 5.0),
+            Self::UiOffsetX | Self::UiOffsetY => (-10_000.0, 10_000.0),
+            Self::UiSizeW | Self::UiSizeH => (1.0, 10_000.0),
+            Self::UiPivotX | Self::UiPivotY => (0.0, 1.0),
+            Self::UiZIndex => (-1_000.0, 1_000.0),
+            Self::UiAlpha => (0.0, 1.0),
+            Self::UiFontSize => (1.0, 500.0),
+            Self::UiBorderWidth => (0.0, 200.0),
+            Self::UiCornerRadius => (0.0, 200.0),
+            Self::UiProgressMin | Self::UiProgressMax | Self::UiProgressVal => {
+                (-100_000.0, 100_000.0)
+            }
+        }
+    }
+
+    /// Clamps an incoming numeric value to the safe range prescribed by this input identifier.
+    #[must_use]
+    pub fn clamp_value(self, val: f32) -> f32 {
+        let (min_val, max_val) = self.valid_range();
+        val.clamp(min_val, max_val)
+    }
 }
 
 /// Dropdown selector identifier inside the Inspector panel.

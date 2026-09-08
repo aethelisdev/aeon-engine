@@ -155,6 +155,8 @@ impl IrisEditorOverlay {
                     cursor_idx,
                     is_all_selected: true,
                     initial_val: drag.start_val,
+                    min_val: drag.min_val,
+                    max_val: drag.max_val,
                 });
             } else {
                 self.inspector_actions
@@ -312,10 +314,11 @@ impl IrisEditorOverlay {
                     if let Ok(v) =
                         inspector::evaluate_inspector_math(&prev.buffer, prev.initial_val)
                     {
+                        let clamped_v = prev.id.clamp_value(v.clamp(prev.min_val, prev.max_val));
                         self.inspector_actions.push(InspectorAction::SetNumberValue(
                             prev.entity,
                             prev.id,
-                            v,
+                            clamped_v,
                         ));
                         self.inspector_actions
                             .push(InspectorAction::CommitNumberEdit(prev.entity, prev.id));
@@ -381,10 +384,13 @@ impl IrisEditorOverlay {
         if let Some(session) = self.inspector_active_number_input.take() {
             if let Ok(v) = inspector::evaluate_inspector_math(&session.buffer, session.initial_val)
             {
+                let clamped_v = session
+                    .id
+                    .clamp_value(v.clamp(session.min_val, session.max_val));
                 self.inspector_actions.push(InspectorAction::SetNumberValue(
                     session.entity,
                     session.id,
-                    v,
+                    clamped_v,
                 ));
                 self.inspector_actions
                     .push(InspectorAction::CommitNumberEdit(

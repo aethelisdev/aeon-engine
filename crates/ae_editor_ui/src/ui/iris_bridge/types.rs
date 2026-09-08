@@ -717,4 +717,8 @@ pub struct InspectorNumberInputSession {
     pub is_all_selected: bool,
     /// Initial baseline value before editing started.
     pub initial_val: f32,
+    /// Minimum allowed value for clamping.
+    pub min_val: f32,
+    /// Maximum allowed value for clamping.
+    pub max_val: f32,
 }

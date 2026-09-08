@@ -336,13 +336,14 @@ impl EngineUi {
 }
 
 /// Helper function mutating numeric input fields across all ECS components.
-fn handle_set_number_value(
+pub(crate) fn handle_set_number_value(
     world: &hecs::World,
     entity: hecs::Entity,
     num_id: InspectorNumberInputId,
     val: f32,
     inspector_euler: &mut [f32; 3],
 ) {
+    let val = num_id.clamp_value(val);
     match num_id {
         InspectorNumberInputId::PosX => {
             if let Ok(mut p) = world.get::<&mut ae_core::ecs::Position>(entity) {

@@ -214,23 +214,7 @@ pub fn render_numeric_row_compact(
     }
     let _ = tree.add_child(box_id, txt_id);
 
-    let (min_val, max_val) = match params.input_id {
-        InspectorNumberInputId::VelocityX
-        | InspectorNumberInputId::VelocityY
-        | InspectorNumberInputId::VelocityZ
-        | InspectorNumberInputId::ColliderCenterY
-        | InspectorNumberInputId::CharacterCenterY
-        | InspectorNumberInputId::PosX
-        | InspectorNumberInputId::PosY
-        | InspectorNumberInputId::PosZ => (-10_000.0, 10_000.0),
-        InspectorNumberInputId::RotX
-        | InspectorNumberInputId::RotY
-        | InspectorNumberInputId::RotZ => (-36000.0, 36000.0),
-        InspectorNumberInputId::CharacterMaxSlope => (0.0, 90.0),
-        InspectorNumberInputId::ColliderRestitution
-        | InspectorNumberInputId::PhysMatRestitution => (0.0, 1.0),
-        _ => (0.0, 10_000.0),
-    };
+    let (min_val, max_val) = params.input_id.valid_range();
 
     ctx.targets
         .number_inputs
@@ -373,23 +357,7 @@ pub fn render_numeric_row(
     }
     let _ = tree.add_child(box_id, txt_id);
 
-    let (min_val, max_val) = match input_id {
-        InspectorNumberInputId::VelocityX
-        | InspectorNumberInputId::VelocityY
-        | InspectorNumberInputId::VelocityZ
-        | InspectorNumberInputId::ColliderCenterY
-        | InspectorNumberInputId::CharacterCenterY
-        | InspectorNumberInputId::PosX
-        | InspectorNumberInputId::PosY
-        | InspectorNumberInputId::PosZ => (-10_000.0, 10_000.0),
-        InspectorNumberInputId::RotX
-        | InspectorNumberInputId::RotY
-        | InspectorNumberInputId::RotZ => (-36000.0, 36000.0),
-        InspectorNumberInputId::CharacterMaxSlope => (0.0, 90.0),
-        InspectorNumberInputId::ColliderRestitution
-        | InspectorNumberInputId::PhysMatRestitution => (0.0, 1.0),
-        _ => (0.0, 10_000.0),
-    };
+    let (min_val, max_val) = input_id.valid_range();
 
     ctx.targets
         .number_inputs
