@@ -303,13 +303,10 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
     }
 
     engine.ui.is_loading_assets = true;
-    engine.ui.status_message = Some((
-        vec![(
-            "Loading scene: parsing assets in background...".to_string(),
-            egui::Color32::LIGHT_BLUE,
-        )],
-        std::time::Instant::now(),
-    ));
+    engine.ui.set_status_message(
+        "Loading scene: parsing assets in background...",
+        irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+    );
 
     let (tx, rx) = std::sync::mpsc::channel();
     engine.scene_rx = Some(rx);
@@ -557,24 +554,18 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
                     });
 
                 engine.ui.is_loading_assets = false;
-                engine.ui.status_message = Some((
-                    vec![(
-                        "Scene loaded successfully!".to_string(),
-                        egui::Color32::LIGHT_BLUE,
-                    )],
-                    std::time::Instant::now(),
-                ));
+                engine.ui.set_status_message(
+                    "Scene loaded successfully!",
+                    irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+                );
                 log::info!("Async scene load fully processed. Active world rebuilt.");
             }
             Err(e) => {
                 engine.ui.is_loading_assets = false;
-                engine.ui.status_message = Some((
-                    vec![(
-                        format!("Async scene load failed: {}", e),
-                        egui::Color32::RED,
-                    )],
-                    std::time::Instant::now(),
-                ));
+                engine.ui.set_status_message(
+                    format!("Async scene load failed: {}", e),
+                    irisui::prelude::Color::RED,
+                );
             }
         }
     }

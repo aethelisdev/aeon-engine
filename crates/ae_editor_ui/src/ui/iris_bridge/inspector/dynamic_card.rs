@@ -32,9 +32,7 @@ pub fn render_dynamic_component_cards(
     for handler in comp_registry.handlers() {
         let type_name = handler.type_name();
         if handled_names.contains(type_name)
-            || crate::ui::panels::inspector::dynamic_reflection::is_internal_or_specialized(
-                type_name,
-            )
+            || super::dynamic_reflection::is_internal_or_specialized(type_name)
             || !handler.has_component(ctx.world, ctx.entity)
         {
             continue;

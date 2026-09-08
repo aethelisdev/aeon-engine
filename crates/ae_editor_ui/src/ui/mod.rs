@@ -9,20 +9,12 @@
 pub mod iris_bridge;
 pub mod panel_layout;
 pub mod panels;
-pub mod workbench;
-
-pub(crate) mod docking;
-pub(crate) mod docking_floating;
-pub(crate) mod docking_render;
-pub mod menubar;
-pub(crate) mod style;
 pub mod types;
-pub(crate) mod viewport_hud;
+pub mod workbench;
 
 // Re-exports for  engine consumption
 pub use iris_bridge::IrisEditorOverlay;
 pub use iris_bridge::hierarchy::{HierarchyAction, HierarchyPanelParams, HierarchyRow};
-pub use menubar::*;
 pub use panel_layout::{PanelId, PanelLayoutState};
 pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
 pub use workbench::{EditorUiRenderParams, EngineUi, SceneDialogAction};

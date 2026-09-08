@@ -12,15 +12,18 @@ pub mod color_picker_popup;
 pub mod components;
 pub mod dropdown_popup;
 pub mod dynamic_card;
+pub mod dynamic_reflection;
 pub mod events;
 pub mod footer;
 pub mod header;
+pub mod math;
 pub mod registry;
 pub mod transform;
 pub mod types;
 pub mod ui_transform;
 
 pub use events::handle_inspector_click;
+pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use types::{
     ComponentCategory, ComponentCheckboxId, InspectorAction, InspectorDropdownId,

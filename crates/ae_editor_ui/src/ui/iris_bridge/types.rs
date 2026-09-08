@@ -305,6 +305,8 @@ pub struct IrisEditorOverlay {
     pub tools_texture: Option<(wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
     /// Active bounding rectangles of all independent floating windows for solid occlusion and text culling.
     pub floating_window_rects: Vec<Rect>,
+    /// Native dock chrome interaction frame from the last layout reconstruction.
+    pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
 }
 
 impl IrisEditorOverlay {
@@ -313,6 +315,20 @@ impl IrisEditorOverlay {
         let p = self.cursor_pos;
         if self.inspector_drag_number.is_some() {
             return winit::window::CursorIcon::EwResize;
+        }
+        if let Some(ref frame) = self.native_dock_frame {
+            for splitter in &frame.splitter_targets {
+                if splitter.rect.contains_point(p) {
+                    return match splitter.direction {
+                        irisui::dock::SplitDirection::Horizontal => {
+                            winit::window::CursorIcon::ColResize
+                        }
+                        irisui::dock::SplitDirection::Vertical => {
+                            winit::window::CursorIcon::RowResize
+                        }
+                    };
+                }
+            }
         }
         if let Some(mode) = self.inspector_color_drag_mode {
             return match mode {

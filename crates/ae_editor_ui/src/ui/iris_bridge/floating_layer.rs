@@ -49,6 +49,11 @@ pub fn active_panel_content_rect(layout_state: &PanelLayoutState, panel: PanelId
         })
 }
 
+/// Resolves the content rectangle of the 3D viewport when detached in a floating window.
+pub fn resolve_floating_viewport_rect(layout_state: &PanelLayoutState) -> Option<Rect> {
+    active_panel_content_rect(layout_state, PanelId::Viewport)
+}
+
 /// Builds the complete native Iris UI floating window hierarchy in the UI tree.
 /// For each floating window:
 /// 1. Creates a container node named `FloatingWindow_{win.id}`.
@@ -89,8 +94,8 @@ pub fn build_floating_windows(
             node.style = Style::new()
                 .background(Color::rgba(0.055, 0.063, 0.086, 1.0))
                 .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.90))
-                .border_radius(6.0)
-                .box_shadow(0.0, 4.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
+                .border_radius(19.0)
+                .box_shadow(0.0, 8.0, 28.0, Color::rgba(0.0, 0.0, 0.0, 0.75));
         }
         let _ = tree.add_child(win_container, bg_id);
 
@@ -103,12 +108,13 @@ pub fn build_floating_windows(
             node.computed_rect = bar_rect;
             node.style = Style::new()
                 .background(Color::rgba(0.059, 0.059, 0.078, 1.0))
-                .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.80));
+                .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.80))
+                .border_radius(19.0);
         }
         let _ = tree.add_child(win_container, bar_id);
 
         // 4. Tab Bar Buttons (Dock-back `⤢` and Close `✖`)
-        let dock_btn_rect = Rect::new(bar_rect.right() - 48.0, bar_rect.y + 2.0, 20.0, 22.0);
+        let dock_btn_rect = Rect::new(bar_rect.right() - 56.0, bar_rect.y + 2.0, 20.0, 22.0);
         let is_dock_hovered = dock_btn_rect.contains_point(cursor_pos);
         let dock_btn_id = tree.create_node();
         if let Some(node) = tree.get_mut(dock_btn_id) {
@@ -125,7 +131,7 @@ pub fn build_floating_windows(
         }
         let _ = tree.add_child(win_container, dock_btn_id);
 
-        let close_btn_rect = Rect::new(bar_rect.right() - 24.0, bar_rect.y + 2.0, 20.0, 22.0);
+        let close_btn_rect = Rect::new(bar_rect.right() - 32.0, bar_rect.y + 2.0, 20.0, 22.0);
         let is_close_hovered = close_btn_rect.contains_point(cursor_pos);
         let close_btn_id = tree.create_node();
         if let Some(node) = tree.get_mut(close_btn_id) {
@@ -143,13 +149,14 @@ pub fn build_floating_windows(
         let _ = tree.add_child(win_container, close_btn_id);
 
         // 5. Render Tab Titles & Active Highlights
-        let mut current_tab_x = bar_rect.x + 4.0;
+        let mut current_tab_x = bar_rect.x + 12.0;
         for (_leaf_id, node) in win.tree.iter() {
             if let DockNode::Leaf { tabs, active_tab } = node {
                 for (tab_idx, panel) in tabs.iter().enumerate() {
                     let is_active = tab_idx == *active_tab;
                     let title = format!("{} {}", panel.icon(), panel.title());
-                    let tab_w = ((title.len() as f32) * 7.5 + 28.0).clamp(60.0, 180.0);
+                    let char_count = panel.title().chars().count();
+                    let tab_w = (16.0 + 6.0 + (char_count as f32) * 6.8 + 14.0).clamp(52.0, 160.0);
                     let tab_rect = Rect::new(current_tab_x, bar_rect.y, tab_w, TAB_BAR_HEIGHT);
                     let is_tab_hovered = tab_rect.contains_point(cursor_pos);
 
@@ -172,8 +179,12 @@ pub fn build_floating_windows(
                         let active_line_id = tree.create_node();
                         if let Some(line) = tree.get_mut(active_line_id) {
                             line.set_name("FloatingWindowTabActiveLine");
-                            line.computed_rect =
-                                Rect::new(tab_rect.x, tab_rect.bottom() - 2.0, tab_rect.width, 2.0);
+                            line.computed_rect = Rect::new(
+                                tab_rect.x + 2.0,
+                                tab_rect.bottom() - 2.0,
+                                tab_rect.width - 4.0,
+                                2.0,
+                            );
                             line.style = Style::new().background(Color::rgba(0.0, 0.898, 1.0, 1.0));
                         }
                         let _ = tree.add_child(win_container, active_line_id);
@@ -183,9 +194,9 @@ pub fn build_floating_windows(
                     if let Some(text_node) = tree.get_mut(text_id) {
                         text_node.set_name("FloatingWindowTabTitle");
                         text_node.computed_rect = Rect::new(
-                            tab_rect.x + 8.0,
+                            tab_rect.x + 6.0,
                             tab_rect.y + 4.0,
-                            tab_rect.width - 16.0,
+                            tab_rect.width - 12.0,
                             18.0,
                         );
                         text_node.text = Some(title);

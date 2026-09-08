@@ -2,11 +2,16 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
-use crate::ui::workbench::state::EngineUi;
-use winit::{event::WindowEvent, window::Window};
+use crate::ui::workbench::state::{EngineUi, FloatingDragState, FloatingResizeEdge};
+use irisui::dock::SplitDirection;
+use irisui::prelude::{Point, Rect};
+use winit::{
+    event::{ElementState, MouseButton, WindowEvent},
+    window::Window,
+};
 
 impl EngineUi {
-    /// Forwards winit window events to egui and Iris UI for input processing.
+    /// Forwards winit window events to Iris UI and the native dock coordinator.
     pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
         self.iris_overlay.floating_window_rects = self
@@ -14,9 +19,7 @@ impl EngineUi {
             .dock_state
             .floating_windows
             .iter()
-            .map(|w| {
-                irisui::core::geometry::Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
-            })
+            .map(|w| Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height))
             .collect();
 
         let iris_res = self.iris_overlay.handle_event(event);
@@ -93,7 +96,7 @@ impl EngineUi {
             && let WindowEvent::KeyboardInput {
                 event: key_event, ..
             } = event
-            && key_event.state == winit::event::ElementState::Pressed
+            && key_event.state == ElementState::Pressed
         {
             if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) =
                 key_event.logical_key
@@ -117,111 +120,375 @@ impl EngineUi {
             }
         }
 
-        // Always pass event to egui state so pointer and drag states never get starved or desynchronized
-        let response = self.state.on_window_event(window, event);
+        let p = self.iris_overlay.cursor_pos;
+        let win_size = window.inner_size();
+        let screen_w = win_size.width as f32;
+        let screen_h = win_size.height as f32;
+        let workspace_rect = Rect::new(
+            0.0,
+            IrisEditorOverlay::MENUBAR_HEIGHT,
+            screen_w,
+            (screen_h - IrisEditorOverlay::MENUBAR_HEIGHT - IrisEditorOverlay::STATUS_BAR_HEIGHT)
+                .max(0.0),
+        );
 
-        if iris_res.consumed {
-            let mut is_hovering_interactive = false;
-            let p = self.iris_overlay.cursor_pos;
+        // Process native dock and floating window interactions
+        let mut dock_consumed = false;
+        match event {
+            WindowEvent::CursorMoved { .. } => {
+                // 0. Activate pending tab drag if cursor motion exceeds threshold (4.0 px)
+                if let Some(pending) = self.pending_tab_drag {
+                    let dx = p.x - pending.press_pos.x;
+                    let dy = p.y - pending.press_pos.y;
+                    if dx * dx + dy * dy >= 16.0 {
+                        if let Some(win_id) = pending.floating_window_id {
+                            let _ = self.layout_state.dock_state.start_floating_tab_drag(
+                                win_id,
+                                pending.leaf,
+                                pending.tab_index,
+                                p,
+                            );
+                        } else {
+                            let _ = self.layout_state.dock_state.start_tab_drag(
+                                pending.leaf,
+                                pending.tab_index,
+                                p,
+                                pending.leaf_rect,
+                            );
+                        }
+                        self.pending_tab_drag = None;
+                        dock_consumed = true;
+                    }
+                }
 
-            if let Some(ref targets) = self.iris_overlay.hierarchy_targets
-                && (targets.add_btn_rect.contains_point(p)
-                    || targets.delete_btn_rect.is_some_and(|r| r.contains_point(p))
-                    || targets
-                        .search_clear_btn_rect
-                        .is_some_and(|r| r.contains_point(p))
-                    || targets
-                        .entity_rows
-                        .iter()
-                        .any(|(_, r, eye, _)| r.contains_point(p) || eye.contains_point(p))
-                    || targets
-                        .add_menu_items
-                        .iter()
-                        .any(|(r, _)| r.contains_point(p))
-                    || targets
-                        .submenu_items
-                        .iter()
-                        .any(|(r, _)| r.contains_point(p))
-                    || targets.active_context_menu.is_some_and(|(_, _, del, vis)| {
-                        del.contains_point(p) || vis.contains_point(p)
-                    }))
-            {
-                is_hovering_interactive = true;
+                // 1. Floating window title bar dragging or edge resizing
+                if let Some((win_id, mode)) = self.active_floating_drag {
+                    if let Some(win) = self
+                        .layout_state
+                        .dock_state
+                        .floating_windows
+                        .iter_mut()
+                        .find(|w| w.id == win_id)
+                    {
+                        match mode {
+                            FloatingDragState::Title { offset } => {
+                                win.rect.x = p.x - offset.x;
+                                win.rect.y = p.y - offset.y;
+                            }
+                            FloatingDragState::Resize(edge) => match edge {
+                                FloatingResizeEdge::Right => {
+                                    win.rect.width = (p.x - win.rect.x).max(220.0);
+                                }
+                                FloatingResizeEdge::Bottom => {
+                                    win.rect.height = (p.y - win.rect.y).max(140.0);
+                                }
+                                FloatingResizeEdge::Left => {
+                                    let old_right = win.rect.x + win.rect.width;
+                                    win.rect.x = p.x.min(old_right - 220.0);
+                                    win.rect.width = old_right - win.rect.x;
+                                }
+                                FloatingResizeEdge::Top => {
+                                    let old_bottom = win.rect.y + win.rect.height;
+                                    win.rect.y = p.y.min(old_bottom - 140.0);
+                                    win.rect.height = old_bottom - win.rect.y;
+                                }
+                                FloatingResizeEdge::BottomRight => {
+                                    win.rect.width = (p.x - win.rect.x).max(220.0);
+                                    win.rect.height = (p.y - win.rect.y).max(140.0);
+                                }
+                                FloatingResizeEdge::BottomLeft => {
+                                    let old_right = win.rect.x + win.rect.width;
+                                    win.rect.x = p.x.min(old_right - 220.0);
+                                    win.rect.width = old_right - win.rect.x;
+                                    win.rect.height = (p.y - win.rect.y).max(140.0);
+                                }
+                                FloatingResizeEdge::TopRight => {
+                                    win.rect.width = (p.x - win.rect.x).max(220.0);
+                                    let old_bottom = win.rect.y + win.rect.height;
+                                    win.rect.y = p.y.min(old_bottom - 140.0);
+                                    win.rect.height = old_bottom - win.rect.y;
+                                }
+                                FloatingResizeEdge::TopLeft => {
+                                    let old_right = win.rect.x + win.rect.width;
+                                    win.rect.x = p.x.min(old_right - 220.0);
+                                    win.rect.width = old_right - win.rect.x;
+                                    let old_bottom = win.rect.y + win.rect.height;
+                                    win.rect.y = p.y.min(old_bottom - 140.0);
+                                    win.rect.height = old_bottom - win.rect.y;
+                                }
+                            },
+                        }
+                    }
+                    dock_consumed = true;
+                }
+
+                // 2. Active splitter divider dragging
+                if let Some(drag) = self.layout_state.dock_state.active_splitter {
+                    let current_cursor = match drag.direction {
+                        SplitDirection::Horizontal => p.x,
+                        SplitDirection::Vertical => p.y,
+                    };
+                    self.layout_state
+                        .dock_state
+                        .update_splitter_drag(current_cursor);
+                    dock_consumed = true;
+                }
+
+                // 3. Active tab drag-and-drop
+                if self.layout_state.dock_state.active_drag.is_some() {
+                    let computed = irisui::dock::compute_dock_layout_with_viewer(
+                        &self.layout_state.dock_state.tree,
+                        workspace_rect,
+                        crate::ui::iris_bridge::native_dock::SPLITTER_THICKNESS,
+                        crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
+                        &crate::ui::panel_layout::PanelTabViewer,
+                    );
+                    self.layout_state.dock_state.update_tab_drag(p, &computed);
+                    dock_consumed = true;
+                }
             }
 
-            if let Some(ref targets) = self.iris_overlay.about_targets
-                && (targets.header_close_rect.contains_point(p)
-                    || targets.bottom_close_rect.contains_point(p)
-                    || targets.link_rect.contains_point(p))
-            {
-                is_hovering_interactive = true;
-            }
-            if let Some(ref targets) = self.iris_overlay.preferences_targets
-                && (targets.close_button.contains_point(p)
-                    || targets.tabs.iter().any(|(_, r)| r.contains_point(p))
-                    || targets.toggles.iter().any(|(_, r)| r.contains_point(p))
-                    || targets
-                        .sliders
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button: MouseButton::Left,
+                ..
+            } => {
+                // 1. Check Floating Window controls (highest priority among panels)
+                let mut floating_dock_back = None;
+                let mut floating_close = None;
+                let mut floating_tab_action = None;
+
+                for win in self.layout_state.dock_state.floating_windows.iter().rev() {
+                    const TAB_BAR_H: f32 = 26.0;
+                    let bar_rect = Rect::new(win.rect.x, win.rect.y, win.rect.width, TAB_BAR_H);
+
+                    // Dock-back button `⤢`
+                    let dock_btn_rect =
+                        Rect::new(bar_rect.right() - 56.0, bar_rect.y + 2.0, 20.0, 22.0);
+                    if dock_btn_rect.contains_point(p) {
+                        floating_dock_back = Some(win.id);
+                        break;
+                    }
+
+                    // Close button `✖`
+                    let close_btn_rect =
+                        Rect::new(bar_rect.right() - 32.0, bar_rect.y + 2.0, 20.0, 22.0);
+                    if close_btn_rect.contains_point(p) {
+                        floating_close = Some(win.id);
+                        break;
+                    }
+
+                    // Floating window tab pill click check
+                    let mut clicked_tab = None;
+                    let mut current_tab_x = bar_rect.x + 12.0;
+                    for (leaf_id, node) in win.tree.iter() {
+                        if let irisui::dock::DockNode::Leaf { tabs, .. } = node {
+                            for (tab_idx, panel) in tabs.iter().enumerate() {
+                                let char_count = panel.title().chars().count();
+                                let tab_w = (16.0 + 6.0 + (char_count as f32) * 6.8 + 14.0)
+                                    .clamp(52.0, 160.0);
+                                let tab_rect =
+                                    Rect::new(current_tab_x, bar_rect.y, tab_w, TAB_BAR_H);
+                                if tab_rect.contains_point(p) {
+                                    clicked_tab = Some((leaf_id, tab_idx, *panel, win.rect));
+                                    break;
+                                }
+                                current_tab_x += tab_w + 2.0;
+                            }
+                        }
+                    }
+
+                    if let Some((leaf_id, tab_idx, panel, leaf_rect)) = clicked_tab {
+                        floating_tab_action = Some((win.id, leaf_id, tab_idx, panel, leaf_rect));
+                        break;
+                    }
+
+                    // Title bar drag
+                    if bar_rect.contains_point(p) {
+                        self.active_floating_drag = Some((
+                            win.id,
+                            FloatingDragState::Title {
+                                offset: Point::new(p.x - win.rect.x, p.y - win.rect.y),
+                            },
+                        ));
+                        dock_consumed = true;
+                        break;
+                    }
+
+                    // Window edge resize check
+                    let win_rect =
+                        Rect::new(win.rect.x, win.rect.y, win.rect.width, win.rect.height);
+                    if win_rect.contains_point(p) {
+                        const MARGIN: f32 = 6.0;
+                        let on_left = p.x <= win.rect.x + MARGIN;
+                        let on_right = p.x >= win_rect.right() - MARGIN;
+                        let on_top = p.y <= win.rect.y + MARGIN;
+                        let on_bottom = p.y >= win_rect.bottom() - MARGIN;
+
+                        let edge = if on_top && on_left {
+                            Some(FloatingResizeEdge::TopLeft)
+                        } else if on_top && on_right {
+                            Some(FloatingResizeEdge::TopRight)
+                        } else if on_bottom && on_left {
+                            Some(FloatingResizeEdge::BottomLeft)
+                        } else if on_bottom && on_right {
+                            Some(FloatingResizeEdge::BottomRight)
+                        } else if on_left {
+                            Some(FloatingResizeEdge::Left)
+                        } else if on_right {
+                            Some(FloatingResizeEdge::Right)
+                        } else if on_top {
+                            Some(FloatingResizeEdge::Top)
+                        } else if on_bottom {
+                            Some(FloatingResizeEdge::Bottom)
+                        } else {
+                            None
+                        };
+
+                        if let Some(e) = edge {
+                            self.active_floating_drag =
+                                Some((win.id, FloatingDragState::Resize(e)));
+                            dock_consumed = true;
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(win_id) = floating_dock_back {
+                    self.layout_state.smart_dock_back_panel(win_id);
+                    return true;
+                }
+                if let Some(win_id) = floating_close {
+                    let _ = self.layout_state.dock_state.close_floating_window(win_id);
+                    return true;
+                }
+                if let Some((win_id, leaf_id, tab_idx, panel, leaf_rect)) = floating_tab_action {
+                    if let Some(w) = self
+                        .layout_state
+                        .dock_state
+                        .floating_windows
+                        .iter_mut()
+                        .find(|w| w.id == win_id)
+                    {
+                        let _ = w.tree.set_active_tab(leaf_id, tab_idx);
+                    }
+                    self.pending_tab_drag = Some(crate::ui::workbench::state::PendingTabDrag {
+                        leaf: leaf_id,
+                        tab_index: tab_idx,
+                        panel,
+                        press_pos: p,
+                        leaf_rect,
+                        floating_window_id: Some(win_id),
+                    });
+                    dock_consumed = true;
+                }
+
+                // 2. Check Native Dock Frame targets (Tabs, Close buttons, Splitters)
+                if !dock_consumed && let Some(ref frame) = self.iris_overlay.native_dock_frame {
+                    // Close buttons
+                    if let Some(target) = frame
+                        .close_targets
                         .iter()
-                        .any(|(_, r, _, _, _)| r.contains_point(p))
-                    || targets.dropdowns.iter().any(|(_, r)| r.contains_point(p))
-                    || targets
-                        .active_dropdown_items
+                        .find(|t| t.rect.contains_point(p))
+                    {
+                        let _ = self
+                            .layout_state
+                            .dock_state
+                            .tree
+                            .remove_tab(target.leaf, target.tab_index);
+                        dock_consumed = true;
+                    }
+                    // Tab pills (switch active tab and prepare drag)
+                    else if let Some(target) =
+                        frame.tab_targets.iter().find(|t| t.rect.contains_point(p))
+                    {
+                        let _ = self
+                            .layout_state
+                            .dock_state
+                            .tree
+                            .set_active_tab(target.leaf, target.tab_index);
+                        self.pending_tab_drag = Some(crate::ui::workbench::state::PendingTabDrag {
+                            leaf: target.leaf,
+                            tab_index: target.tab_index,
+                            panel: target.panel,
+                            press_pos: p,
+                            leaf_rect: target.leaf_rect,
+                            floating_window_id: None,
+                        });
+                        dock_consumed = true;
+                    }
+                    // Splitters (initiate divider resize drag)
+                    else if let Some(target) = frame
+                        .splitter_targets
                         .iter()
-                        .any(|(_, r, _)| r.contains_point(p)))
-            {
-                is_hovering_interactive = true;
-            }
-            if let Some(ref targets) = self.iris_overlay.delete_targets
-                && (targets.header_close_rect.contains_point(p)
-                    || targets.confirm_btn_rect.contains_point(p)
-                    || targets.cancel_btn_rect.contains_point(p))
-            {
-                is_hovering_interactive = true;
-            }
-            if let Some(ref targets) = self.iris_overlay.new_folder_targets
-                && (targets.header_close_rect.contains_point(p)
-                    || targets.confirm_btn_rect.contains_point(p)
-                    || targets.cancel_btn_rect.contains_point(p))
-            {
-                is_hovering_interactive = true;
-            }
-            if let Some(ref targets) = self.iris_overlay.rename_targets
-                && (targets.header_close_rect.contains_point(p)
-                    || targets.confirm_btn_rect.contains_point(p)
-                    || targets.cancel_btn_rect.contains_point(p))
-            {
-                is_hovering_interactive = true;
+                        .find(|t| t.rect.contains_point(p))
+                    {
+                        let start_coord = match target.direction {
+                            SplitDirection::Horizontal => p.x,
+                            SplitDirection::Vertical => p.y,
+                        };
+                        self.layout_state.dock_state.start_splitter_drag(
+                            target.node,
+                            target.direction,
+                            start_coord,
+                            target.total_dimension,
+                        );
+                        dock_consumed = true;
+                    }
+                }
             }
 
-            let requested_cursor = self.iris_overlay.requested_cursor_icon();
-            if requested_cursor != winit::window::CursorIcon::Default {
-                window.set_cursor(requested_cursor);
-            } else if is_hovering_interactive {
-                window.set_cursor(winit::window::CursorIcon::Pointer);
-            } else {
-                window.set_cursor(winit::window::CursorIcon::Default);
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button: MouseButton::Left,
+                ..
+            } => {
+                self.pending_tab_drag = None;
+
+                if self.active_floating_drag.is_some() {
+                    self.active_floating_drag = None;
+                    dock_consumed = true;
+                }
+                if self.layout_state.dock_state.active_splitter.is_some() {
+                    self.layout_state.dock_state.end_splitter_drag();
+                    dock_consumed = true;
+                }
+                if self.layout_state.dock_state.active_drag.is_some() {
+                    let _ = self
+                        .layout_state
+                        .dock_state
+                        .drop_tab_or_float(Point::new(400.0, 300.0));
+                    dock_consumed = true;
+                }
             }
-            return true;
+
+            _ => {}
         }
 
-        response.consumed
+        // Apply requested cursor
+        let requested_cursor = self.iris_overlay.requested_cursor_icon();
+        if requested_cursor != winit::window::CursorIcon::Default {
+            window.set_cursor(requested_cursor);
+        } else {
+            window.set_cursor(winit::window::CursorIcon::Default);
+        }
+
+        iris_res.consumed || dock_consumed
     }
 
     /// Returns true if the point is over any UI panel, floating modal dialog, or outside the 3D viewport.
-    pub fn is_point_over_ui_rects(&self, pos: egui::Pos2) -> bool {
-        let point = irisui::prelude::Point::new(pos.x, pos.y);
+    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
+        let point = Point::new(pos[0], pos[1]);
 
         // 1. Top menubar & active modal dialogs / preferences / popups (always highest z-order)
-        if pos.y <= IrisEditorOverlay::MENUBAR_HEIGHT
+        if pos[1] <= IrisEditorOverlay::MENUBAR_HEIGHT
             || self.iris_overlay.about_targets.is_some()
             || self.iris_overlay.delete_targets.is_some()
             || self.iris_overlay.new_folder_targets.is_some()
             || self.iris_overlay.rename_targets.is_some()
             || self.iris_overlay.loading_targets.is_some()
             || self.iris_overlay.assets_preview_modal.is_some()
-            || egui::Popup::is_any_open(&self.context)
-            || self.ui_rects.iter().any(|rect| rect.contains(pos))
+            || self.ui_rects.iter().any(|rect| rect.contains_point(point))
         {
             return true;
         }
@@ -242,7 +509,7 @@ impl EngineUi {
         }
 
         // 2. If the point is inside the active 3D viewport canvas (docked or floating)
-        if self.last_viewport_rect.contains(pos) {
+        if self.last_viewport_rect.contains_point(point) {
             // Check if there are Viewport HUD interactive controls (toolbar buttons, dropdown, compass, billboard icons)
             if let Some(ref hud) = self.iris_overlay.viewport_hud_targets {
                 if let Some(dd_rect) = hud.active_dropdown_popup_rect
@@ -280,10 +547,8 @@ impl EngineUi {
                         .all_tabs()
                         .contains(&crate::ui::panel_layout::PanelId::Viewport);
                     if !contains_viewport {
-                        pos.x >= w.rect.x
-                            && pos.x <= w.rect.x + w.rect.width
-                            && pos.y >= w.rect.y
-                            && pos.y <= w.rect.y + w.rect.height
+                        let w_rect = Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height);
+                        w_rect.contains_point(point)
                     } else {
                         false
                     }

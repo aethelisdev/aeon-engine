@@ -396,7 +396,7 @@ fn handle_set_number_value(
         }
         InspectorNumberInputId::RotX => {
             inspector_euler[0] = val;
-            let quat = crate::ui::panels::inspector::widgets::euler_deg_to_quaternion(
+            let quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
                 inspector_euler[0],
                 inspector_euler[1],
                 inspector_euler[2],
@@ -407,7 +407,7 @@ fn handle_set_number_value(
         }
         InspectorNumberInputId::RotY => {
             inspector_euler[1] = val;
-            let quat = crate::ui::panels::inspector::widgets::euler_deg_to_quaternion(
+            let quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
                 inspector_euler[0],
                 inspector_euler[1],
                 inspector_euler[2],
@@ -418,7 +418,7 @@ fn handle_set_number_value(
         }
         InspectorNumberInputId::RotZ => {
             inspector_euler[2] = val;
-            let quat = crate::ui::panels::inspector::widgets::euler_deg_to_quaternion(
+            let quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
                 inspector_euler[0],
                 inspector_euler[1],
                 inspector_euler[2],

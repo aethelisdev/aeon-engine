@@ -8,6 +8,7 @@
 //!
 
 use crate::engine::AeEngine;
+use irisui::prelude::Color;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -53,13 +54,10 @@ impl AssetLoader for GltfAssetLoader {
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
         engine.ui.is_loading_assets = true;
         if let Some(path_str) = path.to_str() {
-            engine.ui.status_message = Some((
-                vec![(
-                    format!("Loading {} in background...", final_name),
-                    egui::Color32::LIGHT_BLUE,
-                )],
-                std::time::Instant::now(),
-            ));
+            engine.ui.set_status_message(
+                format!("Loading {} in background...", final_name),
+                Color::rgb(0.0, 0.898, 1.0),
+            );
             let (tx, rx) = std::sync::mpsc::channel();
             engine.model_receivers.push(rx);
 
@@ -85,13 +83,10 @@ impl AssetLoader for FbxAssetLoader {
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
         engine.ui.is_loading_assets = true;
         if let Some(path_str) = path.to_str() {
-            engine.ui.status_message = Some((
-                vec![(
-                    "Converting FBX file... Please wait.".to_string(),
-                    egui::Color32::LIGHT_BLUE,
-                )],
-                std::time::Instant::now(),
-            ));
+            engine.ui.set_status_message(
+                "Converting FBX file... Please wait.",
+                Color::rgb(0.0, 0.898, 1.0),
+            );
 
             let (tx, rx) = std::sync::mpsc::channel();
             engine.asset_receivers.push(rx);
@@ -169,23 +164,17 @@ impl AssetLoader for ShaderAssetLoader {
                         "⚡ [Shader Importer] Successfully loaded shader asset: {:?}",
                         final_name
                     );
-                    engine.ui.status_message = Some((
-                        vec![(
-                            format!("Shader '{}' successfully loaded.", final_name),
-                            egui::Color32::GREEN,
-                        )],
-                        std::time::Instant::now(),
-                    ));
+                    engine.ui.set_status_message(
+                        format!("Shader '{}' successfully loaded.", final_name),
+                        Color::rgb(0.1, 0.9, 0.3),
+                    );
                 }
                 Err(err) => {
                     log::error!("❌ [Shader Importer] Failed to load shader: {}", err);
-                    engine.ui.status_message = Some((
-                        vec![(
-                            format!("Failed to load shader '{}': {}", final_name, err),
-                            egui::Color32::RED,
-                        )],
-                        std::time::Instant::now(),
-                    ));
+                    engine.ui.set_status_message(
+                        format!("Failed to load shader '{}': {}", final_name, err),
+                        Color::RED,
+                    );
                 }
             }
             engine.ui.is_loading_assets = false;
@@ -206,20 +195,16 @@ impl AssetLoader for PrefabAssetLoader {
             Ok(prefab) => {
                 let ent = prefab.instantiate(&mut engine.ecs.world, None);
                 engine.ui.selected_entity = Some(ent);
-                engine.ui.status_message = Some((
-                    vec![(
-                        format!("Prefab '{}' loaded successfully!", final_name),
-                        egui::Color32::LIGHT_BLUE,
-                    )],
-                    std::time::Instant::now(),
-                ));
+                engine.ui.set_status_message(
+                    format!("Prefab '{}' loaded successfully!", final_name),
+                    Color::rgb(0.0, 0.898, 1.0),
+                );
             }
             Err(e) => {
                 log::error!("Failed to load prefab from {:?}: {}", path, e);
-                engine.ui.status_message = Some((
-                    vec![(format!("Error loading prefab: {}", e), egui::Color32::RED)],
-                    std::time::Instant::now(),
-                ));
+                engine
+                    .ui
+                    .set_status_message(format!("Error loading prefab: {}", e), Color::RED);
             }
         }
     }
@@ -314,21 +299,15 @@ pub fn process_async_imports(engine: &mut AeEngine) {
             Ok(glb_path) => {
                 let path_str = glb_path.to_string_lossy();
                 if path_str == "DONE_DOWNLOAD" {
-                    engine.ui.status_message = Some((
-                        vec![(
-                            "Tool installed successfully! You can now drag FBX files.".to_string(),
-                            egui::Color32::LIGHT_BLUE,
-                        )],
-                        std::time::Instant::now(),
-                    ));
+                    engine.ui.set_status_message(
+                        "Tool installed successfully! You can now drag FBX files.",
+                        Color::rgb(0.0, 0.898, 1.0),
+                    );
                 } else if path_str == "PYTHON_DONE" {
-                    engine.ui.status_message = Some((
-                        vec![(
-                            "Python installed successfully! You may need to restart the engine for changes to take effect.".to_string(),
-                            egui::Color32::LIGHT_BLUE,
-                        )],
-                        std::time::Instant::now(),
-                    ));
+                    engine.ui.set_status_message(
+                        "Python installed successfully! You may need to restart the engine for changes to take effect.",
+                        Color::rgb(0.0, 0.898, 1.0),
+                    );
                 } else if glb_path.exists()
                     && let Some(path_str) = glb_path.to_str()
                 {
@@ -343,23 +322,19 @@ pub fn process_async_imports(engine: &mut AeEngine) {
 
                     log::info!("Asset loaded and spawned entity: {:?}", base_name);
                     spawn_model(engine, base_name, model_id, min, max, path_str);
-                    engine.ui.status_message = Some((
-                        vec![(
-                            "Asset loaded successfully!".to_string(),
-                            egui::Color32::LIGHT_BLUE,
-                        )],
-                        std::time::Instant::now(),
-                    ));
+                    engine.ui.set_status_message(
+                        "Asset loaded successfully!",
+                        Color::rgb(0.0, 0.898, 1.0),
+                    );
                     engine.ui.is_loading_assets = false;
                 }
             }
             Err(e) => {
                 log::error!("Async import failed: {}", e);
                 engine.ui.is_loading_assets = false;
-                engine.ui.status_message = Some((
-                    vec![(format!("ERROR: {}", e), egui::Color32::RED)],
-                    std::time::Instant::now(),
-                ));
+                engine
+                    .ui
+                    .set_status_message(format!("ERROR: {}", e), Color::RED);
             }
         }
     }
@@ -387,13 +362,10 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                     .render_state
                     .upload_model_data(&mut engine.asset_manager, parsed_data);
 
-                engine.ui.status_message = Some((
-                    vec![(
-                        format!("{} loaded successfully!", final_name),
-                        egui::Color32::LIGHT_BLUE,
-                    )],
-                    std::time::Instant::now(),
-                ));
+                engine.ui.set_status_message(
+                    format!("{} loaded successfully!", final_name),
+                    Color::rgb(0.0, 0.898, 1.0),
+                );
                 engine.ui.is_loading_assets = false;
                 log::info!("Async GLTF loaded and spawned entity: {:?}", final_name);
                 spawn_model(engine, final_name, model_id, min, max, &path_str);
@@ -401,10 +373,9 @@ pub fn process_async_imports(engine: &mut AeEngine) {
             Err(e) => {
                 log::error!("Async model import failed: {}", e);
                 engine.ui.is_loading_assets = false;
-                engine.ui.status_message = Some((
-                    vec![(format!("ERROR: {}", e), egui::Color32::RED)],
-                    std::time::Instant::now(),
-                ));
+                engine
+                    .ui
+                    .set_status_message(format!("ERROR: {}", e), Color::RED);
             }
         }
     }
@@ -417,13 +388,9 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
     let path_str = path.to_string_lossy();
     if !ae_renderer::asset::is_safe_path(&path_str) {
         log::error!("Dropped file has an unsafe path, ignoring: {:?}", path_str);
-        engine.ui.status_message = Some((
-            vec![(
-                "Security Error: Unsafe path blocked!".to_string(),
-                egui::Color32::RED,
-            )],
-            std::time::Instant::now(),
-        ));
+        engine
+            .ui
+            .set_status_message("Security Error: Unsafe path blocked!", Color::RED);
         return;
     }
 
@@ -461,13 +428,10 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
             loader.load(engine, &path, final_name);
         } else {
             log::warn!("Unsupported file format dropped: {:?}", ext);
-            engine.ui.status_message = Some((
-                vec![(
-                    format!("Unsupported file extension: .{}", ext),
-                    egui::Color32::YELLOW,
-                )],
-                std::time::Instant::now(),
-            ));
+            engine.ui.set_status_message(
+                format!("Unsupported file extension: .{}", ext),
+                Color::rgb(1.0, 0.8, 0.1),
+            );
         }
     }
 }

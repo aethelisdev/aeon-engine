@@ -165,9 +165,7 @@ fn category_has_available(
         comp_registry.handlers().iter().any(|h| {
             let name = h.type_name();
             !handled_names.contains(name)
-                && !crate::ui::panels::inspector::dynamic_reflection::is_internal_or_specialized(
-                    name,
-                )
+                && !super::dynamic_reflection::is_internal_or_specialized(name)
                 && if let Some(ent) = entity {
                     !h.has_component(world, ent)
                 } else {
@@ -217,9 +215,7 @@ fn build_category_submenu(
             .filter(|h| {
                 let name = h.type_name();
                 !handled_names.contains(name)
-                    && !crate::ui::panels::inspector::dynamic_reflection::is_internal_or_specialized(
-                        name,
-                    )
+                    && !super::dynamic_reflection::is_internal_or_specialized(name)
                     && if let Some(entity) = params.selected_entity {
                         !h.has_component(params.world, entity)
                     } else {

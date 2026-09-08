@@ -12,59 +12,8 @@
 //! - Audio (.wav, .mp3, .ogg): Studio acoustic equalizer waveform visualization.
 //!
 
-use super::types::{AssetBrowserState, AssetCategory, ThumbnailEntry};
-use egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use super::types::AssetCategory;
 use std::path::Path;
-use std::time::SystemTime;
-
-/// Target resolution width and height for generated thumbnail previews.
-pub const THUMBNAIL_SIZE: u32 = 96;
-
-/// Retrieves a cached thumbnail texture handle or generates it if needed.
-pub fn get_or_load_thumbnail(
-    ctx: &Context,
-    state: &mut AssetBrowserState,
-    path: &Path,
-    category: AssetCategory,
-) -> Option<TextureHandle> {
-    let metadata = std::fs::metadata(path).ok();
-    let last_modified = metadata
-        .and_then(|m| m.modified().ok())
-        .unwrap_or_else(SystemTime::now);
-
-    // 1. Check in-memory cache
-    if let Some(entry) = state.thumbnail_cache.entries.get(path)
-        && entry.last_modified >= last_modified
-    {
-        return Some(entry.texture_handle.clone());
-    }
-
-    // 2. Generate thumbnail based on asset category
-    let color_image = match category {
-        AssetCategory::Textures2D => decode_and_downscale_image(path)?,
-        AssetCategory::Models3D => {
-            render_model_thumbnail(path).unwrap_or_else(render_fallback_wireframe_cube_thumbnail)
-        }
-        AssetCategory::Shaders => render_shader_thumbnail()?,
-        AssetCategory::Scenes => render_scene_thumbnail()?,
-        AssetCategory::Materials => render_material_thumbnail()?,
-        AssetCategory::Audio => render_audio_thumbnail()?,
-        AssetCategory::All => return None,
-    };
-
-    let texture_name = format!("thumb_{}", path.to_string_lossy());
-    let handle = ctx.load_texture(texture_name, color_image, TextureOptions::LINEAR);
-
-    state.thumbnail_cache.entries.insert(
-        path.to_path_buf(),
-        ThumbnailEntry {
-            texture_handle: handle.clone(),
-            last_modified,
-        },
-    );
-
-    Some(handle)
-}
 
 /// Generates a 64x64 raw RGBA byte buffer for the given asset.
 pub fn generate_thumbnail_rgba_64(path: &Path, category: AssetCategory) -> Option<Vec<u8>> {
@@ -87,15 +36,6 @@ fn rasterize_image_thumbnail(path: &Path, width: u32, height: u32) -> Option<Vec
     let img = image::open(path).ok()?;
     let thumbnail = img.thumbnail_exact(width, height);
     Some(thumbnail.to_rgba8().into_raw())
-}
-
-/// Decodes an image from disk and downscales it to `THUMBNAIL_SIZE x THUMBNAIL_SIZE`.
-fn decode_and_downscale_image(path: &Path) -> Option<ColorImage> {
-    let raw = rasterize_image_thumbnail(path, THUMBNAIL_SIZE, THUMBNAIL_SIZE)?;
-    let width = THUMBNAIL_SIZE as usize;
-    let height = THUMBNAIL_SIZE as usize;
-
-    Some(ColorImage::from_rgba_unmultiplied([width, height], &raw))
 }
 
 /// Raw vertex, normal, and index data extracted for 3D thumbnail rendering.
@@ -161,13 +101,6 @@ fn extract_model_geometry(path: &Path) -> Option<RawModelGeometry> {
         normals: all_normals,
         indices: all_indices,
     })
-}
-
-/// Renders a 96x96 studio thumbnail of a 3D model using depth-buffered software rasterization.
-fn render_model_thumbnail(path: &Path) -> Option<ColorImage> {
-    let px = rasterize_model_thumbnail(path, THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize)?;
-    let w = THUMBNAIL_SIZE as usize;
-    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
 }
 
 /// Software depth-buffered rasterizer for 3D model thumbnails.
@@ -374,13 +307,6 @@ fn rasterize_model_thumbnail(path: &Path, width: usize, height: usize) -> Option
     Some(pixels)
 }
 
-/// Fallback 3D wireframe isometric cube thumbnail for models without direct GLTF parsing.
-fn render_fallback_wireframe_cube_thumbnail() -> ColorImage {
-    let px = rasterize_fallback_cube(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
-    let w = THUMBNAIL_SIZE as usize;
-    ColorImage::from_rgba_unmultiplied([w, w], &px)
-}
-
 /// Rasterizes fallback cube thumbnail pixels.
 fn rasterize_fallback_cube(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
@@ -404,13 +330,6 @@ fn rasterize_fallback_cube(width: usize, height: usize) -> Vec<u8> {
     }
 
     pixels
-}
-
-/// Renders a 3D Material/Shader preview sphere with glowing WGSL core.
-fn render_shader_thumbnail() -> Option<ColorImage> {
-    let px = rasterize_shader_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
-    let w = THUMBNAIL_SIZE as usize;
-    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
 }
 
 /// Rasterizes shader thumbnail preview sphere into RGBA pixels.
@@ -474,13 +393,6 @@ fn rasterize_shader_thumbnail(width: usize, height: usize) -> Vec<u8> {
     }
 
     pixels
-}
-
-/// Renders a 3D isometric scene preview grid with coordinate axes.
-fn render_scene_thumbnail() -> Option<ColorImage> {
-    let px = rasterize_scene_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
-    let w = THUMBNAIL_SIZE as usize;
-    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
 }
 
 /// Rasterizes 3D isometric scene preview grid with coordinate axes into RGBA pixels.
@@ -557,13 +469,6 @@ fn rasterize_scene_thumbnail(width: usize, height: usize) -> Vec<u8> {
     pixels
 }
 
-/// Renders a PBR material preview sphere.
-fn render_material_thumbnail() -> Option<ColorImage> {
-    let px = rasterize_material_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
-    let w = THUMBNAIL_SIZE as usize;
-    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
-}
-
 /// Rasterizes PBR material preview sphere into RGBA pixels.
 fn rasterize_material_thumbnail(width: usize, height: usize) -> Vec<u8> {
     let mut pixels = vec![0u8; width * height * 4];
@@ -624,13 +529,6 @@ fn rasterize_material_thumbnail(width: usize, height: usize) -> Vec<u8> {
     }
 
     pixels
-}
-
-/// Renders an acoustic audio waveform preview thumbnail.
-fn render_audio_thumbnail() -> Option<ColorImage> {
-    let px = rasterize_audio_thumbnail(THUMBNAIL_SIZE as usize, THUMBNAIL_SIZE as usize);
-    let w = THUMBNAIL_SIZE as usize;
-    Some(ColorImage::from_rgba_unmultiplied([w, w], &px))
 }
 
 /// Rasterizes acoustic audio waveform preview thumbnail into RGBA pixels.

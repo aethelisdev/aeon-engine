@@ -234,7 +234,7 @@ impl AeEngine {
         let render_options = ae_renderer::render::RenderOptions {
             grid_enabled: self.ui.grid_enabled && self.mode == EngineMode::Edit,
             wireframe_enabled: self.ui.wireframe_enabled,
-            scale_factor: self.ui.context.pixels_per_point(),
+            scale_factor: self.ui.scale_factor(),
         };
 
         let mut ui_actions = Vec::new();
@@ -258,7 +258,7 @@ impl AeEngine {
              surface_view: &wgpu::TextureView,
              viewport_texture_view: Option<&wgpu::TextureView>| {
                 ui.sync_console();
-                let rect = ui.render(ae_editor_ui::ui::EditorUiRenderParams {
+                ui.render(ae_editor_ui::ui::EditorUiRenderParams {
                     device,
                     queue,
                     encoder,
@@ -279,13 +279,7 @@ impl AeEngine {
                     shaders: &asset_manager.shaders,
                     enabled_modules: &event_bus.enabled_modules,
                     ui_actions: &mut ui_actions,
-                });
-                ae_renderer::render::ViewportRect {
-                    min_x: rect.min.x,
-                    min_y: rect.min.y,
-                    max_x: rect.max.x,
-                    max_y: rect.max.y,
-                }
+                })
             };
 
         let params = ae_renderer::render::RenderFrameParams {

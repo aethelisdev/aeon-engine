@@ -8,9 +8,8 @@
 //!
 
 use ae_renderer::asset::AssetHandle;
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 /// Asset categories for top-level filter chips.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -53,15 +52,21 @@ impl AssetCategory {
     }
 
     /// Primary accent color for UI category badges.
-    pub fn badge_color(self) -> egui::Color32 {
+    pub fn badge_color(self) -> irisui::prelude::Color {
         match self {
-            AssetCategory::All => egui::Color32::from_rgb(180, 180, 190),
-            AssetCategory::Models3D => egui::Color32::from_rgb(0, 229, 255), // Aeon Cyan
-            AssetCategory::Textures2D => egui::Color32::from_rgb(100, 220, 120), // Green
-            AssetCategory::Shaders => egui::Color32::from_rgb(255, 190, 60), // Amber / Yellow
-            AssetCategory::Materials => egui::Color32::from_rgb(220, 100, 220), // Magenta
-            AssetCategory::Scenes => egui::Color32::from_rgb(80, 160, 255),  // Sky Blue
-            AssetCategory::Audio => egui::Color32::from_rgb(255, 120, 100),  // Coral
+            AssetCategory::All => {
+                irisui::prelude::Color::rgb(180.0 / 255.0, 180.0 / 255.0, 190.0 / 255.0)
+            }
+            AssetCategory::Models3D => irisui::prelude::Color::rgb(0.0, 229.0 / 255.0, 1.0),
+            AssetCategory::Textures2D => {
+                irisui::prelude::Color::rgb(100.0 / 255.0, 220.0 / 255.0, 120.0 / 255.0)
+            }
+            AssetCategory::Shaders => irisui::prelude::Color::rgb(1.0, 190.0 / 255.0, 60.0 / 255.0),
+            AssetCategory::Materials => {
+                irisui::prelude::Color::rgb(220.0 / 255.0, 100.0 / 255.0, 220.0 / 255.0)
+            }
+            AssetCategory::Scenes => irisui::prelude::Color::rgb(80.0 / 255.0, 160.0 / 255.0, 1.0),
+            AssetCategory::Audio => irisui::prelude::Color::rgb(1.0, 120.0 / 255.0, 100.0 / 255.0),
         }
     }
 }
@@ -125,22 +130,6 @@ pub struct RenamingState {
     pub is_folder: bool,
 }
 
-/// Memory-cached texture preview entry.
-#[derive(Clone)]
-pub struct ThumbnailEntry {
-    /// Registered egui texture handle.
-    pub texture_handle: egui::TextureHandle,
-    /// Last recorded file modification timestamp.
-    pub last_modified: SystemTime,
-}
-
-/// Dynamic cache holding downscaled texture and model preview thumbnails.
-#[derive(Default)]
-pub struct ThumbnailCache {
-    /// Map of canonical file path to cached egui texture preview.
-    pub entries: HashMap<PathBuf, ThumbnailEntry>,
-}
-
 /// Central state manager for the Asset / Content Browser panel.
 pub struct AssetBrowserState {
     /// Current folder path for breadcrumb and tree navigation.
@@ -173,8 +162,6 @@ pub struct AssetBrowserState {
     pub new_folder_parent: Option<PathBuf>,
     /// Input buffer for newly created folder names.
     pub new_folder_name: String,
-    /// In-memory thumbnail preview cache.
-    pub thumbnail_cache: ThumbnailCache,
 }
 
 impl Default for AssetBrowserState {
@@ -204,7 +191,6 @@ impl AssetBrowserState {
             delete_confirmation: None,
             new_folder_parent: None,
             new_folder_name: String::new(),
-            thumbnail_cache: ThumbnailCache::default(),
         }
     }
 

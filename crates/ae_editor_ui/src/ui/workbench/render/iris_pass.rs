@@ -8,6 +8,7 @@
 
 use crate::ui::iris_bridge;
 use crate::ui::workbench::state::EngineUi;
+use irisui::prelude::Rect;
 use winit::window::Window;
 
 /// Parameters descriptor for the Iris UI overlay update and rendering pass.
@@ -18,8 +19,7 @@ pub struct IrisPassParams<'a> {
     pub window: &'a Window,
     pub window_surface_view: &'a wgpu::TextureView,
     pub viewport_texture_view: Option<&'a wgpu::TextureView>,
-    pub viewport_rect: egui::Rect,
-    pub is_hovering_interactive: bool,
+    pub viewport_rect: Rect,
     pub is_editing: bool,
     pub undo_stack: &'a [ae_editor::undo_redo::Command],
     pub redo_stack: &'a [ae_editor::undo_redo::Command],
@@ -30,14 +30,14 @@ pub struct IrisPassParams<'a> {
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
     pub camera: &'a ae_renderer::camera::Camera,
     pub world: &'a hecs::World,
-    pub stats_panel_rect: Option<egui::Rect>,
-    pub hierarchy_panel_rect: Option<egui::Rect>,
-    pub inspector_panel_rect: Option<egui::Rect>,
-    pub console_panel_rect: Option<egui::Rect>,
-    pub assets_panel_rect: Option<egui::Rect>,
-    pub timeline_panel_rect: Option<egui::Rect>,
-    pub material_panel_rect: Option<egui::Rect>,
-    pub ui_designer_panel_rect: Option<egui::Rect>,
+    pub stats_panel_rect: Option<Rect>,
+    pub hierarchy_panel_rect: Option<Rect>,
+    pub inspector_panel_rect: Option<Rect>,
+    pub console_panel_rect: Option<Rect>,
+    pub assets_panel_rect: Option<Rect>,
+    pub timeline_panel_rect: Option<Rect>,
+    pub material_panel_rect: Option<Rect>,
+    pub ui_designer_panel_rect: Option<Rect>,
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
 }
@@ -51,17 +51,13 @@ impl EngineUi {
             .dock_state
             .floating_windows
             .iter()
-            .map(|w| {
-                irisui::core::geometry::Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
-            })
+            .map(|w| Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height))
             .collect();
 
         // Resolve active window cursor icon
         let requested_cursor = self.iris_overlay.requested_cursor_icon();
         if requested_cursor != winit::window::CursorIcon::Default {
             params.window.set_cursor(requested_cursor);
-        } else if params.is_hovering_interactive {
-            params.window.set_cursor(winit::window::CursorIcon::Pointer);
         } else if self
             .iris_overlay
             .is_point_over_overlay(self.iris_overlay.cursor_pos)
@@ -73,24 +69,6 @@ impl EngineUi {
         if win_size.width == 0 || win_size.height == 0 {
             return;
         }
-
-        let iris_spans: Option<Vec<(String, irisui::prelude::Color)>> =
-            self.status_message.as_ref().map(|(spans, _)| {
-                spans
-                    .iter()
-                    .map(|(txt, col)| {
-                        (
-                            txt.clone(),
-                            irisui::prelude::Color::rgba(
-                                col.r() as f32 / 255.0,
-                                col.g() as f32 / 255.0,
-                                col.b() as f32 / 255.0,
-                                col.a() as f32 / 255.0,
-                            ),
-                        )
-                    })
-                    .collect()
-            });
 
         let delete_target = self.asset_browser.delete_confirmation.as_deref();
 
@@ -116,51 +94,17 @@ impl EngineUi {
             .as_ref()
             .map(|r| (r.target_path.as_path(), r.is_folder));
 
-        let iris_vp_rect = irisui::prelude::Rect::new(
-            params.viewport_rect.min.x,
-            params.viewport_rect.min.y,
-            params.viewport_rect.width(),
-            params.viewport_rect.height(),
-        );
-
-        let iris_stats_rect = params
-            .stats_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_hierarchy_rect = params
-            .hierarchy_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_inspector_rect = params
-            .inspector_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_console_rect = params
-            .console_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_assets_rect = params
-            .assets_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_timeline_rect = params
-            .timeline_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_material_rect = params
-            .material_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
-        let iris_ui_designer_rect = params
-            .ui_designer_panel_rect
-            .map(|r| irisui::prelude::Rect::new(r.min.x, r.min.y, r.width(), r.height()));
-
         self.iris_overlay
             .ensure_tools_texture(params.device, params.queue);
         self.iris_overlay
             .ensure_asset_thumbnails(params.queue, &self.asset_browser.cached_items);
         self.iris_overlay
             .set_viewport_texture(params.device, params.viewport_texture_view);
+
+        let status_spans = self
+            .status_message
+            .as_ref()
+            .map(|(spans, _)| spans.as_slice());
 
         self.iris_overlay
             .update_overlays(iris_bridge::OverlayUpdateParams {
@@ -181,23 +125,23 @@ impl EngineUi {
                 new_folder_parent,
                 rename_target,
                 is_loading_assets: self.is_loading_assets,
-                status_spans: iris_spans.as_deref(),
+                status_spans,
                 has_viewport_texture: params.viewport_texture_view.is_some(),
-                viewport_rect: iris_vp_rect,
+                viewport_rect: params.viewport_rect,
                 camera: params.camera,
                 wireframe_enabled: self.wireframe_enabled,
                 gizmo_mode: self.gizmo_mode,
                 gizmo_space: self.gizmo_space,
                 selected_entity: self.selected_entity,
                 world: params.world,
-                stats_panel_rect: iris_stats_rect,
-                hierarchy_panel_rect: iris_hierarchy_rect,
-                inspector_panel_rect: iris_inspector_rect,
-                console_panel_rect: iris_console_rect,
-                assets_panel_rect: iris_assets_rect,
-                timeline_panel_rect: iris_timeline_rect,
-                material_panel_rect: iris_material_rect,
-                ui_designer_panel_rect: iris_ui_designer_rect,
+                stats_panel_rect: params.stats_panel_rect,
+                hierarchy_panel_rect: params.hierarchy_panel_rect,
+                inspector_panel_rect: params.inspector_panel_rect,
+                console_panel_rect: params.console_panel_rect,
+                assets_panel_rect: params.assets_panel_rect,
+                timeline_panel_rect: params.timeline_panel_rect,
+                material_panel_rect: params.material_panel_rect,
+                ui_designer_panel_rect: params.ui_designer_panel_rect,
                 ui_designer_state: &self.ui_designer_state,
                 textures: params.textures,
                 models: params.models,

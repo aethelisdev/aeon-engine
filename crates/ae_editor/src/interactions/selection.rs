@@ -29,8 +29,7 @@ pub struct LeftClickPressParams<'a> {
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_renderer::render::ViewportRect,
     pub scale_factor: f32,
-    pub is_point_over_ui: &'a dyn Fn(egui::Pos2) -> bool,
-    pub egui_context: &'a egui::Context,
+    pub is_point_over_ui: &'a dyn Fn([f32; 2]) -> bool,
     pub is_edit_mode: bool,
     pub input: &'a InputManager,
 }
@@ -51,7 +50,6 @@ pub fn on_left_click_pressed(
         last_viewport_rect,
         scale_factor,
         is_point_over_ui,
-        egui_context,
         is_edit_mode,
         input,
     } = params;
@@ -59,13 +57,7 @@ pub fn on_left_click_pressed(
     if !is_edit_mode {
         return;
     }
-    if !should_pass_to_3d(
-        editor,
-        last_viewport_rect,
-        scale_factor,
-        is_point_over_ui,
-        egui_context,
-    ) {
+    if !should_pass_to_3d(editor, last_viewport_rect, scale_factor, is_point_over_ui) {
         return;
     }
 

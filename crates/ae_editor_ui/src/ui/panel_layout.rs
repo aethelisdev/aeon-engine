@@ -180,6 +180,81 @@ impl PanelLayoutState {
             let _ = self.dock_state.tree.push_to_focused_leaf(panel);
         }
     }
+
+    /// Docks a floating window back to its canonical home leaf in the tree.
+    pub fn smart_dock_back_panel(&mut self, win_id: u64) {
+        let target_panel = self
+            .dock_state
+            .floating_windows
+            .iter()
+            .find(|w| w.id == win_id)
+            .and_then(|w| w.tree.all_tabs().first().copied());
+
+        let Some(panel) = target_panel else {
+            let _ = self.dock_state.close_floating_window(win_id);
+            return;
+        };
+
+        let ideal_partner = match panel {
+            PanelId::Hierarchy => PanelId::Stats,
+            PanelId::Stats => PanelId::Hierarchy,
+            PanelId::Inspector => PanelId::MaterialEditor,
+            PanelId::MaterialEditor => PanelId::Inspector,
+            PanelId::Assets => PanelId::Console,
+            PanelId::Console | PanelId::AnimationTimeline => PanelId::Assets,
+            PanelId::Viewport => PanelId::UiDesigner,
+            PanelId::UiDesigner => PanelId::Viewport,
+        };
+
+        // 1. Try docking as a tab alongside ideal partner leaf
+        if let Some((partner_leaf, _)) = self.dock_state.tree.find_tab(&ideal_partner) {
+            let _ = self.dock_state.dock_floating_window(
+                win_id,
+                partner_leaf,
+                irisui::dock::DropZone::Center,
+            );
+            return;
+        }
+
+        // 2. Try docking relative to Viewport (the central anchor of the editor)
+        if let Some((viewport_leaf, _)) = self.dock_state.tree.find_tab(&PanelId::Viewport) {
+            let target_zone = match panel {
+                PanelId::Hierarchy | PanelId::Stats => irisui::dock::DropZone::Left,
+                PanelId::Inspector | PanelId::MaterialEditor => irisui::dock::DropZone::Right,
+                PanelId::Assets | PanelId::Console | PanelId::AnimationTimeline => {
+                    irisui::dock::DropZone::Bottom
+                }
+                PanelId::Viewport | PanelId::UiDesigner => irisui::dock::DropZone::Center,
+            };
+            let _ = self
+                .dock_state
+                .dock_floating_window(win_id, viewport_leaf, target_zone);
+            return;
+        }
+
+        // 3. Fallback to any existing leaf in the tree
+        if let Some(fallback_leaf) = self.dock_state.tree.find_first_leaf() {
+            let _ = self.dock_state.dock_floating_window(
+                win_id,
+                fallback_leaf,
+                irisui::dock::DropZone::Center,
+            );
+        }
+    }
+}
+
+/// Tab viewer implementation for [`PanelId`] used by Iris docking layout computations.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PanelTabViewer;
+
+impl irisui::dock::TabViewer<PanelId> for PanelTabViewer {
+    fn title(&self, tab: &PanelId) -> String {
+        format!("{} {}", tab.icon(), tab.title())
+    }
+
+    fn closeable(&self, tab: &PanelId) -> bool {
+        *tab != PanelId::Viewport
+    }
 }
 
 #[cfg(test)]

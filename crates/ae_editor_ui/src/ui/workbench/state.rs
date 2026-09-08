@@ -3,11 +3,8 @@
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
-use crate::ui::style;
 use crate::ui::types::{ConsoleEntry, EngineUiAction};
-use egui::Context;
-use egui_wgpu::Renderer;
-use egui_winit::State;
+use irisui::prelude::{Color, Point, Rect};
 use winit::window::Window;
 
 /// Action payload sent from async native file dialog threads to the main UI thread.
@@ -16,15 +13,32 @@ pub enum SceneDialogAction {
     LoadFrom(std::path::PathBuf),
 }
 
+/// Identifies the border or corner being resized on a floating window.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FloatingResizeEdge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+/// Active drag state on a detached floating window.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FloatingDragState {
+    Title { offset: Point },
+    Resize(FloatingResizeEdge),
+}
+
 /// The main UI management system for the Aeon Engine.
-/// Owns the egui context, winit state adapter, WGPU renderer, panel docking layout,
-/// and all persistent editor UI state (selection, inspector, preferences, console).
+/// Owns the Iris UI overlay pipeline, docking layout, and all persistent
+/// editor state (selection, inspector, preferences, console).
 pub struct EngineUi {
-    pub context: Context,
-    pub state: State,
-    pub renderer: Renderer,
     pub selected_entity: Option<hecs::Entity>,
-    pub status_message: Option<(Vec<(String, egui::Color32)>, std::time::Instant)>,
+    pub status_message: Option<(Vec<(String, Color)>, std::time::Instant)>,
     pub inspector_euler: [f32; 3],
     pub last_selected_entity: Option<hecs::Entity>,
     pub wireframe_enabled: bool,
@@ -56,7 +70,7 @@ pub struct EngineUi {
     /// The log count we last snapshotted from – used for change detection.
     pub(crate) console_last_count: u64,
     /// All UI rects from the last frame (panels + floating windows)
-    pub(crate) ui_rects: Vec<egui::Rect>,
+    pub(crate) ui_rects: Vec<Rect>,
     /// Profiler snapshot (ms) – updated by engine before render
     pub profiler_ecs_ms: f32,
     pub profiler_physics_ms: f32,
@@ -98,55 +112,50 @@ pub struct EngineUi {
     /// Last registered viewport texture height.
     pub viewport_rect_height: f32,
     /// Last recorded 3D viewport screen rectangle in logical coordinates.
-    pub last_viewport_rect: egui::Rect,
+    pub last_viewport_rect: Rect,
     /// Active UI Zoom / Scaling factor (e.g. 1.0 = 100%, 0.8 = 80%, 1.25 = 125%).
     pub ui_zoom_factor: f32,
     /// Persistent Content / Asset Browser state (directory path, search query, active category filter).
     pub asset_browser: crate::ui::panels::assets::AssetBrowserState,
     /// Persistent 2D UI Designer canvas state (aspect ratio, zoom, pan, grid snap).
-    pub ui_designer_state: crate::ui::panels::UiDesignerState,
+    pub ui_designer_state: ae_uidesign::UiDesignerState,
     /// Pending UI actions queued from window event dispatchers.
     pub pending_actions: Vec<EngineUiAction>,
     /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
     pub iris_overlay: IrisEditorOverlay,
+    /// Active floating window drag mode: `(window_id, drag_state)`.
+    pub active_floating_drag: Option<(u64, FloatingDragState)>,
+    /// Pending tab drag awaiting distance threshold to activate native dock drag.
+    pub pending_tab_drag: Option<PendingTabDrag>,
+}
+
+/// Tracks a pending tab drag before the cursor moves past the activation distance threshold.
+#[derive(Debug, Clone, Copy)]
+pub struct PendingTabDrag {
+    /// Leaf owning the tab.
+    pub leaf: irisui::dock::DockNodeId,
+    /// Tab index within the owning leaf.
+    pub tab_index: usize,
+    /// Associated panel identifier.
+    pub panel: PanelId,
+    /// Screen-space position where mouse was pressed.
+    pub press_pos: Point,
+    /// Bounding rectangle of the source leaf.
+    pub leaf_rect: Rect,
+    /// Optional floating window identifier if dragged from a floating window.
+    pub floating_window_id: Option<u64>,
 }
 
 impl EngineUi {
-    /// Initializes the egui context with custom fonts (NotoSans, symbols, math, and emoji), dark theme, and WGPU renderer.
-    /// Extends font rendering definitions by loading and binding custom TTF font streams, including
-    /// `NotoSans` for standard text, symbol variants for icons/culling glyphs, `NotoSansMath` for formula symbols,
-    /// and `NotoEmoji` to provide universal monochrome emoji symbol visibility throughout all engine UI panels.
+    /// Initializes the native Iris UI overlay manager and editor subsystems.
     pub fn new(
         device: &wgpu::Device,
         output_color_format: wgpu::TextureFormat,
-        window: &Window,
+        _window: &Window,
     ) -> Self {
-        let context = Context::default();
-
-        style::load_fonts(&context);
-        style::setup_custom_style(&context);
-
-        let state = State::new(
-            context.clone(),
-            egui::ViewportId::ROOT,
-            window,
-            Some(window.scale_factor() as f32),
-            None,
-            None,
-        );
-
-        let renderer = Renderer::new(
-            device,
-            output_color_format,
-            egui_wgpu::RendererOptions::default(),
-        );
-
         let iris_overlay = IrisEditorOverlay::new(device, output_color_format);
 
         Self {
-            context,
-            state,
-            renderer,
             iris_overlay,
             pending_actions: Vec::new(),
             selected_entity: None,
@@ -208,27 +217,54 @@ impl EngineUi {
             last_fps_update: std::time::Instant::now(),
             viewport_rect_width: 0.0,
             viewport_rect_height: 0.0,
-            last_viewport_rect: egui::Rect::ZERO,
+            last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
             ui_zoom_factor: 1.0,
             asset_browser: crate::ui::panels::assets::AssetBrowserState::new(),
-            ui_designer_state: crate::ui::panels::UiDesignerState::default(),
+            ui_designer_state: ae_uidesign::UiDesignerState::default(),
+            active_floating_drag: None,
+            pending_tab_drag: None,
         }
     }
 
-    /// Drains any finished async scene file dialog tasks and sets the pending save/load paths.
-    pub fn process_scene_dialogs(&mut self) {
+    /// Active UI scaling factor.
+    pub fn scale_factor(&self) -> f32 {
+        1.0
+    }
+
+    /// Sets a temporary status message displayed at the bottom status bar.
+    pub fn set_status_message(&mut self, text: impl Into<String>, color: Color) {
+        self.status_message = Some((vec![(text.into(), color)], std::time::Instant::now()));
+    }
+
+    /// Returns whether any modal dialog, search input, or inspector field currently captures keyboard events.
+    pub fn wants_keyboard_input(&self) -> bool {
+        self.iris_overlay.hierarchy_is_search_focused
+            || self.iris_overlay.console_is_search_focused
+            || self.iris_overlay.assets_is_search_focused
+            || self.iris_overlay.viewport_is_search_focused
+            || self.iris_overlay.inspector_active_number_input.is_some()
+            || self.iris_overlay.inspector_active_text_input.is_some()
+            || self.iris_overlay.inspector_rename_buffer.is_some()
+            || self.iris_overlay.inspector_hex_buffer.is_some()
+            || self.iris_overlay.new_folder_targets.is_some()
+            || self.iris_overlay.rename_targets.is_some()
+    }
+
+    /// Polls asynchronous native file dialog receivers and applies their actions.
+    pub fn poll_dialog_receivers(&mut self) {
+        let mut completed_indices = Vec::new();
         let mut actions = Vec::new();
-        for rx in &self.scene_dialog_receivers {
-            while let Ok(action) = rx.try_recv() {
+
+        for (idx, rx) in self.scene_dialog_receivers.iter().enumerate() {
+            if let Ok(action) = rx.try_recv() {
                 actions.push(action);
+                completed_indices.push(idx);
             }
         }
-        self.scene_dialog_receivers.retain(|rx| {
-            !matches!(
-                rx.try_recv(),
-                Err(std::sync::mpsc::TryRecvError::Disconnected)
-            )
-        });
+
+        for &idx in completed_indices.iter().rev() {
+            self.scene_dialog_receivers.swap_remove(idx);
+        }
 
         for action in actions {
             match action {
@@ -247,22 +283,17 @@ impl EngineUi {
         }
     }
 
-    /// Called once per frame, BEFORE Egui rendering.
-    /// Snapshots the global log buffer only when new entries exist.
-    /// This avoids holding the Mutex during the Egui render pass.
+    /// Called once per frame before rendering to snapshot the global log buffer.
     pub fn sync_console(&mut self) {
-        // Fast-path: skip any processing if Console is not currently visible
         if !self.layout_state.is_panel_visible(PanelId::Console) {
             return;
         }
 
-        // Use atomic load for cheap change detection without locking the mutex
         let current_total = ae_editor::editor_logger::LOGGER
             .log_count
             .load(std::sync::atomic::Ordering::Relaxed);
 
         if current_total != self.console_last_count {
-            // Only lock if we actually have new work to do
             if let Ok(lock) = ae_editor::editor_logger::LOGGER.logs.try_lock() {
                 self.console_entries = lock
                     .iter()

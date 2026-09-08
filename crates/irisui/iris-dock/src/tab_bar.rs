@@ -80,10 +80,11 @@ pub fn compute_tab_bar_layout<Tab, V: TabViewer<Tab>>(
     for tab in tabs {
         let title = viewer.title(tab);
         let is_closeable = viewer.closeable(tab);
-        let text_width = (title.len() as f32) * 7.5;
-        let padding = 20.0_f32;
-        let close_width = if is_closeable { 18.0 } else { 0.0 };
-        let tab_w = (text_width + padding + close_width).clamp(56.0, 180.0);
+        let char_count = title.chars().count();
+        let text_width = (char_count as f32) * 6.8;
+        let padding = 16.0_f32;
+        let close_width = if is_closeable { 16.0 } else { 0.0 };
+        let tab_w = (text_width + padding + close_width).clamp(48.0, 160.0);
         raw_tab_widths.push((title, is_closeable, tab_w));
         total_tabs_width += tab_w;
     }

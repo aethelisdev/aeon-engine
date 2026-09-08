@@ -99,12 +99,12 @@ pub fn handle_set_live_editor_updates(ctx: &mut UiContext, val: bool) {
     let (msg, color) = if val {
         (
             "Live Editor Updates (Hot Reload) Enabled",
-            egui::Color32::from_rgb(70, 190, 120),
+            irisui::prelude::Color::rgb(70.0 / 255.0, 190.0 / 255.0, 120.0 / 255.0),
         )
     } else {
         (
             "Live Editor Updates (Hot Reload) Disabled",
-            egui::Color32::from_rgb(220, 140, 60),
+            irisui::prelude::Color::rgb(220.0 / 255.0, 140.0 / 255.0, 60.0 / 255.0),
         )
     };
     ctx.ui.status_message = Some((vec![(msg.to_string(), color)], std::time::Instant::now()));

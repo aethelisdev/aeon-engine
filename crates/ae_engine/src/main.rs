@@ -180,16 +180,19 @@ impl ApplicationHandler for AeApp {
                 // Deliver key events to 3D engine / gameplay unless user is actively typing in a UI TextEdit
                 if *key == winit::keyboard::KeyCode::Escape
                     || engine.mode == EngineMode::Play
-                    || !engine.ui.context.egui_wants_keyboard_input()
+                    || !engine.ui.wants_keyboard_input()
                 {
                     engine.input.process_key_event(*key, *state);
                 }
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
+                if consumed {
+                    return;
+                }
                 let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
-                let scale = engine.ui.context.pixels_per_point();
-                let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
+                let scale = engine.ui.scale_factor();
+                let logical_pos = [cursor_x as f32 / scale, cursor_y as f32 / scale];
 
                 // Only scroll 3D camera if in Play mode (with cursor grabbed) or cursor is strictly inside the 3D viewport in Edit mode
                 if engine.mode == EngineMode::Play || !engine.ui.is_point_over_ui_rects(logical_pos)
@@ -199,9 +202,16 @@ impl ApplicationHandler for AeApp {
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
+                if consumed {
+                    if *state == ElementState::Pressed {
+                        engine.editor.left_mouse_pressed = false;
+                        engine.editor.right_mouse_pressed = false;
+                    }
+                    return;
+                }
                 let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
-                let scale = engine.ui.context.pixels_per_point();
-                let logical_pos = egui::pos2(cursor_x as f32 / scale, cursor_y as f32 / scale);
+                let scale = engine.ui.scale_factor();
+                let logical_pos = [cursor_x as f32 / scale, cursor_y as f32 / scale];
 
                 // In Play mode, all clicks when cursor is grabbed (or releasing) go to gameplay.
                 // If in Edit mode, only pass mouse input when releasing or when cursor is not over UI panels.
@@ -307,9 +317,6 @@ impl AeApp {
 
         log::trace!("Render frame start");
 
-        // Scene IO triggers
-        engine.ui.process_scene_dialogs();
-
         if engine.ui.should_save_scene {
             engine.ui.should_save_scene = false;
             let path = engine
@@ -319,18 +326,14 @@ impl AeApp {
                 .unwrap_or_else(|| std::path::PathBuf::from(&engine.ui.active_scene_path));
             let path_str = path.to_string_lossy();
             if let Err(e) = crate::scene::save_scene(engine, &path_str) {
-                engine.ui.status_message = Some((
-                    vec![(format!("Save Error: {}", e), egui::Color32::RED)],
-                    std::time::Instant::now(),
-                ));
+                engine
+                    .ui
+                    .set_status_message(format!("Save Error: {}", e), irisui::prelude::Color::RED);
             } else {
-                engine.ui.status_message = Some((
-                    vec![(
-                        format!("Scene saved to {}", path_str),
-                        egui::Color32::LIGHT_BLUE,
-                    )],
-                    std::time::Instant::now(),
-                ));
+                engine.ui.set_status_message(
+                    format!("Scene saved to {}", path_str),
+                    irisui::prelude::Color::rgb(0.0, 0.898, 1.0),
+                );
             }
         }
         if engine.ui.should_load_scene {
@@ -342,10 +345,9 @@ impl AeApp {
                 .unwrap_or_else(|| std::path::PathBuf::from(&engine.ui.active_scene_path));
             let path_str = path.to_string_lossy();
             if let Err(e) = crate::scene::load_scene(engine, &path_str) {
-                engine.ui.status_message = Some((
-                    vec![(format!("Load Error: {}", e), egui::Color32::RED)],
-                    std::time::Instant::now(),
-                ));
+                engine
+                    .ui
+                    .set_status_message(format!("Load Error: {}", e), irisui::prelude::Color::RED);
                 engine.ui.is_loading_assets = false;
             }
         }

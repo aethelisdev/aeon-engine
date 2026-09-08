@@ -13,9 +13,7 @@ log = "0.4.33"
 hecs = "0.11.0"
 bytemuck = { version = "1.25.0", features = ["derive"] }
 cgmath = "0.18"
-egui = "0.36.0"
-egui-wgpu = "0.36.0"
-egui-winit = "0.36.0"
+irisui = { workspace = true }
 image = "0.25.10"
 gltf = "1.4.1"
 

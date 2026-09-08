@@ -24,7 +24,7 @@ impl AeEngine {
 
     pub fn handle_cursor_moved(&mut self, x: f64, y: f64) {
         let window_size = (self.render_state.size.width, self.render_state.size.height);
-        let scale_factor = self.ui.context.pixels_per_point();
+        let scale_factor = self.ui.scale_factor();
         let last_viewport_rect = self.render_state.last_viewport_rect;
         ae_editor::interactions::handle_cursor_moved(
             &mut self.editor,
@@ -61,7 +61,7 @@ impl AeEngine {
 
         if self.mode == EngineMode::Edit {
             let window_size = (self.render_state.size.width, self.render_state.size.height);
-            let scale_factor = self.ui.context.pixels_per_point();
+            let scale_factor = self.ui.scale_factor();
             let ui_ref = &self.ui;
             let is_point_over_ui = move |pos| ui_ref.is_point_over_ui_rects(pos);
 
@@ -78,7 +78,6 @@ impl AeEngine {
                     last_viewport_rect: self.render_state.last_viewport_rect,
                     scale_factor,
                     is_point_over_ui: &is_point_over_ui,
-                    egui_context: &self.ui.context,
                     is_edit_mode: true,
                     input: &self.input,
                     button,

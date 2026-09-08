@@ -135,6 +135,7 @@ impl IrisEditorOverlay {
             start_time: std::time::Instant::now(),
             tools_texture: None,
             floating_window_rects: Vec::new(),
+            native_dock_frame: None,
         }
     }
 
@@ -220,11 +221,27 @@ impl IrisEditorOverlay {
             .layout_engine
             .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
 
+        // 3. Build Native Iris UI Docking Frame (Splitters, Tab Strips, Compact Snug Tabs, Active Indicators)
+        let workspace_rect = Rect::new(
+            0.0,
+            Self::MENUBAR_HEIGHT,
+            screen_width,
+            (screen_height - Self::MENUBAR_HEIGHT - Self::STATUS_BAR_HEIGHT).max(0.0),
+        );
+        let dock_frame = super::native_dock::build_native_dock(
+            &mut self.tree,
+            root,
+            params.layout_state,
+            workspace_rect,
+            self.cursor_pos,
+        );
+        self.native_dock_frame = Some(dock_frame);
+
         let is_floating = |panel: crate::ui::panel_layout::PanelId| {
             super::floating_layer::is_panel_in_floating_window(params.layout_state, panel)
         };
 
-        // 3. If Viewport canvas is valid and docked, build Viewport content (3D scene texture + HUD)
+        // 4. If Viewport canvas is valid and docked, build Viewport content (3D scene texture + HUD)
         if !is_floating(crate::ui::panel_layout::PanelId::Viewport)
             && params.viewport_rect.width > 20.0
             && params.viewport_rect.height > 20.0

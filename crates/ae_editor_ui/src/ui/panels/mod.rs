@@ -3,21 +3,10 @@
 
 //! Domain-based Editor UI Panels Module.
 //!
-//! Organizes all specialized editor panels into decoupled feature modules:
-//! - [`hierarchy`]: Scene Hierarchy / Outliner entity tree and spawn tools.
-//! - [`stats`]: Real-time Performance profiler, FPS, and GPU memory metrics.
-//! - [`inspector`]: Entity Component Inspector and property drawers.
-//! - [`material`]: Material & Submesh Editor for PBR textures and transparency.
-//! - [`assets`]: Asset Browser for 3D meshes and 2D textures.
-//! - [`console`]: Zero-allocation Developer Console and log viewer.
-//! - [`timeline`]: Animation Timeline Studio and transport sequencer.
+//! Provides the Asset Browser subsystem:
+//! - [`assets`]: Asset Browser for 3D meshes, 2D textures, and file operations.
 //!
 
 pub mod assets;
-pub mod console;
-pub mod inspector;
-pub mod material;
-pub mod timeline;
-pub mod ui_designer;
 
-pub use ui_designer::{UiDesignerContext, UiDesignerState, draw_ui_designer_panel};
+pub use assets::types::AssetBrowserState;

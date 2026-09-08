@@ -130,8 +130,7 @@ pub struct MouseClickParams<'a> {
     pub window_size: (u32, u32),
     pub last_viewport_rect: ae_renderer::render::ViewportRect,
     pub scale_factor: f32,
-    pub is_point_over_ui: &'a dyn Fn(egui::Pos2) -> bool,
-    pub egui_context: &'a egui::Context,
+    pub is_point_over_ui: &'a dyn Fn([f32; 2]) -> bool,
     pub is_edit_mode: bool,
     pub input: &'a InputManager,
     pub button: winit::event::MouseButton,
@@ -154,7 +153,6 @@ pub fn handle_mouse_click(
         last_viewport_rect,
         scale_factor,
         is_point_over_ui,
-        egui_context,
         is_edit_mode,
         input,
         button,
@@ -163,14 +161,7 @@ pub fn handle_mouse_click(
 
     let is_pressed = state == winit::event::ElementState::Pressed;
 
-    if is_pressed
-        && !should_pass_to_3d(
-            editor,
-            last_viewport_rect,
-            scale_factor,
-            is_point_over_ui,
-            egui_context,
-        )
+    if is_pressed && !should_pass_to_3d(editor, last_viewport_rect, scale_factor, is_point_over_ui)
     {
         editor.left_mouse_pressed = false;
         editor.right_mouse_pressed = false;
@@ -198,7 +189,6 @@ pub fn handle_mouse_click(
                     last_viewport_rect,
                     scale_factor,
                     is_point_over_ui,
-                    egui_context,
                     is_edit_mode,
                     input,
                 },
@@ -226,25 +216,20 @@ pub fn should_pass_to_3d(
     editor: &EditorState,
     last_viewport_rect: ae_renderer::render::ViewportRect,
     scale_factor: f32,
-    is_point_over_ui: &dyn Fn(egui::Pos2) -> bool,
-    egui_context: &egui::Context,
+    is_point_over_ui: &dyn Fn([f32; 2]) -> bool,
 ) -> bool {
     let (cx, cy) = editor.last_cursor_pos;
-    let logical_pos = egui::pos2(cx as f32 / scale_factor, cy as f32 / scale_factor);
+    let logical_pos = [cx as f32 / scale_factor, cy as f32 / scale_factor];
 
     if is_point_over_ui(logical_pos) {
         return false;
     }
 
-    if egui::Popup::is_any_open(egui_context) {
-        return false;
-    }
-
     let rect = last_viewport_rect;
-    logical_pos.x >= rect.min_x
-        && logical_pos.x <= rect.max_x
-        && logical_pos.y >= rect.min_y
-        && logical_pos.y <= rect.max_y
+    logical_pos[0] >= rect.min_x
+        && logical_pos[0] <= rect.max_x
+        && logical_pos[1] >= rect.min_y
+        && logical_pos[1] <= rect.max_y
 }
 
 /// Handles window focus loss by finalizing any active gizmo drags and committing history.

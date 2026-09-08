@@ -4,7 +4,7 @@
 //! High-level dock controller coordinating splitters, drag-drop targets, and persistence.
 
 use crate::context_menu::TabContextMenuState;
-use crate::drag_drop::{DockDragState, DropZone, calculate_drop_preview_rect, calculate_drop_zone};
+use crate::drag_drop::{DockDragState, DropZone, calculate_drop_preview_rect};
 use crate::floating::FloatingWindow;
 use crate::layout::ComputedDockLayout;
 use crate::tree::{DockError, DockNode, DockNodeId, DockTree, SplitDirection};
@@ -214,12 +214,19 @@ impl<T> DockState<T> {
                 }
             }
 
-            // 2. Check 5-way leaf content drop zones
+            // 2. Check 5-way compass anchor buttons on hovered leaf
             for leaf in &layout.leaves {
-                if let Some(zone) = calculate_drop_zone(leaf.content_rect, cursor) {
-                    let preview_rect = calculate_drop_preview_rect(leaf.content_rect, zone);
-                    drag.hover_target = Some((leaf.node_id, zone, preview_rect));
-                    return;
+                if leaf.content_rect.contains_point(cursor) {
+                    let nav_geom = crate::navigator::DockNavigatorGeometry::from_content_rect(
+                        leaf.content_rect,
+                        40.0,
+                        4.0,
+                    );
+                    if let Some(zone) = nav_geom.hit_test(cursor) {
+                        let preview_rect = calculate_drop_preview_rect(leaf.content_rect, zone);
+                        drag.hover_target = Some((leaf.node_id, zone, preview_rect));
+                        return;
+                    }
                 }
             }
         }
