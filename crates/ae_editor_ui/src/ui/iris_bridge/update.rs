@@ -18,7 +18,7 @@ use irisui::text::TextSystem;
 use std::collections::HashSet;
 
 impl IrisEditorOverlay {
-    /// Height of the top menubar panel in physical pixels (matching egui geometry).
+    /// Height of the top menubar panel in physical pixels.
     pub const MENUBAR_HEIGHT: f32 = menubar::MENUBAR_HEIGHT;
 
     /// Height of the bottom status bar in physical pixels.

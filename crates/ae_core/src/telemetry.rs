@@ -228,7 +228,7 @@ pub struct GpuPassTimings {
     pub main_opaque_pass_ms: f32,
     /// Post-processing bloom downsampling/upsampling and selection outline pass execution time.
     pub post_process_pass_ms: f32,
-    /// Egui UI rendering and composite pass execution time.
+    /// Iris UI rendering and composite pass execution time.
     pub ui_pass_ms: f32,
     /// Total aggregated GPU render workload duration.
     pub total_gpu_ms: f32,

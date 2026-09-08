@@ -3,8 +3,8 @@
 
 //! Backend-agnostic In-Game UI, Canvas Layout, and HUD Engine.
 //!
-//! Designed for 100% decoupling from any specific GUI library (such as egui,
-//! Slint, or custom WGPU GPU quad renderers). Game logic interacts solely with
+//! Designed for 100% decoupling from any specific GUI library or immediate-mode
+//! framework. Game logic interacts solely with
 //! ECS components (`UiElement`, `UiPanel`, `UiText`, `UiProgressBar`, `UiButton`, `UiImage`, `UiSlider`, `UiCheckbox`), while the
 //! `UiLayoutResolver` generates hardware-agnostic `UiDrawCommand` batches.
 //!

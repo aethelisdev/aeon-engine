@@ -36,7 +36,7 @@ pub struct RenderState {
 
     // Settings
     pub graphics_settings: crate::graphics_settings::GraphicsSettings,
-    /// Cached 3D viewport rect from the last completed egui frame.
+    /// Cached 3D viewport rect from the last completed UI frame.
     /// Updated every frame after UI renders. Used for mouse-in-viewport detection.
     pub last_viewport_rect: ViewportRect,
     /// Cached list of present modes supported by the surface on this GPU adapter.

@@ -19,7 +19,7 @@ pub struct LogEntry {
 }
 
 /// Dual-output logger: prints colorized logs to the terminal AND stores them
-/// in a `Mutex<VecDeque>` ring buffer for the egui Console panel.
+/// in a `Mutex<VecDeque>` ring buffer for the editor Console panel.
 /// Capped at `MAX_LOGS` (1000) entries to prevent unbounded memory growth.
 /// Filters out verbose wgpu/winit/naga/mio logs to prevent UI lag.
 /// Uses `AtomicU64` counter for lock-free change detection by the UI.
@@ -73,7 +73,7 @@ impl log::Log for EditorLogger {
                 msg_str
             );
 
-            // 2. Store safely in memory for Egui
+            // 2. Store safely in memory for editor console
             // If another thread panicked while holding the lock (poisoned),
             // recover by taking the inner data — losing logs is worse than a stale lock.
             if let Ok(mut lock) = self.logs.lock().or_else(|poisoned| {

@@ -8,7 +8,7 @@ use crate::ui::iris_bridge::types::{ActiveMenu, DropdownAction};
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use irisui::prelude::*;
 
-/// Height of the top menubar panel in physical pixels (matching egui geometry).
+/// Height of the top menubar panel in physical pixels.
 pub const MENUBAR_HEIGHT: f32 = 26.0;
 
 /// Default width of floating dropdown popup menus in physical pixels.

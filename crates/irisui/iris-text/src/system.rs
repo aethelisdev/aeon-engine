@@ -45,7 +45,7 @@ impl TextSystem {
     pub fn new() -> Self {
         let mut db = cosmic_text::fontdb::Database::new();
 
-        // Load Aeon Engine standard embedded fonts for 1-to-1 visual parity with egui
+        // Load Aeon Engine standard embedded fonts for default typography rendering
         db.load_font_data(
             include_bytes!("../../../ae_engine/assets/fonts/NotoSans-Regular.ttf").to_vec(),
         );

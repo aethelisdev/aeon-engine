@@ -14,7 +14,7 @@ pub struct MenuBarBuilder<'a> {
 }
 
 impl<'a> MenuBarBuilder<'a> {
-    /// Creates a full-width top menu bar with left and right layout partitions matching egui geometry.
+    /// Creates a full-width top menu bar with left and right layout partitions.
     pub fn new(tree: &'a mut UiTree, width: f32) -> Self {
         let node_id = tree.create_node();
         let left_group = tree.create_node();

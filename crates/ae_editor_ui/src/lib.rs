@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// AE Editor UI — Egui-based panel rendering and user interface event handlers.
+/// AE Editor UI — Iris UI-based panel rendering and user interface event handlers.
 pub mod processor;
 pub mod ui;
 

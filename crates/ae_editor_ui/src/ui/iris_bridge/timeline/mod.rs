@@ -4,8 +4,8 @@
 //! # Animation Timeline Studio Subsystem (`iris_bridge::timeline`)
 //!
 //! Provides the 100% GPU SDF hardware-accelerated Animation Timeline Studio panel
-//! for Aeon Engine, replacing legacy egui rasterization with decoupled Retained UI
-//! trees, responsive transport controls, adaptive time rulers, and interactive scrubbing.
+//! for Aeon Engine, utilizing decoupled Retained UI trees, responsive transport controls,
+//! adaptive time rulers, and interactive scrubbing.
 //!
 
 pub mod events;

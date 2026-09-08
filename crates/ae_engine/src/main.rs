@@ -131,7 +131,7 @@ impl ApplicationHandler for AeApp {
 
         let window = &engine.render_state.window;
 
-        // Event processing: In Play mode with cursor grabbed, isolate mouse events from egui so gameplay shooting doesn't click the Stop button
+        // Event processing: In Play mode with cursor grabbed, isolate mouse events from UI so gameplay shooting doesn't click the Stop button
         let consumed = if engine.mode == EngineMode::Play && engine.is_cursor_grabbed {
             match &event {
                 WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } => false,

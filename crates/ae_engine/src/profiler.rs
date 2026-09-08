@@ -6,7 +6,7 @@ use std::time::Instant;
 
 /// Per-frame CPU-side performance profiler and frame pacing analyzer.
 /// Tracks high-resolution wall-clock durations (in milliseconds) for ECS logic updates,
-/// physics simulation, render preparation, VSync present synchronization, and egui UI passes.
+/// physics simulation, render preparation, VSync present synchronization, and Iris UI passes.
 /// Houses a zero-allocation 240-frame ring buffer for real-time stutter and percentile analysis.
 #[derive(Default)]
 pub struct Profiler {
@@ -89,7 +89,7 @@ impl Profiler {
         }
     }
 
-    /// Marks the beginning of the egui UI draw phase.
+    /// Marks the beginning of the Iris UI draw phase.
     pub fn begin_ui(&mut self) {
         self.ui_start = Some(Instant::now());
     }

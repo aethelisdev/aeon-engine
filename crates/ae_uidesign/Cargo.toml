@@ -7,7 +7,6 @@ description = "Aeon Engine - 2D Visual UI Designer, Canvas Editor, and In-Game H
 [dependencies]
 hecs = "0.11.0"
 log = "0.4.33"
-egui = "0.36.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 ae_core = { path = "../ae_core" }

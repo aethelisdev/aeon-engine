@@ -4,7 +4,7 @@
 //! Frame Rendering Pipeline Sub-module.
 //!
 //! Coordinates the frame rendering lifecycle: viewport resizing, shadow cascades,
-//! main forward geometry passes, post-processing bloom, selection outlines, and egui UI.
+//! main forward geometry passes, post-processing bloom, selection outlines, and Iris UI.
 //!
 
 pub mod forward;
@@ -40,7 +40,7 @@ pub struct RenderFrameParams<'a> {
 
 impl RenderState {
     /// Executes the full frame render pipeline: shadow pass → main pass (sky, grid,
-    /// opaque geometry, wireframe, sprites, overlays) → bloom/post-process → egui UI.
+    /// opaque geometry, wireframe, sprites, overlays) → bloom/post-process → Iris UI.
     pub fn render(&mut self, params: RenderFrameParams<'_>) -> Result<(), RenderError> {
         let RenderFrameParams {
             scene,

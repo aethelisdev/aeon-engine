@@ -3,7 +3,7 @@
 
 //! # Native Iris UI Asset / Content Browser Subsystem
 //!
-//! Provides a 100% GPU SDF-accelerated replacement for the egui Asset Browser panel,
+//! Provides a 100% GPU SDF-accelerated Asset Browser panel,
 //! completely free of emojis, featuring breadcrumb navigation, live search,
 //! canonical vector icons, folder tree sidebar, floating right-click context menus,
 //! interactive quick asset preview modal, and responsive grid/table views.

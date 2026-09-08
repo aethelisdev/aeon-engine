@@ -9,7 +9,7 @@ use crate::render::types::vertex::{SkinVertex, Vertex};
 
 /// GPU-uploaded texture with its bind group, canonical source path, and dimensions.
 pub struct TextureAsset {
-    /// Egui/WGPU compatible GPU bind group containing texture view and sampler bindings.
+    /// WGPU compatible GPU bind group containing texture view and sampler bindings.
     pub bind_group: wgpu::BindGroup,
     /// Absolute canonical path on local disk for memory deduplication.
     pub source_path: String,
