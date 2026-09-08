@@ -11,6 +11,7 @@ use ae_core::ecs::{
     Name, Position, Rotation, Scale, UiAnchor, UiButton, UiElement, UiPanel, UiText,
     UiTextAlignment,
 };
+use irisui::prelude::*;
 
 fn create_default_test_params<'a>(
     world: &'a hecs::World,
