@@ -136,22 +136,9 @@ impl EngineUi {
                     Self::draw_docking_system(ui, &mut self.layout_state, &mut tab_viewer);
                 });
 
-            // Quick Asset Inspector Modal (Only in Edit mode)
-            if is_editing {
-                if let Some(rect) =
-                    crate::ui::panels::assets::preview_modal::draw_asset_preview_modal(
-                        &ctx,
-                        &mut self.asset_browser,
-                        params.models,
-                        params.textures,
-                        params.shaders,
-                        params.ui_actions,
-                    )
-                {
-                    ui_rects_collector.borrow_mut().push(rect);
-                }
-            } else {
-                self.asset_browser.preview_modal = None;
+            // Clean up asset preview modal when exiting Edit mode
+            if !is_editing {
+                self.iris_overlay.assets_preview_modal = None;
             }
 
             // Draw floating cursor tooltip when dragging an asset across the editor

@@ -369,16 +369,15 @@ impl EngineUi {
                     _ => {}
                 },
                 iris_bridge::AssetsPanelAction::InspectAsset(item) => {
-                    self.asset_browser.preview_modal =
-                        Some(crate::ui::panels::assets::types::PreviewModalState {
+                    self.iris_overlay.assets_preview_modal = Some(
+                        crate::ui::iris_bridge::assets::types::AssetPreviewModalState {
                             item,
                             orbit_yaw: 0.0,
                             orbit_pitch: 0.3,
                             zoom_distance: 1.0,
                             show_wireframe: true,
-                            channel_mask: [true, true, true, true],
-                            wgsl_source: None,
-                        });
+                        },
+                    );
                 }
                 iris_bridge::AssetsPanelAction::OpenRename(path, name, is_folder) => {
                     self.asset_browser.rename_state =

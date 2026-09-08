@@ -18,6 +18,8 @@ pub mod inspector;
 pub mod material;
 pub mod menubar;
 pub mod modals;
+/// Native docking chrome and geometry built directly into the retained Iris tree.
+pub mod native_dock;
 pub mod preferences;
 pub mod render;
 pub mod stats;

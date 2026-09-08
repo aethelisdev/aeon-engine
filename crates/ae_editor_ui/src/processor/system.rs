@@ -18,7 +18,7 @@ pub fn handle_change_mode(ctx: &mut UiContext, mode: ae_core::modules::EngineMod
 
             // Clean up asset browser & UI designer active selection, modals, and drag state to prevent gameplay input interception
             ctx.ui.asset_browser.selected_asset = None;
-            ctx.ui.asset_browser.preview_modal = None;
+            ctx.ui.iris_overlay.assets_preview_modal = None;
             ctx.ui.asset_browser.rename_state = None;
             ctx.ui.asset_browser.delete_confirmation = None;
             ctx.ui.asset_browser.new_folder_parent = None;

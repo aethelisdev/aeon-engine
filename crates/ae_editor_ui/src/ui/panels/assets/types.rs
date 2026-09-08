@@ -125,25 +125,6 @@ pub struct RenamingState {
     pub is_folder: bool,
 }
 
-/// State container for the interactive quick asset inspection modal window.
-#[derive(Debug, Clone)]
-pub struct PreviewModalState {
-    /// Inspected asset item reference.
-    pub item: AssetItem,
-    /// 3D model orbit rotation yaw angle in radians.
-    pub orbit_yaw: f32,
-    /// 3D model orbit rotation pitch angle in radians.
-    pub orbit_pitch: f32,
-    /// 3D model camera zoom distance multiplier.
-    pub zoom_distance: f32,
-    /// Whether to render the 3D model in wireframe mode.
-    pub show_wireframe: bool,
-    /// RGBA channel visibility toggles [R, G, B, A] for texture inspection.
-    pub channel_mask: [bool; 4],
-    /// Cached WGSL shader code content for syntax inspection.
-    pub wgsl_source: Option<String>,
-}
-
 /// Memory-cached texture preview entry.
 #[derive(Clone)]
 pub struct ThumbnailEntry {
@@ -188,8 +169,6 @@ pub struct AssetBrowserState {
     pub rename_state: Option<RenamingState>,
     /// Target path pending deletion confirmation.
     pub delete_confirmation: Option<PathBuf>,
-    /// Active quick asset inspection modal window state.
-    pub preview_modal: Option<PreviewModalState>,
     /// Active new folder creation parent path if dialog is open.
     pub new_folder_parent: Option<PathBuf>,
     /// Input buffer for newly created folder names.
@@ -223,7 +202,6 @@ impl AssetBrowserState {
             drag_payload: None,
             rename_state: None,
             delete_confirmation: None,
-            preview_modal: None,
             new_folder_parent: None,
             new_folder_name: String::new(),
             thumbnail_cache: ThumbnailCache::default(),
@@ -266,6 +244,5 @@ mod tests {
         assert!(!state.sidebar_collapsed);
         assert_eq!(state.sidebar_width, 180.0);
         assert!(state.drag_payload.is_none());
-        assert!(state.preview_modal.is_none());
     }
 }
