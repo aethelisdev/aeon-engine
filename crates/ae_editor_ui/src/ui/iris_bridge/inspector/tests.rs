@@ -257,3 +257,164 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
         "UiInteractable checkbox must be present"
     );
 }
+
+#[test]
+fn test_inspector_entity_isolation_invariant() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut world = hecs::World::new();
+    let ent_a = world.spawn((
+        Name("Dynamic Cube".to_string()),
+        Position {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        },
+        Rotation::identity(),
+        Scale {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+    ));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = create_default_test_params(&world, Some(ent_a), &euler, &swatches);
+
+    let mut targets = InspectorPanelTargets::default();
+    build_inspector_panel(&mut tree, root, &params, &mut targets);
+
+    assert_eq!(
+        targets.inspected_entity,
+        Some(ent_a),
+        "InspectorPanelTargets must explicitly carry the inspected entity"
+    );
+
+    // Verify reset transform button produces action targeting ent_a
+    if let Some(&(axis, rect)) = targets.transform_reset_btns.first() {
+        let mut actions = Vec::new();
+        let clicked = super::events::handle_inspector_click(
+            Point::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5),
+            MouseButton::Left,
+            &targets,
+            &mut actions,
+        );
+        assert!(clicked);
+        assert_eq!(actions.len(), 1);
+        match actions[0] {
+            InspectorAction::ResetTransform(target_ent, target_axis) => {
+                assert_eq!(target_ent, ent_a);
+                assert_eq!(target_axis, axis);
+            }
+            _ => panic!("Expected ResetTransform with target entity"),
+        }
+    }
+}
+
+#[test]
+fn test_inspector_select_all_number_input_styling() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut world = hecs::World::new();
+    let ent = world.spawn((
+        Position {
+            x: 5.0,
+            y: 10.0,
+            z: 15.0,
+        },
+        Rotation::identity(),
+        Scale {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+    ));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let mut params = create_default_test_params(&world, Some(ent), &euler, &swatches);
+    params.active_number_input = Some(ActiveNumberInputState {
+        id: InspectorNumberInputId::PosX,
+        buffer: "5.0",
+        cursor_idx: 3,
+        is_all_selected: true,
+    });
+
+    let mut targets = InspectorPanelTargets::default();
+    build_inspector_panel(&mut tree, root, &params, &mut targets);
+
+    // Verify node tree contains NumBox_PosX with dark background and glowing cyan active border
+    let mut pos_x_style = None;
+    let mut sel_pill_color = None;
+    tree.traverse_depth_first(root, &mut |_id, node| {
+        if node.name.as_deref() == Some("NumBox_PosX") {
+            pos_x_style = Some((node.style.background_color, node.style.border.color));
+        } else if node.name.as_deref() == Some("NumSel_PosX") {
+            sel_pill_color = Some(node.style.background_color);
+        }
+    });
+    assert_eq!(
+        pos_x_style,
+        Some((
+            Color::rgba(0.118, 0.125, 0.145, 1.0),
+            Color::rgba(0.0, 0.80, 1.00, 0.95),
+        )),
+        "Active number input must have dark background and glowing cyan active border"
+    );
+    assert_eq!(
+        sel_pill_color,
+        Some(Color::rgba(0.14, 0.46, 0.88, 0.95)),
+        "Active number input must render vivid blue selection pill when is_all_selected is true"
+    );
+}
+
+#[test]
+fn test_active_number_input_caret_position() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut world = hecs::World::new();
+    let ent = world.spawn((
+        Name("TestObject".to_string()),
+        Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        Rotation::default(),
+        Scale::default(),
+    ));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let mut params = create_default_test_params(&world, Some(ent), &euler, &swatches);
+    params.blink_caret = true;
+    params.active_number_input = Some(ActiveNumberInputState {
+        id: InspectorNumberInputId::PosX,
+        buffer: "42.5",
+        cursor_idx: 2, // between "42" and ".5"
+        is_all_selected: false,
+    });
+
+    let mut targets = InspectorPanelTargets::default();
+    build_inspector_panel(&mut tree, root, &params, &mut targets);
+
+    let mut pos_x_text = None;
+    let mut has_sel_pill = false;
+    tree.traverse_depth_first(root, &mut |_id, node| {
+        if node.name.as_deref() == Some("NumText_PosX") {
+            pos_x_text = node.text.clone();
+        } else if node.name.as_deref() == Some("NumSel_PosX") {
+            has_sel_pill = true;
+        }
+    });
+    assert_eq!(
+        pos_x_text,
+        Some("X: 42|.5".to_string()),
+        "Active number input must place caret at the exact cursor index"
+    );
+    assert!(
+        !has_sel_pill,
+        "Selection pill must NOT be rendered when is_all_selected is false"
+    );
+}

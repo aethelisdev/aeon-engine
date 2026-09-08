@@ -254,16 +254,16 @@ impl ComponentCategory {
 /// User actions emitted by interactive widgets in the Inspector panel.
 #[derive(Debug, Clone)]
 pub enum InspectorAction {
-    /// Renames the selected entity in the ECS world.
-    RenameEntity(String),
+    /// Renames the specified entity in the ECS world.
+    RenameEntity(hecs::Entity, String),
     /// Focuses the entity rename text field.
     FocusRename,
-    /// Resets a specific transform axis (Position, Rotation, or Scale).
-    ResetTransform(TransformAxisType),
-    /// Applies a direct numeric value change to a component property.
-    SetNumberValue(InspectorNumberInputId, f32),
-    /// Applies an object color change from the Appearance card.
-    SetObjectColor(Color),
+    /// Resets a specific transform axis (Position, Rotation, or Scale) on an entity.
+    ResetTransform(hecs::Entity, TransformAxisType),
+    /// Applies a direct numeric value change to a component property on an entity.
+    SetNumberValue(hecs::Entity, InspectorNumberInputId, f32),
+    /// Applies an object color change from the Appearance card to an entity.
+    SetObjectColor(hecs::Entity, Color),
     /// Focuses the HEX color text input for typing.
     FocusHexInput,
     /// Toggles the floating Color Picker popup.
@@ -274,16 +274,16 @@ pub enum InspectorAction {
     ClearCustomPalette,
     /// Removes a color swatch from the saved palette by index.
     RemoveColorFromPalette(usize),
-    /// Selects a dropdown combo option.
-    SelectDropdown(InspectorDropdownId, usize),
-    /// Toggles a boolean checkbox on a component.
-    ToggleCheckbox(ComponentCheckboxId),
-    /// Removes an entire component from the selected entity.
-    RemoveComponent(&'static str),
-    /// Adds a new component to the selected entity from the Add Menu.
-    AddComponent(&'static str),
-    /// Saves the selected entity and its entire hierarchy as a reusable Prefab file.
-    SaveAsPrefab,
+    /// Selects a dropdown combo option on an entity.
+    SelectDropdown(hecs::Entity, InspectorDropdownId, usize),
+    /// Toggles a boolean checkbox on a component of an entity.
+    ToggleCheckbox(hecs::Entity, ComponentCheckboxId),
+    /// Removes an entire component from the specified entity.
+    RemoveComponent(hecs::Entity, &'static str),
+    /// Adds a new component to the specified entity from the Add Menu.
+    AddComponent(hecs::Entity, &'static str),
+    /// Saves the specified entity and its entire hierarchy as a reusable Prefab file.
+    SaveAsPrefab(hecs::Entity),
     /// Opens the 8-category Add Component cascading menu.
     OpenAddComponentMenu(Point),
     /// Closes the Add Component menu.
@@ -292,20 +292,20 @@ pub enum InspectorAction {
     OpenAddSubmenu(ComponentCategory),
     /// Closes the active Add Component subcategory flyout menu.
     CloseAddSubmenu,
-    /// Resets Physics Material properties to the active SurfaceType preset.
-    ResetPhysMatPreset,
-    /// Signals that numeric input editing has begun, capturing pre-edit component state.
-    StartNumberEdit(InspectorNumberInputId),
-    /// Signals that numeric input editing has completed, committing undo history if value changed.
-    CommitNumberEdit(InspectorNumberInputId),
-    /// Opens native file dialog to select sound asset for AudioSource.
-    PickAudioFile,
-    /// Toggles play/stop preview playback for AudioSource on inspected entity.
-    ToggleAudioPlayback,
-    /// Unparents the inspected entity from its parent.
-    Unparent,
-    /// Sets a string text property on a component.
-    SetTextValue(InspectorTextInputId, String),
+    /// Resets Physics Material properties to the active SurfaceType preset on an entity.
+    ResetPhysMatPreset(hecs::Entity),
+    /// Signals that numeric input editing has begun on an entity, capturing pre-edit component state.
+    StartNumberEdit(hecs::Entity, InspectorNumberInputId),
+    /// Signals that numeric input editing has completed on an entity, committing undo history if value changed.
+    CommitNumberEdit(hecs::Entity, InspectorNumberInputId),
+    /// Opens native file dialog to select sound asset for AudioSource on an entity.
+    PickAudioFile(hecs::Entity),
+    /// Toggles play/stop preview playback for AudioSource on an entity.
+    ToggleAudioPlayback(hecs::Entity),
+    /// Unparents the specified entity from its parent.
+    Unparent(hecs::Entity),
+    /// Sets a string text property on a component of an entity.
+    SetTextValue(hecs::Entity, InspectorTextInputId, String),
 }
 
 /// String text input field identifier inside the Inspector panel.
@@ -372,6 +372,19 @@ impl ComponentCheckboxId {
     }
 }
 
+/// Active numeric input field display state passed to Inspector rendering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActiveNumberInputState<'a> {
+    /// Field identifier.
+    pub id: InspectorNumberInputId,
+    /// Live text buffer being edited.
+    pub buffer: &'a str,
+    /// Cursor index within the buffer for caret rendering.
+    pub cursor_idx: usize,
+    /// Whether all text in the field is selected.
+    pub is_all_selected: bool,
+}
+
 /// Input parameters supplied to the Inspector panel layout builder.
 pub struct InspectorPanelParams<'a> {
     /// Bounding rectangle of the docked Inspector panel tab.
@@ -398,8 +411,8 @@ pub struct InspectorPanelParams<'a> {
     pub is_add_menu_open: bool,
     /// Whether the floating Color Picker popup is open.
     pub is_color_picker_open: bool,
-    /// Active numeric input field and its text editing buffer: `(FieldId, BufferText)`.
-    pub active_number_input: Option<(InspectorNumberInputId, &'a str)>,
+    /// Active numeric input field display and cursor state if currently focused.
+    pub active_number_input: Option<ActiveNumberInputState<'a>>,
     /// Active string text input field and its buffer: `(FieldId, BufferText)`.
     pub active_text_input: Option<(InspectorTextInputId, &'a str)>,
     /// Active entity rename text buffer if currently being edited.
@@ -415,6 +428,8 @@ pub struct InspectorPanelParams<'a> {
 /// Hit-test target collections generated during Inspector layout construction.
 #[derive(Default)]
 pub struct InspectorPanelTargets {
+    /// Inspected ECS entity associated with these hit-test targets.
+    pub inspected_entity: Option<hecs::Entity>,
     /// Bounding rectangle of the scrollable component cards container.
     pub scroll_container_rect: Rect,
     /// Entity Name input box hit-test rect.

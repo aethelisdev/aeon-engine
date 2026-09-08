@@ -108,13 +108,28 @@ impl IrisEditorOverlay {
             let num_input_ref = self
                 .inspector_active_number_input
                 .as_ref()
-                .map(|(id, s)| (*id, s.as_str()));
+                .filter(|session| Some(session.entity) == params.selected_entity)
+                .map(|session| super::inspector::ActiveNumberInputState {
+                    id: session.id,
+                    buffer: session.buffer.as_str(),
+                    cursor_idx: session.cursor_idx,
+                    is_all_selected: session.is_all_selected,
+                });
             let text_input_ref = self
                 .inspector_active_text_input
                 .as_ref()
-                .map(|(id, s)| (*id, s.as_str()));
-            let rename_buf_ref = self.inspector_rename_buffer.as_deref();
-            let hex_buf_ref = self.inspector_hex_buffer.as_deref();
+                .filter(|(ent, _, _)| Some(*ent) == params.selected_entity)
+                .map(|(_, id, s)| (*id, s.as_str()));
+            let rename_buf_ref = self
+                .inspector_rename_buffer
+                .as_ref()
+                .filter(|(ent, _)| Some(*ent) == params.selected_entity)
+                .map(|(_, s)| s.as_str());
+            let hex_buf_ref = self
+                .inspector_hex_buffer
+                .as_ref()
+                .filter(|(ent, _)| Some(*ent) == params.selected_entity)
+                .map(|(_, s)| s.as_str());
 
             let insp_params = super::inspector::InspectorPanelParams {
                 panel_rect: inspector_rect,

@@ -177,6 +177,52 @@ impl IrisEditorOverlay {
         self.timeline_selected_entity = params.selected_entity;
         self.material_selected_entity = params.selected_entity;
 
+        // Safely commit pending inspector edits on selection change
+        if let Some(session) = self.inspector_active_number_input.take() {
+            if Some(session.entity) != params.selected_entity {
+                if let Ok(v) =
+                    super::inspector::evaluate_inspector_math(&session.buffer, session.initial_val)
+                {
+                    self.inspector_actions
+                        .push(super::inspector::InspectorAction::SetNumberValue(
+                            session.entity,
+                            session.id,
+                            v,
+                        ));
+                    self.inspector_actions.push(
+                        super::inspector::InspectorAction::CommitNumberEdit(
+                            session.entity,
+                            session.id,
+                        ),
+                    );
+                } else {
+                    self.inspector_edit_start_snapshot = None;
+                }
+            } else {
+                self.inspector_active_number_input = Some(session);
+            }
+        }
+        if let Some((ent, id, buf)) = self.inspector_active_text_input.take() {
+            if Some(ent) != params.selected_entity {
+                self.inspector_actions
+                    .push(super::inspector::InspectorAction::SetTextValue(
+                        ent, id, buf,
+                    ));
+            } else {
+                self.inspector_active_text_input = Some((ent, id, buf));
+            }
+        }
+        if let Some((ent, buf)) = self.inspector_rename_buffer.take() {
+            if Some(ent) != params.selected_entity {
+                if !buf.trim().is_empty() {
+                    self.inspector_actions
+                        .push(super::inspector::InspectorAction::RenameEntity(ent, buf));
+                }
+            } else {
+                self.inspector_rename_buffer = Some((ent, buf));
+            }
+        }
+
         let Ok(root) = self.tree.create_root() else {
             return;
         };

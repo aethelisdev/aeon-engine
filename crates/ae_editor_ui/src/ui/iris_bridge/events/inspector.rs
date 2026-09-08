@@ -5,7 +5,8 @@
 
 use crate::ui::iris_bridge::inspector::{self, InspectorAction};
 use crate::ui::iris_bridge::types::{
-    InspectorColorDragMode, InspectorNumberDragState, IrisEditorOverlay, IrisOverlayEventResult,
+    InspectorColorDragMode, InspectorNumberDragState, InspectorNumberInputSession,
+    IrisEditorOverlay, IrisOverlayEventResult,
 };
 use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
@@ -71,8 +72,11 @@ impl IrisEditorOverlay {
                 };
                 let new_val = (drag.start_val + delta * drag.sensitivity * speed_mult)
                     .clamp(drag.min_val, drag.max_val);
-                self.inspector_actions
-                    .push(InspectorAction::SetNumberValue(drag.id, new_val));
+                self.inspector_actions.push(InspectorAction::SetNumberValue(
+                    drag.entity,
+                    drag.id,
+                    new_val,
+                ));
                 result.consumed = true;
                 return Some(result);
             }
@@ -81,6 +85,7 @@ impl IrisEditorOverlay {
         // Continuous mouse drag for Inspector 2D HSV Color Picker
         if let Some(mode) = self.inspector_color_drag_mode
             && let Some(ref insp) = self.inspector_targets
+            && let Some(entity) = insp.inspected_entity
         {
             match mode {
                 InspectorColorDragMode::SaturationValue => {
@@ -92,7 +97,7 @@ impl IrisEditorOverlay {
                         self.inspector_hsv[2] = v;
                         let col = hsv_to_rgb(self.inspector_hsv[0], s, v);
                         self.inspector_actions
-                            .push(InspectorAction::SetObjectColor(col));
+                            .push(InspectorAction::SetObjectColor(entity, col));
                         result.consumed = true;
                         return Some(result);
                     }
@@ -104,7 +109,7 @@ impl IrisEditorOverlay {
                         self.inspector_hsv[0] = h;
                         let col = hsv_to_rgb(h, self.inspector_hsv[1], self.inspector_hsv[2]);
                         self.inspector_actions
-                            .push(InspectorAction::SetObjectColor(col));
+                            .push(InspectorAction::SetObjectColor(entity, col));
                         result.consumed = true;
                         return Some(result);
                     }
@@ -136,12 +141,24 @@ impl IrisEditorOverlay {
         }
         if let Some(drag) = self.inspector_drag_number.take() {
             if !drag.has_dragged {
-                // Click in-place without dragging -> activate direct numeric text editing
-                self.inspector_active_number_input =
-                    Some((drag.id, format!("{:.2}", drag.start_val)));
+                // Click in-place without dragging -> activate direct numeric text editing with Select All
+                let initial_str = if drag.start_val.fract().abs() < 1e-4 {
+                    format!("{:.1}", drag.start_val)
+                } else {
+                    format!("{:.3}", drag.start_val)
+                };
+                let cursor_idx = initial_str.len();
+                self.inspector_active_number_input = Some(InspectorNumberInputSession {
+                    entity: drag.entity,
+                    id: drag.id,
+                    buffer: initial_str,
+                    cursor_idx,
+                    is_all_selected: true,
+                    initial_val: drag.start_val,
+                });
             } else {
                 self.inspector_actions
-                    .push(InspectorAction::CommitNumberEdit(drag.id));
+                    .push(InspectorAction::CommitNumberEdit(drag.entity, drag.id));
             }
             result.consumed = true;
             return Some(result);
@@ -174,250 +191,6 @@ impl IrisEditorOverlay {
         }
     }
 
-    /// Handles keyboard input and IME composition for active text fields in Inspector.
-    fn handle_inspector_keyboard_input(
-        &mut self,
-        event: &WindowEvent,
-    ) -> Option<IrisOverlayEventResult> {
-        if self.inspector_active_number_input.is_none()
-            && self.inspector_active_text_input.is_none()
-            && self.inspector_rename_buffer.is_none()
-            && self.inspector_hex_buffer.is_none()
-        {
-            return None;
-        }
-
-        let mut result = IrisOverlayEventResult::default();
-        match event {
-            WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                if let Some((_, ref mut buf)) = self.inspector_active_number_input {
-                    for c in text.chars() {
-                        if c.is_ascii_digit() || c == '.' || c == '-' {
-                            buf.push(c);
-                        }
-                    }
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if let Some((_, ref mut buf)) = self.inspector_active_text_input {
-                    buf.push_str(text);
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if let Some(ref mut buf) = self.inspector_rename_buffer {
-                    buf.push_str(text);
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if let Some(ref mut buf) = self.inspector_hex_buffer {
-                    for c in text.chars() {
-                        if (c.is_ascii_hexdigit() || c == '#') && buf.len() < 7 {
-                            buf.push(c);
-                        }
-                    }
-                    result.consumed = true;
-                    return Some(result);
-                }
-            }
-            WindowEvent::KeyboardInput {
-                event:
-                    winit::event::KeyEvent {
-                        physical_key: winit::keyboard::PhysicalKey::Code(key),
-                        text,
-                        state: ElementState::Pressed,
-                        ..
-                    },
-                ..
-            } => {
-                if self.inspector_active_text_input.is_some() {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.inspector_active_text_input = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some((id, buf)) = self.inspector_active_text_input.take() {
-                                self.inspector_actions
-                                    .push(InspectorAction::SetTextValue(id, buf));
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, ref mut buf)) = self.inspector_active_text_input {
-                                buf.pop();
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        _ => {
-                            if let Some(t) = text
-                                && let Some((_, ref mut buf)) = self.inspector_active_text_input
-                                && !t.chars().any(|c| c.is_control())
-                            {
-                                buf.push_str(t);
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                    }
-                }
-                if self.inspector_active_number_input.is_some() {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.inspector_active_number_input = None;
-                            self.inspector_edit_start_snapshot = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some((id, buf)) = self.inspector_active_number_input.take()
-                                && let Ok(v) = buf.trim().parse::<f32>()
-                            {
-                                self.inspector_actions
-                                    .push(InspectorAction::SetNumberValue(id, v));
-                                self.inspector_actions
-                                    .push(InspectorAction::CommitNumberEdit(id));
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, ref mut buf)) = self.inspector_active_number_input {
-                                buf.pop();
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        _ => {
-                            if let Some(t) = text
-                                && let Some((_, ref mut buf)) = self.inspector_active_number_input
-                            {
-                                for c in t.chars() {
-                                    if c.is_ascii_digit() || c == '.' || c == '-' {
-                                        buf.push(c);
-                                    }
-                                }
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                    }
-                }
-                if self.inspector_rename_buffer.is_some() {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.inspector_rename_buffer = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some(buf) = self.inspector_rename_buffer.take()
-                                && !buf.trim().is_empty()
-                            {
-                                self.inspector_actions
-                                    .push(InspectorAction::RenameEntity(buf));
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
-                            if let Some(ref mut buf) = self.inspector_rename_buffer {
-                                buf.pop();
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        _ => {
-                            if let Some(t) = text
-                                && let Some(ref mut buf) = self.inspector_rename_buffer
-                                && !t.chars().any(|c| c.is_control())
-                            {
-                                buf.push_str(t);
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                    }
-                }
-                if self.inspector_hex_buffer.is_some() {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.inspector_hex_buffer = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some(buf) = self.inspector_hex_buffer.take() {
-                                let clean_hex = buf.trim_start_matches('#');
-                                if (clean_hex.len() == 6 || clean_hex.len() == 3)
-                                    && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
-                                {
-                                    let (r, g, b) = if clean_hex.len() == 6 {
-                                        (
-                                            ((rgb >> 16) & 0xFF) as f32 / 255.0,
-                                            ((rgb >> 8) & 0xFF) as f32 / 255.0,
-                                            (rgb & 0xFF) as f32 / 255.0,
-                                        )
-                                    } else {
-                                        (
-                                            (((rgb >> 8) & 0xF) * 17) as f32 / 255.0,
-                                            (((rgb >> 4) & 0xF) * 17) as f32 / 255.0,
-                                            ((rgb & 0xF) * 17) as f32 / 255.0,
-                                        )
-                                    };
-                                    self.inspector_actions.push(InspectorAction::SetObjectColor(
-                                        Color::rgba(r, g, b, 1.0),
-                                    ));
-                                }
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
-                            if let Some(ref mut buf) = self.inspector_hex_buffer {
-                                buf.pop();
-                                if buf.is_empty() {
-                                    buf.push('#');
-                                }
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        _ => {
-                            if let Some(t) = text
-                                && let Some(ref mut buf) = self.inspector_hex_buffer
-                            {
-                                for c in t.chars() {
-                                    if (c.is_ascii_hexdigit() || c == '#') && buf.len() < 7 {
-                                        buf.push(c);
-                                    }
-                                }
-                                let clean_hex = buf.trim_start_matches('#');
-                                if clean_hex.len() == 6
-                                    && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
-                                {
-                                    let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
-                                    let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
-                                    let b = (rgb & 0xFF) as f32 / 255.0;
-                                    self.inspector_actions.push(InspectorAction::SetObjectColor(
-                                        Color::rgba(r, g, b, 1.0),
-                                    ));
-                                }
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        None
-    }
-
     /// Handles mouse click interactions inside the Inspector panel.
     fn handle_inspector_click_event(
         &mut self,
@@ -442,6 +215,8 @@ impl IrisEditorOverlay {
             _ => MouseButton::Left,
         };
 
+        let entity_opt = insp_targets.inspected_entity;
+
         // 1. Check if an active dropdown popup is open and clicked
         if let Some(active_dd) = self.inspector_active_dropdown {
             if let Some(popup_rect) = insp_targets.active_dropdown_popup_rect
@@ -449,8 +224,10 @@ impl IrisEditorOverlay {
             {
                 for &(opt_idx, item_rect) in &insp_targets.dropdown_items {
                     if item_rect.contains_point(click_point) {
-                        self.inspector_actions
-                            .push(InspectorAction::SelectDropdown(active_dd, opt_idx));
+                        if let Some(entity) = entity_opt {
+                            self.inspector_actions
+                                .push(InspectorAction::SelectDropdown(entity, active_dd, opt_idx));
+                        }
                         self.inspector_active_dropdown = None;
                         result.consumed = true;
                         return Some(result);
@@ -480,8 +257,10 @@ impl IrisEditorOverlay {
                 self.inspector_hsv[1] = s;
                 self.inspector_hsv[2] = v;
                 let col = hsv_to_rgb(self.inspector_hsv[0], s, v);
-                self.inspector_actions
-                    .push(InspectorAction::SetObjectColor(col));
+                if let Some(entity) = entity_opt {
+                    self.inspector_actions
+                        .push(InspectorAction::SetObjectColor(entity, col));
+                }
                 self.inspector_color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
                 result.consumed = true;
                 return Some(result);
@@ -494,8 +273,10 @@ impl IrisEditorOverlay {
                     (((click_point.y - hue_rect.y) / hue_rect.height) * 360.0).clamp(0.0, 360.0);
                 self.inspector_hsv[0] = h;
                 let col = hsv_to_rgb(h, self.inspector_hsv[1], self.inspector_hsv[2]);
-                self.inspector_actions
-                    .push(InspectorAction::SetObjectColor(col));
+                if let Some(entity) = entity_opt {
+                    self.inspector_actions
+                        .push(InspectorAction::SetObjectColor(entity, col));
+                }
                 self.inspector_color_drag_mode = Some(InspectorColorDragMode::Hue);
                 result.consumed = true;
                 return Some(result);
@@ -505,13 +286,15 @@ impl IrisEditorOverlay {
         // 2. Check if a string text input box is clicked
         for &(text_id, box_rect, ref cur_val) in &insp_targets.text_inputs {
             if box_rect.contains_point(click_point) {
-                if let Some((prev_id, prev_buf)) = self.inspector_active_text_input.take()
+                if let Some((prev_ent, prev_id, prev_buf)) = self.inspector_active_text_input.take()
                     && prev_id != text_id
                 {
                     self.inspector_actions
-                        .push(InspectorAction::SetTextValue(prev_id, prev_buf));
+                        .push(InspectorAction::SetTextValue(prev_ent, prev_id, prev_buf));
                 }
-                self.inspector_active_text_input = Some((text_id, cur_val.clone()));
+                if let Some(entity) = entity_opt {
+                    self.inspector_active_text_input = Some((entity, text_id, cur_val.clone()));
+                }
                 self.inspector_active_number_input = None;
                 self.inspector_rename_buffer = None;
                 self.inspector_hex_buffer = None;
@@ -523,14 +306,22 @@ impl IrisEditorOverlay {
         // 2b. Check if a number input box is clicked
         for &(num_id, box_rect, min_val, max_val, cur_val) in &insp_targets.number_inputs {
             if box_rect.contains_point(click_point) {
-                if let Some((prev_id, prev_buf)) = self.inspector_active_number_input.take()
-                    && prev_id != num_id
-                    && let Ok(v) = prev_buf.trim().parse::<f32>()
+                if let Some(prev) = self.inspector_active_number_input.take()
+                    && prev.id != num_id
                 {
-                    self.inspector_actions
-                        .push(InspectorAction::SetNumberValue(prev_id, v));
-                    self.inspector_actions
-                        .push(InspectorAction::CommitNumberEdit(prev_id));
+                    if let Ok(v) =
+                        inspector::evaluate_inspector_math(&prev.buffer, prev.initial_val)
+                    {
+                        self.inspector_actions.push(InspectorAction::SetNumberValue(
+                            prev.entity,
+                            prev.id,
+                            v,
+                        ));
+                        self.inspector_actions
+                            .push(InspectorAction::CommitNumberEdit(prev.entity, prev.id));
+                    } else {
+                        self.inspector_edit_start_snapshot = None;
+                    }
                 }
                 let sensitivity = match num_id {
                     inspector::InspectorNumberInputId::UiOffsetX
@@ -567,42 +358,54 @@ impl IrisEditorOverlay {
                     | inspector::InspectorNumberInputId::ColliderCenterY => 0.05,
                     _ => 0.05,
                 };
-                self.inspector_actions
-                    .push(InspectorAction::StartNumberEdit(num_id));
-                self.inspector_drag_number = Some(InspectorNumberDragState {
-                    id: num_id,
-                    start_x: click_point.x,
-                    start_val: cur_val,
-                    min_val,
-                    max_val,
-                    sensitivity,
-                    has_dragged: false,
-                });
+                if let Some(entity) = entity_opt {
+                    self.inspector_actions
+                        .push(InspectorAction::StartNumberEdit(entity, num_id));
+                    self.inspector_drag_number = Some(InspectorNumberDragState {
+                        entity,
+                        id: num_id,
+                        start_x: click_point.x,
+                        start_val: cur_val,
+                        min_val,
+                        max_val,
+                        sensitivity,
+                        has_dragged: false,
+                    });
+                }
                 result.consumed = true;
                 return Some(result);
             }
         }
 
         // Commit active number input if clicked outside
-        if let Some((id, buf)) = self.inspector_active_number_input.take()
-            && let Ok(v) = buf.trim().parse::<f32>()
-        {
-            self.inspector_actions
-                .push(InspectorAction::SetNumberValue(id, v));
-            self.inspector_actions
-                .push(InspectorAction::CommitNumberEdit(id));
+        if let Some(session) = self.inspector_active_number_input.take() {
+            if let Ok(v) = inspector::evaluate_inspector_math(&session.buffer, session.initial_val)
+            {
+                self.inspector_actions.push(InspectorAction::SetNumberValue(
+                    session.entity,
+                    session.id,
+                    v,
+                ));
+                self.inspector_actions
+                    .push(InspectorAction::CommitNumberEdit(
+                        session.entity,
+                        session.id,
+                    ));
+            } else {
+                self.inspector_edit_start_snapshot = None;
+            }
         }
 
         // Commit active text input if clicked outside
-        if let Some((id, buf)) = self.inspector_active_text_input.take() {
+        if let Some((ent, id, buf)) = self.inspector_active_text_input.take() {
             self.inspector_actions
-                .push(InspectorAction::SetTextValue(id, buf));
+                .push(InspectorAction::SetTextValue(ent, id, buf));
         }
 
         // Commit active hex input if clicked outside
         if let Some(ref hex_rect) = insp_targets.hex_input_rect
             && !hex_rect.contains_point(click_point)
-            && let Some(buf) = self.inspector_hex_buffer.take()
+            && let Some((ent, buf)) = self.inspector_hex_buffer.take()
         {
             let clean_hex = buf.trim_start_matches('#');
             if (clean_hex.len() == 6 || clean_hex.len() == 3)
@@ -621,8 +424,10 @@ impl IrisEditorOverlay {
                         ((rgb & 0xF) * 17) as f32 / 255.0,
                     )
                 };
-                self.inspector_actions
-                    .push(InspectorAction::SetObjectColor(Color::rgba(r, g, b, 1.0)));
+                self.inspector_actions.push(InspectorAction::SetObjectColor(
+                    ent,
+                    Color::rgba(r, g, b, 1.0),
+                ));
             }
         }
 
@@ -662,7 +467,7 @@ impl IrisEditorOverlay {
                 InspectorAction::CloseAddSubmenu => {
                     self.inspector_active_submenu = None;
                 }
-                InspectorAction::SelectDropdown(dd_id, _) => {
+                InspectorAction::SelectDropdown(_ent, dd_id, _) => {
                     if self.inspector_active_dropdown == Some(dd_id) {
                         self.inspector_active_dropdown = None;
                     } else {
@@ -670,10 +475,14 @@ impl IrisEditorOverlay {
                     }
                 }
                 InspectorAction::FocusRename => {
-                    self.inspector_rename_buffer = Some(String::new());
+                    if let Some(entity) = entity_opt {
+                        self.inspector_rename_buffer = Some((entity, String::new()));
+                    }
                 }
                 InspectorAction::FocusHexInput => {
-                    self.inspector_hex_buffer = Some(String::from("#"));
+                    if let Some(entity) = entity_opt {
+                        self.inspector_hex_buffer = Some((entity, String::from("#")));
+                    }
                 }
                 InspectorAction::ToggleColorPicker => {
                     self.inspector_is_color_picker_open = !self.inspector_is_color_picker_open;

@@ -20,13 +20,17 @@ pub fn handle_inspector_click(
         return false;
     }
 
+    let entity_opt = targets.inspected_entity;
+
     // 1. Check Submenu items inside open Add Component menu
     if let Some(sub_rect) = targets.active_submenu_rect
         && sub_rect.contains_point(pos)
     {
         for &(comp_name, item_rect) in &targets.submenu_components {
             if item_rect.contains_point(pos) {
-                out_actions.push(InspectorAction::AddComponent(comp_name));
+                if let Some(entity) = entity_opt {
+                    out_actions.push(InspectorAction::AddComponent(entity, comp_name));
+                }
                 out_actions.push(InspectorAction::CloseAddComponentMenu);
                 return true;
             }
@@ -87,7 +91,9 @@ pub fn handle_inspector_click(
 
     // 6. `💾 Save as Prefab` Button
     if targets.save_prefab_btn_rect.contains_point(pos) {
-        out_actions.push(InspectorAction::SaveAsPrefab);
+        if let Some(entity) = entity_opt {
+            out_actions.push(InspectorAction::SaveAsPrefab(entity));
+        }
         return true;
     }
 
@@ -100,7 +106,9 @@ pub fn handle_inspector_click(
     // 8. Transform Reset Buttons
     for &(axis_type, btn_rect) in &targets.transform_reset_btns {
         if btn_rect.contains_point(pos) {
-            out_actions.push(InspectorAction::ResetTransform(axis_type));
+            if let Some(entity) = entity_opt {
+                out_actions.push(InspectorAction::ResetTransform(entity, axis_type));
+            }
             return true;
         }
     }
@@ -108,7 +116,9 @@ pub fn handle_inspector_click(
     // 9. Component Trash/Delete Buttons
     for &(comp_name, btn_rect) in &targets.component_delete_btns {
         if btn_rect.contains_point(pos) {
-            out_actions.push(InspectorAction::RemoveComponent(comp_name));
+            if let Some(entity) = entity_opt {
+                out_actions.push(InspectorAction::RemoveComponent(entity, comp_name));
+            }
             return true;
         }
     }
@@ -116,7 +126,9 @@ pub fn handle_inspector_click(
     // 10. Dropdown Trigger Combo Boxes
     for &(dd_id, combo_rect, _) in &targets.dropdowns {
         if combo_rect.contains_point(pos) {
-            out_actions.push(InspectorAction::SelectDropdown(dd_id, 0));
+            if let Some(entity) = entity_opt {
+                out_actions.push(InspectorAction::SelectDropdown(entity, dd_id, 0));
+            }
             return true;
         }
     }
@@ -124,7 +136,9 @@ pub fn handle_inspector_click(
     // 11. Component Checkboxes
     for &(cb_id, cb_rect, _) in &targets.checkboxes {
         if cb_rect.contains_point(pos) {
-            out_actions.push(InspectorAction::ToggleCheckbox(cb_id));
+            if let Some(entity) = entity_opt {
+                out_actions.push(InspectorAction::ToggleCheckbox(entity, cb_id));
+            }
             return true;
         }
     }
@@ -165,14 +179,18 @@ pub fn handle_inspector_click(
     if let Some(preset_rect) = targets.preset_btn_rect
         && preset_rect.contains_point(pos)
     {
-        out_actions.push(InspectorAction::ResetPhysMatPreset);
+        if let Some(entity) = entity_opt {
+            out_actions.push(InspectorAction::ResetPhysMatPreset(entity));
+        }
         return true;
     }
 
     // 17. Palette Swatch Pills
     for &(_idx, sw_rect, col) in &targets.palette_swatches {
         if sw_rect.contains_point(pos) {
-            out_actions.push(InspectorAction::SetObjectColor(col));
+            if let Some(entity) = entity_opt {
+                out_actions.push(InspectorAction::SetObjectColor(entity, col));
+            }
             return true;
         }
     }
@@ -181,7 +199,9 @@ pub fn handle_inspector_click(
     if let Some(pick_rect) = targets.audio_pick_btn_rect
         && pick_rect.contains_point(pos)
     {
-        out_actions.push(InspectorAction::PickAudioFile);
+        if let Some(entity) = entity_opt {
+            out_actions.push(InspectorAction::PickAudioFile(entity));
+        }
         return true;
     }
 
@@ -189,15 +209,19 @@ pub fn handle_inspector_click(
     if let Some(play_rect) = targets.audio_play_btn_rect
         && play_rect.contains_point(pos)
     {
-        out_actions.push(InspectorAction::ToggleAudioPlayback);
+        if let Some(entity) = entity_opt {
+            out_actions.push(InspectorAction::ToggleAudioPlayback(entity));
+        }
         return true;
     }
 
-    // 19. Unparent `❌` Button
+    // 20. Unparent `❌` Button
     if let Some(unparent_rect) = targets.unparent_btn_rect
         && unparent_rect.contains_point(pos)
     {
-        out_actions.push(InspectorAction::Unparent);
+        if let Some(entity) = entity_opt {
+            out_actions.push(InspectorAction::Unparent(entity));
+        }
         return true;
     }
 

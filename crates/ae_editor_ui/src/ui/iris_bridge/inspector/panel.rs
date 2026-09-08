@@ -58,6 +58,8 @@ pub fn build_inspector_panel(
         return;
     };
 
+    targets.inspected_entity = Some(entity);
+
     let mut cur_y = params.panel_rect.y + 4.0;
 
     // 2. Top Entity Name Header

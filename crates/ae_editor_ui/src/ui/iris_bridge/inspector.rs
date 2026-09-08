@@ -18,6 +18,7 @@ pub mod events;
 pub mod footer;
 pub mod header;
 pub mod math;
+pub mod math_eval;
 pub mod panel;
 pub mod registry;
 pub mod transform;
@@ -29,10 +30,11 @@ mod tests;
 
 pub use events::handle_inspector_click;
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
+pub use math_eval::{MathEvalError, evaluate_inspector_math};
 pub use panel::build_inspector_panel;
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use types::{
-    ComponentCategory, ComponentCheckboxId, InspectorAction, InspectorDropdownId,
-    InspectorNumberInputId, InspectorPanelParams, InspectorPanelTargets, InspectorTextInputId,
-    TransformAxisType,
+    ActiveNumberInputState, ComponentCategory, ComponentCheckboxId, InspectorAction,
+    InspectorDropdownId, InspectorNumberInputId, InspectorPanelParams, InspectorPanelTargets,
+    InspectorTextInputId, TransformAxisType,
 };

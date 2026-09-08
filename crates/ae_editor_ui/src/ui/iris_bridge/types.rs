@@ -231,10 +231,11 @@ pub struct IrisEditorOverlay {
     pub inspector_active_submenu: Option<super::inspector::ComponentCategory>,
     /// Currently open dropdown in Inspector.
     pub inspector_active_dropdown: Option<super::inspector::InspectorDropdownId>,
-    /// Currently active number input editing state in Inspector: `(id, buffer)`.
-    pub inspector_active_number_input: Option<(super::inspector::InspectorNumberInputId, String)>,
-    /// Currently active string text input editing state in Inspector: `(id, buffer)`.
-    pub inspector_active_text_input: Option<(super::inspector::InspectorTextInputId, String)>,
+    /// Currently active number input editing session in Inspector.
+    pub inspector_active_number_input: Option<InspectorNumberInputSession>,
+    /// Currently active string text input editing state in Inspector: `(entity, id, buffer)`.
+    pub inspector_active_text_input:
+        Option<(hecs::Entity, super::inspector::InspectorTextInputId, String)>,
     /// Whether Shift modifier key is currently held down.
     pub shift_held: bool,
     /// Whether Alt modifier key is currently held down.
@@ -245,10 +246,10 @@ pub struct IrisEditorOverlay {
     pub inspector_drag_number: Option<InspectorNumberDragState>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
     pub inspector_edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
-    /// Live entity rename text buffer if currently focused.
-    pub inspector_rename_buffer: Option<String>,
-    /// Live HEX color text input editing buffer if currently focused.
-    pub inspector_hex_buffer: Option<String>,
+    /// Live entity rename text buffer if currently focused: `(entity, buffer)`.
+    pub inspector_rename_buffer: Option<(hecs::Entity, String)>,
+    /// Live HEX color text input editing buffer if currently focused: `(entity, buffer)`.
+    pub inspector_hex_buffer: Option<(hecs::Entity, String)>,
     /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
     pub inspector_hsv: [f32; 3],
     /// Active mouse dragging mode on the 2D HSV color picker.
@@ -674,6 +675,8 @@ pub struct OverlayUpdateParams<'a> {
 /// Active horizontal mouse drag state for interactive Inspector numeric inputs.
 #[derive(Debug, Clone, Copy)]
 pub struct InspectorNumberDragState {
+    /// Inspected target ECS entity.
+    pub entity: hecs::Entity,
     /// Target numeric input identifier.
     pub id: super::inspector::InspectorNumberInputId,
     /// Starting X coordinate of the cursor when mouse was pressed.
@@ -697,4 +700,21 @@ pub enum InspectorColorDragMode {
     SaturationValue,
     /// Dragging on the vertical Rainbow Hue spectrum bar.
     Hue,
+}
+
+/// Active numeric text input session in Inspector.
+#[derive(Debug, Clone)]
+pub struct InspectorNumberInputSession {
+    /// Target entity being modified.
+    pub entity: hecs::Entity,
+    /// Identifier of the specific numeric field being edited.
+    pub id: super::inspector::InspectorNumberInputId,
+    /// Text buffer containing the current expression or number.
+    pub buffer: String,
+    /// Byte cursor index within the buffer for caret rendering and insertion.
+    pub cursor_idx: usize,
+    /// Whether the text in the buffer is fully selected.
+    pub is_all_selected: bool,
+    /// Initial baseline value before editing started.
+    pub initial_val: f32,
 }

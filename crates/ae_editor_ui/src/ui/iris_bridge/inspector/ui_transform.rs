@@ -244,10 +244,8 @@ fn build_dual_number_row(
         let val = params.values[i];
         let box_rect = Rect::new(cur_box_x, params.row_y, box_w, box_h);
 
-        let is_editing = match ctx.params.active_number_input {
-            Some((id, _)) => id == input_id,
-            None => false,
-        };
+        let editing_state = ctx.params.active_number_input.filter(|s| s.id == input_id);
+        let is_editing = editing_state.is_some();
         let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
 
         let box_node_id = tree.create_node();
@@ -257,7 +255,7 @@ fn build_dual_number_row(
             let (bg, border_col) = if is_editing {
                 (
                     Color::rgba(0.118, 0.125, 0.145, 1.0),
-                    Color::rgba(0.0, 0.85, 1.0, 0.95), // Active cyan ring
+                    Color::rgba(0.0, 0.80, 1.00, 0.95), // Glowing cyan active border
                 )
             } else if is_hovered {
                 (
@@ -277,15 +275,51 @@ fn build_dual_number_row(
         }
         let _ = tree.add_child(parent_id, box_node_id);
 
+        // Render vivid selection highlight pill behind numeric value when in Select-All mode
+        if let Some(s) = editing_state.filter(|s| s.is_all_selected) {
+            let buf = s.buffer;
+            let display_str = format!("{}{}", prefix, buf);
+            let tot_w = display_str.len() as f32 * 6.2;
+            let cx = box_rect.x + box_rect.width * 0.5;
+            let text_start_x = cx - tot_w * 0.5;
+            let prefix_w = prefix.len() as f32 * 6.2;
+            let val_start_x = text_start_x + prefix_w;
+            let val_w = (buf.len() as f32 * 6.2).max(12.0);
+
+            let sel_x = (val_start_x - 2.0).clamp(box_rect.x + 2.0, box_rect.right() - 6.0);
+            let sel_max_w = (box_rect.right() - 2.0 - sel_x).max(4.0);
+            let sel_w = (val_w + 4.0).min(sel_max_w);
+            let sel_rect = Rect::new(
+                sel_x,
+                box_rect.y + 2.5,
+                sel_w,
+                (box_rect.height - 5.0).max(4.0),
+            );
+
+            let sel_id = tree.create_node();
+            if let Some(node) = tree.get_mut(sel_id) {
+                node.set_name(format!("NumSel_{:?}", input_id));
+                node.computed_rect = sel_rect;
+                node.style = Style::new()
+                    .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                    .border_radius(3.0);
+            }
+            let _ = tree.add_child(box_node_id, sel_id);
+        }
+
         let txt_node_id = tree.create_node();
         if let Some(node) = tree.get_mut(txt_node_id) {
             node.set_name(format!("NumVal_{:?}", input_id));
-            let display_str = if is_editing {
-                let buf = ctx.params.active_number_input.map(|(_, b)| b).unwrap_or("");
-                if ctx.params.blink_caret {
-                    format!("{}{}|", prefix, buf)
-                } else {
+            let display_str = if let Some(s) = editing_state {
+                let buf = s.buffer;
+                let cursor = s.cursor_idx.min(buf.len());
+                let (left, right) = buf.split_at(cursor);
+                if s.is_all_selected {
                     format!("{}{}", prefix, buf)
+                } else if ctx.params.blink_caret {
+                    format!("{}{}|{}", prefix, left, right)
+                } else {
+                    format!("{}{}{}", prefix, left, right)
                 }
             } else if params.unit.is_empty() {
                 format!("{}{:.prec$}", prefix, val, prec = params.decimals)

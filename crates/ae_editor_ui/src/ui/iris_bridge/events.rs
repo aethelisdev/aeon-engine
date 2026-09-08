@@ -9,6 +9,7 @@ pub mod dispatcher;
 pub mod hierarchy;
 pub mod hit_test;
 pub mod inspector;
+pub mod inspector_keyboard;
 pub mod material;
 pub mod menubar;
 pub mod modals;

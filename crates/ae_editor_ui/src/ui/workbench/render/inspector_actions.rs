@@ -22,20 +22,18 @@ impl EngineUi {
     ) {
         for action in self.iris_overlay.take_inspector_actions() {
             match action {
-                InspectorAction::RenameEntity(name) => {
-                    if let Some(entity) = self.selected_entity {
-                        let old_name = world
-                            .get::<&ae_core::ecs::Name>(entity)
-                            .map(|n| n.0.clone())
-                            .unwrap_or_default();
-                        ui_actions.push(EngineUiAction::ModifyName(entity, old_name, name));
-                    }
+                InspectorAction::RenameEntity(entity, name) => {
+                    let old_name = world
+                        .get::<&ae_core::ecs::Name>(entity)
+                        .map(|n| n.0.clone())
+                        .unwrap_or_default();
+                    ui_actions.push(EngineUiAction::ModifyName(entity, old_name, name));
                 }
-                InspectorAction::ResetTransform(axis) => {
-                    self.handle_reset_transform(world, ui_actions, axis);
+                InspectorAction::ResetTransform(entity, axis) => {
+                    self.handle_reset_transform(world, ui_actions, entity, axis);
                 }
-                InspectorAction::SetObjectColor(col) => {
-                    self.handle_set_object_color(world, ui_actions, col);
+                InspectorAction::SetObjectColor(entity, col) => {
+                    self.handle_set_object_color(world, ui_actions, entity, col);
                 }
                 InspectorAction::AddColorToPalette(col) => {
                     if let Some(entity) = self.selected_entity {
@@ -60,26 +58,30 @@ impl EngineUi {
                         self.saved_swatches.remove(idx);
                     }
                 }
-                InspectorAction::RemoveComponent(comp_name) => {
-                    if let Some(entity) = self.selected_entity {
-                        ui_actions.push(EngineUiAction::RemoveComponent(entity, comp_name));
+                InspectorAction::RemoveComponent(entity, comp_name) => {
+                    ui_actions.push(EngineUiAction::RemoveComponent(entity, comp_name));
+                }
+                InspectorAction::AddComponent(entity, comp_name) => {
+                    ui_actions.push(EngineUiAction::AddComponent(entity, comp_name));
+                }
+                InspectorAction::SaveAsPrefab(entity) => {
+                    ui_actions.push(EngineUiAction::SaveEntityAsPrefab(
+                        entity,
+                        std::path::PathBuf::from("assets/prefabs/prefab.json"),
+                    ));
+                }
+                InspectorAction::StartNumberEdit(entity, num_id) => {
+                    let comp_name = num_id.component_name();
+                    let registry = ae_core::registry::ComponentRegistry::global();
+                    if let Some(handler) = registry.get_by_name(comp_name)
+                        && let Some(old_bytes) = handler.capture(world, entity)
+                    {
+                        self.iris_overlay.inspector_edit_start_snapshot =
+                            Some((entity, comp_name, old_bytes));
                     }
                 }
-                InspectorAction::AddComponent(comp_name) => {
-                    if let Some(entity) = self.selected_entity {
-                        ui_actions.push(EngineUiAction::AddComponent(entity, comp_name));
-                    }
-                }
-                InspectorAction::SaveAsPrefab => {
-                    if let Some(entity) = self.selected_entity {
-                        ui_actions.push(EngineUiAction::SaveEntityAsPrefab(
-                            entity,
-                            std::path::PathBuf::from("assets/prefabs/prefab.json"),
-                        ));
-                    }
-                }
-                InspectorAction::StartNumberEdit(num_id) => {
-                    if let Some(entity) = self.selected_entity {
+                InspectorAction::SetNumberValue(entity, num_id, val) => {
+                    if self.iris_overlay.inspector_edit_start_snapshot.is_none() {
                         let comp_name = num_id.component_name();
                         let registry = ae_core::registry::ComponentRegistry::global();
                         if let Some(handler) = registry.get_by_name(comp_name)
@@ -89,174 +91,143 @@ impl EngineUi {
                                 Some((entity, comp_name, old_bytes));
                         }
                     }
+                    handle_set_number_value(world, entity, num_id, val, &mut self.inspector_euler);
                 }
-                InspectorAction::SetNumberValue(num_id, val) => {
-                    if let Some(entity) = self.selected_entity {
-                        if self.iris_overlay.inspector_edit_start_snapshot.is_none() {
-                            let comp_name = num_id.component_name();
-                            let registry = ae_core::registry::ComponentRegistry::global();
-                            if let Some(handler) = registry.get_by_name(comp_name)
-                                && let Some(old_bytes) = handler.capture(world, entity)
-                            {
-                                self.iris_overlay.inspector_edit_start_snapshot =
-                                    Some((entity, comp_name, old_bytes));
-                            }
-                        }
-                        handle_set_number_value(
-                            world,
-                            entity,
-                            num_id,
-                            val,
-                            &mut self.inspector_euler,
-                        );
-                    }
-                }
-                InspectorAction::CommitNumberEdit(num_id) => {
-                    if let Some(entity) = self.selected_entity {
-                        let comp_name = num_id.component_name();
-                        if let Some((snap_entity, snap_comp_name, old_bytes)) =
-                            self.iris_overlay.inspector_edit_start_snapshot.take()
-                            && snap_entity == entity
-                            && snap_comp_name == comp_name
-                        {
-                            let registry = ae_core::registry::ComponentRegistry::global();
-                            if let Some(handler) = registry.get_by_name(comp_name)
-                                && let Some(new_bytes) = handler.capture(world, entity)
-                                && old_bytes != new_bytes
-                            {
-                                ui_actions.push(EngineUiAction::CommitComponentModify(
-                                    entity, comp_name, old_bytes, new_bytes,
-                                ));
-                            }
-                        }
-                    }
-                }
-                InspectorAction::SetTextValue(text_id, val) => {
-                    if let Some(entity) = self.selected_entity {
-                        let comp_name = text_id.component_name();
+                InspectorAction::CommitNumberEdit(entity, num_id) => {
+                    let comp_name = num_id.component_name();
+                    if let Some((snap_entity, snap_comp_name, old_bytes)) =
+                        self.iris_overlay.inspector_edit_start_snapshot.take()
+                        && snap_entity == entity
+                        && snap_comp_name == comp_name
+                    {
                         let registry = ae_core::registry::ComponentRegistry::global();
-                        let old_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        match text_id {
-                            crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextContent => {
-                                if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiText>(entity) {
-                                    t.text = val;
-                                }
-                            }
-                            crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextInputPlaceholder => {
-                                if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiTextInput>(entity) {
-                                    t.placeholder = val;
-                                }
-                            }
-                        }
-                        let new_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
-                            && old != new
+                        if let Some(handler) = registry.get_by_name(comp_name)
+                            && let Some(new_bytes) = handler.capture(world, entity)
+                            && old_bytes != new_bytes
                         {
                             ui_actions.push(EngineUiAction::CommitComponentModify(
-                                entity, comp_name, old, new,
+                                entity, comp_name, old_bytes, new_bytes,
                             ));
                         }
                     }
                 }
-                InspectorAction::SelectDropdown(dd_id, opt_idx) => {
-                    if let Some(entity) = self.selected_entity {
-                        let comp_name = dd_id.component_name();
-                        let registry = ae_core::registry::ComponentRegistry::global();
-                        let old_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        handle_select_dropdown(world, entity, dd_id, opt_idx);
-                        let new_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
-                            && old != new
-                        {
-                            ui_actions.push(EngineUiAction::CommitComponentModify(
-                                entity, comp_name, old, new,
-                            ));
+                InspectorAction::SetTextValue(entity, text_id, val) => {
+                    let comp_name = text_id.component_name();
+                    let registry = ae_core::registry::ComponentRegistry::global();
+                    let old_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    match text_id {
+                        crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextContent => {
+                            if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiText>(entity) {
+                                t.text = val;
+                            }
+                        }
+                        crate::ui::iris_bridge::inspector::InspectorTextInputId::UiTextInputPlaceholder => {
+                            if let Ok(mut t) = world.get::<&mut ae_core::ecs::UiTextInput>(entity) {
+                                t.placeholder = val;
+                            }
                         }
                     }
-                }
-                InspectorAction::ToggleCheckbox(cb_id) => {
-                    if let Some(entity) = self.selected_entity {
-                        let comp_name = cb_id.component_name();
-                        let registry = ae_core::registry::ComponentRegistry::global();
-                        let old_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        if let ComponentCheckboxId::ColliderIsSensor = cb_id
-                            && let Ok(mut c) = world.get::<&mut ae_core::ecs::Collider>(entity)
-                        {
-                            c.is_sensor = !c.is_sensor;
-                        } else if let ComponentCheckboxId::AudioLoop = cb_id
-                            && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
-                        {
-                            a.looping = !a.looping;
-                        } else if let ComponentCheckboxId::AudioSpatial = cb_id
-                            && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
-                        {
-                            a.is_spatial = !a.is_spatial;
-                        } else if let ComponentCheckboxId::AudioPlayOnStart = cb_id
-                            && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
-                        {
-                            a.play_on_start = !a.play_on_start;
-                        } else if let ComponentCheckboxId::UiVisible = cb_id
-                            && let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity)
-                        {
-                            u.visible = !u.visible;
-                        } else if let ComponentCheckboxId::UiInteractable = cb_id
-                            && let Ok(mut b) = world.get::<&mut ae_core::ecs::UiButton>(entity)
-                        {
-                            b.is_enabled = !b.is_enabled;
-                        }
-                        let new_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
-                            && old != new
-                        {
-                            ui_actions.push(EngineUiAction::CommitComponentModify(
-                                entity, comp_name, old, new,
-                            ));
-                        }
+                    let new_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                        && old != new
+                    {
+                        ui_actions.push(EngineUiAction::CommitComponentModify(
+                            entity, comp_name, old, new,
+                        ));
                     }
                 }
-                InspectorAction::ResetPhysMatPreset => {
-                    if let Some(entity) = self.selected_entity {
-                        let comp_name = "PhysicsMaterial";
-                        let registry = ae_core::registry::ComponentRegistry::global();
-                        let old_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        let surf = world
-                            .get::<&ae_core::ecs::PhysicsMaterial>(entity)
-                            .map(|m| m.surface_type)
-                            .unwrap_or(ae_core::ecs::SurfaceType::Default);
-                        if let Ok(mut m) = world.get::<&mut ae_core::ecs::PhysicsMaterial>(entity) {
-                            *m = ae_core::ecs::PhysicsMaterial::from_preset(surf);
-                        }
-                        let new_bytes = registry
-                            .get_by_name(comp_name)
-                            .and_then(|h| h.capture(world, entity));
-                        if let (Some(old), Some(new)) = (old_bytes, new_bytes)
-                            && old != new
-                        {
-                            ui_actions.push(EngineUiAction::CommitComponentModify(
-                                entity, comp_name, old, new,
-                            ));
-                        }
+                InspectorAction::SelectDropdown(entity, dd_id, opt_idx) => {
+                    let comp_name = dd_id.component_name();
+                    let registry = ae_core::registry::ComponentRegistry::global();
+                    let old_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    handle_select_dropdown(world, entity, dd_id, opt_idx);
+                    let new_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                        && old != new
+                    {
+                        ui_actions.push(EngineUiAction::CommitComponentModify(
+                            entity, comp_name, old, new,
+                        ));
                     }
                 }
-                InspectorAction::PickAudioFile => {
-                    if let Some(entity) = self.selected_entity
-                        && let Some(path) = rfd::FileDialog::new()
-                            .add_filter("Audio Files", &["wav", "ogg", "mp3", "flac"])
-                            .pick_file()
+                InspectorAction::ToggleCheckbox(entity, cb_id) => {
+                    let comp_name = cb_id.component_name();
+                    let registry = ae_core::registry::ComponentRegistry::global();
+                    let old_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    if let ComponentCheckboxId::ColliderIsSensor = cb_id
+                        && let Ok(mut c) = world.get::<&mut ae_core::ecs::Collider>(entity)
+                    {
+                        c.is_sensor = !c.is_sensor;
+                    } else if let ComponentCheckboxId::AudioLoop = cb_id
+                        && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                    {
+                        a.looping = !a.looping;
+                    } else if let ComponentCheckboxId::AudioSpatial = cb_id
+                        && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                    {
+                        a.is_spatial = !a.is_spatial;
+                    } else if let ComponentCheckboxId::AudioPlayOnStart = cb_id
+                        && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
+                    {
+                        a.play_on_start = !a.play_on_start;
+                    } else if let ComponentCheckboxId::UiVisible = cb_id
+                        && let Ok(mut u) = world.get::<&mut ae_core::ecs::UiElement>(entity)
+                    {
+                        u.visible = !u.visible;
+                    } else if let ComponentCheckboxId::UiInteractable = cb_id
+                        && let Ok(mut b) = world.get::<&mut ae_core::ecs::UiButton>(entity)
+                    {
+                        b.is_enabled = !b.is_enabled;
+                    }
+                    let new_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                        && old != new
+                    {
+                        ui_actions.push(EngineUiAction::CommitComponentModify(
+                            entity, comp_name, old, new,
+                        ));
+                    }
+                }
+                InspectorAction::ResetPhysMatPreset(entity) => {
+                    let comp_name = "PhysicsMaterial";
+                    let registry = ae_core::registry::ComponentRegistry::global();
+                    let old_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    let surf = world
+                        .get::<&ae_core::ecs::PhysicsMaterial>(entity)
+                        .map(|m| m.surface_type)
+                        .unwrap_or(ae_core::ecs::SurfaceType::Default);
+                    if let Ok(mut m) = world.get::<&mut ae_core::ecs::PhysicsMaterial>(entity) {
+                        *m = ae_core::ecs::PhysicsMaterial::from_preset(surf);
+                    }
+                    let new_bytes = registry
+                        .get_by_name(comp_name)
+                        .and_then(|h| h.capture(world, entity));
+                    if let (Some(old), Some(new)) = (old_bytes, new_bytes)
+                        && old != new
+                    {
+                        ui_actions.push(EngineUiAction::CommitComponentModify(
+                            entity, comp_name, old, new,
+                        ));
+                    }
+                }
+                InspectorAction::PickAudioFile(entity) => {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Audio Files", &["wav", "ogg", "mp3", "flac"])
+                        .pick_file()
                     {
                         let path_str = path.to_string_lossy().to_string();
                         if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
@@ -265,17 +236,13 @@ impl EngineUi {
                         }
                     }
                 }
-                InspectorAction::ToggleAudioPlayback => {
-                    if let Some(entity) = self.selected_entity
-                        && let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity)
-                    {
+                InspectorAction::ToggleAudioPlayback(entity) => {
+                    if let Ok(mut a) = world.get::<&mut ae_audio::AudioSource>(entity) {
                         a.is_playing = !a.is_playing;
                     }
                 }
-                InspectorAction::Unparent => {
-                    if let Some(entity) = self.selected_entity {
-                        ui_actions.push(EngineUiAction::UnparentEntity(entity));
-                    }
+                InspectorAction::Unparent(entity) => {
+                    ui_actions.push(EngineUiAction::UnparentEntity(entity));
                 }
                 _ => {}
             }
@@ -287,51 +254,50 @@ impl EngineUi {
         &mut self,
         world: &hecs::World,
         ui_actions: &mut Vec<EngineUiAction>,
+        entity: hecs::Entity,
         axis: TransformAxisType,
     ) {
-        if let Some(entity) = self.selected_entity {
-            match axis {
-                TransformAxisType::Position => {
-                    let old_pos = world
-                        .get::<&ae_core::ecs::Position>(entity)
-                        .map(|p| *p)
-                        .unwrap_or(ae_core::ecs::Position {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                        });
-                    let new_pos = ae_core::ecs::Position {
+        match axis {
+            TransformAxisType::Position => {
+                let old_pos = world
+                    .get::<&ae_core::ecs::Position>(entity)
+                    .map(|p| *p)
+                    .unwrap_or(ae_core::ecs::Position {
                         x: 0.0,
                         y: 0.0,
                         z: 0.0,
-                    };
-                    ui_actions.push(EngineUiAction::ModifyPosition(entity, old_pos, new_pos));
-                }
-                TransformAxisType::Rotation => {
-                    let old_rot = world
-                        .get::<&ae_core::ecs::Rotation>(entity)
-                        .map(|r| *r)
-                        .unwrap_or_else(|_| ae_core::ecs::Rotation::identity());
-                    let new_rot = ae_core::ecs::Rotation::identity();
-                    self.inspector_euler = [0.0, 0.0, 0.0];
-                    ui_actions.push(EngineUiAction::ModifyRotation(entity, old_rot, new_rot));
-                }
-                TransformAxisType::Scale => {
-                    let old_scale = world
-                        .get::<&ae_core::ecs::Scale>(entity)
-                        .map(|s| *s)
-                        .unwrap_or(ae_core::ecs::Scale {
-                            x: 1.0,
-                            y: 1.0,
-                            z: 1.0,
-                        });
-                    let new_scale = ae_core::ecs::Scale {
+                    });
+                let new_pos = ae_core::ecs::Position {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                };
+                ui_actions.push(EngineUiAction::ModifyPosition(entity, old_pos, new_pos));
+            }
+            TransformAxisType::Rotation => {
+                let old_rot = world
+                    .get::<&ae_core::ecs::Rotation>(entity)
+                    .map(|r| *r)
+                    .unwrap_or_else(|_| ae_core::ecs::Rotation::identity());
+                let new_rot = ae_core::ecs::Rotation::identity();
+                self.inspector_euler = [0.0, 0.0, 0.0];
+                ui_actions.push(EngineUiAction::ModifyRotation(entity, old_rot, new_rot));
+            }
+            TransformAxisType::Scale => {
+                let old_scale = world
+                    .get::<&ae_core::ecs::Scale>(entity)
+                    .map(|s| *s)
+                    .unwrap_or(ae_core::ecs::Scale {
                         x: 1.0,
                         y: 1.0,
                         z: 1.0,
-                    };
-                    ui_actions.push(EngineUiAction::ModifyScale(entity, old_scale, new_scale));
-                }
+                    });
+                let new_scale = ae_core::ecs::Scale {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                };
+                ui_actions.push(EngineUiAction::ModifyScale(entity, old_scale, new_scale));
             }
         }
     }
@@ -341,32 +307,31 @@ impl EngineUi {
         &mut self,
         world: &hecs::World,
         ui_actions: &mut Vec<EngineUiAction>,
+        entity: hecs::Entity,
         col: irisui::prelude::Color,
     ) {
-        if let Some(entity) = self.selected_entity {
-            let old_col = world
-                .get::<&ae_core::ecs::Color>(entity)
-                .map(|c| *c)
-                .unwrap_or(ae_core::ecs::Color {
-                    r: 1.0,
-                    g: 1.0,
-                    b: 1.0,
-                    a: 1.0,
-                });
-            let new_col = ae_core::ecs::Color {
-                r: col.r,
-                g: col.g,
-                b: col.b,
-                a: col.a,
-            };
-            let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
-            let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
-            let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
-            self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
-            let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
-            self.iris_overlay.inspector_hsv = [h, s, v];
-            ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
-        }
+        let old_col = world
+            .get::<&ae_core::ecs::Color>(entity)
+            .map(|c| *c)
+            .unwrap_or(ae_core::ecs::Color {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0,
+            });
+        let new_col = ae_core::ecs::Color {
+            r: col.r,
+            g: col.g,
+            b: col.b,
+            a: col.a,
+        };
+        let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
+        let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
+        let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
+        self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
+        let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
+        self.iris_overlay.inspector_hsv = [h, s, v];
+        ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
     }
 }
 

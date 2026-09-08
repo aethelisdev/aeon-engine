@@ -116,10 +116,11 @@ pub fn render_numeric_row_compact(
         params.box_w,
         row_h,
     );
-    let is_editing = match ctx.params.active_number_input {
-        Some((id, _)) => id == params.input_id,
-        None => false,
-    };
+    let editing_state = ctx
+        .params
+        .active_number_input
+        .filter(|s| s.id == params.input_id);
+    let is_editing = editing_state.is_some();
     let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
 
     let box_id = tree.create_node();
@@ -129,7 +130,7 @@ pub fn render_numeric_row_compact(
         let (bg, border) = if is_editing {
             (
                 Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.353, 0.376, 0.439, 0.95), // Clean neutral active ring
+                Color::rgba(0.0, 0.80, 1.00, 0.95), // Glowing cyan active border
             )
         } else if is_hovered {
             (
@@ -149,16 +150,49 @@ pub fn render_numeric_row_compact(
     }
     let _ = tree.add_child(card_id, box_id);
 
+    // Render vivid selection highlight pill behind numeric value when in Select-All mode
+    if let Some(s) = editing_state.filter(|s| s.is_all_selected) {
+        let buf = s.buffer;
+        let tot_w = buf.len() as f32 * 6.5;
+        let cx = box_rect.x + box_rect.width * 0.5;
+        let val_start_x = cx - tot_w * 0.5;
+        let val_w = (buf.len() as f32 * 6.5).max(14.0);
+
+        let sel_x = (val_start_x - 3.0).clamp(box_rect.x + 3.0, box_rect.right() - 8.0);
+        let sel_max_w = (box_rect.right() - 3.0 - sel_x).max(4.0);
+        let sel_w = (val_w + 6.0).min(sel_max_w);
+        let sel_rect = Rect::new(
+            sel_x,
+            box_rect.y + 2.5,
+            sel_w,
+            (box_rect.height - 5.0).max(4.0),
+        );
+
+        let sel_id = tree.create_node();
+        if let Some(node) = tree.get_mut(sel_id) {
+            node.set_name(format!("NumSel_{:?}", params.input_id));
+            node.computed_rect = sel_rect;
+            node.style = Style::new()
+                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                .border_radius(3.0);
+        }
+        let _ = tree.add_child(box_id, sel_id);
+    }
+
     // Value Text
     let txt_id = tree.create_node();
     if let Some(node) = tree.get_mut(txt_id) {
         node.set_name(format!("NumVal_{:?}", params.input_id));
-        let display_str = if is_editing {
-            let buf = ctx.params.active_number_input.map(|(_, b)| b).unwrap_or("");
-            if ctx.params.blink_caret {
-                format!("{}|", buf)
-            } else {
+        let display_str = if let Some(s) = editing_state {
+            let buf = s.buffer;
+            let cursor = s.cursor_idx.min(buf.len());
+            let (left, right) = buf.split_at(cursor);
+            if s.is_all_selected {
                 buf.to_string()
+            } else if ctx.params.blink_caret {
+                format!("{}|{}", left, right)
+            } else {
+                format!("{}{}", left, right)
             }
         } else if params.input_id == InspectorNumberInputId::CharacterMaxSlope {
             format!("{:.0}°", params.val)
@@ -248,10 +282,8 @@ pub fn render_numeric_row(
 
     // Box
     let box_rect = Rect::new(ctx.base_x + padding + label_w + 6.0, row_y, box_w, row_h);
-    let is_editing = match ctx.params.active_number_input {
-        Some((id, _)) => id == input_id,
-        None => false,
-    };
+    let editing_state = ctx.params.active_number_input.filter(|s| s.id == input_id);
+    let is_editing = editing_state.is_some();
     let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
 
     let box_id = tree.create_node();
@@ -261,7 +293,7 @@ pub fn render_numeric_row(
         let (bg, border) = if is_editing {
             (
                 Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.353, 0.376, 0.439, 0.95),
+                Color::rgba(0.0, 0.80, 1.00, 0.95), // Glowing cyan active border
             )
         } else if is_hovered {
             (
@@ -281,15 +313,49 @@ pub fn render_numeric_row(
     }
     let _ = tree.add_child(card_id, box_id);
 
+    // Render vivid selection highlight pill behind numeric value when in Select-All mode
+    if let Some(s) = editing_state.filter(|s| s.is_all_selected) {
+        let buf = s.buffer;
+        let tot_w = buf.len() as f32 * 6.5;
+        let cx = box_rect.x + box_rect.width * 0.5;
+        let val_start_x = cx - tot_w * 0.5;
+        let val_w = (buf.len() as f32 * 6.5).max(14.0);
+
+        let sel_x = (val_start_x - 3.0).clamp(box_rect.x + 3.0, box_rect.right() - 8.0);
+        let sel_max_w = (box_rect.right() - 3.0 - sel_x).max(4.0);
+        let sel_w = (val_w + 6.0).min(sel_max_w);
+        let sel_rect = Rect::new(
+            sel_x,
+            box_rect.y + 2.5,
+            sel_w,
+            (box_rect.height - 5.0).max(4.0),
+        );
+
+        let sel_id = tree.create_node();
+        if let Some(node) = tree.get_mut(sel_id) {
+            node.set_name(format!("NumSel_{:?}", input_id));
+            node.computed_rect = sel_rect;
+            node.style = Style::new()
+                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                .border_radius(3.0);
+        }
+        let _ = tree.add_child(box_id, sel_id);
+    }
+
     // Value Text
     let txt_id = tree.create_node();
     if let Some(node) = tree.get_mut(txt_id) {
         node.set_name(format!("NumVal_{:?}", input_id));
-        let display_str = if is_editing {
-            if let Some((_, ref buf)) = ctx.params.active_number_input {
-                format!("{}|", buf)
+        let display_str = if let Some(s) = editing_state {
+            let buf = s.buffer;
+            let cursor = s.cursor_idx.min(buf.len());
+            let (left, right) = buf.split_at(cursor);
+            if s.is_all_selected {
+                buf.to_string()
+            } else if ctx.params.blink_caret {
+                format!("{}|{}", left, right)
             } else {
-                format!("{:.2}", val)
+                format!("{}{}", left, right)
             }
         } else {
             format!("{:.2}", val)
