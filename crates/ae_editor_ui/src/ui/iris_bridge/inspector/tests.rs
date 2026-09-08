@@ -418,3 +418,67 @@ fn test_active_number_input_caret_position() {
         "Selection pill must NOT be rendered when is_all_selected is false"
     );
 }
+
+#[test]
+fn test_inspector_rotation_reflects_entity_component_and_undo() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut world = hecs::World::new();
+    let ent = world.spawn((
+        Name("Dynamic Cube".to_string()),
+        Position::default(),
+        Rotation::default(),
+        Scale::default(),
+    ));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = create_default_test_params(&world, Some(ent), &euler, &swatches);
+    let mut targets = InspectorPanelTargets::default();
+
+    // 1. Initial State: Rotation Y must be 0.0
+    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    let mut rot_y_text = None;
+    tree.traverse_depth_first(root, &mut |_id, node| {
+        if node.name.as_deref() == Some("NumText_RotY") {
+            rot_y_text = node.text.clone();
+        }
+    });
+    assert_eq!(rot_y_text, Some("Y: 0.0".to_string()));
+
+    // 2. Modified State: Change Rotation component to 55.0 degrees Y
+    if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
+        *r = super::euler_deg_to_quaternion(0.0, 55.0, 0.0);
+    }
+    let mut tree2 = UiTree::new();
+    let root2 = tree2.create_node();
+    let mut targets2 = InspectorPanelTargets::default();
+    build_inspector_panel(&mut tree2, root2, &params, &mut targets2);
+    let mut rot_y_text2 = None;
+    tree2.traverse_depth_first(root2, &mut |_id, node| {
+        if node.name.as_deref() == Some("NumText_RotY") {
+            rot_y_text2 = node.text.clone();
+        }
+    });
+    assert_eq!(rot_y_text2, Some("Y: 55.0".to_string()));
+
+    // 3. Undo State: Revert Rotation component back to identity
+    if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
+        *r = Rotation::default();
+    }
+    let mut tree3 = UiTree::new();
+    let root3 = tree3.create_node();
+    let mut targets3 = InspectorPanelTargets::default();
+    build_inspector_panel(&mut tree3, root3, &params, &mut targets3);
+    let mut rot_y_text3 = None;
+    tree3.traverse_depth_first(root3, &mut |_id, node| {
+        if node.name.as_deref() == Some("NumText_RotY") {
+            rot_y_text3 = node.text.clone();
+        }
+    });
+    assert_eq!(
+        rot_y_text3,
+        Some("Y: 0.0".to_string()),
+        "Inspector Rotation row must immediately reflect undone component value"
+    );
+}

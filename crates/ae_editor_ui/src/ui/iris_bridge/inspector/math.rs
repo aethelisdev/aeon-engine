@@ -28,7 +28,8 @@ pub fn quaternion_to_euler_deg(rot: &ae_core::ecs::Rotation) -> [f32; 3] {
     let cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz);
     let rz = siny_cosp.atan2(cosy_cosp).to_degrees();
 
-    [rx, ry, rz]
+    let clean = |v: f32| if v.abs() < 1e-4 { 0.0 } else { v };
+    [clean(rx), clean(ry), clean(rz)]
 }
 
 /// Converts Euler angles in degrees (X, Y, Z) to normalized quaternion rotation.

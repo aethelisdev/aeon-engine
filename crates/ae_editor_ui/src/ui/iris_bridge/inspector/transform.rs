@@ -59,7 +59,11 @@ pub fn build_transform_card(
         .map(|p| [p.x, p.y, p.z])
         .unwrap_or([0.0, 0.0, 0.0]);
 
-    let rot = *ctx.params.inspector_euler;
+    let rot = ctx
+        .world
+        .get::<&ae_core::ecs::Rotation>(ctx.entity)
+        .map(|r| crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&r))
+        .unwrap_or([0.0, 0.0, 0.0]);
 
     let scale = ctx
         .world
