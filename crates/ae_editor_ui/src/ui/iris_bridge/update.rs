@@ -529,6 +529,16 @@ impl IrisEditorOverlay {
             hierarchy::build_hierarchy_overlays(&mut self.tree, root, &hier_params, hier_targets);
         }
 
+        // 6i. Native Dock Drag Overlays (5-way compass navigator, drop zone preview, floating tab badge)
+        // Rendered as topmost floating overlays so they are drawn above the 3D Viewport texture,
+        // docked panels, and floating windows.
+        super::native_dock::build_native_dock_drag_overlays(
+            &mut self.tree,
+            root,
+            params.layout_state,
+            workspace_rect,
+        );
+
         // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
         self.populate_draw_commands(root, None, Some(params.frame_pacing));
 
