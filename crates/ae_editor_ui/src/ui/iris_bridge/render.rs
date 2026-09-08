@@ -375,7 +375,8 @@ impl IrisEditorOverlay {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
-        screen_size: (u32, u32),
+        physical_screen_size: (u32, u32),
+        zoom_factor: f32,
     ) {
         self.ensure_tools_texture(device, queue);
 
@@ -386,6 +387,17 @@ impl IrisEditorOverlay {
         {
             return;
         }
+
+        let zoom = if zoom_factor.is_finite() && zoom_factor > 0.1 {
+            zoom_factor
+        } else {
+            1.0
+        };
+
+        let logical_screen_size = (
+            (physical_screen_size.0 as f32 / zoom).round().max(1.0) as u32,
+            (physical_screen_size.1 as f32 / zoom).round().max(1.0) as u32,
+        );
 
         if self.text_renderer.is_none() {
             self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
@@ -465,7 +477,8 @@ impl IrisEditorOverlay {
                 device,
                 queue,
                 &mut self.text_system,
-                [screen_size.0 as f32, screen_size.1 as f32],
+                physical_screen_size,
+                zoom,
                 &sections,
             );
         }
@@ -478,7 +491,7 @@ impl IrisEditorOverlay {
             renderer: &mut self.renderer,
             command_list: &self.command_list,
             text_renderer: self.text_renderer.as_ref(),
-            screen_size,
+            screen_size: logical_screen_size,
         });
     }
 

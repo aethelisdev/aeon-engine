@@ -39,6 +39,7 @@ impl EngineUi {
                     self.iris_overlay.preferences_dropdown = dd;
                 }
                 iris_bridge::PreferencesAction::SetUiScale(s) => {
+                    self.ui_zoom_factor = s.clamp(0.6, 2.0);
                     ctx.ui_actions.push(EngineUiAction::SetUiScale(s));
                 }
                 iris_bridge::PreferencesAction::Toggle(toggle_id) => match toggle_id {
@@ -138,6 +139,7 @@ impl EngineUi {
                         if let Some(&(scale_val, _)) =
                             iris_bridge::preferences::tabs::general::UI_SCALES.get(idx)
                         {
+                            self.ui_zoom_factor = scale_val.clamp(0.6, 2.0);
                             ctx.ui_actions.push(EngineUiAction::SetUiScale(scale_val));
                         }
                     }

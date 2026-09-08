@@ -153,7 +153,7 @@ mod tests {
         let mut status_bar = StatusBarBuilder::new(&mut tree, 1920.0, 22.0);
         status_bar.add_status_indicator("● Ready", Color::GREEN);
         status_bar.add_diagnostics_pill("60 FPS", Color::WHITE, Color::hex("#22c55e"));
-        status_bar.add_right_label("Aeon Engine v0.8.0", Color::hex("#646470"));
+        status_bar.add_right_label("Aeon Engine v0.9.0", Color::hex("#646470"));
         let status_id = status_bar.build();
         assert!(tree.get(status_id).is_some());
     }

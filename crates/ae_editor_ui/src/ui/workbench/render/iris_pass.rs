@@ -70,6 +70,10 @@ impl EngineUi {
             return;
         }
 
+        let zoom = self.scale_factor();
+        let logical_w = win_size.width as f32 / zoom;
+        let logical_h = win_size.height as f32 / zoom;
+
         let delete_target = self.asset_browser.delete_confirmation.as_deref();
 
         if self.asset_browser.new_folder_parent.is_some()
@@ -108,7 +112,7 @@ impl EngineUi {
 
         self.iris_overlay
             .update_overlays(iris_bridge::OverlayUpdateParams {
-                dimensions: (win_size.width as f32, win_size.height as f32),
+                dimensions: (logical_w, logical_h),
                 is_editing: params.is_editing,
                 layout_state: &self.layout_state,
                 can_undo: !params.undo_stack.is_empty(),
@@ -120,7 +124,7 @@ impl EngineUi {
                 editor_config: params.editor_config,
                 enable_live_updates: params.enable_live_updates,
                 enabled_modules: params.enabled_modules,
-                zoom_factor: self.ui_zoom_factor,
+                zoom_factor: zoom,
                 delete_target,
                 new_folder_parent,
                 rename_target,
@@ -171,6 +175,7 @@ impl EngineUi {
             params.encoder,
             params.window_surface_view,
             (win_size.width, win_size.height),
+            zoom,
         );
     }
 }

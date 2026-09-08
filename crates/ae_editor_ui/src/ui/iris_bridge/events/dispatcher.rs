@@ -16,6 +16,7 @@ impl IrisEditorOverlay {
         if let WindowEvent::ModifiersChanged(modifiers) = event {
             self.shift_held = modifiers.state().shift_key();
             self.alt_held = modifiers.state().alt_key();
+            self.ctrl_held = modifiers.state().control_key();
         }
 
         // 2. Real-time cursor position tracking

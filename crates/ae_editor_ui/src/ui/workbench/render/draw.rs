@@ -33,8 +33,9 @@ impl EngineUi {
         }
 
         let win_size = params.window.inner_size();
-        let screen_w = win_size.width as f32;
-        let screen_h = win_size.height as f32;
+        let zoom = self.scale_factor();
+        let screen_w = win_size.width as f32 / zoom;
+        let screen_h = win_size.height as f32 / zoom;
 
         let workspace_rect = Rect::new(
             0.0,

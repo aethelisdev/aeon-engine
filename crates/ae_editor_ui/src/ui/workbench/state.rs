@@ -228,6 +228,37 @@ impl EngineUi {
 
     /// Active UI scaling factor.
     pub fn scale_factor(&self) -> f32 {
+        if self.ui_zoom_factor.is_finite() && self.ui_zoom_factor > 0.1 {
+            self.ui_zoom_factor.clamp(0.6, 2.0)
+        } else {
+            1.0
+        }
+    }
+
+    /// Steps the active UI scale up or down across the predefined scale presets.
+    pub fn step_ui_scale(&mut self, increase: bool) -> f32 {
+        const PRESETS: [f32; 7] = [0.75, 0.80, 0.90, 1.00, 1.10, 1.25, 1.50];
+        let current = self.scale_factor();
+        let target = if increase {
+            PRESETS
+                .iter()
+                .copied()
+                .find(|&s| s > current + 0.01)
+                .unwrap_or(*PRESETS.last().unwrap_or(&1.50))
+        } else {
+            PRESETS
+                .iter()
+                .copied()
+                .rfind(|&s| s < current - 0.01)
+                .unwrap_or(*PRESETS.first().unwrap_or(&0.75))
+        };
+        self.ui_zoom_factor = target;
+        target
+    }
+
+    /// Resets the UI scale back to default 100% (1.0).
+    pub fn reset_ui_scale(&mut self) -> f32 {
+        self.ui_zoom_factor = 1.0;
         1.0
     }
 

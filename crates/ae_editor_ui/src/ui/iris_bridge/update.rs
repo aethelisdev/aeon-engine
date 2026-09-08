@@ -66,6 +66,7 @@ impl IrisEditorOverlay {
             inspector_active_text_input: None,
             shift_held: false,
             alt_held: false,
+            ctrl_held: false,
             inspector_drag_number: None,
             inspector_edit_start_snapshot: None,
             inspector_rename_buffer: None,

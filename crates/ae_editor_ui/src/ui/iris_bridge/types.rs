@@ -239,6 +239,8 @@ pub struct IrisEditorOverlay {
     pub shift_held: bool,
     /// Whether Alt modifier key is currently held down.
     pub alt_held: bool,
+    /// Whether Control modifier key is currently held down.
+    pub ctrl_held: bool,
     /// Active continuous horizontal mouse drag state for Inspector numeric fields.
     pub inspector_drag_number: Option<InspectorNumberDragState>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.

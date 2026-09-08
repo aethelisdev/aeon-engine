@@ -22,7 +22,26 @@ impl EngineUi {
             .map(|w| Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height))
             .collect();
 
-        let iris_res = self.iris_overlay.handle_event(event);
+        let zoom = self.scale_factor();
+        let scaled_event;
+        let event_ref = match event {
+            WindowEvent::CursorMoved {
+                device_id,
+                position,
+            } => {
+                scaled_event = WindowEvent::CursorMoved {
+                    device_id: *device_id,
+                    position: winit::dpi::PhysicalPosition::new(
+                        position.x / (zoom as f64),
+                        position.y / (zoom as f64),
+                    ),
+                };
+                &scaled_event
+            }
+            other => other,
+        };
+
+        let iris_res = self.iris_overlay.handle_event(event_ref);
         if let Some(act) = iris_res.ui_action {
             self.pending_actions.push(act);
         }
@@ -39,6 +58,9 @@ impl EngineUi {
             self.show_preferences = false;
         }
         if let Some(pref_act) = iris_res.preferences_action {
+            if let crate::ui::iris_bridge::PreferencesAction::SetUiScale(s) = pref_act {
+                self.ui_zoom_factor = s;
+            }
             self.pending_preferences_actions.push(pref_act);
         }
         if iris_res.open_about {
@@ -91,6 +113,56 @@ impl EngineUi {
             self.console_last_count = 0;
         }
 
+        // Keyboard shortcuts: UI scaling (Ctrl + / Ctrl - / Ctrl 0)
+        if let WindowEvent::KeyboardInput {
+            event: key_event, ..
+        } = event
+            && key_event.state == ElementState::Pressed
+            && self.iris_overlay.ctrl_held
+            && !self.wants_keyboard_input()
+        {
+            let mut scale_changed = false;
+            match key_event.physical_key {
+                winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Equal)
+                | winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::NumpadAdd) => {
+                    self.step_ui_scale(true);
+                    scale_changed = true;
+                }
+                winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Minus)
+                | winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::NumpadSubtract) => {
+                    self.step_ui_scale(false);
+                    scale_changed = true;
+                }
+                winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Digit0)
+                | winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Numpad0) => {
+                    self.reset_ui_scale();
+                    scale_changed = true;
+                }
+                _ => {
+                    if let winit::keyboard::Key::Character(ref c) = key_event.logical_key {
+                        if c == "+" || c == "=" {
+                            self.step_ui_scale(true);
+                            scale_changed = true;
+                        } else if c == "-" || c == "_" {
+                            self.step_ui_scale(false);
+                            scale_changed = true;
+                        } else if c == "0" {
+                            self.reset_ui_scale();
+                            scale_changed = true;
+                        }
+                    }
+                }
+            }
+
+            if scale_changed {
+                self.pending_actions
+                    .push(crate::ui::types::EngineUiAction::SetUiScale(
+                        self.scale_factor(),
+                    ));
+                return true;
+            }
+        }
+
         // Hierarchy search bar live typing
         if self.iris_overlay.hierarchy_is_search_focused
             && let WindowEvent::KeyboardInput {
@@ -122,8 +194,8 @@ impl EngineUi {
 
         let p = self.iris_overlay.cursor_pos;
         let win_size = window.inner_size();
-        let screen_w = win_size.width as f32;
-        let screen_h = win_size.height as f32;
+        let screen_w = win_size.width as f32 / zoom;
+        let screen_h = win_size.height as f32 / zoom;
         let workspace_rect = Rect::new(
             0.0,
             IrisEditorOverlay::MENUBAR_HEIGHT,
