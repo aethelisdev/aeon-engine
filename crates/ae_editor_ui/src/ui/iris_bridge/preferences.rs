@@ -11,6 +11,9 @@ pub mod builder;
 pub mod tabs;
 pub mod types;
 
+#[cfg(test)]
+mod tests;
+
 pub use builder::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, SIDEBAR_WIDTH, TITLEBAR_HEIGHT,
     build_preferences_dialog,

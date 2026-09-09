@@ -9,11 +9,83 @@ use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
+    /// Handles active continuous mouse dragging and release interactions for the Preferences dialog.
+    /// Must be invoked at high priority in event dispatch (Step 3b), before the menubar
+    /// or docked panels, so that window dragging and slider dragging continue smoothly across
+    /// any panel boundary or menubar, and mouse release is reliably captured anywhere on screen.
+    pub(crate) fn handle_preferences_drag_events(
+        &mut self,
+        event: &WindowEvent,
+    ) -> Option<IrisOverlayEventResult> {
+        if self.preferences_drag_offset.is_none() && self.active_slider_drag.is_none() {
+            return None;
+        }
+
+        let _targets = self.preferences_targets.as_ref()?;
+        let mut result = IrisOverlayEventResult::default();
+
+        match event {
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor_pos = Point::new(position.x as f32, position.y as f32);
+                if let Some(drag_offset) = self.preferences_drag_offset {
+                    self.preferences_pos = Some(calculate_preferences_drag_pos(
+                        self.cursor_pos,
+                        drag_offset,
+                        self.screen_width,
+                        self.screen_height,
+                    ));
+                    result.consumed = true;
+                    return Some(result);
+                }
+                if let Some((slider_id, track_rect, min_val, max_val)) = self.active_slider_drag {
+                    let norm =
+                        ((self.cursor_pos.x - track_rect.x) / track_rect.width).clamp(0.0, 1.0);
+                    let mut val = min_val + norm * (max_val - min_val);
+                    if slider_id == PreferencesSliderId::PhysicsFrequency {
+                        val = preferences::PHYSICS_HZ_PRESETS
+                            .iter()
+                            .copied()
+                            .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
+                            .unwrap_or(val);
+                    }
+                    result.preferences_action =
+                        Some(PreferencesAction::SetSliderValue(slider_id, val));
+                    result.consumed = true;
+                    return Some(result);
+                }
+            }
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button: WinitMouseButton::Left,
+                ..
+            } => {
+                if self.preferences_drag_offset.is_some() {
+                    self.preferences_drag_offset = None;
+                    result.consumed = true;
+                    return Some(result);
+                }
+                if self.active_slider_drag.is_some() {
+                    self.active_slider_drag = None;
+                    result.consumed = true;
+                    return Some(result);
+                }
+            }
+            _ => {}
+        }
+
+        None
+    }
+
     /// Handles keyboard, mouse cursor dragging, and click interactions for the Preferences dialog.
     pub(crate) fn handle_preferences_event(
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
+        // Fast-path active drag motion and mouse release
+        if let Some(drag_res) = self.handle_preferences_drag_events(event) {
+            return Some(drag_res);
+        }
+
         let targets = self.preferences_targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
@@ -95,7 +167,6 @@ impl IrisEditorOverlay {
             WindowEvent::MouseWheel { delta, .. } => {
                 if !self.is_point_over_hierarchy_popup(self.cursor_pos)
                     && !self.is_point_over_inspector_popup(self.cursor_pos)
-                    && !self.is_point_over_docked_panel(self.cursor_pos)
                     && targets.content_rect.contains_point(self.cursor_pos)
                 {
                     let scroll_y = match delta {
@@ -113,48 +184,12 @@ impl IrisEditorOverlay {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_pos = Point::new(position.x as f32, position.y as f32);
-                if let Some(drag_offset) = self.preferences_drag_offset {
-                    let max_x = (self.screen_width - preferences::PREF_CARD_WIDTH).max(0.0);
-                    let max_y = (self.screen_height - preferences::PREF_CARD_HEIGHT).max(28.0);
-                    let new_x = (self.cursor_pos.x - drag_offset.x).clamp(0.0, max_x);
-                    let new_y = (self.cursor_pos.y - drag_offset.y).clamp(28.0, max_y);
-                    self.preferences_pos = Some(Point::new(new_x, new_y));
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if let Some((slider_id, track_rect, min_val, max_val)) = self.active_slider_drag {
-                    let norm =
-                        ((self.cursor_pos.x - track_rect.x) / track_rect.width).clamp(0.0, 1.0);
-                    let mut val = min_val + norm * (max_val - min_val);
-                    if slider_id == PreferencesSliderId::PhysicsFrequency {
-                        val = preferences::PHYSICS_HZ_PRESETS
-                            .iter()
-                            .copied()
-                            .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
-                            .unwrap_or(val);
-                    }
-                    result.preferences_action =
-                        Some(PreferencesAction::SetSliderValue(slider_id, val));
-                    result.consumed = true;
-                    return Some(result);
-                }
             }
             WindowEvent::MouseInput {
                 state: ElementState::Released,
                 button: WinitMouseButton::Left,
                 ..
-            } => {
-                if self.preferences_drag_offset.is_some() {
-                    self.preferences_drag_offset = None;
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if self.active_slider_drag.is_some() {
-                    self.active_slider_drag = None;
-                    result.consumed = true;
-                    return Some(result);
-                }
-            }
+            } => {}
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button: WinitMouseButton::Left,
@@ -162,10 +197,9 @@ impl IrisEditorOverlay {
             } => {
                 let click_point = self.cursor_pos;
 
-                // Occlusion: If cursor is over an active foreground popup or docked panel, Preferences must NOT intercept the click
+                // Occlusion: If cursor is over an active foreground popup, Preferences must NOT intercept the click
                 if self.is_point_over_hierarchy_popup(click_point)
                     || self.is_point_over_inspector_popup(click_point)
-                    || self.is_point_over_docked_panel(click_point)
                 {
                     return None;
                 }
@@ -339,4 +373,21 @@ impl IrisEditorOverlay {
 
         None
     }
+}
+
+/// Calculates the clamped screen position for the Preferences dialog during dragging.
+/// Ensures the dialog cannot be dragged above the menubar (y >= 28.0) or beyond the screen edges,
+/// while allowing continuous movement across docked panel boundaries.
+#[inline]
+pub fn calculate_preferences_drag_pos(
+    cursor_pos: Point,
+    drag_offset: Point,
+    screen_width: f32,
+    screen_height: f32,
+) -> Point {
+    let max_x = (screen_width - preferences::PREF_CARD_WIDTH).max(0.0);
+    let max_y = (screen_height - preferences::PREF_CARD_HEIGHT).max(28.0);
+    let new_x = (cursor_pos.x - drag_offset.x).clamp(0.0, max_x);
+    let new_y = (cursor_pos.y - drag_offset.y).clamp(28.0, max_y);
+    Point::new(new_x, new_y)
 }

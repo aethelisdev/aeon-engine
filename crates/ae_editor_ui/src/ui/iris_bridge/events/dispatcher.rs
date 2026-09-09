@@ -29,6 +29,13 @@ impl IrisEditorOverlay {
             return insp_drag_res;
         }
 
+        // 3b. Active Preferences Drag Interaction (Window dragging or slider dragging)
+        // Must be handled before menubar or any other widget, regardless of cursor position,
+        // so that window drag continues smoothly across panels/menubar and releases cleanly.
+        if let Some(pref_drag_res) = self.handle_preferences_drag_events(event) {
+            return pref_drag_res;
+        }
+
         // 4. Loading Splash Screen (blocks all underlying interactions)
         if self.loading_targets.is_some() {
             result.consumed = true;
@@ -57,17 +64,13 @@ impl IrisEditorOverlay {
             return insp_res;
         }
 
-        // 6. Preferences Modal Dialog (Tested only when NOT occluded by docked panels)
-        if !self.is_point_over_docked_panel(self.cursor_pos)
-            && let Some(pref_result) = self.handle_preferences_event(event)
-        {
+        // 6. Preferences Floating Dialog
+        if let Some(pref_result) = self.handle_preferences_event(event) {
             return pref_result;
         }
 
         // 7. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
-        if !self.is_point_over_docked_panel(self.cursor_pos)
-            && let Some(modal_result) = self.handle_modal_events(event)
-        {
+        if let Some(modal_result) = self.handle_modal_events(event) {
             return modal_result;
         }
 
