@@ -110,6 +110,27 @@ impl EngineUi {
             .as_ref()
             .map(|(spans, _)| spans.as_slice());
 
+        if let Some(entity) = self.selected_entity
+            && self.iris_overlay.inspector_color_drag_mode.is_none()
+        {
+            let col = params
+                .world
+                .get::<&ae_core::ecs::Color>(entity)
+                .map(|c| *c)
+                .unwrap_or(ae_core::ecs::Color {
+                    r: 0.60,
+                    g: 0.75,
+                    b: 0.95,
+                    a: 1.0,
+                });
+            let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
+            self.iris_overlay.inspector_hsv = [h, s, v];
+            let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
+            let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
+            let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
+            self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
+        }
+
         self.iris_overlay
             .update_overlays(iris_bridge::OverlayUpdateParams {
                 dimensions: (logical_w, logical_h),

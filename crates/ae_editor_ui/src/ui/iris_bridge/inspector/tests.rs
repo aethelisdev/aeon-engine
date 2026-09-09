@@ -578,3 +578,103 @@ fn test_inspector_numeric_input_clamping_and_non_negative_invariants() {
         panic!("Expected Box shape");
     }
 }
+
+/// Verifies that continuous Color Picker dragging mutates the entity in real time
+/// for smooth viewport rendering without flooding the undo stack, and commits
+/// exactly one atomic undo command on release.
+#[test]
+fn test_color_picker_drag_and_undo_restoration() {
+    let mut world = hecs::World::new();
+    let initial_color = ae_core::ecs::Color {
+        r: 0.1,
+        g: 0.2,
+        b: 0.3,
+        a: 1.0,
+    };
+    let entity = world.spawn((initial_color,));
+
+    let mut color_edit_start = None;
+    let mut inspector_hsv = [0.0, 0.0, 0.0];
+    let mut inspector_color_hex = String::new();
+    let mut ui_actions = Vec::new();
+
+    // 1. Mouse down on SV box begins color editing
+    crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action(
+        &mut color_edit_start,
+        &mut inspector_hsv,
+        &mut inspector_color_hex,
+        &world,
+        &mut ui_actions,
+        InspectorAction::StartColorEdit(entity),
+    );
+    assert_eq!(
+        color_edit_start,
+        Some((entity, initial_color)),
+        "StartColorEdit must capture initial entity color"
+    );
+    assert!(
+        ui_actions.is_empty(),
+        "StartColorEdit must not produce undo actions"
+    );
+
+    // 2. Simulate 20 continuous drag frames (mouse movement)
+    for i in 1..=20 {
+        let live_col = irisui::prelude::Color::rgba(
+            0.1 + (i as f32) * 0.02,
+            0.2 + (i as f32) * 0.01,
+            0.3 + (i as f32) * 0.01,
+            1.0,
+        );
+        crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action(
+            &mut color_edit_start,
+            &mut inspector_hsv,
+            &mut inspector_color_hex,
+            &world,
+            &mut ui_actions,
+            InspectorAction::LiveSetObjectColor(entity, live_col),
+        );
+        // Verify entity in world is updated live for 60+ FPS preview
+        let cur = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+        assert!((cur.r - (0.1 + (i as f32) * 0.02)).abs() < 1e-4);
+    }
+    assert!(
+        ui_actions.is_empty(),
+        "Live dragging must not spam undo actions during dragging"
+    );
+
+    // 3. Mouse released -> CommitColorEdit
+    crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action(
+        &mut color_edit_start,
+        &mut inspector_hsv,
+        &mut inspector_color_hex,
+        &world,
+        &mut ui_actions,
+        InspectorAction::CommitColorEdit(entity),
+    );
+    assert_eq!(
+        ui_actions.len(),
+        1,
+        "CommitColorEdit must emit exactly one atomic ModifyColor action"
+    );
+
+    let final_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+    if let crate::ui::EngineUiAction::ModifyColor(ent, old_c, new_c) = ui_actions[0] {
+        assert_eq!(ent, entity);
+        assert_eq!(old_c, initial_color);
+        assert_eq!(new_c, final_color);
+
+        // 4. Verify Undo restoration
+        let mut undo_cmd = ae_editor::undo_redo::Command::Modify(
+            ent,
+            ae_editor::undo_redo::Property::Color(old_c, new_c),
+        );
+        undo_cmd.undo(&mut world);
+        let restored_color = *world.get::<&ae_core::ecs::Color>(entity).unwrap();
+        assert_eq!(
+            restored_color, initial_color,
+            "Undo must restore the exact pre-edit color"
+        );
+    } else {
+        panic!("Expected EngineUiAction::ModifyColor");
+    }
+}

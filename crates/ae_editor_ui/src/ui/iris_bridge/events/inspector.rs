@@ -97,7 +97,7 @@ impl IrisEditorOverlay {
                         self.inspector_hsv[2] = v;
                         let col = hsv_to_rgb(self.inspector_hsv[0], s, v);
                         self.inspector_actions
-                            .push(InspectorAction::SetObjectColor(entity, col));
+                            .push(InspectorAction::LiveSetObjectColor(entity, col));
                         result.consumed = true;
                         return Some(result);
                     }
@@ -109,7 +109,7 @@ impl IrisEditorOverlay {
                         self.inspector_hsv[0] = h;
                         let col = hsv_to_rgb(h, self.inspector_hsv[1], self.inspector_hsv[2]);
                         self.inspector_actions
-                            .push(InspectorAction::SetObjectColor(entity, col));
+                            .push(InspectorAction::LiveSetObjectColor(entity, col));
                         result.consumed = true;
                         return Some(result);
                     }
@@ -136,6 +136,12 @@ impl IrisEditorOverlay {
 
         let mut result = IrisOverlayEventResult::default();
         if self.inspector_color_drag_mode.take().is_some() {
+            if let Some(ref insp) = self.inspector_targets
+                && let Some(entity) = insp.inspected_entity
+            {
+                self.inspector_actions
+                    .push(InspectorAction::CommitColorEdit(entity));
+            }
             result.consumed = true;
             return Some(result);
         }
@@ -247,6 +253,10 @@ impl IrisEditorOverlay {
                 && close_btn.contains_point(click_point)
             {
                 self.inspector_is_color_picker_open = false;
+                if let Some(entity) = entity_opt {
+                    self.inspector_actions
+                        .push(InspectorAction::CommitColorEdit(entity));
+                }
                 result.consumed = true;
                 return Some(result);
             }
@@ -261,7 +271,9 @@ impl IrisEditorOverlay {
                 let col = hsv_to_rgb(self.inspector_hsv[0], s, v);
                 if let Some(entity) = entity_opt {
                     self.inspector_actions
-                        .push(InspectorAction::SetObjectColor(entity, col));
+                        .push(InspectorAction::StartColorEdit(entity));
+                    self.inspector_actions
+                        .push(InspectorAction::LiveSetObjectColor(entity, col));
                 }
                 self.inspector_color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
                 result.consumed = true;
@@ -277,7 +289,9 @@ impl IrisEditorOverlay {
                 let col = hsv_to_rgb(h, self.inspector_hsv[1], self.inspector_hsv[2]);
                 if let Some(entity) = entity_opt {
                     self.inspector_actions
-                        .push(InspectorAction::SetObjectColor(entity, col));
+                        .push(InspectorAction::StartColorEdit(entity));
+                    self.inspector_actions
+                        .push(InspectorAction::LiveSetObjectColor(entity, col));
                 }
                 self.inspector_color_drag_mode = Some(InspectorColorDragMode::Hue);
                 result.consumed = true;
@@ -447,6 +461,10 @@ impl IrisEditorOverlay {
                 .is_some_and(|r| r.contains_point(click_point));
             if !inside_picker && !inside_swatch {
                 self.inspector_is_color_picker_open = false;
+                if let Some(entity) = entity_opt {
+                    self.inspector_actions
+                        .push(InspectorAction::CommitColorEdit(entity));
+                }
             }
         }
 

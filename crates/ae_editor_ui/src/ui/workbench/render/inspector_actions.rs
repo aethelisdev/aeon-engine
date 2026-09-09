@@ -6,6 +6,7 @@
 //! Dispatches ECS component mutations, numeric input edits, color adjustments,
 //! transform resets, and combobox selections triggered by the Iris UI Inspector panel.
 
+use crate::ui::iris_bridge::inspector::color_picker_popup::handle_color_edit_action;
 use crate::ui::iris_bridge::inspector::{
     ComponentCheckboxId, InspectorAction, InspectorDropdownId, InspectorNumberInputId,
     TransformAxisType,
@@ -32,7 +33,20 @@ impl EngineUi {
                 InspectorAction::ResetTransform(entity, axis) => {
                     self.handle_reset_transform(world, ui_actions, entity, axis);
                 }
+                InspectorAction::StartColorEdit(..)
+                | InspectorAction::LiveSetObjectColor(..)
+                | InspectorAction::CommitColorEdit(..) => {
+                    handle_color_edit_action(
+                        &mut self.iris_overlay.inspector_color_edit_start,
+                        &mut self.iris_overlay.inspector_hsv,
+                        &mut self.inspector_color_hex,
+                        world,
+                        ui_actions,
+                        action,
+                    );
+                }
                 InspectorAction::SetObjectColor(entity, col) => {
+                    self.iris_overlay.inspector_color_edit_start = None;
                     self.handle_set_object_color(world, ui_actions, entity, col);
                 }
                 InspectorAction::AddColorToPalette(col) => {

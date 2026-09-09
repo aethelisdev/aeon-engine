@@ -69,6 +69,7 @@ impl IrisEditorOverlay {
             ctrl_held: false,
             inspector_drag_number: None,
             inspector_edit_start_snapshot: None,
+            inspector_color_edit_start: None,
             inspector_rename_buffer: None,
             inspector_hex_buffer: None,
             inspector_hsv: [180.0, 0.8, 0.9],

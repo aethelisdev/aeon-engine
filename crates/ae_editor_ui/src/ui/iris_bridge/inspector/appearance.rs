@@ -159,10 +159,11 @@ pub fn build_appearance_card(
             } else {
                 buf.to_string()
             }
-        } else if ctx.params.inspector_color_hex.is_empty() {
-            "#6699cc".to_string()
         } else {
-            ctx.params.inspector_color_hex.to_string()
+            let r = (obj_color.r.clamp(0.0, 1.0) * 255.0) as u8;
+            let g = (obj_color.g.clamp(0.0, 1.0) * 255.0) as u8;
+            let b = (obj_color.b.clamp(0.0, 1.0) * 255.0) as u8;
+            format!("#{:02x}{:02x}{:02x}", r, g, b)
         };
         node.set_text(hex_val);
         node.font_size = 10.5;

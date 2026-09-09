@@ -246,6 +246,8 @@ pub struct IrisEditorOverlay {
     pub inspector_drag_number: Option<InspectorNumberDragState>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
     pub inspector_edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
+    /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
+    pub inspector_color_edit_start: Option<(hecs::Entity, ae_core::ecs::Color)>,
     /// Live entity rename text buffer if currently focused: `(entity, buffer)`.
     pub inspector_rename_buffer: Option<(hecs::Entity, String)>,
     /// Live HEX color text input editing buffer if currently focused: `(entity, buffer)`.
