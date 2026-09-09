@@ -8,6 +8,8 @@
 
 pub mod file_ops;
 pub mod loading;
+#[cfg(test)]
+mod tests;
 
 pub use file_ops::{
     DeleteModalTargets, FolderModalParams, NewFolderModalTargets, RenameModalParams,

@@ -95,6 +95,7 @@ pub fn build_delete_modal(
     let scrim_id = tree.create_node();
     if let Some(node) = tree.get_mut(scrim_id) {
         node.set_name("DeleteModalScrim");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
         node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
     }
@@ -330,6 +331,7 @@ pub fn build_new_folder_modal(
     let scrim_id = tree.create_node();
     if let Some(node) = tree.get_mut(scrim_id) {
         node.set_name("NewFolderScrim");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
         node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
     }
@@ -338,6 +340,7 @@ pub fn build_new_folder_modal(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("NewFolderCard");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = dialog_rect;
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.08, 0.10, 0.98))
@@ -571,6 +574,7 @@ pub fn build_rename_modal(
     let scrim_id = tree.create_node();
     if let Some(node) = tree.get_mut(scrim_id) {
         node.set_name("RenameScrim");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
         node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
     }
@@ -579,6 +583,7 @@ pub fn build_rename_modal(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("RenameCard");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = dialog_rect;
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.08, 0.10, 0.98))

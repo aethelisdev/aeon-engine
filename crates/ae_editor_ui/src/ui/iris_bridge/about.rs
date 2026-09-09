@@ -73,6 +73,7 @@ pub fn build_about_dialog(
     let scrim_id = tree.create_node();
     if let Some(node) = tree.get_mut(scrim_id) {
         node.set_name("AboutModalScrim");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
         node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
     }

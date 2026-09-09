@@ -53,6 +53,7 @@ pub fn build_loading_overlay(
     let scrim_id = tree.create_node();
     if let Some(node) = tree.get_mut(scrim_id) {
         node.set_name("LoadingScrim");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = scrim_rect;
         node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.60));
     }
@@ -61,6 +62,7 @@ pub fn build_loading_overlay(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("LoadingCard");
+        node.set_role(WidgetRole::ModalWindow);
         node.computed_rect = card_rect;
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
