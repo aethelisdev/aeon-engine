@@ -123,6 +123,7 @@ pub fn build_add_menu(
             let sep_id = tree.create_node();
             if let Some(node) = tree.get_mut(sep_id) {
                 node.set_name("MenuSeparator");
+                node.set_role(WidgetRole::Separator);
                 node.computed_rect = Rect::new(menu_x + 6.0, cur_y + 2.0, menu_w - 12.0, 1.0);
                 node.style = Style::new().background(Color::rgba(0.18, 0.20, 0.26, 0.70));
             }
@@ -151,6 +152,7 @@ pub fn build_add_menu(
         let row_id = tree.create_node();
         if let Some(node) = tree.get_mut(row_id) {
             node.set_name(format!("AddMenuItem_{}", item.label));
+            node.set_role(WidgetRole::DropdownItem);
             node.computed_rect = item_rect;
             node.style = Style::new().background(bg).border_radius(4.0);
         }
@@ -160,6 +162,7 @@ pub fn build_add_menu(
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("ItemIcon");
+            node.set_role(WidgetRole::DropdownIcon);
             match item.icon {
                 MenuItemIcon::Text(txt) => {
                     node.set_text(txt);
@@ -187,6 +190,7 @@ pub fn build_add_menu(
         let lbl_id = tree.create_node();
         if let Some(node) = tree.get_mut(lbl_id) {
             node.set_name("ItemLabel");
+            node.set_role(WidgetRole::DropdownLabel);
             node.set_text(item.label);
             node.font_size = 11.0;
             node.line_height = item_h;
@@ -201,6 +205,7 @@ pub fn build_add_menu(
             let arw_id = tree.create_node();
             if let Some(node) = tree.get_mut(arw_id) {
                 node.set_name("SubmenuArrow");
+                node.set_role(WidgetRole::DropdownShortcut);
                 node.set_text("▸");
                 node.font_size = 10.0;
                 node.line_height = item_h;
@@ -448,6 +453,7 @@ fn build_submenu(
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AddSubmenuCard");
+        node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
             .background(Color::rgba(0.06, 0.07, 0.10, 1.0))
@@ -464,6 +470,7 @@ fn build_submenu(
             let sep_id = tree.create_node();
             if let Some(node) = tree.get_mut(sep_id) {
                 node.set_name("SubmenuSeparator");
+                node.set_role(WidgetRole::Separator);
                 node.computed_rect = Rect::new(sub_x + 6.0, cur_y + 2.0, sub_w - 12.0, 1.0);
                 node.style = Style::new().background(Color::rgba(0.18, 0.20, 0.26, 0.70));
             }
@@ -487,6 +494,7 @@ fn build_submenu(
         let row_id = tree.create_node();
         if let Some(node) = tree.get_mut(row_id) {
             node.set_name(format!("SubmenuItem_{}", label));
+            node.set_role(WidgetRole::DropdownItem);
             node.computed_rect = item_rect;
             node.style = Style::new().background(bg).border_radius(4.0);
         }
@@ -495,6 +503,7 @@ fn build_submenu(
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("SubmenuItemIcon");
+            node.set_role(WidgetRole::DropdownIcon);
             match icon {
                 MenuItemIcon::Text(txt) => {
                     node.set_text(txt);
@@ -521,6 +530,7 @@ fn build_submenu(
         let lbl_id = tree.create_node();
         if let Some(node) = tree.get_mut(lbl_id) {
             node.set_name("SubmenuItemLabel");
+            node.set_role(WidgetRole::DropdownLabel);
             node.set_text(label);
             node.font_size = 11.0;
             node.line_height = item_h;

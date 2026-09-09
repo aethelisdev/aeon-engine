@@ -6,7 +6,7 @@
 //! Provides a full-featured 2D Saturation-Value gradient box, vertical rainbow Hue spectrum bar,
 //! interactive indicator rings, live color preview, and bidirectional RGB/HSV/HEX conversions.
 
-use iris_core::{Color, Point, Rect, Style, TextAlign, UiTree, WidgetId};
+use iris_core::{Color, Point, Rect, Style, TextAlign, UiTree, WidgetId, WidgetRole};
 
 /// Converts standard RGB components (0.0 ..= 1.0) to HSV representation.
 /// Returns `(hue, saturation, value)` where:
@@ -207,6 +207,7 @@ impl<'a> HsvColorPickerBuilder<'a> {
         let card_id = tree.create_node();
         if let Some(node) = tree.get_mut(card_id) {
             node.set_name("ColorPickerPopupCard");
+            node.set_role(WidgetRole::DropdownPopup);
             node.computed_rect = card_rect;
             node.style = Style::new()
                 .background(Color::rgba(0.082, 0.086, 0.102, 0.98))
@@ -223,6 +224,7 @@ impl<'a> HsvColorPickerBuilder<'a> {
         let hdr_lbl_id = tree.create_node();
         if let Some(node) = tree.get_mut(hdr_lbl_id) {
             node.set_name("ColorPickerHeaderLabel");
+            node.set_role(WidgetRole::DropdownLabel);
             node.set_text("🎨 Color Picker");
             node.font_size = 11.5;
             node.line_height = 18.0;

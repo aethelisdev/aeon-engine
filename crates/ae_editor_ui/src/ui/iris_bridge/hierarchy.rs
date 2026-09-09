@@ -13,6 +13,8 @@ pub mod footer;
 pub mod header;
 pub mod panel;
 pub mod rows;
+#[cfg(test)]
+pub mod tests;
 pub mod types;
 
 pub use panel::{
