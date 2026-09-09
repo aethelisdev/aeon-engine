@@ -36,7 +36,9 @@ pub fn build_add_menu(
 ) {
     targets.active_add_menu_rect = None;
     targets.active_submenu_rect = None;
+    targets.active_sub_submenu_rect = None;
     targets.add_menu_items.clear();
+    targets.submenu_branch_items.clear();
     targets.submenu_items.clear();
 
     if !params.is_add_menu_open {
@@ -230,28 +232,59 @@ pub fn build_add_menu(
 
     // Build Active Submenu if open
     if let Some(submenu_id) = params.active_submenu {
-        build_submenu(
+        let (sub_anchor_y, sub_card_rect) = build_submenu(
             tree,
             parent_id,
-            menu_x + menu_w + 2.0,
-            submenu_anchor_y,
-            submenu_id,
+            SubmenuDescriptor {
+                sub_x: menu_x + menu_w + 2.0,
+                sub_y: submenu_anchor_y,
+                submenu_id,
+                is_sub_submenu: false,
+            },
             params,
             targets,
         );
+
+        if let Some(sub_sub_id) = params.active_sub_submenu {
+            let _ = build_submenu(
+                tree,
+                parent_id,
+                SubmenuDescriptor {
+                    sub_x: sub_card_rect.right() + 2.0,
+                    sub_y: sub_anchor_y,
+                    submenu_id: sub_sub_id,
+                    is_sub_submenu: true,
+                },
+                params,
+                targets,
+            );
+        }
     }
+}
+
+/// Layout positioning and hierarchy descriptor for building a cascading submenu.
+struct SubmenuDescriptor {
+    sub_x: f32,
+    sub_y: f32,
+    submenu_id: AddSubmenuId,
+    is_sub_submenu: bool,
 }
 
 /// Builds an active cascading submenu.
 fn build_submenu(
     tree: &mut UiTree,
     parent_id: WidgetId,
-    sub_x: f32,
-    sub_y: f32,
-    submenu_id: AddSubmenuId,
+    desc: SubmenuDescriptor,
     params: &HierarchyPanelParams<'_>,
     targets: &mut HierarchyPanelTargets,
-) {
+) -> (f32, Rect) {
+    let SubmenuDescriptor {
+        sub_x,
+        sub_y,
+        submenu_id,
+        is_sub_submenu,
+    } = desc;
+
     let items: Vec<(
         MenuItemIcon,
         &str,
@@ -445,14 +478,22 @@ fn build_submenu(
         }
     }
 
-    let sub_w = 195.0;
+    let sub_w = if is_sub_submenu { 205.0 } else { 195.0 };
     let card_rect = Rect::new(sub_x, sub_y, sub_w, total_h);
-    targets.active_submenu_rect = Some(card_rect);
+    if is_sub_submenu {
+        targets.active_sub_submenu_rect = Some(card_rect);
+    } else {
+        targets.active_submenu_rect = Some(card_rect);
+    }
 
     // Submenu Card Container (100% opaque background prevents any bleed-through of underlying rows)
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("AddSubmenuCard");
+        node.set_name(if is_sub_submenu {
+            "AddSubSubmenuCard"
+        } else {
+            "AddSubmenuCard"
+        });
         node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
@@ -464,6 +505,7 @@ fn build_submenu(
     let _ = tree.add_child(parent_id, card_id);
 
     let mut cur_y = sub_y + 4.0;
+    let mut active_branch_anchor_y = cur_y;
 
     for (icon, label, action_opt, sub_opt) in items {
         if icon == MenuItemIcon::Separator {
@@ -480,7 +522,11 @@ fn build_submenu(
         }
 
         let item_rect = Rect::new(sub_x + 4.0, cur_y, sub_w - 8.0, item_h);
-        let is_hovered = item_rect.contains_point(params.cursor_pos);
+        let is_active_branch = sub_opt.is_some() && sub_opt == params.active_sub_submenu;
+        let is_hovered = item_rect.contains_point(params.cursor_pos) || is_active_branch;
+        if is_active_branch {
+            active_branch_anchor_y = cur_y;
+        }
 
         let (bg, text_col) = if is_hovered {
             (
@@ -543,9 +589,11 @@ fn build_submenu(
         if let Some(act) = action_opt {
             targets.submenu_items.push((item_rect, act));
         } else if let Some(sub) = sub_opt {
-            targets.add_menu_items.push((item_rect, Ok(sub)));
+            targets.submenu_branch_items.push((item_rect, sub));
         }
 
         cur_y += item_h;
     }
+
+    (active_branch_anchor_y, card_rect)
 }

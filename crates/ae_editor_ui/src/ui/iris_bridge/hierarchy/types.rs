@@ -74,6 +74,10 @@ pub enum HierarchyAction {
     OpenSubmenu(AddSubmenuId),
     /// Closes the active cascading submenu.
     CloseSubmenu,
+    /// Opens a specific nested sub-submenu within the cascading submenu.
+    OpenSubSubmenu(AddSubmenuId),
+    /// Closes the active nested sub-submenu.
+    CloseSubSubmenu,
     /// Opens the right-click context menu for an entity at the cursor position.
     OpenContextMenu(hecs::Entity, Point),
     /// Closes the right-click context menu.
@@ -101,8 +105,12 @@ pub struct HierarchyPanelTargets {
     pub active_add_menu_rect: Option<Rect>,
     /// Bounding rectangle of the active Add Menu submenu card (if open).
     pub active_submenu_rect: Option<Rect>,
+    /// Bounding rectangle of the active Add Menu nested sub-submenu card (if open).
+    pub active_sub_submenu_rect: Option<Rect>,
     /// Add menu main category item targets: `(item_rect, submenu_id_or_action)`.
     pub add_menu_items: Vec<(Rect, Result<AddSubmenuId, HierarchyAction>)>,
+    /// Add menu submenu branch item targets: `(item_rect, sub_submenu_id)`.
+    pub submenu_branch_items: Vec<(Rect, AddSubmenuId)>,
     /// Add menu submenu item targets: `(item_rect, action)`.
     pub submenu_items: Vec<(Rect, HierarchyAction)>,
     /// Right-click context menu target: `(target_entity, menu_rect, delete_btn_rect, toggle_vis_btn_rect)`.
@@ -125,6 +133,8 @@ pub struct HierarchyPanelParams<'a> {
     pub scroll_y: f32,
     /// Active cascading Add Menu submenu (if open).
     pub active_submenu: Option<AddSubmenuId>,
+    /// Active nested Add Menu sub-submenu (if open).
+    pub active_sub_submenu: Option<AddSubmenuId>,
     /// Whether the Add Menu is open.
     pub is_add_menu_open: bool,
     /// Active right-click context menu (target entity, position) if open.

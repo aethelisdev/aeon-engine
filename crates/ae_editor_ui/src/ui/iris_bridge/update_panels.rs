@@ -74,6 +74,7 @@ impl IrisEditorOverlay {
                 is_editing: params.is_editing,
                 scroll_y: self.hierarchy_scroll_y,
                 active_submenu: self.hierarchy_active_submenu,
+                active_sub_submenu: self.hierarchy_active_sub_submenu,
                 is_add_menu_open: self.hierarchy_is_add_menu_open,
                 active_context_menu: self.hierarchy_active_context_menu,
                 cursor_pos: self.cursor_pos,

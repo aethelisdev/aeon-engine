@@ -98,22 +98,45 @@ pub fn handle_hierarchy_click(
         }
     }
 
-    // 2. Cascading Add Menu Submenu Interaction
-    if let Some(sub_rect) = targets.active_submenu_rect
-        && sub_rect.contains_point(point)
+    // 2. Cascading Add Menu Sub-Submenu Interaction (Level 3)
+    if let Some(sub2_rect) = targets.active_sub_submenu_rect
+        && sub2_rect.contains_point(point)
     {
         for (item_rect, action) in &targets.submenu_items {
             if item_rect.contains_point(point) {
                 out_actions.push(action.clone());
                 out_actions.push(HierarchyAction::CloseAddMenu);
                 out_actions.push(HierarchyAction::CloseSubmenu);
+                out_actions.push(HierarchyAction::CloseSubSubmenu);
                 return true;
             }
         }
         return true;
     }
 
-    // 3. Cascading Add Menu Root Card Interaction
+    // 3. Cascading Add Menu Submenu Interaction (Level 2)
+    if let Some(sub_rect) = targets.active_submenu_rect
+        && sub_rect.contains_point(point)
+    {
+        for (branch_rect, sub_id) in &targets.submenu_branch_items {
+            if branch_rect.contains_point(point) {
+                out_actions.push(HierarchyAction::OpenSubSubmenu(*sub_id));
+                return true;
+            }
+        }
+        for (item_rect, action) in &targets.submenu_items {
+            if item_rect.contains_point(point) {
+                out_actions.push(action.clone());
+                out_actions.push(HierarchyAction::CloseAddMenu);
+                out_actions.push(HierarchyAction::CloseSubmenu);
+                out_actions.push(HierarchyAction::CloseSubSubmenu);
+                return true;
+            }
+        }
+        return true;
+    }
+
+    // 4. Cascading Add Menu Root Card Interaction (Level 1)
     if let Some(card_rect) = targets.active_add_menu_rect
         && card_rect.contains_point(point)
     {
@@ -122,11 +145,13 @@ pub fn handle_hierarchy_click(
                 match target_payload {
                     Ok(submenu_id) => {
                         out_actions.push(HierarchyAction::OpenSubmenu(*submenu_id));
+                        out_actions.push(HierarchyAction::CloseSubSubmenu);
                     }
                     Err(action) => {
                         out_actions.push(action.clone());
                         out_actions.push(HierarchyAction::CloseAddMenu);
                         out_actions.push(HierarchyAction::CloseSubmenu);
+                        out_actions.push(HierarchyAction::CloseSubSubmenu);
                     }
                 }
                 return true;
@@ -138,6 +163,7 @@ pub fn handle_hierarchy_click(
     if targets.active_add_menu_rect.is_some() {
         out_actions.push(HierarchyAction::CloseAddMenu);
         out_actions.push(HierarchyAction::CloseSubmenu);
+        out_actions.push(HierarchyAction::CloseSubSubmenu);
     }
 
     // 4. Header `➕` Add Menu Button

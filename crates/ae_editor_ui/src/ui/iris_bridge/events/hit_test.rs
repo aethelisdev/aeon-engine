@@ -134,6 +134,11 @@ impl IrisEditorOverlay {
 
         // 4. Background Docked Panels (only tested when NOT occluded by floating windows)
         if let Some(ref targets) = self.hierarchy_targets {
+            if let Some(sub2_rect) = targets.active_sub_submenu_rect
+                && sub2_rect.contains_point(point)
+            {
+                return true;
+            }
             if let Some(sub_rect) = targets.active_submenu_rect
                 && sub_rect.contains_point(point)
             {

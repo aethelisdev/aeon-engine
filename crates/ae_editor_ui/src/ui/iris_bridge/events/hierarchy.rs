@@ -45,6 +45,7 @@ impl IrisEditorOverlay {
                     HierarchyAction::OpenAddMenu(_pos) => {
                         self.hierarchy_is_add_menu_open = true;
                         self.hierarchy_active_submenu = None;
+                        self.hierarchy_active_sub_submenu = None;
                         self.hierarchy_active_context_menu = None;
                         self.active_menu = None;
                         self.viewport_hud_dropdown = None;
@@ -53,12 +54,21 @@ impl IrisEditorOverlay {
                     HierarchyAction::CloseAddMenu => {
                         self.hierarchy_is_add_menu_open = false;
                         self.hierarchy_active_submenu = None;
+                        self.hierarchy_active_sub_submenu = None;
                     }
                     HierarchyAction::OpenSubmenu(sub) => {
                         self.hierarchy_active_submenu = Some(sub);
+                        self.hierarchy_active_sub_submenu = None;
                     }
                     HierarchyAction::CloseSubmenu => {
                         self.hierarchy_active_submenu = None;
+                        self.hierarchy_active_sub_submenu = None;
+                    }
+                    HierarchyAction::OpenSubSubmenu(sub) => {
+                        self.hierarchy_active_sub_submenu = Some(sub);
+                    }
+                    HierarchyAction::CloseSubSubmenu => {
+                        self.hierarchy_active_sub_submenu = None;
                     }
                     HierarchyAction::OpenContextMenu(ent, pos) => {
                         self.hierarchy_active_context_menu = Some((ent, pos));
@@ -94,10 +104,13 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 2. Cursor Motion Handling (Add Menu hover and submenu cascade)
+        // 2. Cursor Motion Handling (Add Menu hover and cascading submenus)
         if let WindowEvent::CursorMoved { .. } = event
             && self.hierarchy_is_add_menu_open
         {
+            let in_sub_sub = hier_targets
+                .active_sub_submenu_rect
+                .is_some_and(|r| r.contains_point(self.cursor_pos));
             let in_submenu = hier_targets
                 .active_submenu_rect
                 .is_some_and(|r| r.contains_point(self.cursor_pos));
@@ -105,13 +118,38 @@ impl IrisEditorOverlay {
                 .active_add_menu_rect
                 .is_some_and(|r| r.contains_point(self.cursor_pos));
 
-            if !in_submenu && in_add_menu {
+            if in_sub_sub {
+                // Inside level-3 sub-submenu (e.g. HUD Presets). Keep both open!
+            } else if in_submenu {
+                // Inside level-2 submenu (e.g. UI & Canvas).
+                let mut hovered_branch = None;
+                for (branch_rect, sub_id) in &hier_targets.submenu_branch_items {
+                    if branch_rect.contains_point(self.cursor_pos) {
+                        hovered_branch = Some(*sub_id);
+                        break;
+                    }
+                }
+                if let Some(branch_id) = hovered_branch {
+                    self.hierarchy_active_sub_submenu = Some(branch_id);
+                } else {
+                    let hovering_other_item = hier_targets
+                        .submenu_items
+                        .iter()
+                        .any(|(r, _)| r.contains_point(self.cursor_pos));
+                    if hovering_other_item {
+                        self.hierarchy_active_sub_submenu = None;
+                    }
+                }
+            } else if in_add_menu {
+                // Inside level-1 root Add Menu
                 for (item_rect, target_payload) in &hier_targets.add_menu_items {
                     if item_rect.contains_point(self.cursor_pos) {
                         if let Ok(submenu_id) = target_payload {
                             self.hierarchy_active_submenu = Some(*submenu_id);
+                            self.hierarchy_active_sub_submenu = None;
                         } else {
                             self.hierarchy_active_submenu = None;
+                            self.hierarchy_active_sub_submenu = None;
                         }
                         break;
                     }

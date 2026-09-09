@@ -47,6 +47,7 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     self.hierarchy_is_add_menu_open = false;
                     self.hierarchy_active_submenu = None;
+                    self.hierarchy_active_sub_submenu = None;
                     self.hierarchy_active_context_menu = None;
                     self.viewport_hud_dropdown = None;
                     self.preferences_dropdown = None;

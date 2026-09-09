@@ -145,6 +145,8 @@ pub struct IrisEditorOverlay {
     pub hierarchy_is_add_menu_open: bool,
     /// Currently open cascading submenu in Scene Hierarchy Add Menu.
     pub hierarchy_active_submenu: Option<AddSubmenuId>,
+    /// Currently open cascading sub-submenu (Level 3) in Scene Hierarchy Add Menu.
+    pub hierarchy_active_sub_submenu: Option<AddSubmenuId>,
     /// Currently open right-click context menu in Scene Hierarchy.
     pub hierarchy_active_context_menu: Option<(hecs::Entity, Point)>,
     /// Whether search input box is focused in Scene Hierarchy.

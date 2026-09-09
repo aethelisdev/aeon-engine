@@ -479,6 +479,9 @@ impl IrisEditorOverlay {
             if let Some(r) = hier.active_submenu_rect {
                 active_dropdown_rects.push(r);
             }
+            if let Some(r) = hier.active_sub_submenu_rect {
+                active_dropdown_rects.push(r);
+            }
             if let Some((_, r, _, _)) = hier.active_context_menu {
                 active_dropdown_rects.push(r);
             }
