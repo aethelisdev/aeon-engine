@@ -59,6 +59,14 @@ impl PanelId {
         }
     }
 
+    /// Returns the optional texture array layer coordinates for panels with a dedicated GPU atlas icon.
+    pub fn atlas_icon(&self) -> Option<[f32; 4]> {
+        match self {
+            Self::Assets => Some(crate::ui::iris_bridge::icons::ICON_FOLDER),
+            _ => None,
+        }
+    }
+
     /// Returns an immutable slice of all standard dockable tool panels (excluding main viewport).
     pub fn all_tool_panels() -> &'static [Self] {
         &[

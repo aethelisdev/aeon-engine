@@ -136,12 +136,18 @@ pub fn build_native_dock(
         let mut current_tab_x = leaf.tab_bar_rect.x + 8.0;
         for (index, panel) in leaf.tabs.iter().enumerate() {
             let active = index == leaf.active_tab;
-            let title = format!("{} {}", panel.icon(), panel.title());
+            let atlas_icon = panel.atlas_icon();
             let char_count = panel.title().chars().count();
             let is_closeable = *panel != PanelId::Viewport;
             let close_w = if is_closeable { 18.0 } else { 0.0 };
+            let icon_w = if atlas_icon.is_some() { 18.0 } else { 0.0 };
+            let title = if atlas_icon.is_some() {
+                panel.title().to_string()
+            } else {
+                format!("{} {}", panel.icon(), panel.title())
+            };
             let tab_w =
-                (16.0 + 6.0 + (char_count as f32) * 6.8 + close_w + 14.0).clamp(52.0, 170.0);
+                (16.0 + icon_w + (char_count as f32) * 6.8 + close_w + 14.0).clamp(52.0, 170.0);
 
             let tab_rect = Rect::new(
                 current_tab_x,
@@ -184,11 +190,35 @@ pub fn build_native_dock(
                 );
             }
 
+            // Optional GPU atlas icon quad (16x16 crisp texels, blue when active, white when idle)
+            if let Some(uv) = atlas_icon {
+                let icon_node = tree.create_node();
+                if let Some(node) = tree.get_mut(icon_node) {
+                    node.set_name("IrisDockTabAtlasIcon");
+                    node.set_texture_uv(uv);
+                    node.computed_rect = Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0);
+                    let tint = if active {
+                        Color::rgba(0.0, 0.898, 1.0, 1.0)
+                    } else if is_tab_hovered {
+                        Color::WHITE
+                    } else {
+                        Color::rgba(0.85, 0.88, 0.94, 0.85)
+                    };
+                    node.set_texture_tint(tint);
+                }
+                let _ = tree.add_child(parent, icon_node);
+            }
+
             // Tab text label
+            let text_offset_x = if atlas_icon.is_some() {
+                7.0 + 16.0 + 5.0
+            } else {
+                6.0
+            };
             let text_rect = Rect::new(
-                tab_rect.x + 6.0,
+                tab_rect.x + text_offset_x,
                 tab_rect.y + 4.0,
-                tab_rect.width - close_w - 10.0,
+                tab_rect.width - text_offset_x - close_w - 4.0,
                 18.0,
             );
             let text_col = if active {

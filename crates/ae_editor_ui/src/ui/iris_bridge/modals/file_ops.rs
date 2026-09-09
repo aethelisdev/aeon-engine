@@ -92,13 +92,7 @@ pub fn build_delete_modal(
     let is_cancel_hovered = cancel_btn_rect.contains_point(cursor_pos);
 
     // 1. Semi-transparent backdrop scrim
-    let scrim_id = tree.create_node();
-    if let Some(node) = tree.get_mut(scrim_id) {
-        node.set_name("DeleteModalScrim");
-        node.set_role(WidgetRole::ModalWindow);
-        node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
-        node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
-    }
+    let scrim_id = create_modal_scrim(tree, "DeleteModalScrim", screen_width, screen_height);
 
     // 2. Main Modal Card
     let card_id = tree.create_node();
@@ -139,28 +133,13 @@ pub fn build_delete_modal(
     let _ = tree.add_child(header_id, title_label);
 
     // Header Close Button
-    let close_x = tree.create_node();
-    if let Some(node) = tree.get_mut(close_x) {
-        node.set_name("DeleteCloseX");
-        node.set_text("✖");
-        node.font_size = 11.0;
-        node.line_height = 14.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_header_close_hovered {
-            Color::rgba(1.0, 0.4, 0.4, 1.0)
-        } else {
-            Color::rgba(0.60, 0.60, 0.65, 1.0)
-        };
-        node.computed_rect = header_close_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .background(if is_header_close_hovered {
-                Color::rgba(0.8, 0.15, 0.15, 0.40)
-            } else {
-                Color::TRANSPARENT
-            });
-    }
-    let _ = tree.add_child(header_id, close_x);
+    let _ = create_modal_close_btn(
+        tree,
+        header_id,
+        header_close_rect,
+        is_header_close_hovered,
+        "DeleteCloseX",
+    );
 
     // 4. Warning Question Label
     let warn_label = tree.create_node();
@@ -187,29 +166,13 @@ pub fn build_delete_modal(
     let _ = tree.add_child(card_id, path_label);
 
     // 6. Cancel Button
-    let cancel_btn = tree.create_node();
-    if let Some(node) = tree.get_mut(cancel_btn) {
-        node.set_name("DeleteCancelButton");
-        node.set_text("Cancel");
-        node.font_size = 11.5;
-        node.line_height = 28.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_cancel_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.75, 0.75, 0.80, 1.0)
-        };
-        node.computed_rect = cancel_btn_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.24, 0.26, 0.34, 1.0))
-            .background(if is_cancel_hovered {
-                Color::rgba(0.18, 0.20, 0.26, 1.0)
-            } else {
-                Color::rgba(0.11, 0.12, 0.16, 1.0)
-            });
-    }
-    let _ = tree.add_child(card_id, cancel_btn);
+    let _ = create_modal_cancel_btn(
+        tree,
+        card_id,
+        cancel_btn_rect,
+        is_cancel_hovered,
+        "DeleteCancelButton",
+    );
 
     // 7. Delete Permanently Button
     let del_btn = tree.create_node();
@@ -328,13 +291,7 @@ pub fn build_new_folder_modal(
     let is_cancel_hovered = cancel_btn_rect.contains_point(cursor_pos);
 
     // 1. Blocker Scrim
-    let scrim_id = tree.create_node();
-    if let Some(node) = tree.get_mut(scrim_id) {
-        node.set_name("NewFolderScrim");
-        node.set_role(WidgetRole::ModalWindow);
-        node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
-        node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
-    }
+    let scrim_id = create_modal_scrim(tree, "NewFolderScrim", screen_width, screen_height);
 
     // 2. Main Card
     let card_id = tree.create_node();
@@ -362,41 +319,38 @@ pub fn build_new_folder_modal(
     }
     let _ = tree.add_child(card_id, header_id);
 
+    // Header Icon (GPU SDF Texture Array ICON_FOLDER)
+    let icon_node = tree.create_node();
+    if let Some(node) = tree.get_mut(icon_node) {
+        node.set_name("NewFolderIcon");
+        node.set_role(WidgetRole::ModalWindow);
+        node.set_texture_uv(crate::ui::iris_bridge::icons::ICON_FOLDER);
+        node.computed_rect = Rect::new(left + 14.0, top + 9.0, 14.0, 14.0);
+        node.set_texture_tint(Color::rgba(0.95, 0.76, 0.28, 1.0));
+    }
+    let _ = tree.add_child(header_id, icon_node);
+
     // Header Title
     let title_label = tree.create_node();
     if let Some(node) = tree.get_mut(title_label) {
         node.set_name("NewFolderTitle");
-        node.set_text("📁  Create New Folder");
+        node.set_role(WidgetRole::ModalWindow);
+        node.set_text("Create New Folder");
         node.font_size = 12.5;
         node.line_height = 16.0;
         node.text_color = Color::rgba(0.88, 0.88, 0.92, 1.0);
-        node.computed_rect = Rect::new(left + 14.0, top + 7.0, 220.0, 18.0);
+        node.computed_rect = Rect::new(left + 34.0, top + 7.0, 200.0, 18.0);
     }
     let _ = tree.add_child(header_id, title_label);
 
     // Close ✖
-    let close_x = tree.create_node();
-    if let Some(node) = tree.get_mut(close_x) {
-        node.set_name("NewFolderCloseX");
-        node.set_text("✖");
-        node.font_size = 11.0;
-        node.line_height = 14.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_header_close_hovered {
-            Color::rgba(1.0, 0.4, 0.4, 1.0)
-        } else {
-            Color::rgba(0.60, 0.60, 0.65, 1.0)
-        };
-        node.computed_rect = header_close_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .background(if is_header_close_hovered {
-                Color::rgba(0.8, 0.15, 0.15, 0.40)
-            } else {
-                Color::TRANSPARENT
-            });
-    }
-    let _ = tree.add_child(header_id, close_x);
+    let _ = create_modal_close_btn(
+        tree,
+        header_id,
+        header_close_rect,
+        is_header_close_hovered,
+        "NewFolderCloseX",
+    );
 
     // 4. Location Subtitle
     let loc_label = tree.create_node();
@@ -467,29 +421,13 @@ pub fn build_new_folder_modal(
     }
 
     // 6. Cancel Button
-    let cancel_btn = tree.create_node();
-    if let Some(node) = tree.get_mut(cancel_btn) {
-        node.set_name("NewFolderCancelButton");
-        node.set_text("Cancel");
-        node.font_size = 11.5;
-        node.line_height = 28.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_cancel_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.75, 0.75, 0.80, 1.0)
-        };
-        node.computed_rect = cancel_btn_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.24, 0.26, 0.34, 1.0))
-            .background(if is_cancel_hovered {
-                Color::rgba(0.18, 0.20, 0.26, 1.0)
-            } else {
-                Color::rgba(0.11, 0.12, 0.16, 1.0)
-            });
-    }
-    let _ = tree.add_child(card_id, cancel_btn);
+    let _ = create_modal_cancel_btn(
+        tree,
+        card_id,
+        cancel_btn_rect,
+        is_cancel_hovered,
+        "NewFolderCancelButton",
+    );
 
     // 7. Create Folder Confirm Button
     let confirm_btn = tree.create_node();
@@ -571,13 +509,7 @@ pub fn build_rename_modal(
     let is_cancel_hovered = cancel_btn_rect.contains_point(cursor_pos);
 
     // 1. Blocker Scrim
-    let scrim_id = tree.create_node();
-    if let Some(node) = tree.get_mut(scrim_id) {
-        node.set_name("RenameScrim");
-        node.set_role(WidgetRole::ModalWindow);
-        node.computed_rect = Rect::new(0.0, 0.0, screen_width, screen_height);
-        node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
-    }
+    let scrim_id = create_modal_scrim(tree, "RenameScrim", screen_width, screen_height);
 
     // 2. Main Card
     let card_id = tree.create_node();
@@ -622,28 +554,13 @@ pub fn build_rename_modal(
     let _ = tree.add_child(header_id, title_label);
 
     // Close ✖
-    let close_x = tree.create_node();
-    if let Some(node) = tree.get_mut(close_x) {
-        node.set_name("RenameCloseX");
-        node.set_text("✖");
-        node.font_size = 11.0;
-        node.line_height = 14.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_header_close_hovered {
-            Color::rgba(1.0, 0.4, 0.4, 1.0)
-        } else {
-            Color::rgba(0.60, 0.60, 0.65, 1.0)
-        };
-        node.computed_rect = header_close_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .background(if is_header_close_hovered {
-                Color::rgba(0.8, 0.15, 0.15, 0.40)
-            } else {
-                Color::TRANSPARENT
-            });
-    }
-    let _ = tree.add_child(header_id, close_x);
+    let _ = create_modal_close_btn(
+        tree,
+        header_id,
+        header_close_rect,
+        is_header_close_hovered,
+        "RenameCloseX",
+    );
 
     // 4. Target Subtitle
     let target_label = tree.create_node();
@@ -714,29 +631,13 @@ pub fn build_rename_modal(
     }
 
     // 6. Cancel Button
-    let cancel_btn = tree.create_node();
-    if let Some(node) = tree.get_mut(cancel_btn) {
-        node.set_name("RenameCancelButton");
-        node.set_text("Cancel");
-        node.font_size = 11.5;
-        node.line_height = 28.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_cancel_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.75, 0.75, 0.80, 1.0)
-        };
-        node.computed_rect = cancel_btn_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.24, 0.26, 0.34, 1.0))
-            .background(if is_cancel_hovered {
-                Color::rgba(0.18, 0.20, 0.26, 1.0)
-            } else {
-                Color::rgba(0.11, 0.12, 0.16, 1.0)
-            });
-    }
-    let _ = tree.add_child(card_id, cancel_btn);
+    let _ = create_modal_cancel_btn(
+        tree,
+        card_id,
+        cancel_btn_rect,
+        is_cancel_hovered,
+        "RenameCancelButton",
+    );
 
     // 7. Apply Rename Confirm Button
     let confirm_btn = tree.create_node();
@@ -776,4 +677,84 @@ pub fn build_rename_modal(
             cancel_btn_rect,
         },
     )
+}
+
+/// Creates the semi-transparent dark background scrim for modal dialogues.
+/// Prevents background interactions while drawing a dimming layer over the workspace.
+fn create_modal_scrim(tree: &mut UiTree, name: &'static str, width: f32, height: f32) -> WidgetId {
+    let scrim_id = tree.create_node();
+    if let Some(node) = tree.get_mut(scrim_id) {
+        node.set_name(name);
+        node.set_role(WidgetRole::ModalWindow);
+        node.computed_rect = Rect::new(0.0, 0.0, width, height);
+        node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.55));
+    }
+    scrim_id
+}
+
+/// Creates a standardized modal close ('✖') push button on the modal header.
+/// Handles hover tint states and positions the widget within the header bar.
+fn create_modal_close_btn(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    rect: Rect,
+    is_hovered: bool,
+    name: &'static str,
+) -> WidgetId {
+    let close_x = tree.create_node();
+    if let Some(node) = tree.get_mut(close_x) {
+        node.set_name(name);
+        node.set_text("✖");
+        node.font_size = 11.0;
+        node.line_height = 14.0;
+        node.text_align = TextAlign::Center;
+        node.text_color = if is_hovered {
+            Color::rgba(1.0, 0.4, 0.4, 1.0)
+        } else {
+            Color::rgba(0.60, 0.60, 0.65, 1.0)
+        };
+        node.computed_rect = rect;
+        node.style = Style::new().border_radius(4.0).background(if is_hovered {
+            Color::rgba(0.8, 0.15, 0.15, 0.40)
+        } else {
+            Color::TRANSPARENT
+        });
+    }
+    let _ = tree.add_child(parent_id, close_x);
+    close_x
+}
+
+/// Creates a standardized 'Cancel' push button for dismissive actions in modal dialogues.
+/// Positions the button at `rect` and applies hover highlight borders and backgrounds.
+fn create_modal_cancel_btn(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    rect: Rect,
+    is_hovered: bool,
+    name: &'static str,
+) -> WidgetId {
+    let cancel_btn = tree.create_node();
+    if let Some(node) = tree.get_mut(cancel_btn) {
+        node.set_name(name);
+        node.set_text("Cancel");
+        node.font_size = 11.5;
+        node.line_height = 28.0;
+        node.text_align = TextAlign::Center;
+        node.text_color = if is_hovered {
+            Color::WHITE
+        } else {
+            Color::rgba(0.75, 0.75, 0.80, 1.0)
+        };
+        node.computed_rect = rect;
+        node.style = Style::new()
+            .border_radius(4.0)
+            .border(1.0, Color::rgba(0.24, 0.26, 0.34, 1.0))
+            .background(if is_hovered {
+                Color::rgba(0.18, 0.20, 0.26, 1.0)
+            } else {
+                Color::rgba(0.11, 0.12, 0.16, 1.0)
+            });
+    }
+    let _ = tree.add_child(parent_id, cancel_btn);
+    cancel_btn
 }

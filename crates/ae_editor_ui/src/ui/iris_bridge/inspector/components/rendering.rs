@@ -10,7 +10,10 @@ use super::super::types::{
     ComboboxRowParams, CompactNumericRowParams, ComponentCategory, InspectorDropdownId,
     InspectorNumberInputId,
 };
-use super::physics::{render_combobox_row, render_component_header, render_numeric_row_compact};
+use super::physics::{
+    ComponentHeaderProps, render_combobox_row, render_component_header,
+    render_component_header_with_props, render_numeric_row_compact,
+};
 use irisui::prelude::*;
 
 /// Inspector handler for `💡 Light`.
@@ -157,6 +160,10 @@ impl ComponentInspectorHandler for ModelMeshHandler {
         "📦"
     }
 
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        Some(crate::ui::iris_bridge::icons::ICON_CUBE)
+    }
+
     fn header_color(&self) -> Color {
         Color::rgba(0.38, 0.65, 0.98, 1.0) // Sky Blue (#60a5fa)
     }
@@ -191,14 +198,17 @@ impl ComponentInspectorHandler for ModelMeshHandler {
         }
         let _ = tree.add_child(parent_id, card_id);
 
-        render_component_header(
+        render_component_header_with_props(
             tree,
             card_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            ComponentHeaderProps {
+                atlas_icon: self.atlas_icon(),
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
         );
 
         let cur_y = ctx.base_y + padding + 22.0;

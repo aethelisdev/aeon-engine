@@ -190,6 +190,8 @@ struct SubmenuItemEntry {
     comp_name: &'static str,
     display_title: &'static str,
     icon: &'static str,
+    atlas_icon: Option<[f32; 4]>,
+    header_color: Color,
 }
 
 /// Builds the cascading flyout submenu for a specific component category.
@@ -227,6 +229,8 @@ fn build_category_submenu(
                 comp_name: h.type_name(),
                 display_title: h.type_name(),
                 icon: "🧩",
+                atlas_icon: None,
+                header_color: Color::rgba(0.70, 0.72, 0.78, 1.0),
             })
             .collect()
     } else {
@@ -245,6 +249,8 @@ fn build_category_submenu(
                 comp_name: h.component_name(),
                 display_title: h.display_title(),
                 icon: h.icon(),
+                atlas_icon: h.atlas_icon(),
+                header_color: h.header_color(),
             })
             .collect()
     };
@@ -297,10 +303,16 @@ fn build_category_submenu(
         let ic_id = tree.create_node();
         if let Some(node) = tree.get_mut(ic_id) {
             node.set_name("SubmenuItemIcon");
-            node.set_text(item.icon);
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
+            if let Some(uv) = item.atlas_icon {
+                node.set_texture_uv(uv);
+                node.set_texture_tint(item.header_color);
+                node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y + 4.0, 14.0, 14.0);
+            } else {
+                node.set_text(item.icon);
+                node.font_size = 11.0;
+                node.line_height = item_h;
+                node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
+            }
         }
         let _ = tree.add_child(row_id, ic_id);
 

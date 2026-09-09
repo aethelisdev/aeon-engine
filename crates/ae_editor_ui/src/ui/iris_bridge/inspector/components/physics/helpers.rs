@@ -13,7 +13,22 @@ use crate::ui::iris_bridge::inspector::types::{
 };
 use irisui::prelude::*;
 
-/// Helper function rendering a standard component card header with an icon, title, and trash button.
+/// Parameters for rendering a component card header.
+#[derive(Debug, Clone, Copy)]
+pub struct ComponentHeaderProps {
+    /// Optional GPU SDF atlas icon coordinates (`[u_min, v_min, u_max, layer]`).
+    pub atlas_icon: Option<[f32; 4]>,
+    /// Fallback unicode icon when no atlas icon is present.
+    pub icon: &'static str,
+    /// Human-readable title of the component.
+    pub display_title: &'static str,
+    /// Color accent for the title and icon.
+    pub header_color: Color,
+    /// Unique component identifier name.
+    pub component_name: &'static str,
+}
+
+/// Helper function rendering a standard component card header with a fallback text icon, title, and trash button.
 pub fn render_component_header(
     tree: &mut UiTree,
     card_id: WidgetId,
@@ -23,23 +38,63 @@ pub fn render_component_header(
     header_color: Color,
     component_name: &'static str,
 ) {
+    render_component_header_with_props(
+        tree,
+        card_id,
+        ctx,
+        ComponentHeaderProps {
+            atlas_icon: None,
+            icon,
+            display_title,
+            header_color,
+            component_name,
+        },
+    );
+}
+
+/// Helper function rendering a component card header with an optional hardware-accelerated GPU atlas icon quad.
+/// If `props.atlas_icon` is provided (`Some([u_min, v_min, u_max, layer])`), it renders a crisp $14\times14$ px
+/// texture quad tinted in `props.header_color` and displays `props.display_title` directly. Otherwise, it falls back
+/// to rendering `props.icon` prepended to `props.display_title`.
+pub fn render_component_header_with_props(
+    tree: &mut UiTree,
+    card_id: WidgetId,
+    ctx: &mut ComponentRenderContext<'_>,
+    props: ComponentHeaderProps,
+) {
     let padding = 8.0;
     let del_btn_size = 18.0; // Compact square pill matching Image 2
+
+    let (text_offset_x, text_content) = if let Some(uv) = props.atlas_icon {
+        let icon_id = tree.create_node();
+        if let Some(node) = tree.get_mut(icon_id) {
+            node.set_name(format!("HeaderIcon_{}", props.component_name));
+            node.computed_rect =
+                Rect::new(ctx.base_x + padding, ctx.base_y + padding + 3.0, 14.0, 14.0);
+            node.set_texture_uv(uv);
+            node.set_texture_tint(props.header_color);
+        }
+        let _ = tree.add_child(card_id, icon_id);
+        (18.0, props.display_title.to_string())
+    } else {
+        (0.0, format!("{} {}", props.icon, props.display_title))
+    };
+
     let hdr_rect = Rect::new(
-        ctx.base_x + padding,
+        ctx.base_x + padding + text_offset_x,
         ctx.base_y + padding,
-        ctx.card_w - padding * 2.0 - del_btn_size - 4.0,
+        ctx.card_w - padding * 2.0 - del_btn_size - 4.0 - text_offset_x,
         20.0,
     );
 
     // Title Node
     let hdr_id = tree.create_node();
     if let Some(node) = tree.get_mut(hdr_id) {
-        node.set_name(format!("Header_{}", component_name));
-        node.set_text(format!("{} {}", icon, display_title));
+        node.set_name(format!("Header_{}", props.component_name));
+        node.set_text(text_content);
         node.font_size = 11.5;
         node.line_height = 20.0;
-        node.text_color = header_color;
+        node.text_color = props.header_color;
         node.computed_rect = hdr_rect;
     }
     let _ = tree.add_child(card_id, hdr_id);
@@ -55,7 +110,7 @@ pub fn render_component_header(
 
     let del_id = tree.create_node();
     if let Some(node) = tree.get_mut(del_id) {
-        node.set_name(format!("DelBtn_{}", component_name));
+        node.set_name(format!("DelBtn_{}", props.component_name));
         node.computed_rect = del_rect;
         node.set_text("🗑");
         node.font_size = 10.5;
@@ -84,7 +139,7 @@ pub fn render_component_header(
 
     ctx.targets
         .component_delete_btns
-        .push((component_name, del_rect));
+        .push((props.component_name, del_rect));
 }
 
 /// Helper function rendering a compact numeric input row with optional unit suffix.

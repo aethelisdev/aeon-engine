@@ -39,8 +39,8 @@ fn test_new_folder_modal_text_sections_not_occluded() {
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
 
     assert!(
-        rendered_texts.contains(&"📁  Create New Folder"),
-        "Title '📁  Create New Folder' must be rendered and not occluded"
+        rendered_texts.contains(&"Create New Folder"),
+        "Title 'Create New Folder' must be rendered and not occluded"
     );
     assert!(
         rendered_texts.contains(&"Cancel"),

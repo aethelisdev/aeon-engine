@@ -39,6 +39,13 @@ pub trait ComponentInspectorHandler: Send + Sync {
     /// Unicode icon prepended to the card title.
     fn icon(&self) -> &'static str;
 
+    /// Optional GPU SDF atlas icon coordinates (`[u_min, v_min, u_max, layer]`).
+    /// When `Some`, the component header and menu items render this hardware-accelerated vector icon quad
+    /// instead of a plain unicode/emoji text icon.
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        None
+    }
+
     /// Color accent for the card icon and header title.
     fn header_color(&self) -> Color;
 

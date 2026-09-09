@@ -155,9 +155,16 @@ pub fn build_floating_windows(
             if let DockNode::Leaf { tabs, active_tab } = node {
                 for (tab_idx, panel) in tabs.iter().enumerate() {
                     let is_active = tab_idx == *active_tab;
-                    let title = format!("{} {}", panel.icon(), panel.title());
+                    let atlas_icon = panel.atlas_icon();
                     let char_count = panel.title().chars().count();
-                    let tab_w = (16.0 + 6.0 + (char_count as f32) * 6.8 + 14.0).clamp(52.0, 160.0);
+                    let icon_w = if atlas_icon.is_some() { 18.0 } else { 0.0 };
+                    let title = if atlas_icon.is_some() {
+                        panel.title().to_string()
+                    } else {
+                        format!("{} {}", panel.icon(), panel.title())
+                    };
+                    let tab_w =
+                        (16.0 + icon_w + (char_count as f32) * 6.8 + 14.0).clamp(52.0, 160.0);
                     let tab_rect = Rect::new(current_tab_x, bar_rect.y, tab_w, TAB_BAR_HEIGHT);
                     let is_tab_hovered = tab_rect.contains_point(cursor_pos);
 
@@ -191,13 +198,37 @@ pub fn build_floating_windows(
                         let _ = tree.add_child(win_container, active_line_id);
                     }
 
+                    if let Some(uv) = atlas_icon {
+                        let icon_node = tree.create_node();
+                        if let Some(node) = tree.get_mut(icon_node) {
+                            node.set_name("FloatingWindowTabIcon");
+                            node.computed_rect =
+                                Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0);
+                            node.set_texture_uv(uv);
+                            let tint = if is_active {
+                                Color::rgba(0.0, 0.898, 1.0, 1.0)
+                            } else if is_tab_hovered {
+                                Color::WHITE
+                            } else {
+                                Color::rgba(0.85, 0.88, 0.94, 0.85)
+                            };
+                            node.set_texture_tint(tint);
+                        }
+                        let _ = tree.add_child(win_container, icon_node);
+                    }
+
+                    let text_offset_x = if atlas_icon.is_some() {
+                        7.0 + 16.0 + 5.0
+                    } else {
+                        6.0
+                    };
                     let text_id = tree.create_node();
                     if let Some(text_node) = tree.get_mut(text_id) {
                         text_node.set_name("FloatingWindowTabTitle");
                         text_node.computed_rect = Rect::new(
-                            tab_rect.x + 6.0,
+                            tab_rect.x + text_offset_x,
                             tab_rect.y + 4.0,
-                            tab_rect.width - 12.0,
+                            tab_rect.width - text_offset_x - 6.0,
                             18.0,
                         );
                         text_node.text = Some(title);

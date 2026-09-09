@@ -8,7 +8,8 @@
 //! dimension rows, and default component attachment.
 
 use super::helpers::{
-    render_checkbox_row, render_combobox_row, render_component_header, render_numeric_row_compact,
+    ComponentHeaderProps, render_checkbox_row, render_combobox_row,
+    render_component_header_with_props, render_numeric_row_compact,
 };
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
@@ -33,6 +34,10 @@ impl ComponentInspectorHandler for ColliderHandler {
 
     fn icon(&self) -> &'static str {
         "🛡"
+    }
+
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        Some(crate::ui::iris_bridge::icons::ICON_WIREFRAME)
     }
 
     fn header_color(&self) -> Color {
@@ -93,14 +98,17 @@ impl ComponentInspectorHandler for ColliderHandler {
         let _ = tree.add_child(parent_id, card_id);
 
         // Header + Trash Button
-        render_component_header(
+        render_component_header_with_props(
             tree,
             card_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            ComponentHeaderProps {
+                atlas_icon: self.atlas_icon(),
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
         );
 
         let mut cur_y = ctx.base_y + padding + 22.0;
