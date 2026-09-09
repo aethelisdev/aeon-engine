@@ -11,6 +11,7 @@ use super::modals::{
 };
 use super::preferences::{self, build_preferences_dialog};
 use super::status_bar;
+use super::theme::*;
 use super::types::{ActiveMenu, IrisEditorOverlay, OverlayUpdateParams};
 use irisui::prelude::*;
 use irisui::text::TextSystem;
@@ -264,10 +265,32 @@ impl IrisEditorOverlay {
         // Pre-measure all text nodes to populate intrinsic content_size
         self.measure_tree_text(root);
 
-        // Compute Taffy layout for top menu bar and status bar
+        // Compute Taffy layout for top menu bar and status bar (only 2 children for clean SpaceBetween pinning)
         let _ = self
             .layout_engine
             .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
+
+        // 2b. Baseline dividers under MenuBar and above StatusBar (added after Taffy layout to not alter SpaceBetween)
+        let top_bar_divider = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(top_bar_divider) {
+            node.set_name("IrisTopMenuBarDivider");
+            node.computed_rect = Rect::new(0.0, Self::MENUBAR_HEIGHT - 1.0, screen_width, 1.0);
+            node.style = Style::new().background(BORDER_MICRON);
+        }
+        let _ = self.tree.add_child(root, top_bar_divider);
+
+        let bottom_bar_divider = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(bottom_bar_divider) {
+            node.set_name("IrisBottomStatusBarDivider");
+            node.computed_rect = Rect::new(
+                0.0,
+                screen_height - Self::STATUS_BAR_HEIGHT,
+                screen_width,
+                1.0,
+            );
+            node.style = Style::new().background(BORDER_MICRON);
+        }
+        let _ = self.tree.add_child(root, bottom_bar_divider);
 
         // 3. Build Native Iris UI Docking Frame (Splitters, Tab Strips, Compact Snug Tabs, Active Indicators)
         let workspace_rect = Rect::new(

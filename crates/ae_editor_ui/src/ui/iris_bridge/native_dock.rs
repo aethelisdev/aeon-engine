@@ -15,6 +15,8 @@ use irisui::dock::{
 };
 use irisui::prelude::*;
 
+use super::theme::*;
+
 /// Height of each native docking tab strip in logical editor pixels.
 pub const NATIVE_DOCK_TAB_HEIGHT: f32 = 26.0;
 /// Width/Thickness of partition splitter lines in logical pixels.
@@ -109,15 +111,14 @@ pub fn build_native_dock(
             continue;
         }
 
-        // Base panel background quad with subtle dark border
+        // Base panel background quad
         add_rect_node(
             tree,
             parent,
             leaf.rect,
             "IrisDockPanel",
             Style::new()
-                .background(Color::rgba(0.063, 0.067, 0.086, 1.0))
-                .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.70))
+                .background(ELEVATION_1_PANEL)
                 .clip_children(true),
         );
 
@@ -127,13 +128,25 @@ pub fn build_native_dock(
             parent,
             leaf.tab_bar_rect,
             "IrisDockTabStrip",
-            Style::new()
-                .background(Color::rgba(0.059, 0.059, 0.078, 1.0))
-                .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.80)),
+            Style::new().background(ELEVATION_2_HEADER),
         );
 
-        // Compact, snug tab pills
-        let mut current_tab_x = leaf.tab_bar_rect.x + 8.0;
+        // Continuous baseline divider running full width of the tab bar
+        add_rect_node(
+            tree,
+            parent,
+            Rect::new(
+                leaf.tab_bar_rect.x,
+                leaf.tab_bar_rect.bottom() - 1.0,
+                leaf.tab_bar_rect.width,
+                1.0,
+            ),
+            "IrisDockTabStripBaseline",
+            Style::new().background(BORDER_MICRON),
+        );
+
+        // Tabs start flush at the left boundary of the tab bar (no floating gap)
+        let mut current_tab_x = leaf.tab_bar_rect.x;
         for (index, panel) in leaf.tabs.iter().enumerate() {
             let active = index == leaf.active_tab;
             let atlas_icon = panel.atlas_icon();
@@ -158,35 +171,32 @@ pub fn build_native_dock(
             let is_tab_hovered = !is_cursor_occluded && tab_rect.contains_point(cursor_pos);
 
             let bg_color = if active {
-                Color::rgba(0.086, 0.094, 0.118, 1.0)
+                ELEVATION_3_ACTIVE_PILL
             } else if is_tab_hovered {
-                Color::rgba(0.080, 0.088, 0.110, 1.0)
+                ELEVATION_3_HOVERED_PILL
             } else {
-                Color::rgba(0.059, 0.059, 0.078, 1.0)
+                ELEVATION_2_HEADER
             };
 
-            // Tab pill background
+            // Tab studio background with rounded top corners like a real tab, flat on bottom baseline
             add_rect_node(
                 tree,
                 parent,
                 tab_rect,
-                "IrisDockTabPill",
-                Style::new().background(bg_color).border_radius(4.0),
+                "IrisDockTab",
+                Style::new()
+                    .background(bg_color)
+                    .corner_radii(CornerRadii::new(5.0, 5.0, 0.0, 0.0)),
             );
 
-            // Active 2px cyan line at bottom
+            // Active 2px cyan line anchored flush to the bottom baseline and spanning full tab width
             if active {
                 add_rect_node(
                     tree,
                     parent,
-                    Rect::new(
-                        tab_rect.x + 2.0,
-                        tab_rect.bottom() - 2.0,
-                        tab_rect.width - 4.0,
-                        2.0,
-                    ),
+                    Rect::new(tab_rect.x, tab_rect.bottom() - 2.0, tab_rect.width, 2.0),
                     "IrisDockTabActiveLine",
-                    Style::new().background(Color::rgba(0.0, 0.898, 1.0, 1.0)),
+                    Style::new().background(ACCENT_CYAN),
                 );
             }
 
@@ -198,11 +208,11 @@ pub fn build_native_dock(
                     node.set_texture_uv(uv);
                     node.computed_rect = Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0);
                     let tint = if active {
-                        Color::rgba(0.0, 0.898, 1.0, 1.0)
+                        ACCENT_CYAN
                     } else if is_tab_hovered {
                         Color::WHITE
                     } else {
-                        Color::rgba(0.85, 0.88, 0.94, 0.85)
+                        TEXT_REGULAR
                     };
                     node.set_texture_tint(tint);
                 }
@@ -222,11 +232,11 @@ pub fn build_native_dock(
                 18.0,
             );
             let text_col = if active {
-                Color::rgba(0.0, 0.898, 1.0, 1.0)
+                ACCENT_CYAN
             } else if is_tab_hovered {
-                Color::rgba(0.95, 0.96, 1.0, 1.0)
+                TEXT_BRIGHT
             } else {
-                Color::rgba(0.65, 0.68, 0.75, 1.0)
+                TEXT_MUTED
             };
             add_text_node(tree, parent, text_rect, &title, text_col, TextAlign::Left);
 
@@ -260,7 +270,7 @@ pub fn build_native_dock(
                 leaf_rect: leaf.rect,
             });
 
-            current_tab_x += tab_w + 2.0;
+            current_tab_x += tab_w;
         }
 
         if let Some(panel) = leaf.tabs.get(leaf.active_tab) {
@@ -280,15 +290,27 @@ pub fn build_native_dock(
             && !is_dragging_splitter;
 
         let splitter_col = if is_splitter_active || is_hovered {
-            Color::rgba(0.0, 0.898, 1.0, 0.90)
+            SPLITTER_ACTIVE
         } else {
-            Color::rgba(0.145, 0.161, 0.204, 1.0)
+            SPLITTER_IDLE
+        };
+
+        // Vertical splitters (dividing left and right panes) start below the tab bar
+        // so they do not cut into the top tab strip header.
+        let visual_rect = match splitter.direction {
+            SplitDirection::Horizontal => Rect::new(
+                splitter.rect.x,
+                splitter.rect.y + NATIVE_DOCK_TAB_HEIGHT,
+                splitter.rect.width,
+                (splitter.rect.height - NATIVE_DOCK_TAB_HEIGHT).max(0.0),
+            ),
+            SplitDirection::Vertical => splitter.rect,
         };
 
         add_rect_node(
             tree,
             parent,
-            splitter.rect,
+            visual_rect,
             "IrisDockSplitter",
             Style::new().background(splitter_col),
         );

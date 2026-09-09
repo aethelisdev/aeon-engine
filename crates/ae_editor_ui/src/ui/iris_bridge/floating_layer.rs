@@ -13,6 +13,8 @@ use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use irisui::dock::DockNode;
 use irisui::prelude::*;
 
+use super::theme::*;
+
 /// Checks if a panel currently resides within any active floating window.
 pub fn is_panel_in_floating_window(layout_state: &PanelLayoutState, panel: PanelId) -> bool {
     layout_state
@@ -93,8 +95,8 @@ pub fn build_floating_windows(
             node.set_name("FloatingWindowBase");
             node.computed_rect = win_rect;
             node.style = Style::new()
-                .background(Color::rgba(0.055, 0.063, 0.086, 1.0))
-                .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.90))
+                .background(ELEVATION_4_POPUP)
+                .border(1.0, BORDER_ELEVATED)
                 .border_radius(19.0)
                 .box_shadow(0.0, 8.0, 28.0, Color::rgba(0.0, 0.0, 0.0, 0.75));
         }
@@ -108,8 +110,7 @@ pub fn build_floating_windows(
             node.set_name("FloatingWindowTabBar");
             node.computed_rect = bar_rect;
             node.style = Style::new()
-                .background(Color::rgba(0.059, 0.059, 0.078, 1.0))
-                .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.80))
+                .background(ELEVATION_2_HEADER)
                 .border_radius(19.0);
         }
         let _ = tree.add_child(win_container, bar_id);
@@ -124,9 +125,9 @@ pub fn build_floating_windows(
             node.text = Some("⤢".to_string());
             node.font_size = 12.0;
             node.text_color = if is_dock_hovered {
-                Color::rgba(0.0, 1.0, 1.0, 1.0)
+                Color::WHITE
             } else {
-                Color::rgba(0.0, 0.898, 1.0, 0.85)
+                ACCENT_CYAN
             };
             node.text_align = TextAlign::Center;
         }
@@ -143,14 +144,24 @@ pub fn build_floating_windows(
             node.text_color = if is_close_hovered {
                 Color::rgba(1.0, 0.35, 0.35, 1.0)
             } else {
-                Color::rgba(0.65, 0.68, 0.75, 0.85)
+                TEXT_MUTED
             };
             node.text_align = TextAlign::Center;
         }
         let _ = tree.add_child(win_container, close_btn_id);
 
-        // 5. Render Tab Titles & Active Highlights
-        let mut current_tab_x = bar_rect.x + 12.0;
+        // 5. Header Baseline Divider
+        let baseline_id = tree.create_node();
+        if let Some(line) = tree.get_mut(baseline_id) {
+            line.set_name("FloatingWindowHeaderBaseline");
+            line.computed_rect =
+                Rect::new(bar_rect.x, bar_rect.bottom() - 1.0, bar_rect.width, 1.0);
+            line.style = Style::new().background(BORDER_MICRON);
+        }
+        let _ = tree.add_child(win_container, baseline_id);
+
+        // 6. Render Tab Titles & Active Highlights
+        let mut current_tab_x = bar_rect.x;
         for (_leaf_id, node) in win.tree.iter() {
             if let DockNode::Leaf { tabs, active_tab } = node {
                 for (tab_idx, panel) in tabs.iter().enumerate() {
@@ -170,16 +181,18 @@ pub fn build_floating_windows(
 
                     let tab_node_id = tree.create_node();
                     if let Some(tab_node) = tree.get_mut(tab_node_id) {
-                        tab_node.set_name("FloatingWindowTabPill");
+                        tab_node.set_name("FloatingWindowTab");
                         tab_node.computed_rect = tab_rect;
                         let bg_color = if is_active {
-                            Color::rgba(0.086, 0.094, 0.118, 1.0)
+                            ELEVATION_3_ACTIVE_PILL
                         } else if is_tab_hovered {
-                            Color::rgba(0.080, 0.088, 0.110, 1.0)
+                            ELEVATION_3_HOVERED_PILL
                         } else {
-                            Color::rgba(0.063, 0.067, 0.086, 1.0)
+                            ELEVATION_2_HEADER
                         };
-                        tab_node.style = Style::new().background(bg_color).border_radius(4.0);
+                        tab_node.style = Style::new()
+                            .background(bg_color)
+                            .corner_radii(CornerRadii::new(5.0, 5.0, 0.0, 0.0));
                     }
                     let _ = tree.add_child(win_container, tab_node_id);
 
@@ -187,13 +200,9 @@ pub fn build_floating_windows(
                         let active_line_id = tree.create_node();
                         if let Some(line) = tree.get_mut(active_line_id) {
                             line.set_name("FloatingWindowTabActiveLine");
-                            line.computed_rect = Rect::new(
-                                tab_rect.x + 2.0,
-                                tab_rect.bottom() - 2.0,
-                                tab_rect.width - 4.0,
-                                2.0,
-                            );
-                            line.style = Style::new().background(Color::rgba(0.0, 0.898, 1.0, 1.0));
+                            line.computed_rect =
+                                Rect::new(tab_rect.x, tab_rect.bottom() - 2.0, tab_rect.width, 2.0);
+                            line.style = Style::new().background(ACCENT_CYAN);
                         }
                         let _ = tree.add_child(win_container, active_line_id);
                     }
@@ -206,11 +215,11 @@ pub fn build_floating_windows(
                                 Rect::new(tab_rect.x + 7.0, tab_rect.y + 5.0, 16.0, 16.0);
                             node.set_texture_uv(uv);
                             let tint = if is_active {
-                                Color::rgba(0.0, 0.898, 1.0, 1.0)
+                                ACCENT_CYAN
                             } else if is_tab_hovered {
                                 Color::WHITE
                             } else {
-                                Color::rgba(0.85, 0.88, 0.94, 0.85)
+                                TEXT_REGULAR
                             };
                             node.set_texture_tint(tint);
                         }
@@ -234,17 +243,17 @@ pub fn build_floating_windows(
                         text_node.text = Some(title);
                         text_node.font_size = 12.0;
                         text_node.text_color = if is_active {
-                            Color::rgba(0.0, 0.898, 1.0, 1.0)
+                            ACCENT_CYAN
                         } else if is_tab_hovered {
-                            Color::rgba(0.95, 0.96, 1.0, 1.0)
+                            TEXT_BRIGHT
                         } else {
-                            Color::rgba(0.70, 0.73, 0.80, 1.0)
+                            TEXT_MUTED
                         };
                         text_node.text_align = TextAlign::Left;
                     }
                     let _ = tree.add_child(win_container, text_id);
 
-                    current_tab_x += tab_w + 2.0;
+                    current_tab_x += tab_w;
                 }
 
                 if *active_tab < tabs.len() {

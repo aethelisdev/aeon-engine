@@ -12,6 +12,7 @@ use super::list::build_asset_list_table;
 use super::tree::build_folder_tree_sidebar;
 use super::types::{AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget};
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
+use crate::ui::iris_bridge::theme::*;
 use crate::ui::panels::assets::types::{AssetBrowserState, AssetCategory, AssetViewMode};
 use irisui::prelude::*;
 use std::path::PathBuf;
@@ -40,8 +41,7 @@ pub fn build_assets_panel(
         node.set_name("AssetsPanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.05, 0.06, 0.08, 1.0))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.70))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);
@@ -58,9 +58,7 @@ pub fn build_assets_panel(
     if let Some(node) = tree.get_mut(tb_id) {
         node.set_name("AssetsTopToolbar");
         node.computed_rect = tb_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70));
+        node.style = Style::new().background(ELEVATION_2_HEADER);
     }
     let _ = tree.add_child(root_id, tb_id);
 

@@ -32,8 +32,7 @@ impl<'a> MenuBarBuilder<'a> {
                     .width(width)
                     .height(26.0)
                     .padding_insets(Insets::new(0.0, 6.0, 0.0, 10.0))
-                    .background(Color::hex("#0f0f14"))
-                    .border(1.0, Color::hex("#2d303c")),
+                    .background(Color::rgba(0.071, 0.082, 0.122, 1.0)),
             );
         }
 
@@ -170,10 +169,10 @@ impl<'a> DropdownMenuBuilder<'a> {
                     .flex_col()
                     .width(width)
                     .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
-                    .background(Color::hex("#14141c"))
-                    .border(1.0, Color::hex("#2d303c"))
+                    .background(Color::rgba(0.075, 0.086, 0.133, 0.98))
+                    .border(1.0, Color::rgba(0.18, 0.21, 0.28, 0.75))
                     .border_radius(4.0)
-                    .box_shadow(0.0, 4.0, 12.0, Color::rgba(0.0, 0.0, 0.0, 0.6)),
+                    .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.70)),
             );
             node.computed_rect.x = x;
             node.computed_rect.y = y;

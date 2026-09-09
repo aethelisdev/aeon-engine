@@ -24,6 +24,7 @@ pub mod preferences;
 pub mod render;
 pub mod stats;
 pub mod status_bar;
+pub mod theme;
 pub mod timeline;
 pub mod types;
 pub mod ui_designer;
@@ -61,6 +62,7 @@ pub use preferences::{
 pub use stats::{
     StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelTargets, build_stats_panel,
 };
+pub use theme::*;
 pub use timeline::{
     TimelineAction, TimelinePanelParams, TimelinePanelTargets, build_timeline_panel,
     handle_timeline_click, handle_timeline_drag,

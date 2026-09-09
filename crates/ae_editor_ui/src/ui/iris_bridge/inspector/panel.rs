@@ -15,6 +15,7 @@ use super::registry::{ComponentRenderContext, InspectorRegistry};
 use super::transform;
 use super::types::{InspectorPanelParams, InspectorPanelTargets};
 use super::ui_transform;
+use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Builds the complete Scene Inspector layout and returns root handle.
@@ -42,7 +43,7 @@ pub fn build_inspector_panel(
         node.set_name("InspectorPanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.075, 0.078, 0.090, 0.98))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, panel_root_id);

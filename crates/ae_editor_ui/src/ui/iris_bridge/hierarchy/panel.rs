@@ -10,6 +10,7 @@ use super::footer::build_hierarchy_footer;
 use super::header::build_hierarchy_header;
 use super::rows::{build_hierarchy_rows, sync_hierarchy_rows};
 use super::types::{HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow};
+use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Output node handles created during layout initialization of the Scene Hierarchy panel.
@@ -34,7 +35,7 @@ pub fn build_hierarchy_panel(
         node.set_name("HierarchyPanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 1.0))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);

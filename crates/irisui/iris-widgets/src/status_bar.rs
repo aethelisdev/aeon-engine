@@ -30,8 +30,7 @@ impl<'a> StatusBarBuilder<'a> {
                     .width(width)
                     .height(height)
                     .padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0))
-                    .background(Color::hex("#0f0f14"))
-                    .border(1.0, Color::hex("#282a34")),
+                    .background(Color::rgba(0.071, 0.082, 0.122, 1.0)),
             );
         }
 
