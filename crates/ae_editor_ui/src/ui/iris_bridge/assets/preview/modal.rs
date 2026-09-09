@@ -62,9 +62,9 @@ pub fn build_asset_preview_modal(
         node.computed_rect = dialog_rect;
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.09, 0.12, 0.99))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.75))
+            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90))
             .border_radius(8.0)
-            .box_shadow(0.0, 8.0, 28.0, Color::rgba(0.0, 0.0, 0.0, 0.90))
+            .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.80))
             .clip_children(true);
     }
     let _ = tree.add_child(backdrop_id, card_id);
@@ -88,7 +88,7 @@ pub fn build_asset_preview_modal(
     if let Some(node) = tree.get_mut(divider_id) {
         node.set_name("PreviewHeaderDivider");
         node.computed_rect = divider_rect;
-        node.style = Style::new().background(Color::rgba(0.18, 0.22, 0.30, 0.70));
+        node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
     }
     let _ = tree.add_child(card_id, divider_id);
 

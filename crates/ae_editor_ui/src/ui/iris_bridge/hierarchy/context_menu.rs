@@ -40,10 +40,10 @@ pub fn build_context_menu(
         node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
-            .border_radius(6.0)
-            .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
+            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
+            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90))
+            .border_radius(5.0)
+            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75));
     }
     let _ = tree.add_child(parent_id, card_id);
 
@@ -52,18 +52,18 @@ pub fn build_context_menu(
     let is_del_hovered = del_rect.contains_point(params.cursor_pos);
     let (del_bg, del_text_col) = if is_del_hovered {
         (
-            Color::rgba(0.40, 0.08, 0.08, 0.90),
-            Color::rgba(1.0, 0.45, 0.45, 1.0),
+            Color::rgba(0.40, 0.10, 0.10, 0.90),
+            Color::rgba(1.0, 0.50, 0.50, 1.0),
         )
     } else {
-        (Color::TRANSPARENT, Color::rgba(0.88, 0.90, 0.96, 1.0))
+        (Color::TRANSPARENT, Color::rgba(0.95, 0.40, 0.40, 0.90))
     };
 
     let del_id = tree.create_node();
     if let Some(node) = tree.get_mut(del_id) {
         node.set_name("ContextDeleteEntity");
         node.computed_rect = del_rect;
-        node.style = Style::new().background(del_bg).border_radius(4.0);
+        node.style = Style::new().background(del_bg).border_radius(3.0);
     }
     let _ = tree.add_child(card_id, del_id);
 
@@ -93,18 +93,18 @@ pub fn build_context_menu(
     let is_vis_hovered = vis_rect.contains_point(params.cursor_pos);
     let (vis_bg, vis_text_col) = if is_vis_hovered {
         (
-            Color::rgba(0.0, 0.35, 0.45, 0.80),
-            Color::rgba(0.0, 0.95, 1.0, 1.0),
+            Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover (#29303c)
+            Color::WHITE,
         )
     } else {
-        (Color::TRANSPARENT, Color::rgba(0.88, 0.90, 0.96, 1.0))
+        (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
     };
 
     let vis_id = tree.create_node();
     if let Some(node) = tree.get_mut(vis_id) {
         node.set_name("ContextToggleVisibility");
         node.computed_rect = vis_rect;
-        node.style = Style::new().background(vis_bg).border_radius(4.0);
+        node.style = Style::new().background(vis_bg).border_radius(3.0);
     }
     let _ = tree.add_child(card_id, vis_id);
 

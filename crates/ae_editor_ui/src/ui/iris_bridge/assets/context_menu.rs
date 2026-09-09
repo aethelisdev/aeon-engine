@@ -11,6 +11,7 @@
 use super::types::{
     AssetsContextMenuTarget, AssetsContextMenuTargets, AssetsPanelParams, AssetsPanelTargets,
 };
+use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use crate::ui::panels::assets::types::AssetCategory;
 use irisui::prelude::*;
 
@@ -54,7 +55,7 @@ pub fn build_assets_context_menu(
         }
     };
 
-    let menu_h = 32.0 + (item_count as f32) * CONTEXT_ITEM_HEIGHT + 8.0;
+    let menu_h = 36.0 + (item_count as f32) * CONTEXT_ITEM_HEIGHT + 6.0;
     let menu_w = CONTEXT_MENU_WIDTH;
 
     // Clamp menu to stay within panel boundary
@@ -73,53 +74,89 @@ pub fn build_assets_context_menu(
 
     let card_rect = Rect::new(menu_x, menu_y, menu_w, menu_h);
 
-    // 1. Floating Menu Background Card Node
+    // 1. Floating Menu Background Card Node (Inspector Modern Dark Theme)
     let card_id = tree.create_node();
     if let Some(node) = tree.get_mut(card_id) {
         node.set_name("AssetsContextMenuCard");
         node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.07, 0.08, 0.11, 0.98))
-            .border_radius(6.0)
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.70))
-            .box_shadow(0.0, 4.0, 14.0, Color::rgba(0.0, 0.0, 0.0, 0.85));
+            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
+            .border_radius(5.0)
+            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90))
+            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75));
     }
     let _ = tree.add_child(parent_id, card_id);
 
-    // 2. Header Bar: Subject Identifier
-    let header_rect = Rect::new(menu_x + 8.0, menu_y + 6.0, menu_w - 16.0, 18.0);
-    let header_id = tree.create_node();
-    if let Some(node) = tree.get_mut(header_id) {
-        node.set_name("ContextMenuHeader");
-        let title = match target {
-            AssetsContextMenuTarget::Asset(item) => {
-                let name = &item.name;
-                if name.len() > 18 {
-                    format!("{}...", &name[..15])
-                } else {
-                    name.clone()
-                }
+    // 2. Header Bar: Subject Identifier with Vector Texture Icon
+    match target {
+        AssetsContextMenuTarget::Folder(path) => {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("assets");
+
+            let icon_size = 14.0;
+            let icon_rect = Rect::new(menu_x + 8.0, menu_y + 8.0, icon_size, icon_size);
+            let icon_id = tree.create_node();
+            if let Some(node) = tree.get_mut(icon_id) {
+                node.set_name("ContextMenuFolderIcon");
+                node.set_role(WidgetRole::DropdownIcon);
+                node.computed_rect = icon_rect;
+                node.set_texture_uv(ICON_FOLDER);
+                node.set_texture_tint(Color::rgba(0.95, 0.76, 0.28, 1.0)); // Canonical warm folder amber
             }
-            AssetsContextMenuTarget::Folder(path) => {
-                let name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("assets");
-                format!("📁 {}", name)
+            let _ = tree.add_child(card_id, icon_id);
+
+            let header_rect = Rect::new(menu_x + 27.0, menu_y + 6.0, menu_w - 35.0, 18.0);
+            let header_id = tree.create_node();
+            if let Some(node) = tree.get_mut(header_id) {
+                node.set_name("ContextMenuHeader");
+                node.set_role(WidgetRole::DropdownLabel);
+                node.set_text(name);
+                node.font_size = 11.0;
+                node.line_height = 18.0;
+                node.text_align = TextAlign::Left;
+                node.text_color = Color::rgba(0.80, 0.84, 0.92, 1.0);
+                node.computed_rect = header_rect;
             }
-        };
-        node.set_text(&title);
-        node.font_size = 11.0;
-        node.line_height = 18.0;
-        node.text_align = TextAlign::Left;
-        node.text_color = Color::rgba(0.0, 0.90, 1.0, 0.95);
-        node.computed_rect = header_rect;
+            let _ = tree.add_child(card_id, header_id);
+        }
+        AssetsContextMenuTarget::Asset(item) => {
+            let name = &item.name;
+            let title = if name.len() > 20 {
+                format!("{}...", &name[..17])
+            } else {
+                name.clone()
+            };
+            let header_rect = Rect::new(menu_x + 8.0, menu_y + 6.0, menu_w - 16.0, 18.0);
+            let header_id = tree.create_node();
+            if let Some(node) = tree.get_mut(header_id) {
+                node.set_name("ContextMenuHeader");
+                node.set_role(WidgetRole::DropdownLabel);
+                node.set_text(&title);
+                node.font_size = 11.0;
+                node.line_height = 18.0;
+                node.text_align = TextAlign::Left;
+                node.text_color = Color::rgba(0.80, 0.84, 0.92, 1.0);
+                node.computed_rect = header_rect;
+            }
+            let _ = tree.add_child(card_id, header_id);
+        }
     }
-    let _ = tree.add_child(card_id, header_id);
+
+    // Clean Separator Line below Header
+    let sep_id = tree.create_node();
+    if let Some(node) = tree.get_mut(sep_id) {
+        node.set_name("ContextMenuSep");
+        node.set_role(WidgetRole::Separator);
+        node.computed_rect = Rect::new(menu_x + 6.0, menu_y + 26.0, menu_w - 12.0, 1.0);
+        node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
+    }
+    let _ = tree.add_child(card_id, sep_id);
 
     // 3. Render Context Menu Items
-    let mut cur_y = menu_y + 28.0;
+    let mut cur_y = menu_y + 30.0;
     let mut inspect_rect = None;
     let mut spawn_rect = None;
     let mut new_folder_rect = None;
@@ -276,19 +313,19 @@ fn render_context_item(
     let (bg, text_col) = if is_hovered {
         if is_destructive {
             (
-                Color::rgba(0.42, 0.10, 0.10, 0.90),
+                Color::rgba(0.40, 0.10, 0.10, 0.90),
                 Color::rgba(1.0, 0.50, 0.50, 1.0),
             )
         } else {
             (
-                Color::rgba(0.12, 0.18, 0.28, 0.95),
-                Color::rgba(0.20, 0.90, 1.0, 1.0),
+                Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover (#29303c)
+                Color::WHITE,
             )
         }
     } else if is_destructive {
         (Color::TRANSPARENT, Color::rgba(0.95, 0.40, 0.40, 0.90))
     } else {
-        (Color::TRANSPARENT, Color::rgba(0.82, 0.86, 0.94, 0.90))
+        (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
     };
 
     let item_id = tree.create_node();
