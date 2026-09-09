@@ -10,6 +10,7 @@
 
 use super::types::{
     AssetsContextMenuTarget, AssetsContextMenuTargets, AssetsPanelParams, AssetsPanelTargets,
+    truncate_display_name,
 };
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use crate::ui::panels::assets::types::AssetCategory;
@@ -123,12 +124,7 @@ pub fn build_assets_context_menu(
             let _ = tree.add_child(card_id, header_id);
         }
         AssetsContextMenuTarget::Asset(item) => {
-            let name = &item.name;
-            let title = if name.len() > 20 {
-                format!("{}...", &name[..17])
-            } else {
-                name.clone()
-            };
+            let title = truncate_display_name(&item.name, 20, 17);
             let header_rect = Rect::new(menu_x + 8.0, menu_y + 6.0, menu_w - 16.0, 18.0);
             let header_id = tree.create_node();
             if let Some(node) = tree.get_mut(header_id) {

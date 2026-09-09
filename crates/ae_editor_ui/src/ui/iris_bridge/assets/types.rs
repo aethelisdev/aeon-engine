@@ -304,3 +304,23 @@ pub struct AssetsPanelParams<'a> {
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
 }
+
+/// Truncates a UTF-8 string safely at Unicode code point boundaries.
+/// If the character count exceeds `max_chars`, the string is sliced at the `keep_chars`-th
+/// Unicode character boundary and an ellipsis (`"..."`) is appended. If the character
+/// count is within limits, a clone of the original string is returned unchanged.
+/// This prevents byte index panics on multi-byte characters such as Turkish (`ğ`, `ü`, `ş`, `ı`, `ö`, `ç`),
+/// Cyrillic, CJK ideographs, or emojis.
+pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) -> String {
+    let char_count = text.chars().count();
+    if char_count > max_chars {
+        let split_idx = text
+            .char_indices()
+            .nth(keep_chars)
+            .map(|(idx, _)| idx)
+            .unwrap_or(text.len());
+        format!("{}...", &text[..split_idx])
+    } else {
+        text.to_string()
+    }
+}

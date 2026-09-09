@@ -8,7 +8,7 @@ use super::events::{self, AssetClickTracker, AssetsEventContext};
 use super::panel::build_assets_panel;
 use super::types::{
     AssetCardTarget, AssetPreviewModalState, AssetsContextMenuTarget, AssetsPanelAction,
-    AssetsPanelParams, AssetsPanelTargets,
+    AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
 };
 use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetViewMode};
 use irisui::prelude::*;
@@ -274,4 +274,77 @@ fn test_preview_modal_build_and_actions() {
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
     assert!(consumed);
     assert_eq!(actions, vec![AssetsPanelAction::CloseInspectModal]);
+}
+
+#[test]
+fn test_truncate_display_name_utf8_boundary_safety() {
+    // 1. Short string within limits
+    let short = "cube.png";
+    assert_eq!(truncate_display_name(short, 14, 11), "cube.png");
+
+    // 2. ASCII string longer than limits
+    let long_ascii = "very_long_texture_filename.png";
+    assert_eq!(truncate_display_name(long_ascii, 14, 11), "very_long_t...");
+
+    // 3. Multi-byte UTF-8 test: Turkish characters ('ö', 'ğ', 'ü') crossing byte boundary 11
+    // 'd'(0), 'o'(1), 'k'(2), 'u'(3), 's'(4), 'u'(5), '_'(6), 'ö'(7..9), 'ğ'(9..11), 'ü'(11..13)
+    // Byte 11 is right inside 'ü' (bytes 11..13). Naive byte slicing [..11] panics.
+    let turkish = "dokusu_öğütülmüş_yüzey.png";
+    let truncated_turkish = truncate_display_name(turkish, 14, 11);
+    assert_eq!(truncated_turkish, "dokusu_öğüt...");
+    assert!(truncated_turkish.ends_with("..."));
+
+    // 4. Multi-byte CJK and emojis
+    let cjk = "こんにちは世界_テクスチャ_2026.png";
+    let truncated_cjk = truncate_display_name(cjk, 14, 11);
+    assert_eq!(truncated_cjk, "こんにちは世界_テクス...");
+}
+
+#[test]
+fn test_assets_card_rendering_with_unicode_filenames() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let mut targets = AssetsPanelTargets::default();
+
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let current_folder = PathBuf::from("assets");
+    let item = AssetItem {
+        name: "dokusu_öğütülmüş_yüzey.png".to_string(),
+        path: PathBuf::from("assets/textures/dokusu_öğütülmüş_yüzey.png"),
+        relative_path: "dokusu_öğütülmüş_yüzey.png".to_string(),
+        category: AssetCategory::Textures2D,
+        file_size_bytes: 408500,
+        metadata_badge: "408.5 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    let items = vec![item];
+
+    let params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1280.0, 720.0),
+        current_folder: &current_folder,
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(100.0, 100.0),
+        blink_caret: true,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+    };
+
+    // Should build cards with Turkish/Unicode filenames without any panic
+    build_assets_panel(&mut tree, root_id, &params, &mut targets);
+    assert_eq!(targets.grid_cards.len(), 1);
 }

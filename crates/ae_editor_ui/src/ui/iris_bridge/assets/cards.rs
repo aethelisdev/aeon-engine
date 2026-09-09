@@ -7,7 +7,7 @@
 //! canonical vector icons, truncated names, and file size metadata.
 //!
 
-use super::types::{AssetCardTarget, AssetsPanelParams, AssetsPanelTargets};
+use super::types::{AssetCardTarget, AssetsPanelParams, AssetsPanelTargets, truncate_display_name};
 use crate::ui::iris_bridge::icons::{
     ICON_AUDIO, ICON_CAMERA, ICON_CUBE, ICON_FOLDER, ICON_LIGHT, ICON_SPHERE, ICON_WORLD,
 };
@@ -169,12 +169,8 @@ pub fn build_asset_grid_cards(
                 let _ = tree.add_child(preview_box_id, icon_id);
             }
 
-            // 5. Truncated Asset Name Label
-            let display_name = if item.name.len() > 14 {
-                format!("{}...", &item.name[..11])
-            } else {
-                item.name.clone()
-            };
+            // 5. Truncated Asset Name Label (UTF-8 safe Unicode truncation)
+            let display_name = truncate_display_name(&item.name, 14, 11);
             let name_rect = Rect::new(card_x + 4.0, row_y + 84.0, CARD_WIDTH - 8.0, 16.0);
             let name_id = tree.create_node();
             if let Some(node) = tree.get_mut(name_id) {
