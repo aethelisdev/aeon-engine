@@ -204,6 +204,14 @@ impl EngineUi {
                 .max(0.0),
         );
 
+        // Enforce workspace boundary clamping on all floating windows
+        self.layout_state.clamp_floating_windows(
+            screen_w,
+            screen_h,
+            IrisEditorOverlay::MENUBAR_HEIGHT,
+            IrisEditorOverlay::STATUS_BAR_HEIGHT,
+        );
+
         // Process native dock and floating window interactions
         let mut dock_consumed = false;
         match event {
@@ -244,48 +252,79 @@ impl EngineUi {
                     {
                         match mode {
                             FloatingDragState::Title { offset } => {
-                                win.rect.x = p.x - offset.x;
-                                win.rect.y = p.y - offset.y;
+                                let target_x = p.x - offset.x;
+                                let target_y = p.y - offset.y;
+                                const TAB_BAR_H: f32 = 26.0;
+                                let min_y = IrisEditorOverlay::MENUBAR_HEIGHT;
+                                let max_y =
+                                    (screen_h - IrisEditorOverlay::STATUS_BAR_HEIGHT - TAB_BAR_H)
+                                        .max(min_y);
+                                win.rect.y = target_y.clamp(min_y, max_y);
+
+                                let max_x = (screen_w - 60.0).max(0.0);
+                                let min_x = (60.0 - win.rect.width).min(0.0);
+                                win.rect.x = target_x.clamp(min_x, max_x);
                             }
                             FloatingDragState::Resize(edge) => match edge {
                                 FloatingResizeEdge::Right => {
-                                    win.rect.width = (p.x - win.rect.x).max(220.0);
+                                    let max_w = (screen_w - win.rect.x).max(220.0);
+                                    win.rect.width = (p.x - win.rect.x).clamp(220.0, max_w);
                                 }
                                 FloatingResizeEdge::Bottom => {
-                                    win.rect.height = (p.y - win.rect.y).max(140.0);
+                                    let max_h = (screen_h
+                                        - IrisEditorOverlay::STATUS_BAR_HEIGHT
+                                        - win.rect.y)
+                                        .max(140.0);
+                                    win.rect.height = (p.y - win.rect.y).clamp(140.0, max_h);
                                 }
                                 FloatingResizeEdge::Left => {
                                     let old_right = win.rect.x + win.rect.width;
-                                    win.rect.x = p.x.min(old_right - 220.0);
+                                    let min_x = (60.0 - win.rect.width).min(0.0);
+                                    win.rect.x = p.x.clamp(min_x, old_right - 220.0);
                                     win.rect.width = old_right - win.rect.x;
                                 }
                                 FloatingResizeEdge::Top => {
                                     let old_bottom = win.rect.y + win.rect.height;
-                                    win.rect.y = p.y.min(old_bottom - 140.0);
+                                    let min_y = IrisEditorOverlay::MENUBAR_HEIGHT;
+                                    win.rect.y = p.y.clamp(min_y, old_bottom - 140.0);
                                     win.rect.height = old_bottom - win.rect.y;
                                 }
                                 FloatingResizeEdge::BottomRight => {
-                                    win.rect.width = (p.x - win.rect.x).max(220.0);
-                                    win.rect.height = (p.y - win.rect.y).max(140.0);
+                                    let max_w = (screen_w - win.rect.x).max(220.0);
+                                    let max_h = (screen_h
+                                        - IrisEditorOverlay::STATUS_BAR_HEIGHT
+                                        - win.rect.y)
+                                        .max(140.0);
+                                    win.rect.width = (p.x - win.rect.x).clamp(220.0, max_w);
+                                    win.rect.height = (p.y - win.rect.y).clamp(140.0, max_h);
                                 }
                                 FloatingResizeEdge::BottomLeft => {
                                     let old_right = win.rect.x + win.rect.width;
-                                    win.rect.x = p.x.min(old_right - 220.0);
+                                    let min_x = (60.0 - win.rect.width).min(0.0);
+                                    win.rect.x = p.x.clamp(min_x, old_right - 220.0);
                                     win.rect.width = old_right - win.rect.x;
-                                    win.rect.height = (p.y - win.rect.y).max(140.0);
+                                    let max_h = (screen_h
+                                        - IrisEditorOverlay::STATUS_BAR_HEIGHT
+                                        - win.rect.y)
+                                        .max(140.0);
+                                    win.rect.height = (p.y - win.rect.y).clamp(140.0, max_h);
                                 }
                                 FloatingResizeEdge::TopRight => {
-                                    win.rect.width = (p.x - win.rect.x).max(220.0);
+                                    let max_w = (screen_w - win.rect.x).max(220.0);
+                                    win.rect.width = (p.x - win.rect.x).clamp(220.0, max_w);
                                     let old_bottom = win.rect.y + win.rect.height;
-                                    win.rect.y = p.y.min(old_bottom - 140.0);
+                                    let min_y = IrisEditorOverlay::MENUBAR_HEIGHT;
+                                    win.rect.y = p.y.clamp(min_y, old_bottom - 140.0);
                                     win.rect.height = old_bottom - win.rect.y;
                                 }
                                 FloatingResizeEdge::TopLeft => {
                                     let old_right = win.rect.x + win.rect.width;
-                                    win.rect.x = p.x.min(old_right - 220.0);
+                                    let min_x = (60.0 - win.rect.width).min(0.0);
+                                    win.rect.x = p.x.clamp(min_x, old_right - 220.0);
                                     win.rect.width = old_right - win.rect.x;
                                     let old_bottom = win.rect.y + win.rect.height;
-                                    win.rect.y = p.y.min(old_bottom - 140.0);
+                                    let min_y = IrisEditorOverlay::MENUBAR_HEIGHT;
+                                    win.rect.y = p.y.clamp(min_y, old_bottom - 140.0);
                                     win.rect.height = old_bottom - win.rect.y;
                                 }
                             },

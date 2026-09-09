@@ -233,6 +233,37 @@ impl PanelLayoutState {
         let _ = self.dock_state.tree.push_to_focused_leaf(panel);
     }
 
+    /// Clamps all floating windows to ensure their title bars and content remain accessible within the workspace bounds.
+    /// Constrains vertical coordinates so floating panel title bars never get pushed underneath
+    /// the top menubar (`min_y`) or off the bottom of the screen. Horizontally, ensures at least
+    /// a visible grab margin remains accessible.
+    pub fn clamp_floating_windows(
+        &mut self,
+        screen_w: f32,
+        screen_h: f32,
+        min_y: f32,
+        status_bar_h: f32,
+    ) {
+        const TAB_BAR_H: f32 = 26.0;
+        let available_h = (screen_h - min_y - status_bar_h).max(TAB_BAR_H);
+        let max_y = (screen_h - status_bar_h - TAB_BAR_H).max(min_y);
+
+        for win in &mut self.dock_state.floating_windows {
+            if screen_w > 100.0 {
+                win.rect.width = win.rect.width.clamp(220.0, screen_w);
+            }
+            if available_h > TAB_BAR_H {
+                win.rect.height = win.rect.height.clamp(140.0, available_h);
+            }
+
+            win.rect.y = win.rect.y.clamp(min_y, max_y);
+
+            let max_x = (screen_w - 60.0).max(0.0);
+            let min_x = (60.0 - win.rect.width).min(0.0);
+            win.rect.x = win.rect.x.clamp(min_x, max_x);
+        }
+    }
+
     /// Docks a floating window back to its canonical home leaf in the tree.
     pub fn smart_dock_back_panel(&mut self, win_id: u64) {
         let target_panel = self
@@ -378,5 +409,59 @@ pub mod tests {
 
         // Now that all tabs in the leaf were closed, the leaf is collapsed and pruned from tree
         assert!(layout.dock_state.tree.iter().all(|(id, _)| id != leaf));
+    }
+
+    #[test]
+    fn test_clamp_floating_windows_bounds() {
+        use irisui::dock::FloatingWindow;
+        use irisui::prelude::Rect;
+
+        let mut layout = PanelLayoutState::new_default();
+        // Add a floating window positioned way off-screen (above menubar, negative coordinates)
+        let off_screen_win = FloatingWindow::new(
+            99,
+            "Offscreen Hierarchy",
+            Rect::new(-500.0, -100.0, 300.0, 400.0),
+            vec![PanelId::Hierarchy],
+        );
+        layout.dock_state.floating_windows.push(off_screen_win);
+
+        // Add a floating window positioned way below the screen
+        let too_low_win = FloatingWindow::new(
+            100,
+            "Too Low Window",
+            Rect::new(2500.0, 3000.0, 300.0, 400.0),
+            vec![PanelId::Stats],
+        );
+        layout.dock_state.floating_windows.push(too_low_win);
+
+        let screen_w = 1920.0;
+        let screen_h = 1080.0;
+        let min_y = 34.0; // Menubar height
+        let status_bar_h = 24.0;
+
+        layout.clamp_floating_windows(screen_w, screen_h, min_y, status_bar_h);
+
+        let win1 = layout
+            .dock_state
+            .floating_windows
+            .iter()
+            .find(|w| w.id == 99)
+            .unwrap();
+        // Title bar Y must be clamped to min_y
+        assert_eq!(win1.rect.y, min_y);
+        // Left coordinate clamped so at least 60px remains visible
+        assert_eq!(win1.rect.x, 60.0 - win1.rect.width);
+
+        let win2 = layout
+            .dock_state
+            .floating_windows
+            .iter()
+            .find(|w| w.id == 100)
+            .unwrap();
+        // Title bar Y clamped so title bar does not sink below status bar
+        assert_eq!(win2.rect.y, screen_h - status_bar_h - 26.0);
+        // Right coordinate clamped so at least 60px remains visible on screen
+        assert_eq!(win2.rect.x, screen_w - 60.0);
     }
 }
