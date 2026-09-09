@@ -7,16 +7,126 @@ use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use irisui::prelude::*;
 
 impl IrisEditorOverlay {
+    /// Returns true if the coordinate is over an active Hierarchy floating popup (Add Menu, submenus, or context menu).
+    pub fn is_point_over_hierarchy_popup(&self, point: Point) -> bool {
+        if let Some(ref hier) = self.hierarchy_targets
+            && (hier
+                .active_add_menu_rect
+                .is_some_and(|r| r.contains_point(point))
+                || hier
+                    .active_submenu_rect
+                    .is_some_and(|r| r.contains_point(point))
+                || hier
+                    .active_sub_submenu_rect
+                    .is_some_and(|r| r.contains_point(point))
+                || hier
+                    .active_context_menu
+                    .is_some_and(|(_, r, _, _)| r.contains_point(point)))
+        {
+            return true;
+        }
+        false
+    }
+
+    /// Returns true if the coordinate is over an active Inspector floating popup (dropdown, add component menu, or color picker).
+    pub fn is_point_over_inspector_popup(&self, point: Point) -> bool {
+        if let Some(ref insp) = self.inspector_targets
+            && (insp
+                .active_add_menu_rect
+                .is_some_and(|r| r.contains_point(point))
+                || insp
+                    .active_submenu_rect
+                    .is_some_and(|r| r.contains_point(point))
+                || insp
+                    .active_dropdown_popup_rect
+                    .is_some_and(|r| r.contains_point(point))
+                || insp
+                    .color_picker_popup_rect
+                    .is_some_and(|r| r.contains_point(point)))
+        {
+            return true;
+        }
+        false
+    }
+
+    /// Returns true if the coordinate is over any docked editor panel or the top menubar.
+    /// Modal dialogs and canvas interactions occluded by docked panels MUST NOT receive clicks or cursor motions.
+    pub fn is_point_over_docked_panel(&self, point: Point) -> bool {
+        if point.y <= Self::MENUBAR_HEIGHT {
+            return true;
+        }
+        if self
+            .hierarchy_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .inspector_targets
+            .as_ref()
+            .is_some_and(|t| t.scroll_container_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .assets_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .console_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .timeline_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .material_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .stats_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        if self
+            .ui_designer_targets
+            .as_ref()
+            .is_some_and(|t| t.panel_rect.contains_point(point))
+        {
+            return true;
+        }
+        false
+    }
+
     /// Returns true if the coordinate is over an active floating modal dialog, Preferences window, or menubar dropdown.
     /// When true, underlying dock splitters, tabs, and panel controls MUST NOT receive click or drag interactions.
     pub fn is_point_over_modal_or_dropdown(&self, point: Point) -> bool {
         if point.y <= Self::MENUBAR_HEIGHT {
             return true;
         }
-        // Floating dropdown popup from menubar has highest z-order
+        // Floating dropdown popup from menubar or docked panel popups have highest z-order
         if let Some(dd_rect) = self.dropdown_rect
             && dd_rect.contains_point(point)
         {
+            return true;
+        }
+        if self.is_point_over_hierarchy_popup(point) || self.is_point_over_inspector_popup(point) {
             return true;
         }
         if self
@@ -74,6 +184,9 @@ impl IrisEditorOverlay {
         if let Some(dd_rect) = self.dropdown_rect
             && dd_rect.contains_point(point)
         {
+            return true;
+        }
+        if self.is_point_over_hierarchy_popup(point) || self.is_point_over_inspector_popup(point) {
             return true;
         }
         if self.about_targets.is_some()

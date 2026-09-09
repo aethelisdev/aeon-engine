@@ -282,3 +282,109 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         "Click on Health Bar must close the Add menu"
     );
 }
+
+#[test]
+fn test_hierarchy_add_menu_dark_styling_and_no_clickthrough() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    let _ = tree.set_root(root_id);
+
+    let world = World::new();
+    let mut targets = HierarchyPanelTargets {
+        panel_rect: Rect::new(0.0, 28.0, 260.0, 600.0),
+        add_btn_rect: Rect::new(100.0, 32.0, 24.0, 24.0),
+        ..Default::default()
+    };
+
+    let params = HierarchyPanelParams {
+        panel_rect: Rect::new(0.0, 28.0, 260.0, 600.0),
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        scroll_y: 0.0,
+        active_submenu: Some(AddSubmenuId::UiCanvas),
+        active_sub_submenu: None,
+        is_add_menu_open: true,
+        active_context_menu: None,
+        cursor_pos: Point::new(150.0, 100.0),
+        is_search_focused: false,
+        blink_caret: false,
+    };
+
+    build_add_menu(&mut tree, root_id, &params, &mut targets);
+
+    // 1. Verify card style attributes match Inspector's neutral dark theme via UiTree traversal
+    let expected_border_col = Color::rgba(0.173, 0.180, 0.208, 0.90);
+    let mut add_menu_style = None;
+    let mut submenu_style = None;
+
+    tree.traverse_depth_first(root_id, &mut |_, node| {
+        if node.name.as_deref() == Some("AddMenuCard") {
+            add_menu_style = Some((node.style.border.color, node.style.corner_radii));
+        }
+        if node.name.as_deref() == Some("AddSubmenuCard") {
+            submenu_style = Some((node.style.border.color, node.style.corner_radii));
+        }
+    });
+
+    let (add_border, add_radii) =
+        add_menu_style.expect("AddMenuCard node must exist in UiTree traversal");
+    assert_eq!(
+        add_border, expected_border_col,
+        "AddMenuCard border color must match Inspector neutral dark palette"
+    );
+    assert_eq!(
+        add_radii,
+        CornerRadii::all(5.0),
+        "AddMenuCard border radius must be 5.0px"
+    );
+
+    let (sub_border, sub_radii) =
+        submenu_style.expect("AddSubmenuCard node must exist in UiTree traversal");
+    assert_eq!(
+        sub_border, expected_border_col,
+        "AddSubmenuCard border color must match Inspector neutral dark palette"
+    );
+    assert_eq!(
+        sub_radii,
+        CornerRadii::all(5.0),
+        "AddSubmenuCard border radius must be 5.0px"
+    );
+
+    // 2. Verify click consumption inside Add Menu and submenus (click-through protection)
+    let add_rect = targets.active_add_menu_rect.unwrap();
+    let sub_rect = targets.active_submenu_rect.unwrap();
+
+    let pt_in_add = Point::new(add_rect.x + 10.0, add_rect.y + 10.0);
+    let pt_in_sub = Point::new(sub_rect.x + 10.0, sub_rect.y + 10.0);
+    let pt_in_panel = Point::new(50.0, 200.0);
+
+    let mut actions = Vec::new();
+    let consumed_add =
+        super::panel::handle_hierarchy_click(pt_in_add, MouseButton::Left, &targets, &mut actions);
+    assert!(
+        consumed_add,
+        "Click inside AddMenuCard must be consumed to prevent click-through"
+    );
+
+    actions.clear();
+    let consumed_sub =
+        super::panel::handle_hierarchy_click(pt_in_sub, MouseButton::Left, &targets, &mut actions);
+    assert!(
+        consumed_sub,
+        "Click inside AddSubmenuCard must be consumed to prevent click-through"
+    );
+
+    actions.clear();
+    let consumed_panel = super::panel::handle_hierarchy_click(
+        pt_in_panel,
+        MouseButton::Left,
+        &targets,
+        &mut actions,
+    );
+    assert!(
+        consumed_panel,
+        "Click inside docked panel_rect must be consumed to prevent click-through to underlying modals"
+    );
+}

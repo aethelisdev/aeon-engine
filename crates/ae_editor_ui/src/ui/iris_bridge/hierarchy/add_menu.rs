@@ -110,10 +110,10 @@ pub fn build_add_menu(
         node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.10, 1.0))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85)) // Cyan border
-            .border_radius(6.0)
-            .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
+            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
+            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90)) // Clean neutral dark border
+            .border_radius(5.0)
+            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
     }
     let _ = tree.add_child(parent_id, card_id);
 
@@ -127,7 +127,7 @@ pub fn build_add_menu(
                 node.set_name("MenuSeparator");
                 node.set_role(WidgetRole::Separator);
                 node.computed_rect = Rect::new(menu_x + 6.0, cur_y + 2.0, menu_w - 12.0, 1.0);
-                node.style = Style::new().background(Color::rgba(0.18, 0.20, 0.26, 0.70));
+                node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
             }
             let _ = tree.add_child(card_id, sep_id);
             cur_y += sep_h;
@@ -144,11 +144,11 @@ pub fn build_add_menu(
 
         let (bg, text_col) = if is_active_sub || is_hovered {
             (
-                Color::rgba(0.0, 0.35, 0.45, 0.80),
-                Color::rgba(0.0, 0.95, 1.0, 1.0),
+                Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover
+                Color::WHITE,
             )
         } else {
-            (Color::TRANSPARENT, Color::rgba(0.88, 0.90, 0.96, 1.0))
+            (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
         };
 
         let row_id = tree.create_node();
@@ -156,7 +156,7 @@ pub fn build_add_menu(
             node.set_name(format!("AddMenuItem_{}", item.label));
             node.set_role(WidgetRole::DropdownItem);
             node.computed_rect = item_rect;
-            node.style = Style::new().background(bg).border_radius(4.0);
+            node.style = Style::new().background(bg).border_radius(3.0);
         }
         let _ = tree.add_child(card_id, row_id);
 
@@ -497,10 +497,10 @@ fn build_submenu(
         node.set_role(WidgetRole::DropdownPopup);
         node.computed_rect = card_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.10, 1.0))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
-            .border_radius(6.0)
-            .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
+            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
+            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90)) // Clean neutral dark border
+            .border_radius(5.0)
+            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
     }
     let _ = tree.add_child(parent_id, card_id);
 
@@ -514,7 +514,7 @@ fn build_submenu(
                 node.set_name("SubmenuSeparator");
                 node.set_role(WidgetRole::Separator);
                 node.computed_rect = Rect::new(sub_x + 6.0, cur_y + 2.0, sub_w - 12.0, 1.0);
-                node.style = Style::new().background(Color::rgba(0.18, 0.20, 0.26, 0.70));
+                node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
             }
             let _ = tree.add_child(card_id, sep_id);
             cur_y += 5.0;
@@ -530,11 +530,11 @@ fn build_submenu(
 
         let (bg, text_col) = if is_hovered {
             (
-                Color::rgba(0.0, 0.35, 0.45, 0.80),
-                Color::rgba(0.0, 0.95, 1.0, 1.0),
+                Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover
+                Color::WHITE,
             )
         } else {
-            (Color::TRANSPARENT, Color::rgba(0.88, 0.90, 0.96, 1.0))
+            (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
         };
 
         let row_id = tree.create_node();
@@ -542,7 +542,7 @@ fn build_submenu(
             node.set_name(format!("SubmenuItem_{}", label));
             node.set_role(WidgetRole::DropdownItem);
             node.computed_rect = item_rect;
-            node.style = Style::new().background(bg).border_radius(4.0);
+            node.style = Style::new().background(bg).border_radius(3.0);
         }
         let _ = tree.add_child(card_id, row_id);
 

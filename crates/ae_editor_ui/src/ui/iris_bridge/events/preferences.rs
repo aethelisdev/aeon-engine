@@ -93,7 +93,11 @@ impl IrisEditorOverlay {
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if targets.content_rect.contains_point(self.cursor_pos) {
+                if !self.is_point_over_hierarchy_popup(self.cursor_pos)
+                    && !self.is_point_over_inspector_popup(self.cursor_pos)
+                    && !self.is_point_over_docked_panel(self.cursor_pos)
+                    && targets.content_rect.contains_point(self.cursor_pos)
+                {
                     let scroll_y = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 28.0,
                         winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
@@ -157,6 +161,21 @@ impl IrisEditorOverlay {
                 ..
             } => {
                 let click_point = self.cursor_pos;
+
+                // Occlusion: If cursor is over an active foreground popup or docked panel, Preferences must NOT intercept the click
+                if self.is_point_over_hierarchy_popup(click_point)
+                    || self.is_point_over_inspector_popup(click_point)
+                    || self.is_point_over_docked_panel(click_point)
+                {
+                    return None;
+                }
+
+                // Legitimate click on Preferences: dismiss any open floating menus
+                self.hierarchy_is_add_menu_open = false;
+                self.hierarchy_active_submenu = None;
+                self.hierarchy_active_sub_submenu = None;
+                self.inspector_active_dropdown = None;
+                self.inspector_is_add_menu_open = false;
 
                 // 1. If an active dropdown popup is open
                 if let Some(popup_rect) = targets.active_dropdown_popup_rect {

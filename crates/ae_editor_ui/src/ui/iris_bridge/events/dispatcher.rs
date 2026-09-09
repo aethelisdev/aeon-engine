@@ -43,13 +43,31 @@ impl IrisEditorOverlay {
             return mb_res;
         }
 
-        // 6. Preferences Modal Dialog
-        if let Some(pref_result) = self.handle_preferences_event(event) {
+        // 5b. Active Floating Popups (Hierarchy Add Menu/Submenus/Context Menu, Inspector Add Menu/Dropdown/Color Picker)
+        // These are topmost UI elements; clicks and hovers inside them MUST be handled before modal dialogs!
+        if self.is_point_over_hierarchy_popup(self.cursor_pos)
+            && let Some(hier_res) = self.handle_hierarchy_window_event(event)
+        {
+            return hier_res;
+        }
+
+        if self.is_point_over_inspector_popup(self.cursor_pos)
+            && let Some(insp_res) = self.handle_inspector_window_event(event)
+        {
+            return insp_res;
+        }
+
+        // 6. Preferences Modal Dialog (Tested only when NOT occluded by docked panels)
+        if !self.is_point_over_docked_panel(self.cursor_pos)
+            && let Some(pref_result) = self.handle_preferences_event(event)
+        {
             return pref_result;
         }
 
         // 7. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
-        if let Some(modal_result) = self.handle_modal_events(event) {
+        if !self.is_point_over_docked_panel(self.cursor_pos)
+            && let Some(modal_result) = self.handle_modal_events(event)
+        {
             return modal_result;
         }
 
