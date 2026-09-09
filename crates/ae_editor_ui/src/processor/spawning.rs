@@ -323,7 +323,7 @@ pub fn handle_spawn_phase1_test_sandbox(ctx: &mut UiContext) {
         },
         ae_core::ecs::Collider {
             shape: ae_core::ecs::ColliderShape::Box {
-                half_extents: [25.0, 0.5, 25.0],
+                half_extents: [0.5, 0.5, 0.5],
             },
             friction: 0.7,
             restitution: 0.0,

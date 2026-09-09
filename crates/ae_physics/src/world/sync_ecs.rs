@@ -129,22 +129,11 @@ impl PhysicsWorld {
                         if pos_diff > 1e-4 || rot_diff > 1e-5 {
                             body.set_position(pose, false);
                         }
-                    } else if body.is_dynamic() {
-                        let pos_diff = (body.position().translation - pose.translation).length();
-                        let r1 = body.position().rotation;
-                        let r2 = pose.rotation;
-                        let rot_diff =
-                            1.0 - (r1.w * r2.w + r1.x * r2.x + r1.y * r2.y + r1.z * r2.z).abs();
-                        let cur_linvel = body.linvel();
-                        let vel_diff = (cur_linvel.x - vel_comp.x).abs()
-                            + (cur_linvel.y - vel_comp.y).abs()
-                            + (cur_linvel.z - vel_comp.z).abs();
-                        if pos_diff > 1e-4 || rot_diff > 1e-5 || vel_diff > 1e-4 || is_dirty {
-                            body.set_position(pose, true);
-                            body.set_linvel(Vec3::new(vel_comp.x, vel_comp.y, vel_comp.z), true);
-                            body.set_angvel(Vec3::ZERO, true);
-                            body.wake_up(true);
-                        }
+                    } else if body.is_dynamic() && is_dirty {
+                        body.set_position(pose, true);
+                        body.set_linvel(Vec3::new(vel_comp.x, vel_comp.y, vel_comp.z), true);
+                        body.set_angvel(Vec3::ZERO, true);
+                        body.wake_up(true);
                     }
 
                     let expected_type = if is_kcc {

@@ -5,7 +5,10 @@
 //!
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
-use ae_core::ecs::{Color, DestructibleTarget, Position, Rotation, Velocity};
+use ae_core::ecs::{
+    Collider, ColliderShape, Color, DestructibleTarget, Position, RigidBody, RigidBodyType,
+    Rotation, Velocity,
+};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};
 use ae_editor::input::InputManager;
 use ae_physics::world::PhysicsWorld;
@@ -323,5 +326,108 @@ fn test_character_action_cooldown_and_speed() {
     assert_eq!(
         projectile_count_after, 2,
         "Third shot must succeed after cooldown expiration"
+    );
+}
+
+#[test]
+fn test_character_action_shoots_and_pushes_dynamic_cube() {
+    let mut world = World::new();
+    let mut physics = PhysicsWorld::new();
+    let mut input = InputManager::new();
+    let mut event_bus = DynamicEventBus::new();
+
+    // 1. Shooter character at (0, 0, 0)
+    let shooter = world.spawn((
+        Position::new(0.0, 0.0, 0.0),
+        Rotation::identity(),
+        ae_core::ecs::CharacterAction {
+            speed: 50.0,
+            cooldown: 0.5,
+            timer: 0.0,
+            axis: [0.0, 0.0, 1.0],
+        },
+    ));
+
+    // 2. Dynamic cube target at (0, 1.5, 6.0)
+    let cube = world.spawn((
+        Position::new(0.0, 1.5, 6.0),
+        Rotation::identity(),
+        Velocity {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        RigidBody {
+            body_type: RigidBodyType::Dynamic,
+            mass: 2.0,
+            gravity_scale: 0.0,
+        },
+        Collider {
+            shape: ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            },
+            friction: 0.5,
+            restitution: 0.0,
+            is_sensor: false,
+        },
+    ));
+
+    // Initial step to register cube in physics world
+    physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+    // Fire weapon along +Z towards the cube
+    input.process_key_event(
+        ae_editor::input::KeyCode::KeyF,
+        winit::event::ElementState::Pressed,
+    );
+
+    update_gameplay_behaviors(BehaviorRunnerParams {
+        world: &mut world,
+        physics_world: &mut physics,
+        input: &input,
+        event_bus: &mut event_bus,
+        camera_forward: cgmath::Vector3::unit_z(),
+        delta_time: 0.016,
+    });
+
+    // Verify RaycastHitEvent was sent targeting the cube
+    let hit_events = event_bus.receive::<RaycastHitEvent>().unwrap();
+    assert_eq!(hit_events.len(), 1, "Must generate exactly one hit event");
+    assert_eq!(hit_events[0].target, cube);
+    assert_eq!(hit_events[0].shooter, Some(shooter));
+
+    // Verify spawned projectile has impact lifetime clamped to hit distance / speed
+    let mut projectile_lifetime = None;
+    for projectile in world.query::<&ae_core::ecs::EphemeralProjectile>().iter() {
+        projectile_lifetime = Some(projectile.lifetime_remaining);
+    }
+    assert!(
+        projectile_lifetime.is_some(),
+        "Visual laser projectile must be spawned"
+    );
+    let lt = projectile_lifetime.unwrap();
+    // Distance from gun muzzle (0.8m) to cube face (5.5m) is ~4.7m.
+    // At speed 50 m/s, time to impact should be ~0.09s, much less than 1.5s!
+    assert!(
+        lt < 0.25,
+        "Projectile lifetime must be clamped to time-to-impact (expected < 0.25s, got {})",
+        lt
+    );
+
+    // Step physics: dynamic cube must retain impulse and accelerate along +Z
+    physics.step(&mut world, |_| None, 0.1, &mut event_bus);
+
+    let cube_vel = world.get::<&Velocity>(cube).unwrap();
+    assert!(
+        cube_vel.z > 2.0,
+        "Dynamic cube velocity along +Z must accelerate from weapon impulse, got {}",
+        cube_vel.z
+    );
+
+    let cube_pos = world.get::<&Position>(cube).unwrap();
+    assert!(
+        cube_pos.z > 6.1,
+        "Dynamic cube position must advance along +Z after being shot, got {}",
+        cube_pos.z
     );
 }

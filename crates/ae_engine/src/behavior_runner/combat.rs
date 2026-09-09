@@ -63,7 +63,7 @@ pub fn update_character_actions(
             );
         }
 
-        for (b_pos, b_vel) in projectiles_to_spawn {
+        for (b_pos, b_vel, lifetime) in projectiles_to_spawn {
             let _ = world.spawn((
                 Name("Laser Bolt".to_string()),
                 Position {
@@ -100,7 +100,7 @@ pub fn update_character_actions(
                     restitution: 0.0,
                     is_sensor: true, // Sensor prevents slow-mo floor bouncing
                 },
-                EphemeralProjectile::new(1.5),
+                EphemeralProjectile::new(lifetime),
                 TransformDirty,
             ));
         }
@@ -115,7 +115,7 @@ fn shooters_action(
     camera_forward: cgmath::Vector3<f32>,
     physics_world: &mut PhysicsWorld,
     event_bus: &mut DynamicEventBus,
-    projectiles_to_spawn: &mut Vec<(ae_physics::glam::Vec3, ae_physics::glam::Vec3)>,
+    projectiles_to_spawn: &mut Vec<(ae_physics::glam::Vec3, ae_physics::glam::Vec3, f32)>,
 ) {
     let ray_origin = ae_physics::glam::Vec3::new(pos.x, pos.y + 1.5, pos.z);
     let ray_dir = ae_physics::glam::Vec3::new(camera_forward.x, camera_forward.y, camera_forward.z)
@@ -130,7 +130,6 @@ fn shooters_action(
     // Queue projectile with dynamic speed configured from CharacterAction
     let bolt_pos = ray_origin + ray_dir * 0.8;
     let bolt_vel = ray_dir * speed;
-    projectiles_to_spawn.push((bolt_pos, bolt_vel));
 
     // Cast ray with range proportional to weapon speed
     let ray_distance = (speed * 2.0).clamp(50.0, 500.0);
@@ -151,11 +150,17 @@ fn shooters_action(
             damage: 25.0,
         });
 
-        // Physical kinetic impulse scaled by weapon velocity
-        let impulse_mag = (speed * 0.2).clamp(5.0, 50.0);
+        // Physical kinetic impulse scaled by weapon velocity: punchy and impactful
+        let impulse_mag = (speed * 0.35).clamp(10.0, 80.0);
         let impulse = ray_dir * impulse_mag + ae_physics::glam::Vec3::new(0.0, 3.5, 0.0);
         physics_world.apply_impulse(hit.entity, impulse);
+
+        // Compute exact time-of-flight to hit surface so projectile impacts and despawns instead of ghosting through
+        let time_to_impact = ((hit.distance - 0.8).max(0.02)) / speed;
+        projectiles_to_spawn.push((bolt_pos, bolt_vel, time_to_impact));
     } else {
         log::info!("💨 [Weapon Raycast] Shot missed (no target in line of fire)");
+        // Miss: fly into the distance for standard projectile lifetime
+        projectiles_to_spawn.push((bolt_pos, bolt_vel, 1.5));
     }
 }

@@ -392,4 +392,63 @@ mod tests {
             "Purely visual entity without RigidBody/Collider must NOT create a Rapier physics body"
         );
     }
+
+    #[test]
+    fn test_dynamic_rigid_body_impulse_retention_across_steps() {
+        let mut physics = PhysicsWorld::new();
+        let mut world = World::new();
+
+        let entity = world.spawn((
+            Position {
+                x: 0.0,
+                y: 10.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 2.0,
+                gravity_scale: 0.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [0.5, 0.5, 0.5],
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        // Initial physics step to register entity into Rapier
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+        // Apply 10.0 N*s impulse along the +X axis to the 2.0 kg body
+        physics.apply_impulse(entity, glam::Vec3::new(10.0, 0.0, 0.0));
+
+        // Step physics again (sync_ecs_to_physics must NOT wipe out this impulse)
+        physics.step(&mut world, |_| None, 0.1, &mut event_bus);
+
+        // Total mass = collider mass (~1.0) + additional_mass (2.0) = ~3.0 kg
+        // Impulse 10.0 => Expected delta velocity = ~3.33 m/s
+        let vel = world.get::<&Velocity>(entity).unwrap();
+        assert!(
+            vel.x > 3.0,
+            "Velocity along X must be preserved around ~3.3 m/s, but got {}",
+            vel.x
+        );
+
+        let pos = world.get::<&Position>(entity).unwrap();
+        assert!(
+            pos.x > 0.2,
+            "Dynamic body position must advance along X axis, but got {}",
+            pos.x
+        );
+    }
 }
