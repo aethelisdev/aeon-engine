@@ -42,11 +42,18 @@ pub fn handle_cursor_moved(
     let dy = y - editor.last_cursor_pos.1;
     editor.last_cursor_pos = (x, y);
 
-    if editor.right_mouse_pressed
-        && is_edit_mode
-        && camera.mode != ae_core::camera::ProjectionMode::Orthographic
-    {
-        crate::modes::handle_mouse_look(camera, editor, dx, dy);
+    if editor.right_mouse_pressed && is_edit_mode {
+        if camera.mode == ae_core::camera::ProjectionMode::Orthographic {
+            let vp_h =
+                ((last_viewport_rect.max_y - last_viewport_rect.min_y) * scale_factor).max(1.0);
+            let world_per_pixel = camera.ortho_scale / vp_h;
+            camera.position.x -= (dx as f32) * world_per_pixel;
+            camera.position.y += (dy as f32) * world_per_pixel;
+            camera.target.x = camera.position.x;
+            camera.target.y = camera.position.y;
+        } else {
+            crate::modes::handle_mouse_look(camera, editor, dx, dy);
+        }
     }
 
     if editor.gizmo_dragging && editor.left_mouse_pressed && is_edit_mode {

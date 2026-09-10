@@ -302,9 +302,36 @@ impl AeEngine {
         );
         state_cmd_buffer.apply(&mut self.ecs.world);
 
-        // Process Kinematic Character Controller (KCC) entities
-
         let dt = self.time.fixed_time_step;
+
+        // Process 2D player movement when in 2D mode
+        if self.dimension_mode.is_2d() {
+            let fwd_axis = self.input.get_axis("MoveForward");
+            let right_axis = self.input.get_axis("MoveRight");
+
+            let speed = if self.input.is_action_pressed("Run") {
+                10.0f32
+            } else {
+                5.0f32
+            };
+
+            let move_x = right_axis * speed * dt;
+            let move_y = fwd_axis * speed * dt;
+
+            if move_x.abs() > 0.0001 || move_y.abs() > 0.0001 {
+                for (_tag, pos) in self
+                    .ecs
+                    .world
+                    .query::<(&ae_core::ecs::PlayerTag, &mut ae_core::ecs::Position)>()
+                    .iter()
+                {
+                    pos.x += move_x;
+                    pos.y += move_y;
+                    pos.z = 0.0;
+                }
+            }
+        }
+
         let mut kcc_entities = Vec::new();
         for (ent, _ctrl) in self
             .ecs
@@ -465,7 +492,9 @@ impl AeEngine {
             self.editor.mouse_delta = (0.0, 0.0);
             self.input.clear_pressed_keys();
         } else if !is_paused && was_paused {
-            self.set_cursor_grab(true);
+            if !self.dimension_mode.is_2d() {
+                self.set_cursor_grab(true);
+            }
             self.editor.mouse_delta = (0.0, 0.0);
         }
 
@@ -522,7 +551,9 @@ impl AeEngine {
                     0.0,
                 );
                 pop_cmd.apply(&mut self.ecs.world);
-                self.set_cursor_grab(true);
+                if !self.dimension_mode.is_2d() {
+                    self.set_cursor_grab(true);
+                }
                 self.editor.mouse_delta = (0.0, 0.0);
             }
         }

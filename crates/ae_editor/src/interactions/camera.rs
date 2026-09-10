@@ -57,6 +57,14 @@ pub fn focus_selected(
         Err(_) => return,
     };
 
+    if camera.mode == ae_core::camera::ProjectionMode::Orthographic {
+        camera.position.x = pos.x;
+        camera.position.y = pos.y;
+        camera.target.x = pos.x;
+        camera.target.y = pos.y;
+        return;
+    }
+
     let forward = camera.get_forward();
     let distance = 5.0;
     let new_pos = pos - forward * distance;
@@ -107,5 +115,38 @@ mod tests {
             "Forward Z should be ~0.0 towards entity, got {}",
             fwd.z
         );
+    }
+
+    /// Tests that focus_selected in Orthographic mode aligns camera XY without altering yaw or pitch angles.
+    #[test]
+    fn test_focus_selected_orthographic_preserves_orientation() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((Position::new(7.0, -4.0, 0.0),));
+
+        let mut editor = EditorState::default();
+        editor.selected_entities.push(entity);
+
+        let mut camera = ae_core::camera::Camera {
+            position: Point3::new(0.0, 0.0, 10.0),
+            yaw: Rad(-std::f32::consts::FRAC_PI_2),
+            pitch: Rad(0.0),
+            aspect: 1.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ae_core::camera::ProjectionMode::Orthographic,
+            ortho_scale: 10.0,
+            target: Point3::new(0.0, 0.0, 0.0),
+        };
+
+        focus_selected(&mut camera, &editor, &world);
+
+        assert_eq!(camera.position.x, 7.0);
+        assert_eq!(camera.position.y, -4.0);
+        assert_eq!(camera.position.z, 10.0);
+        assert_eq!(camera.target.x, 7.0);
+        assert_eq!(camera.target.y, -4.0);
+        assert_eq!(camera.yaw, Rad(-std::f32::consts::FRAC_PI_2));
+        assert_eq!(camera.pitch, Rad(0.0));
     }
 }

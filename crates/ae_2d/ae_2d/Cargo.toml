@@ -1,0 +1,13 @@
+[package]
+name = "ae_2d"
+version = "0.1.0"
+edition = "2024"
+authors = ["AethelisDEV <contact@aethelis.dev>"]
+description = "High-performance, instanced 2D sprite rendering and 2D game subsystem for Aeon Engine."
+license = "MPL-2.0"
+
+[dependencies]
+ae-2d-core = { path = "../ae-2d-core" }
+ae-2d-render = { path = "../ae-2d-render" }
+ae-2d-animation = { path = "../ae-2d-animation" }
+ae-2d-physics = { path = "../ae-2d-physics" }

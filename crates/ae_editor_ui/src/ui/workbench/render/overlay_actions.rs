@@ -299,6 +299,15 @@ impl EngineUi {
                 iris_bridge::HierarchyAction::SpawnShape(shape) => {
                     ui_actions.push(EngineUiAction::SpawnShape(shape));
                 }
+                iris_bridge::HierarchyAction::SpawnDefaultSprite => {
+                    ui_actions.push(EngineUiAction::SpawnDefaultSprite);
+                }
+                iris_bridge::HierarchyAction::SpawnPlayerSprite => {
+                    ui_actions.push(EngineUiAction::SpawnPlayerSprite);
+                }
+                iris_bridge::HierarchyAction::SpawnEmpty2D => {
+                    ui_actions.push(EngineUiAction::SpawnEmpty2D);
+                }
                 iris_bridge::HierarchyAction::SpawnUiElement(elem) => {
                     ui_actions.push(EngineUiAction::SpawnUiElement(elem));
                 }

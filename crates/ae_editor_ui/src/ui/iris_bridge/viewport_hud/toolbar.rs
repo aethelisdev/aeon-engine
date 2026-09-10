@@ -49,16 +49,16 @@ pub fn build_viewport_toolbar(
     } else if is_right {
         ("📐 Right", 64.0)
     } else {
-        ("📐 Ortho", 64.0)
+        ("📐 2D", 56.0)
     };
 
     let (sh_icon_uv, shading_label, sh_w) = if params.wireframe_enabled {
         (ICON_WIREFRAME, "Wireframe", 94.0)
     } else {
-        (ICON_LIGHT, "Lit", 60.0)
+        (ICON_LIGHT, "Lit", 54.0)
     };
 
-    let view_box_w = cam_w + 1.0 + sh_w;
+    let view_box_w = cam_w + sh_w + 1.0;
     let view_box_rect = Rect::new(cur_x, box_y, view_box_w, box_h);
 
     let view_box_id = tree.create_node();
@@ -74,9 +74,9 @@ pub fn build_viewport_toolbar(
     let _ = tree.add_child(parent_id, view_box_id);
 
     // 1.1 Camera Mode Button
-    let is_cam_open = params.active_dropdown == Some(ViewportHudDropdownId::CameraMode);
+    let is_cam_open = is_persp && params.active_dropdown == Some(ViewportHudDropdownId::CameraMode);
     let cam_rect = Rect::new(cur_x, box_y, cam_w, box_h);
-    let is_cam_hover = cam_rect.contains_point(params.cursor_pos);
+    let is_cam_hover = is_persp && cam_rect.contains_point(params.cursor_pos);
 
     let cam_btn_id = tree.create_node();
     if let Some(node) = tree.get_mut(cam_btn_id) {
@@ -140,9 +140,11 @@ pub fn build_viewport_toolbar(
         }
         let _ = tree.add_child(cam_btn_id, cam_txt_id);
     }
-    targets
-        .dropdown_triggers
-        .push((ViewportHudDropdownId::CameraMode, cam_rect));
+    if is_persp {
+        targets
+            .dropdown_triggers
+            .push((ViewportHudDropdownId::CameraMode, cam_rect));
+    }
 
     // Divider between Camera and Shading
     add_divider(tree, view_box_id, cur_x + cam_w, box_y + 5.0, box_h - 10.0);

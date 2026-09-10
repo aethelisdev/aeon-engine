@@ -64,6 +64,13 @@ pub struct AeEngine {
     pub state_manager: ae_core::state::StateManager,
     /// In-Game HUD subsystem manager (Health Bar, Score Counter, Reticle).
     pub in_game_hud: crate::hud::InGameHudState,
+    /// Active dimension mode governing engine operational state and memory isolation.
+    pub dimension_mode: ae_2d::mode::ActiveDimensionMode,
+    /// 2D Sprite batching and rendering pipeline system (allocated ONLY when in 2D mode).
+    pub sprite_2d_system: Option<(
+        ae_2d::renderer::Sprite2DPipeline,
+        ae_2d::renderer::SpriteBatcher,
+    )>,
 }
 
 impl AeEngine {
@@ -73,8 +80,8 @@ impl AeEngine {
     }
 
     /// Asynchronously initializes the engine: creates WGPU surface, default scene,
-    /// plugin host, debug renderer, and checks Python dependency.
-    pub async fn new(window: Arc<Window>) -> Self {
+    /// plugin host, debug renderer, checks Python dependency, and isolates 2D/3D subsystems.
+    pub async fn new(window: Arc<Window>, cli_args: crate::cli::CliArgs) -> Self {
         let (render_state, camera) = RenderState::new(window.clone()).await.unwrap();
         let ui = ae_editor_ui::ui::EngineUi::new(
             &render_state.device,
@@ -86,103 +93,167 @@ impl AeEngine {
             render_state.config.format,
             render_state.post_process.msaa_samples,
         );
+
+        let dimension_mode = cli_args.mode;
+        let sprite_2d_system = if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
+            let pipeline = ae_2d::renderer::Sprite2DPipeline::new(
+                &render_state.device,
+                render_state.config.format,
+                Some(wgpu::TextureFormat::Depth32Float),
+                render_state.post_process.msaa_samples,
+            );
+            let batcher = ae_2d::renderer::SpriteBatcher::new(
+                &render_state.device,
+                &render_state.queue,
+                &pipeline,
+            );
+            Some((pipeline, batcher))
+        } else {
+            None
+        };
+
         let mut ecs = EcsManager::new();
 
-        // Default Scene setup: Static Ground Plane + Physics Dynamic Cube + Sun Light
-        ecs.world.spawn((
-            Name("Ground Plane".to_string()),
-            Shape::Cube,
-            Position {
-                x: 0.0,
-                y: -0.5,
-                z: 0.0,
-            },
-            Rotation::identity(),
-            Scale {
-                x: 50.0,
-                y: 1.0,
-                z: 50.0,
-            },
-            ae_core::ecs::Color {
-                r: 0.2,
-                g: 0.25,
-                b: 0.3,
-                a: 1.0,
-            },
-            Velocity {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            ae_core::ecs::RigidBody {
-                body_type: ae_core::ecs::RigidBodyType::Static,
-                mass: 0.0,
-                gravity_scale: 0.0,
-            },
-            ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Box {
-                    half_extents: [0.5, 0.5, 0.5],
+        if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
+            ecs.world.spawn((
+                Name("Player Sprite".to_string()),
+                ae_core::ecs::PlayerTag,
+                Position {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
                 },
-                friction: 0.7,
-                restitution: 0.0,
-                is_sensor: false,
-            },
-        ));
-
-        ecs.world.spawn((
-            PlayerTag,
-            Name("Dynamic Cube".to_string()),
-            Shape::Cube,
-            Position {
-                x: 0.0,
-                y: 5.0,
-                z: 0.0,
-            },
-            Rotation::identity(),
-            Scale {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
-            ae_core::ecs::Color::soft_blue(),
-            Velocity {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            ae_core::ecs::RigidBody {
-                body_type: ae_core::ecs::RigidBodyType::Dynamic,
-                mass: 1.0,
-                gravity_scale: 1.0,
-            },
-            ae_core::ecs::Collider {
-                shape: ae_core::ecs::ColliderShape::Box {
-                    half_extents: [0.5, 0.5, 0.5],
+                Rotation::identity(),
+                Scale {
+                    x: 2.0,
+                    y: 2.0,
+                    z: 1.0,
                 },
-                friction: 0.7,
-                restitution: 0.0,
-                is_sensor: false,
-            },
-        ));
+                ae_2d::components::SpriteRenderer {
+                    tint: [0.18, 0.8, 0.44, 1.0],
+                    sorting_layer: 0,
+                    order_in_layer: 0,
+                    ..Default::default()
+                },
+            ));
 
-        ecs.world.spawn((
-            Name("Sun".to_string()),
-            Light {
-                position: [5.0, 15.0, 5.0],
-                color: [1.0, 1.0, 0.9],
-            },
-            Position {
-                x: 5.0,
-                y: 15.0,
-                z: 5.0,
-            },
-            Rotation::identity(),
-            Scale {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            },
-        ));
+            ecs.world.spawn((
+                Name("Background Tile".to_string()),
+                Position {
+                    x: 0.0,
+                    y: 0.0,
+                    z: -1.0,
+                },
+                Rotation::identity(),
+                Scale {
+                    x: 10.0,
+                    y: 6.0,
+                    z: 1.0,
+                },
+                ae_2d::components::SpriteRenderer {
+                    tint: [0.1, 0.12, 0.16, 1.0],
+                    sorting_layer: -1,
+                    order_in_layer: 0,
+                    ..Default::default()
+                },
+            ));
+        } else {
+            // Default Scene setup: Static Ground Plane + Physics Dynamic Cube + Sun Light
+            ecs.world.spawn((
+                Name("Ground Plane".to_string()),
+                Shape::Cube,
+                Position {
+                    x: 0.0,
+                    y: -0.5,
+                    z: 0.0,
+                },
+                Rotation::identity(),
+                Scale {
+                    x: 50.0,
+                    y: 1.0,
+                    z: 50.0,
+                },
+                ae_core::ecs::Color {
+                    r: 0.2,
+                    g: 0.25,
+                    b: 0.3,
+                    a: 1.0,
+                },
+                Velocity {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                ae_core::ecs::RigidBody {
+                    body_type: ae_core::ecs::RigidBodyType::Static,
+                    mass: 0.0,
+                    gravity_scale: 0.0,
+                },
+                ae_core::ecs::Collider {
+                    shape: ae_core::ecs::ColliderShape::Box {
+                        half_extents: [0.5, 0.5, 0.5],
+                    },
+                    friction: 0.7,
+                    restitution: 0.0,
+                    is_sensor: false,
+                },
+            ));
+
+            ecs.world.spawn((
+                PlayerTag,
+                Name("Dynamic Cube".to_string()),
+                Shape::Cube,
+                Position {
+                    x: 0.0,
+                    y: 5.0,
+                    z: 0.0,
+                },
+                Rotation::identity(),
+                Scale {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+                ae_core::ecs::Color::soft_blue(),
+                Velocity {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                ae_core::ecs::RigidBody {
+                    body_type: ae_core::ecs::RigidBodyType::Dynamic,
+                    mass: 1.0,
+                    gravity_scale: 1.0,
+                },
+                ae_core::ecs::Collider {
+                    shape: ae_core::ecs::ColliderShape::Box {
+                        half_extents: [0.5, 0.5, 0.5],
+                    },
+                    friction: 0.7,
+                    restitution: 0.0,
+                    is_sensor: false,
+                },
+            ));
+
+            ecs.world.spawn((
+                Name("Sun".to_string()),
+                Light {
+                    position: [5.0, 15.0, 5.0],
+                    color: [1.0, 1.0, 0.9],
+                },
+                Position {
+                    x: 5.0,
+                    y: 15.0,
+                    z: 5.0,
+                },
+                Rotation::identity(),
+                Scale {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                },
+            ));
+        }
 
         let debug_renderer = crate::debug_renderer::DebugRenderer::new(
             &render_state.device,
@@ -219,7 +290,18 @@ impl AeEngine {
             physics_sync_dirty: true, // Run a full sync on the first frame to initialize Rapier bodies
             state_manager: ae_core::state::StateManager::new(),
             in_game_hud: crate::hud::InGameHudState::new(),
+            dimension_mode,
+            sprite_2d_system,
         };
+
+        if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
+            engine.camera.position = cgmath::Point3::new(0.0, 0.0, 10.0);
+            engine.camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);
+            engine.camera.yaw = cgmath::Deg(-90.0).into();
+            engine.camera.pitch = cgmath::Deg(0.0).into();
+            engine.camera.mode = ae_core::camera::ProjectionMode::Orthographic;
+            engine.camera.ortho_scale = 10.0;
+        }
 
         // Align physics fixed time step with EditorConfig frequency
         engine.time.fixed_time_step = 1.0 / engine.editor.config.physics_hz;

@@ -25,6 +25,8 @@ pub struct HierarchyRow {
 pub enum AddSubmenuId {
     /// 3D primitive geometry submenu (Cube, Sphere, Plane, Cylinder, Capsule, Torus, Triangle).
     Objects3D,
+    /// 2D primitive sprite objects submenu (Sprite, Player Sprite, Empty 2D Object).
+    Objects2D,
     /// 2D Canvas & UI elements submenu (Panel, Label, Image, Button, Progress Bar, Slider, Checkbox, Input).
     UiCanvas,
     /// Preset in-game HUD widgets (HealthBar, ScoreDisplay).
@@ -46,6 +48,12 @@ pub enum HierarchyAction {
     DeleteSelected,
     /// Spawn a primitive 3D mesh shape.
     SpawnShape(ae_core::ecs::Shape),
+    /// Spawn a standard 2D Sprite entity.
+    SpawnDefaultSprite,
+    /// Spawn a 2D Player Sprite entity with `PlayerTag`.
+    SpawnPlayerSprite,
+    /// Spawn an empty 2D entity.
+    SpawnEmpty2D,
     /// Spawn a 2D UI element or preset HUD component.
     SpawnUiElement(crate::ui::UiElementType),
     /// Open the 3D model asset import file picker dialog.
@@ -129,6 +137,8 @@ pub struct HierarchyPanelParams<'a> {
     pub search_query: &'a str,
     /// Whether the editor is currently in edit mode (vs play mode).
     pub is_editing: bool,
+    /// Whether the active dimension mode is 2D Sprite Engine mode.
+    pub is_2d: bool,
     /// Vertical scroll offset in physical pixels.
     pub scroll_y: f32,
     /// Active cascading Add Menu submenu (if open).

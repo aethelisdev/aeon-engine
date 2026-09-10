@@ -27,6 +27,7 @@ rfd = "0.17.2"
 ae_plugin_api = { path = "../ae_plugin_api" }
 ae_plugin_host = { path = "../ae_plugin_host" }
 ae_core = { path = "../ae_core" }
+ae_2d = { workspace = true }
 ae_physics = { path = "../ae_physics" }
 ae_audio = { path = "../ae_audio" }
 ae_animation = { path = "../ae_animation" }

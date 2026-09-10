@@ -180,7 +180,8 @@ impl AeEngine {
             && (self.editor.right_mouse_pressed
                 || (self.mode == EngineMode::Play
                     && self.is_cursor_grabbed
-                    && !self.state_manager.is_paused()))
+                    && !self.state_manager.is_paused()
+                    && !self.dimension_mode.is_2d()))
         {
             self.editor.mouse_delta.0 += *dx as f32;
             self.editor.mouse_delta.1 += *dy as f32;

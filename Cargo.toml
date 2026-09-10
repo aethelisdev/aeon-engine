@@ -12,8 +12,13 @@ members = [
     "crates/ae_texture",
     "crates/ae_animation",
     "crates/ae_uidesign",
-    "crates/ae_engine",
+    "crates/ae_2d/ae-2d-core",
+    "crates/ae_2d/ae-2d-render",
+    "crates/ae_2d/ae-2d-physics",
+    "crates/ae_2d/ae-2d-animation",
+    "crates/ae_2d/ae_2d",
     "crates/ae_launcher",
+    "crates/ae_engine",
     "crates/irisui/iris-core",
     "crates/irisui/iris-dock",
     "crates/irisui/iris-layout",
@@ -31,6 +36,12 @@ edition = "2024"
 license = "MPL-2.0"
 
 [workspace.dependencies]
+ae-2d-core = { path = "crates/ae_2d/ae-2d-core" }
+ae-2d-render = { path = "crates/ae_2d/ae-2d-render" }
+ae-2d-physics = { path = "crates/ae_2d/ae-2d-physics" }
+ae-2d-animation = { path = "crates/ae_2d/ae-2d-animation" }
+ae_2d = { path = "crates/ae_2d/ae_2d" }
+
 iris-core = { path = "crates/irisui/iris-core" }
 iris-dock = { path = "crates/irisui/iris-dock" }
 iris-layout = { path = "crates/irisui/iris-layout" }

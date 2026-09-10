@@ -1,0 +1,17 @@
+[package]
+name = "ae-2d-render"
+version = "0.1.0"
+edition = "2024"
+authors = ["AethelisDEV <contact@aethelis.dev>"]
+description = "WGPU instanced sprite batching and rendering pipeline for Aeon Engine."
+license = "MPL-2.0"
+
+[dependencies]
+ae-2d-core = { path = "../ae-2d-core" }
+ae_core = { path = "../../ae_core" }
+ae_texture = { path = "../../ae_texture" }
+bytemuck = { version = "1.25.0", features = ["derive"] }
+cgmath = "0.18"
+glam = "0.33.0"
+log = "0.4.33"
+wgpu = "30.0.1"

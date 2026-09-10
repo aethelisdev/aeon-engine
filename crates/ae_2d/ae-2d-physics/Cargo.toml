@@ -1,0 +1,15 @@
+[package]
+name = "ae-2d-physics"
+version = "0.1.0"
+edition = "2024"
+authors = ["AethelisDEV <contact@aethelis.dev>"]
+description = "High-performance Rapier2D physics simulation and collision system for Aeon Engine."
+license = "MPL-2.0"
+
+[dependencies]
+ae-2d-core = { path = "../ae-2d-core" }
+ae_core = { path = "../../ae_core" }
+rapier2d = "0.35.3"
+glam = "0.33.0"
+hecs = "0.11.0"
+log = "0.4.33"

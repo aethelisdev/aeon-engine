@@ -21,6 +21,9 @@ pub enum EngineUiAction {
 
     // --- HIERARCHY ACTIONS ---
     SpawnShape(ae_core::ecs::Shape),
+    SpawnDefaultSprite,
+    SpawnPlayerSprite,
+    SpawnEmpty2D,
     SpawnUiElement(UiElementType),
     DeleteSelected,
     StressTest(usize),

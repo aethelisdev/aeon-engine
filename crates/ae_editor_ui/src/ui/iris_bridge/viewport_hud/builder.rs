@@ -28,8 +28,10 @@ pub fn build_viewport_hud(
         // 1. Top-left floating toolbar
         toolbar::build_viewport_toolbar(tree, parent_id, params, targets);
 
-        // 2. Top-right 3D Scene Navigation Compass
-        compass::build_scene_navigation_compass(tree, parent_id, params, targets);
+        // 2. Top-right 3D Scene Navigation Compass (only displayed in 3D perspective mode)
+        if params.camera.mode == ae_renderer::camera::ProjectionMode::Perspective {
+            compass::build_scene_navigation_compass(tree, parent_id, params, targets);
+        }
 
         // 3. Bottom-right Camera Info HUD
         camera_hud::build_camera_hud(tree, parent_id, params);

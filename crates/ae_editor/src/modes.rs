@@ -23,6 +23,43 @@ pub fn update_play_mode(
     camera: &mut ae_core::camera::Camera,
     editor: &mut EditorState,
 ) {
+    // In 2D orthographic mode, camera angles must stay strictly planar to prevent 2.5D skewing
+    if camera.mode == ae_core::camera::ProjectionMode::Orthographic {
+        camera.yaw = cgmath::Rad(-std::f32::consts::FRAC_PI_2);
+        camera.pitch = cgmath::Rad(0.0);
+        editor.mouse_delta = (0.0, 0.0);
+
+        // Find active player target position (check PlayerTag first, then CharacterController)
+        let mut player_pos = None;
+        if let Some((_tag, pos)) = ecs
+            .world
+            .query_mut::<(&PlayerTag, &ae_core::ecs::Position)>()
+            .into_iter()
+            .next()
+        {
+            player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
+        } else if let Some((_ctrl, pos)) = ecs
+            .world
+            .query_mut::<(&ae_core::ecs::CharacterController, &ae_core::ecs::Position)>()
+            .into_iter()
+            .next()
+        {
+            player_pos = Some(cgmath::Point3::new(pos.x, pos.y, pos.z));
+        }
+
+        if let Some(target_pos) = player_pos {
+            camera.position.x = target_pos.x;
+            camera.position.y = target_pos.y;
+            camera.position.z = 10.0;
+            camera.target.x = target_pos.x;
+            camera.target.y = target_pos.y;
+            camera.target.z = 0.0;
+        } else {
+            camera.target = camera.position + camera.get_forward();
+        }
+        return;
+    }
+
     // Process mouse look orbit angles if mouse moved while right button held or in Play mode
     let (dx, dy) = editor.mouse_delta;
     if dx.abs() > 0.001 || dy.abs() > 0.001 {
@@ -203,6 +240,45 @@ mod tests {
         assert_eq!(camera.pitch, initial_pitch);
         assert_eq!(camera.position, initial_pos);
         assert_eq!(camera.target, initial_target);
+        assert_eq!(editor.mouse_delta, (0.0, 0.0));
+    }
+
+    /// Verifies that update_play_mode in Orthographic mode strictly locks camera yaw/pitch planar and follows player.
+    #[test]
+    fn test_update_play_mode_orthographic_locks_planar() {
+        let mut ecs = EcsManager::new();
+        let _player = ecs.world.spawn((PlayerTag, Position::new(5.0, 3.0, 0.0)));
+
+        let mut camera = Camera {
+            position: cgmath::Point3::new(0.0, 0.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.5),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+            mode: ae_core::camera::ProjectionMode::Orthographic,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+        let mut editor = EditorState {
+            mouse_delta: (25.0, -15.0),
+            ..Default::default()
+        };
+
+        // Run play mode update
+        update_play_mode(&mut ecs, &mut camera, &mut editor);
+
+        // Yaw and pitch must be strictly planar
+        assert_eq!(camera.yaw, cgmath::Rad(-std::f32::consts::FRAC_PI_2));
+        assert_eq!(camera.pitch, cgmath::Rad(0.0));
+        // Camera position must track player X and Y with Z = 10.0
+        assert_eq!(camera.position.x, 5.0);
+        assert_eq!(camera.position.y, 3.0);
+        assert_eq!(camera.position.z, 10.0);
+        assert_eq!(camera.target.x, 5.0);
+        assert_eq!(camera.target.y, 3.0);
+        assert_eq!(camera.target.z, 0.0);
         assert_eq!(editor.mouse_delta, (0.0, 0.0));
     }
 }

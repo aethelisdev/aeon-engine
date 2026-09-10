@@ -51,54 +51,90 @@ pub fn build_add_menu(
     let menu_y = targets.add_btn_rect.bottom() + 2.0;
     let menu_w = 185.0;
 
-    let root_items = [
-        AddMenuCategoryItem {
-            icon: MenuItemIcon::Texture(ICON_CUBE),
-            label: "3D Objects",
-            has_sub: true,
-            sub_id: Some(AddSubmenuId::Objects3D),
-            action: None,
-        },
-        AddMenuCategoryItem {
-            icon: MenuItemIcon::Text("🎨"),
-            label: "UI & Canvas",
-            has_sub: true,
-            sub_id: Some(AddSubmenuId::UiCanvas),
-            action: None,
-        },
-        AddMenuCategoryItem {
-            icon: MenuItemIcon::Texture(ICON_FOLDER),
-            label: "Assets & Prefabs",
-            has_sub: true,
-            sub_id: Some(AddSubmenuId::AssetsPrefabs),
-            action: None,
-        },
-        AddMenuCategoryItem {
-            icon: MenuItemIcon::Separator,
-            label: "",
-            has_sub: false,
-            sub_id: None,
-            action: None,
-        },
-        AddMenuCategoryItem {
-            icon: MenuItemIcon::Text("🎮"),
-            label: "Phase 1 Test Sandbox",
-            has_sub: false,
-            sub_id: None,
-            action: Some(HierarchyAction::SpawnPhase1TestSandbox),
-        },
-        AddMenuCategoryItem {
-            icon: MenuItemIcon::Text("⚡"),
-            label: "Stress Benchmarks",
-            has_sub: true,
-            sub_id: Some(AddSubmenuId::StressBenchmarks),
-            action: None,
-        },
-    ];
+    let root_items: Vec<AddMenuCategoryItem> = if params.is_2d {
+        vec![
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Text("🖼️"),
+                label: "2D Objects",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::Objects2D),
+                action: None,
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Text("🎨"),
+                label: "UI & Canvas",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::UiCanvas),
+                action: None,
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Texture(ICON_FOLDER),
+                label: "Assets & Prefabs",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::AssetsPrefabs),
+                action: None,
+            },
+        ]
+    } else {
+        vec![
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Texture(ICON_CUBE),
+                label: "3D Objects",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::Objects3D),
+                action: None,
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Text("🎨"),
+                label: "UI & Canvas",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::UiCanvas),
+                action: None,
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Texture(ICON_FOLDER),
+                label: "Assets & Prefabs",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::AssetsPrefabs),
+                action: None,
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Separator,
+                label: "",
+                has_sub: false,
+                sub_id: None,
+                action: None,
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Text("🎮"),
+                label: "Phase 1 Test Sandbox",
+                has_sub: false,
+                sub_id: None,
+                action: Some(HierarchyAction::SpawnPhase1TestSandbox),
+            },
+            AddMenuCategoryItem {
+                icon: MenuItemIcon::Text("⚡"),
+                label: "Stress Benchmarks",
+                has_sub: true,
+                sub_id: Some(AddSubmenuId::StressBenchmarks),
+                action: None,
+            },
+        ]
+    };
 
     let item_h = 24.0;
     let sep_h = 5.0;
-    let total_h = 5.0 * item_h + sep_h + 8.0;
+    let total_h = root_items
+        .iter()
+        .map(|it| {
+            if it.icon == MenuItemIcon::Separator {
+                sep_h
+            } else {
+                item_h
+            }
+        })
+        .sum::<f32>()
+        + 8.0;
 
     let card_rect = Rect::new(menu_x, menu_y, menu_w, total_h);
     targets.active_add_menu_rect = Some(card_rect);
@@ -291,6 +327,26 @@ fn build_submenu(
         Option<HierarchyAction>,
         Option<AddSubmenuId>,
     )> = match submenu_id {
+        AddSubmenuId::Objects2D => vec![
+            (
+                MenuItemIcon::Text("🖼️"),
+                "Sprite",
+                Some(HierarchyAction::SpawnDefaultSprite),
+                None,
+            ),
+            (
+                MenuItemIcon::Text("🏃"),
+                "Player Sprite",
+                Some(HierarchyAction::SpawnPlayerSprite),
+                None,
+            ),
+            (
+                MenuItemIcon::Text("📦"),
+                "Empty 2D Object",
+                Some(HierarchyAction::SpawnEmpty2D),
+                None,
+            ),
+        ],
         AddSubmenuId::Objects3D => vec![
             (
                 MenuItemIcon::Texture(ICON_CUBE),

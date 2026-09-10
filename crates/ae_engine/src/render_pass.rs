@@ -10,6 +10,31 @@ impl AeEngine {
     /// Extracts a snapshot of the current ECS state for the render pipeline.
     /// Passes the spatial grid reference to leverage high-performance culling.
     pub fn extract_render_scene(&self) -> ae_renderer::render::types::RenderScene {
+        if self.dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
+            return ae_renderer::render::types::RenderScene {
+                light_uniform: ae_renderer::render::types::LightUniform {
+                    direction: [0.0, 1.0, 0.0],
+                    _padding: 0,
+                    color: [1.0, 1.0, 1.0],
+                    _padding2: 0,
+                    ambient_color: [0.1, 0.1, 0.15],
+                    _padding3: 0,
+                    fog_params: [0.0; 4],
+                },
+                triangle_instances: Vec::new(),
+                cube_instances: Vec::new(),
+                sphere_instances: Vec::new(),
+                cylinder_instances: Vec::new(),
+                capsule_instances: Vec::new(),
+                torus_instances: Vec::new(),
+                transparent_objs: Vec::new(),
+                model_instance_data: std::collections::HashMap::new(),
+                selected_primitive_instances: Vec::new(),
+                selected_model_instances: Vec::new(),
+                visible_entities: Vec::new(),
+            };
+        }
+
         let empty_set = std::collections::HashSet::new();
         let (selected_set, active_ent) = if self.mode == EngineMode::Edit {
             (&self.editor.selected_entities_set, self.ui.selected_entity)
@@ -89,6 +114,20 @@ impl AeEngine {
                 self.render_state.config.format,
                 new_msaa,
             );
+            if let Some((ref mut pipeline, ref mut batcher)) = self.sprite_2d_system {
+                let new_pipeline = ae_2d::renderer::Sprite2DPipeline::new(
+                    &self.render_state.device,
+                    self.render_state.config.format,
+                    Some(wgpu::TextureFormat::Depth32Float),
+                    new_msaa,
+                );
+                *batcher = ae_2d::renderer::SpriteBatcher::new(
+                    &self.render_state.device,
+                    &self.render_state.queue,
+                    &new_pipeline,
+                );
+                *pipeline = new_pipeline;
+            }
         }
 
         // Prepare gizmo overlay: compute position, distance, write MVP uniform.
@@ -162,15 +201,6 @@ impl AeEngine {
             );
         }
 
-        // Build overlay list (Vec<&dyn OverlayRenderer>)
-        let mut overlays: Vec<&dyn ae_renderer::render::OverlayRenderer> = Vec::new();
-        if render_enabled && self.mode == EngineMode::Edit {
-            if let Some(ov) = overlay {
-                overlays.push(ov);
-            }
-            overlays.push(&self.debug_renderer);
-        }
-
         let mut scene = if render_enabled {
             self.extract_render_scene()
         } else {
@@ -204,6 +234,69 @@ impl AeEngine {
             });
         }
 
+        // Prepare 2D sprite batcher when in Mode2D
+        let mut sprite_overlay: Option<Sprite2DOverlay<'_>> = None;
+        if render_enabled
+            && self.dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D
+            && let Some((pipeline, batcher)) = &mut self.sprite_2d_system
+        {
+            batcher.begin_frame();
+            let cam_view_proj = self.camera.build_view_projection_matrix();
+            batcher.update_camera(&self.render_state.queue, &cam_view_proj);
+
+            for (pos, scale, sprite) in self
+                .ecs
+                .world
+                .query::<(
+                    &Position,
+                    &ae_core::ecs::Scale,
+                    &ae_2d::components::SpriteRenderer,
+                )>()
+                .iter()
+            {
+                let tex_id = sprite
+                    .texture
+                    .map(|t| {
+                        use slotmap::Key;
+                        t.data().as_ffi() as u32
+                    })
+                    .unwrap_or(0);
+                let key = ae_2d::components::SpriteSortKey::from_layer_order_texture(
+                    sprite.sorting_layer,
+                    sprite.order_in_layer,
+                    tex_id,
+                );
+                let model =
+                    cgmath::Matrix4::from_translation(cgmath::Vector3::new(pos.x, pos.y, pos.z))
+                        * cgmath::Matrix4::from_nonuniform_scale(scale.x, scale.y, 1.0);
+                let instance = ae_2d::renderer::SpriteInstance {
+                    model_matrix: model.into(),
+                    uv_rect: sprite.uv_rect,
+                    tint: sprite.tint,
+                };
+                batcher.push_instance(key, instance);
+            }
+
+            batcher.finish_and_upload(&self.render_state.device, &self.render_state.queue);
+            sprite_overlay = Some(Sprite2DOverlay {
+                pipeline,
+                batcher,
+                textures: &self.asset_manager.textures,
+            });
+        }
+
+        // Build overlay list (Vec<&dyn OverlayRenderer>)
+        let mut overlays: Vec<&dyn ae_renderer::render::OverlayRenderer> = Vec::new();
+        if let Some(so) = &sprite_overlay {
+            overlays.push(so);
+        }
+        if render_enabled && self.mode == EngineMode::Edit {
+            if let Some(ov) = overlay {
+                overlays.push(ov);
+            }
+            overlays.push(&self.debug_renderer);
+        }
+
         // Sync profiler snapshot to UI for display
         self.ui.profiler_ecs_ms = self.profiler.ecs_time;
         self.ui.profiler_physics_ms = self.profiler.physics_time;
@@ -232,7 +325,9 @@ impl AeEngine {
         }
 
         let render_options = ae_renderer::render::RenderOptions {
-            grid_enabled: self.ui.grid_enabled && self.mode == EngineMode::Edit,
+            grid_enabled: self.ui.grid_enabled
+                && self.mode == EngineMode::Edit
+                && self.dimension_mode.is_3d(),
             wireframe_enabled: self.ui.wireframe_enabled,
             scale_factor: self.ui.scale_factor(),
         };
@@ -309,7 +404,9 @@ impl AeEngine {
         self.process_ui_actions(ui_actions);
 
         // Declarative Cursor Sync: Ensure cursor grab state matches current EngineMode and Pause state
-        let should_grab = self.mode == EngineMode::Play && !self.state_manager.is_paused();
+        let should_grab = self.mode == EngineMode::Play
+            && !self.state_manager.is_paused()
+            && !self.dimension_mode.is_2d();
         if should_grab && !self.is_cursor_grabbed {
             self.set_cursor_grab(true);
         } else if !should_grab && self.is_cursor_grabbed {
@@ -318,5 +415,22 @@ impl AeEngine {
 
         self.profiler.end_render();
         Ok(())
+    }
+}
+
+/// Viewport overlay adapter that renders batched 2D sprites during the main viewport pass.
+struct Sprite2DOverlay<'a> {
+    pipeline: &'a ae_2d::renderer::Sprite2DPipeline,
+    batcher: &'a ae_2d::renderer::SpriteBatcher,
+    textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+}
+
+impl<'a> ae_renderer::render::OverlayRenderer for Sprite2DOverlay<'a> {
+    fn draw_overlay<'b>(&'b self, _queue: &wgpu::Queue, pass: &mut wgpu::RenderPass<'b>) {
+        self.batcher.render(pass, self.pipeline, |id| {
+            let handle =
+                ae_renderer::asset::AssetHandle::from(slotmap::KeyData::from_ffi(id as u64));
+            self.textures.get(handle).map(|t| &t.bind_group)
+        });
     }
 }

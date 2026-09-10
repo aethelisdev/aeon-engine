@@ -67,6 +67,13 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::SpawnShape(shape) => {
                 spawning::handle_spawn_shape(ctx, shape)
             }
+            crate::ui::EngineUiAction::SpawnDefaultSprite => {
+                spawning::handle_spawn_default_sprite(ctx)
+            }
+            crate::ui::EngineUiAction::SpawnPlayerSprite => {
+                spawning::handle_spawn_player_sprite(ctx)
+            }
+            crate::ui::EngineUiAction::SpawnEmpty2D => spawning::handle_spawn_empty_2d(ctx),
             crate::ui::EngineUiAction::SpawnUiElement(ui_type) => {
                 spawning::handle_spawn_ui_element(ctx, ui_type)
             }

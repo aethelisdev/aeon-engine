@@ -566,3 +566,106 @@ pub fn handle_spawn_ui_element(ctx: &mut UiContext, ui_type: crate::ui::UiElemen
     ctx.editor.selected_entities_set.insert(ent);
     ctx.ui.selected_entity = Some(ent);
 }
+
+/// Spawns a standard 2D Sprite entity at the origin and registers it in undo/redo history.
+pub fn handle_spawn_default_sprite(ctx: &mut UiContext) {
+    let new_entity = ctx.world.spawn((
+        ae_core::ecs::Name("New Sprite".to_string()),
+        ae_core::ecs::Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        ae_core::ecs::Rotation::identity(),
+        ae_core::ecs::Scale {
+            x: 2.0,
+            y: 2.0,
+            z: 1.0,
+        },
+        ae_2d::components::SpriteRenderer {
+            tint: [1.0, 1.0, 1.0, 1.0],
+            sorting_layer: 0,
+            order_in_layer: 0,
+            ..Default::default()
+        },
+    ));
+
+    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
+    ae_editor::history::push_undo(
+        ctx.editor,
+        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
+    );
+    ctx.editor.redo_stack.clear();
+    ctx.editor.selected_entities.clear();
+    ctx.editor.selected_entities_set.clear();
+    ctx.editor.selected_entities.push(new_entity);
+    ctx.editor.selected_entities_set.insert(new_entity);
+    ctx.ui.selected_entity = Some(new_entity);
+}
+
+/// Spawns a 2D Player Sprite entity with `PlayerTag` component at the origin.
+pub fn handle_spawn_player_sprite(ctx: &mut UiContext) {
+    let new_entity = ctx.world.spawn((
+        ae_core::ecs::Name("Player Sprite".to_string()),
+        ae_core::ecs::PlayerTag,
+        ae_core::ecs::Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        ae_core::ecs::Rotation::identity(),
+        ae_core::ecs::Scale {
+            x: 2.0,
+            y: 2.0,
+            z: 1.0,
+        },
+        ae_2d::components::SpriteRenderer {
+            tint: [0.18, 0.80, 0.44, 1.0],
+            sorting_layer: 0,
+            order_in_layer: 0,
+            ..Default::default()
+        },
+    ));
+
+    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
+    ae_editor::history::push_undo(
+        ctx.editor,
+        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
+    );
+    ctx.editor.redo_stack.clear();
+    ctx.editor.selected_entities.clear();
+    ctx.editor.selected_entities_set.clear();
+    ctx.editor.selected_entities.push(new_entity);
+    ctx.editor.selected_entities_set.insert(new_entity);
+    ctx.ui.selected_entity = Some(new_entity);
+}
+
+/// Spawns an empty 2D entity with spatial transform components at the origin.
+pub fn handle_spawn_empty_2d(ctx: &mut UiContext) {
+    let new_entity = ctx.world.spawn((
+        ae_core::ecs::Name("Empty 2D Object".to_string()),
+        ae_core::ecs::Position {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        ae_core::ecs::Rotation::identity(),
+        ae_core::ecs::Scale {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        },
+    ));
+
+    let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
+    ae_editor::history::push_undo(
+        ctx.editor,
+        ae_editor::undo_redo::Command::Spawn(new_entity, snap),
+    );
+    ctx.editor.redo_stack.clear();
+    ctx.editor.selected_entities.clear();
+    ctx.editor.selected_entities_set.clear();
+    ctx.editor.selected_entities.push(new_entity);
+    ctx.editor.selected_entities_set.insert(new_entity);
+    ctx.ui.selected_entity = Some(new_entity);
+}

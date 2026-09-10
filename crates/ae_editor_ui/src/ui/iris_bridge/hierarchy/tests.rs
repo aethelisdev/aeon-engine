@@ -32,6 +32,7 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         selected_entity: None,
         search_query: "",
         is_editing: true,
+        is_2d: false,
         scroll_y: 0.0,
         active_submenu: Some(AddSubmenuId::Objects3D),
         active_sub_submenu: None,
@@ -127,6 +128,7 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         selected_entity: None,
         search_query: "",
         is_editing: true,
+        is_2d: false,
         scroll_y: 0.0,
         active_submenu: Some(AddSubmenuId::UiCanvas),
         active_sub_submenu: None,
@@ -177,6 +179,7 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         selected_entity: None,
         search_query: "",
         is_editing: true,
+        is_2d: false,
         scroll_y: 0.0,
         active_submenu: Some(AddSubmenuId::UiCanvas),
         active_sub_submenu: Some(AddSubmenuId::HudPresets),
@@ -302,6 +305,7 @@ fn test_hierarchy_add_menu_dark_styling_and_no_clickthrough() {
         selected_entity: None,
         search_query: "",
         is_editing: true,
+        is_2d: false,
         scroll_y: 0.0,
         active_submenu: Some(AddSubmenuId::UiCanvas),
         active_sub_submenu: None,
@@ -387,4 +391,64 @@ fn test_hierarchy_add_menu_dark_styling_and_no_clickthrough() {
         consumed_panel,
         "Click inside docked panel_rect must be consumed to prevent click-through to underlying modals"
     );
+}
+
+#[test]
+fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    let _ = tree.set_root(root_id);
+
+    let world = World::new();
+    let mut targets = HierarchyPanelTargets {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+        add_btn_rect: Rect::new(100.0, 10.0, 24.0, 24.0),
+        ..Default::default()
+    };
+
+    let params = HierarchyPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: true,
+        scroll_y: 0.0,
+        active_submenu: Some(AddSubmenuId::Objects2D),
+        active_sub_submenu: None,
+        is_add_menu_open: true,
+        active_context_menu: None,
+        cursor_pos: Point::new(150.0, 100.0),
+        is_search_focused: false,
+        blink_caret: false,
+    };
+
+    build_add_menu(&mut tree, root_id, &params, &mut targets);
+
+    assert!(targets.active_add_menu_rect.is_some());
+    assert!(targets.active_submenu_rect.is_some());
+
+    // Check that 2D objects (Sprite, Player Sprite, Empty 2D Object) actions are present in submenu_items
+    let has_sprite = targets
+        .submenu_items
+        .iter()
+        .any(|(_, action)| *action == super::types::HierarchyAction::SpawnDefaultSprite);
+    let has_player_sprite = targets
+        .submenu_items
+        .iter()
+        .any(|(_, action)| *action == super::types::HierarchyAction::SpawnPlayerSprite);
+    let has_empty_2d = targets
+        .submenu_items
+        .iter()
+        .any(|(_, action)| *action == super::types::HierarchyAction::SpawnEmpty2D);
+
+    assert!(
+        has_sprite,
+        "Submenu must contain SpawnDefaultSprite in 2D mode"
+    );
+    assert!(
+        has_player_sprite,
+        "Submenu must contain SpawnPlayerSprite in 2D mode"
+    );
+    assert!(has_empty_2d, "Submenu must contain SpawnEmpty2D in 2D mode");
 }

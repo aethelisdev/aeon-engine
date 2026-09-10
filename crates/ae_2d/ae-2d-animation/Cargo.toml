@@ -1,0 +1,12 @@
+[package]
+name = "ae-2d-animation"
+version = "0.1.0"
+edition = "2024"
+authors = ["AethelisDEV <contact@aethelis.dev>"]
+description = "Sprite flipbook and sprite sheet animation system for Aeon Engine."
+license = "MPL-2.0"
+
+[dependencies]
+ae-2d-core = { path = "../ae-2d-core" }
+glam = "0.33.0"
+serde = { version = "1.0.228", features = ["derive"] }

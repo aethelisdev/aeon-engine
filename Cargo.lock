@@ -25,6 +25,63 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "ae-2d-animation"
+version = "0.1.0"
+dependencies = [
+ "ae-2d-core",
+ "glam 0.33.6",
+ "serde",
+]
+
+[[package]]
+name = "ae-2d-core"
+version = "0.1.0"
+dependencies = [
+ "ae_core",
+ "ae_texture",
+ "cgmath",
+ "glam 0.33.6",
+ "hecs",
+ "serde",
+]
+
+[[package]]
+name = "ae-2d-physics"
+version = "0.1.0"
+dependencies = [
+ "ae-2d-core",
+ "ae_core",
+ "glam 0.33.6",
+ "hecs",
+ "log",
+ "rapier2d",
+]
+
+[[package]]
+name = "ae-2d-render"
+version = "0.1.0"
+dependencies = [
+ "ae-2d-core",
+ "ae_core",
+ "ae_texture",
+ "bytemuck",
+ "cgmath",
+ "glam 0.33.6",
+ "log",
+ "wgpu",
+]
+
+[[package]]
+name = "ae_2d"
+version = "0.1.0"
+dependencies = [
+ "ae-2d-animation",
+ "ae-2d-core",
+ "ae-2d-physics",
+ "ae-2d-render",
+]
+
+[[package]]
 name = "ae_animation"
 version = "0.9.0"
 dependencies = [
@@ -85,6 +142,7 @@ dependencies = [
 name = "ae_editor_ui"
 version = "0.9.0"
 dependencies = [
+ "ae_2d",
  "ae_animation",
  "ae_audio",
  "ae_core",
@@ -110,6 +168,7 @@ dependencies = [
 name = "ae_engine"
 version = "0.9.0"
 dependencies = [
+ "ae_2d",
  "ae_animation",
  "ae_audio",
  "ae_core",
@@ -2827,6 +2886,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "parry2d"
+version = "0.30.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7637d1087885e0bd9421938e79b66b4eb2e08afcb0c717a312ed917daefa528"
+dependencies = [
+ "approx 0.5.1",
+ "arrayvec",
+ "bitflags 2.13.1",
+ "downcast-rs 2.0.2",
+ "either",
+ "ena",
+ "foldhash",
+ "glamx",
+ "hashbrown 0.17.1",
+ "log",
+ "num-derive",
+ "num-traits",
+ "ordered-float",
+ "simba",
+ "slab",
+ "smallvec",
+ "spade",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "parry3d"
 version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3130,6 +3215,28 @@ name = "rangemap"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a611d15b50743feb4c76b7d03edcb0e64f399c26961e4efe6975bc398be6aa3d"
+
+[[package]]
+name = "rapier2d"
+version = "0.35.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da2cd77e3c7385ae61bac2357edd4e4775a149c8610fda2c7fc4477cabe0487"
+dependencies = [
+ "approx 0.5.1",
+ "arrayvec",
+ "bitflags 2.13.1",
+ "glamx",
+ "log",
+ "nalgebra",
+ "num-traits",
+ "parry2d",
+ "profiling",
+ "serde",
+ "simba",
+ "static_assertions",
+ "thiserror 2.0.20",
+ "wide",
+]
 
 [[package]]
 name = "rapier3d"

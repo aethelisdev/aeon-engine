@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 pub mod behavior_runner;
+pub mod cli;
 pub mod debug_renderer;
 pub mod engine;
 pub mod events;
@@ -49,13 +50,15 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 /// Uses `Option<AeEngine>` to support deferred initialization (engine is created
 /// in `resumed()` when the window is ready). Also tracks frame timing for FPS limiting.
 struct AeApp {
+    cli_args: cli::CliArgs,
     engine: Option<AeEngine>,
     last_frame_time: std::time::Instant,
 }
 
 impl AeApp {
-    fn new() -> Self {
+    fn new(cli_args: cli::CliArgs) -> Self {
         Self {
+            cli_args,
             engine: None,
             last_frame_time: std::time::Instant::now(),
         }
@@ -116,7 +119,7 @@ impl ApplicationHandler for AeApp {
             );
 
             // Initialize Core Engine State
-            let engine = pollster::block_on(AeEngine::new(window.clone()));
+            let engine = pollster::block_on(AeEngine::new(window.clone(), self.cli_args.clone()));
             window.set_visible(true);
             self.engine = Some(engine);
             self.last_frame_time = std::time::Instant::now();
@@ -385,11 +388,16 @@ impl AeApp {
 /// with `ControlFlow::Poll` (continuous rendering), and runs the application.
 fn main() {
     ae_editor::editor_logger::init().unwrap();
-    log::info!("Aeon Engine started.");
+    let cli_args = cli::CliArgs::from_env();
+    log::info!(
+        "Aeon Engine started. Active mode: {:?}, project: {:?}",
+        cli_args.mode,
+        cli_args.project_path
+    );
 
     let event_loop = EventLoop::new().expect("Failed to create Event Loop");
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut app = AeApp::new();
+    let mut app = AeApp::new(cli_args);
     let _ = event_loop.run_app(&mut app);
 }
