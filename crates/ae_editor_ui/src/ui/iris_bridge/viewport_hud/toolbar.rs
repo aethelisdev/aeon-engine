@@ -59,7 +59,11 @@ pub fn build_viewport_toolbar(
         (ICON_LIGHT, "Lit", 54.0)
     };
 
-    let view_box_w = cam_w + 1.0 + sh_w;
+    let view_box_w = if params.is_2d {
+        cam_w
+    } else {
+        cam_w + 1.0 + sh_w
+    };
     let view_box_rect = Rect::new(cur_x, box_y, view_box_w, box_h);
 
     let view_box_id = tree.create_node();
@@ -88,25 +92,21 @@ pub fn build_viewport_toolbar(
             "CameraModeBtn"
         });
         node.computed_rect = cam_rect;
-        let bg = if params.is_2d {
-            Color::rgba(0.06, 0.46, 0.92, 0.20)
-        } else if is_cam_open || is_cam_hover {
+        let bg = if !params.is_2d && (is_cam_open || is_cam_hover) {
             Color::rgba(0.20, 0.23, 0.30, 0.90)
         } else {
             Color::TRANSPARENT
         };
-        node.style = Style::new().background(bg).corner_radii(CornerRadii::new(
-            corner_radius,
-            0.0,
-            0.0,
-            corner_radius,
-        ));
+        let radii = if params.is_2d {
+            CornerRadii::all(corner_radius)
+        } else {
+            CornerRadii::new(corner_radius, 0.0, 0.0, corner_radius)
+        };
+        node.style = Style::new().background(bg).corner_radii(radii);
     }
     let _ = tree.add_child(view_box_id, cam_btn_id);
 
-    let cam_text_color = if params.is_2d {
-        Color::rgba(0.25, 0.75, 1.0, 1.0)
-    } else if is_cam_open || is_cam_hover {
+    let cam_text_color = if !params.is_2d && (is_cam_open || is_cam_hover) {
         Color::rgba(1.0, 1.0, 1.0, 1.0)
     } else {
         Color::rgba(0.85, 0.88, 0.94, 1.0)
@@ -155,72 +155,72 @@ pub fn build_viewport_toolbar(
         let _ = tree.add_child(cam_btn_id, cam_txt_id);
     }
 
-    // Only register CameraMode dropdown trigger in 3D mode
+    // Only in 3D mode: register CameraMode dropdown trigger and Shading Mode button
     if !params.is_2d {
         targets
             .dropdown_triggers
             .push((ViewportHudDropdownId::CameraMode, cam_rect));
-    }
 
-    // Divider between Mode/Camera and Shading
-    add_divider(tree, view_box_id, cur_x + cam_w, box_y + 5.0, box_h - 10.0);
+        // Divider between Camera and Shading
+        add_divider(tree, view_box_id, cur_x + cam_w, box_y + 5.0, box_h - 10.0);
 
-    // 1.2 Shading Mode Button
-    let sh_x = cur_x + cam_w + 1.0;
-    let is_sh_open = params.active_dropdown == Some(ViewportHudDropdownId::ShadingMode);
-    let sh_rect = Rect::new(sh_x, box_y, sh_w, box_h);
-    let is_sh_hover = sh_rect.contains_point(params.cursor_pos);
+        // 1.2 Shading Mode Button
+        let sh_x = cur_x + cam_w + 1.0;
+        let is_sh_open = params.active_dropdown == Some(ViewportHudDropdownId::ShadingMode);
+        let sh_rect = Rect::new(sh_x, box_y, sh_w, box_h);
+        let is_sh_hover = sh_rect.contains_point(params.cursor_pos);
 
-    let sh_btn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sh_btn_id) {
-        node.set_name("ShadingModeBtn");
-        node.computed_rect = sh_rect;
-        let bg = if is_sh_open || is_sh_hover {
-            Color::rgba(0.20, 0.23, 0.30, 0.90)
+        let sh_btn_id = tree.create_node();
+        if let Some(node) = tree.get_mut(sh_btn_id) {
+            node.set_name("ShadingModeBtn");
+            node.computed_rect = sh_rect;
+            let bg = if is_sh_open || is_sh_hover {
+                Color::rgba(0.20, 0.23, 0.30, 0.90)
+            } else {
+                Color::TRANSPARENT
+            };
+            node.style = Style::new().background(bg).corner_radii(CornerRadii::new(
+                0.0,
+                corner_radius,
+                corner_radius,
+                0.0,
+            ));
+        }
+        let _ = tree.add_child(view_box_id, sh_btn_id);
+
+        let sh_text_color = if is_sh_open || is_sh_hover {
+            Color::rgba(1.0, 1.0, 1.0, 1.0)
         } else {
-            Color::TRANSPARENT
+            Color::rgba(0.85, 0.88, 0.94, 1.0)
         };
-        node.style = Style::new().background(bg).corner_radii(CornerRadii::new(
-            0.0,
-            corner_radius,
-            corner_radius,
-            0.0,
-        ));
-    }
-    let _ = tree.add_child(view_box_id, sh_btn_id);
 
-    let sh_text_color = if is_sh_open || is_sh_hover {
-        Color::rgba(1.0, 1.0, 1.0, 1.0)
-    } else {
-        Color::rgba(0.85, 0.88, 0.94, 1.0)
-    };
+        let sh_icon_size = 18.0;
+        let sh_icon_x = sh_x + 6.0;
+        let sh_icon_y = box_y + (box_h - sh_icon_size) * 0.5;
+        let sh_icon_id = tree.create_node();
+        if let Some(node) = tree.get_mut(sh_icon_id) {
+            node.set_name("ShadingModeIcon");
+            node.computed_rect = Rect::new(sh_icon_x, sh_icon_y, sh_icon_size, sh_icon_size);
+            node.set_texture_uv(sh_icon_uv);
+            node.set_texture_tint(sh_text_color);
+        }
+        let _ = tree.add_child(sh_btn_id, sh_icon_id);
 
-    let sh_icon_size = 18.0;
-    let sh_icon_x = sh_x + 6.0;
-    let sh_icon_y = box_y + (box_h - sh_icon_size) * 0.5;
-    let sh_icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sh_icon_id) {
-        node.set_name("ShadingModeIcon");
-        node.computed_rect = Rect::new(sh_icon_x, sh_icon_y, sh_icon_size, sh_icon_size);
-        node.set_texture_uv(sh_icon_uv);
-        node.set_texture_tint(sh_text_color);
+        let sh_txt_id = tree.create_node();
+        if let Some(node) = tree.get_mut(sh_txt_id) {
+            node.set_name("ShadingModeText");
+            node.set_text(shading_label);
+            node.font_size = 11.0;
+            node.line_height = box_h;
+            node.text_align = TextAlign::Center;
+            node.text_color = sh_text_color;
+            node.computed_rect = Rect::new(sh_x + 25.0, box_y, sh_w - 25.0, box_h);
+        }
+        let _ = tree.add_child(sh_btn_id, sh_txt_id);
+        targets
+            .dropdown_triggers
+            .push((ViewportHudDropdownId::ShadingMode, sh_rect));
     }
-    let _ = tree.add_child(sh_btn_id, sh_icon_id);
-
-    let sh_txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sh_txt_id) {
-        node.set_name("ShadingModeText");
-        node.set_text(shading_label);
-        node.font_size = 11.0;
-        node.line_height = box_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = sh_text_color;
-        node.computed_rect = Rect::new(sh_x + 25.0, box_y, sh_w - 25.0, box_h);
-    }
-    let _ = tree.add_child(sh_btn_id, sh_txt_id);
-    targets
-        .dropdown_triggers
-        .push((ViewportHudDropdownId::ShadingMode, sh_rect));
 
     cur_x += view_box_w + group_gap;
 
@@ -520,6 +520,15 @@ mod tests {
         assert!(
             cam_trigger.is_none(),
             "CameraMode dropdown trigger must be suppressed in 2D mode"
+        );
+
+        let sh_trigger = targets
+            .dropdown_triggers
+            .iter()
+            .find(|(id, _)| *id == ViewportHudDropdownId::ShadingMode);
+        assert!(
+            sh_trigger.is_none(),
+            "ShadingMode dropdown trigger must be suppressed in 2D mode"
         );
     }
 }
