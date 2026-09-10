@@ -373,6 +373,7 @@ impl AeEngine {
                     textures: &asset_manager.textures,
                     shaders: &asset_manager.shaders,
                     enabled_modules: &event_bus.enabled_modules,
+                    is_2d_mode: self.dimension_mode.is_2d(),
                     ui_actions: &mut ui_actions,
                 })
             };

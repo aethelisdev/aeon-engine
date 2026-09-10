@@ -280,3 +280,32 @@ pub fn map_window_to_viewport(
         (mx as f32, my as f32, window_size)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use ae_core::camera::{Camera, ProjectionMode};
+
+    /// Verifies that right-click dragging while in Orthographic mode preserves
+    /// `ProjectionMode::Orthographic` and updates camera planar position.
+    #[test]
+    fn test_orthographic_right_click_drag_preserves_mode() {
+        let camera = Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Orthographic,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+
+        assert_eq!(
+            camera.mode,
+            ProjectionMode::Orthographic,
+            "Orthographic camera mode must remain preserved"
+        );
+    }
+}

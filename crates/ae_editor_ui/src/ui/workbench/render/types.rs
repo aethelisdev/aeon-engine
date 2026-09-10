@@ -29,5 +29,7 @@ pub struct EditorUiRenderParams<'a> {
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
     pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    /// Whether the editor is running in 2D dimension mode.
+    pub is_2d_mode: bool,
     pub ui_actions: &'a mut Vec<EngineUiAction>,
 }

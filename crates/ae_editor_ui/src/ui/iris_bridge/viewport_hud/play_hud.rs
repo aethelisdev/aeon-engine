@@ -491,6 +491,7 @@ mod tests {
             selected_entity: None,
             world: &world,
             is_editing: false,
+            is_2d: false,
         };
 
         let mut targets = ViewportHudTargets::default();
@@ -537,6 +538,7 @@ mod tests {
             selected_entity: None,
             world: &world,
             is_editing: false,
+            is_2d: false,
         };
 
         let mut targets = ViewportHudTargets::default();

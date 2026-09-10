@@ -221,6 +221,9 @@ impl EngineUi {
                 iris_bridge::ViewportHudAction::SetCameraMode(cmode) => {
                     ui_actions.push(EngineUiAction::SetCameraMode(cmode));
                 }
+                iris_bridge::ViewportHudAction::ToggleCameraProjection => {
+                    ui_actions.push(EngineUiAction::ToggleCameraProjection);
+                }
                 iris_bridge::ViewportHudAction::SetCameraTransform {
                     pitch,
                     yaw,

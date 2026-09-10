@@ -225,6 +225,7 @@ impl EngineUi {
             ui_designer_panel_rect: ui_designer_rect,
             textures: params.textures,
             models: params.models,
+            is_2d_mode: params.is_2d_mode,
         });
 
         // 4. Viewport Texture Re-registration Check

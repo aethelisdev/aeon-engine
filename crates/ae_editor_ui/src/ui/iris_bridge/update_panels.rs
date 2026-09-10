@@ -72,7 +72,7 @@ impl IrisEditorOverlay {
                 selected_entity: params.selected_entity,
                 search_query: &self.hierarchy_search_query,
                 is_editing: params.is_editing,
-                is_2d: params.camera.mode == ae_renderer::camera::ProjectionMode::Orthographic,
+                is_2d: params.is_2d,
                 scroll_y: self.hierarchy_scroll_y,
                 active_submenu: self.hierarchy_active_submenu,
                 active_sub_submenu: self.hierarchy_active_sub_submenu,

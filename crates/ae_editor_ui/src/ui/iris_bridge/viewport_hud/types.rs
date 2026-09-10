@@ -26,6 +26,8 @@ pub enum ViewportHudDropdownId {
 pub enum ViewportHudAction {
     /// Sets camera projection mode.
     SetCameraMode(ProjectionMode),
+    /// Toggles camera projection mode between 3D Perspective and 2D Orthographic.
+    ToggleCameraProjection,
     /// Sets camera orientation angles and eye position, optionally switching projection mode.
     SetCameraTransform {
         /// Camera pitch in radians.
@@ -96,4 +98,6 @@ pub struct ViewportHudParams<'a> {
     pub world: &'a World,
     /// Whether the editor is currently in Edit mode (vs Play mode).
     pub is_editing: bool,
+    /// Whether the active project / dimension mode is 2D.
+    pub is_2d: bool,
 }

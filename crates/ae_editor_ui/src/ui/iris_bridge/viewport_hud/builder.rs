@@ -28,16 +28,17 @@ pub fn build_viewport_hud(
         // 1. Top-left floating toolbar
         toolbar::build_viewport_toolbar(tree, parent_id, params, targets);
 
-        // 2. Top-right 3D Scene Navigation Compass (only displayed in 3D perspective mode)
-        if params.camera.mode == ae_renderer::camera::ProjectionMode::Perspective {
+        // In 2D dimension mode, 3D compass and 3D camera Euler angle telemetry are hidden
+        if !params.is_2d {
+            // 2. Top-right 3D Scene Navigation Compass (visible across all 3D projection modes)
             compass::build_scene_navigation_compass(tree, parent_id, params, targets);
+
+            // 3. Bottom-right Camera Info HUD
+            camera_hud::build_camera_hud(tree, parent_id, params);
+
+            // 4. 3D projected billboard icons
+            billboards::build_billboard_icons(tree, parent_id, params, targets);
         }
-
-        // 3. Bottom-right Camera Info HUD
-        camera_hud::build_camera_hud(tree, parent_id, params);
-
-        // 4. 3D projected billboard icons
-        billboards::build_billboard_icons(tree, parent_id, params, targets);
 
         // 5. Active dropdown popup if open
         if let Some(active_dd) = params.active_dropdown {

@@ -68,6 +68,7 @@ impl IrisEditorOverlay {
                 selected_entity: params.selected_entity,
                 world: params.world,
                 is_editing: params.is_editing,
+                is_2d: params.is_2d,
             },
             &mut hud_targets,
         );

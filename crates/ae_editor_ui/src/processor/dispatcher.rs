@@ -255,6 +255,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::SetCameraMode(mode) => {
                 system::handle_set_camera_mode(ctx, mode)
             }
+            crate::ui::EngineUiAction::ToggleCameraProjection => {
+                system::handle_toggle_camera_projection(ctx);
+            }
             crate::ui::EngineUiAction::SetCameraTransform {
                 pitch,
                 yaw,

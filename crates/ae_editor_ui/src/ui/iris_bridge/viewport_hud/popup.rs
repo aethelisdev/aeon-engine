@@ -40,56 +40,48 @@ pub fn render_viewport_hud_dropdown_popup(
             let target = params.camera.target;
             let d = 10.0;
 
-            let opts = if !is_persp {
-                vec![(
-                    "📐 2D View".to_string(),
+            let opts = vec![
+                (
+                    "Perspective".to_string(),
+                    ViewportHudAction::SetCameraMode(ProjectionMode::Perspective),
+                    is_persp,
+                ),
+                (
+                    "📐 Orthographic".to_string(),
                     ViewportHudAction::SetCameraMode(ProjectionMode::Orthographic),
-                    true,
-                )]
-            } else {
-                vec![
-                    (
-                        "Perspective".to_string(),
-                        ViewportHudAction::SetCameraMode(ProjectionMode::Perspective),
-                        is_persp,
-                    ),
-                    (
-                        "📐 Orthographic".to_string(),
-                        ViewportHudAction::SetCameraMode(ProjectionMode::Orthographic),
-                        is_ortho,
-                    ),
-                    (
-                        "📐 Top".to_string(),
-                        ViewportHudAction::SetCameraTransform {
-                            pitch: cgmath::Rad(-std::f32::consts::FRAC_PI_2 + 0.001),
-                            yaw: cgmath::Rad(0.0),
-                            position: cgmath::Point3::new(target.x, target.y + d, target.z),
-                            mode: Some(ProjectionMode::Orthographic),
-                        },
-                        is_top,
-                    ),
-                    (
-                        "📐 Front".to_string(),
-                        ViewportHudAction::SetCameraTransform {
-                            pitch: cgmath::Rad(0.0),
-                            yaw: cgmath::Rad(std::f32::consts::FRAC_PI_2),
-                            position: cgmath::Point3::new(target.x, target.y, target.z - d),
-                            mode: Some(ProjectionMode::Orthographic),
-                        },
-                        is_front,
-                    ),
-                    (
-                        "📐 Right".to_string(),
-                        ViewportHudAction::SetCameraTransform {
-                            pitch: cgmath::Rad(0.0),
-                            yaw: cgmath::Rad(0.0),
-                            position: cgmath::Point3::new(target.x - d, target.y, target.z),
-                            mode: Some(ProjectionMode::Orthographic),
-                        },
-                        is_right,
-                    ),
-                ]
-            };
+                    is_ortho,
+                ),
+                (
+                    "📐 Top".to_string(),
+                    ViewportHudAction::SetCameraTransform {
+                        pitch: cgmath::Rad(-std::f32::consts::FRAC_PI_2 + 0.001),
+                        yaw: cgmath::Rad(0.0),
+                        position: cgmath::Point3::new(target.x, target.y + d, target.z),
+                        mode: Some(ProjectionMode::Orthographic),
+                    },
+                    is_top,
+                ),
+                (
+                    "📐 Front".to_string(),
+                    ViewportHudAction::SetCameraTransform {
+                        pitch: cgmath::Rad(0.0),
+                        yaw: cgmath::Rad(std::f32::consts::FRAC_PI_2),
+                        position: cgmath::Point3::new(target.x, target.y, target.z - d),
+                        mode: Some(ProjectionMode::Orthographic),
+                    },
+                    is_front,
+                ),
+                (
+                    "📐 Right".to_string(),
+                    ViewportHudAction::SetCameraTransform {
+                        pitch: cgmath::Rad(0.0),
+                        yaw: cgmath::Rad(0.0),
+                        position: cgmath::Point3::new(target.x - d, target.y, target.z),
+                        mode: Some(ProjectionMode::Orthographic),
+                    },
+                    is_right,
+                ),
+            ];
             (opts.len(), opts)
         }
         ViewportHudDropdownId::ShadingMode => {
@@ -216,6 +208,7 @@ mod tests {
             selected_entity: None,
             world: &world,
             is_editing: true,
+            is_2d: false,
         };
 
         let mut targets = ViewportHudTargets::default();

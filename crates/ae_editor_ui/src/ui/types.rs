@@ -38,6 +38,7 @@ pub enum EngineUiAction {
     SetUiScale(f32),
     SelectEntity(Option<hecs::Entity>),
     SetCameraMode(ae_renderer::camera::ProjectionMode),
+    ToggleCameraProjection,
     SetCameraTransform {
         pitch: cgmath::Rad<f32>,
         yaw: cgmath::Rad<f32>,

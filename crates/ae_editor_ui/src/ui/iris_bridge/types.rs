@@ -568,6 +568,8 @@ pub struct OverlayUpdateParams<'a> {
     pub dimensions: (f32, f32),
     /// Whether the editor is currently in Edit mode.
     pub is_editing: bool,
+    /// Whether the project is running in 2D dimension mode.
+    pub is_2d: bool,
     /// Active panel layout state reference.
     pub layout_state: &'a PanelLayoutState,
     /// Whether undo is available.

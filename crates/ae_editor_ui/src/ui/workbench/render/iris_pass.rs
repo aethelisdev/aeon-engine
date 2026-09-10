@@ -40,6 +40,8 @@ pub struct IrisPassParams<'a> {
     pub ui_designer_panel_rect: Option<Rect>,
     pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    /// Whether the editor is running in 2D dimension mode.
+    pub is_2d_mode: bool,
 }
 
 impl EngineUi {
@@ -135,6 +137,7 @@ impl EngineUi {
             .update_overlays(iris_bridge::OverlayUpdateParams {
                 dimensions: (logical_w, logical_h),
                 is_editing: params.is_editing,
+                is_2d: params.is_2d_mode,
                 layout_state: &self.layout_state,
                 can_undo: !params.undo_stack.is_empty(),
                 can_redo: !params.redo_stack.is_empty(),

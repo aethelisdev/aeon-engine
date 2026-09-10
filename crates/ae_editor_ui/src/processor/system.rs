@@ -119,6 +119,24 @@ pub fn handle_set_camera_mode(ctx: &mut UiContext, mode: ae_renderer::camera::Pr
     ctx.camera.mode = mode;
 }
 
+/// Handles toggling 3D viewport camera projection mode between Perspective and Orthographic.
+pub fn handle_toggle_camera_projection(ctx: &mut UiContext) {
+    match ctx.camera.mode {
+        ae_renderer::camera::ProjectionMode::Perspective => {
+            ctx.camera.mode = ae_renderer::camera::ProjectionMode::Orthographic;
+            ctx.camera.pitch = cgmath::Rad(0.0);
+            ctx.camera.yaw = cgmath::Rad(-std::f32::consts::FRAC_PI_2);
+        }
+        ae_renderer::camera::ProjectionMode::Orthographic => {
+            ctx.camera.mode = ae_renderer::camera::ProjectionMode::Perspective;
+            if ctx.camera.pitch.0.abs() < 0.05 {
+                ctx.camera.pitch = cgmath::Rad(-0.35);
+                ctx.camera.yaw = cgmath::Rad(-0.60);
+            }
+        }
+    }
+}
+
 /// Handles snapping 3D viewport camera orientation to standard axes and optionally updates projection mode.
 pub fn handle_set_camera_transform(
     ctx: &mut UiContext,
