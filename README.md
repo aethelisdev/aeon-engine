@@ -38,6 +38,11 @@ Make sure you have Rust installed on your machine.
 ```bash
 git clone https://github.com/aethelisdev/aeon-engine.git
 cd aeon-engine
+
+# Run Aeon Hub (Project Manager & Launcher)
+cargo run --release
+
+# Or launch the Editor directly:
 cargo run -p ae_engine --release
 ```
 

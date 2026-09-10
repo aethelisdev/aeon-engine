@@ -13,6 +13,7 @@ members = [
     "crates/ae_animation",
     "crates/ae_uidesign",
     "crates/ae_engine",
+    "crates/ae_launcher",
     "crates/irisui/iris-core",
     "crates/irisui/iris-dock",
     "crates/irisui/iris-layout",
@@ -21,7 +22,7 @@ members = [
     "crates/irisui/iris-widgets",
     "crates/irisui/irisui",
 ]
-default-members = ["crates/ae_engine"]
+default-members = ["crates/ae_launcher"]
 resolver = "2"
 
 [workspace.package]

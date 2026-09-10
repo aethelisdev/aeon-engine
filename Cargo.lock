@@ -144,6 +144,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ae_launcher"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "glam 0.33.6",
+ "image",
+ "irisui",
+ "log",
+ "pollster 1.0.1",
+ "rfd",
+ "serde",
+ "serde_json",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "ae_physics"
 version = "0.9.0"
 dependencies = [
