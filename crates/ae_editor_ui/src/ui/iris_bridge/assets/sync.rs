@@ -9,7 +9,7 @@
 
 use super::cards::update_retained_card_hover_and_selection;
 use super::panel::build_assets_panel_retained;
-use super::types::{AssetBrowserRetainedState, AssetsPanelParams, AssetsPanelTargets};
+use super::types::{AssetBrowserRetainedState, AssetsPanelParams};
 use irisui::prelude::*;
 
 /// Synchronizes the Content / Asset Browser panel into the `UiTree` in Retained Mode.
@@ -27,8 +27,7 @@ pub fn sync_assets_panel(
     parent_id: WidgetId,
     retained_state: &mut Option<AssetBrowserRetainedState>,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
-) {
+) -> bool {
     let needs_full_rebuild = match retained_state {
         Some(state) => {
             if !tree.contains_node(state.root_id) {
@@ -46,12 +45,7 @@ pub fn sync_assets_panel(
                     || snapshot.sidebar_collapsed != params.sidebar_collapsed
                     || params.active_context_menu.is_some()
                     || params.active_preview_modal.is_some()
-                    || snapshot.item_paths.len() != params.filtered_items.len()
-                    || snapshot
-                        .item_paths
-                        .iter()
-                        .zip(params.filtered_items.iter())
-                        .any(|(a, b)| a != &b.path)
+                    || snapshot.revision != params.revision
             } else {
                 true
             }
@@ -63,13 +57,21 @@ pub fn sync_assets_panel(
         if let Some(prev) = retained_state.take() {
             let _ = tree.remove_node(prev.root_id);
         }
-        let new_retained = build_assets_panel_retained(tree, parent_id, params, targets);
+        let new_retained = build_assets_panel_retained(tree, parent_id, params);
         *retained_state = Some(new_retained);
-        return;
+        return true;
     }
 
     // Retained Fast Path: Structure is identical
     if let Some(state) = retained_state {
+        // Guarantee root container retains its valid dock content rect
+        if let Some(node) = tree.get(state.root_id)
+            && node.computed_rect != params.panel_rect
+            && let Some(node_mut) = tree.get_mut(state.root_id)
+        {
+            node_mut.computed_rect = params.panel_rect;
+        }
+
         // Ensure parent relationship is synchronized (docked vs floating window container)
         if tree.get(state.root_id).and_then(|n| n.parent) != Some(parent_id) {
             let _ = tree.add_child(parent_id, state.root_id);
@@ -86,8 +88,8 @@ pub fn sync_assets_panel(
         if style_changed && let Some(ref mut snapshot) = state.snapshot {
             snapshot.selected_asset = params.selected_asset.map(|p| p.to_path_buf());
         }
-
-        // Preserve cached interaction hit targets without recomputing
-        *targets = state.cached_targets.clone();
+        style_changed
+    } else {
+        false
     }
 }

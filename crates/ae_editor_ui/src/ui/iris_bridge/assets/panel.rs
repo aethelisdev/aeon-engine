@@ -34,9 +34,11 @@ pub fn build_assets_panel_retained(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
 ) -> AssetBrowserRetainedState {
-    targets.panel_rect = params.panel_rect;
+    let mut targets = AssetsPanelTargets {
+        panel_rect: params.panel_rect,
+        ..Default::default()
+    };
 
     // 1. Panel Root Container with Hardware Scissor Clipping
     let root_id = tree.create_node();
@@ -171,7 +173,7 @@ pub fn build_assets_panel_retained(
             (Color::rgba(0.20, 0.23, 0.30, 0.60), 1.0)
         };
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.95))
+            .background(ELEVATION_3_INACTIVE_PILL)
             .border_radius(4.0)
             .border(border_w, border_c);
     }
@@ -320,12 +322,12 @@ pub fn build_assets_panel_retained(
         node.set_name("AssetsCategoryChipsBar");
         node.computed_rect = chips_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.95))
-            .border(1.0, Color::rgba(0.14, 0.16, 0.22, 0.50));
+            .background(ELEVATION_2_HEADER)
+            .border(1.0, BORDER_MICRON);
     }
     let _ = tree.add_child(root_id, chips_bar_id);
 
-    build_category_chips(tree, chips_bar_id, chips_rect, params, targets);
+    build_category_chips(tree, chips_bar_id, chips_rect, params, &mut targets);
 
     // 4. Split Body (Sidebar + Content Viewport) & Bottom Status Footer
     let middle_y = chips_rect.bottom();
@@ -338,7 +340,7 @@ pub fn build_assets_panel_retained(
             params.sidebar_width,
             middle_h,
         );
-        build_folder_tree_sidebar(tree, root_id, sb_rect, params, targets);
+        build_folder_tree_sidebar(tree, root_id, sb_rect, params, &mut targets);
         params.panel_rect.x + params.sidebar_width
     } else {
         targets.sidebar_rect = None;
@@ -354,7 +356,7 @@ pub fn build_assets_panel_retained(
         node.set_name("AssetsContentViewport");
         node.computed_rect = content_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.04, 0.05, 0.07, 0.98))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(root_id, content_vp_id);
@@ -363,11 +365,11 @@ pub fn build_assets_panel_retained(
     let retained_cards = match params.view_mode {
         AssetViewMode::Grid => {
             targets.list_rows.clear();
-            build_retained_asset_grid_cards(tree, content_vp_id, content_rect, params, targets)
+            build_retained_asset_grid_cards(tree, content_vp_id, content_rect, params, &mut targets)
         }
         AssetViewMode::List => {
             targets.grid_cards.clear();
-            build_asset_list_table(tree, content_vp_id, content_rect, params, targets);
+            build_asset_list_table(tree, content_vp_id, content_rect, params, &mut targets);
             Vec::new()
         }
     };
@@ -385,8 +387,8 @@ pub fn build_assets_panel_retained(
         node.set_name("AssetsFooter");
         node.computed_rect = footer_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.70));
+            .background(ELEVATION_2_HEADER)
+            .border(1.0, BORDER_MICRON);
     }
     let _ = tree.add_child(root_id, footer_id);
 
@@ -491,10 +493,10 @@ pub fn build_assets_panel_retained(
     let _ = tree.add_child(footer_id, tele_id);
 
     // 6. Right-Click Floating Context Menu (Z-Order Top)
-    super::context_menu::build_assets_context_menu(tree, parent_id, params, targets);
+    super::context_menu::build_assets_context_menu(tree, parent_id, params, &mut targets);
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
-    super::preview::build_asset_preview_modal(tree, parent_id, params, targets);
+    super::preview::build_asset_preview_modal(tree, parent_id, params, &mut targets);
 
     AssetBrowserRetainedState {
         root_id,
@@ -511,13 +513,9 @@ pub fn build_assets_panel_retained(
             tree_scroll_y: params.tree_scroll_y,
             sidebar_width: params.sidebar_width,
             sidebar_collapsed: params.sidebar_collapsed,
-            item_paths: params
-                .filtered_items
-                .iter()
-                .map(|it| it.path.clone())
-                .collect(),
+            revision: params.revision,
         }),
-        cached_targets: targets.clone(),
+        cached_targets: targets,
     }
 }
 
@@ -528,7 +526,8 @@ pub fn build_assets_panel(
     params: &AssetsPanelParams<'_>,
     targets: &mut AssetsPanelTargets,
 ) {
-    let _ = build_assets_panel_retained(tree, parent_id, params, targets);
+    let retained = build_assets_panel_retained(tree, parent_id, params);
+    *targets = retained.cached_targets;
 }
 
 /// Builds the category filter chips row with live item counters.

@@ -248,7 +248,7 @@ pub fn build_retained_asset_grid_cards(
                 rect: card_rect,
                 path: item.path.clone(),
                 category: item.category,
-                item: item.clone(),
+                item: (*item).clone(),
             });
 
             // Register Retained Handle
@@ -260,6 +260,7 @@ pub fn build_retained_asset_grid_cards(
                 icon_id: visual_icon_id,
                 is_hovered,
                 is_selected,
+                baking_quad_idx: 0,
             });
         }
     }

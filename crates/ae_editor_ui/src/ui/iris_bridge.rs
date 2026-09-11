@@ -9,6 +9,7 @@
 pub mod about;
 pub mod actions;
 pub mod assets;
+pub mod baking;
 pub mod console;
 pub mod events;
 pub mod floating_layer;
@@ -41,6 +42,7 @@ pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelParams, AssetsPanelTargets,
     build_assets_panel, handle_assets_panel_event,
 };
+pub use baking::*;
 pub use console::{
     ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelTargets, build_console_panel,
 };

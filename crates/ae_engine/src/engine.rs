@@ -81,8 +81,10 @@ impl AeEngine {
 
     /// Asynchronously initializes the engine: creates WGPU surface, default scene,
     /// plugin host, debug renderer, checks Python dependency, and isolates 2D/3D subsystems.
-    pub async fn new(window: Arc<Window>, cli_args: crate::cli::CliArgs) -> Self {
-        let (render_state, camera) = RenderState::new(window.clone()).await.unwrap();
+    /// Returns the initialized engine instance on success, or an informative diagnostic error string
+    /// on graphics adapter initialization failure.
+    pub async fn new(window: Arc<Window>, cli_args: crate::cli::CliArgs) -> Result<Self, String> {
+        let (render_state, camera) = RenderState::new(window.clone()).await?;
         let ui = ae_editor_ui::ui::EngineUi::new(
             &render_state.device,
             render_state.config.format,
@@ -374,6 +376,6 @@ impl AeEngine {
             }
         }
 
-        engine
+        Ok(engine)
     }
 }

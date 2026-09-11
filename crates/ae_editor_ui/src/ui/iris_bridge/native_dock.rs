@@ -111,16 +111,19 @@ pub fn build_native_dock(
             continue;
         }
 
-        // Base panel background quad
-        add_rect_node(
-            tree,
-            parent,
-            leaf.rect,
-            "IrisDockPanel",
-            Style::new()
-                .background(ELEVATION_1_PANEL)
-                .clip_children(true),
-        );
+        // Base panel background quad (render only if active tab is not 3D Viewport canvas)
+        let is_active_viewport = leaf.tabs.get(leaf.active_tab).copied() == Some(PanelId::Viewport);
+        if !is_active_viewport {
+            add_rect_node(
+                tree,
+                parent,
+                leaf.rect,
+                "IrisDockPanel",
+                Style::new()
+                    .background(ELEVATION_1_PANEL)
+                    .clip_children(true),
+            );
+        }
 
         // Tab strip header quad
         add_rect_node(

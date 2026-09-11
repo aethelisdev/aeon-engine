@@ -7,7 +7,7 @@ use super::about::AboutDialogTargets;
 use super::hierarchy::{AddSubmenuId, HierarchyAction, HierarchyPanelTargets, HierarchyRow};
 use super::modals::*;
 use super::preferences::{PreferencesDropdownId, PreferencesSliderId, PreferencesTargets};
-use super::stats::{StatsPanelAction, StatsPanelNodes, StatsPanelTargets};
+use super::stats::{StatsPanelAction, StatsPanelNodes, StatsPanelRetainedState, StatsPanelTargets};
 use super::viewport_hud::{ViewportHudAction, ViewportHudDropdownId, ViewportHudTargets};
 use crate::ui::EngineUiAction;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
@@ -133,6 +133,8 @@ pub struct IrisEditorOverlay {
     pub stats_nodes: Option<StatsPanelNodes>,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
     pub last_stats_rect: Option<Rect>,
+    /// Persistent retained-mode state and cached targets for Performance Stats & Telemetry.
+    pub stats_retained: Option<StatsPanelRetainedState>,
     /// Cached interaction targets for Scene Hierarchy panel.
     pub hierarchy_targets: Option<HierarchyPanelTargets>,
     /// Persistent pre-allocated row cache for Scene Hierarchy to eliminate per-frame allocations.
@@ -167,8 +169,6 @@ pub struct IrisEditorOverlay {
     pub console_auto_scroll: bool,
     /// Dispatched action queue for Developer Console panel interactions.
     pub console_actions: Vec<super::console::ConsoleAction>,
-    /// Cached interaction targets for Content / Asset Browser panel.
-    pub assets_targets: Option<super::assets::AssetsPanelTargets>,
     /// Content area vertical scroll offset for Asset Browser panel.
     pub assets_scroll_y: f32,
     /// Folder tree sidebar vertical scroll offset for Asset Browser panel.
@@ -316,9 +316,21 @@ pub struct IrisEditorOverlay {
     pub floating_window_rects: Vec<Rect>,
     /// Native dock chrome interaction frame from the last layout reconstruction.
     pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
+    /// Whether the draw command stream or text layout is dirty and requires reconstruction.
+    pub is_command_list_dirty: bool,
+    /// Cached text sections extracted from the UI tree in retained mode across frames.
+    pub cached_text_sections: Vec<irisui::text::TextSection<'static>>,
+    /// Retained-mode baked hardware geometry buffers ensuring 2 draw calls.
+    pub baked_geometry: super::baking::BakedUiGeometry,
 }
 
 impl IrisEditorOverlay {
+    /// Returns a reference to cached Asset Browser interaction targets, if active.
+    #[inline]
+    pub fn assets_targets(&self) -> Option<&super::assets::AssetsPanelTargets> {
+        self.assets_retained.as_ref().map(|s| &s.cached_targets)
+    }
+
     /// Determines the appropriate mouse cursor icon based on current hover targets.
     pub fn requested_cursor_icon(&self) -> winit::window::CursorIcon {
         let p = self.cursor_pos;
@@ -468,7 +480,7 @@ impl IrisEditorOverlay {
         }
 
         // 5. Assets panel interactive items
-        if let Some(ref targets) = self.assets_targets {
+        if let Some(targets) = self.assets_targets() {
             if let Some(ref pm) = targets.preview_modal {
                 if pm.close_btn_rect.contains_point(p)
                     || pm.reveal_btn_rect.contains_point(p)

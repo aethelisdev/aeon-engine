@@ -19,6 +19,8 @@ pub struct UiTree {
     nodes: SlotMap<WidgetId, WidgetNode>,
     /// The root widget node ID of the tree.
     root: Option<WidgetId>,
+    /// Aggregate dirty bitmask across all nodes, enabling O(1) change queries.
+    dirty_mask: DirtyFlags,
 }
 
 impl UiTree {
@@ -28,6 +30,7 @@ impl UiTree {
         Self {
             nodes: SlotMap::with_key(),
             root: None,
+            dirty_mask: DirtyFlags::empty(),
         }
     }
 
@@ -36,6 +39,7 @@ impl UiTree {
     pub fn clear(&mut self) {
         self.nodes.clear();
         self.root = None;
+        self.dirty_mask = DirtyFlags::empty();
     }
 
     /// Returns the root node key of the tree, if set.
@@ -58,6 +62,7 @@ impl UiTree {
 
     /// Allocates a new node in the arena and returns its unique generational key.
     pub fn create_node(&mut self) -> WidgetId {
+        self.dirty_mask.insert(DirtyFlags::ALL);
         self.nodes.insert_with_key(WidgetNode::new)
     }
 
@@ -91,6 +96,7 @@ impl UiTree {
     /// Retrieves a mutable reference to a widget node.
     #[inline]
     pub fn get_mut(&mut self, id: WidgetId) -> Option<&mut WidgetNode> {
+        self.dirty_mask.insert(DirtyFlags::ALL);
         self.nodes.get_mut(id)
     }
 
@@ -123,6 +129,8 @@ impl UiTree {
             self.nodes[parent].children.push(child);
         }
 
+        self.dirty_mask
+            .insert(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
         self.nodes[parent].mark_dirty(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
         self.nodes[child].mark_dirty(DirtyFlags::LAYOUT | DirtyFlags::TRANSFORM);
         Ok(())
@@ -130,6 +138,8 @@ impl UiTree {
 
     /// Detaches a child node from its parent without removing it from the arena.
     pub fn remove_child(&mut self, parent: WidgetId, child: WidgetId) -> Result<(), IrisCoreError> {
+        self.dirty_mask
+            .insert(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
         let parent_node = self
             .nodes
             .get_mut(parent)
@@ -151,6 +161,8 @@ impl UiTree {
     /// # Errors
     /// Returns `IrisCoreError::NodeNotFound` if the parent node does not exist in the arena.
     pub fn clear_children(&mut self, parent: WidgetId) -> Result<(), IrisCoreError> {
+        self.dirty_mask
+            .insert(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
         let Some(parent_node) = self.nodes.get_mut(parent) else {
             return Err(IrisCoreError::NodeNotFound(parent));
         };
@@ -178,6 +190,9 @@ impl UiTree {
         if !self.nodes.contains_key(id) {
             return Err(IrisCoreError::NodeNotFound(id));
         }
+
+        self.dirty_mask
+            .insert(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
 
         // Detach from parent
         if let Some(parent_id) = self.nodes[id].parent
@@ -238,6 +253,7 @@ impl UiTree {
 
     /// Recursively marks dirty flags on a node and all of its descendants with zero heap allocation.
     pub fn mark_dirty_subtree(&mut self, id: WidgetId, flags: DirtyFlags) {
+        self.dirty_mask.insert(flags);
         if let Some(node) = self.nodes.get_mut(id) {
             node.mark_dirty(flags);
         }
@@ -248,9 +264,80 @@ impl UiTree {
         }
     }
 
+    /// Sets dirty flags on a specific node and updates the tree-level dirty mask in O(1) time.
+    #[inline]
+    pub fn mark_node_dirty(&mut self, id: WidgetId, flags: DirtyFlags) {
+        self.dirty_mask.insert(flags);
+        if let Some(node) = self.nodes.get_mut(id) {
+            node.mark_dirty(flags);
+        }
+    }
+
     /// Checks if any node in the tree currently has any of the specified dirty flags set.
+    /// Executes in $O(1)$ time by evaluating the aggregate bitmask without traversing arena nodes.
+    #[inline]
     pub fn has_dirty_nodes(&self, flags: DirtyFlags) -> bool {
-        self.nodes.values().any(|n| n.dirty.intersects(flags))
+        self.dirty_mask.intersects(flags)
+    }
+
+    /// Checks if the specified node or any of its descendants in the subtree has any of the given dirty flags set.
+    /// Short-circuits in $O(1)$ time if the aggregate tree bitmask contains none of the specified flags.
+    pub fn is_subtree_dirty(&self, id: WidgetId, flags: DirtyFlags) -> bool {
+        if !self.dirty_mask.intersects(flags) {
+            return false;
+        }
+        let Some(node) = self.nodes.get(id) else {
+            return false;
+        };
+        if node.dirty.intersects(flags) {
+            return true;
+        }
+        for &child in &node.children {
+            if self.is_subtree_dirty(child, flags) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Clears the specified dirty flags across all active nodes in the tree arena.
+    /// If no nodes in the tree have the specified flags set, this method returns
+    /// immediately in $O(1)$ time without traversing or mutating any nodes.
+    #[inline]
+    pub fn clear_all_dirty(&mut self, flags: DirtyFlags) {
+        if !self.dirty_mask.intersects(flags) {
+            return;
+        }
+        self.dirty_mask.remove(flags);
+        for node in self.nodes.values_mut() {
+            node.clear_dirty(flags);
+        }
+    }
+
+    /// Clears the specified dirty flags on the target node and all its descendants in the subtree.
+    /// Short-circuits in $O(1)$ time if the aggregate tree bitmask contains none of the specified flags.
+    pub fn clear_dirty_subtree(&mut self, id: WidgetId, flags: DirtyFlags) {
+        if !self.dirty_mask.intersects(flags) {
+            return;
+        }
+        if let Some(node) = self.nodes.get_mut(id) {
+            node.clear_dirty(flags);
+        }
+        let child_count = self.nodes.get(id).map_or(0, |n| n.children.len());
+        for i in 0..child_count {
+            let child_id = self.nodes[id].children[i];
+            self.clear_dirty_subtree(child_id, flags);
+        }
+    }
+
+    /// Marks the specified dirty flags on all active nodes in the tree arena.
+    /// Used during full viewport resizes or configuration changes requiring
+    /// universal layout or paint re-evaluation.
+    pub fn mark_all_dirty(&mut self, flags: DirtyFlags) {
+        self.dirty_mask.insert(flags);
+        for node in self.nodes.values_mut() {
+            node.mark_dirty(flags);
+        }
     }
 
     /// Performs screen-space hit testing to find the deepest interactive node under `point`.

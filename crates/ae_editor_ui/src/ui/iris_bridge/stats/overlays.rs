@@ -164,10 +164,16 @@ fn update_checkbox_state(
                 Color::rgba(0.24, 0.28, 0.38, 0.70),
             )
         };
-        node.style.background_color = bg;
-        node.style.border.color = border;
+        if node.style.background_color != bg || node.style.border.color != border {
+            node.style.background_color = bg;
+            node.style.border.color = border;
+            node.dirty |= DirtyFlags::PAINT;
+        }
     }
-    if let Some(node) = tree.get_mut(check_id) {
+    if let Some(node) = tree.get_mut(check_id)
+        && node.visible != is_checked
+    {
         node.visible = is_checked;
+        node.dirty |= DirtyFlags::PAINT;
     }
 }

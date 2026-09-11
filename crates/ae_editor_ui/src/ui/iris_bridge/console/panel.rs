@@ -9,6 +9,7 @@
 
 use super::rows::build_console_rows;
 use super::types::{ConsoleFilterLevel, ConsolePanelParams, ConsolePanelTargets};
+use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Height of the console header toolbar in physical pixels.
@@ -29,7 +30,7 @@ pub fn build_console_panel(
         node.set_name("ConsolePanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.05, 0.06, 0.08, 1.0))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);
@@ -46,8 +47,8 @@ pub fn build_console_panel(
         node.set_name("ConsoleToolbar");
         node.computed_rect = tb_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-            .border(1.0, Color::rgba(0.18, 0.21, 0.28, 0.70));
+            .background(ELEVATION_2_HEADER)
+            .border(1.0, BORDER_MICRON);
     }
     let _ = tree.add_child(root_id, tb_id);
 
@@ -247,7 +248,7 @@ pub fn build_console_panel(
                 (Color::rgba(0.20, 0.23, 0.30, 0.60), 1.0)
             };
             node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.09, 0.95))
+                .background(ELEVATION_3_INACTIVE_PILL)
                 .border_radius(4.0)
                 .border(border_w, border_c);
         }

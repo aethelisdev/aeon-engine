@@ -90,12 +90,24 @@ pub fn build_floating_windows(
         let _ = tree.add_child(root_id, win_container);
 
         // 2. Base Background Quad with Shadow and Border
+        let is_viewport = win.tree.iter().any(|(_, node)| {
+            if let DockNode::Leaf { tabs, active_tab } = node {
+                tabs.get(*active_tab).copied() == Some(crate::ui::panel_layout::PanelId::Viewport)
+            } else {
+                false
+            }
+        });
         let bg_id = tree.create_node();
         if let Some(node) = tree.get_mut(bg_id) {
             node.set_name("FloatingWindowBase");
             node.computed_rect = win_rect;
+            let bg_color = if is_viewport {
+                Color::TRANSPARENT
+            } else {
+                ELEVATION_4_POPUP
+            };
             node.style = Style::new()
-                .background(ELEVATION_4_POPUP)
+                .background(bg_color)
                 .border(1.0, BORDER_ELEVATED)
                 .border_radius(19.0)
                 .box_shadow(0.0, 8.0, 28.0, Color::rgba(0.0, 0.0, 0.0, 0.75));

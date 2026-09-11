@@ -267,6 +267,7 @@ dependencies = [
  "image",
  "irisui",
  "log",
+ "pollster 1.0.1",
  "rayon",
  "serde",
  "slotmap",

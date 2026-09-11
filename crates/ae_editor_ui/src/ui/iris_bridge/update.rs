@@ -49,6 +49,7 @@ impl IrisEditorOverlay {
             stats_targets: None,
             stats_nodes: None,
             last_stats_rect: None,
+            stats_retained: None,
             hierarchy_targets: None,
             hierarchy_rows_cache: Vec::new(),
             hierarchy_scroll_y: 0.0,
@@ -90,7 +91,6 @@ impl IrisEditorOverlay {
             console_is_search_focused: false,
             console_auto_scroll: true,
             console_actions: Vec::new(),
-            assets_targets: None,
             assets_scroll_y: 0.0,
             assets_tree_scroll_y: 0.0,
             assets_search_query: String::new(),
@@ -140,6 +140,9 @@ impl IrisEditorOverlay {
             tools_texture: None,
             floating_window_rects: Vec::new(),
             native_dock_frame: None,
+            is_command_list_dirty: true,
+            cached_text_sections: Vec::new(),
+            baked_geometry: super::baking::BakedUiGeometry::new(),
         }
     }
 
@@ -163,20 +166,28 @@ impl IrisEditorOverlay {
             r
         };
 
-        // Retain the persistent Asset Browser root node if it exists
+        // Retain the persistent Asset Browser and Stats panel root nodes if they exist
         let retained_assets_node = self.assets_retained.as_ref().map(|s| s.root_id);
+        let retained_stats_node = self.stats_retained.as_ref().map(|s| s.nodes.root_id);
+
+        // Detach retained nodes from their parent (without deleting their trees) so that root
+        // has ONLY MenuBar and StatusBar during Taffy SpaceBetween layout computation.
+        if let Some(assets_id) = retained_assets_node
+            && let Some(parent) = self.tree.get(assets_id).and_then(|n| n.parent)
+        {
+            let _ = self.tree.remove_child(parent, assets_id);
+        }
+        if let Some(stats_id) = retained_stats_node
+            && let Some(parent) = self.tree.get(stats_id).and_then(|n| n.parent)
+        {
+            let _ = self.tree.remove_child(parent, stats_id);
+        }
 
         // Remove previous non-retained children of root
         let children_to_remove: Vec<WidgetId> = self
             .tree
             .get(root)
-            .map(|n| {
-                n.children
-                    .iter()
-                    .copied()
-                    .filter(|&c| Some(c) != retained_assets_node)
-                    .collect()
-            })
+            .map(|n| n.children.clone())
             .unwrap_or_default();
 
         for child in children_to_remove {
@@ -184,7 +195,6 @@ impl IrisEditorOverlay {
         }
 
         self.layout_engine.clear();
-        self.command_list.clear();
         self.dropdown_items.clear();
         self.floating_window_rects.clear();
         self.dropdown_rect = None;
@@ -198,7 +208,6 @@ impl IrisEditorOverlay {
         self.stats_targets = None;
         self.inspector_targets = None;
         self.console_targets = None;
-        self.assets_targets = None;
         self.material_targets = None;
         self.ui_designer_targets = None;
 
@@ -640,9 +649,40 @@ impl IrisEditorOverlay {
             self.dropdown_rect = Some(dd_rect);
         }
 
-        // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
-        self.populate_draw_commands(root, None, Some(params.frame_pacing));
+        // Populate DrawCommandList from resolved layout nodes only when dirty
+        let tree_dirty = self
+            .tree
+            .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
+        let dimensions_changed = (self.last_dimensions.0 - screen_width).abs() > 0.5
+            || (self.last_dimensions.1 - screen_height).abs() > 0.5;
+        let zoom_changed = (self.last_zoom_factor - params.zoom_factor).abs() > 0.001;
 
+        let must_repopulate = tree_dirty
+            || self.is_command_list_dirty
+            || dimensions_changed
+            || zoom_changed
+            || self.needs_layout_rebuild
+            || self.command_list.commands.is_empty();
+
+        if must_repopulate {
+            self.baked_geometry
+                .bake(&self.tree, root, Some(params.frame_pacing));
+            self.baked_geometry
+                .apply_to_command_list(&mut self.command_list);
+            self.is_command_list_dirty = true;
+
+            // Link baked quad indices back into retained cards for O(1) in-place hover/selection
+            if let Some(ref mut retained) = self.assets_retained {
+                for card in &mut retained.cards {
+                    if let Some(&idx) = self.baked_geometry.node_to_sdf_idx.get(&card.card_id) {
+                        card.baking_quad_idx = idx;
+                    }
+                }
+            }
+        }
+
+        self.last_dimensions = (screen_width, screen_height);
+        self.last_zoom_factor = params.zoom_factor;
         self.needs_layout_rebuild = false;
     }
 

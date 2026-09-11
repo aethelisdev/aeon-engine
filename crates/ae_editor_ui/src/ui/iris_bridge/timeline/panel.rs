@@ -10,6 +10,7 @@
 use super::ruler::build_ruler_and_scrubber;
 use super::transport::{TRANSPORT_TOOLBAR_HEIGHT, build_transport_toolbar};
 use super::types::{TimelinePanelParams, TimelinePanelTargets};
+use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Builds the complete Animation Timeline Studio docked panel.
@@ -22,8 +23,6 @@ pub fn build_timeline_panel(
     targets.panel_rect = params.panel_rect;
     targets.play_pause_btn = None;
     targets.stop_btn = None;
-    targets.step_back_btn = None;
-    targets.step_fwd_btn = None;
     targets.loop_toggle = None;
     targets.speed_buttons.clear();
     targets.scrubber_track_rect = None;
@@ -36,8 +35,7 @@ pub fn build_timeline_panel(
         node.set_name("AnimationTimelinePanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);

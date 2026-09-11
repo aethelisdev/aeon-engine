@@ -32,7 +32,7 @@ impl<'a> MenuBarBuilder<'a> {
                     .width(width)
                     .height(26.0)
                     .padding_insets(Insets::new(0.0, 6.0, 0.0, 10.0))
-                    .background(Color::rgba(0.071, 0.082, 0.122, 1.0)),
+                    .background(Color::rgba(0.068, 0.076, 0.100, 1.0)),
             );
         }
 

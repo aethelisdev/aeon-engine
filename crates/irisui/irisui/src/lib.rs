@@ -58,7 +58,7 @@ pub mod prelude {
         compute_floating_layouts, compute_tab_bar_layout, hit_test_navigator,
     };
     pub use iris_layout::{LayoutEngine, LayoutError};
-    pub use iris_text::{TextRenderer, TextSection, TextSystem};
+    pub use iris_text::{TextPrepareParams, TextRenderer, TextSection, TextSystem};
     pub use iris_wgpu::{
         DrawCommand, DrawCommandList, ExternalTexturePipeline, ExternalTextureQuadInstance,
         ExternalTextures, IrisRenderer, QuadInstance, TextureQuadInstance, TextureQuadPipeline,

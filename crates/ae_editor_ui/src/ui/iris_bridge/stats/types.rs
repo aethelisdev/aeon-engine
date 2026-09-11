@@ -134,3 +134,25 @@ pub struct StatsPanelParams<'a> {
     /// Currently selected entity, if any.
     pub selected_entity: Option<hecs::Entity>,
 }
+
+/// Snapshot of structural parameters for the Stats & Profiler panel to detect resize or scroll.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StatsPanelSnapshot {
+    /// Bounding rectangle of the stats panel inside the editor viewport.
+    pub panel_rect: Rect,
+    /// Vertical scroll offset in pixels.
+    pub scroll_y: f32,
+}
+
+/// Persistent retained-mode state for the Stats & Profiler panel.
+/// Preserves existing widget node handles, cached interactive hit targets,
+/// and structural snapshot across frames to eliminate per-frame allocations.
+#[derive(Debug, Clone)]
+pub struct StatsPanelRetainedState {
+    /// Persistent widget node handles.
+    pub nodes: StatsPanelNodes,
+    /// Cached hit-testing targets.
+    pub cached_targets: StatsPanelTargets,
+    /// Structural snapshot for layout change detection.
+    pub snapshot: StatsPanelSnapshot,
+}

@@ -8,6 +8,7 @@
 //! the launcher process terminates, releasing all allocated system resources.
 //!
 
+pub mod adapter;
 pub mod app;
 pub mod icon;
 pub mod icons;

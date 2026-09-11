@@ -12,6 +12,7 @@ use super::header::{MATERIAL_HEADER_HEIGHT, build_material_header};
 use super::sprite_view::{SpriteViewParams, build_sprite_view};
 use super::submesh_view::{SubmeshViewParams, build_submesh_view};
 use super::types::{MaterialPanelParams, MaterialPanelTargets};
+use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
@@ -29,8 +30,7 @@ pub fn build_material_panel(
         node.set_name("MaterialPanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(Color::rgba(0.065, 0.068, 0.080, 0.98))
-            .border(1.0, Color::rgba(0.12, 0.13, 0.16, 0.90))
+            .background(ELEVATION_1_PANEL)
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);

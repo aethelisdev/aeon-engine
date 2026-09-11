@@ -17,7 +17,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.assets_targets.as_ref()?;
+        let targets = &self.assets_retained.as_ref()?.cached_targets;
         let mut result = IrisOverlayEventResult::default();
         let mut actions = Vec::new();
 

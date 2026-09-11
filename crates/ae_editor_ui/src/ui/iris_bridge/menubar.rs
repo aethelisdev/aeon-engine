@@ -79,7 +79,11 @@ pub fn build_top_menu_bar(
         );
     }
 
-    menu_builder.build()
+    let bar_id = menu_builder.build();
+    if let Some(node) = tree.get_mut(bar_id) {
+        node.style.background_color = crate::ui::iris_bridge::theme::ELEVATION_2_HEADER;
+    }
+    bar_id
 }
 
 /// Builds floating dropdown popup items and returns hit targets with bounding box.

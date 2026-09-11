@@ -118,8 +118,16 @@ impl ApplicationHandler for AeApp {
                     .expect("Failed to create window"),
             );
 
-            // Initialize Core Engine State
-            let engine = pollster::block_on(AeEngine::new(window.clone(), self.cli_args.clone()));
+            // Initialize Core Engine State gracefully without unwinding panics
+            let engine =
+                match pollster::block_on(AeEngine::new(window.clone(), self.cli_args.clone())) {
+                    Ok(engine) => engine,
+                    Err(report) => {
+                        core::hint::cold_path();
+                        eprintln!("{report}");
+                        std::process::exit(1);
+                    }
+                };
             window.set_visible(true);
             self.engine = Some(engine);
             self.last_frame_time = std::time::Instant::now();

@@ -252,16 +252,23 @@ pub fn update_multi_segment_bar(
             let seg_w = (rect.width * ratio.clamp(0.0, 1.0)).min(rect.x + rect.width - seg_x);
             if seg_w > 0.5 {
                 if let Some(node) = tree.get_mut(seg_id) {
-                    node.computed_rect = Rect::new(seg_x, rect.y, seg_w, rect.height);
-                    node.visible = true;
+                    let new_rect = Rect::new(seg_x, rect.y, seg_w, rect.height);
+                    if node.computed_rect != new_rect || !node.visible {
+                        node.computed_rect = new_rect;
+                        node.visible = true;
+                        node.dirty |= DirtyFlags::PAINT;
+                    }
                 }
                 seg_x += seg_w;
                 continue;
             }
         }
-        if let Some(node) = tree.get_mut(seg_id) {
+        if let Some(node) = tree.get_mut(seg_id)
+            && (node.computed_rect != Rect::ZERO || node.visible)
+        {
             node.computed_rect = Rect::ZERO;
             node.visible = false;
+            node.dirty |= DirtyFlags::PAINT;
         }
     }
 }

@@ -37,6 +37,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         shader_handle: None,
     };
     let items = vec![item];
+    let item_refs: Vec<&AssetItem> = items.iter().collect();
 
     let params = AssetsPanelParams {
         panel_rect,
@@ -48,7 +49,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         view_mode: AssetViewMode::Grid,
         selected_asset: None,
         cached_items: &items,
-        filtered_items: &items,
+        filtered_items: &item_refs,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -58,6 +59,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        revision: 0,
     };
 
     build_assets_panel(&mut tree, root_id, &params, &mut targets);
@@ -250,6 +252,7 @@ fn test_preview_modal_build_and_actions() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
+        revision: 0,
     };
 
     build_assets_panel(&mut tree, root_id, &params, &mut targets);
@@ -322,6 +325,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         shader_handle: None,
     };
     let items = vec![item];
+    let item_refs: Vec<&AssetItem> = items.iter().collect();
 
     let params = AssetsPanelParams {
         panel_rect,
@@ -333,7 +337,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         view_mode: AssetViewMode::Grid,
         selected_asset: None,
         cached_items: &items,
-        filtered_items: &items,
+        filtered_items: &item_refs,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -343,6 +347,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        revision: 0,
     };
 
     // Should build cards with Turkish/Unicode filenames without any panic
@@ -354,7 +359,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
 fn test_retained_assets_panel_zero_allocation_when_idle() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
-    let mut targets = AssetsPanelTargets::default();
     let mut retained = None;
 
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
@@ -372,6 +376,7 @@ fn test_retained_assets_panel_zero_allocation_when_idle() {
         shader_handle: None,
     };
     let items = vec![item];
+    let item_refs: Vec<&AssetItem> = items.iter().collect();
 
     let params = AssetsPanelParams {
         panel_rect,
@@ -383,7 +388,7 @@ fn test_retained_assets_panel_zero_allocation_when_idle() {
         view_mode: AssetViewMode::Grid,
         selected_asset: None,
         cached_items: &items,
-        filtered_items: &items,
+        filtered_items: &item_refs,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -393,22 +398,21 @@ fn test_retained_assets_panel_zero_allocation_when_idle() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        revision: 0,
     };
 
     // Frame 1: Initial Mount
-    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
     assert!(retained.is_some());
     let initial_node_count = tree.len();
     assert!(initial_node_count > 0);
 
     // Clear all dirty flags as if a layout and render pass completed
-    tree.traverse_depth_first_mut(root_id, &mut |_, node| {
-        node.clear_dirty(DirtyFlags::ALL);
-    });
+    tree.clear_all_dirty(DirtyFlags::ALL);
     assert!(!tree.has_dirty_nodes(DirtyFlags::ALL));
 
     // Frame 2: Identical parameters (Panel completely idle and motionless)
-    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
 
     // Assert zero allocations, zero node count changes, and zero dirty flags marked
     assert_eq!(tree.len(), initial_node_count);
@@ -422,7 +426,6 @@ fn test_retained_assets_panel_zero_allocation_when_idle() {
 fn test_retained_assets_panel_hover_paint_dirty_only() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
-    let mut targets = AssetsPanelTargets::default();
     let mut retained = None;
 
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
@@ -440,6 +443,7 @@ fn test_retained_assets_panel_hover_paint_dirty_only() {
         shader_handle: None,
     };
     let items = vec![item];
+    let item_refs: Vec<&AssetItem> = items.iter().collect();
 
     let mut params = AssetsPanelParams {
         panel_rect,
@@ -451,7 +455,7 @@ fn test_retained_assets_panel_hover_paint_dirty_only() {
         view_mode: AssetViewMode::Grid,
         selected_asset: None,
         cached_items: &items,
-        filtered_items: &items,
+        filtered_items: &item_refs,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -461,12 +465,13 @@ fn test_retained_assets_panel_hover_paint_dirty_only() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        revision: 0,
     };
 
     // Frame 1: Initial Mount
-    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
     let initial_node_count = tree.len();
-    let card_rect = targets.grid_cards[0].rect;
+    let card_rect = retained.as_ref().unwrap().cached_targets.grid_cards[0].rect;
 
     // Clear all dirty flags
     tree.traverse_depth_first_mut(root_id, &mut |_, node| {
@@ -478,7 +483,7 @@ fn test_retained_assets_panel_hover_paint_dirty_only() {
         card_rect.x + card_rect.width * 0.5,
         card_rect.y + card_rect.height * 0.5,
     );
-    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
 
     // Node count remains strictly identical (zero new allocations)
     assert_eq!(tree.len(), initial_node_count);
@@ -487,5 +492,67 @@ fn test_retained_assets_panel_hover_paint_dirty_only() {
     assert!(
         tree.has_dirty_nodes(DirtyFlags::PAINT),
         "Hovered card must mark PAINT dirty flag"
+    );
+}
+
+#[test]
+fn test_retained_assets_panel_clear_all_dirty_invariant() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let mut retained = None;
+
+    let panel_rect = Rect::new(0.0, 0.0, 1000.0, 600.0);
+    let current_folder = PathBuf::from("assets");
+    let item = AssetItem {
+        name: "test.png".to_string(),
+        path: PathBuf::from("assets/test.png"),
+        relative_path: "test.png".to_string(),
+        category: AssetCategory::Textures2D,
+        file_size_bytes: 4096,
+        metadata_badge: "4 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    let items = vec![item];
+    let item_refs: Vec<&AssetItem> = items.iter().collect();
+
+    let params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1280.0, 720.0),
+        current_folder: &current_folder,
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &item_refs,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        revision: 0,
+    };
+
+    // Frame 1: Build
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
+    assert!(tree.has_dirty_nodes(DirtyFlags::ALL));
+
+    // Clear all dirty at end of frame
+    tree.clear_all_dirty(DirtyFlags::ALL);
+    assert!(!tree.has_dirty_nodes(DirtyFlags::ALL));
+
+    // Frame 2: Completely idle frame
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
+    assert!(
+        !tree.has_dirty_nodes(DirtyFlags::ALL),
+        "Idle frame must produce zero dirty nodes across the entire tree"
     );
 }

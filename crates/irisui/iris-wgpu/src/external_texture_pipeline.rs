@@ -323,18 +323,26 @@ impl ExternalTexturePipeline {
         screen_size: [f32; 2],
         instance: ExternalTextureQuadInstance,
     ) {
-        self.prepare_instances(device, queue, screen_size, std::slice::from_ref(&instance));
+        self.prepare_instances(
+            device,
+            queue,
+            screen_size,
+            std::slice::from_ref(&instance),
+            true,
+        );
     }
 
     /// Uploads all external image destinations once before an ordered render pass.
     /// Capacity grows geometrically and is retained when the list shrinks. Empty lists disable
     /// draws without destroying buffers; zero screen dimensions are clamped to one pixel.
+    /// When `is_dirty` is `false` and no GPU buffer reallocation occurred, PCIe buffer upload is bypassed.
     pub fn prepare_instances(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         screen_size: [f32; 2],
         instances: &[ExternalTextureQuadInstance],
+        is_dirty: bool,
     ) {
         self.instance_count = instances.len() as u32;
         let safe_screen_size = [screen_size[0].max(1.0), screen_size[1].max(1.0)];
@@ -351,6 +359,7 @@ impl ExternalTexturePipeline {
             self.uniforms_dirty = false;
         }
 
+        let mut buffer_reallocated = false;
         if instances.len() > self.instance_capacity {
             self.instance_capacity = instances.len().next_power_of_two();
             self.instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
@@ -360,9 +369,11 @@ impl ExternalTexturePipeline {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             }));
+            buffer_reallocated = true;
         }
 
         if !instances.is_empty()
+            && (buffer_reallocated || is_dirty)
             && let Some(instance_buffer) = &self.instance_buffer
         {
             queue.write_buffer(instance_buffer, 0, bytemuck::cast_slice(instances));

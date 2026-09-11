@@ -42,14 +42,20 @@ impl IrisEditorOverlay {
             };
 
             let mut stats_targets = StatsPanelTargets::default();
-            let nodes =
-                stats::build_stats_panel(&mut self.tree, root, &stats_params, &mut stats_targets);
-            stats::update_stats_panel_values(&mut self.tree, &nodes, &stats_params, &stats_targets);
+            stats::sync_stats_panel(
+                &mut self.tree,
+                root,
+                &mut self.stats_retained,
+                &stats_params,
+                &mut stats_targets,
+            );
             self.stats_targets = Some(stats_targets);
-            self.stats_nodes = Some(nodes);
             self.last_stats_rect = Some(stats_rect);
             self.last_zoom_factor = params.zoom_factor;
         } else {
+            if let Some(state) = self.stats_retained.take() {
+                let _ = self.tree.remove_node(state.nodes.root_id);
+            }
             self.stats_nodes = None;
             self.stats_targets = None;
             self.last_stats_rect = None;
@@ -243,10 +249,13 @@ impl IrisEditorOverlay {
                     }
                     true
                 })
-                .cloned()
                 .collect();
 
-            self.assets_selected_asset = params.asset_browser.selected_asset.clone();
+            if self.assets_selected_asset.as_deref()
+                != params.asset_browser.selected_asset.as_deref()
+            {
+                self.assets_selected_asset = params.asset_browser.selected_asset.clone();
+            }
 
             let assets_params = super::assets::AssetsPanelParams {
                 panel_rect: assets_rect,
@@ -268,22 +277,32 @@ impl IrisEditorOverlay {
                 active_context_menu: self.assets_context_menu.as_ref(),
                 active_preview_modal: self.assets_preview_modal.as_ref(),
                 thumbnail_layers: &self.thumbnail_layers,
+                revision: params.asset_browser.revision,
             };
 
-            let mut assets_targets = super::assets::AssetsPanelTargets::default();
-            super::assets::sync_assets_panel(
+            let style_changed = super::assets::sync_assets_panel(
                 &mut self.tree,
                 root,
                 &mut self.assets_retained,
                 &assets_params,
-                &mut assets_targets,
             );
-            self.assets_targets = Some(assets_targets);
-        } else {
-            if let Some(prev) = self.assets_retained.take() {
-                let _ = self.tree.remove_node(prev.root_id);
+            if style_changed {
+                if let Some(ref retained) = self.assets_retained {
+                    for card in &retained.cards {
+                        if let Some(node) = self.tree.get(card.card_id) {
+                            self.baked_geometry
+                                .update_card_style(card.baking_quad_idx, &node.style);
+                            if card.baking_quad_idx < self.command_list.quads.len() {
+                                self.command_list.quads[card.baking_quad_idx] =
+                                    self.baked_geometry.sdf_instances[card.baking_quad_idx];
+                            }
+                        }
+                    }
+                }
+                self.is_command_list_dirty = true;
             }
-            self.assets_targets = None;
+        } else if let Some(prev) = self.assets_retained.take() {
+            let _ = self.tree.remove_node(prev.root_id);
         }
     }
 

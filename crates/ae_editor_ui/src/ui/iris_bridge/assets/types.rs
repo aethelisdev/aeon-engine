@@ -284,7 +284,7 @@ pub struct AssetsPanelParams<'a> {
     /// Slice of all discovered cached items across the workspace.
     pub cached_items: &'a [AssetItem],
     /// Filtered asset items matching current folder, category, and search query.
-    pub filtered_items: &'a [AssetItem],
+    pub filtered_items: &'a [&'a AssetItem],
     /// Width of the left folder tree sidebar in pixels.
     pub sidebar_width: f32,
     /// Whether the left folder tree sidebar is currently collapsed.
@@ -303,6 +303,8 @@ pub struct AssetsPanelParams<'a> {
     pub active_preview_modal: Option<&'a AssetPreviewModalState>,
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
+    /// Monotonically increasing filesystem revision counter.
+    pub revision: u64,
 }
 
 /// Truncates a UTF-8 string safely at Unicode code point boundaries.
@@ -342,6 +344,8 @@ pub struct RetainedAssetCard {
     pub is_hovered: bool,
     /// Whether this card was selected in the previous frame.
     pub is_selected: bool,
+    /// Index of this card's primary container SDF quad in the baked geometry buffer.
+    pub baking_quad_idx: usize,
 }
 
 /// Snapshot of the previous frame state used to detect mutations and mark dirty flags selectively.
@@ -367,8 +371,8 @@ pub struct AssetBrowserStateSnapshot {
     pub sidebar_width: f32,
     /// Last sidebar collapsed state.
     pub sidebar_collapsed: bool,
-    /// Paths of all items currently displayed in the content area.
-    pub item_paths: Vec<PathBuf>,
+    /// Filesystem and asset registry revision counter.
+    pub revision: u64,
 }
 
 /// Central persistent state for the native Iris UI Asset Browser in retained mode.

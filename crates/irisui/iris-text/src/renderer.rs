@@ -21,6 +21,24 @@ pub struct TextRenderer {
     last_resolution: Option<(u32, u32)>,
 }
 
+/// Execution parameters for preparing typography layouts and hardware font atlases.
+pub struct TextPrepareParams<'a, 's> {
+    /// Active WGPU logical rendering device.
+    pub device: &'a wgpu::Device,
+    /// Active WGPU hardware command queue.
+    pub queue: &'a wgpu::Queue,
+    /// Typography layout and shaping engine.
+    pub text_system: &'a mut TextSystem,
+    /// Target physical framebuffer resolution in pixels.
+    pub physical_screen_size: (u32, u32),
+    /// Active UI scaling factor.
+    pub zoom_factor: f32,
+    /// Text sections to shape and position.
+    pub sections: &'a [TextSection<'s>],
+    /// Whether text content or layout geometry mutated in retained mode.
+    pub is_dirty: bool,
+}
+
 impl TextRenderer {
     /// Creates a new `TextRenderer` for the given WGPU device, queue, and surface format.
     pub fn new(
@@ -48,19 +66,20 @@ impl TextRenderer {
         }
     }
 
-    /// Prepares text buffers and uploads font glyphs to the GPU text atlas.
-    /// `physical_screen_size` defines the physical target framebuffer resolution (e.g. 1920x1080).
-    /// `zoom_factor` specifies the active UI scaling factor (e.g. 1.25, 1.50) to render
-    /// font glyphs at exact 1:1 physical pixel resolution without magnification blur or distortion.
-    pub fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        text_system: &mut TextSystem,
-        physical_screen_size: (u32, u32),
-        zoom_factor: f32,
-        sections: &[TextSection<'_>],
-    ) {
+    /// Prepares text buffers and uploads font glyphs to the GPU text atlas in reactive retained mode.
+    /// When `is_dirty` is `false` and screen resolution has not changed, the costly Harfbuzz font
+    /// shaping and glyph atlas upload pass is bypassed completely ($0.0$ ms CPU), retaining
+    /// previously rasterized glyph buffers across frames.
+    pub fn prepare(&mut self, params: TextPrepareParams<'_, '_>) {
+        let TextPrepareParams {
+            device,
+            queue,
+            text_system,
+            physical_screen_size,
+            zoom_factor,
+            sections,
+            is_dirty,
+        } = params;
         let width = physical_screen_size.0.max(1);
         let height = physical_screen_size.1.max(1);
         let zoom = if zoom_factor.is_finite() && zoom_factor > 0.1 {
@@ -69,9 +88,15 @@ impl TextRenderer {
             1.0
         };
 
-        if self.last_resolution != Some((width, height)) {
+        let res_changed = self.last_resolution != Some((width, height));
+        if res_changed {
             self.viewport.update(queue, Resolution { width, height });
             self.last_resolution = Some((width, height));
+        }
+
+        // In retained mode, if neither the text content nor resolution mutated, skip all shaping work
+        if !is_dirty && !res_changed {
+            return;
         }
 
         // Clear and rebuild buffers reusing existing allocation capacity
@@ -142,5 +167,11 @@ impl TextRenderer {
         let _ = self
             .text_renderer
             .render(&self.text_atlas, &self.viewport, render_pass);
+    }
+
+    /// Returns the count of active text buffers retained internally by the renderer.
+    #[inline]
+    pub fn buffer_count(&self) -> usize {
+        self.buffers.len()
     }
 }
