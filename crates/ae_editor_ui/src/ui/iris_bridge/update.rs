@@ -83,6 +83,7 @@ impl IrisEditorOverlay {
             last_zoom_factor: 1.0,
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
+            stats_revision: 0,
             stats_actions: Vec::new(),
             console_targets: None,
             console_scroll_y: 0.0,
@@ -102,6 +103,7 @@ impl IrisEditorOverlay {
             assets_preview_modal: None,
             assets_selected_asset: None,
             assets_retained: None,
+            assets_revision: 0,
             thumbnail_layers: std::collections::HashMap::new(),
             next_thumbnail_layer: 16,
             timeline_targets: None,
@@ -141,8 +143,22 @@ impl IrisEditorOverlay {
             floating_window_rects: Vec::new(),
             native_dock_frame: None,
             is_command_list_dirty: true,
+            is_text_dirty: true,
+            last_stats_update: std::time::Instant::now(),
             cached_text_sections: Vec::new(),
             baked_geometry: super::baking::BakedUiGeometry::new(),
+            last_dock_revision: 0,
+            last_active_menu: None,
+            last_selected_entity: None,
+            last_is_editing: true,
+            last_is_2d: false,
+            last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
+            last_status_len: 0,
+            last_world_len: 0,
+            last_has_viewport_texture: false,
+            last_camera_pos: [0.0, 0.0, 0.0],
+            last_camera_orientation: [0.0, 0.0],
+            last_camera_ortho_scale: 1.0,
         }
     }
 
@@ -154,6 +170,14 @@ impl IrisEditorOverlay {
 
         if !self.is_visible {
             self.command_list.clear();
+            return;
+        }
+
+        // ── 0. Reactive Idle Gate: Skip tree rebuild when UI layout structure is asleep ──
+        if !self.should_rebuild_overlay(&params, screen_width, screen_height) {
+            // UI tree layout is asleep: do NOT delete children or rebuild.
+            // Live telemetry (Stats Panel) updates independently in place on a 100ms cadence.
+            self.update_live_telemetry_in_place(&params);
             return;
         }
 
@@ -649,7 +673,7 @@ impl IrisEditorOverlay {
             self.dropdown_rect = Some(dd_rect);
         }
 
-        // Populate DrawCommandList from resolved layout nodes only when dirty
+        // Populate DrawCommandList from resolved layout nodes only when geometry is dirty
         let tree_dirty = self
             .tree
             .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
@@ -665,11 +689,18 @@ impl IrisEditorOverlay {
             || self.command_list.commands.is_empty();
 
         if must_repopulate {
+            log::info!(
+                "[PROBE_REBAKE] Baked draw commands generated (tree_dirty: {}, cmd_list_dirty: {}, empty_cmds: {})",
+                tree_dirty,
+                self.is_command_list_dirty,
+                self.command_list.commands.is_empty()
+            );
             self.baked_geometry
                 .bake(&self.tree, root, Some(params.frame_pacing));
             self.baked_geometry
                 .apply_to_command_list(&mut self.command_list);
             self.is_command_list_dirty = true;
+            self.is_text_dirty = true;
 
             // Link baked quad indices back into retained cards for O(1) in-place hover/selection
             if let Some(ref mut retained) = self.assets_retained {
@@ -681,9 +712,7 @@ impl IrisEditorOverlay {
             }
         }
 
-        self.last_dimensions = (screen_width, screen_height);
-        self.last_zoom_factor = params.zoom_factor;
-        self.needs_layout_rebuild = false;
+        self.record_overlay_state(&params, screen_width, screen_height);
     }
 
     /// Measures intrinsic text dimensions for all nodes with text content in the subtree.

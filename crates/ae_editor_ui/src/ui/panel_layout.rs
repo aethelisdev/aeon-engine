@@ -153,6 +153,9 @@ pub fn create_default_dock_state() -> DockState<PanelId> {
 pub struct PanelLayoutState {
     /// Full tree docking state.
     pub dock_state: DockState<PanelId>,
+    /// Monotonically increasing revision counter incremented on layout mutations.
+    #[serde(default)]
+    pub revision: u64,
 }
 
 impl Default for PanelLayoutState {
@@ -166,12 +169,20 @@ impl PanelLayoutState {
     pub fn new_default() -> Self {
         Self {
             dock_state: create_default_dock_state(),
+            revision: 0,
         }
+    }
+
+    /// Monotonically increments the layout mutation revision counter.
+    #[inline]
+    pub fn bump_revision(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 
     /// Resets all docking surfaces, splits, and tabs to the factory default configuration.
     pub fn reset_to_default(&mut self) {
         self.dock_state = create_default_dock_state();
+        self.bump_revision();
     }
 
     /// Checks if a panel currently exists anywhere in the docking tree.
@@ -183,12 +194,14 @@ impl PanelLayoutState {
     pub fn close_tab(&mut self, leaf: irisui::dock::DockNodeId, tab_idx: usize) {
         let _ = self.dock_state.tree.remove_tab(leaf, tab_idx);
         self.dock_state.tree.collapse_empty_leaves();
+        self.bump_revision();
     }
 
     /// Focuses an existing panel tab in the tree or opens it relative to its canonical partner/anchor.
     pub fn activate_or_open(&mut self, panel: PanelId) {
         if let Some((leaf, idx)) = self.dock_state.tree.find_tab(&panel) {
             let _ = self.dock_state.tree.set_active_tab(leaf, idx);
+            self.bump_revision();
             self.dock_state.tree.set_focused_leaf(Some(leaf));
             return;
         }
@@ -209,6 +222,7 @@ impl PanelLayoutState {
             && let Ok(idx) = self.dock_state.tree.add_tab(partner_leaf, panel)
         {
             let _ = self.dock_state.tree.set_active_tab(partner_leaf, idx);
+            self.bump_revision();
             self.dock_state.tree.set_focused_leaf(Some(partner_leaf));
             return;
         }
@@ -232,6 +246,7 @@ impl PanelLayoutState {
                     .map(|_| viewport_leaf),
             };
             if let Ok(new_leaf) = res {
+                self.bump_revision();
                 self.dock_state.tree.set_focused_leaf(Some(new_leaf));
                 return;
             }
@@ -239,6 +254,7 @@ impl PanelLayoutState {
 
         // 3. Fallback to focused leaf or root
         let _ = self.dock_state.tree.push_to_focused_leaf(panel);
+        self.bump_revision();
     }
 
     /// Clamps all floating windows to ensure their title bars and content remain accessible within the workspace bounds.
@@ -272,17 +288,21 @@ impl PanelLayoutState {
         }
     }
 
-    /// Docks a floating window back to its canonical home leaf in the tree.
+    /// Intelligently docks a floating window back into the main docking layout near its canonical partner.
     pub fn smart_dock_back_panel(&mut self, win_id: u64) {
-        let target_panel = self
+        let Some(win) = self
             .dock_state
             .floating_windows
             .iter()
             .find(|w| w.id == win_id)
-            .and_then(|w| w.tree.all_tabs().first().copied());
+        else {
+            return;
+        };
 
-        let Some(panel) = target_panel else {
-            let _ = self.dock_state.close_floating_window(win_id);
+        let Some(panel) = win.tree.iter().find_map(|(_, node)| match node {
+            irisui::dock::DockNode::Leaf { tabs, active_tab } => tabs.get(*active_tab).copied(),
+            _ => None,
+        }) else {
             return;
         };
 
@@ -304,6 +324,7 @@ impl PanelLayoutState {
                 partner_leaf,
                 irisui::dock::DropZone::Center,
             );
+            self.bump_revision();
             return;
         }
 
@@ -320,6 +341,7 @@ impl PanelLayoutState {
             let _ = self
                 .dock_state
                 .dock_floating_window(win_id, viewport_leaf, target_zone);
+            self.bump_revision();
             return;
         }
 
@@ -330,6 +352,7 @@ impl PanelLayoutState {
                 fallback_leaf,
                 irisui::dock::DropZone::Center,
             );
+            self.bump_revision();
         }
     }
 }
@@ -471,5 +494,27 @@ pub mod tests {
         assert_eq!(win2.rect.y, screen_h - status_bar_h - 26.0);
         // Right coordinate clamped so at least 60px remains visible on screen
         assert_eq!(win2.rect.x, screen_w - 60.0);
+    }
+
+    #[test]
+    fn test_panel_layout_revision_tracking() {
+        let mut layout = PanelLayoutState::new_default();
+        assert_eq!(layout.revision, 0);
+
+        layout.bump_revision();
+        assert_eq!(layout.revision, 1);
+
+        layout.reset_to_default();
+        assert_eq!(layout.revision, 2);
+
+        // Closing a tab should increment revision
+        if let Some((leaf, _)) = layout.dock_state.tree.find_tab(&PanelId::Console) {
+            layout.close_tab(leaf, 1);
+            assert_eq!(layout.revision, 3);
+        }
+
+        // Activating or opening a panel should increment revision
+        layout.activate_or_open(PanelId::Console);
+        assert_eq!(layout.revision, 4);
     }
 }

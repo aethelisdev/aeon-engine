@@ -39,6 +39,10 @@ impl IrisEditorOverlay {
                 gpu_backend: params.gpu_backend,
                 active_entities_count: params.active_entities_count,
                 selected_entity: params.selected_entity,
+                revision: self
+                    .stats_revision
+                    .wrapping_add(if params.wireframe_enabled { 1 } else { 0 })
+                    .wrapping_add(if params.grid_enabled { 2 } else { 0 }),
             };
 
             let mut stats_targets = StatsPanelTargets::default();
@@ -277,7 +281,10 @@ impl IrisEditorOverlay {
                 active_context_menu: self.assets_context_menu.as_ref(),
                 active_preview_modal: self.assets_preview_modal.as_ref(),
                 thumbnail_layers: &self.thumbnail_layers,
-                revision: params.asset_browser.revision,
+                revision: params
+                    .asset_browser
+                    .revision
+                    .wrapping_add(self.assets_revision),
             };
 
             let style_changed = super::assets::sync_assets_panel(

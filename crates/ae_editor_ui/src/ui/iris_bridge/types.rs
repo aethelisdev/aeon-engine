@@ -189,8 +189,10 @@ pub struct IrisEditorOverlay {
     pub assets_preview_modal: Option<super::assets::AssetPreviewModalState>,
     /// Currently selected asset path in Asset Browser.
     pub assets_selected_asset: Option<std::path::PathBuf>,
-    /// Persistent Retained-Mode UI tree handles and state snapshot for Content / Asset Browser panel.
+    /// Persistent Retained-Mode UI tree handles for Content / Asset Browser panel.
     pub assets_retained: Option<super::assets::AssetBrowserRetainedState>,
+    /// Internal invalidation revision counter for Asset Browser overlay events.
+    pub assets_revision: u64,
     /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (16..255).
     pub thumbnail_layers: std::collections::HashMap<std::path::PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (16..255).
@@ -272,6 +274,8 @@ pub struct IrisEditorOverlay {
     pub needs_layout_rebuild: bool,
     /// Content area vertical scroll offset for Stats & Telemetry panel.
     pub stats_scroll_y: f32,
+    /// Invalidation revision counter for Stats & Profiler structural changes.
+    pub stats_revision: u64,
     /// Dispatched action queue for Stats & Telemetry panel interactions.
     pub stats_actions: Vec<StatsPanelAction>,
     /// Custom floating position coordinates for the Preferences panel.
@@ -316,12 +320,40 @@ pub struct IrisEditorOverlay {
     pub floating_window_rects: Vec<Rect>,
     /// Native dock chrome interaction frame from the last layout reconstruction.
     pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
-    /// Whether the draw command stream or text layout is dirty and requires reconstruction.
+    /// Whether the draw command stream or geometry layout is dirty and requires hardware rebaking.
     pub is_command_list_dirty: bool,
+    /// Whether text content or telemetry labels are dirty and require glyph extraction and GPU text buffer update.
+    pub is_text_dirty: bool,
+    /// Instant when live performance telemetry metrics were last refreshed in-place.
+    pub last_stats_update: std::time::Instant,
     /// Cached text sections extracted from the UI tree in retained mode across frames.
     pub cached_text_sections: Vec<irisui::text::TextSection<'static>>,
     /// Retained-mode baked hardware geometry buffers ensuring 2 draw calls.
     pub baked_geometry: super::baking::BakedUiGeometry,
+    /// Last recorded dock layout mutation revision.
+    pub last_dock_revision: u64,
+    /// Last recorded active top menu dropdown state.
+    pub last_active_menu: Option<ActiveMenu>,
+    /// Last recorded selected entity for hierarchy and inspector change detection.
+    pub last_selected_entity: Option<hecs::Entity>,
+    /// Last recorded editing mode state.
+    pub last_is_editing: bool,
+    /// Last recorded 2D mode state.
+    pub last_is_2d: bool,
+    /// Last recorded 3D viewport canvas bounding rectangle.
+    pub last_viewport_rect: Rect,
+    /// Last recorded count of status bar spans.
+    pub last_status_len: usize,
+    /// Last recorded active entity count in the primary ECS world.
+    pub last_world_len: u32,
+    /// Last recorded availability of the resolved 3D viewport surface texture.
+    pub last_has_viewport_texture: bool,
+    /// Last recorded 3D camera eye position for viewport HUD and billboard projection invalidation: `[x, y, z]`.
+    pub last_camera_pos: [f32; 3],
+    /// Last recorded 3D camera orientation for viewport HUD and billboard projection invalidation: `[yaw_rad, pitch_rad]`.
+    pub last_camera_orientation: [f32; 2],
+    /// Last recorded 3D camera orthographic scale for zoom invalidation.
+    pub last_camera_ortho_scale: f32,
 }
 
 impl IrisEditorOverlay {

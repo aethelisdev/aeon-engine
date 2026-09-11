@@ -346,24 +346,31 @@ impl EngineUi {
             match action {
                 iris_bridge::AssetsPanelAction::NavigateFolder(path) => {
                     self.asset_browser.current_folder = path;
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::SelectAsset(opt) => {
                     self.asset_browser.selected_asset = opt;
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::SelectCategory(cat) => {
                     self.asset_browser.active_category = cat;
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::SetViewMode(mode) => {
                     self.asset_browser.view_mode = mode;
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::ToggleSidebar => {
                     self.asset_browser.sidebar_collapsed = !self.asset_browser.sidebar_collapsed;
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::SearchInput(query) => {
                     self.asset_browser.search_query = query;
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::ClearSearch => {
                     self.asset_browser.search_query.clear();
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::OpenImportDialog => {
                     ui_actions.push(EngineUiAction::OpenModelDialog);
@@ -377,6 +384,7 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::OpenCreateSubfolder(parent) => {
                     self.asset_browser.new_folder_parent = Some(parent);
                     self.asset_browser.new_folder_name.clear();
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::SpawnAsset(path, cat) => match cat {
                     crate::ui::panels::assets::types::AssetCategory::Models3D => {
@@ -408,9 +416,11 @@ impl EngineUi {
                             current_name: name,
                             is_folder,
                         });
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::OpenDelete(path) => {
                     self.asset_browser.delete_confirmation = Some(path);
+                    self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
                 }
                 iris_bridge::AssetsPanelAction::CopyPath(path) => {
                     log::info!("Asset file path copied: {}", path.display());

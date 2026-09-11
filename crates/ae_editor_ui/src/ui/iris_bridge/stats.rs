@@ -19,9 +19,8 @@ mod tests;
 pub mod types;
 
 pub use graph::append_oscilloscope_quads;
-pub use panel::{build_stats_panel, update_stats_panel_values};
+pub use panel::{build_stats_panel, update_stats_panel_text_values, update_stats_panel_values};
 pub use sync::sync_stats_panel;
 pub use types::{
-    StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelRetainedState,
-    StatsPanelSnapshot, StatsPanelTargets,
+    StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelRetainedState, StatsPanelTargets,
 };

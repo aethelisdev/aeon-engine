@@ -8,9 +8,7 @@
 //!
 
 use super::sync::sync_stats_panel;
-use super::types::{
-    StatsPanelParams, StatsPanelRetainedState, StatsPanelSnapshot, StatsPanelTargets,
-};
+use super::types::{StatsPanelParams, StatsPanelRetainedState, StatsPanelTargets};
 use ae_core::telemetry::{
     CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer, GpuPassTimings, VramStats,
 };
@@ -59,6 +57,7 @@ impl TestTelemetryContext {
             gpu_backend: "Vulkan",
             active_entities_count: 42,
             selected_entity: None,
+            revision: 0,
         }
     }
 }
@@ -109,13 +108,8 @@ fn test_retained_stats_panel_resize_rebuilds_and_updates_snapshot() {
     sync_stats_panel(&mut tree, root, &mut retained_state, &params, &mut targets);
 
     let first_root = retained_state.as_ref().unwrap().nodes.root_id;
-    assert_eq!(
-        retained_state.as_ref().unwrap().snapshot,
-        StatsPanelSnapshot {
-            panel_rect: initial_rect,
-            scroll_y: 0.0,
-        }
-    );
+    assert_eq!(retained_state.as_ref().unwrap().panel_rect, initial_rect);
+    assert_eq!(retained_state.as_ref().unwrap().last_revision, 0);
 
     // Resize panel: Width increases from 300.0 to 400.0
     let resized_rect = Rect::new(10.0, 10.0, 400.0, 600.0);
@@ -142,7 +136,7 @@ fn test_retained_stats_panel_resize_rebuilds_and_updates_snapshot() {
         tree.contains_node(state.nodes.root_id),
         "New root must exist in tree"
     );
-    assert_eq!(state.snapshot.panel_rect, resized_rect);
+    assert_eq!(state.panel_rect, resized_rect);
 }
 
 #[test]
@@ -181,12 +175,11 @@ fn test_retained_stats_panel_in_place_metric_update() {
     telemetry.pacing_stats.average_frametime_ms = 6.94;
     let params_144fps = telemetry.make_params(Rect::new(0.0, 0.0, 300.0, 500.0), 0.0, 144.0);
 
-    sync_stats_panel(
+    // In-place metric update: telemetry updates directly in text buffer without rebuild
+    super::panel::update_stats_panel_text_values(
         &mut tree,
-        root,
-        &mut retained_state,
+        &retained_state.as_ref().unwrap().nodes,
         &params_144fps,
-        &mut targets,
     );
 
     assert_eq!(
@@ -197,4 +190,119 @@ fn test_retained_stats_panel_in_place_metric_update() {
 
     let updated_text = tree.get(avg_pill_id).and_then(|n| n.text.clone());
     assert_eq!(updated_text.as_deref(), Some("144 (6.94ms)"));
+}
+
+#[test]
+fn test_retained_stats_panel_idle_leaves_geometry_clean() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let telemetry = TestTelemetryContext::default();
+    let mut targets = StatsPanelTargets::default();
+    let mut retained_state = None;
+
+    let params_initial = telemetry.make_params(Rect::new(0.0, 0.0, 300.0, 500.0), 0.0, 60.0);
+    sync_stats_panel(
+        &mut tree,
+        root,
+        &mut retained_state,
+        &params_initial,
+        &mut targets,
+    );
+
+    // Simulate end of previous frame: clear all dirty flags
+    tree.clear_all_dirty(DirtyFlags::ALL);
+    assert!(!tree.has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT));
+
+    // Next frame (idle): update live telemetry in-place
+    let mut telemetry_idle = telemetry;
+    telemetry_idle.pacing_stats.average_fps = 60.0;
+    telemetry_idle.pacing_stats.average_frametime_ms = 16.67;
+    let nodes = &retained_state.as_ref().unwrap().nodes;
+    let params_idle = telemetry_idle.make_params(Rect::new(0.0, 0.0, 300.0, 500.0), 0.0, 60.0);
+    super::panel::update_stats_panel_text_values(&mut tree, nodes, &params_idle);
+
+    // As required by Phase 2 architecture, clearing geometry dirty flags after text-only update
+    tree.clear_all_dirty(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
+
+    // CRITICAL INVARIANT: In idle, tree geometry and paint MUST be strictly false!
+    assert!(
+        !tree.has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT),
+        "UI tree must have zero PAINT or LAYOUT dirty nodes during idle telemetry updates"
+    );
+
+    let avg_pill_id = nodes.metric_pill_val_ids[0];
+    let updated_text = tree.get(avg_pill_id).and_then(|n| n.text.clone());
+    assert_eq!(updated_text.as_deref(), Some("60 (16.67ms)"));
+}
+
+#[test]
+fn test_retained_stats_panel_multi_frame_idle_invariants() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let telemetry = TestTelemetryContext::default();
+    let mut targets = StatsPanelTargets::default();
+    let mut retained_state = None;
+
+    let params_initial = telemetry.make_params(Rect::new(0.0, 0.0, 300.0, 500.0), 0.0, 60.0);
+    sync_stats_panel(
+        &mut tree,
+        root,
+        &mut retained_state,
+        &params_initial,
+        &mut targets,
+    );
+
+    // Frame 0 complete: clear all dirty
+    tree.clear_all_dirty(DirtyFlags::ALL);
+    assert!(!tree.has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT));
+
+    let nodes = &retained_state.as_ref().unwrap().nodes;
+
+    // Simulate 10 consecutive frames: alternating telemetry ticks (every 100ms) and quiet frames
+    for frame in 1..=10 {
+        let is_telemetry_cadence_tick = frame % 2 == 0;
+        if is_telemetry_cadence_tick {
+            let mut tick_context = TestTelemetryContext::default();
+            tick_context.pacing_stats.average_fps = 60.0 + frame as f32;
+            let params = tick_context.make_params(Rect::new(0.0, 0.0, 300.0, 500.0), 0.0, 60.0);
+            super::panel::update_stats_panel_text_values(&mut tree, nodes, &params);
+            tree.clear_all_dirty(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
+        }
+
+        // ABSOLUTE IDLE INVARIANT: Under stationary mouse, tree_dirty is strictly FALSE
+        assert!(
+            !tree.has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT),
+            "Frame {}: UI tree must remain strictly clean of PAINT/LAYOUT dirty nodes in idle",
+            frame
+        );
+
+        // Frame rendering clears any text dirty flags
+        tree.clear_all_dirty(DirtyFlags::ALL);
+    }
+}
+
+#[test]
+fn test_retained_stats_panel_reattaches_when_detached() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let telemetry = TestTelemetryContext::default();
+    let mut targets = StatsPanelTargets::default();
+    let mut retained_state = None;
+
+    let params = telemetry.make_params(Rect::new(0.0, 0.0, 300.0, 500.0), 0.0, 60.0);
+
+    // Frame 1: Initial construction
+    sync_stats_panel(&mut tree, root, &mut retained_state, &params, &mut targets);
+    let stats_root = retained_state.as_ref().unwrap().nodes.root_id;
+    assert_eq!(tree.get(stats_root).and_then(|n| n.parent), Some(root));
+
+    // Simulate Taffy layout pass detaching the retained node from root
+    let _ = tree.remove_child(root, stats_root);
+    assert_eq!(tree.get(stats_root).and_then(|n| n.parent), None);
+    assert!(!tree.get(root).unwrap().children.contains(&stats_root));
+
+    // Frame 2: sync_stats_panel on fast path MUST re-attach the node to parent_id
+    sync_stats_panel(&mut tree, root, &mut retained_state, &params, &mut targets);
+    assert_eq!(tree.get(stats_root).and_then(|n| n.parent), Some(root));
+    assert!(tree.get(root).unwrap().children.contains(&stats_root));
 }

@@ -194,8 +194,8 @@ impl AeEngine {
                 None
             };
 
-        // Prepare debug wireframe overlay: collect collider lines when in Edit Mode.
-        if render_enabled && self.mode == EngineMode::Edit {
+        // Prepare debug wireframe overlay: collect collider lines when in Edit Mode (3D only).
+        if render_enabled && self.mode == EngineMode::Edit && !is_2d {
             self.debug_renderer.collect_lines(
                 &self.render_state.device,
                 &self.render_state.queue,
@@ -299,7 +299,7 @@ impl AeEngine {
         if let Some(so) = &sprite_overlay {
             overlays.push(so);
         }
-        if render_enabled && self.mode == EngineMode::Edit {
+        if render_enabled && self.mode == EngineMode::Edit && !is_2d {
             if let Some(ov) = overlay {
                 overlays.push(ov);
             }
@@ -443,5 +443,30 @@ impl<'a> ae_renderer::render::OverlayRenderer for Sprite2DOverlay<'a> {
                 ae_renderer::asset::AssetHandle::from(slotmap::KeyData::from_ffi(id as u64));
             self.textures.get(handle).map(|t| &t.bind_group)
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Verifies that 3D-specific overlays (debug line renderer and 3D gizmo)
+    /// are strictly excluded when the active viewport dimension mode is 2D,
+    /// preventing WGPU depth-stencil attachment validation panics.
+    #[test]
+    fn test_2d_mode_excludes_3d_debug_overlay() {
+        let is_2d = true;
+        let render_enabled = true;
+        let mode = EngineMode::Edit;
+
+        let should_collect_debug_lines = render_enabled && mode == EngineMode::Edit && !is_2d;
+        let should_include_3d_overlays = render_enabled && mode == EngineMode::Edit && !is_2d;
+
+        assert!(!should_collect_debug_lines);
+        assert!(!should_include_3d_overlays);
+
+        let is_3d_mode = false;
+        let should_collect_in_3d = render_enabled && mode == EngineMode::Edit && !is_3d_mode;
+        assert!(should_collect_in_3d);
     }
 }

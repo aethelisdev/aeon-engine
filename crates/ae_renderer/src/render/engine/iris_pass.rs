@@ -83,6 +83,15 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
     });
 
     if has_quads {
+        if is_dirty {
+            log::info!(
+                "[PROBE_WGPU] Frame draw commands count: {} (SDF quads: {}, external quads: {}, texture quads: {})",
+                command_list.commands.len(),
+                command_list.quads.len(),
+                command_list.external_texture_quads.len(),
+                command_list.texture_quads.len()
+            );
+        }
         renderer.render_command_list(&mut render_pass, command_list, screen_size);
     }
 

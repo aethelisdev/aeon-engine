@@ -266,6 +266,61 @@ pub fn update_stats_panel_values(
     );
 }
 
+/// Updates ONLY the text/glyph values in place during idle frames without touching quad nodes or layout.
+pub fn update_stats_panel_text_values(
+    tree: &mut UiTree,
+    nodes: &StatsPanelNodes,
+    params: &StatsPanelParams<'_>,
+) {
+    // 1. Frame Pacing Card Values (Text only)
+    update_frame_pacing_values(
+        tree,
+        &nodes.metric_pill_val_ids,
+        nodes.pacing_footer_id,
+        params,
+    );
+
+    // 2. CPU Breakdown Values (Text only)
+    super::cpu_breakdown::update_cpu_breakdown_text_values(
+        tree,
+        nodes.cpu_tb_val_id,
+        &nodes.cpu_timing_val_ids,
+        nodes.cpu_total_val_id,
+        params,
+    );
+
+    // 3. GPU Breakdown Values (Text only)
+    super::gpu_breakdown::update_gpu_breakdown_text_values(
+        tree,
+        nodes.gpu_dev_id,
+        &nodes.gpu_pass_val_ids,
+        nodes.gpu_total_val_id,
+        params,
+    );
+
+    // 4. Scene Geometry Values (Text only)
+    update_scene_geometry_values(
+        tree,
+        &SceneGeometryNodes {
+            dc_val_id: nodes.dc_val_id,
+            inst_pct_id: nodes.inst_pct_id,
+            dc_subrow_val_ids: nodes.dc_subrow_val_ids,
+            triangles_val_id: nodes.triangles_val_id,
+            vertices_val_id: nodes.vertices_val_id,
+            entities_val_id: nodes.entities_val_id,
+        },
+        params,
+    );
+
+    // 5. Video RAM Values (Text only)
+    super::metrics::update_vram_text_values(
+        tree,
+        &nodes.vram_row_val_ids,
+        nodes.vram_total_val_id,
+        params,
+    );
+}
+
 /// Helper function to build a standard dark stats card frame with header and inner content rect.
 fn build_stats_card(
     tree: &mut UiTree,

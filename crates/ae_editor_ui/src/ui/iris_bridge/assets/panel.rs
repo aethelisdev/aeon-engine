@@ -11,8 +11,7 @@ use super::cards::build_retained_asset_grid_cards;
 use super::list::build_asset_list_table;
 use super::tree::build_folder_tree_sidebar;
 use super::types::{
-    AssetBrowserRetainedState, AssetBrowserStateSnapshot, AssetsPanelParams, AssetsPanelTargets,
-    BreadcrumbTarget,
+    AssetBrowserRetainedState, AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget,
 };
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
 use crate::ui::iris_bridge::theme::*;
@@ -502,19 +501,8 @@ pub fn build_assets_panel_retained(
         root_id,
         content_viewport_id: content_vp_id,
         cards: retained_cards,
-        snapshot: Some(AssetBrowserStateSnapshot {
-            panel_rect: params.panel_rect,
-            current_folder: params.current_folder.to_path_buf(),
-            search_query: params.search_query.to_string(),
-            active_category: params.active_category,
-            view_mode: params.view_mode,
-            selected_asset: params.selected_asset.map(|p| p.to_path_buf()),
-            scroll_y: params.scroll_y,
-            tree_scroll_y: params.tree_scroll_y,
-            sidebar_width: params.sidebar_width,
-            sidebar_collapsed: params.sidebar_collapsed,
-            revision: params.revision,
-        }),
+        panel_rect: params.panel_rect,
+        last_revision: params.revision,
         cached_targets: targets,
     }
 }

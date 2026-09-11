@@ -204,6 +204,60 @@ pub fn update_cpu_breakdown_values(
     }
 }
 
+/// Updates ONLY the text values of the CPU Breakdown card in place (0 allocations, 0 quad touches).
+pub fn update_cpu_breakdown_text_values(
+    tree: &mut UiTree,
+    tb_val_id: WidgetId,
+    timing_val_ids: &[WidgetId; 5],
+    total_val_id: WidgetId,
+    params: &StatsPanelParams<'_>,
+) {
+    let cpu = params.cpu_timings;
+    let total_gpu_ms = params.gpu_pass_timings.total_gpu_ms;
+    let total_frame_ms = cpu.total_cpu_ms.max(total_gpu_ms);
+    let is_cpu_bound = cpu.is_cpu_bound(total_gpu_ms);
+
+    let (bottleneck_text, bottleneck_color) = if total_frame_ms <= 8.33 {
+        ("Optimal (120+ FPS)", Color::rgba(0.0, 0.82, 0.63, 1.0))
+    } else if total_frame_ms <= 16.67 {
+        ("Within Budget (60+ FPS)", Color::rgba(0.0, 0.75, 0.90, 1.0))
+    } else if is_cpu_bound {
+        ("CPU Bound", Color::rgba(0.96, 0.57, 0.12, 1.0))
+    } else {
+        ("GPU Bound / VSync", Color::rgba(0.94, 0.39, 0.31, 1.0))
+    };
+
+    if let Some(node) = tree.get_mut(tb_val_id) {
+        node.set_text(bottleneck_text);
+        node.text_color = bottleneck_color;
+    }
+
+    let bar_total = cpu.total_cpu_ms.max(0.001);
+    let ms_values = [
+        cpu.main_logic_ms,
+        cpu.physics_ms,
+        cpu.render_prep_ms,
+        cpu.wait_for_gpu_ms,
+        cpu.ui_editor_ms,
+    ];
+
+    for (idx, &ms) in ms_values.iter().enumerate() {
+        let pct = if bar_total > 0.001 {
+            (ms / bar_total) * 100.0
+        } else {
+            0.0
+        };
+        let val_text = format!("{:.2} ms ({:.0}%)", ms, pct);
+        if let Some(node) = tree.get_mut(timing_val_ids[idx]) {
+            node.set_text(val_text);
+        }
+    }
+
+    if let Some(node) = tree.get_mut(total_val_id) {
+        node.set_text(format!("{:.2} ms", cpu.total_cpu_ms));
+    }
+}
+
 /// Helper to build a multi-segmented progress bar track and pre-allocate segment nodes.
 pub fn build_multi_segment_bar(
     tree: &mut UiTree,

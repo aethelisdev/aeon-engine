@@ -556,3 +556,53 @@ fn test_retained_assets_panel_clear_all_dirty_invariant() {
         "Idle frame must produce zero dirty nodes across the entire tree"
     );
 }
+
+#[test]
+fn test_retained_assets_panel_reattaches_when_detached() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let mut retained = None;
+
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let current_folder = PathBuf::from("assets");
+    let items = vec![];
+    let item_refs: Vec<&AssetItem> = vec![];
+
+    let params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1280.0, 720.0),
+        current_folder: &current_folder,
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &item_refs,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        revision: 0,
+    };
+
+    // Frame 1: Build initial retained state
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
+    let asset_root = retained.as_ref().unwrap().root_id;
+    assert_eq!(tree.get(asset_root).and_then(|n| n.parent), Some(root_id));
+
+    // Simulate Taffy layout pass detaching the retained node from root
+    let _ = tree.remove_child(root_id, asset_root);
+    assert_eq!(tree.get(asset_root).and_then(|n| n.parent), None);
+    assert!(!tree.get(root_id).unwrap().children.contains(&asset_root));
+
+    // Frame 2: sync_assets_panel on fast path MUST re-attach the node to parent_id
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params);
+    assert_eq!(tree.get(asset_root).and_then(|n| n.parent), Some(root_id));
+    assert!(tree.get(root_id).unwrap().children.contains(&asset_root));
+}

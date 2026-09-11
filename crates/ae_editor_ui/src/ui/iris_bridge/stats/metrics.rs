@@ -309,6 +309,29 @@ pub fn update_vram_values(
     }
 }
 
+/// Updates ONLY the text values of the Video RAM card in place (0 allocations, 0 quad touches).
+pub fn update_vram_text_values(
+    tree: &mut UiTree,
+    row_val_ids: &[WidgetId; 3],
+    total_val_id: WidgetId,
+    params: &StatsPanelParams<'_>,
+) {
+    let vram = params.vram_stats;
+    let mb_values = [
+        vram.texture_vram_mb,
+        vram.mesh_index_vram_mb,
+        vram.dynamic_uniform_vram_mb,
+    ];
+    for (idx, &mb) in mb_values.iter().enumerate() {
+        if let Some(node) = tree.get_mut(row_val_ids[idx]) {
+            node.set_text(format!("{:.2} MB", mb));
+        }
+    }
+    if let Some(node) = tree.get_mut(total_val_id) {
+        node.set_text(format!("{:.2} MB", vram.total_vram_mb));
+    }
+}
+
 /// Helper to render a static metric row and return the value node ID.
 fn build_metric_row(
     tree: &mut UiTree,

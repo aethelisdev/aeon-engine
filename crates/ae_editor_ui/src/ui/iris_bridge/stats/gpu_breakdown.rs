@@ -175,3 +175,50 @@ pub fn update_gpu_breakdown_values(
         node.set_text(format!("{:.2} ms", gpu.total_gpu_ms));
     }
 }
+
+/// Updates ONLY the text values of the GPU Breakdown card in place (0 allocations, 0 quad touches).
+pub fn update_gpu_breakdown_text_values(
+    tree: &mut UiTree,
+    dev_id: WidgetId,
+    pass_val_ids: &[WidgetId; 4],
+    total_val_id: WidgetId,
+    params: &StatsPanelParams<'_>,
+) {
+    let gpu = params.gpu_pass_timings;
+
+    // 1. Update Device Name
+    let gpu_text = if !params.gpu_adapter_name.is_empty() {
+        format!("{} ({})", params.gpu_adapter_name, params.gpu_backend)
+    } else {
+        format!("Graphics Adapter ({})", params.gpu_backend)
+    };
+    if let Some(node) = tree.get_mut(dev_id) {
+        node.set_text(gpu_text);
+    }
+
+    // 2. Update Pass Timing Rows
+    let bar_total = gpu.total_gpu_ms.max(0.001);
+    let ms_values = [
+        gpu.shadow_pass_ms,
+        gpu.main_opaque_pass_ms,
+        gpu.post_process_pass_ms,
+        gpu.ui_pass_ms,
+    ];
+
+    for (idx, &ms) in ms_values.iter().enumerate() {
+        let pct = if bar_total > 0.001 {
+            (ms / bar_total) * 100.0
+        } else {
+            0.0
+        };
+        let val_text = format!("{:.2} ms ({:.0}%)", ms, pct);
+        if let Some(node) = tree.get_mut(pass_val_ids[idx]) {
+            node.set_text(val_text);
+        }
+    }
+
+    // 3. Update Total GPU Workload
+    if let Some(node) = tree.get_mut(total_val_id) {
+        node.set_text(format!("{:.2} ms", gpu.total_gpu_ms));
+    }
+}

@@ -27,6 +27,7 @@ impl IrisEditorOverlay {
                 && wire_rect.contains_point(click_point)
             {
                 self.stats_actions.push(StatsPanelAction::ToggleWireframe);
+                self.stats_revision = self.stats_revision.wrapping_add(1);
                 result.consumed = true;
                 return Some(result);
             }
@@ -34,6 +35,7 @@ impl IrisEditorOverlay {
                 && grid_rect.contains_point(click_point)
             {
                 self.stats_actions.push(StatsPanelAction::ToggleGrid);
+                self.stats_revision = self.stats_revision.wrapping_add(1);
                 result.consumed = true;
                 return Some(result);
             }
@@ -65,6 +67,7 @@ impl IrisEditorOverlay {
             && targets.panel_rect.contains_point(self.cursor_pos)
         {
             self.stats_scroll_y = (self.stats_scroll_y - delta_y).max(0.0);
+            self.stats_revision = self.stats_revision.wrapping_add(1);
             result.consumed = true;
             return Some(result);
         }

@@ -306,12 +306,29 @@ impl IrisEditorOverlay {
             self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
         }
 
-        let is_dirty = self.is_command_list_dirty
-            || self
-                .tree
-                .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
+        let tree_dirty = self
+            .tree
+            .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
+        let is_geometry_dirty = self.is_command_list_dirty || tree_dirty;
+        let is_text_dirty =
+            self.is_text_dirty || is_geometry_dirty || self.cached_text_sections.is_empty();
 
-        if is_dirty || self.cached_text_sections.is_empty() {
+        if !self.is_command_list_dirty {
+            debug_assert!(
+                !tree_dirty,
+                "UI tree must have zero PAINT or LAYOUT dirty nodes during idle frames"
+            );
+        }
+
+        if is_geometry_dirty {
+            log::info!(
+                "[PROBE_DIRTY] UI tree dirty before render (cmd_dirty: {}, tree_dirty: {})",
+                self.is_command_list_dirty,
+                tree_dirty
+            );
+        }
+
+        if is_text_dirty {
             let mut active_dropdown_rects: Vec<Rect> = Vec::new();
             let mut active_modal_rects: Vec<Rect> = Vec::new();
 
@@ -387,6 +404,7 @@ impl IrisEditorOverlay {
                 &active_modal_rects,
                 &self.floating_window_rects,
             );
+            self.is_text_dirty = false;
         }
 
         if let Some(txt_renderer) = &mut self.text_renderer {
@@ -397,7 +415,7 @@ impl IrisEditorOverlay {
                 physical_screen_size,
                 zoom_factor: zoom,
                 sections: &self.cached_text_sections,
-                is_dirty,
+                is_dirty: is_text_dirty,
             });
         }
 
@@ -410,13 +428,13 @@ impl IrisEditorOverlay {
             command_list: &self.command_list,
             text_renderer: self.text_renderer.as_ref(),
             screen_size: logical_screen_size,
-            is_dirty,
+            is_dirty: is_geometry_dirty,
         });
 
-        if is_dirty {
-            self.tree.clear_all_dirty(DirtyFlags::ALL);
+        if is_geometry_dirty {
             self.is_command_list_dirty = false;
         }
+        self.tree.clear_all_dirty(DirtyFlags::ALL);
     }
 
     /// Uploads dynamic 64x64 thumbnail previews for active asset browser items into the 2D Texture Array.

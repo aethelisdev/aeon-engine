@@ -44,6 +44,10 @@ impl IrisEditorOverlay {
             return None;
         }
 
+        if !actions.is_empty() {
+            self.assets_revision = self.assets_revision.wrapping_add(1);
+        }
+
         for action in actions {
             match action {
                 super::super::assets::AssetsPanelAction::Scroll(delta) => {
