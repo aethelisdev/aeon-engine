@@ -10,9 +10,10 @@ pub use ae_plugin_api::{
     Collider, ColliderShape, Color, DestructibleTarget, EphemeralProjectile, GlobalTransform,
     Hidden, Light, ModelId, MovingPlatform, Name, Parent, PhysicsMaterial, PlayerHealthBarTag,
     PlayerTag, Position, RaycastHit, ReticleTag, RigidBody, RigidBodyType, Rotation, Rotator,
-    Scale, ScoreDisplayTag, Shape, SpriteId, SurfaceType, TransformDirty, TriggerZone, UiAnchor,
-    UiButton, UiCheckbox, UiElement, UiImage, UiLayoutGroup, UiLayoutType, UiPanel, UiProgressBar,
-    UiRect, UiSliceMode, UiSlider, UiText, UiTextAlignment, UiTextInput, Velocity,
+    Scale, ScoreDisplayTag, Shape, SpriteId, SpriteRenderer, SurfaceType, TransformDirty,
+    TriggerZone, UiAnchor, UiButton, UiCheckbox, UiElement, UiImage, UiLayoutGroup, UiLayoutType,
+    UiPanel, UiProgressBar, UiRect, UiSliceMode, UiSlider, UiText, UiTextAlignment, UiTextInput,
+    Velocity,
 };
 
 pub use crate::registry::{ComponentHandler, ComponentRegistry, TypedComponentHandler};

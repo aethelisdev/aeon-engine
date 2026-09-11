@@ -410,6 +410,10 @@ impl ComponentRegistry {
         registry.register_with_default::<ae_plugin_api::ReticleTag>("ReticleTag", || {
             ae_plugin_api::ReticleTag
         });
+        registry.register_with_default::<ae_plugin_api::SpriteRenderer>(
+            "SpriteRenderer",
+            ae_plugin_api::SpriteRenderer::default,
+        );
 
         registry
     }
@@ -468,5 +472,45 @@ mod tests {
             );
             assert!(handler.has_component(&world, entity));
         }
+    }
+
+    #[test]
+    fn test_component_registry_sprite_renderer_roundtrip() {
+        let registry = ComponentRegistry::global();
+        let mut world = World::new();
+        let entity = world.spawn(());
+
+        let handler = registry
+            .get_by_name("SpriteRenderer")
+            .expect("SpriteRenderer must be registered in ComponentRegistry");
+
+        let sprite = ae_plugin_api::SpriteRenderer {
+            tint: [0.2, 0.4, 0.8, 1.0],
+            sorting_layer: 10,
+            order_in_layer: 5,
+            flip_x: true,
+            flip_y: false,
+            uv_rect: [0.1, 0.2, 0.8, 0.9],
+            ..Default::default()
+        };
+        world.insert_one(entity, sprite.clone()).unwrap();
+
+        assert!(handler.has_component(&world, entity));
+
+        let data = handler
+            .capture(&world, entity)
+            .expect("capture must succeed for SpriteRenderer");
+
+        let mut target_world = World::new();
+        let target_entity = target_world.spawn(());
+        handler
+            .apply(&mut target_world, target_entity, &data)
+            .expect("apply must succeed for SpriteRenderer");
+
+        let restored = target_world
+            .get::<&ae_plugin_api::SpriteRenderer>(target_entity)
+            .expect("restored SpriteRenderer must exist");
+
+        assert_eq!(*restored, sprite);
     }
 }

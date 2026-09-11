@@ -249,16 +249,20 @@ impl AeEngine {
             let cam_view_proj = self.camera.build_view_projection_matrix();
             batcher.update_camera(&self.render_state.queue, &cam_view_proj);
 
-            for (pos, scale, sprite) in self
+            for (pos, scale, sprite, hidden_opt) in self
                 .ecs
                 .world
                 .query::<(
                     &Position,
                     &ae_core::ecs::Scale,
                     &ae_2d::components::SpriteRenderer,
+                    Option<&ae_core::ecs::Hidden>,
                 )>()
                 .iter()
             {
+                if hidden_opt.is_some() {
+                    continue;
+                }
                 let tex_id = sprite
                     .texture
                     .map(|t| {
