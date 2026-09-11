@@ -123,8 +123,8 @@ impl AeEngine {
                 let new_pipeline = ae_2d::renderer::Sprite2DPipeline::new(
                     &self.render_state.device,
                     self.render_state.config.format,
-                    Some(wgpu::TextureFormat::Depth32Float),
-                    new_msaa,
+                    None,
+                    1,
                 );
                 *batcher = ae_2d::renderer::SpriteBatcher::new(
                     &self.render_state.device,

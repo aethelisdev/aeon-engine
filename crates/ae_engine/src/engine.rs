@@ -99,8 +99,8 @@ impl AeEngine {
             let pipeline = ae_2d::renderer::Sprite2DPipeline::new(
                 &render_state.device,
                 render_state.config.format,
-                Some(wgpu::TextureFormat::Depth32Float),
-                render_state.post_process.msaa_samples,
+                None,
+                1,
             );
             let batcher = ae_2d::renderer::SpriteBatcher::new(
                 &render_state.device,
