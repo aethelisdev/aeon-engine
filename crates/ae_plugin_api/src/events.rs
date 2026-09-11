@@ -11,9 +11,14 @@ use std::collections::{HashMap, HashSet, VecDeque};
 /// Core engine modules that can be dynamically enabled/disabled at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EngineModule {
+    /// Rapier3D & Rapier2D physics simulation, character controller, and collision detection.
     Physics,
+    /// Spatial and ambient hardware audio playback system.
     Audio,
+    /// 3D graphics rendering pipeline including PBR, shadows, skybox, and post-processing.
     Render,
+    /// Hardware-accelerated 2D sprite batching, sorting, and tile rendering pipeline.
+    Render2D,
 }
 
 /// The mode in which the engine runs: Edit or Play.
@@ -39,6 +44,7 @@ impl DynamicEventBus {
         enabled_modules.insert(EngineModule::Physics);
         enabled_modules.insert(EngineModule::Audio);
         enabled_modules.insert(EngineModule::Render);
+        enabled_modules.insert(EngineModule::Render2D);
         Self {
             queues: HashMap::new(),
             enabled_modules,
@@ -240,3 +246,29 @@ pub struct TargetDestroyedEvent {
     pub target: hecs::Entity,
 }
 impl Event for TargetDestroyedEvent {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_event_bus_default_modules_contain_render2d() {
+        let bus = DynamicEventBus::new();
+        assert!(bus.is_module_enabled(EngineModule::Physics));
+        assert!(bus.is_module_enabled(EngineModule::Audio));
+        assert!(bus.is_module_enabled(EngineModule::Render));
+        assert!(bus.is_module_enabled(EngineModule::Render2D));
+    }
+
+    #[test]
+    fn test_event_bus_toggle_render2d_module() {
+        let mut bus = DynamicEventBus::new();
+        assert!(bus.is_module_enabled(EngineModule::Render2D));
+
+        bus.set_module_enabled(EngineModule::Render2D, false);
+        assert!(!bus.is_module_enabled(EngineModule::Render2D));
+
+        bus.set_module_enabled(EngineModule::Render2D, true);
+        assert!(bus.is_module_enabled(EngineModule::Render2D));
+    }
+}

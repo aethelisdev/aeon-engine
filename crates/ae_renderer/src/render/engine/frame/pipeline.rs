@@ -6,7 +6,7 @@
 
 use super::forward;
 use crate::render::engine::state::{RenderOptions, RenderState};
-use crate::render::types::{OverlayRenderer, RenderError, ViewportRect};
+use crate::render::types::{FrameRenderStats, OverlayRenderer, RenderError, ViewportRect};
 use crate::render::viewport_texture::ViewportTexture;
 use winit::window::Window;
 
@@ -87,7 +87,12 @@ impl RenderState {
             }
         }
 
-        let render_enabled = enabled_modules.contains(&ae_core::modules::EngineModule::Render);
+        let is_2d_mode = options.is_2d_mode;
+        let render_enabled = if is_2d_mode {
+            enabled_modules.contains(&ae_core::modules::EngineModule::Render2D)
+        } else {
+            enabled_modules.contains(&ae_core::modules::EngineModule::Render)
+        };
 
         if !render_enabled {
             let acquire_start = std::time::Instant::now();
@@ -138,7 +143,7 @@ impl RenderState {
             }
 
             if let Some(vt) = &self.viewport_texture {
-                // Pass 2: Clear 3D Viewport Texture (different dimensions from surface_view)
+                // Pass 2: Clear Viewport Texture (different dimensions from surface_view)
                 let _clear_vp_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Clear Viewport Texture Pass (Render Disabled)"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -177,6 +182,10 @@ impl RenderState {
             self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
 
             return Ok(());
+        }
+
+        if is_2d_mode {
+            return self.render_2d_frame(overlays, ui_renderer);
         }
 
         let triangle_instances = scene.triangle_instances;
@@ -387,6 +396,161 @@ impl RenderState {
         let total_gpu_ms = shadow_pass_ms + main_opaque_pass_ms + post_process_pass_ms + ui_pass_ms;
         self.last_gpu_pass_timings = ae_core::telemetry::GpuPassTimings {
             shadow_pass_ms,
+            main_opaque_pass_ms,
+            post_process_pass_ms,
+            ui_pass_ms,
+            total_gpu_ms,
+        };
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        let present_start = std::time::Instant::now();
+        self.queue.present(output);
+        let present_wait = present_start.elapsed();
+
+        self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
+
+        Ok(())
+    }
+
+    /// Executes the isolated 2D graphics rendering pipeline.
+    /// Completely decouples 2D execution from 3D graphics machinery:
+    /// - 0 shadow cascades updated or rendered ($0.0$ ms shadow pass)
+    /// - 0 3D PBR forward passes, skybox passes, or 3D primitive geometry buffer updates
+    /// - 0 3D silhouette outline passes
+    /// Clears the 2D viewport texture using environment settings, renders 2D overlays (instanced sprite batcher),
+    /// and runs the Iris UI render pass.
+    fn render_2d_frame(
+        &mut self,
+        overlays: &[&dyn OverlayRenderer],
+        ui_renderer: Option<UiRenderCallback<'_>>,
+    ) -> Result<(), RenderError> {
+        let acquire_start = std::time::Instant::now();
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(tex)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                return Err(RenderError::SurfaceLost);
+            }
+            other => return Err(RenderError::Other(format!("{:?}", other))),
+        };
+        let acquire_wait = acquire_start.elapsed();
+        let surface_view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("2D Command Encoder"),
+            });
+
+        let env_color = self.graphics_settings.environment_color;
+        let clear_rgb = wgpu::Color {
+            r: (env_color[0] as f64).powf(2.2),
+            g: (env_color[1] as f64).powf(2.2),
+            b: (env_color[2] as f64).powf(2.2),
+            a: 1.0,
+        };
+
+        // Pass 1: Clear OS Surface View to neutral dock background
+        {
+            let surface_clear = wgpu::Color {
+                r: 0.05,
+                g: 0.05,
+                b: 0.07,
+                a: 1.0,
+            };
+            let _clear_surface_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Clear OS Surface Pass (2D)"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &surface_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(surface_clear),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+        }
+
+        // Pass 2: Render 2D Sprite Viewport Pass
+        let main_timer = std::time::Instant::now();
+        let target_view = self
+            .viewport_texture
+            .as_ref()
+            .map(|vt| &vt.view)
+            .unwrap_or(&surface_view);
+
+        let (color_view, resolve_target) = if self.post_process.msaa_samples > 1 {
+            (
+                &self.post_process.multisampled_framebuffer,
+                Some(target_view),
+            )
+        } else {
+            (target_view, None)
+        };
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("2D Viewport Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: color_view,
+                    resolve_target,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_rgb),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.post_process.depth_texture_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+
+            // Draw all 2D overlays (Sprite2DOverlay, DebugRenderer)
+            for ov in overlays {
+                ov.draw_overlay(&self.queue, &mut pass);
+            }
+        }
+        let main_opaque_pass_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
+
+        // Reset 3D render stats for 2D mode
+        self.last_render_stats = FrameRenderStats::default();
+
+        // In 2D mode, post-processing composite (which consumes 3D scene_texture) is bypassed.
+        let post_process_pass_ms = 0.0;
+
+        // UI pass
+        let ui_timer = std::time::Instant::now();
+        if let Some(render_ui) = ui_renderer {
+            let vt_view = self.viewport_texture.as_ref().map(|vt| &vt.view);
+            self.last_viewport_rect = render_ui(
+                &self.device,
+                &self.queue,
+                &mut encoder,
+                &self.window,
+                &surface_view,
+                vt_view,
+            );
+        }
+        let ui_pass_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
+
+        let total_gpu_ms = main_opaque_pass_ms + post_process_pass_ms + ui_pass_ms;
+        self.last_gpu_pass_timings = ae_core::telemetry::GpuPassTimings {
+            shadow_pass_ms: 0.0,
             main_opaque_pass_ms,
             post_process_pass_ms,
             ui_pass_ms,

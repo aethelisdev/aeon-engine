@@ -19,27 +19,34 @@ struct ModuleCardData {
     color: Color,
 }
 
-const MODULES: [ModuleCardData; 3] = [
+const MODULES: [ModuleCardData; 4] = [
     ModuleCardData {
         module: EngineModule::Physics,
-        name: "Physics (Fizik)",
+        name: "Physics",
         desc: "Runs position/velocity integration, collisions, and character controller updates. Disabling halts all physical simulations and saves CPU cycles.",
         detail: "⚙ FixedUpdate Loop",
         color: Color::rgba(0.92, 0.45, 0.23, 1.0), // Orange
     },
     ModuleCardData {
         module: EngineModule::Audio,
-        name: "Audio (Ses)",
+        name: "Audio",
         desc: "Processes sound playback and environmental effects. Disabling stops all audio processing.",
         detail: "🔊 Audio Pipeline",
         color: Color::rgba(0.23, 0.65, 0.92, 1.0), // Blue
     },
     ModuleCardData {
         module: EngineModule::Render,
-        name: "Render (Render)",
-        desc: "Renders 3D geometry, shadows, skybox, and post-processing. Disable to bypass the render pipeline.",
+        name: "3D Render",
+        desc: "Renders 3D geometry, shadows, skybox, and post-processing. Disable to bypass the 3D render pipeline.",
         detail: "👁 3D Viewport Pass",
         color: Color::rgba(0.45, 0.92, 0.23, 1.0), // Green
+    },
+    ModuleCardData {
+        module: EngineModule::Render2D,
+        name: "2D Render",
+        desc: "Renders 2D sprites, sprite batching, tiles, and sorting layers. Disable to bypass the 2D sprite pipeline.",
+        detail: "🖼 2D Sprite Pass",
+        color: Color::rgba(0.18, 0.80, 0.44, 1.0), // Emerald Green
     },
 ];
 

@@ -57,10 +57,15 @@ impl AeEngine {
     /// and handles Play→Edit scene restore.
     pub fn render(&mut self) -> Result<(), ae_renderer::render::RenderError> {
         self.profiler.begin_render();
-        let render_enabled = self
-            .event_bus
-            .is_module_enabled(ae_core::modules::EngineModule::Render);
-        if render_enabled {
+        let is_2d = self.dimension_mode.is_2d();
+        let render_enabled = if is_2d {
+            self.event_bus
+                .is_module_enabled(ae_core::modules::EngineModule::Render2D)
+        } else {
+            self.event_bus
+                .is_module_enabled(ae_core::modules::EngineModule::Render)
+        };
+        if render_enabled && !is_2d {
             self.spatial_grid.sync(&self.ecs.world); // Lazy sync SpatialGrid if entity count changed
         }
         ae_core::ecs::update_hierarchy_transforms(&mut self.ecs.world);
@@ -79,7 +84,7 @@ impl AeEngine {
         } else {
             0.0
         };
-        if render_enabled {
+        if render_enabled && !is_2d {
             for (pos, light) in self.ecs.world.query_mut::<(&Position, &mut Light)>() {
                 light.position = [pos.x, pos.y, pos.z];
             }
@@ -132,9 +137,9 @@ impl AeEngine {
 
         // Prepare gizmo overlay: compute position, distance, write MVP uniform.
         // Then pass it as a generic OverlayRenderer trait object to render().
-        // Gizmo is an editor tool — only active in Edit mode.
+        // Gizmo is an editor tool — only active in 3D Edit mode.
         let overlay: Option<&dyn ae_renderer::render::OverlayRenderer> =
-            if render_enabled && self.mode == EngineMode::Edit {
+            if render_enabled && self.mode == EngineMode::Edit && !is_2d {
                 if let Some(ent) = self.ui.selected_entity {
                     let gizmo_pos =
                         if let Ok(gt) = self.ecs.world.get::<&ae_core::ecs::GlobalTransform>(ent) {
@@ -330,6 +335,7 @@ impl AeEngine {
                 && self.dimension_mode.is_3d(),
             wireframe_enabled: self.ui.wireframe_enabled,
             scale_factor: self.ui.scale_factor(),
+            is_2d_mode: is_2d,
         };
 
         let mut ui_actions = Vec::new();

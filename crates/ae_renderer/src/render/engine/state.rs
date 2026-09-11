@@ -12,6 +12,10 @@ pub struct RenderOptions {
     pub grid_enabled: bool,
     pub wireframe_enabled: bool,
     pub scale_factor: f32,
+    /// Indicates whether the active viewport is running in 2D dimension mode.
+    /// When `true`, completely bypasses all 3D shadow cascades, 3D PBR forward passes,
+    /// and 3D silhouette outlines, delegating rendering to the isolated 2D pipeline.
+    pub is_2d_mode: bool,
 }
 
 /// Central render state owning all WGPU resources: device, queue, surface,
