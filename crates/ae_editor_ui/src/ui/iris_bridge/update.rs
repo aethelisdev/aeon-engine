@@ -101,6 +101,7 @@ impl IrisEditorOverlay {
             assets_context_menu: None,
             assets_preview_modal: None,
             assets_selected_asset: None,
+            assets_retained: None,
             thumbnail_layers: std::collections::HashMap::new(),
             next_thumbnail_layer: 16,
             timeline_targets: None,
@@ -153,7 +154,35 @@ impl IrisEditorOverlay {
             return;
         }
 
-        self.tree.clear();
+        let root = if let Some(r) = self.tree.root() {
+            r
+        } else {
+            let Ok(r) = self.tree.create_root() else {
+                return;
+            };
+            r
+        };
+
+        // Retain the persistent Asset Browser root node if it exists
+        let retained_assets_node = self.assets_retained.as_ref().map(|s| s.root_id);
+
+        // Remove previous non-retained children of root
+        let children_to_remove: Vec<WidgetId> = self
+            .tree
+            .get(root)
+            .map(|n| {
+                n.children
+                    .iter()
+                    .copied()
+                    .filter(|&c| Some(c) != retained_assets_node)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        for child in children_to_remove {
+            let _ = self.tree.remove_node(child);
+        }
+
         self.layout_engine.clear();
         self.command_list.clear();
         self.dropdown_items.clear();
@@ -225,10 +254,6 @@ impl IrisEditorOverlay {
                 self.inspector_rename_buffer = Some((ent, buf));
             }
         }
-
-        let Ok(root) = self.tree.create_root() else {
-            return;
-        };
 
         if let Some(root_node) = self.tree.get_mut(root) {
             root_node.set_name("IrisRoot");

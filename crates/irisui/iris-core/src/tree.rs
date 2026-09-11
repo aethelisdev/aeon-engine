@@ -146,6 +146,33 @@ impl UiTree {
         Ok(())
     }
 
+    /// Recursively removes all child descendants of a parent node while preserving the parent itself.
+    /// Marks `CHILDREN | LAYOUT` dirty flags on the parent.
+    /// # Errors
+    /// Returns `IrisCoreError::NodeNotFound` if the parent node does not exist in the arena.
+    pub fn clear_children(&mut self, parent: WidgetId) -> Result<(), IrisCoreError> {
+        let Some(parent_node) = self.nodes.get_mut(parent) else {
+            return Err(IrisCoreError::NodeNotFound(parent));
+        };
+        let children = std::mem::take(&mut parent_node.children);
+        parent_node.mark_dirty(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
+
+        for child in children {
+            let mut to_remove = Vec::new();
+            self.collect_subtree(child, &mut to_remove);
+            for node_id in to_remove {
+                self.nodes.remove(node_id);
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns `true` if the arena contains the given node handle.
+    #[inline]
+    pub fn contains_node(&self, id: WidgetId) -> bool {
+        self.nodes.contains_key(id)
+    }
+
     /// Recursively removes a node and all of its descendants from the arena.
     pub fn remove_node(&mut self, id: WidgetId) -> Result<(), IrisCoreError> {
         if !self.nodes.contains_key(id) {

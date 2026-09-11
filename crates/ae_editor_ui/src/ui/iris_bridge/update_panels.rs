@@ -271,14 +271,18 @@ impl IrisEditorOverlay {
             };
 
             let mut assets_targets = super::assets::AssetsPanelTargets::default();
-            super::assets::build_assets_panel(
+            super::assets::sync_assets_panel(
                 &mut self.tree,
                 root,
+                &mut self.assets_retained,
                 &assets_params,
                 &mut assets_targets,
             );
             self.assets_targets = Some(assets_targets);
         } else {
+            if let Some(prev) = self.assets_retained.take() {
+                let _ = self.tree.remove_node(prev.root_id);
+            }
             self.assets_targets = None;
         }
     }

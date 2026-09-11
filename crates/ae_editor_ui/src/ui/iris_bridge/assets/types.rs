@@ -8,7 +8,7 @@
 //!
 
 use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetViewMode};
-use irisui::prelude::{Point, Rect};
+use irisui::prelude::{Point, Rect, WidgetId};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -323,4 +323,67 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
     } else {
         text.to_string()
     }
+}
+
+/// Persistent widget node handles for an individual asset card in retained mode.
+#[derive(Debug, Clone)]
+pub struct RetainedAssetCard {
+    /// Bounding rectangle allocated for this card.
+    pub rect: Rect,
+    /// Target asset path represented by this card.
+    pub path: PathBuf,
+    /// Asset category for badge and thumbnail resolution.
+    pub category: AssetCategory,
+    /// Root card container node key in the UI tree.
+    pub card_id: WidgetId,
+    /// Center preview thumbnail or vector category icon node key.
+    pub icon_id: WidgetId,
+    /// Whether this card was hovered in the previous frame.
+    pub is_hovered: bool,
+    /// Whether this card was selected in the previous frame.
+    pub is_selected: bool,
+}
+
+/// Snapshot of the previous frame state used to detect mutations and mark dirty flags selectively.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AssetBrowserStateSnapshot {
+    /// Last allocated panel bounding rectangle.
+    pub panel_rect: Rect,
+    /// Last active directory folder path.
+    pub current_folder: PathBuf,
+    /// Last active search filter query.
+    pub search_query: String,
+    /// Last active category filter chip.
+    pub active_category: AssetCategory,
+    /// Last active presentation mode.
+    pub view_mode: AssetViewMode,
+    /// Last selected asset path, if any.
+    pub selected_asset: Option<PathBuf>,
+    /// Last primary content area vertical scroll offset.
+    pub scroll_y: f32,
+    /// Last folder tree sidebar vertical scroll offset.
+    pub tree_scroll_y: f32,
+    /// Last sidebar width in pixels.
+    pub sidebar_width: f32,
+    /// Last sidebar collapsed state.
+    pub sidebar_collapsed: bool,
+    /// Paths of all items currently displayed in the content area.
+    pub item_paths: Vec<PathBuf>,
+}
+
+/// Central persistent state for the native Iris UI Asset Browser in retained mode.
+/// Stores root and container `WidgetId`s across frames so the UI tree is never cleared,
+/// updating only modified nodes via fine-grained `DirtyFlags`.
+#[derive(Debug, Clone)]
+pub struct AssetBrowserRetainedState {
+    /// Root node of the entire Asset Browser panel.
+    pub root_id: WidgetId,
+    /// Primary content view viewport container node.
+    pub content_viewport_id: WidgetId,
+    /// Persistent card nodes currently active in the content viewport.
+    pub cards: Vec<RetainedAssetCard>,
+    /// Last recorded state snapshot.
+    pub snapshot: Option<AssetBrowserStateSnapshot>,
+    /// Cached interaction targets for the retained panel.
+    pub cached_targets: AssetsPanelTargets,
 }

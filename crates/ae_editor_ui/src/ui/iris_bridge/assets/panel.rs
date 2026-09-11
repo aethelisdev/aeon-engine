@@ -7,10 +7,13 @@
 //! left folder tree sidebar, scrollable card/table views, and telemetry footer.
 //!
 
-use super::cards::build_asset_grid_cards;
+use super::cards::build_retained_asset_grid_cards;
 use super::list::build_asset_list_table;
 use super::tree::build_folder_tree_sidebar;
-use super::types::{AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget};
+use super::types::{
+    AssetBrowserRetainedState, AssetBrowserStateSnapshot, AssetsPanelParams, AssetsPanelTargets,
+    BreadcrumbTarget,
+};
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
 use crate::ui::iris_bridge::theme::*;
 use crate::ui::panels::assets::types::{AssetBrowserState, AssetCategory, AssetViewMode};
@@ -26,13 +29,13 @@ pub const ASSETS_CHIPS_BAR_HEIGHT: f32 = 28.0;
 /// Height of the bottom telemetry status footer in physical pixels.
 pub const ASSETS_FOOTER_HEIGHT: f32 = 24.0;
 
-/// Constructs the complete Content / Asset Browser panel widget hierarchy into the Iris `UiTree`.
-pub fn build_assets_panel(
+/// Constructs the complete Content / Asset Browser panel widget hierarchy into the Iris `UiTree` and returns retained handles.
+pub fn build_assets_panel_retained(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &AssetsPanelParams<'_>,
     targets: &mut AssetsPanelTargets,
-) {
+) -> AssetBrowserRetainedState {
     targets.panel_rect = params.panel_rect;
 
     // 1. Panel Root Container with Hardware Scissor Clipping
@@ -357,16 +360,17 @@ pub fn build_assets_panel(
     let _ = tree.add_child(root_id, content_vp_id);
 
     // Render Grid vs List View
-    match params.view_mode {
+    let retained_cards = match params.view_mode {
         AssetViewMode::Grid => {
             targets.list_rows.clear();
-            build_asset_grid_cards(tree, content_vp_id, content_rect, params, targets);
+            build_retained_asset_grid_cards(tree, content_vp_id, content_rect, params, targets)
         }
         AssetViewMode::List => {
             targets.grid_cards.clear();
             build_asset_list_table(tree, content_vp_id, content_rect, params, targets);
+            Vec::new()
         }
-    }
+    };
 
     // 5. Bottom Status Footer (Telemetry + Collapse Toggle)
     let footer_rect = Rect::new(
@@ -491,6 +495,40 @@ pub fn build_assets_panel(
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
     super::preview::build_asset_preview_modal(tree, parent_id, params, targets);
+
+    AssetBrowserRetainedState {
+        root_id,
+        content_viewport_id: content_vp_id,
+        cards: retained_cards,
+        snapshot: Some(AssetBrowserStateSnapshot {
+            panel_rect: params.panel_rect,
+            current_folder: params.current_folder.to_path_buf(),
+            search_query: params.search_query.to_string(),
+            active_category: params.active_category,
+            view_mode: params.view_mode,
+            selected_asset: params.selected_asset.map(|p| p.to_path_buf()),
+            scroll_y: params.scroll_y,
+            tree_scroll_y: params.tree_scroll_y,
+            sidebar_width: params.sidebar_width,
+            sidebar_collapsed: params.sidebar_collapsed,
+            item_paths: params
+                .filtered_items
+                .iter()
+                .map(|it| it.path.clone())
+                .collect(),
+        }),
+        cached_targets: targets.clone(),
+    }
+}
+
+/// Constructs the complete Content / Asset Browser panel widget hierarchy in immediate mode.
+pub fn build_assets_panel(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &AssetsPanelParams<'_>,
+    targets: &mut AssetsPanelTargets,
+) {
+    let _ = build_assets_panel_retained(tree, parent_id, params, targets);
 }
 
 /// Builds the category filter chips row with live item counters.

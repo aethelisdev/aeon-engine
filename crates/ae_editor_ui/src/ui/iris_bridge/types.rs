@@ -189,6 +189,8 @@ pub struct IrisEditorOverlay {
     pub assets_preview_modal: Option<super::assets::AssetPreviewModalState>,
     /// Currently selected asset path in Asset Browser.
     pub assets_selected_asset: Option<std::path::PathBuf>,
+    /// Persistent Retained-Mode UI tree handles and state snapshot for Content / Asset Browser panel.
+    pub assets_retained: Option<super::assets::AssetBrowserRetainedState>,
     /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (16..255).
     pub thumbnail_layers: std::collections::HashMap<std::path::PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (16..255).

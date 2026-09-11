@@ -6,6 +6,7 @@
 
 use super::events::{self, AssetClickTracker, AssetsEventContext};
 use super::panel::build_assets_panel;
+use super::sync::sync_assets_panel;
 use super::types::{
     AssetCardTarget, AssetPreviewModalState, AssetsContextMenuTarget, AssetsPanelAction,
     AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
@@ -347,4 +348,144 @@ fn test_assets_card_rendering_with_unicode_filenames() {
     // Should build cards with Turkish/Unicode filenames without any panic
     build_assets_panel(&mut tree, root_id, &params, &mut targets);
     assert_eq!(targets.grid_cards.len(), 1);
+}
+
+#[test]
+fn test_retained_assets_panel_zero_allocation_when_idle() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let mut targets = AssetsPanelTargets::default();
+    let mut retained = None;
+
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let current_folder = PathBuf::from("assets");
+    let item = AssetItem {
+        name: "cube.gltf".to_string(),
+        path: PathBuf::from("assets/cube.gltf"),
+        relative_path: "cube.gltf".to_string(),
+        category: AssetCategory::Models3D,
+        file_size_bytes: 1024,
+        metadata_badge: "1.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    let items = vec![item];
+
+    let params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1280.0, 720.0),
+        current_folder: &current_folder,
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+    };
+
+    // Frame 1: Initial Mount
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+    assert!(retained.is_some());
+    let initial_node_count = tree.len();
+    assert!(initial_node_count > 0);
+
+    // Clear all dirty flags as if a layout and render pass completed
+    tree.traverse_depth_first_mut(root_id, &mut |_, node| {
+        node.clear_dirty(DirtyFlags::ALL);
+    });
+    assert!(!tree.has_dirty_nodes(DirtyFlags::ALL));
+
+    // Frame 2: Identical parameters (Panel completely idle and motionless)
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+
+    // Assert zero allocations, zero node count changes, and zero dirty flags marked
+    assert_eq!(tree.len(), initial_node_count);
+    assert!(
+        !tree.has_dirty_nodes(DirtyFlags::ALL),
+        "Idle frame must not mark any dirty flags"
+    );
+}
+
+#[test]
+fn test_retained_assets_panel_hover_paint_dirty_only() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let mut targets = AssetsPanelTargets::default();
+    let mut retained = None;
+
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let current_folder = PathBuf::from("assets");
+    let item = AssetItem {
+        name: "texture.png".to_string(),
+        path: PathBuf::from("assets/texture.png"),
+        relative_path: "texture.png".to_string(),
+        category: AssetCategory::Textures2D,
+        file_size_bytes: 4096,
+        metadata_badge: "4.0 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    let items = vec![item];
+
+    let mut params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1280.0, 720.0),
+        current_folder: &current_folder,
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+    };
+
+    // Frame 1: Initial Mount
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+    let initial_node_count = tree.len();
+    let card_rect = targets.grid_cards[0].rect;
+
+    // Clear all dirty flags
+    tree.traverse_depth_first_mut(root_id, &mut |_, node| {
+        node.clear_dirty(DirtyFlags::ALL);
+    });
+
+    // Frame 2: Hover cursor over card center
+    params.cursor_pos = Point::new(
+        card_rect.x + card_rect.width * 0.5,
+        card_rect.y + card_rect.height * 0.5,
+    );
+    sync_assets_panel(&mut tree, root_id, &mut retained, &params, &mut targets);
+
+    // Node count remains strictly identical (zero new allocations)
+    assert_eq!(tree.len(), initial_node_count);
+
+    // PAINT must be marked on the hovered card, but LAYOUT must NOT be dirty
+    assert!(
+        tree.has_dirty_nodes(DirtyFlags::PAINT),
+        "Hovered card must mark PAINT dirty flag"
+    );
 }
