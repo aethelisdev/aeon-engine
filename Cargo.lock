@@ -124,12 +124,14 @@ dependencies = [
 name = "ae_editor"
 version = "0.9.0"
 dependencies = [
+ "ae_audio",
  "ae_core",
  "ae_renderer",
  "bytemuck",
  "cgmath",
  "chrono",
  "hecs",
+ "image",
  "log",
  "rfd",
  "serde",

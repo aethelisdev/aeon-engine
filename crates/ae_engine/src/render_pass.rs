@@ -119,6 +119,11 @@ impl AeEngine {
                 self.render_state.config.format,
                 new_msaa,
             );
+            self.billboard_system.rebuild_pipeline(
+                &self.render_state.device,
+                self.render_state.config.format,
+                new_msaa,
+            );
             if let Some((ref mut pipeline, ref mut batcher)) = self.sprite_2d_system {
                 let new_pipeline = ae_2d::renderer::Sprite2DPipeline::new(
                     &self.render_state.device,
@@ -302,6 +307,22 @@ impl AeEngine {
         if render_enabled && self.mode == EngineMode::Edit {
             if let Some(ov) = overlay {
                 overlays.push(ov);
+            }
+            if !is_2d {
+                let vp_w = self.ui.last_viewport_rect.width.max(1.0);
+                let vp_h = self.ui.last_viewport_rect.height.max(1.0);
+                self.billboard_system.prepare_overlay(
+                    ae_editor::billboard::BillboardPrepareParams {
+                        queue: &self.render_state.queue,
+                        device: &self.render_state.device,
+                        world: &self.ecs.world,
+                        view_proj: self.camera.build_view_projection_matrix(),
+                        viewport_size: [vp_w, vp_h],
+                        selected_entities: &self.editor.selected_entities[..],
+                        hovered_entity: None,
+                    },
+                );
+                overlays.push(&self.billboard_system);
             }
             overlays.push(&self.debug_renderer);
         }

@@ -16,6 +16,8 @@ wgpu = "30.0.1"
 bytemuck = { version = "1.25.0", features = ["derive"] }
 ae_core = { path = "../ae_core" }
 ae_renderer = { path = "../ae_renderer" }
+ae_audio = { path = "../ae_audio" }
 chrono = "0.4.45"
+image = "0.25.10"
 
 

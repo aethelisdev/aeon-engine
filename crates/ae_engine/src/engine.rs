@@ -25,6 +25,7 @@ pub struct AeEngine {
     pub ui: ae_editor_ui::ui::EngineUi,
     pub camera: ae_renderer::camera::Camera,
     pub gizmo_system: ae_editor::gizmo::GizmoSystem,
+    pub billboard_system: ae_editor::billboard::BillboardSystem,
     pub time: Time,
     pub input: InputManager,
     pub ecs: EcsManager,
@@ -90,6 +91,12 @@ impl AeEngine {
         );
         let gizmo_system = ae_editor::gizmo::GizmoSystem::new(
             &render_state.device,
+            render_state.config.format,
+            render_state.post_process.msaa_samples,
+        );
+        let billboard_system = ae_editor::billboard::BillboardSystem::new(
+            &render_state.device,
+            &render_state.queue,
             render_state.config.format,
             render_state.post_process.msaa_samples,
         );
@@ -266,6 +273,7 @@ impl AeEngine {
             ui,
             camera,
             gizmo_system,
+            billboard_system,
             time: Time::new(),
             input: InputManager::new(),
             ecs,
