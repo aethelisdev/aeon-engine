@@ -7,7 +7,7 @@ use super::about::AboutDialogTargets;
 use super::hierarchy::{AddSubmenuId, HierarchyAction, HierarchyPanelTargets, HierarchyRow};
 use super::modals::*;
 use super::preferences::{PreferencesDropdownId, PreferencesSliderId, PreferencesTargets};
-use super::stats::{StatsPanelAction, StatsPanelNodes, StatsPanelRetainedState, StatsPanelTargets};
+use super::stats::{StatsPanelAction, StatsPanelNodes, StatsPanelTargets};
 use super::viewport_hud::{ViewportHudAction, ViewportHudDropdownId, ViewportHudTargets};
 use crate::ui::EngineUiAction;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
@@ -133,8 +133,6 @@ pub struct IrisEditorOverlay {
     pub stats_nodes: Option<StatsPanelNodes>,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
     pub last_stats_rect: Option<Rect>,
-    /// Persistent retained-mode state and cached targets for Performance Stats & Telemetry.
-    pub stats_retained: Option<StatsPanelRetainedState>,
     /// Cached interaction targets for Scene Hierarchy panel.
     pub hierarchy_targets: Option<HierarchyPanelTargets>,
     /// Persistent pre-allocated row cache for Scene Hierarchy to eliminate per-frame allocations.
@@ -169,6 +167,8 @@ pub struct IrisEditorOverlay {
     pub console_auto_scroll: bool,
     /// Dispatched action queue for Developer Console panel interactions.
     pub console_actions: Vec<super::console::ConsoleAction>,
+    /// Cached interaction targets for Content / Asset Browser panel.
+    pub assets_targets: Option<super::assets::AssetsPanelTargets>,
     /// Content area vertical scroll offset for Asset Browser panel.
     pub assets_scroll_y: f32,
     /// Folder tree sidebar vertical scroll offset for Asset Browser panel.
@@ -189,10 +189,6 @@ pub struct IrisEditorOverlay {
     pub assets_preview_modal: Option<super::assets::AssetPreviewModalState>,
     /// Currently selected asset path in Asset Browser.
     pub assets_selected_asset: Option<std::path::PathBuf>,
-    /// Persistent Retained-Mode UI tree handles for Content / Asset Browser panel.
-    pub assets_retained: Option<super::assets::AssetBrowserRetainedState>,
-    /// Internal invalidation revision counter for Asset Browser overlay events.
-    pub assets_revision: u64,
     /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (16..255).
     pub thumbnail_layers: std::collections::HashMap<std::path::PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (16..255).
@@ -266,16 +262,24 @@ pub struct IrisEditorOverlay {
     pub inspector_is_color_picker_open: bool,
     /// Dispatched action queue for Inspector panel interactions.
     pub inspector_actions: Vec<super::inspector::InspectorAction>,
+    /// Selective redraw and change notification engine.
+    pub notifier: UiNotifier,
+    /// Central registry of dockable tool and workspace panels.
+    pub panels: PanelRegistry,
     /// Last recorded screen dimensions.
     pub last_dimensions: (f32, f32),
     /// Last recorded UI Zoom factor.
     pub last_zoom_factor: f32,
+    /// Last recorded selected entity for detecting Inspector invalidation.
+    pub last_selected_entity: Option<hecs::Entity>,
+    /// Last recorded count of floating windows.
+    pub last_floating_count: usize,
+    /// Last recorded modal visibility state for detecting dialog popups.
+    pub last_modal_active: bool,
     /// Explicit flag requesting full layout reconstruction on invalidation.
     pub needs_layout_rebuild: bool,
     /// Content area vertical scroll offset for Stats & Telemetry panel.
     pub stats_scroll_y: f32,
-    /// Invalidation revision counter for Stats & Profiler structural changes.
-    pub stats_revision: u64,
     /// Dispatched action queue for Stats & Telemetry panel interactions.
     pub stats_actions: Vec<StatsPanelAction>,
     /// Custom floating position coordinates for the Preferences panel.
@@ -320,85 +324,9 @@ pub struct IrisEditorOverlay {
     pub floating_window_rects: Vec<Rect>,
     /// Native dock chrome interaction frame from the last layout reconstruction.
     pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
-    /// Whether the draw command stream or geometry layout is dirty and requires hardware rebaking.
-    pub is_command_list_dirty: bool,
-    /// Whether text content or telemetry labels are dirty and require glyph extraction and GPU text buffer update.
-    pub is_text_dirty: bool,
-    /// Instant when live performance telemetry metrics were last refreshed in-place.
-    pub last_stats_update: std::time::Instant,
-    /// Cached text sections extracted from the UI tree in retained mode across frames.
-    pub cached_text_sections: Vec<irisui::text::TextSection<'static>>,
-    /// Retained-mode baked hardware geometry buffers ensuring 2 draw calls.
-    pub baked_geometry: super::baking::BakedUiGeometry,
-    /// Last recorded dock layout mutation revision.
-    pub last_dock_revision: u64,
-    /// Last recorded active top menu dropdown state.
-    pub last_active_menu: Option<ActiveMenu>,
-    /// Last recorded selected entity for hierarchy and inspector change detection.
-    pub last_selected_entity: Option<hecs::Entity>,
-    /// Last recorded editing mode state.
-    pub last_is_editing: bool,
-    /// Last recorded 2D mode state.
-    pub last_is_2d: bool,
-    /// Last recorded 3D viewport canvas bounding rectangle.
-    pub last_viewport_rect: Rect,
-    /// Last recorded count of status bar spans.
-    pub last_status_len: usize,
-    /// Last recorded active entity count in the primary ECS world.
-    pub last_world_len: u32,
-    /// Last recorded availability of the resolved 3D viewport surface texture.
-    pub last_has_viewport_texture: bool,
-    /// Last recorded 3D camera eye position for viewport HUD and billboard projection invalidation: `[x, y, z]`.
-    pub last_camera_pos: [f32; 3],
-    /// Last recorded 3D camera orientation for viewport HUD and billboard projection invalidation: `[yaw_rad, pitch_rad]`.
-    pub last_camera_orientation: [f32; 2],
-    /// Last recorded 3D camera orthographic scale for zoom invalidation.
-    pub last_camera_ortho_scale: f32,
-    /// Last recorded mouse cursor coordinates for modal and hover change detection.
-    pub last_cursor_pos: Point,
-    /// Last recorded visibility of the Preferences dialog.
-    pub last_show_preferences: bool,
-    /// Last recorded visibility of the About Aeon Engine dialog.
-    pub last_show_about: bool,
-    /// Last recorded presence of the Delete confirmation modal.
-    pub last_has_delete_target: bool,
-    /// Last recorded presence of the New Folder creation modal.
-    pub last_has_new_folder_parent: bool,
-    /// Last recorded presence of the Rename item modal.
-    pub last_has_rename_target: bool,
-    /// Last recorded asset background loading status.
-    pub last_is_loading_assets: bool,
-    /// Last recorded Viewport HUD dropdown menu state.
-    pub last_viewport_hud_dropdown: Option<ViewportHudDropdownId>,
-    /// Last recorded open status of Scene Hierarchy Add Menu.
-    pub last_hierarchy_is_add_menu_open: bool,
-    /// Last recorded open status of Scene Hierarchy right-click context menu.
-    pub last_hierarchy_has_context_menu: bool,
-    /// Last recorded open status of Scene Inspector Add Component menu.
-    pub last_inspector_is_add_menu_open: bool,
-    /// Last recorded open status of Asset Browser right-click context menu.
-    pub last_has_assets_context_menu: bool,
-    /// Last recorded open status of Asset Browser quick preview modal.
-    pub last_has_assets_preview_modal: bool,
-    /// Last recorded active tab index in the Preferences dialog.
-    pub last_preferences_tab: u8,
-    /// Last recorded floating position of the Preferences dialog.
-    pub last_preferences_pos: Option<Point>,
-    /// Last recorded vertical scroll offset in the Preferences dialog.
-    pub last_preferences_scroll_y: f32,
-    /// Last recorded open ComboBox in the Preferences dialog.
-    pub last_preferences_dropdown: Option<PreferencesDropdownId>,
-    /// Last recorded text caret blink cycle state for focused text inputs.
-    pub last_blink_state: bool,
 }
 
 impl IrisEditorOverlay {
-    /// Returns a reference to cached Asset Browser interaction targets, if active.
-    #[inline]
-    pub fn assets_targets(&self) -> Option<&super::assets::AssetsPanelTargets> {
-        self.assets_retained.as_ref().map(|s| &s.cached_targets)
-    }
-
     /// Determines the appropriate mouse cursor icon based on current hover targets.
     pub fn requested_cursor_icon(&self) -> winit::window::CursorIcon {
         let p = self.cursor_pos;
@@ -548,7 +476,7 @@ impl IrisEditorOverlay {
         }
 
         // 5. Assets panel interactive items
-        if let Some(targets) = self.assets_targets() {
+        if let Some(ref targets) = self.assets_targets {
             if let Some(ref pm) = targets.preview_modal {
                 if pm.close_btn_rect.contains_point(p)
                     || pm.reveal_btn_rect.contains_point(p)

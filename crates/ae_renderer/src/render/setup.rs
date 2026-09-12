@@ -48,386 +48,6 @@ pub(crate) fn choose_frame_latency(_limit: FpsLimit) -> u32 {
     DEFAULT_FRAME_LATENCY
 }
 
-/// Probes and logs all available graphics adapters enumerated on the system.
-/// Discovers all hardware adapters across active WGPU backends (Vulkan, DirectX, Metal, OpenGL, CPU)
-/// and writes their diagnostic metadata (device name, vendor/device IDs, device type, driver, driver info)
-/// to standard engine logs. Returns the enumerated list of discovered adapter information structures
-/// for upstream diagnostic analysis and hardware error reporting.
-/// # Arguments
-/// * `instance` - Reference to the initialized [`wgpu::Instance`].
-/// # Returns
-/// A vector of [`wgpu::AdapterInfo`] describing every detected physical or software graphics adapter.
-/// If no adapters are discovered on the host system, the returned vector is empty.
-pub async fn probe_and_log_adapters(instance: &wgpu::Instance) -> Vec<wgpu::AdapterInfo> {
-    let adapters = instance.enumerate_adapters(wgpu::Backends::all()).await;
-    let mut infos = Vec::with_capacity(adapters.len());
-
-    if adapters.is_empty() {
-        log::warn!(
-            "[GPU PROBE] No graphics adapters discovered by WGPU instance enumeration across any backend."
-        );
-        return infos;
-    }
-
-    log::info!(
-        "[GPU PROBE] Enumerating system graphics adapters (count = {}):",
-        adapters.len()
-    );
-
-    for (idx, adapter) in adapters.into_iter().enumerate() {
-        let info = adapter.get_info();
-        log::info!(
-            "  - Adapter #{idx}: '{}' | Backend: {:?} | Type: {:?} | Driver: '{}' ({}) | PCI ID: {:04x}:{:04x}",
-            info.name,
-            info.backend,
-            info.device_type,
-            info.driver,
-            info.driver_info,
-            info.vendor,
-            info.device
-        );
-        infos.push(info);
-    }
-
-    infos
-}
-
-/// Attempts to pick the most optimal compatible graphics adapter from a list of pre-enumerated hardware adapters.
-/// Filters adapters whose presentation capabilities match the window surface (`formats` is non-empty)
-/// and prioritizes them according to modern rendering pipeline tiers:
-/// 1. Vulkan Discrete GPU (dedicated hardware).
-/// 2. Vulkan Integrated or alternative GPU.
-/// 3. OpenGL (GL) backend adapter.
-/// 4. Any remaining discrete GPU (e.g. Metal or DirectX).
-/// 5. CPU / Software rasterizer fallback.
-fn select_compatible_enumerated_adapter(
-    adapters: Vec<wgpu::Adapter>,
-    surface: &wgpu::Surface<'_>,
-) -> Option<wgpu::Adapter> {
-    let mut candidates: Vec<wgpu::Adapter> = adapters
-        .into_iter()
-        .filter(|adapter| !surface.get_capabilities(adapter).formats.is_empty())
-        .collect();
-
-    if candidates.is_empty() {
-        return None;
-    }
-
-    // Tier 1: Vulkan Discrete GPU
-    if let Some(pos) = candidates.iter().position(|a| {
-        let info = a.get_info();
-        info.backend == wgpu::Backend::Vulkan && info.device_type == wgpu::DeviceType::DiscreteGpu
-    }) {
-        return Some(candidates.remove(pos));
-    }
-
-    // Tier 2: Vulkan any GPU
-    if let Some(pos) = candidates.iter().position(|a| {
-        let info = a.get_info();
-        info.backend == wgpu::Backend::Vulkan
-    }) {
-        return Some(candidates.remove(pos));
-    }
-
-    // Tier 3: OpenGL Backend
-    if let Some(pos) = candidates.iter().position(|a| {
-        let info = a.get_info();
-        info.backend == wgpu::Backend::Gl
-    }) {
-        return Some(candidates.remove(pos));
-    }
-
-    // Tier 4: Discrete GPU on any other backend (Metal, DX12)
-    if let Some(pos) = candidates
-        .iter()
-        .position(|a| a.get_info().device_type == wgpu::DeviceType::DiscreteGpu)
-    {
-        return Some(candidates.remove(pos));
-    }
-
-    // Tier 5: Remaining candidate (Integrated / CPU)
-    candidates.pop()
-}
-
-/// Generates an exhaustive engineering diagnostic report when graphics adapter initialization fails across all tiers.
-/// Inspects system environment variables, display servers (Wayland/X11), Linux Vulkan ICD manifests, and fallback error logs
-/// to provide actionable guidance for developers and end users.
-fn generate_hardware_diagnostic_report(
-    discovered_adapters: &[wgpu::AdapterInfo],
-    tier_errors: &[(&str, String)],
-    decoupled_info: Option<&str>,
-) -> String {
-    use std::fmt::Write;
-    let mut report = String::with_capacity(2048);
-    let _ = writeln!(
-        report,
-        "\n================================================================================\n\
-         [AEON ENGINE] GRAPHICS ADAPTER INITIALIZATION FAILURE\n\
-         ================================================================================\n\
-         No compatible graphics adapter could be initialized after evaluating all tiers.\n"
-    );
-
-    if let Some(info) = decoupled_info {
-        let _ = writeln!(report, "--- DECOUPLED SURFACE DIAGNOSTIC ---\n  {info}\n");
-    }
-
-    let _ = writeln!(report, "--- EVALUATED FALLBACK TIERS & ERROR LOGS ---");
-    for (tier_name, err_msg) in tier_errors {
-        let _ = writeln!(report, "  * {tier_name}: {err_msg}");
-    }
-
-    let _ = writeln!(report, "\n--- DISCOVERED ADAPTERS (WGPU ENUMERATION) ---");
-    if discovered_adapters.is_empty() {
-        let _ = writeln!(
-            report,
-            "  (0 graphics adapters enumerated across all WGPU backends)"
-        );
-    } else {
-        for (idx, info) in discovered_adapters.iter().enumerate() {
-            let _ = writeln!(
-                report,
-                "  [{idx}] '{}' | Backend: {:?} | Type: {:?} | Driver: '{}' ({}) | PCI ID: {:04x}:{:04x}",
-                info.name,
-                info.backend,
-                info.device_type,
-                info.driver,
-                info.driver_info,
-                info.vendor,
-                info.device
-            );
-        }
-    }
-
-    let _ = writeln!(report, "\n--- SYSTEM ENVIRONMENT & DRIVER DIAGNOSTICS ---");
-    #[cfg(target_os = "linux")]
-    {
-        let wayland_disp = std::env::var("WAYLAND_DISPLAY").unwrap_or_default();
-        let x11_disp = std::env::var("DISPLAY").unwrap_or_default();
-        if !wayland_disp.is_empty() {
-            let _ = writeln!(
-                report,
-                "  Display Protocol: Wayland (WAYLAND_DISPLAY=\"{wayland_disp}\")"
-            );
-        } else if !x11_disp.is_empty() {
-            let _ = writeln!(report, "  Display Protocol: X11 (DISPLAY=\"{x11_disp}\")");
-        } else {
-            let _ = writeln!(
-                report,
-                "  Display Protocol: Unknown / Headless (neither WAYLAND_DISPLAY nor DISPLAY set)"
-            );
-        }
-
-        let custom_icd = std::env::var("VK_ICD_FILENAMES").unwrap_or_default();
-        if !custom_icd.is_empty() {
-            let _ = writeln!(report, "  VK_ICD_FILENAMES: \"{custom_icd}\"");
-        }
-
-        let mut found_icds = Vec::new();
-        for dir in &["/usr/share/vulkan/icd.d", "/etc/vulkan/icd.d"] {
-            if let Ok(entries) = std::fs::read_dir(std::path::Path::new(dir)) {
-                for entry in entries.flatten() {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    if name.ends_with(".json") {
-                        found_icds.push(format!("{dir}/{name}"));
-                    }
-                }
-            }
-        }
-
-        if found_icds.is_empty() {
-            let _ = writeln!(
-                report,
-                "  Vulkan ICD Manifests: None found in standard directories (/usr/share/vulkan/icd.d, /etc/vulkan/icd.d)"
-            );
-        } else {
-            let _ = writeln!(report, "  Detected Vulkan ICD Manifests:");
-            for icd in &found_icds {
-                let _ = writeln!(report, "    - {icd}");
-            }
-        }
-
-        let _ = writeln!(
-            report,
-            "\n--- ACTIONABLE ROOT-CAUSE RESOLUTION GUIDANCE ---"
-        );
-        if found_icds.iter().any(|p| p.contains("nvidia")) && discovered_adapters.is_empty() {
-            let _ = writeln!(
-                report,
-                "  * NVIDIA Driver / Kernel Module Mismatch:\n\
-                   An NVIDIA Vulkan ICD manifest is present on disk, but physical device enumeration returned 0 adapters.\n\
-                   This usually occurs when NVIDIA drivers are upgraded while an older kernel module remains active in RAM.\n\
-                   -> Resolution: Reboot the system or reload NVIDIA kernel modules via modprobe."
-            );
-        }
-        if found_icds.is_empty() {
-            let _ = writeln!(
-                report,
-                "  * Missing Vulkan Drivers:\n\
-                   No Vulkan ICD manifests were detected on the system.\n\
-                   -> Resolution: Install hardware drivers (`nvidia-utils`, `vulkan-radeon`, or `vulkan-intel`)."
-            );
-        }
-        let _ = writeln!(
-            report,
-            "  * Software Fallback Rasterizer:\n\
-               To run using CPU rasterization without a functional GPU driver, install `vulkan-swrast` (Lavapipe) or `mesa-vulkan-drivers`.\n\
-             * Hardware Verification Command:\n\
-               Execute `vulkaninfo --summary` from your terminal to inspect system Vulkan driver health."
-        );
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = writeln!(
-            report,
-            "--- ACTIONABLE ROOT-CAUSE RESOLUTION GUIDANCE ---\n\
-             * Verify that GPU drivers are properly installed and up to date.\n\
-             * Ensure hardware graphics acceleration is enabled in OS settings."
-        );
-    }
-
-    let _ = writeln!(
-        report,
-        "================================================================================"
-    );
-    report
-}
-
-/// Evaluates a single adapter acquisition tier against window presentation capabilities.
-/// If an adapter is returned but its surface presentation capabilities are empty, the candidate
-/// is rejected and a descriptive diagnostic entry is appended to `tier_errors`.
-async fn try_request_tier(
-    instance: &wgpu::Instance,
-    surface: &wgpu::Surface<'_>,
-    options: wgpu::RequestAdapterOptions<'_, '_>,
-    tier_name: &'static str,
-    tier_errors: &mut Vec<(&'static str, String)>,
-) -> Option<wgpu::Adapter> {
-    match instance.request_adapter(&options).await {
-        Ok(adapter) if !surface.get_capabilities(&adapter).formats.is_empty() => Some(adapter),
-        Ok(_) => {
-            tier_errors.push((
-                tier_name,
-                "Acquired adapter cannot present to the surface (0 formats)".to_string(),
-            ));
-            None
-        }
-        Err(e) => {
-            tier_errors.push((tier_name, format!("{e:?}")));
-            None
-        }
-    }
-}
-
-/// Requests a graphics adapter using a resilient multi-tier fallback strategy that traverses
-/// Vulkan discrete, Vulkan integrated, OpenGL, and software rasterizers before producing a rich diagnostic.
-/// # Arguments
-/// * `instance` - Active WGPU instance.
-/// * `surface` - Window presentation surface to validate presentation capability against.
-/// * `discovered_adapters` - Cached adapter descriptions from prior hardware enumeration.
-/// # Returns
-/// Returns the acquired [`wgpu::Adapter`] on success, or an actionable diagnostic error string.
-pub async fn request_adapter_resilient(
-    instance: &wgpu::Instance,
-    surface: &wgpu::Surface<'_>,
-    discovered_adapters: &[wgpu::AdapterInfo],
-) -> Result<wgpu::Adapter, String> {
-    // Stage A: Candidate selection among pre-enumerated adapters
-    let enumerated = instance.enumerate_adapters(wgpu::Backends::all()).await;
-    if let Some(adapter) = select_compatible_enumerated_adapter(enumerated, surface) {
-        let info = adapter.get_info();
-        log::info!(
-            "[GPU SETUP] Acquired compatible adapter via enumeration: '{}' (Backend: {:?}, Type: {:?})",
-            info.name,
-            info.backend,
-            info.device_type
-        );
-        return Ok(adapter);
-    }
-
-    let mut tier_errors: Vec<(&'static str, String)> = Vec::with_capacity(5);
-
-    let tiers = [
-        (
-            wgpu::PowerPreference::HighPerformance,
-            false,
-            "Tier 1 (High Performance Discrete)",
-        ),
-        (
-            wgpu::PowerPreference::LowPower,
-            false,
-            "Tier 2 (Integrated / Low Power)",
-        ),
-        (
-            wgpu::PowerPreference::None,
-            false,
-            "Tier 3 (Default / OpenGL)",
-        ),
-        (
-            wgpu::PowerPreference::None,
-            true,
-            "Tier 4 (Software Fallback)",
-        ),
-    ];
-
-    for (power_preference, force_fallback_adapter, tier_name) in tiers {
-        if let Some(adapter) = try_request_tier(
-            instance,
-            surface,
-            wgpu::RequestAdapterOptions {
-                power_preference,
-                compatible_surface: Some(surface),
-                force_fallback_adapter,
-                ..Default::default()
-            },
-            tier_name,
-            &mut tier_errors,
-        )
-        .await
-        {
-            let info = adapter.get_info();
-            log::info!(
-                "[GPU SETUP] {tier_name} acquired: '{}' (Backend: {:?}, Type: {:?})",
-                info.name,
-                info.backend,
-                info.device_type
-            );
-            return Ok(adapter);
-        }
-    }
-
-    // Stage C: Decoupled probe (without surface) to detect if GPU exists physically
-    let decoupled_check = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-            ..Default::default()
-        })
-        .await;
-
-    let decoupled_info = match decoupled_check {
-        Ok(headless) => {
-            let info = headless.get_info();
-            Some(format!(
-                "Hardware GPU detected in headless mode: '{}' | Backend: {:?} | Driver: '{}'. However, this adapter cannot present to the window surface.",
-                info.name, info.backend, info.driver
-            ))
-        }
-        Err(e) => {
-            tier_errors.push(("Decoupled Headless Probe", format!("{e:?}")));
-            None
-        }
-    };
-
-    core::hint::cold_path();
-    Err(generate_hardware_diagnostic_report(
-        discovered_adapters,
-        &tier_errors,
-        decoupled_info.as_deref(),
-    ))
-}
-
 impl RenderState {
     /// Initializes the full WGPU backend: adapter, device, surface, pipelines,
     /// shadow system, post-processing, and camera.
@@ -444,10 +64,27 @@ impl RenderState {
 
         let surface = instance
             .create_surface(window.clone())
-            .map_err(|e| format!("Failed to create window presentation surface: {e}"))?;
+            .expect("Failed to create surface");
 
-        let adapter_infos = probe_and_log_adapters(&instance).await;
-        let adapter = request_adapter_resilient(&instance, &surface, &adapter_infos).await?;
+        let adapter_opt = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
+                ..Default::default()
+            })
+            .await;
+
+        let adapter = match adapter_opt {
+            Ok(a) => a,
+            Err(e) => {
+                core::hint::cold_path();
+                return Err(format!(
+                    "No compatible graphics card found! Aeon Engine requires Vulkan, DX12, or Metal support.\nError: {:?}",
+                    e
+                ));
+            }
+        };
 
         let device_result = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -479,15 +116,6 @@ impl RenderState {
         };
 
         let surface_caps = surface.get_capabilities(&adapter);
-        if surface_caps.formats.is_empty() {
-            core::hint::cold_path();
-            return Err(format!(
-                "The selected graphics adapter '{}' ({:?}) cannot present to the window surface (0 compatible surface formats).",
-                adapter.get_info().name,
-                adapter.get_info().backend
-            ));
-        }
-
         let surface_format = surface_caps
             .formats
             .iter()
@@ -497,11 +125,6 @@ impl RenderState {
         let supported_present_modes = surface_caps.present_modes;
         let present_mode =
             choose_present_mode(graphics_settings.fps_limit, &supported_present_modes);
-        let alpha_mode = surface_caps
-            .alpha_modes
-            .first()
-            .copied()
-            .unwrap_or(wgpu::CompositeAlphaMode::Auto);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -509,7 +132,7 @@ impl RenderState {
             width: size.width.max(1),
             height: size.height.max(1),
             present_mode,
-            alpha_mode,
+            alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             // Frame latency: 2 for all modes — enables double-buffered CPU-GPU pipelining.
             // CPU prepares frame N while GPU renders frame N-1, maximizing throughput.
@@ -676,64 +299,5 @@ impl RenderState {
         }
 
         msaa_changed
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_probe_and_log_adapters_execution() {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            flags: wgpu::InstanceFlags::from_build_config(),
-            backend_options: wgpu::BackendOptions::default(),
-            display: Default::default(),
-            memory_budget_thresholds: Default::default(),
-        });
-        let infos = pollster::block_on(probe_and_log_adapters(&instance));
-        // Ensure probing returns a valid list without panicking
-        assert!(infos.len() <= 64);
-    }
-
-    #[test]
-    fn test_choose_present_mode_priorities() {
-        let empty_modes: Vec<wgpu::PresentMode> = vec![];
-        let chosen_empty = choose_present_mode(FpsLimit::Limit60, &empty_modes);
-        assert_eq!(chosen_empty, wgpu::PresentMode::Fifo);
-
-        let mailbox_available = vec![
-            wgpu::PresentMode::Fifo,
-            wgpu::PresentMode::Immediate,
-            wgpu::PresentMode::Mailbox,
-        ];
-        let chosen_uncapped = choose_present_mode(FpsLimit::Uncapped, &mailbox_available);
-        assert_eq!(chosen_uncapped, wgpu::PresentMode::Mailbox);
-
-        let auto_vsync_available = vec![wgpu::PresentMode::Fifo, wgpu::PresentMode::AutoVsync];
-        let chosen_60 = choose_present_mode(FpsLimit::Limit60, &auto_vsync_available);
-        assert_eq!(chosen_60, wgpu::PresentMode::AutoVsync);
-    }
-
-    #[test]
-    fn test_frame_latency_invariant() {
-        assert_eq!(
-            choose_frame_latency(FpsLimit::Limit60),
-            DEFAULT_FRAME_LATENCY
-        );
-        assert_eq!(
-            choose_frame_latency(FpsLimit::Uncapped),
-            DEFAULT_FRAME_LATENCY
-        );
-    }
-
-    #[test]
-    fn test_hardware_diagnostic_report_generation() {
-        let errs = [("Tier 1", "Surface format error".to_string())];
-        let report = generate_hardware_diagnostic_report(&[], &errs, Some("Headless GPU detected"));
-        assert!(report.contains("GRAPHICS ADAPTER INITIALIZATION FAILURE"));
-        assert!(report.contains("Headless GPU detected"));
-        assert!(report.contains("Tier 1"));
     }
 }

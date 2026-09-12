@@ -15,7 +15,6 @@ pub mod events;
 pub mod list;
 pub mod panel;
 pub mod preview;
-pub mod sync;
 #[cfg(test)]
 mod tests;
 pub mod tree;
@@ -25,11 +24,9 @@ pub use events::{
     AssetClickTracker, AssetsEventContext, handle_assets_click, handle_assets_panel_event,
     handle_assets_right_click, handle_assets_scroll,
 };
-pub use panel::{build_assets_panel, build_assets_panel_retained};
-pub use sync::sync_assets_panel;
+pub use panel::build_assets_panel;
 pub use types::{
-    AssetBrowserRetainedState, AssetCardTarget, AssetPreviewModalState, AssetPreviewModalTargets,
-    AssetRowTarget, AssetsContextMenuTarget, AssetsContextMenuTargets, AssetsPanelAction,
-    AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget, FolderTreeNodeTarget,
-    RetainedAssetCard,
+    AssetCardTarget, AssetPreviewModalState, AssetPreviewModalTargets, AssetRowTarget,
+    AssetsContextMenuTarget, AssetsContextMenuTargets, AssetsPanelAction, AssetsPanelParams,
+    AssetsPanelTargets, BreadcrumbTarget, FolderTreeNodeTarget,
 };

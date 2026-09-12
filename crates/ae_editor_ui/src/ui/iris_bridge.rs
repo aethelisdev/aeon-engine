@@ -9,7 +9,6 @@
 pub mod about;
 pub mod actions;
 pub mod assets;
-pub mod baking;
 pub mod console;
 pub mod events;
 pub mod floating_layer;
@@ -22,7 +21,6 @@ pub mod modals;
 /// Native docking chrome and geometry built directly into the retained Iris tree.
 pub mod native_dock;
 pub mod preferences;
-pub mod reactive_gate;
 pub mod render;
 pub mod stats;
 pub mod status_bar;
@@ -43,7 +41,6 @@ pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelParams, AssetsPanelTargets,
     build_assets_panel, handle_assets_panel_event,
 };
-pub use baking::*;
 pub use console::{
     ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelTargets, build_console_panel,
 };

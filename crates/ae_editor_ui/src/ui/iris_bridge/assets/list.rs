@@ -12,7 +12,6 @@ use super::types::{AssetRowTarget, AssetsPanelParams, AssetsPanelTargets};
 use crate::ui::iris_bridge::icons::{
     ICON_AUDIO, ICON_CUBE, ICON_FOLDER, ICON_SPHERE, ICON_WIREFRAME, ICON_WORLD,
 };
-use crate::ui::iris_bridge::theme::*;
 use crate::ui::panels::assets::types::AssetCategory;
 use irisui::prelude::*;
 
@@ -45,9 +44,9 @@ pub fn build_asset_list_table(
         node.set_name("ListTableHeader");
         node.computed_rect = hdr_rect;
         node.style = Style::new()
-            .background(ELEVATION_2_HEADER)
+            .background(Color::rgba(0.09, 0.10, 0.14, 0.95))
             .border_radius(4.0)
-            .border(1.0, BORDER_MICRON);
+            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.60));
     }
     let _ = tree.add_child(parent_id, hdr_id);
 
@@ -56,13 +55,13 @@ pub fn build_asset_list_table(
     // Header Column Labels
     build_header_label(tree, hdr_id, "Name", cur_col_x, hdr_y, col_name_w - 8.0);
     cur_col_x += col_name_w;
-    build_header_label(tree, hdr_id, "Type", cur_col_x, hdr_y, col_cat_w - 8.0);
+    build_header_label(tree, hdr_id, "Category", cur_col_x, hdr_y, col_cat_w);
     cur_col_x += col_cat_w;
-    build_header_label(tree, hdr_id, "Size", cur_col_x, hdr_y, col_size_w - 8.0);
+    build_header_label(tree, hdr_id, "Size / Metric", cur_col_x, hdr_y, col_size_w);
     cur_col_x += col_size_w;
-    build_header_label(tree, hdr_id, "Status", cur_col_x, hdr_y, col_status_w - 8.0);
+    build_header_label(tree, hdr_id, "Status", cur_col_x, hdr_y, col_status_w);
     cur_col_x += col_status_w;
-    build_header_label(tree, hdr_id, "Actions", cur_col_x, hdr_y, col_act_w - 8.0);
+    build_header_label(tree, hdr_id, "Actions", cur_col_x, hdr_y, col_act_w);
 
     // 2. Table Data Rows
     let mut cur_y = vp_rect.y + LIST_HEADER_HEIGHT + 8.0 - params.scroll_y;
@@ -87,14 +86,14 @@ pub fn build_asset_list_table(
             let bg_color = if is_selected {
                 Color::rgba(0.10, 0.16, 0.24, 0.95)
             } else if is_hovered {
-                ELEVATION_3_HOVERED_PILL
+                Color::rgba(0.12, 0.14, 0.18, 0.85)
             } else if row_idx.is_multiple_of(2) {
-                ELEVATION_1_PANEL
+                Color::rgba(0.06, 0.07, 0.09, 0.60)
             } else {
-                ELEVATION_2_HEADER
+                Color::rgba(0.08, 0.09, 0.11, 0.60)
             };
             let border_color = if is_selected {
-                ACCENT_CYAN
+                Color::rgba(0.0, 0.90, 1.0, 0.90)
             } else {
                 Color::TRANSPARENT
             };
@@ -284,7 +283,7 @@ pub fn build_asset_list_table(
             inspect_btn_rect: Some(inspect_rect),
             path: item.path.clone(),
             category: item.category,
-            item: (*item).clone(),
+            item: item.clone(),
         });
     }
 }

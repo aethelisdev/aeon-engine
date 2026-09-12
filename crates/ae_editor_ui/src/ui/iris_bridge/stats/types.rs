@@ -133,21 +133,4 @@ pub struct StatsPanelParams<'a> {
     pub active_entities_count: usize,
     /// Currently selected entity, if any.
     pub selected_entity: Option<hecs::Entity>,
-    /// Invalidation revision counter for structural rebuilds.
-    pub revision: u64,
-}
-
-/// Persistent retained-mode state for the Stats & Profiler panel.
-/// Preserves existing widget node handles, cached interactive hit targets,
-/// panel bounds, and invalidation revision counter across frames to eliminate per-frame allocations.
-#[derive(Debug, Clone)]
-pub struct StatsPanelRetainedState {
-    /// Persistent widget node handles.
-    pub nodes: StatsPanelNodes,
-    /// Cached hit-testing targets.
-    pub cached_targets: StatsPanelTargets,
-    /// Bounding rectangle of the stats panel inside the editor viewport.
-    pub panel_rect: Rect,
-    /// Last observed invalidation revision number for fast O(1) change detection.
-    pub last_revision: u64,
 }

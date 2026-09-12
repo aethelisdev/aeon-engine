@@ -162,8 +162,6 @@ pub struct AssetBrowserState {
     pub new_folder_parent: Option<PathBuf>,
     /// Input buffer for newly created folder names.
     pub new_folder_name: String,
-    /// Monotonically increasing revision counter incremented whenever filesystem assets change.
-    pub revision: u64,
 }
 
 impl Default for AssetBrowserState {
@@ -193,7 +191,6 @@ impl AssetBrowserState {
             delete_confirmation: None,
             new_folder_parent: None,
             new_folder_name: String::new(),
-            revision: 0,
         }
     }
 

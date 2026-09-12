@@ -30,6 +30,7 @@ impl EngineUi {
         if now.duration_since(self.last_fps_update).as_secs_f32() >= 0.10 {
             self.displayed_fps = self.smoothed_fps;
             self.last_fps_update = now;
+            self.iris_overlay.notifier.tag_redraw("stats");
         }
 
         let win_size = params.window.inner_size();

@@ -7,10 +7,7 @@
 //! canonical vector icons, truncated names, and file size metadata.
 //!
 
-use super::types::{
-    AssetCardTarget, AssetsPanelParams, AssetsPanelTargets, RetainedAssetCard,
-    truncate_display_name,
-};
+use super::types::{AssetCardTarget, AssetsPanelParams, AssetsPanelTargets, truncate_display_name};
 use crate::ui::iris_bridge::icons::{
     ICON_AUDIO, ICON_CAMERA, ICON_CUBE, ICON_FOLDER, ICON_LIGHT, ICON_SPHERE, ICON_WORLD,
 };
@@ -26,70 +23,17 @@ pub const CARD_HEIGHT: f32 = 125.0;
 /// Horizontal and vertical spacing between adjacent grid cards.
 pub const CARD_SPACING: f32 = 10.0;
 
-/// Resolves the visual card container style based on its category, hover, and selection state.
-pub fn resolve_card_style(category: AssetCategory, is_hovered: bool, is_selected: bool) -> Style {
-    let cat_color = resolve_category_color(category);
-    let bg_color = if is_selected {
-        Color::rgba(0.10, 0.13, 0.18, 0.98)
-    } else if is_hovered {
-        Color::rgba(0.11, 0.12, 0.16, 0.95)
-    } else {
-        Color::rgba(0.07, 0.08, 0.10, 0.95)
-    };
-    let border_color = if is_selected {
-        Color::rgba(0.0, 0.90, 1.0, 1.0) // Aeon Cyan selected
-    } else if is_hovered {
-        cat_color
-    } else {
-        Color::rgba(0.16, 0.18, 0.23, 0.70)
-    };
-    let border_width = if is_selected { 1.5 } else { 1.0 };
-    Style::new()
-        .background(bg_color)
-        .border_radius(6.0)
-        .border(border_width, border_color)
-        .clip_children(true)
-}
-
-/// Selectively updates style and marks `DirtyFlags::PAINT` on cards whose hover or selection state changed.
-/// Returns `true` if any card visual style was updated.
-pub fn update_retained_card_hover_and_selection(
-    tree: &mut UiTree,
-    cards: &mut [RetainedAssetCard],
-    cursor_pos: Point,
-    selected_asset: Option<&std::path::Path>,
-) -> bool {
-    let mut any_changed = false;
-    for card in cards.iter_mut() {
-        let is_hovered = card.rect.contains_point(cursor_pos);
-        let is_selected = selected_asset == Some(card.path.as_path());
-
-        if is_hovered != card.is_hovered || is_selected != card.is_selected {
-            card.is_hovered = is_hovered;
-            card.is_selected = is_selected;
-            if let Some(node) = tree.get_mut(card.card_id) {
-                let style = resolve_card_style(card.category, is_hovered, is_selected);
-                node.set_style(style);
-                node.mark_dirty(DirtyFlags::PAINT);
-            }
-            any_changed = true;
-        }
-    }
-    any_changed
-}
-
-/// Constructs the responsive grid cards into the Iris `UiTree` and returns retained card handles.
-pub fn build_retained_asset_grid_cards(
+/// Constructs the responsive grid cards into the Iris `UiTree`.
+pub fn build_asset_grid_cards(
     tree: &mut UiTree,
     parent_id: WidgetId,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
     targets: &mut AssetsPanelTargets,
-) -> Vec<RetainedAssetCard> {
-    let mut retained_cards = Vec::new();
+) {
     if params.filtered_items.is_empty() {
         build_empty_assets_notice(tree, parent_id, vp_rect, params.search_query);
-        return retained_cards;
+        return;
     }
 
     let items = params.filtered_items;
@@ -123,7 +67,26 @@ pub fn build_retained_asset_grid_cards(
             if let Some(node) = tree.get_mut(card_id) {
                 node.set_name("AssetCard");
                 node.computed_rect = card_rect;
-                node.style = resolve_card_style(item.category, is_hovered, is_selected);
+                let bg_color = if is_selected {
+                    Color::rgba(0.10, 0.13, 0.18, 0.98)
+                } else if is_hovered {
+                    Color::rgba(0.11, 0.12, 0.16, 0.95)
+                } else {
+                    Color::rgba(0.07, 0.08, 0.10, 0.95)
+                };
+                let border_color = if is_selected {
+                    Color::rgba(0.0, 0.90, 1.0, 1.0) // Aeon Cyan selected
+                } else if is_hovered {
+                    cat_color
+                } else {
+                    Color::rgba(0.16, 0.18, 0.23, 0.70)
+                };
+                let border_width = if is_selected { 1.5 } else { 1.0 };
+                node.style = Style::new()
+                    .background(bg_color)
+                    .border_radius(6.0)
+                    .border(border_width, border_color)
+                    .clip_children(true);
             }
             let _ = tree.add_child(parent_id, card_id);
 
@@ -175,7 +138,7 @@ pub fn build_retained_asset_grid_cards(
             }
             let _ = tree.add_child(card_id, preview_box_id);
 
-            let visual_icon_id = if let Some(&layer) = params.thumbnail_layers.get(&item.path) {
+            if let Some(&layer) = params.thumbnail_layers.get(&item.path) {
                 // Real rendered thumbnail quad
                 let thumb_id = tree.create_node();
                 if let Some(node) = tree.get_mut(thumb_id) {
@@ -186,7 +149,6 @@ pub fn build_retained_asset_grid_cards(
                     node.style = Style::new().border_radius(4.0);
                 }
                 let _ = tree.add_child(preview_box_id, thumb_id);
-                thumb_id
             } else {
                 // Category Vector Icon quad centered in preview box
                 let (uv_coords, tint_color) = resolve_category_icon(item.category);
@@ -205,8 +167,7 @@ pub fn build_retained_asset_grid_cards(
                     node.set_texture_tint(tint_color);
                 }
                 let _ = tree.add_child(preview_box_id, icon_id);
-                icon_id
-            };
+            }
 
             // 5. Truncated Asset Name Label (UTF-8 safe Unicode truncation)
             let display_name = truncate_display_name(&item.name, 14, 11);
@@ -248,34 +209,10 @@ pub fn build_retained_asset_grid_cards(
                 rect: card_rect,
                 path: item.path.clone(),
                 category: item.category,
-                item: (*item).clone(),
-            });
-
-            // Register Retained Handle
-            retained_cards.push(RetainedAssetCard {
-                rect: card_rect,
-                path: item.path.clone(),
-                category: item.category,
-                card_id,
-                icon_id: visual_icon_id,
-                is_hovered,
-                is_selected,
-                baking_quad_idx: 0,
+                item: item.clone(),
             });
         }
     }
-    retained_cards
-}
-
-/// Constructs the responsive grid cards into the Iris `UiTree` in immediate mode.
-pub fn build_asset_grid_cards(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    vp_rect: Rect,
-    params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
-) {
-    let _ = build_retained_asset_grid_cards(tree, parent_id, vp_rect, params, targets);
 }
 
 /// Constructs the empty state notice when no assets are found.

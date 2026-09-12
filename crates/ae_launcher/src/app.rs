@@ -4,7 +4,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use irisui::core::DirtyFlags;
 use irisui::core::geometry::{Point, Rect};
 use irisui::core::tree::UiTree;
 use irisui::text::{TextRenderer, TextSection, TextSystem};
@@ -75,18 +74,29 @@ impl LauncherApp {
         Ok(())
     }
 
-    /// Initializes WGPU surface, graphics adapter, device, queue, texture atlas, and Iris UI renderers.
-    /// Uses resilient multi-tier adapter acquisition from [`crate::adapter`] and safely configures
-    /// the presentation surface without panicking.
-    fn init_wgpu(&mut self, window: Arc<Window>) -> Result<(), String> {
+    fn init_wgpu(&mut self, window: Arc<Window>) {
         let instance = wgpu::Instance::default();
         let surface = instance
             .create_surface(window.clone())
-            .map_err(|e| format!("Failed to create WGPU surface for launcher window: {e}"))?;
+            .expect("Failed to create WGPU surface for launcher window");
 
-        let (adapter, device, queue) = pollster::block_on(
-            crate::adapter::request_launcher_adapter_and_device(&instance, &surface),
-        )?;
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::LowPower,
+            compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
+            apply_limit_buckets: false,
+        }))
+        .expect("Failed to find suitable WGPU adapter for launcher");
+
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("Aeon Launcher Device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            memory_hints: wgpu::MemoryHints::default(),
+            trace: wgpu::Trace::Off,
+            experimental_features: Default::default(),
+        }))
+        .expect("Failed to create WGPU device for launcher");
 
         let size = window.inner_size();
         let width = size.width.max(1);
@@ -97,9 +107,7 @@ impl LauncherApp {
             .iter()
             .copied()
             .find(|f| f.is_srgb())
-            .unwrap_or(caps.formats.first().copied().ok_or_else(|| {
-                "Window surface does not support any presentation formats".to_string()
-            })?);
+            .unwrap_or(caps.formats[0]);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -108,11 +116,7 @@ impl LauncherApp {
             height,
             present_mode: wgpu::PresentMode::AutoVsync,
             desired_maximum_frame_latency: 2,
-            alpha_mode: caps
-                .alpha_modes
-                .first()
-                .copied()
-                .unwrap_or(wgpu::CompositeAlphaMode::Auto),
+            alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
             color_space: wgpu::SurfaceColorSpace::Srgb,
         };
@@ -205,8 +209,6 @@ impl LauncherApp {
         self.surface_config = Some(config);
         self.renderer = Some(renderer);
         self.text_renderer = Some(text_renderer);
-
-        Ok(())
     }
 
     /// Calculates the appropriate mouse cursor icon based on current cursor position and active UI tab.
@@ -310,10 +312,7 @@ impl LauncherApp {
                     if btn_rect.contains_point(click_pos) || card_rect.contains_point(click_pos) {
                         let path = PathBuf::from(&project.path);
                         self.registry.add_or_touch(project.clone());
-                        if let Err(e) = launch_engine_and_exit(&path, &project.dimension_mode) {
-                            eprintln!("[AE_LAUNCHER ERROR] Failed to launch Aeon Engine: {e}");
-                            self.state.status_message = Some(format!("Launch failed: {e}"));
-                        }
+                        let _ = launch_engine_and_exit(&path, &project.dimension_mode);
                         return;
                     }
 
@@ -375,10 +374,7 @@ impl LauncherApp {
                         Ok(config) => {
                             self.registry.add_or_touch(config.clone());
                             let path = PathBuf::from(&config.path);
-                            if let Err(e) = launch_engine_and_exit(&path, &config.dimension_mode) {
-                                eprintln!("[AE_LAUNCHER ERROR] Failed to launch Aeon Engine: {e}");
-                                self.state.status_message = Some(format!("Launch failed: {e}"));
-                            }
+                            let _ = launch_engine_and_exit(&path, &config.dimension_mode);
                         }
                         Err(e) => {
                             self.state.status_message = Some(format!("Error: {}", e));
@@ -431,19 +427,15 @@ impl LauncherApp {
         }
 
         let screen_dim = [self.screen_size.x, self.screen_size.y];
-        let is_dirty = self
-            .tree
-            .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
-        renderer.prepare_command_list(device, queue, screen_dim, &self.command_list, is_dirty);
-        text_renderer.prepare(irisui::text::TextPrepareParams {
+        renderer.prepare_command_list(device, queue, screen_dim, &self.command_list);
+        text_renderer.prepare(
             device,
             queue,
-            text_system: &mut self.text_system,
-            physical_screen_size: (self.screen_size.x as u32, self.screen_size.y as u32),
-            zoom_factor: 1.0,
-            sections: &sections,
-            is_dirty,
-        });
+            &mut self.text_system,
+            (self.screen_size.x as u32, self.screen_size.y as u32),
+            1.0,
+            &sections,
+        );
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Launcher Render Encoder"),
@@ -482,8 +474,6 @@ impl LauncherApp {
 
         queue.submit(Some(encoder.finish()));
         queue.present(output);
-
-        self.tree.clear_all_dirty(DirtyFlags::ALL);
     }
 }
 
@@ -527,19 +517,12 @@ impl ApplicationHandler for LauncherApp {
             )
         };
 
-        let window = match event_loop.create_window(attributes) {
-            Ok(win) => Arc::new(win),
-            Err(err) => {
-                eprintln!("[AE_LAUNCHER ERROR] Failed to create launcher window: {err}");
-                std::process::exit(1);
-            }
-        };
-
-        if let Err(err) = self.init_wgpu(window.clone()) {
-            eprintln!("{err}");
-            std::process::exit(1);
-        }
-
+        let window = Arc::new(
+            event_loop
+                .create_window(attributes)
+                .expect("Failed to create launcher window"),
+        );
+        self.init_wgpu(window.clone());
         window.request_redraw();
     }
 

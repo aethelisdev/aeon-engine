@@ -17,7 +17,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = &self.assets_retained.as_ref()?.cached_targets;
+        let targets = self.assets_targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
         let mut actions = Vec::new();
 
@@ -42,10 +42,6 @@ impl IrisEditorOverlay {
 
         if !consumed && actions.is_empty() {
             return None;
-        }
-
-        if !actions.is_empty() {
-            self.assets_revision = self.assets_revision.wrapping_add(1);
         }
 
         for action in actions {

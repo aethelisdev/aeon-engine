@@ -7,12 +7,10 @@
 //! left folder tree sidebar, scrollable card/table views, and telemetry footer.
 //!
 
-use super::cards::build_retained_asset_grid_cards;
+use super::cards::build_asset_grid_cards;
 use super::list::build_asset_list_table;
 use super::tree::build_folder_tree_sidebar;
-use super::types::{
-    AssetBrowserRetainedState, AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget,
-};
+use super::types::{AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget};
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
 use crate::ui::iris_bridge::theme::*;
 use crate::ui::panels::assets::types::{AssetBrowserState, AssetCategory, AssetViewMode};
@@ -28,16 +26,14 @@ pub const ASSETS_CHIPS_BAR_HEIGHT: f32 = 28.0;
 /// Height of the bottom telemetry status footer in physical pixels.
 pub const ASSETS_FOOTER_HEIGHT: f32 = 24.0;
 
-/// Constructs the complete Content / Asset Browser panel widget hierarchy into the Iris `UiTree` and returns retained handles.
-pub fn build_assets_panel_retained(
+/// Constructs the complete Content / Asset Browser panel widget hierarchy into the Iris `UiTree`.
+pub fn build_assets_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &AssetsPanelParams<'_>,
-) -> AssetBrowserRetainedState {
-    let mut targets = AssetsPanelTargets {
-        panel_rect: params.panel_rect,
-        ..Default::default()
-    };
+    targets: &mut AssetsPanelTargets,
+) {
+    targets.panel_rect = params.panel_rect;
 
     // 1. Panel Root Container with Hardware Scissor Clipping
     let root_id = tree.create_node();
@@ -172,7 +168,7 @@ pub fn build_assets_panel_retained(
             (Color::rgba(0.20, 0.23, 0.30, 0.60), 1.0)
         };
         node.style = Style::new()
-            .background(ELEVATION_3_INACTIVE_PILL)
+            .background(Color::rgba(0.06, 0.07, 0.09, 0.95))
             .border_radius(4.0)
             .border(border_w, border_c);
     }
@@ -321,12 +317,12 @@ pub fn build_assets_panel_retained(
         node.set_name("AssetsCategoryChipsBar");
         node.computed_rect = chips_rect;
         node.style = Style::new()
-            .background(ELEVATION_2_HEADER)
-            .border(1.0, BORDER_MICRON);
+            .background(Color::rgba(0.06, 0.07, 0.09, 0.95))
+            .border(1.0, Color::rgba(0.14, 0.16, 0.22, 0.50));
     }
     let _ = tree.add_child(root_id, chips_bar_id);
 
-    build_category_chips(tree, chips_bar_id, chips_rect, params, &mut targets);
+    build_category_chips(tree, chips_bar_id, chips_rect, params, targets);
 
     // 4. Split Body (Sidebar + Content Viewport) & Bottom Status Footer
     let middle_y = chips_rect.bottom();
@@ -339,7 +335,7 @@ pub fn build_assets_panel_retained(
             params.sidebar_width,
             middle_h,
         );
-        build_folder_tree_sidebar(tree, root_id, sb_rect, params, &mut targets);
+        build_folder_tree_sidebar(tree, root_id, sb_rect, params, targets);
         params.panel_rect.x + params.sidebar_width
     } else {
         targets.sidebar_rect = None;
@@ -355,23 +351,22 @@ pub fn build_assets_panel_retained(
         node.set_name("AssetsContentViewport");
         node.computed_rect = content_rect;
         node.style = Style::new()
-            .background(ELEVATION_1_PANEL)
+            .background(Color::rgba(0.04, 0.05, 0.07, 0.98))
             .clip_children(true);
     }
     let _ = tree.add_child(root_id, content_vp_id);
 
     // Render Grid vs List View
-    let retained_cards = match params.view_mode {
+    match params.view_mode {
         AssetViewMode::Grid => {
             targets.list_rows.clear();
-            build_retained_asset_grid_cards(tree, content_vp_id, content_rect, params, &mut targets)
+            build_asset_grid_cards(tree, content_vp_id, content_rect, params, targets);
         }
         AssetViewMode::List => {
             targets.grid_cards.clear();
-            build_asset_list_table(tree, content_vp_id, content_rect, params, &mut targets);
-            Vec::new()
+            build_asset_list_table(tree, content_vp_id, content_rect, params, targets);
         }
-    };
+    }
 
     // 5. Bottom Status Footer (Telemetry + Collapse Toggle)
     let footer_rect = Rect::new(
@@ -386,8 +381,8 @@ pub fn build_assets_panel_retained(
         node.set_name("AssetsFooter");
         node.computed_rect = footer_rect;
         node.style = Style::new()
-            .background(ELEVATION_2_HEADER)
-            .border(1.0, BORDER_MICRON);
+            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
+            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.70));
     }
     let _ = tree.add_child(root_id, footer_id);
 
@@ -492,30 +487,10 @@ pub fn build_assets_panel_retained(
     let _ = tree.add_child(footer_id, tele_id);
 
     // 6. Right-Click Floating Context Menu (Z-Order Top)
-    super::context_menu::build_assets_context_menu(tree, parent_id, params, &mut targets);
+    super::context_menu::build_assets_context_menu(tree, parent_id, params, targets);
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
-    super::preview::build_asset_preview_modal(tree, parent_id, params, &mut targets);
-
-    AssetBrowserRetainedState {
-        root_id,
-        content_viewport_id: content_vp_id,
-        cards: retained_cards,
-        panel_rect: params.panel_rect,
-        last_revision: params.revision,
-        cached_targets: targets,
-    }
-}
-
-/// Constructs the complete Content / Asset Browser panel widget hierarchy in immediate mode.
-pub fn build_assets_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
-) {
-    let retained = build_assets_panel_retained(tree, parent_id, params);
-    *targets = retained.cached_targets;
+    super::preview::build_asset_preview_modal(tree, parent_id, params, targets);
 }
 
 /// Builds the category filter chips row with live item counters.

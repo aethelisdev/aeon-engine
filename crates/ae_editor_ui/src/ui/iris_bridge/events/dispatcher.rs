@@ -12,17 +12,7 @@ impl IrisEditorOverlay {
     pub fn handle_event(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
         let mut result = IrisOverlayEventResult::default();
 
-        // 1. Flag command list dirty on interactive user inputs
-        if matches!(
-            event,
-            WindowEvent::MouseInput { .. }
-                | WindowEvent::MouseWheel { .. }
-                | WindowEvent::KeyboardInput { .. }
-        ) {
-            self.is_command_list_dirty = true;
-        }
-
-        // 1b. Track modifier keys for accelerated / fine-tune dragging
+        // 1. Track modifier keys for accelerated / fine-tune dragging
         if let WindowEvent::ModifiersChanged(modifiers) = event {
             self.shift_held = modifiers.state().shift_key();
             self.alt_held = modifiers.state().alt_key();

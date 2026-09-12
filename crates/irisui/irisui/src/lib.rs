@@ -48,17 +48,18 @@ pub mod prelude {
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DockDragState, DockError,
         DockLayoutOptions, DockNavigatorGeometry, DockNavigatorStyle, DockNode, DockNodeId,
-        DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingTabBadgeParams,
-        FloatingWindow, FloatingWindowId, LeafLayoutInfo, MultiViewportManager, SimpleTabViewer,
-        SplitDirection, SplitterLayoutInfo, TabBarLayoutInfo, TabContextMenuAction,
-        TabContextMenuState, TabLayoutInfo, TabViewer, build_dock_navigator_nodes,
-        build_drop_preview_node, build_floating_tab_badge, calculate_screen_drop_zone,
-        calculate_tab_reorder_index, compute_dock_layout, compute_dock_layout_advanced,
-        compute_dock_layout_with_options, compute_dock_layout_with_viewer,
-        compute_floating_layouts, compute_tab_bar_layout, hit_test_navigator,
+        DockPanel, DockState, DockStyle, DockTree, DropZone, FloatingDockWindow,
+        FloatingTabBadgeParams, FloatingWindow, FloatingWindowId, LeafLayoutInfo,
+        MultiViewportManager, PanelRegistry, SimpleTabViewer, SplitDirection, SplitterLayoutInfo,
+        TabBarLayoutInfo, TabContextMenuAction, TabContextMenuState, TabLayoutInfo, TabViewer,
+        UiNotifier, build_dock_navigator_nodes, build_drop_preview_node, build_floating_tab_badge,
+        calculate_screen_drop_zone, calculate_tab_reorder_index, compute_dock_layout,
+        compute_dock_layout_advanced, compute_dock_layout_with_options,
+        compute_dock_layout_with_viewer, compute_floating_layouts, compute_tab_bar_layout,
+        hit_test_navigator,
     };
     pub use iris_layout::{LayoutEngine, LayoutError};
-    pub use iris_text::{TextPrepareParams, TextRenderer, TextSection, TextSystem};
+    pub use iris_text::{TextRenderer, TextSection, TextSystem};
     pub use iris_wgpu::{
         DrawCommand, DrawCommandList, ExternalTexturePipeline, ExternalTextureQuadInstance,
         ExternalTextures, IrisRenderer, QuadInstance, TextureQuadInstance, TextureQuadPipeline,

@@ -7,25 +7,17 @@ use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCach
 use iris_core::{Size, TextAlign};
 use std::collections::HashMap;
 
-#[inline]
-fn hash_str(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut h);
-    h.finish()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct MeasureCacheKey {
-    text_hash: u64,
+    text: String,
     font_size_bits: u32,
     line_height_bits: u32,
     max_width_bits: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct ShapeCacheKey {
-    text_hash: u64,
+    text: String,
     font_size_bits: u32,
     line_height_bits: u32,
     bounds_width_bits: u32,
@@ -37,8 +29,8 @@ struct ShapeCacheKey {
 pub struct TextSystem {
     font_system: FontSystem,
     swash_cache: SwashCache,
-    measure_cache: HashMap<MeasureCacheKey, (String, Size)>,
-    shape_cache: HashMap<ShapeCacheKey, (String, Buffer)>,
+    measure_cache: HashMap<MeasureCacheKey, Size>,
+    shape_cache: HashMap<ShapeCacheKey, Buffer>,
 }
 
 impl Default for TextSystem {
@@ -123,18 +115,15 @@ impl TextSystem {
         }
 
         let max_w_bits = max_width.unwrap_or(0.0).to_bits();
-        let text_hash = hash_str(text);
         let key = MeasureCacheKey {
-            text_hash,
+            text: text.to_string(),
             font_size_bits: font_size.to_bits(),
             line_height_bits: line_height.to_bits(),
             max_width_bits: max_w_bits,
         };
 
-        if let Some((stored_text, cached)) = self.measure_cache.get(&key)
-            && stored_text == text
-        {
-            return *cached;
+        if let Some(&cached) = self.measure_cache.get(&key) {
+            return cached;
         }
 
         let metrics = Metrics::new(font_size, line_height);
@@ -164,7 +153,7 @@ impl TextSystem {
         if self.measure_cache.len() > 1024 {
             self.measure_cache.clear();
         }
-        self.measure_cache.insert(key, (text.to_string(), size));
+        self.measure_cache.insert(key, size);
         size
     }
 
@@ -184,9 +173,8 @@ impl TextSystem {
             TextAlign::Right => 2,
         };
 
-        let text_hash = hash_str(text);
         let key = ShapeCacheKey {
-            text_hash,
+            text: text.to_string(),
             font_size_bits: font_size.to_bits(),
             line_height_bits: line_height.to_bits(),
             bounds_width_bits: bounds_width.to_bits(),
@@ -194,9 +182,7 @@ impl TextSystem {
             align: align_code,
         };
 
-        if let Some((stored_text, cached)) = self.shape_cache.get(&key)
-            && stored_text == text
-        {
+        if let Some(cached) = self.shape_cache.get(&key) {
             return cached.clone();
         }
 
@@ -224,8 +210,7 @@ impl TextSystem {
         if self.shape_cache.len() > 1024 {
             self.shape_cache.clear();
         }
-        self.shape_cache
-            .insert(key, (text.to_string(), buffer.clone()));
+        self.shape_cache.insert(key, buffer.clone());
         buffer
     }
 }

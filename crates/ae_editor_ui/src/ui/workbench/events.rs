@@ -76,11 +76,9 @@ impl EngineUi {
             if self.asset_browser.selected_asset.as_ref() == Some(&target) {
                 self.asset_browser.selected_asset = None;
             }
-            self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
         }
         if iris_res.cancel_delete {
             self.asset_browser.delete_confirmation = None;
-            self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
         }
 
         if let Some(folder_name) = iris_res.create_folder
@@ -89,13 +87,11 @@ impl EngineUi {
             let _ = crate::ui::panels::assets::file_ops::create_subfolder(&parent, &folder_name);
             self.iris_overlay.new_folder_buffer.clear();
             self.asset_browser.new_folder_name.clear();
-            self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
         }
         if iris_res.cancel_new_folder {
             self.asset_browser.new_folder_parent = None;
             self.iris_overlay.new_folder_buffer.clear();
             self.asset_browser.new_folder_name.clear();
-            self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
         }
 
         if let Some(new_name) = iris_res.apply_rename
@@ -106,12 +102,10 @@ impl EngineUi {
                 &new_name,
             );
             self.iris_overlay.rename_buffer.clear();
-            self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
         }
         if iris_res.cancel_rename {
             self.asset_browser.rename_state = None;
             self.iris_overlay.rename_buffer.clear();
-            self.asset_browser.revision = self.asset_browser.revision.wrapping_add(1);
         }
 
         if iris_res.clear_console_entries {
@@ -234,7 +228,6 @@ impl EngineUi {
                                 pending.tab_index,
                                 p,
                             );
-                            self.layout_state.bump_revision();
                         } else {
                             let _ = self.layout_state.dock_state.start_tab_drag(
                                 pending.leaf,
@@ -242,7 +235,6 @@ impl EngineUi {
                                 p,
                                 pending.leaf_rect,
                             );
-                            self.layout_state.bump_revision();
                         }
                         self.pending_tab_drag = None;
                         dock_consumed = true;
@@ -338,7 +330,6 @@ impl EngineUi {
                             },
                         }
                     }
-                    self.layout_state.bump_revision();
                     dock_consumed = true;
                 }
 
@@ -351,7 +342,6 @@ impl EngineUi {
                     self.layout_state
                         .dock_state
                         .update_splitter_drag(current_cursor);
-                    self.layout_state.bump_revision();
                     dock_consumed = true;
                 }
 
@@ -365,7 +355,6 @@ impl EngineUi {
                         &crate::ui::panel_layout::PanelTabViewer,
                     );
                     self.layout_state.dock_state.update_tab_drag(p, &computed);
-                    self.layout_state.bump_revision();
                     dock_consumed = true;
                 }
             }
@@ -488,7 +477,6 @@ impl EngineUi {
                 }
                 if let Some(win_id) = floating_close {
                     let _ = self.layout_state.dock_state.close_floating_window(win_id);
-                    self.layout_state.bump_revision();
                     return true;
                 }
                 if let Some((win_id, leaf_id, tab_idx, panel, leaf_rect)) = floating_tab_action {
@@ -500,7 +488,6 @@ impl EngineUi {
                         .find(|w| w.id == win_id)
                     {
                         let _ = w.tree.set_active_tab(leaf_id, tab_idx);
-                        self.layout_state.bump_revision();
                     }
                     self.pending_tab_drag = Some(crate::ui::workbench::state::PendingTabDrag {
                         leaf: leaf_id,
@@ -546,7 +533,6 @@ impl EngineUi {
                             .dock_state
                             .tree
                             .set_active_tab(target.leaf, target.tab_index);
-                        self.layout_state.bump_revision();
                         self.pending_tab_drag = Some(crate::ui::workbench::state::PendingTabDrag {
                             leaf: target.leaf,
                             tab_index: target.tab_index,
@@ -573,7 +559,6 @@ impl EngineUi {
                             start_coord,
                             target.total_dimension,
                         );
-                        self.layout_state.bump_revision();
                         dock_consumed = true;
                     }
                 }
@@ -588,12 +573,10 @@ impl EngineUi {
 
                 if self.active_floating_drag.is_some() {
                     self.active_floating_drag = None;
-                    self.layout_state.bump_revision();
                     dock_consumed = true;
                 }
                 if self.layout_state.dock_state.active_splitter.is_some() {
                     self.layout_state.dock_state.end_splitter_drag();
-                    self.layout_state.bump_revision();
                     dock_consumed = true;
                 }
                 if self.layout_state.dock_state.active_drag.is_some() {
@@ -601,7 +584,6 @@ impl EngineUi {
                         .layout_state
                         .dock_state
                         .drop_tab_or_float(Point::new(400.0, 300.0));
-                    self.layout_state.bump_revision();
                     dock_consumed = true;
                 }
             }
@@ -617,7 +599,11 @@ impl EngineUi {
             window.set_cursor(winit::window::CursorIcon::Default);
         }
 
-        iris_res.consumed || dock_consumed
+        let consumed = iris_res.consumed || dock_consumed;
+        if consumed {
+            self.iris_overlay.notifier.tag_all();
+        }
+        consumed
     }
 
     /// Returns true if the point is over any UI panel, floating modal dialog, or outside the 3D viewport.

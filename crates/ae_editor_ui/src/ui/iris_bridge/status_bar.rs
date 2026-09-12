@@ -37,9 +37,5 @@ pub fn build_bottom_status_bar(tree: &mut UiTree, params: StatusBarParams<'_>) -
     let version_text = format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION"));
     bar_builder.add_right_label(&version_text, Color::hex("#646470"));
 
-    let bar_id = bar_builder.build();
-    if let Some(node) = tree.get_mut(bar_id) {
-        node.style.background_color = crate::ui::iris_bridge::theme::ELEVATION_2_HEADER;
-    }
-    bar_id
+    bar_builder.build()
 }

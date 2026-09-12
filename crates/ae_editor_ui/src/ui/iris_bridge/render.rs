@@ -19,13 +19,147 @@ struct TextCollectionContext<'a> {
 }
 
 impl IrisEditorOverlay {
+    /// Recursively converts computed node bounds and styles into `DrawCommandList` instances.
+    pub(crate) fn populate_draw_commands(
+        &mut self,
+        current: WidgetId,
+        clip_rect: Option<Rect>,
+        frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
+    ) {
+        let (child_count, quad, tex_quad, ext_quad, is_oscilloscope, canvas_rect, next_clip) = {
+            let Some(node) = self.tree.get(current) else {
+                return;
+            };
+            if !node.visible {
+                return;
+            }
+
+            let child_clip = if node.style.clip_children {
+                match clip_rect {
+                    Some(existing) => Some(existing.intersect(node.computed_rect)),
+                    None => Some(node.computed_rect),
+                }
+            } else {
+                clip_rect
+            };
+
+            let has_border = (node.style.border.width.top > 0.0
+                || node.style.border.width.bottom > 0.0
+                || node.style.border.width.left > 0.0
+                || node.style.border.width.right > 0.0)
+                && node.style.border.color.a > 0.0;
+
+            let quad = if node.computed_rect.width > 0.0
+                && node.computed_rect.height > 0.0
+                && (node.style.background_color.a > 0.0
+                    || has_border
+                    || node.style.box_shadow.is_some())
+            {
+                Some(QuadInstance::from_style(
+                    node.computed_rect,
+                    &node.style,
+                    clip_rect,
+                ))
+            } else {
+                None
+            };
+
+            let tex_quad = if let Some(uv) = node.texture_uv {
+                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
+                    let tint = node.texture_tint.unwrap_or(Color::WHITE);
+                    let clip_arr = match clip_rect {
+                        Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
+                        None => [0.0, 0.0, 0.0, 0.0],
+                    };
+                    Some(TextureQuadInstance {
+                        rect: [
+                            node.computed_rect.x,
+                            node.computed_rect.y,
+                            node.computed_rect.width,
+                            node.computed_rect.height,
+                        ],
+                        uv_rect: uv,
+                        tint: [tint.r, tint.g, tint.b, tint.a],
+                        clip_rect: clip_arr,
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let ext_quad = if let Some(id) = node.external_texture {
+                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
+                    let tint = node.texture_tint.unwrap_or(Color::WHITE);
+                    let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
+                    Some((
+                        id,
+                        ExternalTextureQuadInstance::with_uv(
+                            node.computed_rect,
+                            uv,
+                            tint,
+                            clip_rect,
+                        ),
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let is_oscilloscope = node.role == WidgetRole::OscilloscopeCanvas;
+            let canvas_rect = node.computed_rect;
+
+            (
+                node.children.len(),
+                quad,
+                tex_quad,
+                ext_quad,
+                is_oscilloscope,
+                canvas_rect,
+                child_clip,
+            )
+        };
+
+        if let Some(q) = quad {
+            self.command_list.push_quad(q);
+        }
+        if let Some(tq) = tex_quad {
+            self.command_list.push_texture_quad(tq);
+        }
+        if let Some((id, eq)) = ext_quad {
+            self.command_list.push_external_texture_quad(id, eq);
+        }
+
+        // Render oscilloscope telemetry trace at exact canvas Z-order
+        if is_oscilloscope && let Some(ring) = frame_pacing {
+            super::stats::append_oscilloscope_quads(&mut self.command_list, canvas_rect, ring);
+        }
+
+        for i in 0..child_count {
+            let child_id = {
+                let Some(node) = self.tree.get(current) else {
+                    break;
+                };
+                if i < node.children.len() {
+                    node.children[i]
+                } else {
+                    break;
+                }
+            };
+            self.populate_draw_commands(child_id, next_clip, frame_pacing);
+        }
+    }
+
     /// Collects text rendering sections from all visible layout nodes in the tree.
-    pub fn collect_text_sections_from_tree(
-        tree: &UiTree,
+    pub fn collect_text_sections_from_tree<'a>(
+        tree: &'a UiTree,
         active_dropdown_rects: &[Rect],
         active_modal_rects: &[Rect],
         floating_window_rects: &[Rect],
-    ) -> Vec<TextSection<'static>> {
+    ) -> Vec<TextSection<'a>> {
         let mut sections = Vec::new();
         if let Some(root) = tree.root() {
             let ctx = TextCollectionContext {
@@ -43,11 +177,11 @@ impl IrisEditorOverlay {
     }
 
     /// Recursive helper extracting text sections from a node subtree.
-    fn collect_node_text_from_tree(
-        tree: &UiTree,
+    fn collect_node_text_from_tree<'a>(
+        tree: &'a UiTree,
         current: WidgetId,
         ctx: &TextCollectionContext<'_>,
-        sections: &mut Vec<TextSection<'static>>,
+        sections: &mut Vec<TextSection<'a>>,
     ) {
         let Some(node) = tree.get(current) else {
             return;
@@ -306,117 +440,90 @@ impl IrisEditorOverlay {
             self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
         }
 
-        let tree_dirty = self
-            .tree
-            .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
-        let is_geometry_dirty = self.is_command_list_dirty || tree_dirty;
-        let is_text_dirty =
-            self.is_text_dirty || is_geometry_dirty || self.cached_text_sections.is_empty();
+        let mut active_dropdown_rects: Vec<Rect> = Vec::new();
+        let mut active_modal_rects: Vec<Rect> = Vec::new();
 
-        if !self.is_command_list_dirty {
-            debug_assert!(
-                !tree_dirty,
-                "UI tree must have zero PAINT or LAYOUT dirty nodes during idle frames"
-            );
+        if let Some(r) = self.dropdown_rect {
+            active_dropdown_rects.push(r);
         }
-
-        if is_geometry_dirty {
-            log::info!(
-                "[PROBE_DIRTY] UI tree dirty before render (cmd_dirty: {}, tree_dirty: {})",
-                self.is_command_list_dirty,
-                tree_dirty
-            );
-        }
-
-        if is_text_dirty {
-            let mut active_dropdown_rects: Vec<Rect> = Vec::new();
-            let mut active_modal_rects: Vec<Rect> = Vec::new();
-
-            if let Some(r) = self.dropdown_rect {
+        if let Some(ref t) = self.preferences_targets {
+            active_modal_rects.push(t.card_rect);
+            if let Some(r) = t.active_dropdown_popup_rect {
                 active_dropdown_rects.push(r);
             }
-            if let Some(ref t) = self.preferences_targets {
-                active_modal_rects.push(t.card_rect);
-                if let Some(r) = t.active_dropdown_popup_rect {
-                    active_dropdown_rects.push(r);
-                }
-            }
-            if let Some(ref t) = self.about_targets {
-                active_modal_rects.push(t.dialog_rect);
-            }
-            if let Some(ref t) = self.delete_targets {
-                active_modal_rects.push(t.dialog_rect);
-            }
-            if let Some(ref t) = self.new_folder_targets {
-                active_modal_rects.push(t.dialog_rect);
-            }
-            if let Some(ref t) = self.rename_targets {
-                active_modal_rects.push(t.dialog_rect);
-            }
-            if let Some(ref t) = self.loading_targets {
-                active_modal_rects.push(t.card_rect);
-            }
-            if let Some(ref hud) = self.viewport_hud_targets
-                && let Some(r) = hud.active_dropdown_popup_rect
-            {
+        }
+        if let Some(ref t) = self.about_targets {
+            active_modal_rects.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.delete_targets {
+            active_modal_rects.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.new_folder_targets {
+            active_modal_rects.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.rename_targets {
+            active_modal_rects.push(t.dialog_rect);
+        }
+        if let Some(ref t) = self.loading_targets {
+            active_modal_rects.push(t.card_rect);
+        }
+        if let Some(ref hud) = self.viewport_hud_targets
+            && let Some(r) = hud.active_dropdown_popup_rect
+        {
+            active_dropdown_rects.push(r);
+        }
+        if let Some(ref hier) = self.hierarchy_targets {
+            if let Some(r) = hier.active_add_menu_rect {
                 active_dropdown_rects.push(r);
             }
-            if let Some(ref hier) = self.hierarchy_targets {
-                if let Some(r) = hier.active_add_menu_rect {
-                    active_dropdown_rects.push(r);
-                }
-                if let Some(r) = hier.active_submenu_rect {
-                    active_dropdown_rects.push(r);
-                }
-                if let Some(r) = hier.active_sub_submenu_rect {
-                    active_dropdown_rects.push(r);
-                }
-                if let Some((_, r, _, _)) = hier.active_context_menu {
-                    active_dropdown_rects.push(r);
-                }
+            if let Some(r) = hier.active_submenu_rect {
+                active_dropdown_rects.push(r);
             }
-            if let Some(ref insp) = self.inspector_targets {
-                if let Some(r) = insp.active_add_menu_rect {
-                    active_dropdown_rects.push(r);
-                }
-                if let Some(r) = insp.active_submenu_rect {
-                    active_dropdown_rects.push(r);
-                }
-                if let Some(r) = insp.active_dropdown_popup_rect {
-                    active_dropdown_rects.push(r);
-                }
-                if let Some(r) = insp.color_picker_popup_rect {
-                    active_dropdown_rects.push(r);
-                }
+            if let Some(r) = hier.active_sub_submenu_rect {
+                active_dropdown_rects.push(r);
             }
-            if let Some(assets) = self.assets_targets() {
-                if let Some(ref ctx_menu) = assets.context_menu {
-                    active_dropdown_rects.push(ctx_menu.card_rect);
-                }
-                if let Some(ref modal) = assets.preview_modal {
-                    active_modal_rects.push(modal.dialog_rect);
-                }
+            if let Some((_, r, _, _)) = hier.active_context_menu {
+                active_dropdown_rects.push(r);
             }
-
-            self.cached_text_sections = Self::collect_text_sections_from_tree(
-                &self.tree,
-                &active_dropdown_rects,
-                &active_modal_rects,
-                &self.floating_window_rects,
-            );
-            self.is_text_dirty = false;
+        }
+        if let Some(ref insp) = self.inspector_targets {
+            if let Some(r) = insp.active_add_menu_rect {
+                active_dropdown_rects.push(r);
+            }
+            if let Some(r) = insp.active_submenu_rect {
+                active_dropdown_rects.push(r);
+            }
+            if let Some(r) = insp.active_dropdown_popup_rect {
+                active_dropdown_rects.push(r);
+            }
+            if let Some(r) = insp.color_picker_popup_rect {
+                active_dropdown_rects.push(r);
+            }
+        }
+        if let Some(ref assets) = self.assets_targets {
+            if let Some(ref ctx_menu) = assets.context_menu {
+                active_dropdown_rects.push(ctx_menu.card_rect);
+            }
+            if let Some(ref modal) = assets.preview_modal {
+                active_modal_rects.push(modal.dialog_rect);
+            }
         }
 
+        let sections = Self::collect_text_sections_from_tree(
+            &self.tree,
+            &active_dropdown_rects,
+            &active_modal_rects,
+            &self.floating_window_rects,
+        );
         if let Some(txt_renderer) = &mut self.text_renderer {
-            txt_renderer.prepare(irisui::text::TextPrepareParams {
+            txt_renderer.prepare(
                 device,
                 queue,
-                text_system: &mut self.text_system,
+                &mut self.text_system,
                 physical_screen_size,
-                zoom_factor: zoom,
-                sections: &self.cached_text_sections,
-                is_dirty: is_text_dirty,
-            });
+                zoom,
+                &sections,
+            );
         }
 
         ae_renderer::render::iris_render_pass(ae_renderer::render::IrisRenderPassParams {
@@ -428,13 +535,7 @@ impl IrisEditorOverlay {
             command_list: &self.command_list,
             text_renderer: self.text_renderer.as_ref(),
             screen_size: logical_screen_size,
-            is_dirty: is_geometry_dirty,
         });
-
-        if is_geometry_dirty {
-            self.is_command_list_dirty = false;
-        }
-        self.tree.clear_all_dirty(DirtyFlags::ALL);
     }
 
     /// Uploads dynamic 64x64 thumbnail previews for active asset browser items into the 2D Texture Array.

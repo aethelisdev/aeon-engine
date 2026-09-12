@@ -23,5 +23,5 @@ ae_texture = { path = "../ae_texture" }
 ae_animation = { path = "../ae_animation" }
 irisui = { workspace = true }
 
-[dev-dependencies]
-pollster = { workspace = true }
+
+

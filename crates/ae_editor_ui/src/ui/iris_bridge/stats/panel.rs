@@ -19,9 +19,6 @@ use super::overlays::{
     OverlaysNodes, build_viewport_overlays_content, update_viewport_overlays_values,
 };
 use super::types::{StatsPanelNodes, StatsPanelParams, StatsPanelTargets};
-use crate::ui::iris_bridge::theme::{
-    BORDER_MICRON, ELEVATION_1_PANEL, ELEVATION_3_INACTIVE_PILL, TEXT_REGULAR,
-};
 use irisui::prelude::*;
 
 /// Builds the static Stats & Profiler panel layout tree once and returns persistent node handles.
@@ -39,7 +36,7 @@ pub fn build_stats_panel(
         node.set_name("StatsPanelRoot");
         node.computed_rect = params.panel_rect;
         node.style = Style::new()
-            .background(ELEVATION_1_PANEL)
+            .background(Color::rgba(0.06, 0.07, 0.09, 1.0))
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, root_id);
@@ -266,61 +263,6 @@ pub fn update_stats_panel_values(
     );
 }
 
-/// Updates ONLY the text/glyph values in place during idle frames without touching quad nodes or layout.
-pub fn update_stats_panel_text_values(
-    tree: &mut UiTree,
-    nodes: &StatsPanelNodes,
-    params: &StatsPanelParams<'_>,
-) {
-    // 1. Frame Pacing Card Values (Text only)
-    update_frame_pacing_values(
-        tree,
-        &nodes.metric_pill_val_ids,
-        nodes.pacing_footer_id,
-        params,
-    );
-
-    // 2. CPU Breakdown Values (Text only)
-    super::cpu_breakdown::update_cpu_breakdown_text_values(
-        tree,
-        nodes.cpu_tb_val_id,
-        &nodes.cpu_timing_val_ids,
-        nodes.cpu_total_val_id,
-        params,
-    );
-
-    // 3. GPU Breakdown Values (Text only)
-    super::gpu_breakdown::update_gpu_breakdown_text_values(
-        tree,
-        nodes.gpu_dev_id,
-        &nodes.gpu_pass_val_ids,
-        nodes.gpu_total_val_id,
-        params,
-    );
-
-    // 4. Scene Geometry Values (Text only)
-    update_scene_geometry_values(
-        tree,
-        &SceneGeometryNodes {
-            dc_val_id: nodes.dc_val_id,
-            inst_pct_id: nodes.inst_pct_id,
-            dc_subrow_val_ids: nodes.dc_subrow_val_ids,
-            triangles_val_id: nodes.triangles_val_id,
-            vertices_val_id: nodes.vertices_val_id,
-            entities_val_id: nodes.entities_val_id,
-        },
-        params,
-    );
-
-    // 5. Video RAM Values (Text only)
-    super::metrics::update_vram_text_values(
-        tree,
-        &nodes.vram_row_val_ids,
-        nodes.vram_total_val_id,
-        params,
-    );
-}
-
 /// Helper function to build a standard dark stats card frame with header and inner content rect.
 fn build_stats_card(
     tree: &mut UiTree,
@@ -334,8 +276,8 @@ fn build_stats_card(
         node.set_name("StatsCard");
         node.computed_rect = rect;
         node.style = Style::new()
-            .background(ELEVATION_3_INACTIVE_PILL)
-            .border(1.0, BORDER_MICRON)
+            .background(Color::rgba(0.07, 0.08, 0.10, 0.95))
+            .border(1.0, Color::rgba(0.15, 0.16, 0.21, 0.90))
             .border_radius(5.0)
             .box_shadow(0.0, 4.0, 10.0, Color::rgba(0.0, 0.0, 0.0, 0.40));
     }
@@ -349,7 +291,7 @@ fn build_stats_card(
         node.set_text(head_text);
         node.font_size = 11.5;
         node.line_height = 18.0;
-        node.text_color = TEXT_REGULAR;
+        node.text_color = Color::rgba(0.86, 0.88, 0.92, 1.0);
         node.computed_rect = Rect::new(rect.x + 10.0, rect.y + 8.0, rect.width - 20.0, 18.0);
     }
     let _ = tree.add_child(card_id, head_id);

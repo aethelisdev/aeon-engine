@@ -49,7 +49,6 @@ impl IrisEditorOverlay {
             stats_targets: None,
             stats_nodes: None,
             last_stats_rect: None,
-            stats_retained: None,
             hierarchy_targets: None,
             hierarchy_rows_cache: Vec::new(),
             hierarchy_scroll_y: 0.0,
@@ -79,11 +78,15 @@ impl IrisEditorOverlay {
             inspector_color_drag_mode: None,
             inspector_is_color_picker_open: false,
             inspector_actions: Vec::new(),
+            notifier: UiNotifier::new(),
+            panels: super::update_panels::create_default_panel_registry(),
             last_dimensions: (0.0, 0.0),
             last_zoom_factor: 1.0,
+            last_selected_entity: None,
+            last_floating_count: 0,
+            last_modal_active: false,
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
-            stats_revision: 0,
             stats_actions: Vec::new(),
             console_targets: None,
             console_scroll_y: 0.0,
@@ -92,6 +95,7 @@ impl IrisEditorOverlay {
             console_is_search_focused: false,
             console_auto_scroll: true,
             console_actions: Vec::new(),
+            assets_targets: None,
             assets_scroll_y: 0.0,
             assets_tree_scroll_y: 0.0,
             assets_search_query: String::new(),
@@ -102,8 +106,6 @@ impl IrisEditorOverlay {
             assets_context_menu: None,
             assets_preview_modal: None,
             assets_selected_asset: None,
-            assets_retained: None,
-            assets_revision: 0,
             thumbnail_layers: std::collections::HashMap::new(),
             next_thumbnail_layer: 16,
             timeline_targets: None,
@@ -142,41 +144,6 @@ impl IrisEditorOverlay {
             tools_texture: None,
             floating_window_rects: Vec::new(),
             native_dock_frame: None,
-            is_command_list_dirty: true,
-            is_text_dirty: true,
-            last_stats_update: std::time::Instant::now(),
-            cached_text_sections: Vec::new(),
-            baked_geometry: super::baking::BakedUiGeometry::new(),
-            last_dock_revision: 0,
-            last_active_menu: None,
-            last_selected_entity: None,
-            last_is_editing: true,
-            last_is_2d: false,
-            last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
-            last_status_len: 0,
-            last_world_len: 0,
-            last_has_viewport_texture: false,
-            last_camera_pos: [0.0, 0.0, 0.0],
-            last_camera_orientation: [0.0, 0.0],
-            last_camera_ortho_scale: 1.0,
-            last_cursor_pos: Point::new(-1000.0, -1000.0),
-            last_show_preferences: false,
-            last_show_about: false,
-            last_has_delete_target: false,
-            last_has_new_folder_parent: false,
-            last_has_rename_target: false,
-            last_is_loading_assets: false,
-            last_viewport_hud_dropdown: None,
-            last_hierarchy_is_add_menu_open: false,
-            last_hierarchy_has_context_menu: false,
-            last_inspector_is_add_menu_open: false,
-            last_has_assets_context_menu: false,
-            last_has_assets_preview_modal: false,
-            last_preferences_tab: 0,
-            last_preferences_pos: None,
-            last_preferences_scroll_y: 0.0,
-            last_preferences_dropdown: None,
-            last_blink_state: false,
         }
     }
 
@@ -186,57 +153,45 @@ impl IrisEditorOverlay {
         self.screen_width = screen_width;
         self.screen_height = screen_height;
 
+        let modal_active = params.show_about
+            || params.show_preferences
+            || params.delete_target.is_some()
+            || params.new_folder_parent.is_some()
+            || params.rename_target.is_some()
+            || params.is_loading_assets;
+
+        let floating_count = params.layout_state.dock_state.floating_windows.len();
+
+        if self.last_dimensions != params.dimensions
+            || (self.last_zoom_factor - params.zoom_factor).abs() > 1e-4
+            || self.last_floating_count != floating_count
+            || self.last_modal_active != modal_active
+            || self.active_menu.is_some()
+            || self.needs_layout_rebuild
+        {
+            self.notifier.tag_all();
+        }
+
+        if self.last_selected_entity != params.selected_entity {
+            self.notifier.tag_redraw("inspector");
+        }
+
+        // Poll registered panels for internal reactive changes
+        self.notifier.poll_registry(&self.panels);
+
         if !self.is_visible {
             self.command_list.clear();
             return;
         }
 
-        // ── 0. Reactive Idle Gate: Skip tree rebuild when UI layout structure is asleep ──
-        if !self.should_rebuild_overlay(&params, screen_width, screen_height) {
-            // UI tree layout is asleep: do NOT delete children or rebuild.
-            // Live telemetry (Stats Panel) updates independently in place on a 100ms cadence.
-            self.update_live_telemetry_in_place(&params);
+        if !self.notifier.is_any_dirty() && !self.tree.is_empty() {
+            // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
             return;
         }
 
-        let root = if let Some(r) = self.tree.root() {
-            r
-        } else {
-            let Ok(r) = self.tree.create_root() else {
-                return;
-            };
-            r
-        };
-
-        // Retain the persistent Asset Browser and Stats panel root nodes if they exist
-        let retained_assets_node = self.assets_retained.as_ref().map(|s| s.root_id);
-        let retained_stats_node = self.stats_retained.as_ref().map(|s| s.nodes.root_id);
-
-        // Detach retained nodes from their parent (without deleting their trees) so that root
-        // has ONLY MenuBar and StatusBar during Taffy SpaceBetween layout computation.
-        if let Some(assets_id) = retained_assets_node
-            && let Some(parent) = self.tree.get(assets_id).and_then(|n| n.parent)
-        {
-            let _ = self.tree.remove_child(parent, assets_id);
-        }
-        if let Some(stats_id) = retained_stats_node
-            && let Some(parent) = self.tree.get(stats_id).and_then(|n| n.parent)
-        {
-            let _ = self.tree.remove_child(parent, stats_id);
-        }
-
-        // Remove previous non-retained children of root
-        let children_to_remove: Vec<WidgetId> = self
-            .tree
-            .get(root)
-            .map(|n| n.children.clone())
-            .unwrap_or_default();
-
-        for child in children_to_remove {
-            let _ = self.tree.remove_node(child);
-        }
-
+        self.tree.clear();
         self.layout_engine.clear();
+        self.command_list.clear();
         self.dropdown_items.clear();
         self.floating_window_rects.clear();
         self.dropdown_rect = None;
@@ -250,6 +205,7 @@ impl IrisEditorOverlay {
         self.stats_targets = None;
         self.inspector_targets = None;
         self.console_targets = None;
+        self.assets_targets = None;
         self.material_targets = None;
         self.ui_designer_targets = None;
 
@@ -305,6 +261,10 @@ impl IrisEditorOverlay {
                 self.inspector_rename_buffer = Some((ent, buf));
             }
         }
+
+        let Ok(root) = self.tree.create_root() else {
+            return;
+        };
 
         if let Some(root_node) = self.tree.get_mut(root) {
             root_node.set_name("IrisRoot");
@@ -427,29 +387,10 @@ impl IrisEditorOverlay {
         }
 
         // 4. Layer 0: Render all DOCKED panels first (Z-Index: Background Workspace Layer)
-        if !is_floating(crate::ui::panel_layout::PanelId::Hierarchy) {
-            self.build_hierarchy_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::Inspector) {
-            self.build_inspector_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::Console) {
-            self.build_console_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::Assets) {
-            self.build_assets_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::MaterialEditor) {
-            self.build_material_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::AnimationTimeline) {
-            self.build_timeline_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::UiDesigner) {
-            self.build_ui_designer_panel_if_active(root, &params);
-        }
-        if !is_floating(crate::ui::panel_layout::PanelId::Stats) {
-            self.build_stats_panel_if_active(root, &params);
+        for &panel in crate::ui::panel_layout::PanelId::all_tool_panels() {
+            if !is_floating(panel) {
+                self.render_panel_by_id(panel, root, &params);
+            }
         }
 
         // 5. Layer 1: Render all FLOATING Windows and their Active Panels (Z-Index: Foreground Layer)
@@ -462,42 +403,7 @@ impl IrisEditorOverlay {
         self.floating_window_rects = floating_rects;
 
         for (panel_id, container_id) in floating_containers {
-            match panel_id {
-                crate::ui::panel_layout::PanelId::Stats => {
-                    self.build_stats_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::Hierarchy => {
-                    self.build_hierarchy_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::Inspector => {
-                    self.build_inspector_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::Console => {
-                    self.build_console_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::Assets => {
-                    self.build_assets_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::MaterialEditor => {
-                    self.build_material_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::AnimationTimeline => {
-                    self.build_timeline_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::UiDesigner => {
-                    self.build_ui_designer_panel_if_active(container_id, &params);
-                }
-                crate::ui::panel_layout::PanelId::Viewport => {
-                    let vp_rect = super::floating_layer::active_panel_content_rect(
-                        params.layout_state,
-                        crate::ui::panel_layout::PanelId::Viewport,
-                    )
-                    .unwrap_or(params.viewport_rect);
-                    if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
-                        self.build_viewport_content(container_id, vp_rect, &params);
-                    }
-                }
-            }
+            self.render_panel_by_id(panel_id, container_id, &params);
         }
 
         // 6. FLOATING OVERLAYS (Rendered on top of docked and floating panels):
@@ -691,46 +597,16 @@ impl IrisEditorOverlay {
             self.dropdown_rect = Some(dd_rect);
         }
 
-        // Populate DrawCommandList from resolved layout nodes only when geometry is dirty
-        let tree_dirty = self
-            .tree
-            .has_dirty_nodes(DirtyFlags::PAINT | DirtyFlags::LAYOUT);
-        let dimensions_changed = (self.last_dimensions.0 - screen_width).abs() > 0.5
-            || (self.last_dimensions.1 - screen_height).abs() > 0.5;
-        let zoom_changed = (self.last_zoom_factor - params.zoom_factor).abs() > 0.001;
+        // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
+        self.populate_draw_commands(root, None, Some(params.frame_pacing));
 
-        let must_repopulate = tree_dirty
-            || self.is_command_list_dirty
-            || dimensions_changed
-            || zoom_changed
-            || self.needs_layout_rebuild
-            || self.command_list.commands.is_empty();
-
-        if must_repopulate {
-            log::info!(
-                "[PROBE_REBAKE] Baked draw commands generated (tree_dirty: {}, cmd_list_dirty: {}, empty_cmds: {})",
-                tree_dirty,
-                self.is_command_list_dirty,
-                self.command_list.commands.is_empty()
-            );
-            self.baked_geometry
-                .bake(&self.tree, root, Some(params.frame_pacing));
-            self.baked_geometry
-                .apply_to_command_list(&mut self.command_list);
-            self.is_command_list_dirty = true;
-            self.is_text_dirty = true;
-
-            // Link baked quad indices back into retained cards for O(1) in-place hover/selection
-            if let Some(ref mut retained) = self.assets_retained {
-                for card in &mut retained.cards {
-                    if let Some(&idx) = self.baked_geometry.node_to_sdf_idx.get(&card.card_id) {
-                        card.baking_quad_idx = idx;
-                    }
-                }
-            }
-        }
-
-        self.record_overlay_state(&params, screen_width, screen_height);
+        self.last_dimensions = params.dimensions;
+        self.last_zoom_factor = params.zoom_factor;
+        self.last_selected_entity = params.selected_entity;
+        self.last_floating_count = floating_count;
+        self.last_modal_active = modal_active;
+        self.needs_layout_rebuild = false;
+        self.notifier.clear_all();
     }
 
     /// Measures intrinsic text dimensions for all nodes with text content in the subtree.

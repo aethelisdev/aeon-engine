@@ -18,12 +18,10 @@ pub enum DrawCommand {
         /// Number of quads to draw in this batch.
         count: u32,
     },
-    /// Draw a contiguous range of textured quads from the 2D texture array instance buffer.
+    /// Draw a textured quad (e.g. 3D engine viewport, image, or thumbnail).
     DrawTexture {
-        /// Start index in the texture quad buffer.
-        start: u32,
-        /// Number of texture quads to draw in this batch.
-        count: u32,
+        /// Index of the texture instance in the texture quad buffer.
+        instance_index: u32,
     },
     /// Draw an externally owned 2D texture (e.g. 3D engine viewport render target).
     DrawExternalTexture {
@@ -48,7 +46,7 @@ pub enum DrawCommand {
 }
 
 /// Ordered list of draw commands and instanced batches for pixel-accurate Z-order compositing.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct DrawCommandList {
     /// Sequential draw and scissor commands in exact front-to-back/back-to-front Z-order.
     pub commands: Vec<DrawCommand>,
@@ -89,19 +87,12 @@ impl DrawCommandList {
         }
     }
 
-    /// Appends a textured quad drawing command, coalescing contiguous textured quads into a single draw batch.
+    /// Appends a textured quad drawing command.
     pub fn push_texture_quad(&mut self, tex_quad: TextureQuadInstance) {
-        let current_len = self.texture_quads.len() as u32;
+        let instance_index = self.texture_quads.len() as u32;
         self.texture_quads.push(tex_quad);
-
-        if let Some(DrawCommand::DrawTexture { count, .. }) = self.commands.last_mut() {
-            *count += 1;
-        } else {
-            self.commands.push(DrawCommand::DrawTexture {
-                start: current_len,
-                count: 1,
-            });
-        }
+        self.commands
+            .push(DrawCommand::DrawTexture { instance_index });
     }
 
     /// Appends an external texture quad drawing command.

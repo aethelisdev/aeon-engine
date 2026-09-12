@@ -28,8 +28,6 @@ pub struct IrisRenderPassParams<'a> {
     pub text_renderer: Option<&'a TextRenderer>,
     /// Target window resolution in physical pixels.
     pub screen_size: (u32, u32),
-    /// Whether UI nodes or layout changed requiring instance buffer re-uploads.
-    pub is_dirty: bool,
 }
 
 /// Executes an isolated Iris UI render pass on the target surface view.
@@ -45,7 +43,6 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
         command_list,
         text_renderer,
         screen_size,
-        is_dirty,
     } = params;
 
     let has_quads = !command_list.commands.is_empty() || !command_list.quads.is_empty();
@@ -60,7 +57,6 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
             queue,
             [screen_size.0 as f32, screen_size.1 as f32],
             command_list,
-            is_dirty,
         );
     }
 
@@ -83,15 +79,6 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
     });
 
     if has_quads {
-        if is_dirty {
-            log::info!(
-                "[PROBE_WGPU] Frame draw commands count: {} (SDF quads: {}, external quads: {}, texture quads: {})",
-                command_list.commands.len(),
-                command_list.quads.len(),
-                command_list.external_texture_quads.len(),
-                command_list.texture_quads.len()
-            );
-        }
         renderer.render_command_list(&mut render_pass, command_list, screen_size);
     }
 

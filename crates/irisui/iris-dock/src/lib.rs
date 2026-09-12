@@ -16,6 +16,8 @@ pub mod drag_drop;
 pub mod floating;
 pub mod layout;
 pub mod navigator;
+pub mod notifier;
+pub mod panel;
 pub mod state;
 pub mod style;
 pub mod tab_bar;
@@ -38,6 +40,8 @@ pub use navigator::{
     DockNavigatorGeometry, DockNavigatorStyle, FloatingTabBadgeParams, build_dock_navigator_nodes,
     build_drop_preview_node, build_floating_tab_badge, hit_test_navigator,
 };
+pub use notifier::UiNotifier;
+pub use panel::{DockPanel, PanelRegistry};
 pub use state::{ActiveSplitterDrag, DockState};
 pub use style::DockStyle;
 pub use tab_bar::{

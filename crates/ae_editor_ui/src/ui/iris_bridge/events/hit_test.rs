@@ -84,11 +84,13 @@ impl IrisEditorOverlay {
                 t.card_rect.contains_point(point) || t.scrim_rect.contains_point(point)
             })
             || self
-                .assets_targets()
+                .assets_targets
+                .as_ref()
                 .and_then(|a| a.preview_modal.as_ref())
                 .is_some_and(|m| m.dialog_rect.contains_point(point))
             || self
-                .assets_targets()
+                .assets_targets
+                .as_ref()
                 .and_then(|a| a.context_menu.as_ref())
                 .is_some_and(|c| c.card_rect.contains_point(point))
         {
@@ -214,7 +216,7 @@ impl IrisEditorOverlay {
         {
             return true;
         }
-        if let Some(targets) = self.assets_targets() {
+        if let Some(ref targets) = self.assets_targets {
             if let Some(ref cm) = targets.context_menu
                 && cm.card_rect.contains_point(point)
             {

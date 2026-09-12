@@ -9,7 +9,6 @@
 
 use super::types::{AssetsPanelParams, AssetsPanelTargets, FolderTreeNodeTarget};
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
-use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -35,8 +34,8 @@ pub fn build_folder_tree_sidebar(
         node.set_name("FolderTreeSidebarRoot");
         node.computed_rect = sidebar_rect;
         node.style = Style::new()
-            .background(ELEVATION_0_CANVAS)
-            .border(1.0, BORDER_MICRON)
+            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
+            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70))
             .clip_children(true);
     }
     let _ = tree.add_child(parent_id, sb_id);
@@ -53,8 +52,8 @@ pub fn build_folder_tree_sidebar(
         node.set_name("FolderTreeHeader");
         node.computed_rect = hdr_rect;
         node.style = Style::new()
-            .background(ELEVATION_2_HEADER)
-            .border(1.0, BORDER_MICRON);
+            .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
+            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.50));
     }
     let _ = tree.add_child(sb_id, hdr_id);
 

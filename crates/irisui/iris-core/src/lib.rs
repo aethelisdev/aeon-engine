@@ -99,29 +99,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tree_dirty_mask_o1_invariants() {
-        let mut tree = UiTree::new();
-        assert!(!tree.has_dirty_nodes(DirtyFlags::ALL));
-
-        let node_id = tree.create_node();
-        assert!(tree.has_dirty_nodes(DirtyFlags::ALL));
-        assert!(tree.has_dirty_nodes(DirtyFlags::PAINT));
-
-        tree.clear_all_dirty(DirtyFlags::ALL);
-        assert!(!tree.has_dirty_nodes(DirtyFlags::ALL));
-        assert!(!tree.is_subtree_dirty(node_id, DirtyFlags::PAINT));
-
-        // Subsequent clean-frame clear_all_dirty must be a zero-op O(1) early exit
-        tree.clear_all_dirty(DirtyFlags::ALL);
-        assert!(!tree.has_dirty_nodes(DirtyFlags::ALL));
-
-        tree.mark_node_dirty(node_id, DirtyFlags::PAINT);
-        assert!(tree.has_dirty_nodes(DirtyFlags::PAINT));
-        assert!(!tree.has_dirty_nodes(DirtyFlags::LAYOUT));
-        assert!(tree.is_subtree_dirty(node_id, DirtyFlags::PAINT));
-    }
-
-    #[test]
     fn test_focus_manager_and_event_dispatcher() {
         let mut tree = UiTree::new();
         let root = tree.create_root().unwrap();

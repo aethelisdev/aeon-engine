@@ -166,11 +166,8 @@ pub fn rescan_assets_if_needed(
         }
     }
 
-    if state.cached_items != discovered_items || state.subfolders != discovered_subfolders {
-        state.cached_items = discovered_items;
-        state.subfolders = discovered_subfolders;
-        state.revision = state.revision.wrapping_add(1);
-    }
+    state.cached_items = discovered_items;
+    state.subfolders = discovered_subfolders;
 }
 
 fn walk_directory(dir: &Path, items: &mut Vec<AssetItem>, subfolders: &mut Vec<PathBuf>) {

@@ -8,7 +8,6 @@
 //!
 
 use super::types::ConsolePanelParams;
-use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Standard height in physical pixels for a single console log row.
@@ -104,11 +103,11 @@ pub fn build_console_rows(
 
         // Row background with subtle contrast zebra striping and smooth hover highlight
         let bg_color = if is_hovered {
-            ELEVATION_3_HOVERED_PILL
+            Color::rgba(0.14, 0.17, 0.23, 0.95)
         } else if filtered_idx.is_multiple_of(2) {
-            ELEVATION_1_PANEL
+            Color::rgba(0.06, 0.07, 0.09, 0.95)
         } else {
-            ELEVATION_2_HEADER
+            Color::rgba(0.08, 0.09, 0.12, 0.95)
         };
 
         let row_id = tree.create_node();

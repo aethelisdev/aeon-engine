@@ -198,16 +198,13 @@ impl IrisRenderer {
         self.texture_bind_group = bind_group;
     }
 
-    /// Prepares buffers and uploads instance data to the GPU before rendering in reactive retained mode.
-    /// Only uploads instance data via `queue.write_buffer` when `is_dirty` is `true` or the GPU
-    /// buffer was reallocated. When the UI is unchanged, PCIe bus transfer is bypassed completely.
+    /// Prepares buffers and uploads instance data to the GPU before rendering.
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         screen_size: [f32; 2],
         quads: &[QuadInstance],
-        is_dirty: bool,
     ) {
         let size_changed = (self.screen_size[0] - screen_size[0]).abs() > 0.001
             || (self.screen_size[1] - screen_size[1]).abs() > 0.001;
@@ -230,7 +227,6 @@ impl IrisRenderer {
 
         // Ensure instance buffer has enough capacity
         let needed_capacity = quads.len();
-        let mut buffer_reallocated = false;
         if self.instance_capacity < needed_capacity {
             let new_capacity = (needed_capacity * 2).max(128);
             let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -241,35 +237,28 @@ impl IrisRenderer {
             });
             self.instance_buffer = Some(buffer);
             self.instance_capacity = new_capacity;
-            buffer_reallocated = true;
         }
 
-        // Upload instance data only if buffer was reallocated or UI tree is marked dirty
-        if (buffer_reallocated || is_dirty)
-            && let Some(ref buffer) = self.instance_buffer
-        {
+        // Upload instance data
+        if let Some(ref buffer) = self.instance_buffer {
             queue.write_buffer(buffer, 0, bytemuck::cast_slice(quads));
         }
     }
 
-    /// Prepares buffers and uploads instance data from a `DrawCommandList` to the GPU in reactive retained mode.
-    /// Updates SDF quad buffers, 2D texture-array quad instances, and external texture compositor
-    /// pipelines. When `is_dirty` is `false`, redundant PCIe driver buffer writes are bypassed.
+    /// Prepares buffers and uploads instance data from a `DrawCommandList` to the GPU.
     pub fn prepare_command_list(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         screen_size: [f32; 2],
         command_list: &crate::command::DrawCommandList,
-        is_dirty: bool,
     ) {
-        self.prepare(device, queue, screen_size, &command_list.quads, is_dirty);
+        self.prepare(device, queue, screen_size, &command_list.quads);
 
         self.texture_pipeline.update_globals(queue, screen_size);
 
         if !command_list.texture_quads.is_empty() {
             let needed_capacity = command_list.texture_quads.len();
-            let mut buffer_reallocated = false;
             if self.texture_instance_capacity < needed_capacity {
                 let new_capacity = (needed_capacity * 2).max(16);
                 let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -282,12 +271,9 @@ impl IrisRenderer {
                 });
                 self.texture_instance_buffer = Some(buffer);
                 self.texture_instance_capacity = new_capacity;
-                buffer_reallocated = true;
             }
 
-            if (buffer_reallocated || is_dirty)
-                && let Some(ref buffer) = self.texture_instance_buffer
-            {
+            if let Some(ref buffer) = self.texture_instance_buffer {
                 queue.write_buffer(buffer, 0, bytemuck::cast_slice(&command_list.texture_quads));
             }
         }
@@ -297,7 +283,6 @@ impl IrisRenderer {
             queue,
             screen_size,
             &command_list.external_texture_quads,
-            is_dirty,
         );
     }
 
@@ -353,10 +338,9 @@ impl IrisRenderer {
                 crate::command::DrawCommand::ResetScissor => {
                     render_pass.set_scissor_rect(0, 0, screen_size.0.max(1), screen_size.1.max(1));
                 }
-                crate::command::DrawCommand::DrawTexture { start, count } => {
-                    if count > 0
-                        && let (Some(tex_buf), Some(tex_bg)) =
-                            (&self.texture_instance_buffer, &self.texture_bind_group)
+                crate::command::DrawCommand::DrawTexture { instance_index } => {
+                    if let (Some(tex_buf), Some(tex_bg)) =
+                        (&self.texture_instance_buffer, &self.texture_bind_group)
                     {
                         if active_pipe != ActivePipeline::Texture {
                             render_pass.set_pipeline(self.texture_pipeline.pipeline());
@@ -377,7 +361,7 @@ impl IrisRenderer {
                             );
                             active_pipe = ActivePipeline::Texture;
                         }
-                        let inst = start..(start + count);
+                        let inst = instance_index..(instance_index + 1);
                         render_pass.draw_indexed(0..6, 0, inst);
                     }
                 }

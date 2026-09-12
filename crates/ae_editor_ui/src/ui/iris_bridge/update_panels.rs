@@ -39,27 +39,17 @@ impl IrisEditorOverlay {
                 gpu_backend: params.gpu_backend,
                 active_entities_count: params.active_entities_count,
                 selected_entity: params.selected_entity,
-                revision: self
-                    .stats_revision
-                    .wrapping_add(if params.wireframe_enabled { 1 } else { 0 })
-                    .wrapping_add(if params.grid_enabled { 2 } else { 0 }),
             };
 
             let mut stats_targets = StatsPanelTargets::default();
-            stats::sync_stats_panel(
-                &mut self.tree,
-                root,
-                &mut self.stats_retained,
-                &stats_params,
-                &mut stats_targets,
-            );
+            let nodes =
+                stats::build_stats_panel(&mut self.tree, root, &stats_params, &mut stats_targets);
+            stats::update_stats_panel_values(&mut self.tree, &nodes, &stats_params, &stats_targets);
             self.stats_targets = Some(stats_targets);
+            self.stats_nodes = Some(nodes);
             self.last_stats_rect = Some(stats_rect);
             self.last_zoom_factor = params.zoom_factor;
         } else {
-            if let Some(state) = self.stats_retained.take() {
-                let _ = self.tree.remove_node(state.nodes.root_id);
-            }
             self.stats_nodes = None;
             self.stats_targets = None;
             self.last_stats_rect = None;
@@ -253,13 +243,10 @@ impl IrisEditorOverlay {
                     }
                     true
                 })
+                .cloned()
                 .collect();
 
-            if self.assets_selected_asset.as_deref()
-                != params.asset_browser.selected_asset.as_deref()
-            {
-                self.assets_selected_asset = params.asset_browser.selected_asset.clone();
-            }
+            self.assets_selected_asset = params.asset_browser.selected_asset.clone();
 
             let assets_params = super::assets::AssetsPanelParams {
                 panel_rect: assets_rect,
@@ -281,35 +268,18 @@ impl IrisEditorOverlay {
                 active_context_menu: self.assets_context_menu.as_ref(),
                 active_preview_modal: self.assets_preview_modal.as_ref(),
                 thumbnail_layers: &self.thumbnail_layers,
-                revision: params
-                    .asset_browser
-                    .revision
-                    .wrapping_add(self.assets_revision),
             };
 
-            let style_changed = super::assets::sync_assets_panel(
+            let mut assets_targets = super::assets::AssetsPanelTargets::default();
+            super::assets::build_assets_panel(
                 &mut self.tree,
                 root,
-                &mut self.assets_retained,
                 &assets_params,
+                &mut assets_targets,
             );
-            if style_changed {
-                if let Some(ref retained) = self.assets_retained {
-                    for card in &retained.cards {
-                        if let Some(node) = self.tree.get(card.card_id) {
-                            self.baked_geometry
-                                .update_card_style(card.baking_quad_idx, &node.style);
-                            if card.baking_quad_idx < self.command_list.quads.len() {
-                                self.command_list.quads[card.baking_quad_idx] =
-                                    self.baked_geometry.sdf_instances[card.baking_quad_idx];
-                            }
-                        }
-                    }
-                }
-                self.is_command_list_dirty = true;
-            }
-        } else if let Some(prev) = self.assets_retained.take() {
-            let _ = self.tree.remove_node(prev.root_id);
+            self.assets_targets = Some(assets_targets);
+        } else {
+            self.assets_targets = None;
         }
     }
 
@@ -399,5 +369,183 @@ impl IrisEditorOverlay {
         } else {
             self.ui_designer_targets = None;
         }
+    }
+
+    /// Dispatches rendering for a specific panel into the target container.
+    /// Resolves the requested [`PanelId`] and delegates to the corresponding
+    /// specialized panel builder module.
+    pub(crate) fn render_panel_by_id(
+        &mut self,
+        panel: crate::ui::panel_layout::PanelId,
+        parent: WidgetId,
+        params: &OverlayUpdateParams<'_>,
+    ) {
+        use crate::ui::panel_layout::PanelId;
+        match panel {
+            PanelId::Viewport => {
+                let vp_rect = super::floating_layer::active_panel_content_rect(
+                    params.layout_state,
+                    PanelId::Viewport,
+                )
+                .unwrap_or(params.viewport_rect);
+                if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
+                    self.build_viewport_content(parent, vp_rect, params);
+                }
+            }
+            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(parent, params),
+            PanelId::Inspector => self.build_inspector_panel_if_active(parent, params),
+            PanelId::Console => self.build_console_panel_if_active(parent, params),
+            PanelId::Assets => self.build_assets_panel_if_active(parent, params),
+            PanelId::MaterialEditor => self.build_material_panel_if_active(parent, params),
+            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(parent, params),
+            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(parent, params),
+            PanelId::Stats => self.build_stats_panel_if_active(parent, params),
+        }
+    }
+
+    /// Renders an external or custom panel registered in [`Self::panels`] by its identifier.
+    /// Returns `true` if a registered panel was found and rendered, or `false` otherwise.
+    pub fn render_custom_panel(&mut self, panel_id: &str, parent: WidgetId, bounds: Rect) -> bool {
+        let (panels, tree) = (&mut self.panels, &mut self.tree);
+        if let Some(panel) = panels.get_mut(panel_id) {
+            panel.render(tree, parent, bounds);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// Standard dockable panel implementor for built-in editor panels registered in [`PanelRegistry`].
+/// Wraps a strongly typed [`crate::ui::panel_layout::PanelId`] and provides metadata and lifecycle
+/// integration with the Iris UI docking framework.
+#[derive(Debug)]
+pub struct EditorDockPanel {
+    id: String,
+    title: String,
+    panel_id: crate::ui::panel_layout::PanelId,
+}
+
+impl EditorDockPanel {
+    /// Creates a new editor panel descriptor for the given [`crate::ui::panel_layout::PanelId`].
+    pub fn new(panel_id: crate::ui::panel_layout::PanelId) -> Self {
+        Self {
+            id: panel_id.id_str().to_string(),
+            title: panel_id.title().to_string(),
+            panel_id,
+        }
+    }
+
+    /// Returns the associated [`crate::ui::panel_layout::PanelId`].
+    pub fn panel_id(&self) -> crate::ui::panel_layout::PanelId {
+        self.panel_id
+    }
+}
+
+impl DockPanel for EditorDockPanel {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn title(&self) -> &str {
+        &self.title
+    }
+
+    fn render(&mut self, _tree: &mut UiTree, _parent: WidgetId, _bounds: Rect) {
+        // Built-in editor panels require engine state (OverlayUpdateParams),
+        // which are dispatched centrally via IrisEditorOverlay::render_panel_by_id.
+    }
+
+    fn is_dirty(&self) -> bool {
+        false
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+/// Constructs the standard [`PanelRegistry`] populated with all built-in editor panels.
+pub fn create_default_panel_registry() -> PanelRegistry {
+    let mut registry = PanelRegistry::default();
+    for &panel_id in crate::ui::panel_layout::PanelId::all() {
+        registry.register(EditorDockPanel::new(panel_id));
+    }
+    registry
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::panel_layout::PanelId;
+
+    #[test]
+    fn test_default_panel_registry_contains_all_panels() {
+        let registry = create_default_panel_registry();
+        assert_eq!(registry.len(), PanelId::all().len());
+
+        for &panel_id in PanelId::all() {
+            let id = panel_id.id_str();
+            assert!(registry.contains(id));
+
+            let panel = registry.get(id).expect("panel should exist");
+            assert_eq!(panel.id(), id);
+            assert_eq!(panel.title(), panel_id.title());
+
+            let downcast = registry
+                .get_downcast::<EditorDockPanel>(id)
+                .expect("should downcast to EditorDockPanel");
+            assert_eq!(downcast.panel_id(), panel_id);
+        }
+    }
+
+    #[test]
+    fn test_editor_dock_panel_render_and_events() {
+        let mut panel = EditorDockPanel::new(PanelId::Inspector);
+        let mut tree = UiTree::new();
+        let parent = tree.create_root().expect("root widget");
+        panel.render(&mut tree, parent, Rect::new(0.0, 0.0, 100.0, 100.0));
+        assert!(!panel.is_dirty());
+    }
+
+    #[test]
+    fn test_render_custom_panel_dispatch() {
+        struct DynamicPluginPanel {
+            rendered: bool,
+        }
+
+        impl DockPanel for DynamicPluginPanel {
+            fn id(&self) -> &str {
+                "dynamic_plugin"
+            }
+            fn title(&self) -> &str {
+                "Plugin"
+            }
+            fn render(&mut self, _tree: &mut UiTree, _parent: WidgetId, _bounds: Rect) {
+                self.rendered = true;
+            }
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+        }
+
+        let mut registry = PanelRegistry::default();
+        registry.register(DynamicPluginPanel { rendered: false });
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root widget");
+
+        let panel = registry.get_downcast_mut::<DynamicPluginPanel>("dynamic_plugin");
+        assert!(panel.is_some());
+        let p = panel.unwrap();
+        p.render(&mut tree, root, Rect::new(0.0, 0.0, 200.0, 200.0));
+        assert!(p.rendered);
     }
 }

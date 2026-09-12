@@ -8,7 +8,7 @@
 //!
 
 use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetViewMode};
-use irisui::prelude::{Point, Rect, WidgetId};
+use irisui::prelude::{Point, Rect};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -284,7 +284,7 @@ pub struct AssetsPanelParams<'a> {
     /// Slice of all discovered cached items across the workspace.
     pub cached_items: &'a [AssetItem],
     /// Filtered asset items matching current folder, category, and search query.
-    pub filtered_items: &'a [&'a AssetItem],
+    pub filtered_items: &'a [AssetItem],
     /// Width of the left folder tree sidebar in pixels.
     pub sidebar_width: f32,
     /// Whether the left folder tree sidebar is currently collapsed.
@@ -303,8 +303,6 @@ pub struct AssetsPanelParams<'a> {
     pub active_preview_modal: Option<&'a AssetPreviewModalState>,
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
-    /// Monotonically increasing filesystem revision counter.
-    pub revision: u64,
 }
 
 /// Truncates a UTF-8 string safely at Unicode code point boundaries.
@@ -325,44 +323,4 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
     } else {
         text.to_string()
     }
-}
-
-/// Persistent widget node handles for an individual asset card in retained mode.
-#[derive(Debug, Clone)]
-pub struct RetainedAssetCard {
-    /// Bounding rectangle allocated for this card.
-    pub rect: Rect,
-    /// Target asset path represented by this card.
-    pub path: PathBuf,
-    /// Asset category for badge and thumbnail resolution.
-    pub category: AssetCategory,
-    /// Root card container node key in the UI tree.
-    pub card_id: WidgetId,
-    /// Center preview thumbnail or vector category icon node key.
-    pub icon_id: WidgetId,
-    /// Whether this card was hovered in the previous frame.
-    pub is_hovered: bool,
-    /// Whether this card was selected in the previous frame.
-    pub is_selected: bool,
-    /// Index of this card's primary container SDF quad in the baked geometry buffer.
-    pub baking_quad_idx: usize,
-}
-
-/// Central persistent state for the native Iris UI Asset Browser in retained mode.
-/// Stores root and container `WidgetId`s across frames so the UI tree is never cleared,
-/// tracking panel bounds and invalidation revision numbers for instant O(1) change checks.
-#[derive(Debug, Clone)]
-pub struct AssetBrowserRetainedState {
-    /// Root node of the entire Asset Browser panel.
-    pub root_id: WidgetId,
-    /// Primary content view viewport container node.
-    pub content_viewport_id: WidgetId,
-    /// Persistent card nodes currently active in the content viewport.
-    pub cards: Vec<RetainedAssetCard>,
-    /// Bounding rectangle of the assets panel inside the editor viewport.
-    pub panel_rect: Rect,
-    /// Last observed invalidation revision number for fast O(1) change detection.
-    pub last_revision: u64,
-    /// Cached interaction targets for the retained panel.
-    pub cached_targets: AssetsPanelTargets,
 }
