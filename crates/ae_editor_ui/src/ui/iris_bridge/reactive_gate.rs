@@ -52,30 +52,59 @@ impl IrisEditorOverlay {
                 || (cam_rot[1] - self.last_camera_orientation[1]).abs() > 0.0005
                 || (params.camera.ortho_scale - self.last_camera_ortho_scale).abs() > 0.001);
 
-        let modals_or_inputs_active = self.dropdown_rect.is_some()
-            || self.about_targets.is_some()
-            || self.delete_targets.is_some()
-            || self.new_folder_targets.is_some()
-            || self.rename_targets.is_some()
-            || self.loading_targets.is_some()
-            || self.preferences_targets.is_some()
-            || self.active_menu.is_some()
+        // Detect modal or dropdown open/close state transitions
+        let modal_state_changed = params.show_preferences != self.last_show_preferences
+            || params.show_about != self.last_show_about
+            || params.delete_target.is_some() != self.last_has_delete_target
+            || params.new_folder_parent.is_some() != self.last_has_new_folder_parent
+            || params.rename_target.is_some() != self.last_has_rename_target
+            || params.is_loading_assets != self.last_is_loading_assets
+            || self.viewport_hud_dropdown != self.last_viewport_hud_dropdown
+            || self.hierarchy_is_add_menu_open != self.last_hierarchy_is_add_menu_open
+            || self.hierarchy_active_context_menu.is_some() != self.last_hierarchy_has_context_menu
+            || self.inspector_is_add_menu_open != self.last_inspector_is_add_menu_open
+            || self.assets_context_menu.is_some() != self.last_has_assets_context_menu
+            || self.assets_preview_modal.is_some() != self.last_has_assets_preview_modal
+            || self.preferences_tab != self.last_preferences_tab
+            || self.preferences_pos != self.last_preferences_pos
+            || (self.preferences_scroll_y - self.last_preferences_scroll_y).abs() > 0.5
+            || self.preferences_dropdown != self.last_preferences_dropdown;
+
+        let has_active_modal_or_menu = params.show_preferences
             || params.show_about
-            || params.show_preferences
+            || self.active_menu.is_some()
             || params.delete_target.is_some()
             || params.new_folder_parent.is_some()
             || params.rename_target.is_some()
-            || params.is_loading_assets
             || self.viewport_hud_dropdown.is_some()
             || self.hierarchy_is_add_menu_open
             || self.hierarchy_active_context_menu.is_some()
             || self.inspector_is_add_menu_open
             || self.assets_context_menu.is_some()
-            || self.assets_preview_modal.is_some()
-            || self.hierarchy_is_search_focused
+            || self.assets_preview_modal.is_some();
+
+        let cursor_moved = (self.cursor_pos.x - self.last_cursor_pos.x).abs() > 0.5
+            || (self.cursor_pos.y - self.last_cursor_pos.y).abs() > 0.5;
+
+        // When a modal or popup menu is active, only rebuild when cursor moves (for hover response)
+        // or an interactive drag/scroll action is in progress.
+        let modal_interactive_action = (has_active_modal_or_menu && cursor_moved)
+            || self.active_slider_drag.is_some()
+            || self.preferences_drag_offset.is_some()
+            || self.inspector_drag_number.is_some()
+            || self.ui_designer_drag_state.is_some();
+
+        let has_focused_text_input = self.hierarchy_is_search_focused
             || self.assets_is_search_focused
+            || self.console_is_search_focused
             || self.inspector_active_text_input.is_some()
-            || self.inspector_active_number_input.is_some();
+            || self.inspector_active_number_input.is_some()
+            || self.active_number_input.is_some()
+            || params.new_folder_parent.is_some()
+            || params.rename_target.is_some();
+
+        let current_blink = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
+        let blink_changed = has_focused_text_input && (current_blink != self.last_blink_state);
 
         self.command_list.commands.is_empty()
             || self.tree.root().is_none()
@@ -90,7 +119,9 @@ impl IrisEditorOverlay {
             || camera_changed
             || status_len_changed
             || world_len_changed
-            || modals_or_inputs_active
+            || modal_state_changed
+            || modal_interactive_action
+            || blink_changed
             || self.needs_layout_rebuild
             || self.is_command_list_dirty
     }
@@ -120,6 +151,24 @@ impl IrisEditorOverlay {
         self.last_camera_ortho_scale = params.camera.ortho_scale;
         self.last_status_len = params.status_spans.map_or(0, |s| s.len());
         self.last_world_len = params.world.len();
+        self.last_cursor_pos = self.cursor_pos;
+        self.last_show_preferences = params.show_preferences;
+        self.last_show_about = params.show_about;
+        self.last_has_delete_target = params.delete_target.is_some();
+        self.last_has_new_folder_parent = params.new_folder_parent.is_some();
+        self.last_has_rename_target = params.rename_target.is_some();
+        self.last_is_loading_assets = params.is_loading_assets;
+        self.last_viewport_hud_dropdown = self.viewport_hud_dropdown;
+        self.last_hierarchy_is_add_menu_open = self.hierarchy_is_add_menu_open;
+        self.last_hierarchy_has_context_menu = self.hierarchy_active_context_menu.is_some();
+        self.last_inspector_is_add_menu_open = self.inspector_is_add_menu_open;
+        self.last_has_assets_context_menu = self.assets_context_menu.is_some();
+        self.last_has_assets_preview_modal = self.assets_preview_modal.is_some();
+        self.last_preferences_tab = self.preferences_tab;
+        self.last_preferences_pos = self.preferences_pos;
+        self.last_preferences_scroll_y = self.preferences_scroll_y;
+        self.last_preferences_dropdown = self.preferences_dropdown;
+        self.last_blink_state = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         self.needs_layout_rebuild = false;
     }
 
@@ -236,6 +285,44 @@ mod tests {
         assert!(
             camera_changed,
             "Camera rotation must trigger rebuild for live billboard reprojection"
+        );
+    }
+
+    #[test]
+    fn test_modal_idle_state_does_not_trigger_rebuild() {
+        let last_show_preferences = true;
+        let current_show_preferences = true;
+        let last_cursor = irisui::prelude::Point::new(500.0, 300.0);
+        let current_cursor = irisui::prelude::Point::new(500.0, 300.0);
+
+        let modal_state_changed = current_show_preferences != last_show_preferences;
+        let cursor_moved = (current_cursor.x - last_cursor.x).abs() > 0.5
+            || (current_cursor.y - last_cursor.y).abs() > 0.5;
+        let active_drag = false;
+
+        let should_rebuild =
+            modal_state_changed || (current_show_preferences && cursor_moved) || active_drag;
+        assert!(
+            !should_rebuild,
+            "Stationary cursor with open modal must remain in retained idle sleep"
+        );
+    }
+
+    #[test]
+    fn test_modal_transition_and_cursor_motion_triggers_rebuild() {
+        // 1. Modal open transition triggers rebuild
+        let last_show_preferences = false;
+        let current_show_preferences = true;
+        assert!(current_show_preferences != last_show_preferences);
+
+        // 2. Cursor movement inside open modal triggers rebuild for hover
+        let last_cursor = irisui::prelude::Point::new(500.0, 300.0);
+        let moved_cursor = irisui::prelude::Point::new(505.0, 302.0);
+        let cursor_moved = (moved_cursor.x - last_cursor.x).abs() > 0.5
+            || (moved_cursor.y - last_cursor.y).abs() > 0.5;
+        assert!(
+            cursor_moved,
+            "Cursor motion must trigger rebuild for hover feedback"
         );
     }
 }

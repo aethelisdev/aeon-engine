@@ -354,6 +354,42 @@ pub struct IrisEditorOverlay {
     pub last_camera_orientation: [f32; 2],
     /// Last recorded 3D camera orthographic scale for zoom invalidation.
     pub last_camera_ortho_scale: f32,
+    /// Last recorded mouse cursor coordinates for modal and hover change detection.
+    pub last_cursor_pos: Point,
+    /// Last recorded visibility of the Preferences dialog.
+    pub last_show_preferences: bool,
+    /// Last recorded visibility of the About Aeon Engine dialog.
+    pub last_show_about: bool,
+    /// Last recorded presence of the Delete confirmation modal.
+    pub last_has_delete_target: bool,
+    /// Last recorded presence of the New Folder creation modal.
+    pub last_has_new_folder_parent: bool,
+    /// Last recorded presence of the Rename item modal.
+    pub last_has_rename_target: bool,
+    /// Last recorded asset background loading status.
+    pub last_is_loading_assets: bool,
+    /// Last recorded Viewport HUD dropdown menu state.
+    pub last_viewport_hud_dropdown: Option<ViewportHudDropdownId>,
+    /// Last recorded open status of Scene Hierarchy Add Menu.
+    pub last_hierarchy_is_add_menu_open: bool,
+    /// Last recorded open status of Scene Hierarchy right-click context menu.
+    pub last_hierarchy_has_context_menu: bool,
+    /// Last recorded open status of Scene Inspector Add Component menu.
+    pub last_inspector_is_add_menu_open: bool,
+    /// Last recorded open status of Asset Browser right-click context menu.
+    pub last_has_assets_context_menu: bool,
+    /// Last recorded open status of Asset Browser quick preview modal.
+    pub last_has_assets_preview_modal: bool,
+    /// Last recorded active tab index in the Preferences dialog.
+    pub last_preferences_tab: u8,
+    /// Last recorded floating position of the Preferences dialog.
+    pub last_preferences_pos: Option<Point>,
+    /// Last recorded vertical scroll offset in the Preferences dialog.
+    pub last_preferences_scroll_y: f32,
+    /// Last recorded open ComboBox in the Preferences dialog.
+    pub last_preferences_dropdown: Option<PreferencesDropdownId>,
+    /// Last recorded text caret blink cycle state for focused text inputs.
+    pub last_blink_state: bool,
 }
 
 impl IrisEditorOverlay {
