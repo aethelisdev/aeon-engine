@@ -110,4 +110,67 @@ impl IrisEditorOverlay {
         result.consumed = consumed;
         Some(result)
     }
+
+    /// Terminates an active asset drag interaction, dispatching `EndAssetDrag` and waking the UI.
+    /// Returns `true` if an asset drag was active and terminated, or `false` otherwise.
+    pub fn end_asset_drag(&mut self) -> bool {
+        if self.assets_click_tracker.is_dragging_asset {
+            self.assets_click_tracker.is_dragging_asset = false;
+            self.assets_click_tracker.potential_drag_item = None;
+            self.assets_click_tracker.drag_start_pos = None;
+            self.assets_actions
+                .push(super::super::assets::AssetsPanelAction::EndAssetDrag);
+            self.notifier.tag_all();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Handles global mouse release and keyboard cancellation for active asset drag-and-drop operations.
+    /// Regardless of whether the cursor is positioned over the menubar, docked panels,
+    /// floating windows, or the viewport, releasing the left mouse button or pressing Escape
+    /// cleanly concludes the drag interaction.
+    pub(crate) fn handle_asset_drag_events(
+        &mut self,
+        event: &WindowEvent,
+    ) -> Option<IrisOverlayEventResult> {
+        if !self.assets_click_tracker.is_dragging_asset {
+            return None;
+        }
+
+        // 1. Mouse Button Released (Left button concludes or cancels drag)
+        if let WindowEvent::MouseInput {
+            state: winit::event::ElementState::Released,
+            button: winit::event::MouseButton::Left,
+            ..
+        } = event
+            && self.end_asset_drag()
+        {
+            return Some(IrisOverlayEventResult {
+                consumed: true,
+                ..Default::default()
+            });
+        }
+
+        // 2. Escape key explicitly cancels active asset drag
+        if let WindowEvent::KeyboardInput {
+            event:
+                winit::event::KeyEvent {
+                    logical_key: winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape),
+                    state: winit::event::ElementState::Pressed,
+                    ..
+                },
+            ..
+        } = event
+            && self.end_asset_drag()
+        {
+            return Some(IrisOverlayEventResult {
+                consumed: true,
+                ..Default::default()
+            });
+        }
+
+        None
+    }
 }

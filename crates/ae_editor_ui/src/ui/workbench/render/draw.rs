@@ -163,7 +163,7 @@ impl EngineUi {
             params.textures,
             params.shaders,
         );
-        self.process_assets_actions(params.ui_actions);
+        self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode);
         self.process_timeline_actions(params.world, params.ui_actions);
         self.process_material_actions(params.ui_actions);
         self.process_ui_designer_actions(params.world, params.ui_actions);

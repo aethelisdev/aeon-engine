@@ -11,6 +11,7 @@
 
 pub mod cards;
 pub mod context_menu;
+pub mod drag_overlay;
 pub mod events;
 pub mod list;
 pub mod panel;
@@ -20,6 +21,7 @@ mod tests;
 pub mod tree;
 pub mod types;
 
+pub use drag_overlay::build_asset_drag_overlays;
 pub use events::{
     AssetClickTracker, AssetsEventContext, handle_assets_click, handle_assets_panel_event,
     handle_assets_right_click, handle_assets_scroll,

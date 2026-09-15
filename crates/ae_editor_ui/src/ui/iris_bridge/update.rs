@@ -86,6 +86,7 @@ impl IrisEditorOverlay {
             last_floating_count: 0,
             last_modal_active: false,
             last_has_viewport_texture: false,
+            last_has_drag_payload: false,
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
             stats_frame_counter: 0,
@@ -166,13 +167,16 @@ impl IrisEditorOverlay {
 
         let floating_count = params.layout_state.dock_state.floating_windows.len();
 
+        let has_drag_payload = params.asset_browser.drag_payload.is_some();
         if self.last_dimensions != params.dimensions
             || (self.last_zoom_factor - params.zoom_factor).abs() > 1e-4
             || self.last_floating_count != floating_count
             || self.last_modal_active != modal_active
             || self.last_has_viewport_texture != params.has_viewport_texture
+            || self.last_has_drag_payload != has_drag_payload
             || self.active_menu.is_some()
             || self.needs_layout_rebuild
+            || has_drag_payload
         {
             self.notifier.tag_all();
         }
@@ -598,7 +602,20 @@ impl IrisEditorOverlay {
             workspace_rect,
         );
 
-        // 6j. Top Menubar Dropdown Popup (Rendered as topmost overlay above all docked panels,
+        // 6j. Asset Drag & Viewport Drop Overlays (Landing ring on ground plane & cursor tooltip badge)
+        if let Some(payload) = &params.asset_browser.drag_payload {
+            super::assets::build_asset_drag_overlays(
+                &mut self.tree,
+                root,
+                payload,
+                self.cursor_pos,
+                params.viewport_rect,
+                params.camera,
+                params.is_2d_mode,
+            );
+        }
+
+        // 6k. Top Menubar Dropdown Popup (Rendered as topmost overlay above all docked panels,
         // floating windows, and modal dialogs so it always has absolute top visual hierarchy)
         if let Some(active) = self.active_menu {
             let anchor_x = match active {
@@ -635,6 +652,7 @@ impl IrisEditorOverlay {
         self.last_floating_count = floating_count;
         self.last_modal_active = modal_active;
         self.last_has_viewport_texture = params.has_viewport_texture;
+        self.last_has_drag_payload = has_drag_payload;
         self.needs_layout_rebuild = false;
         self.notifier.clear_all();
     }

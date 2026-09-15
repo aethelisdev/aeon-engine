@@ -341,7 +341,14 @@ impl EngineUi {
     }
 
     /// Drains and processes queued actions from the Content / Asset Browser panel.
-    pub fn process_assets_actions(&mut self, ui_actions: &mut Vec<EngineUiAction>) {
+    /// When an asset drag finishes over the active 3D/2D Viewport canvas, computes
+    /// the target world coordinates and dispatches the entity spawn action.
+    pub fn process_assets_actions(
+        &mut self,
+        ui_actions: &mut Vec<EngineUiAction>,
+        camera: &ae_renderer::camera::Camera,
+        is_2d_mode: bool,
+    ) {
         for action in self.iris_overlay.take_assets_actions() {
             match action {
                 iris_bridge::AssetsPanelAction::NavigateFolder(path) => {
@@ -426,7 +433,79 @@ impl EngineUi {
                         });
                 }
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
-                    self.asset_browser.drag_payload = None;
+                    if let Some(payload) = self.asset_browser.drag_payload.take() {
+                        let cursor_pos = self.iris_overlay.cursor_pos;
+                        if self.last_viewport_rect.contains_point(cursor_pos)
+                            && self.last_viewport_rect.width > 20.0
+                            && self.last_viewport_rect.height > 20.0
+                        {
+                            let world_pos = if !is_2d_mode {
+                                if let Some(hit) =
+                                    crate::ui::panels::assets::drag_drop::compute_ground_intersection(
+                                        [cursor_pos.x, cursor_pos.y],
+                                        self.last_viewport_rect,
+                                        camera,
+                                    )
+                                {
+                                    hit
+                                } else {
+                                    let forward = camera.target - camera.position;
+                                    let len = (forward.x * forward.x + forward.z * forward.z)
+                                        .sqrt()
+                                        .max(0.001);
+                                    [
+                                        camera.position.x + (forward.x / len) * 3.0,
+                                        0.0,
+                                        camera.position.z + (forward.z / len) * 3.0,
+                                    ]
+                                }
+                            } else {
+                                let rel_x = cursor_pos.x
+                                    - self.last_viewport_rect.x
+                                    - self.last_viewport_rect.width * 0.5;
+                                let rel_y = cursor_pos.y
+                                    - self.last_viewport_rect.y
+                                    - self.last_viewport_rect.height * 0.5;
+                                [rel_x, -rel_y, 0.0]
+                            };
+
+                            log::info!(
+                                "Asset '{}' dropped onto viewport at {:?}",
+                                payload.name,
+                                world_pos
+                            );
+
+                            match payload.category {
+                                crate::ui::panels::assets::types::AssetCategory::Models3D => {
+                                    if let Some(handle) = payload.model_handle {
+                                        ui_actions
+                                            .push(EngineUiAction::SpawnModelAt(handle, world_pos));
+                                    } else {
+                                        ui_actions.push(EngineUiAction::SpawnModelPathAt(
+                                            payload.path,
+                                            world_pos,
+                                        ));
+                                    }
+                                }
+                                crate::ui::panels::assets::types::AssetCategory::Textures2D => {
+                                    if let Some(handle) = payload.texture_handle {
+                                        ui_actions
+                                            .push(EngineUiAction::SpawnSpriteAt(handle, world_pos));
+                                    } else {
+                                        ui_actions.push(EngineUiAction::SpawnSpritePathAt(
+                                            payload.path,
+                                            world_pos,
+                                        ));
+                                    }
+                                }
+                                crate::ui::panels::assets::types::AssetCategory::Scenes => {
+                                    ui_actions
+                                        .push(EngineUiAction::LoadSceneFromPath(payload.path));
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
                 _ => {}
             }

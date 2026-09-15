@@ -191,6 +191,7 @@ impl EngineUi {
                 gpu_adapter_name: &self.gpu_adapter_name,
                 gpu_backend: &self.gpu_backend,
                 active_entities_count: params.world.len() as usize,
+                is_2d_mode: params.is_2d_mode,
             });
 
         self.iris_overlay.render(

@@ -278,6 +278,8 @@ pub struct IrisEditorOverlay {
     pub last_modal_active: bool,
     /// Last recorded presence of the 3D viewport rendered texture for reactive viewport binding.
     pub last_has_viewport_texture: bool,
+    /// Last recorded presence of an active asset drag payload to trigger immediate overlay rebuild upon completion or cancellation.
+    pub last_has_drag_payload: bool,
     /// Explicit flag requesting full layout reconstruction on invalidation.
     pub needs_layout_rebuild: bool,
     /// Content area vertical scroll offset for Stats & Telemetry panel.
@@ -694,6 +696,8 @@ pub struct OverlayUpdateParams<'a> {
     pub gpu_backend: &'a str,
     /// Count of active entities in the ECS world.
     pub active_entities_count: usize,
+    /// Whether the editor is running in 2D dimension mode.
+    pub is_2d_mode: bool,
 }
 
 /// Active horizontal mouse drag state for interactive Inspector numeric inputs.

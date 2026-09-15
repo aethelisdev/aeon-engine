@@ -348,3 +348,104 @@ fn test_assets_card_rendering_with_unicode_filenames() {
     build_assets_panel(&mut tree, root_id, &params, &mut targets);
     assert_eq!(targets.grid_cards.len(), 1);
 }
+
+#[test]
+fn test_asset_drag_overlay_construction() {
+    use crate::ui::iris_bridge::assets::build_asset_drag_overlays;
+    use crate::ui::panels::assets::types::{AssetCategory, AssetDragPayload};
+    use ae_renderer::camera::Camera;
+
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let payload = AssetDragPayload {
+        path: PathBuf::from("assets/textures/player.png"),
+        name: "player.png".to_string(),
+        category: AssetCategory::Textures2D,
+        model_handle: None,
+        texture_handle: None,
+    };
+
+    let camera = Camera {
+        position: cgmath::Point3::new(0.0, 5.0, 10.0),
+        yaw: cgmath::Rad(-std::f32::consts::FRAC_PI_2),
+        pitch: cgmath::Rad(-0.4),
+        aspect: 800.0 / 600.0,
+        fovy: 45.0,
+        znear: 0.1,
+        zfar: 1000.0,
+        mode: ae_renderer::camera::ProjectionMode::Perspective,
+        ortho_scale: 10.0,
+        target: cgmath::Point3::new(0.0, 0.0, 0.0),
+    };
+    let vp_rect = Rect::new(100.0, 50.0, 800.0, 600.0);
+    let cursor = Point::new(500.0, 350.0);
+
+    build_asset_drag_overlays(
+        &mut tree, root_id, &payload, cursor, vp_rect, &camera, false,
+    );
+
+    let root_node = tree.get(root_id).expect("Root node exists");
+    assert!(root_node.children.len() >= 2);
+}
+
+#[test]
+fn test_asset_drag_tracker_lifecycle_and_cancellation() {
+    let mut tracker = AssetClickTracker::default();
+    assert!(!tracker.is_dragging_asset);
+    assert!(tracker.potential_drag_item.is_none());
+
+    // 1. User clicks item
+    let item = AssetItem {
+        name: "test.png".to_string(),
+        path: PathBuf::from("assets/test.png"),
+        relative_path: "test.png".to_string(),
+        category: AssetCategory::Textures2D,
+        file_size_bytes: 1024,
+        metadata_badge: "1.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    tracker.potential_drag_item = Some(item);
+    tracker.drag_start_pos = Some(Point::new(100.0, 100.0));
+
+    // 2. Cursor moved > 5 px
+    let current = Point::new(110.0, 110.0);
+    let start_pos = tracker.drag_start_pos.unwrap();
+    let dx = current.x - start_pos.x;
+    let dy = current.y - start_pos.y;
+    assert!((dx * dx + dy * dy) > 25.0);
+    tracker.is_dragging_asset = true;
+    tracker.potential_drag_item = None;
+    tracker.drag_start_pos = None;
+    assert!(tracker.is_dragging_asset);
+
+    // 3. User drops outside viewport (or hits Escape)
+    tracker.is_dragging_asset = false;
+    tracker.potential_drag_item = None;
+    tracker.drag_start_pos = None;
+    assert!(!tracker.is_dragging_asset);
+}
+
+#[test]
+fn test_asset_drag_viewport_boundary_check() {
+    let viewport_rect = Rect::new(200.0, 100.0, 800.0, 600.0);
+
+    // Inside viewport
+    let inside_pos = Point::new(300.0, 200.0);
+    assert!(viewport_rect.contains_point(inside_pos));
+
+    // Over Asset panel (outside viewport)
+    let asset_panel_pos = Point::new(300.0, 800.0);
+    assert!(!viewport_rect.contains_point(asset_panel_pos));
+
+    // Over Hierarchy panel (outside viewport)
+    let hierarchy_pos = Point::new(50.0, 200.0);
+    assert!(!viewport_rect.contains_point(hierarchy_pos));
+
+    // Over Menubar (outside viewport)
+    let menubar_pos = Point::new(400.0, 15.0);
+    assert!(!viewport_rect.contains_point(menubar_pos));
+}

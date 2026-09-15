@@ -517,8 +517,7 @@ pub fn handle_assets_panel_event(
 
         if was_dragging {
             out_actions.push(AssetsPanelAction::EndAssetDrag);
-            // Allow release event to propagate to docking viewport drop handler
-            return false;
+            return true;
         }
     }
 

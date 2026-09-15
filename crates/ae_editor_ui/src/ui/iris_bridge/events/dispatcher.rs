@@ -36,6 +36,14 @@ impl IrisEditorOverlay {
             return pref_drag_res;
         }
 
+        // 3c. Active Asset Drag Interaction (Global mouse release and Escape cancellation)
+        // If an asset item is being dragged from the Content Browser, it must receive
+        // the release or cancellation event everywhere across the window, cleanly ending
+        // the drag or spawning onto the viewport.
+        if let Some(asset_drag_res) = self.handle_asset_drag_events(event) {
+            return asset_drag_res;
+        }
+
         // 4. Loading Splash Screen (blocks all underlying interactions)
         if self.loading_targets.is_some() {
             result.consumed = true;
