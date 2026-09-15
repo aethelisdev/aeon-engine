@@ -282,6 +282,12 @@ pub struct IrisEditorOverlay {
     pub needs_layout_rebuild: bool,
     /// Content area vertical scroll offset for Stats & Telemetry panel.
     pub stats_scroll_y: f32,
+    /// Accumulated frame count within the current 250ms telemetry rolling average window.
+    pub stats_frame_counter: u32,
+    /// Timestamp of the last visual rolling window update for the FPS text in the Stats panel.
+    pub stats_last_fps_refresh: std::time::Instant,
+    /// Windowed rolling average FPS displayed in the UI, updated every 250ms for rock-solid readability.
+    pub stats_displayed_fps: f32,
     /// Dispatched action queue for Stats & Telemetry panel interactions.
     pub stats_actions: Vec<StatsPanelAction>,
     /// Custom floating position coordinates for the Preferences panel.

@@ -88,6 +88,9 @@ impl IrisEditorOverlay {
             last_has_viewport_texture: false,
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
+            stats_frame_counter: 0,
+            stats_last_fps_refresh: std::time::Instant::now(),
+            stats_displayed_fps: 60.0,
             stats_actions: Vec::new(),
             console_targets: None,
             console_scroll_y: 0.0,
@@ -176,6 +179,30 @@ impl IrisEditorOverlay {
 
         if self.last_selected_entity != params.selected_entity {
             self.notifier.tag_redraw("inspector");
+        }
+
+        // If the Stats & Telemetry panel is active, redraw it every frame so that the
+        // frame pacing oscilloscope, 1% low, 0.1% low, and CPU/GPU pass bars update live (0ms lag).
+        // Only the numerical FPS text snapshot is windowed to 250ms via rolling frame-count
+        // to ensure rock-solid legibility without slot-machine jitter.
+        if params.stats_panel_rect.is_some() {
+            if self.stats_frame_counter == 0 {
+                self.stats_displayed_fps = params.fps;
+                self.stats_last_fps_refresh = std::time::Instant::now();
+            }
+            self.stats_frame_counter += 1;
+            let now = std::time::Instant::now();
+            let elapsed = now
+                .duration_since(self.stats_last_fps_refresh)
+                .as_secs_f32();
+            if elapsed >= 0.25 {
+                self.stats_displayed_fps = self.stats_frame_counter as f32 / elapsed;
+                self.stats_frame_counter = 0;
+                self.stats_last_fps_refresh = now;
+            }
+            self.notifier.tag_redraw("stats");
+        } else {
+            self.stats_frame_counter = 0;
         }
 
         // Poll registered panels for internal reactive changes

@@ -86,9 +86,6 @@ impl EngineUi {
         };
 
         let stats_rect = get_panel_rect(PanelId::Stats);
-        if stats_rect.is_some() {
-            self.iris_overlay.notifier.tag_redraw("stats");
-        }
         let hierarchy_rect = get_panel_rect(PanelId::Hierarchy);
         let inspector_rect = get_panel_rect(PanelId::Inspector);
         let material_rect = get_panel_rect(PanelId::MaterialEditor);

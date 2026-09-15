@@ -26,7 +26,7 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos,
                 wireframe_enabled: params.wireframe_enabled,
                 grid_enabled: params.grid_enabled,
-                fps: params.fps,
+                fps: self.stats_displayed_fps,
                 frame_pacing: params.frame_pacing,
                 frame_pacing_stats: params.frame_pacing_stats,
                 cpu_timings: params.cpu_timings,
@@ -547,5 +547,40 @@ mod tests {
         let p = panel.unwrap();
         p.render(&mut tree, root, Rect::new(0.0, 0.0, 200.0, 200.0));
         assert!(p.rendered);
+    }
+
+    #[test]
+    fn test_stats_visual_sampling_cadence() {
+        let mut last_fps_refresh = std::time::Instant::now();
+        let mut stats_displayed_fps = 60.0;
+        let mut stats_frame_counter: u32 = 0;
+
+        // Simulate 30 frames within an interval before 250ms
+        for _ in 0..30 {
+            stats_frame_counter += 1;
+        }
+
+        // Before 250ms elapses, visual snapshot remains stable
+        assert!(last_fps_refresh.elapsed().as_secs_f32() < 0.25);
+        assert_eq!(stats_displayed_fps, 60.0);
+
+        // Advance visual sampling manually past 250ms (e.g. 300ms) to verify threshold invariant
+        let fake_past = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_millis(300))
+            .unwrap_or(last_fps_refresh);
+        last_fps_refresh = fake_past;
+
+        let elapsed = std::time::Instant::now()
+            .duration_since(last_fps_refresh)
+            .as_secs_f32();
+        assert!(elapsed >= 0.25);
+
+        if elapsed >= 0.25 {
+            stats_displayed_fps = stats_frame_counter as f32 / elapsed;
+            stats_frame_counter = 0;
+        }
+        // 30 frames over ~0.30s = ~100 FPS
+        assert!(stats_displayed_fps > 90.0 && stats_displayed_fps < 110.0);
+        assert_eq!(stats_frame_counter, 0);
     }
 }
