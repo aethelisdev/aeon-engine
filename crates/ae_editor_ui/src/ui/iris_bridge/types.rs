@@ -276,6 +276,8 @@ pub struct IrisEditorOverlay {
     pub last_floating_count: usize,
     /// Last recorded modal visibility state for detecting dialog popups.
     pub last_modal_active: bool,
+    /// Last recorded presence of the 3D viewport rendered texture for reactive viewport binding.
+    pub last_has_viewport_texture: bool,
     /// Explicit flag requesting full layout reconstruction on invalidation.
     pub needs_layout_rebuild: bool,
     /// Content area vertical scroll offset for Stats & Telemetry panel.
@@ -662,7 +664,7 @@ pub struct OverlayUpdateParams<'a> {
     pub saved_swatches: &'a [[f32; 4]],
     /// Whether the viewport coordinate grid is enabled.
     pub grid_enabled: bool,
-    /// Smoothed FPS rate.
+    /// Real-time engine frames per second (FPS) rate.
     pub fps: f32,
     /// Historical frame pacing ring buffer.
     pub frame_pacing: &'a ae_core::telemetry::FrameRingBuffer<240>,

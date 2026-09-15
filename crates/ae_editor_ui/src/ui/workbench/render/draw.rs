@@ -22,16 +22,8 @@ impl EngineUi {
     ) -> ae_renderer::render::ViewportRect {
         params.ui_actions.append(&mut self.pending_actions);
 
-        // Update smoothed and displayed FPS counter
-        let alpha = 0.08f32;
-        self.smoothed_fps = alpha * params.fps + (1.0 - alpha) * self.smoothed_fps;
-
-        let now = std::time::Instant::now();
-        if now.duration_since(self.last_fps_update).as_secs_f32() >= 0.10 {
-            self.displayed_fps = self.smoothed_fps;
-            self.last_fps_update = now;
-            self.iris_overlay.notifier.tag_redraw("stats");
-        }
+        // Track live engine frames per second (FPS) directly from timing parameters
+        self.fps = params.fps;
 
         let win_size = params.window.inner_size();
         let zoom = self.scale_factor();
@@ -94,6 +86,9 @@ impl EngineUi {
         };
 
         let stats_rect = get_panel_rect(PanelId::Stats);
+        if stats_rect.is_some() {
+            self.iris_overlay.notifier.tag_redraw("stats");
+        }
         let hierarchy_rect = get_panel_rect(PanelId::Hierarchy);
         let inspector_rect = get_panel_rect(PanelId::Inspector);
         let material_rect = get_panel_rect(PanelId::MaterialEditor);

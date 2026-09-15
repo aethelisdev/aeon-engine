@@ -85,6 +85,7 @@ impl IrisEditorOverlay {
             last_selected_entity: None,
             last_floating_count: 0,
             last_modal_active: false,
+            last_has_viewport_texture: false,
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
             stats_actions: Vec::new(),
@@ -166,6 +167,7 @@ impl IrisEditorOverlay {
             || (self.last_zoom_factor - params.zoom_factor).abs() > 1e-4
             || self.last_floating_count != floating_count
             || self.last_modal_active != modal_active
+            || self.last_has_viewport_texture != params.has_viewport_texture
             || self.active_menu.is_some()
             || self.needs_layout_rebuild
         {
@@ -605,6 +607,7 @@ impl IrisEditorOverlay {
         self.last_selected_entity = params.selected_entity;
         self.last_floating_count = floating_count;
         self.last_modal_active = modal_active;
+        self.last_has_viewport_texture = params.has_viewport_texture;
         self.needs_layout_rebuild = false;
         self.notifier.clear_all();
     }

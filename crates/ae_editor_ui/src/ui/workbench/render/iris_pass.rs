@@ -179,7 +179,7 @@ impl EngineUi {
                 inspector_color_hex: &mut self.inspector_color_hex,
                 saved_swatches: &mut self.saved_swatches,
                 grid_enabled: self.grid_enabled,
-                fps: self.displayed_fps,
+                fps: self.fps,
                 frame_pacing: &self.frame_pacing,
                 frame_pacing_stats: &self.frame_pacing_stats,
                 cpu_timings: &self.cpu_timings,

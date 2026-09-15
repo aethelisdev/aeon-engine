@@ -101,12 +101,8 @@ pub struct EngineUi {
     /// Physical GPU adapter information
     pub gpu_adapter_name: String,
     pub gpu_backend: String,
-    /// Smoothed FPS value for readable, flicker-free presentation in the Stats panel.
-    pub smoothed_fps: f32,
-    /// The actual displayed FPS value in the UI panel, updated periodically (every 100ms) for high readability.
-    pub displayed_fps: f32,
-    /// The instant of the last FPS counter refresh.
-    pub last_fps_update: std::time::Instant,
+    /// Real-time frames per second (FPS) calculation updated per-frame directly from engine timing.
+    pub fps: f32,
     /// Last registered viewport texture width.
     pub viewport_rect_width: f32,
     /// Last registered viewport texture height.
@@ -212,9 +208,7 @@ impl EngineUi {
             render_vertices: 0,
             gpu_adapter_name: String::new(),
             gpu_backend: String::new(),
-            smoothed_fps: 60.0,
-            displayed_fps: 60.0,
-            last_fps_update: std::time::Instant::now(),
+            fps: 60.0,
             viewport_rect_width: 0.0,
             viewport_rect_height: 0.0,
             last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),

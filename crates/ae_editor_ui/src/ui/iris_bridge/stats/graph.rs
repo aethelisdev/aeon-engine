@@ -12,7 +12,7 @@ use irisui::prelude::*;
 
 /// Output node handles created during static layout initialization of the frame pacing card.
 pub struct FramePacingNodes {
-    /// Metric pill value node IDs (`[Avg FPS, 1% Low, 0.1% Low, Jitter]`).
+    /// Metric pill value node IDs (`[FPS, 1% Low, 0.1% Low, Jitter]`).
     pub pill_val_ids: [WidgetId; 4],
     /// Pacing summary footer text node ID.
     pub footer_id: WidgetId,
@@ -34,11 +34,11 @@ pub fn build_frame_pacing_content(
     let r1_y = content_rect.y;
     let r2_y = r1_y + pill_h + row_gap;
 
-    // Row 1: Avg FPS & 1% Low
-    let avg_val_id = build_metric_pill(
+    // Row 1: FPS & 1% Low
+    let fps_val_id = build_metric_pill(
         tree,
         parent_id,
-        "Avg FPS",
+        "FPS",
         "-",
         Color::rgba(0.0, 0.82, 0.63, 1.0),
         Rect::new(content_rect.x, r1_y, col_w, pill_h),
@@ -116,7 +116,7 @@ pub fn build_frame_pacing_content(
     let _ = tree.add_child(parent_id, foot_id);
 
     FramePacingNodes {
-        pill_val_ids: [avg_val_id, low_1_val_id, low_01_val_id, jitter_val_id],
+        pill_val_ids: [fps_val_id, low_1_val_id, low_01_val_id, jitter_val_id],
         footer_id: foot_id,
         canvas_rect,
     }
@@ -132,13 +132,15 @@ pub fn update_frame_pacing_values(
     let stats = params.frame_pacing_stats;
 
     // 1. Update 2x2 Metric Pills
-    let avg_fps_text = format!(
-        "{:.0} ({:.2}ms)",
-        stats.average_fps, stats.average_frametime_ms
-    );
+    let frametime_ms = if params.fps > 0.0 {
+        1000.0 / params.fps
+    } else {
+        0.0
+    };
+    let fps_text = format!("{:.0} ({:.2}ms)", params.fps, frametime_ms);
     if let Some(node) = tree.get_mut(nodes[0]) {
-        node.set_text(avg_fps_text);
-        node.text_color = get_fps_color(stats.average_fps);
+        node.set_text(fps_text);
+        node.text_color = get_fps_color(params.fps);
     }
 
     let low_1_text = format!("{:.0} FPS", stats.low_1_percent_fps);
