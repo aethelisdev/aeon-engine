@@ -189,6 +189,7 @@ impl Default for AssetPreviewModalState {
                 model_handle: None,
                 texture_handle: None,
                 shader_handle: None,
+                is_3d: false,
             },
             orbit_yaw: 0.0,
             orbit_pitch: 0.3,
@@ -290,6 +291,8 @@ pub struct AssetsPanelParams<'a> {
     pub cached_items: &'a [AssetItem],
     /// Filtered asset items matching current folder, category, and search query.
     pub filtered_items: &'a [AssetItem],
+    /// Whether the editor is currently running in 2D mode.
+    pub is_2d_mode: bool,
     /// Whether internal engine assets and built-in shaders are displayed.
     pub show_engine_content: bool,
     /// Width of the left folder tree sidebar in pixels.

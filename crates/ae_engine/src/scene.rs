@@ -30,6 +30,10 @@ pub struct SavedLodGroup {
 /// An intermediate schema for serializing an ECS Entity dynamically using `ComponentRegistry`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct SavedEntity {
+    /// Dimension domain marker ("2D" or "3D") for dimension isolation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dimension: Option<String>,
+
     /// Source disk path of the 3D model asset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_path: Option<String>,
@@ -209,7 +213,13 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
             }
         }
 
+        let dim_str = if engine.dimension_mode.is_2d() {
+            "2D"
+        } else {
+            "3D"
+        };
         let se = SavedEntity {
+            dimension: Some(dim_str.to_string()),
             model_path: model_p,
             sprite_path: sprite_p,
             parent_name: parent_n,
@@ -225,6 +235,33 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
     serde_json::to_writer_pretty(&mut writer, &saved_entities)?;
     writer.flush()?;
     Ok(())
+}
+
+/// Inspects a collection of `SavedEntity` blueprints to determine if any entity contains 3D components or data.
+pub fn is_saved_entities_3d(entities: &[SavedEntity]) -> bool {
+    for se in entities {
+        if let Some(ref dim) = se.dimension {
+            if dim.eq_ignore_ascii_case("3d") {
+                return true;
+            }
+            if dim.eq_ignore_ascii_case("2d") {
+                continue;
+            }
+        }
+        if se.model_path.is_some() || se.lod_group.is_some() {
+            return true;
+        }
+        if se.components.contains_key("shape")
+            || se.components.contains_key("character_controller")
+            || se.components.contains_key("rigid_body")
+            || se.components.contains_key("collider")
+            || se.components.contains_key("light")
+            || se.components.contains_key("mesh_renderer")
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// Asynchronously loads a scene JSON from disk.
@@ -248,6 +285,23 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
     let file = File::open(filepath)?;
     let reader = BufReader::new(file);
     let saved_entities: Vec<SavedEntity> = serde_json::from_reader(reader)?;
+
+    // Dimension Isolation: Strictly reject loading 3D scenes in 2D mode
+    if engine.dimension_mode.is_2d() && is_saved_entities_3d(&saved_entities) {
+        let msg = format!(
+            "Blocked loading 3D scene '{}' while running in 2D mode. Switch to 3D mode to open this scene.",
+            filepath
+        );
+        log::error!("{}", msg);
+        engine.ui.set_status_message(
+            "Cannot load 3D scene in 2D mode! Switch to 3D mode.",
+            irisui::prelude::Color::RED,
+        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            msg,
+        ));
+    }
 
     // Security: Reject scenes with an unreasonable number of entities
     const MAX_SCENE_ENTITIES: usize = 500_000;
@@ -611,6 +665,7 @@ mod tests {
     #[test]
     fn test_dynamic_saved_entity_serialization_round_trip() {
         let mut entity = SavedEntity {
+            dimension: None,
             model_path: Some("assets/models/test.gltf".to_string()),
             sprite_path: None,
             parent_name: Some("Root_Parent".to_string()),
@@ -649,5 +704,41 @@ mod tests {
             deserialized.components.get("is_player").unwrap(),
             &serde_json::json!(true)
         );
+    }
+
+    #[test]
+    fn test_is_saved_entities_3d_isolation() {
+        let ent_3d_model = SavedEntity {
+            dimension: None,
+            model_path: Some("assets/models/mesh.gltf".to_string()),
+            sprite_path: None,
+            parent_name: None,
+            lod_group: None,
+            components: HashMap::new(),
+        };
+        assert!(is_saved_entities_3d(&[ent_3d_model]));
+
+        let mut ent_3d_shape = SavedEntity {
+            dimension: None,
+            model_path: None,
+            sprite_path: None,
+            parent_name: None,
+            lod_group: None,
+            components: HashMap::new(),
+        };
+        ent_3d_shape
+            .components
+            .insert("shape".to_string(), serde_json::json!("Cube"));
+        assert!(is_saved_entities_3d(&[ent_3d_shape]));
+
+        let ent_2d = SavedEntity {
+            dimension: Some("2D".to_string()),
+            model_path: None,
+            sprite_path: Some("assets/textures/sprite.png".to_string()),
+            parent_name: None,
+            lod_group: None,
+            components: HashMap::new(),
+        };
+        assert!(!is_saved_entities_3d(&[ent_2d]));
     }
 }

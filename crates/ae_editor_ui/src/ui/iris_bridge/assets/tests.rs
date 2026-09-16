@@ -35,6 +35,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: true,
     };
     let items = vec![item];
 
@@ -49,6 +50,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         selected_asset: None,
         cached_items: &items,
         filtered_items: &items,
+        is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
@@ -169,6 +171,7 @@ fn test_assets_right_click_context_menu_dispatch() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
 
     let card_target = AssetCardTarget {
@@ -228,6 +231,7 @@ fn test_preview_modal_build_and_actions() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: true,
     };
 
     let preview_state = AssetPreviewModalState {
@@ -249,6 +253,7 @@ fn test_preview_modal_build_and_actions() {
         selected_asset: None,
         cached_items: &[],
         filtered_items: &[],
+        is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
@@ -330,6 +335,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
     let items = vec![item];
 
@@ -344,6 +350,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         selected_asset: None,
         cached_items: &items,
         filtered_items: &items,
+        is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
@@ -420,6 +427,7 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
     tracker.potential_drag_item = Some(item);
     tracker.drag_start_pos = Some(Point::new(100.0, 100.0));
@@ -477,6 +485,7 @@ fn test_asset_source_classification() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
     assert_eq!(project_item.source, AssetSource::Project);
 
@@ -492,6 +501,7 @@ fn test_asset_source_classification() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
     assert_eq!(engine_item.source, AssetSource::Engine);
 }
@@ -510,6 +520,7 @@ fn test_engine_content_visibility_filtering() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
 
     let engine_item = AssetItem {
@@ -524,6 +535,7 @@ fn test_engine_content_visibility_filtering() {
         model_handle: None,
         texture_handle: None,
         shader_handle: None,
+        is_3d: false,
     };
 
     let all_items = [project_item.clone(), engine_item.clone()];
@@ -597,6 +609,7 @@ fn test_engine_and_sidebar_vector_icons() {
         show_engine_content: true,
         cached_items: &[],
         filtered_items: &[],
+        is_2d_mode: false,
         selected_asset: None,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
@@ -639,4 +652,121 @@ fn test_engine_and_sidebar_vector_icons() {
         "SidebarToggleButton node must be present"
     );
     assert_eq!(side_btn.unwrap().text.as_deref(), Some("◀"));
+}
+
+/// Verifies that running in 2D mode completely filters out 3D scenes and 3D models.
+#[test]
+fn test_2d_mode_filters_3d_scenes_and_models() {
+    let scene_3d = AssetItem {
+        name: "physics_test_suite.aee".to_string(),
+        path: PathBuf::from("assets/scenes/physics_test_suite.aee"),
+        relative_path: "scenes/physics_test_suite.aee".to_string(),
+        category: AssetCategory::Scenes,
+        source: AssetSource::Project,
+        file_size_bytes: 12000,
+        metadata_badge: "12.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: true,
+    };
+
+    let scene_2d = AssetItem {
+        name: "level1_2d.aee".to_string(),
+        path: PathBuf::from("assets/scenes/level1_2d.aee"),
+        relative_path: "scenes/level1_2d.aee".to_string(),
+        category: AssetCategory::Scenes,
+        source: AssetSource::Project,
+        file_size_bytes: 4000,
+        metadata_badge: "4.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: false,
+    };
+
+    let texture = AssetItem {
+        name: "player.png".to_string(),
+        path: PathBuf::from("assets/textures/player.png"),
+        relative_path: "textures/player.png".to_string(),
+        category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
+        file_size_bytes: 2048,
+        metadata_badge: "2.0 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: false,
+    };
+
+    let all_items = [scene_3d, scene_2d, texture];
+
+    // Filter in 2D mode
+    let is_2d_mode = true;
+    let filtered: Vec<_> = all_items
+        .iter()
+        .filter(|item| !(is_2d_mode && item.is_3d))
+        .cloned()
+        .collect();
+
+    assert_eq!(filtered.len(), 2);
+    assert!(!filtered.iter().any(|i| i.name == "physics_test_suite.aee"));
+    assert!(filtered.iter().any(|i| i.name == "level1_2d.aee"));
+    assert!(filtered.iter().any(|i| i.name == "player.png"));
+
+    // Verify category chip count for Scenes in 2D mode
+    let scenes_count = all_items
+        .iter()
+        .filter(|i| !(is_2d_mode && i.is_3d) && i.category == AssetCategory::Scenes)
+        .count();
+    assert_eq!(
+        scenes_count, 1,
+        "Only 2D scenes should be counted in 2D mode"
+    );
+}
+
+/// Verifies that `is_scene_json_3d` accurately distinguishes 3D vs 2D scene structures.
+#[test]
+fn test_is_scene_json_3d_detection() {
+    use crate::ui::panels::assets::scanner::is_scene_json_3d;
+
+    let scene_3d_shape = serde_json::json!([
+        {
+            "name": "Static_Ground",
+            "shape": "Cube",
+            "position": { "x": 0.0, "y": 0.0, "z": 0.0 }
+        }
+    ]);
+    assert!(is_scene_json_3d(&scene_3d_shape));
+
+    let scene_3d_model = serde_json::json!([
+        {
+            "name": "Dragon",
+            "model_path": "assets/models/dragon.glb"
+        }
+    ]);
+    assert!(is_scene_json_3d(&scene_3d_model));
+
+    let scene_3d_explicit = serde_json::json!({
+        "dimension": "3D",
+        "entities": []
+    });
+    assert!(is_scene_json_3d(&scene_3d_explicit));
+
+    let scene_2d_explicit = serde_json::json!({
+        "dimension": "2D",
+        "entities": []
+    });
+    assert!(!is_scene_json_3d(&scene_2d_explicit));
+
+    let scene_2d_sprite = serde_json::json!([
+        {
+            "name": "Player_Sprite",
+            "sprite_path": "assets/textures/player.png"
+        }
+    ]);
+    assert!(!is_scene_json_3d(&scene_2d_sprite));
 }

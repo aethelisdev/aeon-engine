@@ -114,6 +114,8 @@ pub struct AssetItem {
     pub texture_handle: Option<AssetHandle>,
     /// Associated shader asset handle if loaded.
     pub shader_handle: Option<AssetHandle>,
+    /// Whether this asset represents 3D-specific content (e.g. 3D mesh or 3D scene).
+    pub is_3d: bool,
 }
 
 /// Active drag-and-drop payload when dragging an asset card or list row.

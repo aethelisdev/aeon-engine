@@ -124,6 +124,7 @@ pub fn rescan_assets_if_needed(
                 model_handle: Some(handle),
                 texture_handle: None,
                 shader_handle: None,
+                is_3d: true,
             });
         }
     }
@@ -155,6 +156,7 @@ pub fn rescan_assets_if_needed(
                 model_handle: None,
                 texture_handle: Some(handle),
                 shader_handle: None,
+                is_3d: false,
             });
         }
     }
@@ -176,6 +178,7 @@ pub fn rescan_assets_if_needed(
                 model_handle: None,
                 texture_handle: None,
                 shader_handle: Some(handle),
+                is_3d: false,
             });
         }
     }
@@ -220,6 +223,11 @@ fn walk_directory(
 
             let relative_path = path.to_string_lossy().to_string();
             let metadata_badge = AssetBrowserState::format_file_size(file_size_bytes);
+            let is_3d = match category {
+                AssetCategory::Models3D => true,
+                AssetCategory::Scenes => is_scene_file_3d(&path),
+                _ => false,
+            };
 
             items.push(AssetItem {
                 name,
@@ -233,9 +241,114 @@ fn walk_directory(
                 model_handle: None,
                 texture_handle: None,
                 shader_handle: None,
+                is_3d,
             });
         }
     }
+}
+
+/// Inspects a deserialized entity JSON object to determine if it defines 3D components or attributes.
+pub fn is_entity_json_3d(entity: &serde_json::Value) -> bool {
+    if let Some(dim) = entity.get("dimension").and_then(|v| v.as_str()) {
+        if dim.eq_ignore_ascii_case("3d") {
+            return true;
+        }
+        if dim.eq_ignore_ascii_case("2d") {
+            return false;
+        }
+    }
+
+    if let Some(mp) = entity.get("model_path")
+        && !mp.is_null()
+        && mp.as_str().is_some_and(|s| !s.is_empty())
+    {
+        return true;
+    }
+
+    if let Some(lod) = entity.get("lod_group")
+        && !lod.is_null()
+    {
+        return true;
+    }
+
+    if let Some(shape) = entity.get("shape")
+        && !shape.is_null()
+        && shape.as_str().is_some_and(|s| !s.is_empty())
+    {
+        return true;
+    }
+
+    if let Some(kcc) = entity.get("character_controller")
+        && !kcc.is_null()
+    {
+        return true;
+    }
+
+    if let Some(rb) = entity.get("rigid_body")
+        && !rb.is_null()
+    {
+        return true;
+    }
+
+    if let Some(col) = entity.get("collider")
+        && !col.is_null()
+    {
+        return true;
+    }
+
+    if let Some(light) = entity.get("light")
+        && !light.is_null()
+    {
+        return true;
+    }
+
+    if let Some(mr) = entity.get("mesh_renderer")
+        && !mr.is_null()
+    {
+        return true;
+    }
+
+    false
+}
+
+/// Inspects a parsed JSON structure to determine if it represents a 3D scene.
+/// Supports standard arrays of entities (`[SavedEntity]`) as well as enveloped objects (`{"dimension": "3D", ...}`).
+pub fn is_scene_json_3d(json: &serde_json::Value) -> bool {
+    if let Some(dim) = json.get("dimension").and_then(|v| v.as_str()) {
+        if dim.eq_ignore_ascii_case("3d") {
+            return true;
+        }
+        if dim.eq_ignore_ascii_case("2d") {
+            return false;
+        }
+    }
+
+    if let Some(arr) = json.as_array() {
+        return arr.iter().any(is_entity_json_3d);
+    }
+
+    if let Some(entities) = json.get("entities").and_then(|v| v.as_array()) {
+        return entities.iter().any(is_entity_json_3d);
+    }
+
+    if json.is_object() {
+        return is_entity_json_3d(json);
+    }
+
+    false
+}
+
+/// Inspects a scene file on disk to determine if it contains 3D entities or 3D scene metadata.
+/// Reads and parses the file safely without modifying runtime state.
+pub fn is_scene_file_3d(path: &Path) -> bool {
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let reader = std::io::BufReader::new(file);
+    let Ok(json) = serde_json::from_reader::<_, serde_json::Value>(reader) else {
+        return false;
+    };
+    is_scene_json_3d(&json)
 }
 
 /// Classifies a file extension into an `AssetCategory`.

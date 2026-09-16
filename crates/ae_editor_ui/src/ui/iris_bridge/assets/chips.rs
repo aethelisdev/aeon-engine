@@ -44,6 +44,9 @@ pub fn build_category_chips(
                 if !params.show_engine_content && i.source == AssetSource::Engine {
                     return false;
                 }
+                if params.is_2d_mode && i.is_3d {
+                    return false;
+                }
                 cat == AssetCategory::All || i.category == cat
             })
             .count();
