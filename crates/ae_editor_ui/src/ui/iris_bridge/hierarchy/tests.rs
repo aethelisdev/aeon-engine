@@ -452,3 +452,54 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
     );
     assert!(has_empty_2d, "Submenu must contain SpawnEmpty2D in 2D mode");
 }
+
+#[test]
+fn test_hierarchy_add_menu_click_submenu_item() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    let _ = tree.set_root(root_id);
+
+    let world = World::new();
+    let mut targets = HierarchyPanelTargets {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+        add_btn_rect: Rect::new(100.0, 10.0, 24.0, 24.0),
+        ..Default::default()
+    };
+
+    let params = HierarchyPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: true,
+        scroll_y: 0.0,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: true,
+        active_context_menu: None,
+        cursor_pos: Point::new(150.0, 50.0),
+        is_search_focused: false,
+        blink_caret: false,
+    };
+
+    build_add_menu(&mut tree, root_id, &params, &mut targets);
+
+    assert_eq!(targets.add_menu_items.len(), 3);
+    let (first_item_rect, first_item_payload) = &targets.add_menu_items[0];
+    assert_eq!(*first_item_payload, Ok(AddSubmenuId::Objects2D));
+
+    // Click inside the first item (2D Objects)
+    let click_pt = Point::new(first_item_rect.x + 10.0, first_item_rect.y + 10.0);
+    let mut actions = Vec::new();
+    let consumed =
+        super::panel::handle_hierarchy_click(click_pt, MouseButton::Left, &targets, &mut actions);
+
+    assert!(consumed);
+    assert_eq!(actions.len(), 2);
+    assert_eq!(
+        actions[0],
+        super::types::HierarchyAction::OpenSubmenu(AddSubmenuId::Objects2D)
+    );
+    assert_eq!(actions[1], super::types::HierarchyAction::CloseSubSubmenu);
+}

@@ -50,25 +50,31 @@ impl IrisEditorOverlay {
                         self.active_menu = None;
                         self.viewport_hud_dropdown = None;
                         self.preferences_dropdown = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::CloseAddMenu => {
                         self.hierarchy_is_add_menu_open = false;
                         self.hierarchy_active_submenu = None;
                         self.hierarchy_active_sub_submenu = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::OpenSubmenu(sub) => {
                         self.hierarchy_active_submenu = Some(sub);
                         self.hierarchy_active_sub_submenu = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::CloseSubmenu => {
                         self.hierarchy_active_submenu = None;
                         self.hierarchy_active_sub_submenu = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::OpenSubSubmenu(sub) => {
                         self.hierarchy_active_sub_submenu = Some(sub);
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::CloseSubSubmenu => {
                         self.hierarchy_active_sub_submenu = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::OpenContextMenu(ent, pos) => {
                         self.hierarchy_active_context_menu = Some((ent, pos));
@@ -76,15 +82,19 @@ impl IrisEditorOverlay {
                         self.active_menu = None;
                         self.viewport_hud_dropdown = None;
                         self.preferences_dropdown = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::CloseContextMenu => {
                         self.hierarchy_active_context_menu = None;
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::ClearSearchQuery => {
                         self.hierarchy_search_query.clear();
+                        self.notifier.tag_all();
                     }
                     HierarchyAction::SetSearchQuery(q) => {
                         self.hierarchy_search_query = q;
+                        self.notifier.tag_all();
                     }
                     other => {
                         self.hierarchy_actions.push(other);
@@ -120,6 +130,9 @@ impl IrisEditorOverlay {
 
             if in_sub_sub {
                 // Inside level-3 sub-submenu (e.g. HUD Presets). Keep both open!
+                result.consumed = true;
+                self.notifier.tag_all();
+                return Some(result);
             } else if in_submenu {
                 // Inside level-2 submenu (e.g. UI & Canvas).
                 let mut hovered_branch = None;
@@ -130,30 +143,42 @@ impl IrisEditorOverlay {
                     }
                 }
                 if let Some(branch_id) = hovered_branch {
-                    self.hierarchy_active_sub_submenu = Some(branch_id);
+                    if self.hierarchy_active_sub_submenu != Some(branch_id) {
+                        self.hierarchy_active_sub_submenu = Some(branch_id);
+                        self.notifier.tag_all();
+                    }
                 } else {
                     let hovering_other_item = hier_targets
                         .submenu_items
                         .iter()
                         .any(|(r, _)| r.contains_point(self.cursor_pos));
-                    if hovering_other_item {
+                    if hovering_other_item && self.hierarchy_active_sub_submenu.is_some() {
                         self.hierarchy_active_sub_submenu = None;
+                        self.notifier.tag_all();
                     }
                 }
+                result.consumed = true;
+                return Some(result);
             } else if in_add_menu {
                 // Inside level-1 root Add Menu
                 for (item_rect, target_payload) in &hier_targets.add_menu_items {
                     if item_rect.contains_point(self.cursor_pos) {
                         if let Ok(submenu_id) = target_payload {
-                            self.hierarchy_active_submenu = Some(*submenu_id);
-                            self.hierarchy_active_sub_submenu = None;
-                        } else {
+                            if self.hierarchy_active_submenu != Some(*submenu_id) {
+                                self.hierarchy_active_submenu = Some(*submenu_id);
+                                self.hierarchy_active_sub_submenu = None;
+                                self.notifier.tag_all();
+                            }
+                        } else if self.hierarchy_active_submenu.is_some() {
                             self.hierarchy_active_submenu = None;
                             self.hierarchy_active_sub_submenu = None;
+                            self.notifier.tag_all();
                         }
                         break;
                     }
                 }
+                result.consumed = true;
+                return Some(result);
             }
         }
 

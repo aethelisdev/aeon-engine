@@ -272,7 +272,7 @@ pub fn build_add_menu(
             tree,
             parent_id,
             SubmenuDescriptor {
-                sub_x: menu_x + menu_w + 2.0,
+                sub_x: menu_x + menu_w,
                 sub_y: submenu_anchor_y,
                 submenu_id,
                 is_sub_submenu: false,
@@ -286,7 +286,7 @@ pub fn build_add_menu(
                 tree,
                 parent_id,
                 SubmenuDescriptor {
-                    sub_x: sub_card_rect.right() + 2.0,
+                    sub_x: sub_card_rect.right(),
                     sub_y: sub_anchor_y,
                     submenu_id: sub_sub_id,
                     is_sub_submenu: true,
