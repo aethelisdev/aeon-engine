@@ -230,7 +230,16 @@ pub(crate) fn save_scene(engine: &AeEngine, filepath: &str) -> std::io::Result<(
         saved_entities.push(se);
     }
 
-    let file = File::create(filepath)?;
+    let mut path_buf = std::path::PathBuf::from(filepath);
+    if path_buf.extension().is_none() {
+        if engine.dimension_mode.is_2d() {
+            path_buf.set_extension("ae2d");
+        } else {
+            path_buf.set_extension("ae3d");
+        }
+    }
+
+    let file = File::create(&path_buf)?;
     let mut writer = BufWriter::new(file);
     serde_json::to_writer_pretty(&mut writer, &saved_entities)?;
     writer.flush()?;
@@ -295,6 +304,23 @@ pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Resu
         log::error!("{}", msg);
         engine.ui.set_status_message(
             "Cannot load 3D scene in 2D mode! Switch to 3D mode.",
+            irisui::prelude::Color::RED,
+        );
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            msg,
+        ));
+    }
+
+    // Dimension Isolation: Strictly reject loading 2D scenes in 3D mode
+    if engine.dimension_mode.is_3d() && !is_saved_entities_3d(&saved_entities) {
+        let msg = format!(
+            "Blocked loading 2D scene '{}' while running in 3D mode. Switch to 2D mode to open this scene.",
+            filepath
+        );
+        log::error!("{}", msg);
+        engine.ui.set_status_message(
+            "Cannot load 2D scene in 3D mode! Switch to 2D mode.",
             irisui::prelude::Color::RED,
         );
         return Err(std::io::Error::new(
@@ -628,36 +654,50 @@ pub fn process_async_scene_load(engine: &mut AeEngine) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn test_deserialize_test_suite_scene() {
-        if let Ok(file) = File::open("../../test_suite.aee") {
+        let p = if Path::new("../../test_suite.ae3d").exists() {
+            "../../test_suite.ae3d"
+        } else {
+            "../../test_suite.aee"
+        };
+        if let Ok(file) = File::open(p) {
             let reader = BufReader::new(file);
             let entities: Result<Vec<SavedEntity>, _> = serde_json::from_reader(reader);
             assert!(
                 entities.is_ok(),
-                "test_suite.aee must deserialize cleanly into Vec<SavedEntity>: {:?}",
-                entities.err()
-            );
-            let entities = entities.unwrap();
-            assert!(!entities.is_empty(), "test_suite.aee must contain entities");
-        }
-    }
-
-    #[test]
-    fn test_deserialize_texture_test_suite_scene() {
-        if let Ok(file) = File::open("assets/scenes/texture_test_suite.aee") {
-            let reader = BufReader::new(file);
-            let entities: Result<Vec<SavedEntity>, _> = serde_json::from_reader(reader);
-            assert!(
-                entities.is_ok(),
-                "texture_test_suite.aee must deserialize cleanly into Vec<SavedEntity>: {:?}",
+                "test_suite scene must deserialize cleanly into Vec<SavedEntity>: {:?}",
                 entities.err()
             );
             let entities = entities.unwrap();
             assert!(
                 !entities.is_empty(),
-                "texture_test_suite.aee must contain entities"
+                "test_suite scene must contain entities"
+            );
+        }
+    }
+
+    #[test]
+    fn test_deserialize_texture_test_suite_scene() {
+        let p = if Path::new("assets/scenes/texture_test_suite.ae3d").exists() {
+            "assets/scenes/texture_test_suite.ae3d"
+        } else {
+            "assets/scenes/texture_test_suite.aee"
+        };
+        if let Ok(file) = File::open(p) {
+            let reader = BufReader::new(file);
+            let entities: Result<Vec<SavedEntity>, _> = serde_json::from_reader(reader);
+            assert!(
+                entities.is_ok(),
+                "texture_test_suite scene must deserialize cleanly into Vec<SavedEntity>: {:?}",
+                entities.err()
+            );
+            let entities = entities.unwrap();
+            assert!(
+                !entities.is_empty(),
+                "texture_test_suite scene must contain entities"
             );
         }
     }

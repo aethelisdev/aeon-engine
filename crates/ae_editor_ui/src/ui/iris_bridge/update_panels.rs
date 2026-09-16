@@ -229,6 +229,12 @@ impl IrisEditorOverlay {
                     if params.is_2d && item.is_3d {
                         return false;
                     }
+                    if !params.is_2d
+                        && !item.is_3d
+                        && item.category == crate::ui::panels::assets::types::AssetCategory::Scenes
+                    {
+                        return false;
+                    }
                     if !is_root_folder
                         && !item.path.starts_with(&params.asset_browser.current_folder)
                     {

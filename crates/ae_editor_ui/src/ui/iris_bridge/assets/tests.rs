@@ -654,13 +654,13 @@ fn test_engine_and_sidebar_vector_icons() {
     assert_eq!(side_btn.unwrap().text.as_deref(), Some("◀"));
 }
 
-/// Verifies that running in 2D mode completely filters out 3D scenes and 3D models.
+/// Verifies bidirectional scene filtering: 2D mode filters out 3D assets, 3D mode filters out 2D scenes.
 #[test]
-fn test_2d_mode_filters_3d_scenes_and_models() {
+fn test_bidirectional_scene_filtering() {
     let scene_3d = AssetItem {
-        name: "physics_test_suite.aee".to_string(),
-        path: PathBuf::from("assets/scenes/physics_test_suite.aee"),
-        relative_path: "scenes/physics_test_suite.aee".to_string(),
+        name: "physics_test_suite.ae3d".to_string(),
+        path: PathBuf::from("assets/scenes/physics_test_suite.ae3d"),
+        relative_path: "scenes/physics_test_suite.ae3d".to_string(),
         category: AssetCategory::Scenes,
         source: AssetSource::Project,
         file_size_bytes: 12000,
@@ -673,9 +673,9 @@ fn test_2d_mode_filters_3d_scenes_and_models() {
     };
 
     let scene_2d = AssetItem {
-        name: "level1_2d.aee".to_string(),
-        path: PathBuf::from("assets/scenes/level1_2d.aee"),
-        relative_path: "scenes/level1_2d.aee".to_string(),
+        name: "level1_2d.ae2d".to_string(),
+        path: PathBuf::from("assets/scenes/level1_2d.ae2d"),
+        relative_path: "scenes/level1_2d.ae2d".to_string(),
         category: AssetCategory::Scenes,
         source: AssetSource::Project,
         file_size_bytes: 4000,
@@ -704,28 +704,33 @@ fn test_2d_mode_filters_3d_scenes_and_models() {
 
     let all_items = [scene_3d, scene_2d, texture];
 
-    // Filter in 2D mode
-    let is_2d_mode = true;
-    let filtered: Vec<_> = all_items
+    // Filter in 2D mode: 3D items hidden
+    let filtered_2d: Vec<_> = all_items
         .iter()
-        .filter(|item| !(is_2d_mode && item.is_3d))
+        .filter(|item| !item.is_3d)
         .cloned()
         .collect();
-
-    assert_eq!(filtered.len(), 2);
-    assert!(!filtered.iter().any(|i| i.name == "physics_test_suite.aee"));
-    assert!(filtered.iter().any(|i| i.name == "level1_2d.aee"));
-    assert!(filtered.iter().any(|i| i.name == "player.png"));
-
-    // Verify category chip count for Scenes in 2D mode
-    let scenes_count = all_items
-        .iter()
-        .filter(|i| !(is_2d_mode && i.is_3d) && i.category == AssetCategory::Scenes)
-        .count();
-    assert_eq!(
-        scenes_count, 1,
-        "Only 2D scenes should be counted in 2D mode"
+    assert_eq!(filtered_2d.len(), 2);
+    assert!(
+        !filtered_2d
+            .iter()
+            .any(|i| i.name == "physics_test_suite.ae3d")
     );
+    assert!(filtered_2d.iter().any(|i| i.name == "level1_2d.ae2d"));
+
+    // Filter in 3D mode: 2D scenes hidden
+    let filtered_3d: Vec<_> = all_items
+        .iter()
+        .filter(|item| !(!item.is_3d && item.category == AssetCategory::Scenes))
+        .cloned()
+        .collect();
+    assert_eq!(filtered_3d.len(), 2);
+    assert!(
+        filtered_3d
+            .iter()
+            .any(|i| i.name == "physics_test_suite.ae3d")
+    );
+    assert!(!filtered_3d.iter().any(|i| i.name == "level1_2d.ae2d"));
 }
 
 /// Verifies that `is_scene_json_3d` accurately distinguishes 3D vs 2D scene structures.

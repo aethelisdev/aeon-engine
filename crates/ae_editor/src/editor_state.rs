@@ -79,6 +79,8 @@ pub struct EditorState {
     pub focus_rename: bool,
     /// Currently loaded/saved scene file path for quick Ctrl+S saving.
     pub active_scene_path: Option<std::path::PathBuf>,
+    /// Whether the editor is currently running in 2D mode.
+    pub is_2d: bool,
 }
 
 impl Default for EditorState {
@@ -105,6 +107,7 @@ impl Default for EditorState {
             clipboard: Vec::new(),
             focus_rename: false,
             active_scene_path: None,
+            is_2d: false,
         }
     }
 }

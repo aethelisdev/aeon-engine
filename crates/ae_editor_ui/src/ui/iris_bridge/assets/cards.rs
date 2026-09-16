@@ -276,7 +276,7 @@ fn build_empty_assets_notice(tree: &mut UiTree, parent_id: WidgetId, vp_rect: Re
     if let Some(node) = tree.get_mut(sub_id) {
         node.set_name("EmptyNoticeSub");
         node.set_text(
-            "Place 3D models (.gltf, .glb, .fbx), textures (.png), shaders (.wgsl), or scenes (.aee) into this folder.",
+            "Place 3D models (.gltf, .glb, .fbx), textures (.png), shaders (.wgsl), or scenes (.ae3d, .ae2d) into this folder.",
         );
         node.font_size = 11.0;
         node.line_height = 18.0;

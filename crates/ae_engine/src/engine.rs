@@ -302,13 +302,18 @@ impl AeEngine {
             sprite_2d_system,
         };
 
-        if dimension_mode == ae_2d::mode::ActiveDimensionMode::Mode2D {
+        let is_2d = dimension_mode.is_2d();
+        engine.editor.is_2d = is_2d;
+        if is_2d {
+            engine.ui.active_scene_path = "scene.ae2d".to_string();
             engine.camera.position = cgmath::Point3::new(0.0, 0.0, 10.0);
             engine.camera.target = cgmath::Point3::new(0.0, 0.0, 0.0);
             engine.camera.yaw = cgmath::Deg(-90.0).into();
             engine.camera.pitch = cgmath::Deg(0.0).into();
             engine.camera.mode = ae_core::camera::ProjectionMode::Orthographic;
             engine.camera.ortho_scale = 10.0;
+        } else {
+            engine.ui.active_scene_path = "scene.ae3d".to_string();
         }
 
         // Align physics fixed time step with EditorConfig frequency

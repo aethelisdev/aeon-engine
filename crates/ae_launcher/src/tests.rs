@@ -65,17 +65,24 @@ fn test_create_project_on_disk() {
     let _ = fs::remove_dir_all(&temp_dir);
     fs::create_dir_all(&temp_dir).unwrap();
 
-    let config = ProjectRegistry::create_project("Sandbox2D", &temp_dir, "2D")
+    let config_2d = ProjectRegistry::create_project("Sandbox2D", &temp_dir, "2D")
         .expect("Project creation failed");
 
-    assert_eq!(config.name, "Sandbox2D");
-    assert_eq!(config.dimension_mode, "2D");
+    assert_eq!(config_2d.name, "Sandbox2D");
+    assert_eq!(config_2d.dimension_mode, "2D");
+    assert_eq!(config_2d.entry_scene, "scenes/main.ae2d");
 
-    let proj_path = PathBuf::from(&config.path);
-    assert!(proj_path.join("assets").is_dir());
-    assert!(proj_path.join("scenes").is_dir());
-    assert!(proj_path.join("scenes/main.aee").is_file());
-    assert!(proj_path.join("aeon_project.json").is_file());
+    let proj_2d_path = PathBuf::from(&config_2d.path);
+    assert!(proj_2d_path.join("assets").is_dir());
+    assert!(proj_2d_path.join("scenes").is_dir());
+    assert!(proj_2d_path.join("scenes/main.ae2d").is_file());
+    assert!(proj_2d_path.join("aeon_project.json").is_file());
+
+    let config_3d = ProjectRegistry::create_project("Sandbox3D", &temp_dir, "3D")
+        .expect("Project creation failed");
+    assert_eq!(config_3d.entry_scene, "scenes/main.ae3d");
+    let proj_3d_path = PathBuf::from(&config_3d.path);
+    assert!(proj_3d_path.join("scenes/main.ae3d").is_file());
 
     // Clean up
     let _ = fs::remove_dir_all(&temp_dir);

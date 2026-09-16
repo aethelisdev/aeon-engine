@@ -320,6 +320,8 @@ impl AeApp {
 
         log::trace!("Render frame start");
 
+        engine.ui.poll_dialog_receivers();
+
         if engine.ui.should_save_scene {
             engine.ui.should_save_scene = false;
             let path = engine

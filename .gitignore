@@ -25,3 +25,10 @@ desktop.ini
 dist/
 dist_export/
 
+# Scene and Prefab files
+*.aee
+*.ae2d
+*.ae3d
+*.aeprefab
+assets/scenes/
+

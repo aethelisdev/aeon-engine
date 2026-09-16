@@ -175,7 +175,7 @@ pub(crate) fn render_scene_preview_content(
 
     let lines = [
         format!("Scene Name: {}", modal.item.name),
-        "File Format: Aeon Scene Descriptor (.aee JSON)".to_string(),
+        "File Format: Aeon Scene Descriptor (.ae3d / .ae2d JSON)".to_string(),
         "Entity Hierarchy: Declarative ECS World State with Transform & Behaviors".to_string(),
         "Environment: Dynamic Atmosphere, 4-Cascade CSM Sun & Procedural Clouds".to_string(),
         format!(

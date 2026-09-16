@@ -215,16 +215,33 @@ pub struct SceneAssetLoader;
 
 impl AssetLoader for SceneAssetLoader {
     fn supported_extensions(&self) -> &'static [&'static str] {
-        &["aee"]
+        &["aee", "ae3d", "ae2d"]
     }
 
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
-        if engine.dimension_mode.is_2d()
-            && ae_editor_ui::ui::panels::assets::scanner::is_scene_file_3d(path)
+        let is_3d_scene = match path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase()
+            .as_str()
         {
+            "ae2d" => false,
+            "ae3d" => true,
+            _ => ae_editor_ui::ui::panels::assets::scanner::is_scene_file_3d(path),
+        };
+        if engine.dimension_mode.is_2d() && is_3d_scene {
             log::error!("Cannot load 3D scene in 2D mode: {:?}", path);
             engine.ui.set_status_message(
                 "Cannot load 3D scene in 2D mode! Switch to 3D mode.",
+                Color::RED,
+            );
+            return;
+        }
+        if engine.dimension_mode.is_3d() && !is_3d_scene {
+            log::error!("Cannot load 2D scene in 3D mode: {:?}", path);
+            engine.ui.set_status_message(
+                "Cannot load 2D scene in 3D mode! Switch to 2D mode.",
                 Color::RED,
             );
             return;
@@ -436,8 +453,9 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                     .set_status_message("Cannot import 3D models in 2D mode!", Color::RED);
                 return;
             }
-            if ext_lower == "aee"
-                && ae_editor_ui::ui::panels::assets::scanner::is_scene_file_3d(&path)
+            if ext_lower == "ae3d"
+                || (ext_lower == "aee"
+                    && ae_editor_ui::ui::panels::assets::scanner::is_scene_file_3d(&path))
             {
                 log::warn!("Cannot import 3D scene in 2D mode: {:?}", path);
                 engine.ui.set_status_message(
@@ -446,6 +464,20 @@ pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {
                 );
                 return;
             }
+        }
+
+        // Dimension Isolation: Strictly reject external 2D scenes in 3D mode
+        if engine.dimension_mode.is_3d()
+            && (ext_lower == "ae2d"
+                || (ext_lower == "aee"
+                    && !ae_editor_ui::ui::panels::assets::scanner::is_scene_file_3d(&path)))
+        {
+            log::warn!("Cannot import 2D scene in 3D mode: {:?}", path);
+            engine.ui.set_status_message(
+                "Cannot load 2D scene in 3D mode! Switch to 2D mode.",
+                Color::RED,
+            );
+            return;
         }
 
         let registry = AssetLoaderRegistry::global();

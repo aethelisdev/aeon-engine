@@ -38,10 +38,16 @@ pub fn handle_open_load_prefab_dialog(ctx: &mut UiContext) {
 pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();
     ctx.ui.scene_dialog_receivers.push(rx);
+    let is_2d = ctx.editor.is_2d;
     std::thread::spawn(move || {
+        let (filter_name, extensions, default_name) = if is_2d {
+            ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..], "scene.ae2d")
+        } else {
+            ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..], "scene.ae3d")
+        };
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Aeon Scene (*.aee)", &["aee"])
-            .set_file_name("scene.aee")
+            .add_filter(filter_name, extensions)
+            .set_file_name(default_name)
             .save_file()
         {
             let _ = tx.send(crate::ui::SceneDialogAction::SaveTo(path));
@@ -53,9 +59,15 @@ pub fn handle_open_save_scene_dialog(ctx: &mut UiContext) {
 pub fn handle_open_load_scene_dialog(ctx: &mut UiContext) {
     let (tx, rx) = std::sync::mpsc::channel();
     ctx.ui.scene_dialog_receivers.push(rx);
+    let is_2d = ctx.editor.is_2d;
     std::thread::spawn(move || {
+        let (filter_name, extensions) = if is_2d {
+            ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..])
+        } else {
+            ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..])
+        };
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Aeon Scene (*.aee)", &["aee"])
+            .add_filter(filter_name, extensions)
             .pick_file()
         {
             let _ = tx.send(crate::ui::SceneDialogAction::LoadFrom(path));

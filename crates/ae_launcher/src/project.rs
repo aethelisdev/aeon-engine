@@ -22,7 +22,7 @@ pub struct ProjectConfig {
     /// Engine version compatibility identifier (e.g., `"0.9.0"`).
     pub engine_version: String,
 
-    /// Initial scene path relative to the project root (e.g., `"scenes/main.aee"`).
+    /// Initial scene path relative to the project root (e.g., `"scenes/main.ae3d"` or `"scenes/main.ae2d"`).
     pub entry_scene: String,
 
     /// UNIX timestamp of the most recent access in seconds.
@@ -36,7 +36,7 @@ impl Default for ProjectConfig {
             path: String::new(),
             dimension_mode: "3D".to_string(),
             engine_version: "0.9.0".to_string(),
-            entry_scene: "scenes/main.aee".to_string(),
+            entry_scene: "scenes/main.ae3d".to_string(),
             last_opened: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -103,7 +103,7 @@ impl ProjectRegistry {
     }
 
     /// Initializes a new project directory structure on disk with `aeon_project.json`.
-    /// Creates `assets/`, `scenes/`, and an initial empty `scenes/main.aee` file.
+    /// Creates `assets/`, `scenes/`, and an initial empty `scenes/main.ae3d` or `scenes/main.ae2d` file.
     pub fn create_project(
         name: &str,
         parent_dir: &Path,
@@ -114,8 +114,15 @@ impl ProjectRegistry {
         fs::create_dir_all(project_dir.join("assets"))?;
         fs::create_dir_all(project_dir.join("scenes"))?;
 
+        let is_2d = dimension_mode.trim().eq_ignore_ascii_case("2D");
+        let (scene_filename, entry_scene) = if is_2d {
+            ("main.ae2d", "scenes/main.ae2d".to_string())
+        } else {
+            ("main.ae3d", "scenes/main.ae3d".to_string())
+        };
+
         // Write a valid empty initial scene
-        let scene_path = project_dir.join("scenes").join("main.aee");
+        let scene_path = project_dir.join("scenes").join(scene_filename);
         if !scene_path.exists() {
             let initial_scene_json = r#"{"name":"Main Scene","entities":[]}"#;
             fs::write(&scene_path, initial_scene_json)?;
@@ -126,7 +133,7 @@ impl ProjectRegistry {
             path: project_dir.to_string_lossy().to_string(),
             dimension_mode: dimension_mode.to_string(),
             engine_version: "0.9.0".to_string(),
-            entry_scene: "scenes/main.aee".to_string(),
+            entry_scene,
             last_opened: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs())

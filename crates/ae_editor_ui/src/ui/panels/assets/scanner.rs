@@ -225,7 +225,20 @@ fn walk_directory(
             let metadata_badge = AssetBrowserState::format_file_size(file_size_bytes);
             let is_3d = match category {
                 AssetCategory::Models3D => true,
-                AssetCategory::Scenes => is_scene_file_3d(&path),
+                AssetCategory::Scenes => {
+                    let ext = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("")
+                        .to_ascii_lowercase();
+                    if ext == "ae2d" {
+                        false
+                    } else if ext == "ae3d" {
+                        true
+                    } else {
+                        is_scene_file_3d(&path)
+                    }
+                }
                 _ => false,
             };
 
@@ -358,7 +371,7 @@ pub fn classify_asset_category(path: &Path) -> Option<AssetCategory> {
         "gltf" | "glb" | "obj" | "fbx" => Some(AssetCategory::Models3D),
         "png" | "jpg" | "jpeg" | "tga" | "bmp" | "hdr" => Some(AssetCategory::Textures2D),
         "wgsl" => Some(AssetCategory::Shaders),
-        "aee" => Some(AssetCategory::Scenes),
+        "aee" | "ae3d" | "ae2d" => Some(AssetCategory::Scenes),
         "mat" => Some(AssetCategory::Materials),
         "wav" | "ogg" | "mp3" | "flac" => Some(AssetCategory::Audio),
         _ => None,
@@ -385,6 +398,14 @@ mod tests {
         );
         assert_eq!(
             classify_asset_category(Path::new("scenes/main.aee")),
+            Some(AssetCategory::Scenes)
+        );
+        assert_eq!(
+            classify_asset_category(Path::new("scenes/main.ae3d")),
+            Some(AssetCategory::Scenes)
+        );
+        assert_eq!(
+            classify_asset_category(Path::new("scenes/level1.ae2d")),
             Some(AssetCategory::Scenes)
         );
         assert_eq!(

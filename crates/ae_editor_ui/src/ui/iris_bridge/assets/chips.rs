@@ -47,6 +47,9 @@ pub fn build_category_chips(
                 if params.is_2d_mode && i.is_3d {
                     return false;
                 }
+                if !params.is_2d_mode && !i.is_3d && i.category == AssetCategory::Scenes {
+                    return false;
+                }
                 cat == AssetCategory::All || i.category == cat
             })
             .count();
