@@ -80,23 +80,12 @@ impl LauncherApp {
             .create_surface(window.clone())
             .expect("Failed to create WGPU surface for launcher window");
 
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::LowPower,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-            apply_limit_buckets: false,
-        }))
-        .expect("Failed to find suitable WGPU adapter for launcher");
-
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("Aeon Launcher Device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
-            memory_hints: wgpu::MemoryHints::default(),
-            trace: wgpu::Trace::Off,
-            experimental_features: Default::default(),
-        }))
-        .expect("Failed to create WGPU device for launcher");
+        let (adapter, device, queue) = pollster::block_on(
+            crate::adapter::request_launcher_adapter_and_device(&instance, &surface),
+        )
+        .unwrap_or_else(|err| {
+            panic!("{err}");
+        });
 
         let size = window.inner_size();
         let width = size.width.max(1);
@@ -109,12 +98,23 @@ impl LauncherApp {
             .find(|f| f.is_srgb())
             .unwrap_or(caps.formats[0]);
 
+        let present_mode = if caps.present_modes.contains(&wgpu::PresentMode::AutoVsync) {
+            wgpu::PresentMode::AutoVsync
+        } else if caps.present_modes.contains(&wgpu::PresentMode::Fifo) {
+            wgpu::PresentMode::Fifo
+        } else {
+            caps.present_modes
+                .first()
+                .copied()
+                .unwrap_or(wgpu::PresentMode::Fifo)
+        };
+
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
             width,
             height,
-            present_mode: wgpu::PresentMode::AutoVsync,
+            present_mode,
             desired_maximum_frame_latency: 2,
             alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
@@ -399,6 +399,15 @@ impl LauncherApp {
         let output = match surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(tex)
             | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
+            wgpu::CurrentSurfaceTexture::Lost => {
+                if let (Some(device), Some(config)) =
+                    (self.device.as_ref(), self.surface_config.as_ref())
+                {
+                    surface.configure(device, config);
+                }
+                return;
+            }
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Timeout => return,
             _ => return,
         };
 
@@ -537,20 +546,23 @@ impl ApplicationHandler for LauncherApp {
                 event_loop.exit();
             }
             WindowEvent::Resized(physical_size) => {
-                let w = physical_size.width.max(1);
-                let h = physical_size.height.max(1);
-                self.screen_size = glam::Vec2::new(w as f32, h as f32);
-                if let (Some(surface), Some(device), Some(config)) = (
-                    self.surface.as_ref(),
-                    self.device.as_ref(),
-                    self.surface_config.as_mut(),
-                ) {
-                    config.width = w;
-                    config.height = h;
-                    surface.configure(device, config);
-                }
-                if let Some(ref win) = self.window {
-                    win.request_redraw();
+                if physical_size.width > 0 && physical_size.height > 0 {
+                    let w = physical_size.width;
+                    let h = physical_size.height;
+                    self.screen_size = glam::Vec2::new(w as f32, h as f32);
+                    if let (Some(surface), Some(device), Some(config)) = (
+                        self.surface.as_ref(),
+                        self.device.as_ref(),
+                        self.surface_config.as_mut(),
+                    ) && (config.width != w || config.height != h)
+                    {
+                        config.width = w;
+                        config.height = h;
+                        surface.configure(device, config);
+                    }
+                    if let Some(ref win) = self.window {
+                        win.request_redraw();
+                    }
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {

@@ -38,47 +38,13 @@ pub async fn request_launcher_adapter_and_device(
         .filter(|adapter| !surface.get_capabilities(adapter).formats.is_empty())
         .collect();
 
-    let mut selected_adapter: Option<wgpu::Adapter> = None;
-
-    // Tier 1: Vulkan Discrete GPU
-    if let Some(pos) = candidates.iter().position(|a| {
+    // Sort descending by hardware tier preference (Vulkan Discrete GPU -> Vulkan iGPU -> OpenGL -> etc.)
+    candidates.sort_by_key(|a| {
         let info = a.get_info();
-        info.backend == wgpu::Backend::Vulkan && info.device_type == wgpu::DeviceType::DiscreteGpu
-    }) {
-        selected_adapter = Some(candidates.remove(pos));
-    }
+        std::cmp::Reverse(rank_adapter_priority(info.backend, info.device_type))
+    });
 
-    // Tier 2: Vulkan Integrated or alternative GPU
-    if selected_adapter.is_none()
-        && let Some(pos) = candidates
-            .iter()
-            .position(|a| a.get_info().backend == wgpu::Backend::Vulkan)
-    {
-        selected_adapter = Some(candidates.remove(pos));
-    }
-
-    // Tier 3: OpenGL Backend
-    if selected_adapter.is_none()
-        && let Some(pos) = candidates
-            .iter()
-            .position(|a| a.get_info().backend == wgpu::Backend::Gl)
-    {
-        selected_adapter = Some(candidates.remove(pos));
-    }
-
-    // Tier 4: Any discrete GPU on other backends
-    if selected_adapter.is_none()
-        && let Some(pos) = candidates
-            .iter()
-            .position(|a| a.get_info().device_type == wgpu::DeviceType::DiscreteGpu)
-    {
-        selected_adapter = Some(candidates.remove(pos));
-    }
-
-    // Tier 5: Any remaining compatible candidate
-    if selected_adapter.is_none() && !candidates.is_empty() {
-        selected_adapter = candidates.pop();
-    }
+    let mut selected_adapter = candidates.into_iter().next();
 
     // Tier 6: Direct instance request fallbacks if enumeration yielded no compatible adapter
     let mut tier_errors = Vec::new();
@@ -294,9 +260,45 @@ fn generate_launcher_diagnostic_report(
     report
 }
 
+/// Calculates a priority ranking score for graphics adapters during launcher initialization.
+/// Higher scores indicate greater preference:
+/// - Vulkan Discrete GPU (100)
+/// - Vulkan Integrated GPU (80)
+/// - OpenGL Backend (60)
+/// - Other Discrete GPU (40)
+/// - Other Fallback (10)
+#[inline]
+pub fn rank_adapter_priority(backend: wgpu::Backend, device_type: wgpu::DeviceType) -> u32 {
+    match (backend, device_type) {
+        (wgpu::Backend::Vulkan, wgpu::DeviceType::DiscreteGpu) => 100,
+        (wgpu::Backend::Vulkan, wgpu::DeviceType::IntegratedGpu) => 80,
+        (wgpu::Backend::Vulkan, wgpu::DeviceType::VirtualGpu | wgpu::DeviceType::Other) => 70,
+        (wgpu::Backend::Gl, wgpu::DeviceType::DiscreteGpu) => 60,
+        (wgpu::Backend::Gl, wgpu::DeviceType::IntegratedGpu | wgpu::DeviceType::Other) => 50,
+        (_, wgpu::DeviceType::DiscreteGpu) => 40,
+        (wgpu::Backend::Vulkan, wgpu::DeviceType::Cpu) => 20,
+        _ => 10,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Verifies that Vulkan discrete GPUs are prioritized over integrated GPUs and software rasterizers.
+    #[test]
+    fn test_adapter_priority_ranking() {
+        let vulkan_discrete =
+            rank_adapter_priority(wgpu::Backend::Vulkan, wgpu::DeviceType::DiscreteGpu);
+        let vulkan_integrated =
+            rank_adapter_priority(wgpu::Backend::Vulkan, wgpu::DeviceType::IntegratedGpu);
+        let gl_any = rank_adapter_priority(wgpu::Backend::Gl, wgpu::DeviceType::IntegratedGpu);
+        let cpu_fallback = rank_adapter_priority(wgpu::Backend::Vulkan, wgpu::DeviceType::Cpu);
+
+        assert!(vulkan_discrete > vulkan_integrated);
+        assert!(vulkan_integrated > gl_any);
+        assert!(vulkan_integrated > cpu_fallback);
+    }
 
     /// Verifies that the launcher diagnostic report contains key structural headings.
     #[test]
