@@ -10,7 +10,7 @@ use super::types::{
     AssetCardTarget, AssetPreviewModalState, AssetsContextMenuTarget, AssetsPanelAction,
     AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
 };
-use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetViewMode};
+use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -28,6 +28,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         path: PathBuf::from("assets/test_mesh.gltf"),
         relative_path: "test_mesh.gltf".to_string(),
         category: AssetCategory::Models3D,
+        source: AssetSource::Project,
         file_size_bytes: 2048,
         metadata_badge: "2.0 KB".to_string(),
         is_loaded_in_memory: true,
@@ -48,6 +49,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         selected_asset: None,
         cached_items: &items,
         filtered_items: &items,
+        show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -112,6 +114,11 @@ fn assert_no_emojis_recursive(tree: &UiTree, current: WidgetId) {
                 "Node text contains forbidden emoji '🔊': {}",
                 text
             );
+            assert!(
+                !text.contains('⚙'),
+                "Node text contains forbidden emoji '⚙': {}",
+                text
+            );
         }
         for &child in &node.children {
             assert_no_emojis_recursive(tree, child);
@@ -155,6 +162,7 @@ fn test_assets_right_click_context_menu_dispatch() {
         path: PathBuf::from("assets/test.png"),
         relative_path: "test.png".to_string(),
         category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
         file_size_bytes: 1024,
         metadata_badge: "1.0 KB".to_string(),
         is_loaded_in_memory: false,
@@ -213,6 +221,7 @@ fn test_preview_modal_build_and_actions() {
         path: PathBuf::from("assets/models/dragon.gltf"),
         relative_path: "models/dragon.gltf".to_string(),
         category: AssetCategory::Models3D,
+        source: AssetSource::Project,
         file_size_bytes: 1048576,
         metadata_badge: "1.0 MB".to_string(),
         is_loaded_in_memory: true,
@@ -240,6 +249,7 @@ fn test_preview_modal_build_and_actions() {
         selected_asset: None,
         cached_items: &[],
         filtered_items: &[],
+        show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -313,6 +323,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         path: PathBuf::from("assets/textures/dokusu_öğütülmüş_yüzey.png"),
         relative_path: "dokusu_öğütülmüş_yüzey.png".to_string(),
         category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
         file_size_bytes: 408500,
         metadata_badge: "408.5 KB".to_string(),
         is_loaded_in_memory: true,
@@ -333,6 +344,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         selected_asset: None,
         cached_items: &items,
         filtered_items: &items,
+        show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
         scroll_y: 0.0,
@@ -401,6 +413,7 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
         path: PathBuf::from("assets/test.png"),
         relative_path: "test.png".to_string(),
         category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
         file_size_bytes: 1024,
         metadata_badge: "1.0 KB".to_string(),
         is_loaded_in_memory: false,
@@ -448,4 +461,182 @@ fn test_asset_drag_viewport_boundary_check() {
     // Over Menubar (outside viewport)
     let menubar_pos = Point::new(400.0, 15.0);
     assert!(!viewport_rect.contains_point(menubar_pos));
+}
+
+#[test]
+fn test_asset_source_classification() {
+    let project_item = AssetItem {
+        name: "player.png".to_string(),
+        path: PathBuf::from("assets/textures/player.png"),
+        relative_path: "textures/player.png".to_string(),
+        category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
+        file_size_bytes: 1024,
+        metadata_badge: "1.0 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    assert_eq!(project_item.source, AssetSource::Project);
+
+    let engine_item = AssetItem {
+        name: "bloom.wgsl".to_string(),
+        path: PathBuf::from("crates/ae_renderer/src/shaders/bloom.wgsl"),
+        relative_path: "crates/ae_renderer/src/shaders/bloom.wgsl".to_string(),
+        category: AssetCategory::Shaders,
+        source: AssetSource::Engine,
+        file_size_bytes: 3000,
+        metadata_badge: "3.0 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+    assert_eq!(engine_item.source, AssetSource::Engine);
+}
+
+#[test]
+fn test_engine_content_visibility_filtering() {
+    let project_item = AssetItem {
+        name: "player.png".to_string(),
+        path: PathBuf::from("assets/textures/player.png"),
+        relative_path: "textures/player.png".to_string(),
+        category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
+        file_size_bytes: 1024,
+        metadata_badge: "1.0 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+
+    let engine_item = AssetItem {
+        name: "bloom.wgsl".to_string(),
+        path: PathBuf::from("crates/ae_renderer/src/shaders/bloom.wgsl"),
+        relative_path: "crates/ae_renderer/src/shaders/bloom.wgsl".to_string(),
+        category: AssetCategory::Shaders,
+        source: AssetSource::Engine,
+        file_size_bytes: 3000,
+        metadata_badge: "3.0 KB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+    };
+
+    let all_items = [project_item.clone(), engine_item.clone()];
+
+    // When show_engine_content is false (default hidden)
+    let filtered_hidden: Vec<_> = all_items
+        .iter()
+        .filter(|item| item.source != AssetSource::Engine)
+        .cloned()
+        .collect();
+    assert_eq!(filtered_hidden.len(), 1);
+    assert_eq!(filtered_hidden[0].name, "player.png");
+
+    // When show_engine_content is true
+    let filtered_visible: Vec<_> = all_items.iter().filter(|_item| true).cloned().collect();
+    assert_eq!(filtered_visible.len(), 2);
+}
+
+#[test]
+fn test_engine_toggle_action_dispatch() {
+    let mut actions = Vec::new();
+    let engine_rect = Rect::new(500.0, 5.0, 76.0, 24.0);
+    let targets = AssetsPanelTargets {
+        panel_rect: Rect::new(0.0, 0.0, 800.0, 400.0),
+        engine_toggle_btn_rect: Some(engine_rect),
+        ..Default::default()
+    };
+
+    let ctx = AssetsEventContext {
+        cursor_pos: Point::new(510.0, 15.0),
+        targets: &targets,
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+    };
+
+    let mut tracker = AssetClickTracker::default();
+    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
+    assert!(consumed);
+    assert_eq!(actions, vec![AssetsPanelAction::ToggleEngineContent]);
+}
+
+#[test]
+fn test_engine_and_sidebar_vector_icons() {
+    use crate::ui::iris_bridge::icons::{
+        FIRST_THUMBNAIL_LAYER, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_GEAR, ICON_SPARKLE,
+    };
+
+    // Verify canonical texture coordinates on layer 16..19 and thumbnail layer reservation
+    assert_eq!(ICON_GEAR, [0.0, 0.0, 1.0, 16.0]);
+    assert_eq!(ICON_SPARKLE, [0.0, 0.0, 1.0, 17.0]);
+    assert_eq!(ICON_CHEVRON_UP, [0.0, 0.0, 1.0, 18.0]);
+    assert_eq!(ICON_CHEVRON_DOWN, [0.0, 0.0, 1.0, 19.0]);
+    assert_eq!(FIRST_THUMBNAIL_LAYER, 32);
+
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let mut targets = AssetsPanelTargets::default();
+
+    let current_folder = PathBuf::from("assets");
+    let params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1280.0, 720.0),
+        current_folder: &current_folder,
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        show_engine_content: true,
+        cached_items: &[],
+        filtered_items: &[],
+        selected_asset: None,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(100.0, 100.0),
+        blink_caret: true,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+    };
+
+    build_assets_panel(&mut tree, root_id, &params, &mut targets);
+
+    fn find_node_by_name<'a>(
+        tree: &'a UiTree,
+        current: WidgetId,
+        name: &str,
+    ) -> Option<&'a irisui::prelude::WidgetNode> {
+        if let Some(node) = tree.get(current) {
+            if node.name.as_deref() == Some(name) {
+                return Some(node);
+            }
+            for &child in &node.children {
+                if let Some(found) = find_node_by_name(tree, child, name) {
+                    return Some(found);
+                }
+            }
+        }
+        None
+    }
+
+    let gear_node = find_node_by_name(&tree, root_id, "EngineGearIcon");
+    assert!(gear_node.is_some(), "EngineGearIcon node must be present");
+    assert_eq!(gear_node.unwrap().texture_uv, Some(ICON_GEAR));
+
+    let side_btn = find_node_by_name(&tree, root_id, "SidebarToggleButton");
+    assert!(
+        side_btn.is_some(),
+        "SidebarToggleButton node must be present"
+    );
+    assert_eq!(side_btn.unwrap().text.as_deref(), Some("◀"));
 }

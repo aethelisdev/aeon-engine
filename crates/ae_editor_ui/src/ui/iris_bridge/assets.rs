@@ -10,6 +10,7 @@
 //!
 
 pub mod cards;
+pub mod chips;
 pub mod context_menu;
 pub mod drag_overlay;
 pub mod events;
@@ -21,6 +22,7 @@ mod tests;
 pub mod tree;
 pub mod types;
 
+pub use chips::build_category_chips;
 pub use drag_overlay::build_asset_drag_overlays;
 pub use events::{
     AssetClickTracker, AssetsEventContext, handle_assets_click, handle_assets_panel_event,

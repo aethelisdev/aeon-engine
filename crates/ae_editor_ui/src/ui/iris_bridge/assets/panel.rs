@@ -8,12 +8,13 @@
 //!
 
 use super::cards::build_asset_grid_cards;
+use super::chips::build_category_chips;
 use super::list::build_asset_list_table;
 use super::tree::build_folder_tree_sidebar;
 use super::types::{AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget};
-use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
+use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_GEAR, ICON_PLUS};
 use crate::ui::iris_bridge::theme::*;
-use crate::ui::panels::assets::types::{AssetBrowserState, AssetCategory, AssetViewMode};
+use crate::ui::panels::assets::types::{AssetBrowserState, AssetViewMode};
 use irisui::prelude::*;
 use std::path::PathBuf;
 
@@ -304,6 +305,19 @@ pub fn build_assets_panel(
     targets.import_btn_rect = import_rect;
     build_import_btn(tree, tb_id, import_rect, params.cursor_pos);
 
+    // "Engine" Content Visibility Toggle Button (Domain Isolation Standard)
+    let engine_btn_w = 74.0;
+    right_x -= engine_btn_w + 4.0;
+    let engine_rect = Rect::new(right_x, btn_y, engine_btn_w, btn_h);
+    targets.engine_toggle_btn_rect = Some(engine_rect);
+    build_engine_toggle_btn(
+        tree,
+        tb_id,
+        params.show_engine_content,
+        engine_rect,
+        params.cursor_pos,
+    );
+
     // 3. Category Filter Chips Row
     let chips_rect = Rect::new(
         params.panel_rect.x,
@@ -454,16 +468,23 @@ pub fn build_assets_panel(
     let _ = tree.add_child(footer_id, path_id);
 
     // Right Telemetry
-    let total_size: u64 = params.cached_items.iter().map(|i| i.file_size_bytes).sum();
-    let in_memory_count = params
+    let visible_items: Vec<_> = params
         .cached_items
+        .iter()
+        .filter(|i| {
+            params.show_engine_content
+                || i.source != crate::ui::panels::assets::types::AssetSource::Engine
+        })
+        .collect();
+    let total_size: u64 = visible_items.iter().map(|i| i.file_size_bytes).sum();
+    let in_memory_count = visible_items
         .iter()
         .filter(|i| i.is_loaded_in_memory)
         .count();
     let tele_str = format!(
         "{} Items in Scope ({} Total, {} in VRAM)  •  Disk: {}",
         params.filtered_items.len(),
-        params.cached_items.len(),
+        visible_items.len(),
         in_memory_count,
         AssetBrowserState::format_file_size(total_size)
     );
@@ -491,86 +512,6 @@ pub fn build_assets_panel(
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
     super::preview::build_asset_preview_modal(tree, parent_id, params, targets);
-}
-
-/// Builds the category filter chips row with live item counters.
-fn build_category_chips(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    chips_rect: Rect,
-    params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
-) {
-    let categories = [
-        (AssetCategory::All, "All Assets"),
-        (AssetCategory::Models3D, "3D Meshes"),
-        (AssetCategory::Textures2D, "Textures"),
-        (AssetCategory::Shaders, "Shaders"),
-        (AssetCategory::Scenes, "Scenes"),
-        (AssetCategory::Materials, "Materials"),
-        (AssetCategory::Audio, "Audio"),
-    ];
-
-    let mut chip_x = chips_rect.x + 8.0;
-    let chip_y = chips_rect.y + 3.0;
-    let chip_h = 22.0;
-
-    for (cat, label) in categories {
-        let count = if cat == AssetCategory::All {
-            params.cached_items.len()
-        } else {
-            params
-                .cached_items
-                .iter()
-                .filter(|i| i.category == cat)
-                .count()
-        };
-
-        let chip_text = format!("{} ({})", label, count);
-        let chip_w = (chip_text.len() as f32 * 6.8 + 16.0).max(54.0);
-        let chip_rect = Rect::new(chip_x, chip_y, chip_w, chip_h);
-        let is_selected = params.active_category == cat;
-        let is_hovered = chip_rect.contains_point(params.cursor_pos);
-
-        targets.category_chips.push((cat, chip_rect));
-
-        let chip_id = tree.create_node();
-        if let Some(node) = tree.get_mut(chip_id) {
-            node.set_name("CategoryChip");
-            node.set_text(&chip_text);
-            node.font_size = 11.0;
-            node.line_height = chip_h;
-            node.text_align = TextAlign::Center;
-            node.text_color = if is_selected {
-                Color::WHITE
-            } else if is_hovered {
-                Color::rgba(0.90, 0.93, 0.98, 1.0)
-            } else {
-                Color::rgba(0.65, 0.69, 0.78, 1.0)
-            };
-            node.computed_rect = chip_rect;
-            let cat_color = super::cards::resolve_category_color(cat);
-            let border_color = if is_selected {
-                cat_color
-            } else if is_hovered {
-                Color::rgba(0.28, 0.32, 0.42, 0.70)
-            } else {
-                Color::rgba(0.16, 0.18, 0.24, 0.40)
-            };
-            node.style = Style::new()
-                .background(if is_selected {
-                    Color::rgba(0.12, 0.16, 0.22, 0.95)
-                } else if is_hovered {
-                    Color::rgba(0.10, 0.12, 0.16, 0.80)
-                } else {
-                    Color::rgba(0.08, 0.09, 0.11, 0.60)
-                })
-                .border_radius(4.0)
-                .border(1.0, border_color);
-        }
-        let _ = tree.add_child(parent_id, chip_id);
-        chip_x += chip_w + 6.0;
-    }
 }
 
 /// Helper to build an elevated action button.
@@ -724,4 +665,82 @@ fn build_toggle_btn(
             );
     }
     let _ = tree.add_child(parent_id, btn_id);
+}
+
+/// Helper to build the "Engine" content toggle button featuring a crisp vector gear icon.
+fn build_engine_toggle_btn(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    is_active: bool,
+    rect: Rect,
+    cursor_pos: Point,
+) {
+    let is_hov = rect.contains_point(cursor_pos);
+    let btn_id = tree.create_node();
+    if let Some(node) = tree.get_mut(btn_id) {
+        node.set_name("EngineToggleBtn");
+        node.computed_rect = rect;
+        node.style = Style::new()
+            .background(if is_active {
+                Color::rgba(0.12, 0.18, 0.26, 0.95)
+            } else if is_hov {
+                Color::rgba(0.14, 0.16, 0.22, 0.80)
+            } else {
+                Color::rgba(0.08, 0.09, 0.12, 0.60)
+            })
+            .border_radius(4.0)
+            .border(
+                1.0,
+                if is_active {
+                    Color::rgba(0.0, 0.85, 1.0, 0.85)
+                } else if is_hov {
+                    Color::rgba(0.30, 0.35, 0.45, 0.60)
+                } else {
+                    Color::rgba(0.16, 0.18, 0.24, 0.40)
+                },
+            );
+    }
+    let _ = tree.add_child(parent_id, btn_id);
+
+    // Vector Gear Icon (Slot 16 in editor_atlas)
+    let g_size = 14.0;
+    let g_rect = Rect::new(
+        rect.x + 8.0,
+        rect.y + (rect.height - g_size) * 0.5,
+        g_size,
+        g_size,
+    );
+    let g_id = tree.create_node();
+    if let Some(node) = tree.get_mut(g_id) {
+        node.set_name("EngineGearIcon");
+        node.computed_rect = g_rect;
+        node.set_texture_uv(ICON_GEAR);
+        node.set_texture_tint(if is_active {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else if is_hov {
+            Color::WHITE
+        } else {
+            Color::rgba(0.65, 0.70, 0.80, 1.0)
+        });
+    }
+    let _ = tree.add_child(btn_id, g_id);
+
+    // "Engine" label text
+    let lbl_rect = Rect::new(rect.x + 25.0, rect.y, rect.width - 27.0, rect.height);
+    let lbl_id = tree.create_node();
+    if let Some(node) = tree.get_mut(lbl_id) {
+        node.set_name("EngineBtnText");
+        node.set_text("Engine");
+        node.font_size = 11.0;
+        node.line_height = rect.height;
+        node.text_color = if is_active {
+            Color::rgba(0.0, 0.95, 1.0, 1.0)
+        } else if is_hov {
+            Color::WHITE
+        } else {
+            Color::rgba(0.70, 0.75, 0.85, 1.0)
+        };
+        node.computed_rect = lbl_rect;
+    }
+    let _ = tree.add_child(btn_id, lbl_id);
 }

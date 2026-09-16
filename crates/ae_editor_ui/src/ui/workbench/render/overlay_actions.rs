@@ -507,6 +507,11 @@ impl EngineUi {
                         }
                     }
                 }
+                iris_bridge::AssetsPanelAction::ToggleEngineContent => {
+                    self.asset_browser.show_engine_content =
+                        !self.asset_browser.show_engine_content;
+                    self.iris_overlay.notifier.tag_all();
+                }
                 _ => {}
             }
         }

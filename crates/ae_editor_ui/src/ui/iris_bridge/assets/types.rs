@@ -7,7 +7,7 @@
 //! 100% native Iris UI GPU SDF Asset Browser panel.
 //!
 
-use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetViewMode};
+use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::{Point, Rect};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -69,6 +69,8 @@ pub enum AssetsPanelAction {
     StartAssetDrag(AssetItem),
     /// Completes or cancels active asset dragging.
     EndAssetDrag,
+    /// Toggles visibility of internal engine assets and built-in shaders.
+    ToggleEngineContent,
 }
 
 /// Target subject of an active asset browser context menu.
@@ -180,6 +182,7 @@ impl Default for AssetPreviewModalState {
                 path: PathBuf::new(),
                 relative_path: String::new(),
                 category: AssetCategory::All,
+                source: AssetSource::Project,
                 file_size_bytes: 0,
                 metadata_badge: String::new(),
                 is_loaded_in_memory: false,
@@ -233,6 +236,8 @@ pub struct AssetsPanelTargets {
     pub grid_toggle_rect: Rect,
     /// Bounding rectangle of the "List" view toggle button.
     pub list_toggle_rect: Rect,
+    /// Bounding rectangle of the "⚙ Engine" content visibility toggle button.
+    pub engine_toggle_btn_rect: Option<Rect>,
     /// Bounding rectangle of the search input field box.
     pub search_input_rect: Rect,
     /// Bounding rectangle of the "✖" search query clear button, if query is non-empty.
@@ -285,6 +290,8 @@ pub struct AssetsPanelParams<'a> {
     pub cached_items: &'a [AssetItem],
     /// Filtered asset items matching current folder, category, and search query.
     pub filtered_items: &'a [AssetItem],
+    /// Whether internal engine assets and built-in shaders are displayed.
+    pub show_engine_content: bool,
     /// Width of the left folder tree sidebar in pixels.
     pub sidebar_width: f32,
     /// Whether the left folder tree sidebar is currently collapsed.

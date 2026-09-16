@@ -7,7 +7,7 @@
 //! storages to build unified asset models with metadata badges.
 //!
 
-use super::types::{AssetBrowserState, AssetCategory, AssetItem};
+use super::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use ae_renderer::asset::{AssetStorage, ShaderAsset};
 use ae_renderer::render::{ModelAsset, TextureAsset};
 use std::path::{Path, PathBuf};
@@ -40,13 +40,19 @@ pub fn rescan_assets_if_needed(
     let mut discovered_subfolders = Vec::new();
 
     // 1. Recursive File System Walk under `assets/`
-    walk_directory(root_path, &mut discovered_items, &mut discovered_subfolders);
+    walk_directory(
+        root_path,
+        AssetSource::Project,
+        &mut discovered_items,
+        &mut discovered_subfolders,
+    );
 
     // Also check `crates/ae_renderer/src/shaders` for internal shaders
     let internal_shaders_path = Path::new("crates/ae_renderer/src/shaders");
     if internal_shaders_path.exists() {
         walk_directory(
             internal_shaders_path,
+            AssetSource::Engine,
             &mut discovered_items,
             &mut discovered_subfolders,
         );
@@ -110,6 +116,7 @@ pub fn rescan_assets_if_needed(
                 path: PathBuf::from(&model.source_path),
                 relative_path: name,
                 category: AssetCategory::Models3D,
+                source: AssetSource::Project,
                 file_size_bytes: (model.raw_vertices.len() * std::mem::size_of::<[f32; 3]>())
                     as u64,
                 metadata_badge: format!("{} Verts", model.raw_vertices.len()),
@@ -131,11 +138,17 @@ pub fn rescan_assets_if_needed(
                 .and_then(|n| n.to_str())
                 .unwrap_or("Memory Texture")
                 .to_string();
+            let source = if texture.source_path.contains("assets/icons") {
+                AssetSource::Engine
+            } else {
+                AssetSource::Project
+            };
             discovered_items.push(AssetItem {
                 name: name.clone(),
                 path: PathBuf::from(&texture.source_path),
                 relative_path: name,
                 category: AssetCategory::Textures2D,
+                source,
                 file_size_bytes: (texture.width * texture.height * 4) as u64,
                 metadata_badge: format!("{}x{}", texture.width, texture.height),
                 is_loaded_in_memory: true,
@@ -156,6 +169,7 @@ pub fn rescan_assets_if_needed(
                 path: PathBuf::from(&shader.source_path),
                 relative_path: shader.name.clone(),
                 category: AssetCategory::Shaders,
+                source: AssetSource::Engine,
                 file_size_bytes: shader.source_code.len() as u64,
                 metadata_badge: format!("{:.1} KB", shader.source_code.len() as f64 / 1024.0),
                 is_loaded_in_memory: true,
@@ -170,7 +184,12 @@ pub fn rescan_assets_if_needed(
     state.subfolders = discovered_subfolders;
 }
 
-fn walk_directory(dir: &Path, items: &mut Vec<AssetItem>, subfolders: &mut Vec<PathBuf>) {
+fn walk_directory(
+    dir: &Path,
+    source: AssetSource,
+    items: &mut Vec<AssetItem>,
+    subfolders: &mut Vec<PathBuf>,
+) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -178,9 +197,16 @@ fn walk_directory(dir: &Path, items: &mut Vec<AssetItem>, subfolders: &mut Vec<P
 
     for entry in entries.flatten() {
         let path = entry.path();
+        let effective_source =
+            if path == Path::new("assets/icons") || path.starts_with(Path::new("assets/icons")) {
+                AssetSource::Engine
+            } else {
+                source
+            };
+
         if path.is_dir() {
             subfolders.push(path.clone());
-            walk_directory(&path, items, subfolders);
+            walk_directory(&path, effective_source, items, subfolders);
         } else if path.is_file()
             && let Some(category) = classify_asset_category(&path)
         {
@@ -200,6 +226,7 @@ fn walk_directory(dir: &Path, items: &mut Vec<AssetItem>, subfolders: &mut Vec<P
                 path,
                 relative_path,
                 category,
+                source: effective_source,
                 file_size_bytes,
                 metadata_badge,
                 is_loaded_in_memory: false,

@@ -112,7 +112,7 @@ impl IrisEditorOverlay {
             assets_preview_modal: None,
             assets_selected_asset: None,
             thumbnail_layers: std::collections::HashMap::new(),
-            next_thumbnail_layer: 16,
+            next_thumbnail_layer: crate::ui::iris_bridge::icons::FIRST_THUMBNAIL_LAYER,
             timeline_targets: None,
             timeline_is_dragging: false,
             timeline_actions: Vec::new(),

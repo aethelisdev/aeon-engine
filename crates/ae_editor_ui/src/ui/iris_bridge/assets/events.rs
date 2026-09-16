@@ -226,6 +226,14 @@ pub fn handle_assets_click(
         return true;
     }
 
+    // 4b. Engine Content Visibility Toggle (Domain Isolation Standard)
+    if let Some(engine_rect) = targets.engine_toggle_btn_rect
+        && engine_rect.contains_point(cursor_pos)
+    {
+        out_actions.push(AssetsPanelAction::ToggleEngineContent);
+        return true;
+    }
+
     // 5. Action Buttons: Import, Reveal, Clean
     if targets.import_btn_rect.contains_point(cursor_pos) {
         out_actions.push(AssetsPanelAction::OpenImportDialog);

@@ -79,6 +79,16 @@ pub enum AssetViewMode {
     List,
 }
 
+/// Source origin domain of an asset (user project vs engine/editor internal).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AssetSource {
+    /// User project asset located under workspace project directories (e.g. `assets/`).
+    #[default]
+    Project,
+    /// Internal engine or editor asset (e.g. built-in shaders, editor HUD atlases).
+    Engine,
+}
+
 /// Metadata item model representing an individual asset on disk or in GPU memory.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssetItem {
@@ -90,6 +100,8 @@ pub struct AssetItem {
     pub relative_path: String,
     /// Classified category.
     pub category: AssetCategory,
+    /// Source origin domain (Project vs Engine).
+    pub source: AssetSource,
     /// File size in bytes.
     pub file_size_bytes: u64,
     /// Formatted metadata string (e.g. "24.5k Verts", "2048x2048", "15.9 KB").
@@ -162,6 +174,8 @@ pub struct AssetBrowserState {
     pub new_folder_parent: Option<PathBuf>,
     /// Input buffer for newly created folder names.
     pub new_folder_name: String,
+    /// Whether internal engine assets and built-in shaders are displayed in the browser.
+    pub show_engine_content: bool,
 }
 
 impl Default for AssetBrowserState {
@@ -191,6 +205,7 @@ impl AssetBrowserState {
             delete_confirmation: None,
             new_folder_parent: None,
             new_folder_name: String::new(),
+            show_engine_content: false,
         }
     }
 
@@ -222,6 +237,11 @@ mod tests {
     }
 
     #[test]
+    fn test_asset_source_defaults() {
+        assert_eq!(AssetSource::default(), AssetSource::Project);
+    }
+
+    #[test]
     fn test_asset_browser_state_defaults() {
         let state = AssetBrowserState::new();
         assert_eq!(state.current_folder, PathBuf::from("assets"));
@@ -230,5 +250,6 @@ mod tests {
         assert!(!state.sidebar_collapsed);
         assert_eq!(state.sidebar_width, 180.0);
         assert!(state.drag_payload.is_none());
+        assert!(!state.show_engine_content);
     }
 }

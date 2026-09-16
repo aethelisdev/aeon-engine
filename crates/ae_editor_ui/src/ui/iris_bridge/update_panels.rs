@@ -221,6 +221,11 @@ impl IrisEditorOverlay {
                 .cached_items
                 .iter()
                 .filter(|item| {
+                    if !params.asset_browser.show_engine_content
+                        && item.source == crate::ui::panels::assets::types::AssetSource::Engine
+                    {
+                        return false;
+                    }
                     if !is_root_folder
                         && !item.path.starts_with(&params.asset_browser.current_folder)
                     {
@@ -259,6 +264,7 @@ impl IrisEditorOverlay {
                 selected_asset: params.asset_browser.selected_asset.as_deref(),
                 cached_items: &params.asset_browser.cached_items,
                 filtered_items: &filtered_items,
+                show_engine_content: params.asset_browser.show_engine_content,
                 sidebar_width: params.asset_browser.sidebar_width,
                 sidebar_collapsed: params.asset_browser.sidebar_collapsed,
                 scroll_y: self.assets_scroll_y,

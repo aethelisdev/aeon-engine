@@ -133,7 +133,7 @@ impl LauncherApp {
             let tile_size = 64u32;
             let cols = w / tile_size;
             let rows = h / tile_size;
-            let layer_count = (cols * rows).min(16);
+            let layer_count = cols * rows;
 
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Launcher Icon Texture Array"),
