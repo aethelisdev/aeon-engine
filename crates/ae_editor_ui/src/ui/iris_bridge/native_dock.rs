@@ -108,6 +108,19 @@ pub fn build_native_dock(
     // 1. Render all leaf panel backgrounds and tab strips
     for leaf in &computed.leaves {
         if leaf.tabs.is_empty() {
+            // Render an empty panel placeholder during active tab drag
+            if layout_state.dock_state.active_drag.is_some() {
+                add_rect_node(
+                    tree,
+                    parent,
+                    leaf.rect,
+                    "IrisDockPanelEmpty",
+                    Style::new()
+                        .background(Color::from_u8(16, 20, 28, 160))
+                        .border(1.0, Color::from_u8(35, 42, 55, 120))
+                        .clip_children(true),
+                );
+            }
             continue;
         }
 
@@ -334,7 +347,7 @@ pub fn build_native_dock(
 /// Rendered as topmost floating overlays so they are drawn above the 3D Viewport texture,
 /// docked panels, and floating windows.
 pub fn build_native_dock_drag_overlays(
-    _tree: &mut UiTree,
+    tree: &mut UiTree,
     parent: WidgetId,
     layout_state: &PanelLayoutState,
     workspace_rect: Rect,
@@ -363,11 +376,11 @@ pub fn build_native_dock_drag_overlays(
 
         // Drop preview rectangle overlay
         if let Some(zone) = drop_zone {
-            build_drop_preview_node(parent, leaf.content_rect, zone, &nav_style);
+            build_drop_preview_node(tree, parent, leaf.content_rect, zone, &nav_style);
         }
 
         // 5-way compass buttons
-        build_dock_navigator_nodes(parent, &geometry, drop_zone, &nav_style);
+        build_dock_navigator_nodes(tree, parent, &geometry, drop_zone, &nav_style);
     }
 
     // Floating tab badge following the cursor
@@ -376,7 +389,7 @@ pub fn build_native_dock_drag_overlays(
         title: drag.tab_data.title(),
         icon: Some(drag.tab_data.icon()),
     };
-    build_floating_tab_badge(parent, badge_params);
+    build_floating_tab_badge(tree, parent, badge_params);
 }
 
 /// Adds an absolutely positioned native docking rectangle to the retained Iris tree.
@@ -414,4 +427,36 @@ fn add_text_node(
         node.set_text_properties(12.0, 16.0, color, alignment);
     }
     let _ = tree.add_child(parent, id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_native_dock_drag_overlays_renders_nodes() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let mut layout_state = PanelLayoutState::default();
+        let source_leaf = layout_state.dock_state.tree.find_first_leaf().unwrap();
+
+        // Start dragging the first tab in the default layout
+        let _ = layout_state.dock_state.start_tab_drag(
+            source_leaf,
+            0,
+            Point::new(200.0, 200.0),
+            Rect::new(0.0, 0.0, 400.0, 400.0),
+        );
+
+        let workspace = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        build_native_dock_drag_overlays(&mut tree, root, &layout_state, workspace);
+
+        let root_node = tree.get(root).expect("Root exists");
+        assert!(
+            !root_node.children.is_empty(),
+            "Overlay nodes must be created during active drag"
+        );
+    }
 }
