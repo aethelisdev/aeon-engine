@@ -177,6 +177,8 @@ pub struct IrisChromeState {
     pub last_has_drag_payload: bool,
     /// Explicit flag requesting full layout reconstruction on invalidation.
     pub needs_layout_rebuild: bool,
+    /// Currently open dock tab overflow dropdown menu, storing the parent leaf node ID and anchor button rectangle.
+    pub active_dock_overflow: Option<(irisui::dock::DockNodeId, Rect)>,
 }
 
 impl Default for IrisChromeState {
@@ -195,6 +197,7 @@ impl Default for IrisChromeState {
             last_has_viewport_texture: false,
             last_has_drag_payload: false,
             needs_layout_rebuild: false,
+            active_dock_overflow: None,
         }
     }
 }

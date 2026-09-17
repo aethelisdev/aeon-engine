@@ -515,16 +515,53 @@ impl EngineUi {
                     && !is_over_floating
                     && let Some(ref frame) = self.iris_overlay.chrome.native_dock_frame
                 {
-                    // Close buttons
+                    // 1. Tab overflow dropdown items (switch tab and close menu)
                     if let Some(target) = frame
+                        .overflow_item_targets
+                        .iter()
+                        .find(|t| t.rect.contains_point(p))
+                    {
+                        let _ = self
+                            .layout_state
+                            .dock_state
+                            .tree
+                            .set_active_tab(target.leaf, target.tab_index);
+                        self.iris_overlay.chrome.active_dock_overflow = None;
+                        self.iris_overlay.chrome.needs_layout_rebuild = true;
+                        dock_consumed = true;
+                    }
+                    // 2. Tab overflow chevron buttons (toggle dropdown menu)
+                    else if let Some(target) = frame
+                        .chevron_targets
+                        .iter()
+                        .find(|t| t.rect.contains_point(p))
+                    {
+                        if self
+                            .iris_overlay
+                            .chrome
+                            .active_dock_overflow
+                            .as_ref()
+                            .is_some_and(|(l, _)| *l == target.leaf)
+                        {
+                            self.iris_overlay.chrome.active_dock_overflow = None;
+                        } else {
+                            self.iris_overlay.chrome.active_dock_overflow =
+                                Some((target.leaf, target.rect));
+                        }
+                        self.iris_overlay.chrome.needs_layout_rebuild = true;
+                        dock_consumed = true;
+                    }
+                    // 3. Close buttons
+                    else if let Some(target) = frame
                         .close_targets
                         .iter()
                         .find(|t| t.rect.contains_point(p))
                     {
                         self.layout_state.close_tab(target.leaf, target.tab_index);
+                        self.iris_overlay.chrome.active_dock_overflow = None;
                         dock_consumed = true;
                     }
-                    // Tab pills (switch active tab and prepare drag)
+                    // 4. Tab pills (switch active tab and prepare drag)
                     else if let Some(target) =
                         frame.tab_targets.iter().find(|t| t.rect.contains_point(p))
                     {
@@ -541,9 +578,10 @@ impl EngineUi {
                             leaf_rect: target.leaf_rect,
                             floating_window_id: None,
                         });
+                        self.iris_overlay.chrome.active_dock_overflow = None;
                         dock_consumed = true;
                     }
-                    // Splitters (initiate divider resize drag)
+                    // 5. Splitters (initiate divider resize drag)
                     else if let Some(target) = frame
                         .splitter_targets
                         .iter()
@@ -559,7 +597,11 @@ impl EngineUi {
                             start_coord,
                             target.total_dimension,
                         );
+                        self.iris_overlay.chrome.active_dock_overflow = None;
                         dock_consumed = true;
+                    } else if self.iris_overlay.chrome.active_dock_overflow.is_some() {
+                        self.iris_overlay.chrome.active_dock_overflow = None;
+                        self.iris_overlay.chrome.needs_layout_rebuild = true;
                     }
                 }
             }

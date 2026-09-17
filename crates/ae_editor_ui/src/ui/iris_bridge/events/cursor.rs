@@ -57,8 +57,24 @@ impl IrisEditorOverlay {
                 .any(|r| r.contains_point(p));
 
         if !is_occluded && let Some(ref frame) = self.chrome.native_dock_frame {
+            if frame
+                .active_overflow_rect
+                .is_some_and(|r| r.contains_point(p))
+            {
+                for item in &frame.overflow_item_targets {
+                    if item.rect.contains_point(p) {
+                        return CursorIcon::Pointer;
+                    }
+                }
+                return CursorIcon::Default;
+            }
             for tab in &frame.tab_targets {
                 if tab.rect.contains_point(p) {
+                    return CursorIcon::Pointer;
+                }
+            }
+            for chevron in &frame.chevron_targets {
+                if chevron.rect.contains_point(p) {
                     return CursorIcon::Pointer;
                 }
             }

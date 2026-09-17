@@ -61,6 +61,13 @@ impl IrisEditorOverlay {
         {
             return true;
         }
+        if let Some(ref frame) = self.chrome.native_dock_frame
+            && frame
+                .active_overflow_rect
+                .is_some_and(|r| r.contains_point(point))
+        {
+            return true;
+        }
         if self.is_point_over_hierarchy_popup(point) || self.is_point_over_inspector_popup(point) {
             return true;
         }
@@ -185,12 +192,26 @@ impl IrisEditorOverlay {
             return true;
         }
 
-        // 3b. Native Dock Tabs, Close Buttons & Splitters
-        if let Some(ref frame) = self.chrome.native_dock_frame
-            && (frame
+        // 3b. Native Dock Tabs, Close Buttons, Splitters, Chevrons & Overflow Menu
+        if let Some(ref frame) = self.chrome.native_dock_frame {
+            if frame
+                .active_overflow_rect
+                .is_some_and(|r| r.contains_point(point))
+            {
+                return true;
+            }
+            if frame
                 .tab_targets
                 .iter()
                 .any(|t| t.rect.contains_point(point))
+                || frame
+                    .chevron_targets
+                    .iter()
+                    .any(|ch| ch.rect.contains_point(point))
+                || frame
+                    .overflow_item_targets
+                    .iter()
+                    .any(|it| it.rect.contains_point(point))
                 || frame
                     .close_targets
                     .iter()
@@ -198,9 +219,10 @@ impl IrisEditorOverlay {
                 || frame
                     .splitter_targets
                     .iter()
-                    .any(|s| s.rect.contains_point(point)))
-        {
-            return true;
+                    .any(|s| s.rect.contains_point(point))
+            {
+                return true;
+            }
         }
 
         // 4. Background Docked Panels (only tested when NOT occluded by floating windows)

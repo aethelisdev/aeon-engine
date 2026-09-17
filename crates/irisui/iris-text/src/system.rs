@@ -190,6 +190,7 @@ impl TextSystem {
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
         buffer.set_size(Some(bounds_width.max(1.0)), Some(bounds_height.max(1.0)));
+        buffer.set_wrap(cosmic_text::Wrap::None);
 
         let cosmic_align = match align {
             TextAlign::Left => cosmic_text::Align::Left,

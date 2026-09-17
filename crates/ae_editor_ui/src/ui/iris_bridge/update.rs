@@ -91,6 +91,7 @@ impl IrisEditorOverlay {
             || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
             || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
+            || self.chrome.active_dock_overflow.is_some()
             || self.chrome.needs_layout_rebuild
             || has_drag_payload
             || is_over_ui
@@ -571,6 +572,24 @@ impl IrisEditorOverlay {
             }
             self.menubar.dropdown_items = items;
             self.menubar.dropdown_rect = Some(dd_rect);
+        }
+
+        // 6l. Native Dock Tab Overflow Dropdown Menu (Rendered at top overlay layer)
+        if let Some((leaf_id, anchor_rect)) = self.chrome.active_dock_overflow
+            && let Some(ref mut frame) = self.chrome.native_dock_frame
+        {
+            super::native_dock::build_native_dock_overflow_menu(
+                &mut self.tree,
+                root,
+                super::native_dock::NativeDockOverflowMenuParams {
+                    leaf_id,
+                    anchor_rect,
+                    layout_state: params.context.layout_state,
+                    cursor_pos: cursor,
+                    is_cursor_occluded,
+                },
+                frame,
+            );
         }
 
         // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)

@@ -230,7 +230,7 @@ impl IrisEditorOverlay {
             && node.computed_rect.width > 0.0
             && node.computed_rect.height > 0.0
         {
-            let mut effective_clip = ctx.clip_rect;
+            let mut effective_clip = child_clip;
 
             // Estimate visual horizontal footprint of the text inside computed_rect
             let text_char_count = text.chars().count() as f32;
