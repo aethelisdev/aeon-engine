@@ -381,133 +381,69 @@ impl EngineUi {
                 }
 
                 // 1. Check Floating Window controls (highest priority among panels)
-                let mut floating_dock_back = None;
-                let mut floating_close = None;
-                let mut floating_tab_action = None;
-
-                for win in self.layout_state.dock_state.floating_windows.iter().rev() {
-                    const TAB_BAR_H: f32 = 26.0;
-                    let bar_rect = Rect::new(win.rect.x, win.rect.y, win.rect.width, TAB_BAR_H);
-
-                    // Dock-back button `⤢`
-                    let dock_btn_rect =
-                        Rect::new(bar_rect.right() - 56.0, bar_rect.y + 2.0, 20.0, 22.0);
-                    if dock_btn_rect.contains_point(p) {
-                        floating_dock_back = Some(win.id);
-                        break;
-                    }
-
-                    // Close button `✖`
-                    let close_btn_rect =
-                        Rect::new(bar_rect.right() - 32.0, bar_rect.y + 2.0, 20.0, 22.0);
-                    if close_btn_rect.contains_point(p) {
-                        floating_close = Some(win.id);
-                        break;
-                    }
-
-                    // Floating window tab pill click check
-                    let mut clicked_tab = None;
-                    let mut current_tab_x = bar_rect.x + 12.0;
-                    for (leaf_id, node) in win.tree.iter() {
-                        if let irisui::dock::DockNode::Leaf { tabs, .. } = node {
-                            for (tab_idx, panel) in tabs.iter().enumerate() {
-                                let char_count = panel.title().chars().count();
-                                let tab_w = (16.0 + 6.0 + (char_count as f32) * 6.8 + 14.0)
-                                    .clamp(52.0, 160.0);
-                                let tab_rect =
-                                    Rect::new(current_tab_x, bar_rect.y, tab_w, TAB_BAR_H);
-                                if tab_rect.contains_point(p) {
-                                    clicked_tab = Some((leaf_id, tab_idx, *panel, win.rect));
-                                    break;
-                                }
-                                current_tab_x += tab_w + 2.0;
+                if let Some(action) = irisui::dock::evaluate_floating_window_click(
+                    &self.layout_state.dock_state.floating_windows,
+                    &crate::ui::panel_layout::PanelTabViewer,
+                    p,
+                    6.0,
+                    26.0,
+                ) {
+                    match action {
+                        irisui::dock::FloatingWindowClickAction::DockBack { window_id } => {
+                            self.layout_state.smart_dock_back_panel(window_id);
+                            return true;
+                        }
+                        irisui::dock::FloatingWindowClickAction::Close { window_id } => {
+                            let _ = self
+                                .layout_state
+                                .dock_state
+                                .close_floating_window(window_id);
+                            return true;
+                        }
+                        irisui::dock::FloatingWindowClickAction::TabSelected {
+                            window_id,
+                            leaf_id,
+                            tab_index,
+                            tab,
+                            window_rect,
+                        } => {
+                            if let Some(w) = self
+                                .layout_state
+                                .dock_state
+                                .floating_windows
+                                .iter_mut()
+                                .find(|w| w.id == window_id)
+                            {
+                                let _ = w.tree.set_active_tab(leaf_id, tab_index);
                             }
-                        }
-                    }
-
-                    if let Some((leaf_id, tab_idx, panel, leaf_rect)) = clicked_tab {
-                        floating_tab_action = Some((win.id, leaf_id, tab_idx, panel, leaf_rect));
-                        break;
-                    }
-
-                    // Title bar drag
-                    if bar_rect.contains_point(p) {
-                        self.active_floating_drag = Some((
-                            win.id,
-                            FloatingDragState::Title {
-                                offset: Point::new(p.x - win.rect.x, p.y - win.rect.y),
-                            },
-                        ));
-                        dock_consumed = true;
-                        break;
-                    }
-
-                    // Window edge resize check
-                    let win_rect =
-                        Rect::new(win.rect.x, win.rect.y, win.rect.width, win.rect.height);
-                    if win_rect.contains_point(p) {
-                        const MARGIN: f32 = 6.0;
-                        let on_left = p.x <= win.rect.x + MARGIN;
-                        let on_right = p.x >= win_rect.right() - MARGIN;
-                        let on_top = p.y <= win.rect.y + MARGIN;
-                        let on_bottom = p.y >= win_rect.bottom() - MARGIN;
-
-                        let edge = if on_top && on_left {
-                            Some(FloatingResizeEdge::TopLeft)
-                        } else if on_top && on_right {
-                            Some(FloatingResizeEdge::TopRight)
-                        } else if on_bottom && on_left {
-                            Some(FloatingResizeEdge::BottomLeft)
-                        } else if on_bottom && on_right {
-                            Some(FloatingResizeEdge::BottomRight)
-                        } else if on_left {
-                            Some(FloatingResizeEdge::Left)
-                        } else if on_right {
-                            Some(FloatingResizeEdge::Right)
-                        } else if on_top {
-                            Some(FloatingResizeEdge::Top)
-                        } else if on_bottom {
-                            Some(FloatingResizeEdge::Bottom)
-                        } else {
-                            None
-                        };
-
-                        if let Some(e) = edge {
-                            self.active_floating_drag =
-                                Some((win.id, FloatingDragState::Resize(e)));
+                            self.pending_tab_drag =
+                                Some(crate::ui::workbench::state::PendingTabDrag {
+                                    leaf: leaf_id,
+                                    tab_index,
+                                    panel: tab,
+                                    press_pos: p,
+                                    leaf_rect: window_rect,
+                                    floating_window_id: Some(window_id),
+                                });
                             dock_consumed = true;
-                            break;
+                        }
+                        irisui::dock::FloatingWindowClickAction::TitleDragStart {
+                            window_id,
+                            offset,
+                        } => {
+                            self.active_floating_drag =
+                                Some((window_id, FloatingDragState::Title { offset }));
+                            dock_consumed = true;
+                        }
+                        irisui::dock::FloatingWindowClickAction::ResizeStart {
+                            window_id,
+                            edge,
+                        } => {
+                            self.active_floating_drag =
+                                Some((window_id, FloatingDragState::Resize(edge)));
+                            dock_consumed = true;
                         }
                     }
-                }
-
-                if let Some(win_id) = floating_dock_back {
-                    self.layout_state.smart_dock_back_panel(win_id);
-                    return true;
-                }
-                if let Some(win_id) = floating_close {
-                    let _ = self.layout_state.dock_state.close_floating_window(win_id);
-                    return true;
-                }
-                if let Some((win_id, leaf_id, tab_idx, panel, leaf_rect)) = floating_tab_action {
-                    if let Some(w) = self
-                        .layout_state
-                        .dock_state
-                        .floating_windows
-                        .iter_mut()
-                        .find(|w| w.id == win_id)
-                    {
-                        let _ = w.tree.set_active_tab(leaf_id, tab_idx);
-                    }
-                    self.pending_tab_drag = Some(crate::ui::workbench::state::PendingTabDrag {
-                        leaf: leaf_id,
-                        tab_index: tab_idx,
-                        panel,
-                        press_pos: p,
-                        leaf_rect,
-                        floating_window_id: Some(win_id),
-                    });
-                    dock_consumed = true;
                 }
 
                 // 2. Check Native Dock Frame targets (Tabs, Close buttons, Splitters)

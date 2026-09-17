@@ -376,6 +376,14 @@ impl irisui::dock::TabViewer<PanelId> for PanelTabViewer {
         format!("{} {}", tab.icon(), tab.title())
     }
 
+    fn atlas_icon(&self, tab: &PanelId) -> Option<[f32; 4]> {
+        tab.atlas_icon()
+    }
+
+    fn raw_title(&self, tab: &PanelId) -> String {
+        tab.title().to_string()
+    }
+
     fn closeable(&self, tab: &PanelId) -> bool {
         *tab != PanelId::Viewport
     }

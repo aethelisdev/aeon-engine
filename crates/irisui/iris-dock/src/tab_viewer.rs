@@ -17,6 +17,18 @@ pub trait TabViewer<Tab> {
     /// Returns the user-facing display title for the specified tab.
     fn title(&self, tab: &Tab) -> String;
 
+    /// Returns an optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
+    /// Defaults to `None`.
+    fn atlas_icon(&self, _tab: &Tab) -> Option<[f32; 4]> {
+        None
+    }
+
+    /// Returns the raw title text without leading icon prefixes.
+    /// Defaults to returning `self.title(tab)`.
+    fn raw_title(&self, tab: &Tab) -> String {
+        self.title(tab)
+    }
+
     /// Determines whether a close button (`x`) should be rendered for this tab.
     /// Returning `false` prevents the user from closing the tab (e.g., for persistent viewport panes).
     /// Defaults to `true`.

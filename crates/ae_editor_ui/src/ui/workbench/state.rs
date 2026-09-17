@@ -13,25 +13,7 @@ pub enum SceneDialogAction {
     LoadFrom(std::path::PathBuf),
 }
 
-/// Identifies the border or corner being resized on a floating window.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum FloatingResizeEdge {
-    Left,
-    Right,
-    Top,
-    Bottom,
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
-/// Active drag state on a detached floating window.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum FloatingDragState {
-    Title { offset: Point },
-    Resize(FloatingResizeEdge),
-}
+pub use irisui::dock::{FloatingDragState, FloatingResizeEdge};
 
 /// The main UI management system for the Aeon Engine.
 /// Owns the Iris UI overlay pipeline, docking layout, and all persistent

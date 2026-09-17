@@ -30,7 +30,11 @@ pub use drag_drop::{
     DockDragState, DropZone, calculate_drop_preview_rect, calculate_drop_zone,
     calculate_leaf_half_drop_zone, calculate_screen_drop_zone,
 };
-pub use floating::FloatingWindow;
+pub use floating::{
+    FloatingDragState, FloatingResizeEdge, FloatingWindow, FloatingWindowClickAction,
+    FloatingWindowStyle, build_floating_windows_layer, detect_resize_edge,
+    evaluate_floating_window_click,
+};
 pub use layout::{
     ComputedDockLayout, ComputedFloatingLayout, DockLayoutOptions, LeafLayoutInfo,
     SplitterLayoutInfo, compute_dock_layout, compute_dock_layout_advanced,
