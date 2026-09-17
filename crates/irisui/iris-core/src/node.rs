@@ -39,6 +39,64 @@ pub enum WidgetRole {
     OscilloscopeCanvas,
 }
 
+/// Explicit rendering and interaction stacking layer (stacking context) in the UI hierarchy.
+/// Higher layers are drawn on top of lower layers and receive pointer interactions first.
+/// Furthermore, opaque containers in higher layers automatically occlude content and text
+/// located on lower layers, preventing visual bleeding and unwanted click-throughs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum UiLayer {
+    /// Background layer for canvases, grids, and desktop wallpaper beneath all content.
+    Background = 0,
+    /// Standard primary UI content layer for docked panels, toolbars, buttons, and inputs.
+    #[default]
+    Content = 1,
+    /// Floating tool windows, detached inspector palettes, and auxiliary tool dialogs.
+    Floating = 2,
+    /// Modal dialog windows and critical prompts that capture focus and occlude background interaction.
+    Modal = 3,
+    /// Floating popup elements, dropdown menus, context menus, and combo-box flyouts.
+    Popup = 4,
+    /// Top-most transient indicators, tooltips, drag badges, and cursor overlays.
+    Tooltip = 5,
+}
+
+impl UiLayer {
+    /// Returns the zero-based index of this layer, matching its numerical order (0 to 5).
+    #[inline]
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    /// All layers in order from lowest (Background) to highest (Tooltip).
+    pub const ALL: [UiLayer; 6] = [
+        UiLayer::Background,
+        UiLayer::Content,
+        UiLayer::Floating,
+        UiLayer::Modal,
+        UiLayer::Popup,
+        UiLayer::Tooltip,
+    ];
+}
+
+impl WidgetRole {
+    /// Returns the recommended default stacking layer for this widget role.
+    #[inline]
+    pub const fn default_layer(&self) -> UiLayer {
+        match self {
+            WidgetRole::Default | WidgetRole::Separator | WidgetRole::OscilloscopeCanvas => {
+                UiLayer::Content
+            }
+            WidgetRole::FloatingWindow => UiLayer::Floating,
+            WidgetRole::ModalWindow => UiLayer::Modal,
+            WidgetRole::DropdownPopup
+            | WidgetRole::DropdownItem
+            | WidgetRole::DropdownIcon
+            | WidgetRole::DropdownShortcut
+            | WidgetRole::DropdownLabel => UiLayer::Popup,
+        }
+    }
+}
+
 /// A single node in the Retained-Mode UI tree stored in the central arena.
 /// Each node holds hierarchical relationships (parent and children references via `WidgetId`),
 /// current style parameters, fine-grained dirty flags, cached layout coordinates, and optional text payload.
@@ -80,6 +138,8 @@ pub struct WidgetNode {
     pub interactive: bool,
     /// Semantic functional role for layout, rendering, and occlusion management.
     pub role: WidgetRole,
+    /// Explicit stacking layer for Z-ordering, occlusion culling, and hit-test priority.
+    pub layer: UiLayer,
     /// Optional debug name for inspection and profiling.
     pub name: Option<String>,
 }
@@ -112,21 +172,42 @@ impl WidgetNode {
             visible: true,
             interactive: true,
             role: WidgetRole::Default,
+            layer: UiLayer::Content,
             name: None,
         }
     }
 
-    /// Sets the semantic functional role of the node (builder style).
+    /// Sets the semantic functional role of the node, automatically updating the stacking layer if default.
     #[inline]
     pub fn with_role(mut self, role: WidgetRole) -> Self {
         self.role = role;
+        if self.layer == UiLayer::Content {
+            self.layer = role.default_layer();
+        }
         self
     }
 
-    /// Sets the semantic functional role on an existing mutable reference.
+    /// Sets the semantic functional role on an existing mutable reference, automatically updating layer if default.
     #[inline]
     pub fn set_role(&mut self, role: WidgetRole) -> &mut Self {
         self.role = role;
+        if self.layer == UiLayer::Content {
+            self.layer = role.default_layer();
+        }
+        self
+    }
+
+    /// Sets the explicit stacking layer of the node (builder style).
+    #[inline]
+    pub fn with_layer(mut self, layer: UiLayer) -> Self {
+        self.layer = layer;
+        self
+    }
+
+    /// Sets the explicit stacking layer on an existing mutable reference.
+    #[inline]
+    pub fn set_layer(&mut self, layer: UiLayer) -> &mut Self {
+        self.layer = layer;
         self
     }
 
@@ -254,5 +335,30 @@ mod tests {
 
         let canvas_node = WidgetNode::new(dummy_id).with_role(WidgetRole::OscilloscopeCanvas);
         assert_eq!(canvas_node.role, WidgetRole::OscilloscopeCanvas);
+    }
+
+    #[test]
+    fn test_ui_layer_ordering_and_defaults() {
+        assert!(UiLayer::Background < UiLayer::Content);
+        assert!(UiLayer::Content < UiLayer::Floating);
+        assert!(UiLayer::Floating < UiLayer::Modal);
+        assert!(UiLayer::Modal < UiLayer::Popup);
+        assert!(UiLayer::Popup < UiLayer::Tooltip);
+
+        let dummy_id = WidgetId::default();
+        let default_node = WidgetNode::new(dummy_id);
+        assert_eq!(default_node.layer, UiLayer::Content);
+
+        let modal_node = WidgetNode::new(dummy_id).with_role(WidgetRole::ModalWindow);
+        assert_eq!(modal_node.layer, UiLayer::Modal);
+
+        let popup_node = WidgetNode::new(dummy_id).with_role(WidgetRole::DropdownPopup);
+        assert_eq!(popup_node.layer, UiLayer::Popup);
+
+        let floating_node = WidgetNode::new(dummy_id).with_role(WidgetRole::FloatingWindow);
+        assert_eq!(floating_node.layer, UiLayer::Floating);
+
+        let custom_layer_node = WidgetNode::new(dummy_id).with_layer(UiLayer::Tooltip);
+        assert_eq!(custom_layer_node.layer, UiLayer::Tooltip);
     }
 }

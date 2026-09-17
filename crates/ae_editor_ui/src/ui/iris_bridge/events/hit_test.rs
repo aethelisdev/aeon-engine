@@ -55,6 +55,16 @@ impl IrisEditorOverlay {
         if point.y <= Self::MENUBAR_HEIGHT {
             return true;
         }
+        // Active modal window locks input across the entire screen
+        if self.tree.is_modal_active() {
+            return true;
+        }
+        // Native layer hit test: Modal and Popup layers take immediate priority
+        if let Some(layer) = self.tree.layer_at(point)
+            && layer >= UiLayer::Modal
+        {
+            return true;
+        }
         // Floating dropdown popup from menubar or docked panel popups have highest z-order
         if let Some(dd_rect) = self.menubar.dropdown_rect
             && dd_rect.contains_point(point)

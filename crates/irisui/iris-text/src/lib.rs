@@ -11,10 +11,14 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod collector;
 pub mod renderer;
 pub mod section;
 pub mod system;
 
+pub use collector::{
+    TextCollectionOptions, collect_text_sections, collect_text_sections_with_options,
+};
 pub use renderer::TextRenderer;
 pub use section::TextSection;
 pub use system::TextSystem;

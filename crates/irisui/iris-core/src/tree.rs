@@ -7,7 +7,7 @@ use crate::dirty::DirtyFlags;
 use crate::error::IrisCoreError;
 use crate::geometry::Point;
 use crate::id::WidgetId;
-use crate::node::WidgetNode;
+use crate::node::{UiLayer, WidgetNode};
 use slotmap::SlotMap;
 
 /// The central hierarchical arena storing all UI nodes.
@@ -252,6 +252,173 @@ impl UiTree {
         }
     }
 
+    /// Returns the effective stacking layer for a given node, taking parent layer inheritance into account.
+    pub fn effective_layer(&self, mut current_id: WidgetId) -> UiLayer {
+        let mut max_layer = UiLayer::Background;
+        while let Some(node) = self.nodes.get(current_id) {
+            if node.layer > max_layer {
+                max_layer = node.layer;
+            }
+            match node.parent {
+                Some(parent_id) => current_id = parent_id,
+                None => break,
+            }
+        }
+        if max_layer == UiLayer::Background {
+            UiLayer::Content
+        } else {
+            max_layer
+        }
+    }
+
+    /// Checks if any visible modal window currently exists within the tree.
+    /// When true, interaction with underlying background or docked panels is blocked.
+    pub fn is_modal_active(&self) -> bool {
+        self.nodes
+            .values()
+            .any(|n| n.visible && n.layer == UiLayer::Modal)
+    }
+
+    /// Performs layered screen-space hit testing, prioritizing higher `UiLayer` stacking contexts.
+    /// Traversal priority:
+    /// 1. `UiLayer::Tooltip`
+    /// 2. `UiLayer::Popup`
+    /// 3. `UiLayer::Modal`
+    /// 4. `UiLayer::Floating`
+    /// 5. `UiLayer::Content`
+    /// 6. `UiLayer::Background`
+    /// If an active `UiLayer::Modal` is visible on screen, hits on lower layers
+    /// (`Floating`, `Content`, `Background`) are blocked with zero heap allocations.
+    pub fn hit_test_layered(&self, point: Point) -> Option<WidgetId> {
+        let root_id = self.root?;
+        let mut layer_hits = [None; 6];
+        let mut has_active_modal = false;
+
+        self.hit_test_layered_recursive(
+            root_id,
+            point,
+            UiLayer::Content,
+            &mut layer_hits,
+            &mut has_active_modal,
+        );
+
+        // Tooltip (index 5)
+        if let Some(hit) = layer_hits[UiLayer::Tooltip.index()] {
+            return Some(hit);
+        }
+        // Popup (index 4)
+        if let Some(hit) = layer_hits[UiLayer::Popup.index()] {
+            return Some(hit);
+        }
+        // Modal (index 3)
+        if let Some(hit) = layer_hits[UiLayer::Modal.index()] {
+            return Some(hit);
+        }
+
+        // If an active modal is displayed on screen, lower layers cannot receive events
+        if has_active_modal {
+            return None;
+        }
+
+        // Floating (index 2)
+        if let Some(hit) = layer_hits[UiLayer::Floating.index()] {
+            return Some(hit);
+        }
+        // Content (index 1)
+        if let Some(hit) = layer_hits[UiLayer::Content.index()] {
+            return Some(hit);
+        }
+        // Background (index 0)
+        layer_hits[UiLayer::Background.index()]
+    }
+
+    fn hit_test_layered_recursive(
+        &self,
+        current_id: WidgetId,
+        point: Point,
+        inherited_layer: UiLayer,
+        layer_hits: &mut [Option<WidgetId>; 6],
+        has_active_modal: &mut bool,
+    ) {
+        let Some(node) = self.nodes.get(current_id) else {
+            return;
+        };
+        if !node.visible {
+            return;
+        }
+
+        let effective_layer = if node.layer > inherited_layer {
+            node.layer
+        } else {
+            inherited_layer
+        };
+
+        if effective_layer == UiLayer::Modal {
+            *has_active_modal = true;
+        }
+
+        if node.style.clip_children && !node.computed_rect.contains_point(point) {
+            return;
+        }
+
+        // Traverse children in reverse order (top-most sibling first)
+        for &child_id in node.children.iter().rev() {
+            self.hit_test_layered_recursive(
+                child_id,
+                point,
+                effective_layer,
+                layer_hits,
+                has_active_modal,
+            );
+        }
+
+        if node.interactive && node.computed_rect.contains_point(point) {
+            let idx = effective_layer.index();
+            if layer_hits[idx].is_none() {
+                layer_hits[idx] = Some(current_id);
+            }
+        }
+    }
+
+    /// Returns the highest `UiLayer` present under the given screen-space point.
+    pub fn layer_at(&self, point: Point) -> Option<UiLayer> {
+        let root_id = self.root?;
+        let mut highest: Option<UiLayer> = None;
+        self.find_layer_at_recursive(root_id, point, UiLayer::Content, &mut highest);
+        highest
+    }
+
+    fn find_layer_at_recursive(
+        &self,
+        current_id: WidgetId,
+        point: Point,
+        inherited_layer: UiLayer,
+        highest: &mut Option<UiLayer>,
+    ) {
+        let Some(node) = self.nodes.get(current_id) else {
+            return;
+        };
+        if !node.visible {
+            return;
+        }
+        let effective_layer = if node.layer > inherited_layer {
+            node.layer
+        } else {
+            inherited_layer
+        };
+
+        if node.computed_rect.contains_point(point) {
+            *highest = match *highest {
+                Some(prev) => Some(prev.max(effective_layer)),
+                None => Some(effective_layer),
+            };
+        }
+
+        for &child_id in &node.children {
+            self.find_layer_at_recursive(child_id, point, effective_layer, highest);
+        }
+    }
+
     /// Checks if `potential_descendant` is a descendant of `ancestor`.
     fn is_descendant_of(&self, potential_descendant: WidgetId, ancestor: WidgetId) -> bool {
         let mut current = Some(potential_descendant);
@@ -272,5 +439,76 @@ impl UiTree {
                 self.collect_subtree(child_id, list);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::geometry::Rect;
+
+    #[test]
+    fn test_hit_test_layered_priority() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1000.0, 1000.0);
+        }
+
+        let content_btn = tree.create_node();
+        if let Some(node) = tree.get_mut(content_btn) {
+            node.computed_rect = Rect::new(100.0, 100.0, 200.0, 50.0);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, content_btn).unwrap();
+
+        let popup_item = tree.create_node();
+        if let Some(node) = tree.get_mut(popup_item) {
+            // Popup overlaps content button directly
+            node.computed_rect = Rect::new(150.0, 100.0, 100.0, 100.0);
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(root, popup_item).unwrap();
+
+        // Hit point inside both popup and content button: Popup MUST win!
+        let hit = tree.hit_test_layered(Point::new(160.0, 120.0));
+        assert_eq!(hit, Some(popup_item));
+
+        // Hit point inside content button only
+        let hit2 = tree.hit_test_layered(Point::new(110.0, 120.0));
+        assert_eq!(hit2, Some(content_btn));
+    }
+
+    #[test]
+    fn test_hit_test_layered_modal_blocking() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1000.0, 1000.0);
+        }
+
+        let bg_btn = tree.create_node();
+        if let Some(node) = tree.get_mut(bg_btn) {
+            node.computed_rect = Rect::new(50.0, 50.0, 100.0, 50.0);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, bg_btn).unwrap();
+
+        let modal_dlg = tree.create_node();
+        if let Some(node) = tree.get_mut(modal_dlg) {
+            node.computed_rect = Rect::new(300.0, 200.0, 400.0, 300.0);
+            node.layer = UiLayer::Modal;
+        }
+        tree.add_child(root, modal_dlg).unwrap();
+
+        assert!(tree.is_modal_active());
+
+        // Inside modal: hits modal
+        let hit_modal = tree.hit_test_layered(Point::new(350.0, 250.0));
+        assert_eq!(hit_modal, Some(modal_dlg));
+
+        // Outside modal over bg_btn: blocked by active modal!
+        let hit_outside = tree.hit_test_layered(Point::new(60.0, 60.0));
+        assert_eq!(hit_outside, None);
     }
 }
