@@ -14,6 +14,7 @@ pub const ABOUT_DIALOG_WIDTH: f32 = 480.0;
 pub const ABOUT_DIALOG_HEIGHT: f32 = 250.0;
 
 /// Interactive hit targets returned by the About dialog layout builder.
+#[derive(Debug, Clone)]
 pub struct AboutDialogTargets {
     /// Full bounding box of the dialog card.
     pub dialog_rect: Rect,

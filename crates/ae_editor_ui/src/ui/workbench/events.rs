@@ -14,7 +14,7 @@ impl EngineUi {
     /// Forwards winit window events to Iris UI and the native dock coordinator.
     pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
-        self.iris_overlay.floating_window_rects = self
+        self.iris_overlay.chrome.floating_window_rects = self
             .layout_state
             .dock_state
             .floating_windows
@@ -85,12 +85,12 @@ impl EngineUi {
             && let Some(parent) = self.asset_browser.new_folder_parent.take()
         {
             let _ = crate::ui::panels::assets::file_ops::create_subfolder(&parent, &folder_name);
-            self.iris_overlay.new_folder_buffer.clear();
+            self.iris_overlay.modals.new_folder_buffer.clear();
             self.asset_browser.new_folder_name.clear();
         }
         if iris_res.cancel_new_folder {
             self.asset_browser.new_folder_parent = None;
-            self.iris_overlay.new_folder_buffer.clear();
+            self.iris_overlay.modals.new_folder_buffer.clear();
             self.asset_browser.new_folder_name.clear();
         }
 
@@ -101,11 +101,11 @@ impl EngineUi {
                 &ren.target_path,
                 &new_name,
             );
-            self.iris_overlay.rename_buffer.clear();
+            self.iris_overlay.modals.rename_buffer.clear();
         }
         if iris_res.cancel_rename {
             self.asset_browser.rename_state = None;
-            self.iris_overlay.rename_buffer.clear();
+            self.iris_overlay.modals.rename_buffer.clear();
         }
 
         if iris_res.clear_console_entries {
@@ -118,7 +118,7 @@ impl EngineUi {
             event: key_event, ..
         } = event
             && key_event.state == ElementState::Pressed
-            && self.iris_overlay.ctrl_held
+            && self.iris_overlay.chrome.ctrl_held
             && !self.wants_keyboard_input()
         {
             let mut scale_changed = false;
@@ -164,7 +164,7 @@ impl EngineUi {
         }
 
         // Hierarchy search bar live typing
-        if self.iris_overlay.hierarchy_is_search_focused
+        if self.iris_overlay.hierarchy.is_search_focused
             && let WindowEvent::KeyboardInput {
                 event: key_event, ..
             } = event
@@ -173,26 +173,26 @@ impl EngineUi {
             if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) =
                 key_event.logical_key
             {
-                self.iris_overlay.hierarchy_is_search_focused = false;
+                self.iris_overlay.hierarchy.is_search_focused = false;
                 return true;
             }
             if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
                 key_event.logical_key
             {
-                self.iris_overlay.hierarchy_search_query.pop();
+                self.iris_overlay.hierarchy.search_query.pop();
                 return true;
             }
             if let Some(text) = &key_event.text {
                 for c in text.chars() {
                     if !c.is_control() {
-                        self.iris_overlay.hierarchy_search_query.push(c);
+                        self.iris_overlay.hierarchy.search_query.push(c);
                     }
                 }
                 return true;
             }
         }
 
-        let p = self.iris_overlay.cursor_pos;
+        let p = self.iris_overlay.cursor_pos();
         let win_size = window.inner_size();
         let screen_w = win_size.width as f32 / zoom;
         let screen_h = win_size.height as f32 / zoom;
@@ -513,7 +513,7 @@ impl EngineUi {
 
                 if !dock_consumed
                     && !is_over_floating
-                    && let Some(ref frame) = self.iris_overlay.native_dock_frame
+                    && let Some(ref frame) = self.iris_overlay.chrome.native_dock_frame
                 {
                     // Close buttons
                     if let Some(target) = frame
@@ -604,7 +604,7 @@ impl EngineUi {
             || (matches!(event, WindowEvent::CursorMoved { .. })
                 && self
                     .iris_overlay
-                    .is_point_over_overlay(self.iris_overlay.cursor_pos))
+                    .is_point_over_overlay(self.iris_overlay.cursor_pos()))
         {
             self.iris_overlay.notifier.tag_all();
         }
@@ -617,18 +617,18 @@ impl EngineUi {
 
         // 1. Top menubar & active modal dialogs / preferences / popups (always highest z-order)
         if pos[1] <= IrisEditorOverlay::MENUBAR_HEIGHT
-            || self.iris_overlay.about_targets.is_some()
-            || self.iris_overlay.delete_targets.is_some()
-            || self.iris_overlay.new_folder_targets.is_some()
-            || self.iris_overlay.rename_targets.is_some()
-            || self.iris_overlay.loading_targets.is_some()
-            || self.iris_overlay.assets_preview_modal.is_some()
+            || self.iris_overlay.modals.about_targets.is_some()
+            || self.iris_overlay.modals.delete_targets.is_some()
+            || self.iris_overlay.modals.new_folder_targets.is_some()
+            || self.iris_overlay.modals.rename_targets.is_some()
+            || self.iris_overlay.modals.loading_targets.is_some()
+            || self.iris_overlay.assets.preview_modal.is_some()
             || self.ui_rects.iter().any(|rect| rect.contains_point(point))
         {
             return true;
         }
 
-        if let Some(ref targets) = self.iris_overlay.preferences_targets
+        if let Some(ref targets) = self.iris_overlay.preferences.targets
             && (targets.card_rect.contains_point(point)
                 || targets
                     .active_dropdown_popup_rect
@@ -637,7 +637,7 @@ impl EngineUi {
             return true;
         }
 
-        if let Some(dd_rect) = self.iris_overlay.dropdown_rect
+        if let Some(dd_rect) = self.iris_overlay.menubar.dropdown_rect
             && dd_rect.contains_point(point)
         {
             return true;
@@ -646,7 +646,7 @@ impl EngineUi {
         // 2. If the point is inside the active 3D viewport canvas (docked or floating)
         if self.last_viewport_rect.contains_point(point) {
             // Check if there are Viewport HUD interactive controls (toolbar buttons, dropdown, compass, billboard icons)
-            if let Some(ref hud) = self.iris_overlay.viewport_hud_targets {
+            if let Some(ref hud) = self.iris_overlay.viewport_hud.targets {
                 if let Some(dd_rect) = hud.active_dropdown_popup_rect
                     && dd_rect.contains_point(point)
                 {

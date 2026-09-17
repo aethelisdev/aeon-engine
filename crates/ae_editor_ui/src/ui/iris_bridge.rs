@@ -68,7 +68,10 @@ pub use timeline::{
     handle_timeline_click, handle_timeline_drag,
 };
 pub use types::{
-    ActiveMenu, DropdownAction, IrisEditorOverlay, IrisOverlayEventResult, OverlayUpdateParams,
+    ActiveMenu, DialogParams, DropdownAction, EditorContextParams, IrisChromeState,
+    IrisEditorOverlay, IrisOverlayEventResult, MenubarOverlayState, OverlayPanelData,
+    OverlayPanelRects, OverlayPreferencesParams, OverlayUpdateParams, PanelInteractionState,
+    SceneParams, TelemetryParams, ViewportParams,
 };
 pub use ui_designer::{
     CanvasAspectRatio, UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelTargets,

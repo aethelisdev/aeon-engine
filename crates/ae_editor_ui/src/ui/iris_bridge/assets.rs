@@ -32,5 +32,5 @@ pub use panel::build_assets_panel;
 pub use types::{
     AssetCardTarget, AssetPreviewModalState, AssetPreviewModalTargets, AssetRowTarget,
     AssetsContextMenuTarget, AssetsContextMenuTargets, AssetsPanelAction, AssetsPanelParams,
-    AssetsPanelTargets, BreadcrumbTarget, FolderTreeNodeTarget,
+    AssetsPanelState, AssetsPanelTargets, BreadcrumbTarget, FolderTreeNodeTarget,
 };

@@ -68,3 +68,29 @@ pub enum TimelineAction {
     /// Adds an AnimationPlayer component to the currently selected entity.
     AddAnimationPlayer(hecs::Entity),
 }
+
+/// Persistent interactive state for the Animation Timeline Studio panel overlay.
+#[derive(Debug, Default, Clone)]
+pub struct TimelinePanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions:
+        crate::ui::iris_bridge::types::PanelInteractionState<TimelinePanelTargets, TimelineAction>,
+    /// Whether user is actively dragging the timeline scrubber playhead needle.
+    pub is_dragging: bool,
+    /// Selected entity handle cached for timeline interactions.
+    pub selected_entity: Option<hecs::Entity>,
+}
+
+impl std::ops::Deref for TimelinePanelState {
+    type Target =
+        crate::ui::iris_bridge::types::PanelInteractionState<TimelinePanelTargets, TimelineAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for TimelinePanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}

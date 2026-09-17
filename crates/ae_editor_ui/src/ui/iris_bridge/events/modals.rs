@@ -16,7 +16,7 @@ impl IrisEditorOverlay {
         let mut result = IrisOverlayEventResult::default();
 
         // 1. If About modal is active
-        if let Some(ref targets) = self.about_targets {
+        if let Some(ref targets) = self.modals.about_targets {
             match event {
                 WindowEvent::KeyboardInput {
                     event:
@@ -38,7 +38,7 @@ impl IrisEditorOverlay {
                     button: WinitMouseButton::Left,
                     ..
                 } => {
-                    let click_point = self.cursor_pos;
+                    let click_point = self.cursor_pos();
                     if targets.header_close_rect.contains_point(click_point)
                         || targets.bottom_close_rect.contains_point(click_point)
                     {
@@ -64,7 +64,7 @@ impl IrisEditorOverlay {
         }
 
         // 2. If Delete Confirmation modal is active
-        if let Some(ref targets) = self.delete_targets {
+        if let Some(ref targets) = self.modals.delete_targets {
             match event {
                 WindowEvent::KeyboardInput {
                     event:
@@ -92,7 +92,7 @@ impl IrisEditorOverlay {
                     button: WinitMouseButton::Left,
                     ..
                 } => {
-                    let click_point = self.cursor_pos;
+                    let click_point = self.cursor_pos();
                     if targets.header_close_rect.contains_point(click_point)
                         || targets.cancel_btn_rect.contains_point(click_point)
                     {
@@ -118,10 +118,10 @@ impl IrisEditorOverlay {
         }
 
         // 3. If New Folder modal is active
-        if let Some(ref targets) = self.new_folder_targets {
+        if let Some(ref targets) = self.modals.new_folder_targets {
             match event {
                 WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                    self.new_folder_buffer.push_str(text);
+                    self.modals.new_folder_buffer.push_str(text);
                     result.consumed = true;
                     return Some(result);
                 }
@@ -141,14 +141,14 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
                     winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                        if !self.new_folder_buffer.trim().is_empty() {
-                            result.create_folder = Some(self.new_folder_buffer.clone());
+                        if !self.modals.new_folder_buffer.trim().is_empty() {
+                            result.create_folder = Some(self.modals.new_folder_buffer.clone());
                         }
                         result.consumed = true;
                         return Some(result);
                     }
                     winit::keyboard::KeyCode::Backspace => {
-                        self.new_folder_buffer.pop();
+                        self.modals.new_folder_buffer.pop();
                         result.consumed = true;
                         return Some(result);
                     }
@@ -156,7 +156,7 @@ impl IrisEditorOverlay {
                         if let Some(t) = text
                             && !t.chars().any(|c| c.is_control())
                         {
-                            self.new_folder_buffer.push_str(t);
+                            self.modals.new_folder_buffer.push_str(t);
                             result.consumed = true;
                             return Some(result);
                         }
@@ -167,7 +167,7 @@ impl IrisEditorOverlay {
                     button: WinitMouseButton::Left,
                     ..
                 } => {
-                    let click_point = self.cursor_pos;
+                    let click_point = self.cursor_pos();
                     if targets.header_close_rect.contains_point(click_point)
                         || targets.cancel_btn_rect.contains_point(click_point)
                     {
@@ -176,8 +176,8 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
                     if targets.confirm_btn_rect.contains_point(click_point) {
-                        if !self.new_folder_buffer.trim().is_empty() {
-                            result.create_folder = Some(self.new_folder_buffer.clone());
+                        if !self.modals.new_folder_buffer.trim().is_empty() {
+                            result.create_folder = Some(self.modals.new_folder_buffer.clone());
                         }
                         result.consumed = true;
                         return Some(result);
@@ -195,10 +195,10 @@ impl IrisEditorOverlay {
         }
 
         // 4. If Rename modal is active
-        if let Some(ref targets) = self.rename_targets {
+        if let Some(ref targets) = self.modals.rename_targets {
             match event {
                 WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                    self.rename_buffer.push_str(text);
+                    self.modals.rename_buffer.push_str(text);
                     result.consumed = true;
                     return Some(result);
                 }
@@ -218,14 +218,14 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
                     winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                        if !self.rename_buffer.trim().is_empty() {
-                            result.apply_rename = Some(self.rename_buffer.clone());
+                        if !self.modals.rename_buffer.trim().is_empty() {
+                            result.apply_rename = Some(self.modals.rename_buffer.clone());
                         }
                         result.consumed = true;
                         return Some(result);
                     }
                     winit::keyboard::KeyCode::Backspace => {
-                        self.rename_buffer.pop();
+                        self.modals.rename_buffer.pop();
                         result.consumed = true;
                         return Some(result);
                     }
@@ -233,7 +233,7 @@ impl IrisEditorOverlay {
                         if let Some(t) = text
                             && !t.chars().any(|c| c.is_control())
                         {
-                            self.rename_buffer.push_str(t);
+                            self.modals.rename_buffer.push_str(t);
                             result.consumed = true;
                             return Some(result);
                         }
@@ -244,7 +244,7 @@ impl IrisEditorOverlay {
                     button: WinitMouseButton::Left,
                     ..
                 } => {
-                    let click_point = self.cursor_pos;
+                    let click_point = self.cursor_pos();
                     if targets.header_close_rect.contains_point(click_point)
                         || targets.cancel_btn_rect.contains_point(click_point)
                     {
@@ -253,8 +253,8 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
                     if targets.confirm_btn_rect.contains_point(click_point) {
-                        if !self.rename_buffer.trim().is_empty() {
-                            result.apply_rename = Some(self.rename_buffer.clone());
+                        if !self.modals.rename_buffer.trim().is_empty() {
+                            result.apply_rename = Some(self.modals.rename_buffer.clone());
                         }
                         result.consumed = true;
                         return Some(result);

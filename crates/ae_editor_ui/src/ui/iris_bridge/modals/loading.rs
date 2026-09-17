@@ -14,6 +14,7 @@ pub const LOADING_CARD_WIDTH: f32 = 300.0;
 pub const LOADING_CARD_HEIGHT: f32 = 104.0;
 
 /// Interactive boundary targets for the loading overlay.
+#[derive(Debug, Clone)]
 pub struct LoadingOverlayTargets {
     /// Full screen bounding box of the blocker scrim.
     pub scrim_rect: Rect,

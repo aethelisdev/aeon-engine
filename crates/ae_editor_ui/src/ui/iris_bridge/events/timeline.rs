@@ -17,7 +17,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.timeline_targets.as_ref()?;
+        let targets = self.timeline.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         // 1. Mouse Click handling
@@ -27,16 +27,16 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let click_point = self.cursor_pos;
+            let click_point = self.cursor_pos();
             if let Some((action, start_dragging)) = super::super::timeline::handle_timeline_click(
                 targets,
                 click_point,
-                self.timeline_selected_entity,
+                self.timeline.selected_entity,
             ) {
                 if start_dragging {
-                    self.timeline_is_dragging = true;
+                    self.timeline.is_dragging = true;
                 }
-                self.timeline_actions.push(action);
+                self.timeline.actions.push(action);
                 result.consumed = true;
                 return Some(result);
             }
@@ -53,20 +53,20 @@ impl IrisEditorOverlay {
             button: WinitMouseButton::Left,
             ..
         } = event
-            && self.timeline_is_dragging
+            && self.timeline.is_dragging
         {
-            self.timeline_is_dragging = false;
+            self.timeline.is_dragging = false;
             result.consumed = true;
             return Some(result);
         }
 
         // 3. Cursor movement while dragging scrubber
         if let WindowEvent::CursorMoved { .. } = event
-            && self.timeline_is_dragging
+            && self.timeline.is_dragging
             && let Some(action) =
-                super::super::timeline::handle_timeline_drag(targets, self.cursor_pos)
+                super::super::timeline::handle_timeline_drag(targets, self.cursor_pos())
         {
-            self.timeline_actions.push(action);
+            self.timeline.actions.push(action);
             result.consumed = true;
             return Some(result);
         }

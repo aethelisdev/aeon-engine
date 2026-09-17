@@ -14,10 +14,10 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        if self.inspector_active_number_input.is_none()
-            && self.inspector_active_text_input.is_none()
-            && self.inspector_rename_buffer.is_none()
-            && self.inspector_hex_buffer.is_none()
+        if self.inspector.active_number_input.is_none()
+            && self.inspector.active_text_input.is_none()
+            && self.inspector.rename_buffer.is_none()
+            && self.inspector.hex_buffer.is_none()
         {
             return None;
         }
@@ -25,7 +25,7 @@ impl IrisEditorOverlay {
         let mut result = IrisOverlayEventResult::default();
         match event {
             WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                if let Some(ref mut session) = self.inspector_active_number_input {
+                if let Some(ref mut session) = self.inspector.active_number_input {
                     if session.is_all_selected {
                         session.buffer.clear();
                         session.cursor_idx = 0;
@@ -40,17 +40,17 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     return Some(result);
                 }
-                if let Some((_, _, ref mut buf)) = self.inspector_active_text_input {
+                if let Some((_, _, ref mut buf)) = self.inspector.active_text_input {
                     buf.push_str(text);
                     result.consumed = true;
                     return Some(result);
                 }
-                if let Some((_, ref mut buf)) = self.inspector_rename_buffer {
+                if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
                     buf.push_str(text);
                     result.consumed = true;
                     return Some(result);
                 }
-                if let Some((entity, ref mut buf)) = self.inspector_hex_buffer {
+                if let Some((entity, ref mut buf)) = self.inspector.hex_buffer {
                     for c in text.chars() {
                         if (c.is_ascii_hexdigit() || c == '#') && buf.len() < 7 {
                             buf.push(c);
@@ -63,7 +63,7 @@ impl IrisEditorOverlay {
                         let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
                         let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
                         let b = (rgb & 0xFF) as f32 / 255.0;
-                        self.inspector_actions.push(InspectorAction::SetObjectColor(
+                        self.inspector.actions.push(InspectorAction::SetObjectColor(
                             entity,
                             Color::rgba(r, g, b, 1.0),
                         ));
@@ -82,24 +82,25 @@ impl IrisEditorOverlay {
                     },
                 ..
             } => {
-                if self.inspector_active_text_input.is_some() {
+                if self.inspector.active_text_input.is_some() {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {
-                            self.inspector_active_text_input = None;
+                            self.inspector.active_text_input = None;
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some((entity, id, buf)) = self.inspector_active_text_input.take()
+                            if let Some((entity, id, buf)) = self.inspector.active_text_input.take()
                             {
-                                self.inspector_actions
+                                self.inspector
+                                    .actions
                                     .push(InspectorAction::SetTextValue(entity, id, buf));
                             }
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, _, ref mut buf)) = self.inspector_active_text_input {
+                            if let Some((_, _, ref mut buf)) = self.inspector.active_text_input {
                                 buf.pop();
                             }
                             result.consumed = true;
@@ -107,7 +108,7 @@ impl IrisEditorOverlay {
                         }
                         _ => {
                             if let Some(t) = text
-                                && let Some((_, _, ref mut buf)) = self.inspector_active_text_input
+                                && let Some((_, _, ref mut buf)) = self.inspector.active_text_input
                                 && !t.chars().any(|c| c.is_control())
                             {
                                 buf.push_str(t);
@@ -117,16 +118,16 @@ impl IrisEditorOverlay {
                         }
                     }
                 }
-                if self.inspector_active_number_input.is_some() {
+                if self.inspector.active_number_input.is_some() {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {
-                            self.inspector_active_number_input = None;
-                            self.inspector_edit_start_snapshot = None;
+                            self.inspector.active_number_input = None;
+                            self.inspector.edit_start_snapshot = None;
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some(session) = self.inspector_active_number_input.take() {
+                            if let Some(session) = self.inspector.active_number_input.take() {
                                 if let Ok(v) = inspector::evaluate_inspector_math(
                                     &session.buffer,
                                     session.initial_val,
@@ -134,25 +135,26 @@ impl IrisEditorOverlay {
                                     let clamped_v = session
                                         .id
                                         .clamp_value(v.clamp(session.min_val, session.max_val));
-                                    self.inspector_actions.push(InspectorAction::SetNumberValue(
+                                    self.inspector.actions.push(InspectorAction::SetNumberValue(
                                         session.entity,
                                         session.id,
                                         clamped_v,
                                     ));
-                                    self.inspector_actions
+                                    self.inspector
+                                        .actions
                                         .push(InspectorAction::CommitNumberEdit(
                                             session.entity,
                                             session.id,
                                         ));
                                 } else {
-                                    self.inspector_edit_start_snapshot = None;
+                                    self.inspector.edit_start_snapshot = None;
                                 }
                             }
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::ArrowLeft => {
-                            if let Some(ref mut session) = self.inspector_active_number_input {
+                            if let Some(ref mut session) = self.inspector.active_number_input {
                                 session.is_all_selected = false;
                                 if session.cursor_idx > 0 {
                                     session.cursor_idx = session.buffer[..session.cursor_idx]
@@ -166,7 +168,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::ArrowRight => {
-                            if let Some(ref mut session) = self.inspector_active_number_input {
+                            if let Some(ref mut session) = self.inspector.active_number_input {
                                 session.is_all_selected = false;
                                 if session.cursor_idx < session.buffer.len() {
                                     session.cursor_idx = session.buffer[session.cursor_idx..]
@@ -180,7 +182,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Home => {
-                            if let Some(ref mut session) = self.inspector_active_number_input {
+                            if let Some(ref mut session) = self.inspector.active_number_input {
                                 session.is_all_selected = false;
                                 session.cursor_idx = 0;
                             }
@@ -188,7 +190,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::End => {
-                            if let Some(ref mut session) = self.inspector_active_number_input {
+                            if let Some(ref mut session) = self.inspector.active_number_input {
                                 session.is_all_selected = false;
                                 session.cursor_idx = session.buffer.len();
                             }
@@ -196,7 +198,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Backspace => {
-                            if let Some(ref mut session) = self.inspector_active_number_input {
+                            if let Some(ref mut session) = self.inspector.active_number_input {
                                 if session.is_all_selected {
                                     session.buffer.clear();
                                     session.cursor_idx = 0;
@@ -215,7 +217,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Delete => {
-                            if let Some(ref mut session) = self.inspector_active_number_input {
+                            if let Some(ref mut session) = self.inspector.active_number_input {
                                 if session.is_all_selected {
                                     session.buffer.clear();
                                     session.cursor_idx = 0;
@@ -234,7 +236,7 @@ impl IrisEditorOverlay {
                         }
                         _ => {
                             if let Some(t) = text
-                                && let Some(ref mut session) = self.inspector_active_number_input
+                                && let Some(ref mut session) = self.inspector.active_number_input
                             {
                                 if session.is_all_selected {
                                     session.buffer.clear();
@@ -253,25 +255,26 @@ impl IrisEditorOverlay {
                         }
                     }
                 }
-                if self.inspector_rename_buffer.is_some() {
+                if self.inspector.rename_buffer.is_some() {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {
-                            self.inspector_rename_buffer = None;
+                            self.inspector.rename_buffer = None;
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some((entity, buf)) = self.inspector_rename_buffer.take()
+                            if let Some((entity, buf)) = self.inspector.rename_buffer.take()
                                 && !buf.trim().is_empty()
                             {
-                                self.inspector_actions
+                                self.inspector
+                                    .actions
                                     .push(InspectorAction::RenameEntity(entity, buf));
                             }
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, ref mut buf)) = self.inspector_rename_buffer {
+                            if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
                                 buf.pop();
                             }
                             result.consumed = true;
@@ -279,7 +282,7 @@ impl IrisEditorOverlay {
                         }
                         _ => {
                             if let Some(t) = text
-                                && let Some((_, ref mut buf)) = self.inspector_rename_buffer
+                                && let Some((_, ref mut buf)) = self.inspector.rename_buffer
                                 && !t.chars().any(|c| c.is_control())
                             {
                                 buf.push_str(t);
@@ -289,15 +292,15 @@ impl IrisEditorOverlay {
                         }
                     }
                 }
-                if self.inspector_hex_buffer.is_some() {
+                if self.inspector.hex_buffer.is_some() {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {
-                            self.inspector_hex_buffer = None;
+                            self.inspector.hex_buffer = None;
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some((entity, buf)) = self.inspector_hex_buffer.take() {
+                            if let Some((entity, buf)) = self.inspector.hex_buffer.take() {
                                 let clean_hex = buf.trim_start_matches('#');
                                 if (clean_hex.len() == 6 || clean_hex.len() == 3)
                                     && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
@@ -315,7 +318,7 @@ impl IrisEditorOverlay {
                                             ((rgb & 0xF) * 17) as f32 / 255.0,
                                         )
                                     };
-                                    self.inspector_actions.push(InspectorAction::SetObjectColor(
+                                    self.inspector.actions.push(InspectorAction::SetObjectColor(
                                         entity,
                                         Color::rgba(r, g, b, 1.0),
                                     ));
@@ -325,7 +328,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, ref mut buf)) = self.inspector_hex_buffer {
+                            if let Some((_, ref mut buf)) = self.inspector.hex_buffer {
                                 buf.pop();
                                 if buf.is_empty() {
                                     buf.push('#');
@@ -336,7 +339,7 @@ impl IrisEditorOverlay {
                         }
                         _ => {
                             if let Some(t) = text
-                                && let Some((entity, ref mut buf)) = self.inspector_hex_buffer
+                                && let Some((entity, ref mut buf)) = self.inspector.hex_buffer
                             {
                                 for c in t.chars() {
                                     if (c.is_ascii_hexdigit() || c == '#') && buf.len() < 7 {
@@ -350,7 +353,7 @@ impl IrisEditorOverlay {
                                     let r = ((rgb >> 16) & 0xFF) as f32 / 255.0;
                                     let g = ((rgb >> 8) & 0xFF) as f32 / 255.0;
                                     let b = (rgb & 0xFF) as f32 / 255.0;
-                                    self.inspector_actions.push(InspectorAction::SetObjectColor(
+                                    self.inspector.actions.push(InspectorAction::SetObjectColor(
                                         entity,
                                         Color::rgba(r, g, b, 1.0),
                                     ));

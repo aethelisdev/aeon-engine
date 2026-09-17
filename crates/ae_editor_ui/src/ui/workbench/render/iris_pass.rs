@@ -48,7 +48,7 @@ impl EngineUi {
     /// Updates Iris UI overlays (Menubar, Toolbar, Inspector, Hierarchy, Modals) and renders them to WGPU.
     pub fn execute_iris_pass(&mut self, params: IrisPassParams<'_>) {
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
-        self.iris_overlay.floating_window_rects = self
+        self.iris_overlay.chrome.floating_window_rects = self
             .layout_state
             .dock_state
             .floating_windows
@@ -62,7 +62,7 @@ impl EngineUi {
             params.window.set_cursor(requested_cursor);
         } else if self
             .iris_overlay
-            .is_point_over_overlay(self.iris_overlay.cursor_pos)
+            .is_point_over_overlay(self.iris_overlay.cursor_pos())
         {
             params.window.set_cursor(winit::window::CursorIcon::Default);
         }
@@ -79,19 +79,19 @@ impl EngineUi {
         let delete_target = self.asset_browser.delete_confirmation.as_deref();
 
         if self.asset_browser.new_folder_parent.is_some()
-            && self.iris_overlay.new_folder_buffer.is_empty()
+            && self.iris_overlay.modals.new_folder_buffer.is_empty()
             && !self.asset_browser.new_folder_name.is_empty()
         {
-            self.iris_overlay.new_folder_buffer = self.asset_browser.new_folder_name.clone();
+            self.iris_overlay.modals.new_folder_buffer = self.asset_browser.new_folder_name.clone();
         }
 
         let new_folder_parent = self.asset_browser.new_folder_parent.as_deref();
 
         if let Some(ref ren) = self.asset_browser.rename_state
-            && self.iris_overlay.rename_buffer.is_empty()
+            && self.iris_overlay.modals.rename_buffer.is_empty()
             && !ren.current_name.is_empty()
         {
-            self.iris_overlay.rename_buffer = ren.current_name.clone();
+            self.iris_overlay.modals.rename_buffer = ren.current_name.clone();
         }
 
         let rename_target = self
@@ -113,7 +113,7 @@ impl EngineUi {
             .map(|(spans, _)| spans.as_slice());
 
         if let Some(entity) = self.selected_entity
-            && self.iris_overlay.inspector_color_drag_mode.is_none()
+            && self.iris_overlay.inspector.color_drag_mode.is_none()
         {
             let col = params
                 .world
@@ -126,7 +126,7 @@ impl EngineUi {
                     a: 1.0,
                 });
             let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
-            self.iris_overlay.inspector_hsv = [h, s, v];
+            self.iris_overlay.inspector.hsv = [h, s, v];
             let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
             let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
             let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
@@ -135,63 +135,78 @@ impl EngineUi {
 
         self.iris_overlay
             .update_overlays(iris_bridge::OverlayUpdateParams {
-                dimensions: (logical_w, logical_h),
-                is_editing: params.is_editing,
-                is_2d: params.is_2d_mode,
-                layout_state: &self.layout_state,
-                can_undo: !params.undo_stack.is_empty(),
-                can_redo: !params.redo_stack.is_empty(),
-                show_about: self.show_about,
-                show_preferences: self.show_preferences,
-                graphics_settings: params.graphics_settings,
-                snapping_settings: params.snapping_settings,
-                editor_config: params.editor_config,
-                enable_live_updates: params.enable_live_updates,
-                enabled_modules: params.enabled_modules,
-                zoom_factor: zoom,
-                delete_target,
-                new_folder_parent,
-                rename_target,
-                is_loading_assets: self.is_loading_assets,
-                status_spans,
-                has_viewport_texture: params.viewport_texture_view.is_some(),
-                viewport_rect: params.viewport_rect,
-                camera: params.camera,
-                wireframe_enabled: self.wireframe_enabled,
-                gizmo_mode: self.gizmo_mode,
-                gizmo_space: self.gizmo_space,
-                selected_entity: self.selected_entity,
-                world: params.world,
-                stats_panel_rect: params.stats_panel_rect,
-                hierarchy_panel_rect: params.hierarchy_panel_rect,
-                inspector_panel_rect: params.inspector_panel_rect,
-                console_panel_rect: params.console_panel_rect,
-                assets_panel_rect: params.assets_panel_rect,
-                timeline_panel_rect: params.timeline_panel_rect,
-                material_panel_rect: params.material_panel_rect,
-                ui_designer_panel_rect: params.ui_designer_panel_rect,
-                ui_designer_state: &self.ui_designer_state,
-                textures: params.textures,
-                models: params.models,
-                asset_browser: &self.asset_browser,
-                console_entries: &self.console_entries,
-                inspector_euler: &mut self.inspector_euler,
-                inspector_color_hex: &mut self.inspector_color_hex,
-                saved_swatches: &mut self.saved_swatches,
-                grid_enabled: self.grid_enabled,
-                fps: self.fps,
-                frame_pacing: &self.frame_pacing,
-                frame_pacing_stats: &self.frame_pacing_stats,
-                cpu_timings: &self.cpu_timings,
-                gpu_pass_timings: &self.gpu_pass_timings,
-                draw_call_stats: &self.draw_call_stats,
-                vram_stats: &self.vram_stats,
-                render_triangles: self.render_triangles,
-                render_vertices: self.render_vertices,
-                gpu_adapter_name: &self.gpu_adapter_name,
-                gpu_backend: &self.gpu_backend,
-                active_entities_count: params.world.len() as usize,
-                is_2d_mode: params.is_2d_mode,
+                context: iris_bridge::EditorContextParams {
+                    dimensions: (logical_w, logical_h),
+                    zoom_factor: zoom,
+                    is_editing: params.is_editing,
+                    is_2d_mode: params.is_2d_mode,
+                    layout_state: &self.layout_state,
+                    can_undo: !params.undo_stack.is_empty(),
+                    can_redo: !params.redo_stack.is_empty(),
+                    enable_live_updates: params.enable_live_updates,
+                    status_spans,
+                },
+                viewport: iris_bridge::ViewportParams {
+                    has_viewport_texture: params.viewport_texture_view.is_some(),
+                    viewport_rect: params.viewport_rect,
+                    camera: params.camera,
+                    wireframe_enabled: self.wireframe_enabled,
+                    grid_enabled: self.grid_enabled,
+                    gizmo_mode: self.gizmo_mode,
+                    gizmo_space: self.gizmo_space,
+                },
+                scene: iris_bridge::SceneParams {
+                    selected_entity: self.selected_entity,
+                    world: params.world,
+                    active_entities_count: params.world.len() as usize,
+                },
+                dialogs: iris_bridge::DialogParams {
+                    show_about: self.show_about,
+                    show_preferences: self.show_preferences,
+                    delete_target,
+                    new_folder_parent,
+                    rename_target,
+                    is_loading_assets: self.is_loading_assets,
+                },
+                preferences: iris_bridge::OverlayPreferencesParams {
+                    graphics_settings: params.graphics_settings,
+                    snapping_settings: params.snapping_settings,
+                    editor_config: params.editor_config,
+                    enabled_modules: params.enabled_modules,
+                },
+                telemetry: iris_bridge::TelemetryParams {
+                    fps: self.fps,
+                    frame_pacing: &self.frame_pacing,
+                    frame_pacing_stats: &self.frame_pacing_stats,
+                    cpu_timings: &self.cpu_timings,
+                    gpu_pass_timings: &self.gpu_pass_timings,
+                    draw_call_stats: &self.draw_call_stats,
+                    vram_stats: &self.vram_stats,
+                    render_triangles: self.render_triangles as usize,
+                    render_vertices: self.render_vertices as usize,
+                    gpu_adapter_name: &self.gpu_adapter_name,
+                    gpu_backend: &self.gpu_backend,
+                },
+                panel_rects: iris_bridge::OverlayPanelRects {
+                    stats: params.stats_panel_rect,
+                    hierarchy: params.hierarchy_panel_rect,
+                    inspector: params.inspector_panel_rect,
+                    console: params.console_panel_rect,
+                    assets: params.assets_panel_rect,
+                    timeline: params.timeline_panel_rect,
+                    material: params.material_panel_rect,
+                    ui_designer: params.ui_designer_panel_rect,
+                },
+                panel_data: iris_bridge::OverlayPanelData {
+                    ui_designer_state: &self.ui_designer_state,
+                    asset_browser: &self.asset_browser,
+                    console_entries: &self.console_entries,
+                    textures: params.textures,
+                    models: params.models,
+                    inspector_euler: &self.inspector_euler,
+                    inspector_color_hex: &self.inspector_color_hex,
+                    saved_swatches: &self.saved_swatches,
+                },
             });
 
         self.iris_overlay.render(

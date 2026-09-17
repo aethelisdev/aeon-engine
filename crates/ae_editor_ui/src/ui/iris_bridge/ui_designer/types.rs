@@ -127,3 +127,39 @@ pub enum UiDesignerAction {
     /// Closes any open dropdown popups.
     ClosePopups,
 }
+
+/// Persistent interactive state for the 2D Visual UI Designer panel overlay.
+#[derive(Debug, Default, Clone)]
+pub struct UiDesignerPanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<
+        UiDesignerPanelTargets,
+        UiDesignerAction,
+    >,
+    /// Whether the Aspect Ratio dropdown popup is open in the UI Designer.
+    pub is_aspect_open: bool,
+    /// Whether the Add Element palette popup is open in the UI Designer.
+    pub is_add_menu_open: bool,
+    /// Active element dragging state in the UI Designer.
+    pub drag_state: Option<ae_uidesign::UiDragState>,
+    /// Whether user is currently panning the UI Designer virtual canvas.
+    pub is_panning: bool,
+    /// Last mouse cursor coordinates recorded during UI Designer dragging or panning.
+    pub last_cursor: Point,
+}
+
+impl std::ops::Deref for UiDesignerPanelState {
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<
+        UiDesignerPanelTargets,
+        UiDesignerAction,
+    >;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for UiDesignerPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}

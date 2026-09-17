@@ -9,7 +9,7 @@ use irisui::prelude::*;
 impl IrisEditorOverlay {
     /// Returns true if the coordinate is over an active Hierarchy floating popup (Add Menu, submenus, or context menu).
     pub fn is_point_over_hierarchy_popup(&self, point: Point) -> bool {
-        if let Some(ref hier) = self.hierarchy_targets
+        if let Some(ref hier) = self.hierarchy.targets
             && (hier
                 .active_add_menu_rect
                 .is_some_and(|r| r.contains_point(point))
@@ -30,7 +30,7 @@ impl IrisEditorOverlay {
 
     /// Returns true if the coordinate is over an active Inspector floating popup (dropdown, add component menu, or color picker).
     pub fn is_point_over_inspector_popup(&self, point: Point) -> bool {
-        if let Some(ref insp) = self.inspector_targets
+        if let Some(ref insp) = self.inspector.targets
             && (insp
                 .active_add_menu_rect
                 .is_some_and(|r| r.contains_point(point))
@@ -56,7 +56,7 @@ impl IrisEditorOverlay {
             return true;
         }
         // Floating dropdown popup from menubar or docked panel popups have highest z-order
-        if let Some(dd_rect) = self.dropdown_rect
+        if let Some(dd_rect) = self.menubar.dropdown_rect
             && dd_rect.contains_point(point)
         {
             return true;
@@ -65,38 +65,44 @@ impl IrisEditorOverlay {
             return true;
         }
         if self
+            .modals
             .about_targets
             .as_ref()
             .is_some_and(|t| t.dialog_rect.contains_point(point))
             || self
+                .modals
                 .delete_targets
                 .as_ref()
                 .is_some_and(|t| t.dialog_rect.contains_point(point))
             || self
+                .modals
                 .new_folder_targets
                 .as_ref()
                 .is_some_and(|t| t.dialog_rect.contains_point(point))
             || self
+                .modals
                 .rename_targets
                 .as_ref()
                 .is_some_and(|t| t.dialog_rect.contains_point(point))
-            || self.loading_targets.as_ref().is_some_and(|t| {
+            || self.modals.loading_targets.as_ref().is_some_and(|t| {
                 t.card_rect.contains_point(point) || t.scrim_rect.contains_point(point)
             })
             || self
-                .assets_targets
+                .assets
+                .targets
                 .as_ref()
                 .and_then(|a| a.preview_modal.as_ref())
                 .is_some_and(|m| m.dialog_rect.contains_point(point))
             || self
-                .assets_targets
+                .assets
+                .targets
                 .as_ref()
                 .and_then(|a| a.context_menu.as_ref())
                 .is_some_and(|c| c.card_rect.contains_point(point))
         {
             return true;
         }
-        if let Some(ref targets) = self.preferences_targets
+        if let Some(ref targets) = self.preferences.targets
             && (targets.card_rect.contains_point(point)
                 || targets
                     .active_dropdown_popup_rect
@@ -116,7 +122,7 @@ impl IrisEditorOverlay {
             return true;
         }
         // Floating dropdown popup from menubar has highest z-order above docked panels and modals
-        if let Some(dd_rect) = self.dropdown_rect
+        if let Some(dd_rect) = self.menubar.dropdown_rect
             && dd_rect.contains_point(point)
         {
             return true;
@@ -124,16 +130,16 @@ impl IrisEditorOverlay {
         if self.is_point_over_hierarchy_popup(point) || self.is_point_over_inspector_popup(point) {
             return true;
         }
-        if self.about_targets.is_some()
-            || self.delete_targets.is_some()
-            || self.new_folder_targets.is_some()
-            || self.rename_targets.is_some()
-            || self.loading_targets.is_some()
-            || self.assets_preview_modal.is_some()
+        if self.modals.about_targets.is_some()
+            || self.modals.delete_targets.is_some()
+            || self.modals.new_folder_targets.is_some()
+            || self.modals.rename_targets.is_some()
+            || self.modals.loading_targets.is_some()
+            || self.assets.preview_modal.is_some()
         {
             return true;
         }
-        if let Some(ref targets) = self.preferences_targets
+        if let Some(ref targets) = self.preferences.targets
             && (targets.card_rect.contains_point(point)
                 || targets
                     .active_dropdown_popup_rect
@@ -144,7 +150,7 @@ impl IrisEditorOverlay {
 
         // 2. Viewport HUD targets (toolbar buttons, dropdowns, compass, billboard icons)
         // Even when the 3D Viewport is detached into a floating window, its HUD buttons remain interactive.
-        if let Some(ref hud) = self.viewport_hud_targets {
+        if let Some(ref hud) = self.viewport_hud.targets {
             if let Some(dd_rect) = hud.active_dropdown_popup_rect
                 && dd_rect.contains_point(point)
             {
@@ -171,6 +177,7 @@ impl IrisEditorOverlay {
         // 3. Floating Window Check: If the point is inside an active floating window,
         // it is directly over an interactive UI window layer.
         let is_over_floating = self
+            .chrome
             .floating_window_rects
             .iter()
             .any(|r| r.contains_point(point));
@@ -179,7 +186,7 @@ impl IrisEditorOverlay {
         }
 
         // 3b. Native Dock Tabs, Close Buttons & Splitters
-        if let Some(ref frame) = self.native_dock_frame
+        if let Some(ref frame) = self.chrome.native_dock_frame
             && (frame
                 .tab_targets
                 .iter()
@@ -197,7 +204,7 @@ impl IrisEditorOverlay {
         }
 
         // 4. Background Docked Panels (only tested when NOT occluded by floating windows)
-        if let Some(ref targets) = self.hierarchy_targets {
+        if let Some(ref targets) = self.hierarchy.targets {
             if let Some(sub2_rect) = targets.active_sub_submenu_rect
                 && sub2_rect.contains_point(point)
             {
@@ -222,17 +229,17 @@ impl IrisEditorOverlay {
                 return true;
             }
         }
-        if let Some(ref targets) = self.stats_targets
+        if let Some(ref targets) = self.stats.targets
             && targets.panel_rect.contains_point(point)
         {
             return true;
         }
-        if let Some(ref targets) = self.console_targets
+        if let Some(ref targets) = self.console.targets
             && targets.panel_rect.contains_point(point)
         {
             return true;
         }
-        if let Some(ref targets) = self.assets_targets {
+        if let Some(ref targets) = self.assets.targets {
             if let Some(ref cm) = targets.context_menu
                 && cm.card_rect.contains_point(point)
             {
@@ -242,17 +249,17 @@ impl IrisEditorOverlay {
                 return true;
             }
         }
-        if let Some(ref targets) = self.timeline_targets
+        if let Some(ref targets) = self.timeline.targets
             && targets.panel_rect.contains_point(point)
         {
             return true;
         }
-        if let Some(ref targets) = self.material_targets
+        if let Some(ref targets) = self.material.targets
             && targets.panel_rect.contains_point(point)
         {
             return true;
         }
-        if let Some(ref targets) = self.ui_designer_targets {
+        if let Some(ref targets) = self.ui_designer.targets {
             if let Some(ref popup_r) = targets.aspect_popup_rect
                 && popup_r.contains_point(point)
             {
@@ -267,7 +274,7 @@ impl IrisEditorOverlay {
                 return true;
             }
         }
-        if let Some(ref targets) = self.inspector_targets {
+        if let Some(ref targets) = self.inspector.targets {
             if let Some(picker_rect) = targets.color_picker_popup_rect
                 && picker_rect.contains_point(point)
             {

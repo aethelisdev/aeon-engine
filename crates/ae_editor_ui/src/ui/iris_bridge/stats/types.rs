@@ -134,3 +134,48 @@ pub struct StatsPanelParams<'a> {
     /// Currently selected entity, if any.
     pub selected_entity: Option<hecs::Entity>,
 }
+
+/// Persistent interactive state for the Performance Stats & Telemetry panel overlay.
+#[derive(Debug, Clone)]
+pub struct StatsPanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions:
+        crate::ui::iris_bridge::types::PanelInteractionState<StatsPanelTargets, StatsPanelAction>,
+    /// Persistent node handles for the Stats & Profiler panel in retained mode.
+    pub nodes: Option<StatsPanelNodes>,
+    /// Last bounding rectangle allocated for the Stats & Profiler panel.
+    pub last_rect: Option<Rect>,
+    /// Accumulated frame count within the current 250ms telemetry rolling average window.
+    pub frame_counter: u32,
+    /// Timestamp of the last visual rolling window update for the FPS text in the Stats panel.
+    pub last_fps_refresh: std::time::Instant,
+    /// Windowed rolling average FPS displayed in the UI, updated every 250ms for rock-solid readability.
+    pub displayed_fps: f32,
+}
+
+impl Default for StatsPanelState {
+    fn default() -> Self {
+        Self {
+            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            nodes: None,
+            last_rect: None,
+            frame_counter: 0,
+            last_fps_refresh: std::time::Instant::now(),
+            displayed_fps: 60.0,
+        }
+    }
+}
+
+impl std::ops::Deref for StatsPanelState {
+    type Target =
+        crate::ui::iris_bridge::types::PanelInteractionState<StatsPanelTargets, StatsPanelAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for StatsPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}

@@ -17,7 +17,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.console_targets.as_ref()?;
+        let targets = self.console.interactions.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         // 1. Mouse Click handling
@@ -27,7 +27,7 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let click_point = self.cursor_pos;
+            let click_point = self.cursor_pos();
             if let Some(action) = super::super::console::handle_console_click(targets, click_point)
             {
                 match action {
@@ -38,20 +38,20 @@ impl IrisEditorOverlay {
                         ae_editor::editor_logger::LOGGER
                             .log_count
                             .store(0, std::sync::atomic::Ordering::Relaxed);
-                        self.console_scroll_y = 0.0;
+                        self.console.interactions.scroll_y = 0.0;
                         result.clear_console_entries = true;
                     }
                     super::super::console::ConsoleAction::SetFilter(level) => {
-                        self.console_filter = level;
+                        self.console.filter = level;
                     }
                     super::super::console::ConsoleAction::ToggleAutoScroll => {
-                        self.console_auto_scroll = !self.console_auto_scroll;
+                        self.console.auto_scroll = !self.console.auto_scroll;
                     }
                     super::super::console::ConsoleAction::FocusSearch => {
-                        self.console_is_search_focused = true;
+                        self.console.interactions.is_search_focused = true;
                     }
                     super::super::console::ConsoleAction::ClearSearch => {
-                        self.console_search_query.clear();
+                        self.console.interactions.search_query.clear();
                     }
                     super::super::console::ConsoleAction::CopyLog(_) => {}
                 }
@@ -61,7 +61,7 @@ impl IrisEditorOverlay {
 
             if targets.panel_rect.contains_point(click_point) {
                 if !targets.search_input_rect.contains_point(click_point) {
-                    self.console_is_search_focused = false;
+                    self.console.interactions.is_search_focused = false;
                 }
                 result.consumed = true;
                 return Some(result);
@@ -69,8 +69,9 @@ impl IrisEditorOverlay {
         }
 
         // 2. Mouse Wheel scroll handling
+        let cursor = self.cursor_pos();
         if let WindowEvent::MouseWheel { delta, .. } = event
-            && targets.panel_rect.contains_point(self.cursor_pos)
+            && targets.panel_rect.contains_point(cursor)
         {
             let delta_lines = match delta {
                 winit::event::MouseScrollDelta::LineDelta(_, y) => *y,
@@ -78,20 +79,20 @@ impl IrisEditorOverlay {
             };
             super::super::console::handle_console_scroll(
                 targets,
-                self.cursor_pos,
+                cursor,
                 delta_lines,
-                &mut self.console_scroll_y,
-                &mut self.console_auto_scroll,
+                &mut self.console.interactions.scroll_y,
+                &mut self.console.auto_scroll,
             );
             result.consumed = true;
             return Some(result);
         }
 
         // 3. Search query typing when search input is focused
-        if self.console_is_search_focused {
+        if self.console.is_search_focused {
             match event {
                 WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                    self.console_search_query.push_str(text);
+                    self.console.search_query.push_str(text);
                     result.consumed = true;
                     return Some(result);
                 }
@@ -108,12 +109,12 @@ impl IrisEditorOverlay {
                     winit::keyboard::KeyCode::Escape
                     | winit::keyboard::KeyCode::Enter
                     | winit::keyboard::KeyCode::NumpadEnter => {
-                        self.console_is_search_focused = false;
+                        self.console.is_search_focused = false;
                         result.consumed = true;
                         return Some(result);
                     }
                     winit::keyboard::KeyCode::Backspace => {
-                        self.console_search_query.pop();
+                        self.console.search_query.pop();
                         result.consumed = true;
                         return Some(result);
                     }
@@ -121,7 +122,7 @@ impl IrisEditorOverlay {
                         if let Some(t) = text
                             && !t.chars().any(|c| c.is_control())
                         {
-                            self.console_search_query.push_str(t);
+                            self.console.search_query.push_str(t);
                             result.consumed = true;
                             return Some(result);
                         }

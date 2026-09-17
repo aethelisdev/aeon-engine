@@ -22,5 +22,6 @@ pub use panel::{
     handle_hierarchy_hover,
 };
 pub use types::{
-    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow,
+    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelState,
+    HierarchyPanelTargets, HierarchyRow,
 };

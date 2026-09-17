@@ -13,7 +13,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let hud_targets = self.viewport_hud_targets.as_ref()?;
+        let hud_targets = self.viewport_hud.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         if let WindowEvent::MouseInput {
@@ -22,14 +22,14 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let click_point = self.cursor_pos;
+            let click_point = self.cursor_pos();
 
             // 1. If an active dropdown popup is open
-            if self.viewport_hud_dropdown.is_some() {
+            if self.viewport_hud.dropdown.is_some() {
                 for (action, rect, _) in &hud_targets.active_dropdown_items {
                     if rect.contains_point(click_point) {
-                        self.viewport_hud_actions.push(action.clone());
-                        self.viewport_hud_dropdown = None;
+                        self.viewport_hud.actions.push(action.clone());
+                        self.viewport_hud.dropdown = None;
                         result.consumed = true;
                         return Some(result);
                     }
@@ -38,14 +38,14 @@ impl IrisEditorOverlay {
                 if let Some(popup_rect) = hud_targets.active_dropdown_popup_rect
                     && !popup_rect.contains_point(click_point)
                 {
-                    self.viewport_hud_dropdown = None;
+                    self.viewport_hud.dropdown = None;
                 }
             }
 
             // 2. Check dropdown triggers
             for (dd_id, rect) in &hud_targets.dropdown_triggers {
                 if rect.contains_point(click_point) {
-                    self.viewport_hud_dropdown = if self.viewport_hud_dropdown == Some(*dd_id) {
+                    self.viewport_hud.dropdown = if self.viewport_hud.dropdown == Some(*dd_id) {
                         None
                     } else {
                         Some(*dd_id)
@@ -58,7 +58,7 @@ impl IrisEditorOverlay {
             // 3. Check toolbar buttons
             for (action, rect) in &hud_targets.buttons {
                 if rect.contains_point(click_point) {
-                    self.viewport_hud_actions.push(action.clone());
+                    self.viewport_hud.actions.push(action.clone());
                     result.consumed = true;
                     return Some(result);
                 }
@@ -67,7 +67,7 @@ impl IrisEditorOverlay {
             // 4. Check compass knobs
             for (action, rect) in &hud_targets.compass_knobs {
                 if rect.contains_point(click_point) {
-                    self.viewport_hud_actions.push(action.clone());
+                    self.viewport_hud.actions.push(action.clone());
                     result.consumed = true;
                     return Some(result);
                 }
@@ -76,7 +76,8 @@ impl IrisEditorOverlay {
             // 5. Check billboard icons
             for (ent, rect) in &hud_targets.billboard_icons {
                 if rect.contains_point(click_point) {
-                    self.viewport_hud_actions
+                    self.viewport_hud
+                        .actions
                         .push(ViewportHudAction::SelectEntity(*ent));
                     result.consumed = true;
                     return Some(result);

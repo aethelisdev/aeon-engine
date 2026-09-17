@@ -32,7 +32,7 @@ impl IrisEditorOverlay {
         let _ = self.tree.add_child(parent, root);
 
         // 2. Viewport 3D RTT Texture Quad or Placeholder
-        if params.has_viewport_texture {
+        if params.viewport.has_viewport_texture {
             let image_node = self.tree.create_node();
             if let Some(node) = self.tree.get_mut(image_node) {
                 node.set_name("IrisViewportImage");
@@ -52,26 +52,28 @@ impl IrisEditorOverlay {
         }
 
         // 3. Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
+        let cursor_pos = self.cursor_pos();
+        let active_dropdown = self.viewport_hud.dropdown;
         let mut hud_targets = ViewportHudTargets::default();
         viewport_hud::build_viewport_hud(
             &mut self.tree,
             root,
             &ViewportHudParams {
                 viewport_rect,
-                camera: params.camera,
-                wireframe_enabled: params.wireframe_enabled,
-                gizmo_mode: params.gizmo_mode,
-                gizmo_space: params.gizmo_space,
-                snapping: params.snapping_settings,
-                cursor_pos: self.cursor_pos,
-                active_dropdown: self.viewport_hud_dropdown,
-                selected_entity: params.selected_entity,
-                world: params.world,
-                is_editing: params.is_editing,
-                is_2d: params.is_2d,
+                camera: params.viewport.camera,
+                wireframe_enabled: params.viewport.wireframe_enabled,
+                gizmo_mode: params.viewport.gizmo_mode,
+                gizmo_space: params.viewport.gizmo_space,
+                snapping: params.preferences.snapping_settings,
+                cursor_pos,
+                active_dropdown,
+                selected_entity: params.scene.selected_entity,
+                world: params.scene.world,
+                is_editing: params.context.is_editing,
+                is_2d: params.context.is_2d_mode,
             },
             &mut hud_targets,
         );
-        self.viewport_hud_targets = Some(hud_targets);
+        self.viewport_hud.targets = Some(hud_targets);
     }
 }

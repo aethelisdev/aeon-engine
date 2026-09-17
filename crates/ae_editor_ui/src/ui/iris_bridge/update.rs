@@ -15,7 +15,6 @@ use super::theme::*;
 use super::types::{ActiveMenu, IrisEditorOverlay, OverlayUpdateParams};
 use irisui::prelude::*;
 use irisui::text::TextSystem;
-use std::collections::HashSet;
 
 impl IrisEditorOverlay {
     /// Height of the top menubar panel in physical pixels.
@@ -33,163 +32,72 @@ impl IrisEditorOverlay {
             text_system: TextSystem::new(),
             text_renderer: None,
             command_list: DrawCommandList::new(),
-            cursor_pos: Point::new(-1000.0, -1000.0),
-            active_menu: None,
-            dropdown_items: Vec::new(),
-            dropdown_rect: None,
-            about_targets: None,
-            delete_targets: None,
-            new_folder_targets: None,
-            rename_targets: None,
-            loading_targets: None,
-            preferences_targets: None,
-            viewport_hud_targets: None,
-            viewport_hud_dropdown: None,
-            viewport_hud_actions: Vec::new(),
-            stats_targets: None,
-            stats_nodes: None,
-            last_stats_rect: None,
-            hierarchy_targets: None,
-            hierarchy_rows_cache: Vec::new(),
-            hierarchy_scroll_y: 0.0,
-            hierarchy_search_query: String::new(),
-            hierarchy_is_add_menu_open: false,
-            hierarchy_active_submenu: None,
-            hierarchy_active_sub_submenu: None,
-            hierarchy_active_context_menu: None,
-            hierarchy_is_search_focused: false,
-            hierarchy_actions: Vec::new(),
-            inspector_targets: None,
-            inspector_scroll_y: 0.0,
-            inspector_is_add_menu_open: false,
-            inspector_active_submenu: None,
-            inspector_active_dropdown: None,
-            inspector_active_number_input: None,
-            inspector_active_text_input: None,
-            shift_held: false,
-            alt_held: false,
-            ctrl_held: false,
-            inspector_drag_number: None,
-            inspector_edit_start_snapshot: None,
-            inspector_color_edit_start: None,
-            inspector_rename_buffer: None,
-            inspector_hex_buffer: None,
-            inspector_hsv: [180.0, 0.8, 0.9],
-            inspector_color_drag_mode: None,
-            inspector_is_color_picker_open: false,
-            inspector_actions: Vec::new(),
             notifier: UiNotifier::new(),
             panels: super::update_panels::create_default_panel_registry(),
-            last_dimensions: (0.0, 0.0),
-            last_zoom_factor: 1.0,
-            last_selected_entity: None,
-            last_floating_count: 0,
-            last_modal_active: false,
-            last_has_viewport_texture: false,
-            last_has_drag_payload: false,
-            last_cursor_pos: Point::new(-1000.0, -1000.0),
-            needs_layout_rebuild: false,
-            stats_scroll_y: 0.0,
-            stats_frame_counter: 0,
-            stats_last_fps_refresh: std::time::Instant::now(),
-            stats_displayed_fps: 60.0,
-            stats_actions: Vec::new(),
-            console_targets: None,
-            console_scroll_y: 0.0,
-            console_filter: super::console::ConsoleFilterLevel::All,
-            console_search_query: String::new(),
-            console_is_search_focused: false,
-            console_auto_scroll: true,
-            console_actions: Vec::new(),
-            assets_targets: None,
-            assets_scroll_y: 0.0,
-            assets_tree_scroll_y: 0.0,
-            assets_search_query: String::new(),
-            assets_current_folder: std::path::PathBuf::from("assets"),
-            assets_is_search_focused: false,
-            assets_click_tracker: super::assets::AssetClickTracker::default(),
-            assets_actions: Vec::new(),
-            assets_context_menu: None,
-            assets_preview_modal: None,
-            assets_selected_asset: None,
-            thumbnail_layers: std::collections::HashMap::new(),
-            next_thumbnail_layer: crate::ui::iris_bridge::icons::FIRST_THUMBNAIL_LAYER,
-            timeline_targets: None,
-            timeline_is_dragging: false,
-            timeline_actions: Vec::new(),
-            timeline_selected_entity: None,
-            material_targets: None,
-            material_scroll_y: 0.0,
-            material_actions: Vec::new(),
-            material_selected_entity: None,
-            ui_designer_targets: None,
-            ui_designer_actions: Vec::new(),
-            ui_designer_is_aspect_open: false,
-            ui_designer_is_add_menu_open: false,
-            ui_designer_drag_state: None,
-            ui_designer_is_panning: false,
-            ui_designer_last_cursor: Point::new(0.0, 0.0),
-            preferences_pos: None,
-            preferences_drag_offset: None,
-            preferences_tab: 0,
-            preferences_scroll_y: 0.0,
-            preferences_dropdown: None,
-            active_slider_drag: None,
-            preferences_actions: Vec::new(),
-            viewport_search_query: String::new(),
-            viewport_is_search_focused: false,
-            new_folder_buffer: String::new(),
-            rename_buffer: String::new(),
-            collapsed_sections: HashSet::new(),
-            active_number_input: None,
             screen_width: 1920.0,
             screen_height: 1080.0,
             is_visible: true,
             target_format,
             start_time: std::time::Instant::now(),
             tools_texture: None,
-            floating_window_rects: Vec::new(),
-            native_dock_frame: None,
+            chrome: super::types::IrisChromeState::default(),
+            menubar: super::types::MenubarOverlayState::default(),
+            modals: super::modals::types::ModalsOverlayState::default(),
+            preferences: super::preferences::types::PreferencesDialogState::default(),
+            viewport_hud: super::viewport_hud::types::ViewportHudState::default(),
+            stats: super::stats::types::StatsPanelState::default(),
+            hierarchy: super::hierarchy::types::HierarchyPanelState::default(),
+            console: super::console::types::ConsolePanelState::default(),
+            assets: super::assets::types::AssetsPanelState::default(),
+            timeline: super::timeline::types::TimelinePanelState::default(),
+            material: super::material::types::MaterialPanelState::default(),
+            ui_designer: super::ui_designer::types::UiDesignerPanelState::default(),
+            inspector: super::inspector::types::InspectorPanelState::default(),
         }
     }
 
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.
     pub fn update_overlays(&mut self, params: OverlayUpdateParams<'_>) {
-        let (screen_width, screen_height) = params.dimensions;
+        let (screen_width, screen_height) = params.context.dimensions;
         self.screen_width = screen_width;
         self.screen_height = screen_height;
 
-        let modal_active = params.show_about
-            || params.show_preferences
-            || params.delete_target.is_some()
-            || params.new_folder_parent.is_some()
-            || params.rename_target.is_some()
-            || params.is_loading_assets;
+        let modal_active = params.dialogs.show_about
+            || params.dialogs.show_preferences
+            || params.dialogs.delete_target.is_some()
+            || params.dialogs.new_folder_parent.is_some()
+            || params.dialogs.rename_target.is_some()
+            || params.dialogs.is_loading_assets;
 
-        let floating_count = params.layout_state.dock_state.floating_windows.len();
+        let floating_count = params
+            .context
+            .layout_state
+            .dock_state
+            .floating_windows
+            .len();
 
-        let has_drag_payload = params.asset_browser.drag_payload.is_some();
-        let cursor_moved = (self.last_cursor_pos.x - self.cursor_pos.x).abs() > 0.001
-            || (self.last_cursor_pos.y - self.cursor_pos.y).abs() > 0.001;
+        let has_drag_payload = params.panel_data.asset_browser.drag_payload.is_some();
+        let cursor_moved = (self.chrome.last_cursor_pos.x - self.cursor_pos().x).abs() > 0.001
+            || (self.chrome.last_cursor_pos.y - self.cursor_pos().y).abs() > 0.001;
         let is_over_ui = cursor_moved
-            && (self.is_point_over_overlay(self.cursor_pos)
-                || self.is_point_over_overlay(self.last_cursor_pos));
+            && (self.is_point_over_overlay(self.cursor_pos())
+                || self.is_point_over_overlay(self.chrome.last_cursor_pos));
 
-        if self.last_dimensions != params.dimensions
-            || (self.last_zoom_factor - params.zoom_factor).abs() > 1e-4
-            || self.last_floating_count != floating_count
-            || self.last_modal_active != modal_active
-            || self.last_has_viewport_texture != params.has_viewport_texture
-            || self.last_has_drag_payload != has_drag_payload
-            || self.active_menu.is_some()
-            || self.needs_layout_rebuild
+        if self.chrome.last_dimensions != params.context.dimensions
+            || (self.chrome.last_zoom_factor - params.context.zoom_factor).abs() > 1e-4
+            || self.chrome.last_floating_count != floating_count
+            || self.modals.last_modal_active != modal_active
+            || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
+            || self.chrome.last_has_drag_payload != has_drag_payload
+            || self.menubar.active_menu.is_some()
+            || self.chrome.needs_layout_rebuild
             || has_drag_payload
             || is_over_ui
         {
             self.notifier.tag_all();
         }
 
-        if self.last_selected_entity != params.selected_entity {
+        if self.inspector.last_selected_entity != params.scene.selected_entity {
             self.notifier.tag_redraw("inspector");
         }
 
@@ -197,24 +105,24 @@ impl IrisEditorOverlay {
         // frame pacing oscilloscope, 1% low, 0.1% low, and CPU/GPU pass bars update live (0ms lag).
         // Only the numerical FPS text snapshot is windowed to 250ms via rolling frame-count
         // to ensure rock-solid legibility without slot-machine jitter.
-        if params.stats_panel_rect.is_some() {
-            if self.stats_frame_counter == 0 {
-                self.stats_displayed_fps = params.fps;
-                self.stats_last_fps_refresh = std::time::Instant::now();
+        if params.panel_rects.stats.is_some() {
+            if self.stats.frame_counter == 0 {
+                self.stats.displayed_fps = params.telemetry.fps;
+                self.stats.last_fps_refresh = std::time::Instant::now();
             }
-            self.stats_frame_counter += 1;
+            self.stats.frame_counter += 1;
             let now = std::time::Instant::now();
             let elapsed = now
-                .duration_since(self.stats_last_fps_refresh)
+                .duration_since(self.stats.last_fps_refresh)
                 .as_secs_f32();
             if elapsed >= 0.25 {
-                self.stats_displayed_fps = self.stats_frame_counter as f32 / elapsed;
-                self.stats_frame_counter = 0;
-                self.stats_last_fps_refresh = now;
+                self.stats.displayed_fps = self.stats.frame_counter as f32 / elapsed;
+                self.stats.frame_counter = 0;
+                self.stats.last_fps_refresh = now;
             }
             self.notifier.tag_redraw("stats");
         } else {
-            self.stats_frame_counter = 0;
+            self.stats.frame_counter = 0;
         }
 
         // Poll registered panels for internal reactive changes
@@ -233,79 +141,84 @@ impl IrisEditorOverlay {
         self.tree.clear();
         self.layout_engine.clear();
         self.command_list.clear();
-        self.dropdown_items.clear();
-        self.floating_window_rects.clear();
-        self.dropdown_rect = None;
-        self.about_targets = None;
-        self.delete_targets = None;
-        self.new_folder_targets = None;
-        self.rename_targets = None;
-        self.loading_targets = None;
-        self.preferences_targets = None;
-        self.viewport_hud_targets = None;
-        self.stats_targets = None;
-        self.inspector_targets = None;
-        self.console_targets = None;
-        self.assets_targets = None;
-        self.material_targets = None;
-        self.ui_designer_targets = None;
+        self.menubar.dropdown_items.clear();
+        self.chrome.floating_window_rects.clear();
+        self.menubar.dropdown_rect = None;
+        self.modals.about_targets = None;
+        self.modals.delete_targets = None;
+        self.modals.new_folder_targets = None;
+        self.modals.rename_targets = None;
+        self.modals.loading_targets = None;
+        self.preferences.targets = None;
+        self.viewport_hud.targets = None;
+        self.stats.targets = None;
+        self.inspector.targets = None;
+        self.console.targets = None;
+        self.assets.targets = None;
+        self.material.targets = None;
+        self.ui_designer.targets = None;
 
-        if !self.assets_is_search_focused {
-            self.assets_search_query = params.asset_browser.search_query.clone();
+        if !self.assets.is_search_focused {
+            self.assets.search_query = params.panel_data.asset_browser.search_query.clone();
         }
-        self.assets_current_folder = params.asset_browser.current_folder.clone();
-        self.timeline_selected_entity = params.selected_entity;
-        self.material_selected_entity = params.selected_entity;
+        self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
+        self.timeline.selected_entity = params.scene.selected_entity;
+        self.material.selected_entity = params.scene.selected_entity;
 
         // Safely commit pending inspector edits on selection change
-        if let Some(session) = self.inspector_active_number_input.take() {
-            if Some(session.entity) != params.selected_entity {
+        if let Some(session) = self.inspector.active_number_input.take() {
+            if Some(session.entity) != params.scene.selected_entity {
                 if let Ok(v) =
                     super::inspector::evaluate_inspector_math(&session.buffer, session.initial_val)
                 {
-                    self.inspector_actions
+                    self.inspector
+                        .actions
                         .push(super::inspector::InspectorAction::SetNumberValue(
                             session.entity,
                             session.id,
                             v,
                         ));
-                    self.inspector_actions.push(
+                    self.inspector.actions.push(
                         super::inspector::InspectorAction::CommitNumberEdit(
                             session.entity,
                             session.id,
                         ),
                     );
                 } else {
-                    self.inspector_edit_start_snapshot = None;
+                    self.inspector.edit_start_snapshot = None;
                 }
             } else {
-                self.inspector_active_number_input = Some(session);
+                self.inspector.active_number_input = Some(session);
             }
         }
-        if let Some((ent, id, buf)) = self.inspector_active_text_input.take() {
-            if Some(ent) != params.selected_entity {
-                self.inspector_actions
+        if let Some((ent, id, buf)) = self.inspector.active_text_input.take() {
+            if Some(ent) != params.scene.selected_entity {
+                self.inspector
+                    .actions
                     .push(super::inspector::InspectorAction::SetTextValue(
                         ent, id, buf,
                     ));
             } else {
-                self.inspector_active_text_input = Some((ent, id, buf));
+                self.inspector.active_text_input = Some((ent, id, buf));
             }
         }
-        if let Some((ent, buf)) = self.inspector_rename_buffer.take() {
-            if Some(ent) != params.selected_entity {
+        if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
+            if Some(ent) != params.scene.selected_entity {
                 if !buf.trim().is_empty() {
-                    self.inspector_actions
+                    self.inspector
+                        .actions
                         .push(super::inspector::InspectorAction::RenameEntity(ent, buf));
                 }
             } else {
-                self.inspector_rename_buffer = Some((ent, buf));
+                self.inspector.rename_buffer = Some((ent, buf));
             }
         }
 
         let Ok(root) = self.tree.create_root() else {
             return;
         };
+
+        let cursor = self.cursor_pos();
 
         if let Some(root_node) = self.tree.get_mut(root) {
             root_node.set_name("IrisRoot");
@@ -322,9 +235,9 @@ impl IrisEditorOverlay {
         let menu_bar_id = menubar::build_top_menu_bar(
             &mut self.tree,
             screen_width,
-            self.cursor_pos,
-            self.active_menu,
-            params.is_editing,
+            cursor,
+            self.menubar.active_menu,
+            params.context.is_editing,
         );
         let _ = self.tree.add_child(root, menu_bar_id);
 
@@ -334,7 +247,7 @@ impl IrisEditorOverlay {
             status_bar::StatusBarParams {
                 screen_width,
                 screen_height,
-                status_spans: params.status_spans,
+                status_spans: params.context.status_spans,
             },
         );
         let _ = self.tree.add_child(root, status_bar_id);
@@ -374,10 +287,10 @@ impl IrisEditorOverlay {
             0.0,
             Self::MENUBAR_HEIGHT,
             screen_width,
-            (screen_height - Self::MENUBAR_HEIGHT - Self::STATUS_BAR_HEIGHT).max(0.0),
+            (screen_height - Self::MENUBAR_HEIGHT - Self::STATUS_BAR_HEIGHT).max(1.0),
         );
-        let pref_rect = if params.show_preferences {
-            let (left, top) = if let Some(pos) = self.preferences_pos {
+        let pref_rect = if params.dialogs.show_preferences {
+            let (left, top) = if let Some(pos) = self.preferences.pos {
                 (pos.x, pos.y)
             } else {
                 (
@@ -394,37 +307,41 @@ impl IrisEditorOverlay {
         } else {
             None
         };
-        let is_cursor_occluded = self.is_point_over_modal_or_dropdown(self.cursor_pos)
-            || pref_rect.is_some_and(|r| r.contains_point(self.cursor_pos))
+
+        let is_cursor_occluded = self.is_point_over_modal_or_dropdown(cursor)
+            || pref_rect.is_some_and(|r| r.contains_point(cursor))
             || params
+                .context
                 .layout_state
                 .dock_state
                 .floating_windows
                 .iter()
                 .any(|w| {
                     Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
-                        .contains_point(self.cursor_pos)
+                        .contains_point(cursor)
                 });
+
+        // 3. Native Iris Docking Framework: construct full dock tree (splitters, container tabs, content rects)
         let dock_frame = super::native_dock::build_native_dock(
             &mut self.tree,
             root,
-            params.layout_state,
+            params.context.layout_state,
             workspace_rect,
-            self.cursor_pos,
+            cursor,
             is_cursor_occluded,
         );
-        self.native_dock_frame = Some(dock_frame);
+        self.chrome.native_dock_frame = Some(dock_frame);
 
         let is_floating = |panel: crate::ui::panel_layout::PanelId| {
-            super::floating_layer::is_panel_in_floating_window(params.layout_state, panel)
+            super::floating_layer::is_panel_in_floating_window(params.context.layout_state, panel)
         };
 
         // 4. If Viewport canvas is valid and docked, build Viewport content (3D scene texture + HUD)
         if !is_floating(crate::ui::panel_layout::PanelId::Viewport)
-            && params.viewport_rect.width > 20.0
-            && params.viewport_rect.height > 20.0
+            && params.viewport.viewport_rect.width > 20.0
+            && params.viewport.viewport_rect.height > 20.0
         {
-            self.build_viewport_content(root, params.viewport_rect, &params);
+            self.build_viewport_content(root, params.viewport.viewport_rect, &params);
         }
 
         // 4. Layer 0: Render all DOCKED panels first (Z-Index: Background Workspace Layer)
@@ -438,10 +355,10 @@ impl IrisEditorOverlay {
         let (floating_rects, floating_containers) = super::floating_layer::build_floating_windows(
             &mut self.tree,
             root,
-            params.layout_state,
-            self.cursor_pos,
+            params.context.layout_state,
+            cursor,
         );
-        self.floating_window_rects = floating_rects;
+        self.chrome.floating_window_rects = floating_rects;
 
         for (panel_id, container_id) in floating_containers {
             self.render_panel_by_id(panel_id, container_id, &params);
@@ -450,69 +367,66 @@ impl IrisEditorOverlay {
         // 6. FLOATING OVERLAYS (Rendered on top of docked and floating panels):
 
         // 6b. If Preferences dialogue is active, build its floating card
-        if params.show_preferences {
+        if params.dialogs.show_preferences {
             let blink_caret = (self.start_time.elapsed().as_millis() % 1060) < 530;
             let (pref_id, targets) = build_preferences_dialog(
                 &mut self.tree,
                 preferences::PreferencesParams {
                     screen_width,
                     screen_height,
-                    window_pos: self.preferences_pos,
-                    active_tab: self.preferences_tab,
-                    scroll_offset_y: self.preferences_scroll_y,
-                    active_dropdown: self.preferences_dropdown,
-                    collapsed_sections: &self.collapsed_sections,
-                    active_number_input: self
-                        .active_number_input
-                        .as_ref()
-                        .map(|(id, s)| (*id, s.as_str())),
+                    window_pos: self.preferences.pos,
+                    active_tab: self.preferences.tab,
+                    scroll_offset_y: self.preferences.scroll_y,
+                    active_dropdown: self.preferences.dropdown,
+                    collapsed_sections: &self.preferences.collapsed_sections,
+                    active_number_input: None,
                     blink_caret,
-                    cursor_pos: self.cursor_pos,
-                    zoom_factor: params.zoom_factor,
-                    graphics_settings: params.graphics_settings,
-                    snapping_settings: params.snapping_settings,
-                    editor_config: params.editor_config,
-                    enable_live_updates: params.enable_live_updates,
-                    enabled_modules: params.enabled_modules,
+                    cursor_pos: cursor,
+                    zoom_factor: params.context.zoom_factor,
+                    graphics_settings: params.preferences.graphics_settings,
+                    snapping_settings: params.preferences.snapping_settings,
+                    editor_config: params.preferences.editor_config,
+                    enable_live_updates: params.context.enable_live_updates,
+                    enabled_modules: params.preferences.enabled_modules,
                 },
             );
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, pref_id);
             }
-            self.preferences_targets = Some(targets);
+            self.preferences.targets = Some(targets);
         }
 
         // 6c. If About Aeon Engine modal dialogue is active, build its centered card
-        if params.show_about {
+        if params.dialogs.show_about {
             let (about_id, targets) =
-                build_about_dialog(&mut self.tree, screen_width, screen_height, self.cursor_pos);
+                build_about_dialog(&mut self.tree, screen_width, screen_height, cursor);
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, about_id);
             }
-            self.about_targets = Some(targets);
+            self.modals.about_targets = Some(targets);
         }
 
         // 6d. If Delete Confirmation modal is active, build its card
-        if let Some(target_path) = params.delete_target {
+        if let Some(target_path) = params.dialogs.delete_target {
             let (del_id, targets) = build_delete_modal(
                 &mut self.tree,
                 target_path,
                 screen_width,
                 screen_height,
-                self.cursor_pos,
+                cursor,
             );
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, del_id);
             }
-            self.delete_targets = Some(targets);
+            self.modals.delete_targets = Some(targets);
         }
 
         let elapsed_secs = self.start_time.elapsed().as_secs_f32();
         let cursor_blink_visible = (self.start_time.elapsed().as_millis() / 530).is_multiple_of(2);
 
         // 6e. If New Folder modal is active, build its card
-        if let Some(parent_path) = params.new_folder_parent {
-            let input_name = self.new_folder_buffer.as_str();
+        if let Some(parent_path) = params.dialogs.new_folder_parent {
+            let input_name = self.modals.new_folder_buffer.as_str();
             let text_width = self
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
@@ -526,18 +440,18 @@ impl IrisEditorOverlay {
                     cursor_blink_visible,
                     screen_width,
                     screen_height,
-                    cursor_pos: self.cursor_pos,
+                    cursor_pos: cursor,
                 },
             );
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, folder_id);
             }
-            self.new_folder_targets = Some(targets);
+            self.modals.new_folder_targets = Some(targets);
         }
 
         // 6f. If Rename modal is active, build its card
-        if let Some((target_path, is_folder)) = params.rename_target {
-            let input_name = self.rename_buffer.as_str();
+        if let Some((target_path, is_folder)) = params.dialogs.rename_target {
+            let input_name = self.modals.rename_buffer.as_str();
             let text_width = self
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
@@ -552,17 +466,17 @@ impl IrisEditorOverlay {
                     cursor_blink_visible,
                     screen_width,
                     screen_height,
-                    cursor_pos: self.cursor_pos,
+                    cursor_pos: cursor,
                 },
             );
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, rename_id);
             }
-            self.rename_targets = Some(targets);
+            self.modals.rename_targets = Some(targets);
         }
 
         // 6g. If Asset Loading overlay is active, build its splash screen
-        if params.is_loading_assets {
+        if params.dialogs.is_loading_assets {
             let (loading_id, targets) = build_loading_overlay(
                 &mut self.tree,
                 modals::LoadingOverlayParams {
@@ -574,30 +488,37 @@ impl IrisEditorOverlay {
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, loading_id);
             }
-            self.loading_targets = Some(targets);
+            self.modals.loading_targets = Some(targets);
         }
 
         // 6h. Hierarchy Add Menu and Context Menu (Rendered as topmost floating overlays)
-        if let Some(ref mut hier_targets) = self.hierarchy_targets
-            && let Some(hier_rect) = params.hierarchy_panel_rect
+        if let Some(hier_rect) = params.panel_rects.hierarchy
+            && self.hierarchy.interactions.targets.is_some()
         {
             let hier_params = hierarchy::HierarchyPanelParams {
                 panel_rect: hier_rect,
-                world: params.world,
-                selected_entity: params.selected_entity,
-                search_query: &self.hierarchy_search_query,
-                is_editing: params.is_editing,
-                is_2d: params.is_2d,
-                scroll_y: self.hierarchy_scroll_y,
-                active_submenu: self.hierarchy_active_submenu,
-                active_sub_submenu: self.hierarchy_active_sub_submenu,
-                is_add_menu_open: self.hierarchy_is_add_menu_open,
-                active_context_menu: self.hierarchy_active_context_menu,
-                cursor_pos: self.cursor_pos,
-                is_search_focused: self.hierarchy_is_search_focused,
+                world: params.scene.world,
+                selected_entity: params.scene.selected_entity,
+                search_query: &self.hierarchy.interactions.search_query,
+                is_editing: params.context.is_editing,
+                is_2d: params.context.is_2d_mode,
+                scroll_y: self.hierarchy.interactions.scroll_y,
+                active_submenu: self.hierarchy.active_submenu,
+                active_sub_submenu: self.hierarchy.active_sub_submenu,
+                is_add_menu_open: self.hierarchy.is_add_menu_open,
+                active_context_menu: self.hierarchy.active_context_menu,
+                cursor_pos: cursor,
+                is_search_focused: self.hierarchy.interactions.is_search_focused,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
-            hierarchy::build_hierarchy_overlays(&mut self.tree, root, &hier_params, hier_targets);
+            if let Some(ref mut hier_targets) = self.hierarchy.interactions.targets {
+                hierarchy::build_hierarchy_overlays(
+                    &mut self.tree,
+                    root,
+                    &hier_params,
+                    hier_targets,
+                );
+            }
         }
 
         // 6i. Native Dock Drag Overlays (5-way compass navigator, drop zone preview, floating tab badge)
@@ -606,26 +527,26 @@ impl IrisEditorOverlay {
         super::native_dock::build_native_dock_drag_overlays(
             &mut self.tree,
             root,
-            params.layout_state,
+            params.context.layout_state,
             workspace_rect,
         );
 
         // 6j. Asset Drag & Viewport Drop Overlays (Landing ring on ground plane & cursor tooltip badge)
-        if let Some(payload) = &params.asset_browser.drag_payload {
+        if let Some(payload) = &params.panel_data.asset_browser.drag_payload {
             super::assets::build_asset_drag_overlays(
                 &mut self.tree,
                 root,
                 payload,
-                self.cursor_pos,
-                params.viewport_rect,
-                params.camera,
-                params.is_2d_mode,
+                cursor,
+                params.viewport.viewport_rect,
+                params.viewport.camera,
+                params.context.is_2d_mode,
             );
         }
 
         // 6k. Top Menubar Dropdown Popup (Rendered as topmost overlay above all docked panels,
         // floating windows, and modal dialogs so it always has absolute top visual hierarchy)
-        if let Some(active) = self.active_menu {
+        if let Some(active) = self.menubar.active_menu {
             let anchor_x = match active {
                 ActiveMenu::File => 6.0,
                 ActiveMenu::Edit => 44.0,
@@ -638,31 +559,31 @@ impl IrisEditorOverlay {
                 &mut self.tree,
                 active,
                 anchor_x,
-                self.cursor_pos,
-                params.layout_state,
-                params.can_undo,
-                params.can_redo,
+                cursor,
+                params.context.layout_state,
+                params.context.can_undo,
+                params.context.can_redo,
             );
 
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, dropdown_id);
             }
-            self.dropdown_items = items;
-            self.dropdown_rect = Some(dd_rect);
+            self.menubar.dropdown_items = items;
+            self.menubar.dropdown_rect = Some(dd_rect);
         }
 
         // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
-        self.populate_draw_commands(root, None, Some(params.frame_pacing));
+        self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
 
-        self.last_dimensions = params.dimensions;
-        self.last_zoom_factor = params.zoom_factor;
-        self.last_selected_entity = params.selected_entity;
-        self.last_floating_count = floating_count;
-        self.last_modal_active = modal_active;
-        self.last_has_viewport_texture = params.has_viewport_texture;
-        self.last_has_drag_payload = has_drag_payload;
-        self.last_cursor_pos = self.cursor_pos;
-        self.needs_layout_rebuild = false;
+        self.chrome.last_dimensions = params.context.dimensions;
+        self.chrome.last_zoom_factor = params.context.zoom_factor;
+        self.inspector.last_selected_entity = params.scene.selected_entity;
+        self.chrome.last_floating_count = floating_count;
+        self.modals.last_modal_active = modal_active;
+        self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
+        self.chrome.last_has_drag_payload = has_drag_payload;
+        self.chrome.last_cursor_pos = self.cursor_pos();
+        self.chrome.needs_layout_rebuild = false;
         self.notifier.clear_all();
     }
 

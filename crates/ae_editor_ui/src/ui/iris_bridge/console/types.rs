@@ -119,3 +119,39 @@ pub enum ConsoleAction {
     /// Copies a specific log message string to the clipboard.
     CopyLog(String),
 }
+
+/// Persistent interactive state for the Developer Console panel overlay.
+#[derive(Debug, Clone)]
+pub struct ConsolePanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions:
+        crate::ui::iris_bridge::types::PanelInteractionState<ConsolePanelTargets, ConsoleAction>,
+    /// Active log level severity filter.
+    pub filter: ConsoleFilterLevel,
+    /// Whether Developer Console automatically scrolls down when new logs arrive.
+    pub auto_scroll: bool,
+}
+
+impl Default for ConsolePanelState {
+    fn default() -> Self {
+        Self {
+            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            filter: ConsoleFilterLevel::All,
+            auto_scroll: true,
+        }
+    }
+}
+
+impl std::ops::Deref for ConsolePanelState {
+    type Target =
+        crate::ui::iris_bridge::types::PanelInteractionState<ConsolePanelTargets, ConsoleAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for ConsolePanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}

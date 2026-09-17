@@ -77,3 +77,27 @@ pub enum MaterialAction {
     /// Scrolls the panel content container vertically by delta pixels.
     Scroll(f32),
 }
+
+/// Persistent interactive state for the Material & Surface Studio panel overlay.
+#[derive(Debug, Default, Clone)]
+pub struct MaterialPanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions:
+        crate::ui::iris_bridge::types::PanelInteractionState<MaterialPanelTargets, MaterialAction>,
+    /// Selected entity handle cached for material panel interactions.
+    pub selected_entity: Option<hecs::Entity>,
+}
+
+impl std::ops::Deref for MaterialPanelState {
+    type Target =
+        crate::ui::iris_bridge::types::PanelInteractionState<MaterialPanelTargets, MaterialAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for MaterialPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}

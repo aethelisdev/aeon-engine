@@ -180,3 +180,28 @@ pub enum PreferencesAction {
     /// Content area scrolled via mouse wheel.
     Scroll(f32),
 }
+
+/// Persistent interactive state for the Preferences modal dialog overlay.
+#[derive(Debug, Default, Clone)]
+pub struct PreferencesDialogState {
+    /// Cached bounding box and interactive widget targets of the active Preferences dialog.
+    pub targets: Option<PreferencesTargets>,
+    /// Custom floating position coordinates for the Preferences panel.
+    pub pos: Option<Point>,
+    /// Active drag offset from window top-left when dragging the title bar.
+    pub drag_offset: Option<Point>,
+    /// Currently selected tab index in the Preferences dialog (0..=9).
+    pub tab: u8,
+    /// Content area vertical scroll offset for Preferences dialog.
+    pub scroll_y: f32,
+    /// Currently open dropdown ComboBox in the Preferences dialog.
+    pub dropdown: Option<PreferencesDropdownId>,
+    /// Currently active slider drag descriptor: `(slider_id, track_rect, min_val, max_val)`.
+    pub active_slider_drag: Option<(PreferencesSliderId, Rect, f32, f32)>,
+    /// Dispatched action queue for Preferences dialog interactions.
+    pub actions: Vec<PreferencesAction>,
+    /// Set of currently collapsed card/section identifiers in the Preferences dialog.
+    pub collapsed_sections: HashSet<&'static str>,
+    /// Currently active inline number input editing state in Preferences: `(slider_id, typed_buffer)`.
+    pub active_number_input: Option<(PreferencesSliderId, String)>,
+}

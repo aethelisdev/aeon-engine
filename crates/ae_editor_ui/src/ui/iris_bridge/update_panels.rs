@@ -16,43 +16,43 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(stats_rect) = params.stats_panel_rect
+        if let Some(stats_rect) = params.panel_rects.stats
             && stats_rect.width > 20.0
             && stats_rect.height > 20.0
         {
             let stats_params = StatsPanelParams {
                 panel_rect: stats_rect,
-                scroll_y: self.stats_scroll_y,
-                cursor_pos: self.cursor_pos,
-                wireframe_enabled: params.wireframe_enabled,
-                grid_enabled: params.grid_enabled,
-                fps: self.stats_displayed_fps,
-                frame_pacing: params.frame_pacing,
-                frame_pacing_stats: params.frame_pacing_stats,
-                cpu_timings: params.cpu_timings,
-                gpu_pass_timings: params.gpu_pass_timings,
-                draw_call_stats: params.draw_call_stats,
-                vram_stats: params.vram_stats,
-                render_triangles: params.render_triangles,
-                render_vertices: params.render_vertices,
-                gpu_adapter_name: params.gpu_adapter_name,
-                gpu_backend: params.gpu_backend,
-                active_entities_count: params.active_entities_count,
-                selected_entity: params.selected_entity,
+                scroll_y: self.stats.scroll_y,
+                cursor_pos: self.cursor_pos(),
+                wireframe_enabled: params.viewport.wireframe_enabled,
+                grid_enabled: params.viewport.grid_enabled,
+                fps: self.stats.displayed_fps,
+                frame_pacing: params.telemetry.frame_pacing,
+                frame_pacing_stats: params.telemetry.frame_pacing_stats,
+                cpu_timings: params.telemetry.cpu_timings,
+                gpu_pass_timings: params.telemetry.gpu_pass_timings,
+                draw_call_stats: params.telemetry.draw_call_stats,
+                vram_stats: params.telemetry.vram_stats,
+                render_triangles: params.telemetry.render_triangles as u64,
+                render_vertices: params.telemetry.render_vertices as u64,
+                gpu_adapter_name: params.telemetry.gpu_adapter_name,
+                gpu_backend: params.telemetry.gpu_backend,
+                active_entities_count: params.scene.active_entities_count,
+                selected_entity: params.scene.selected_entity,
             };
 
             let mut stats_targets = StatsPanelTargets::default();
             let nodes =
                 stats::build_stats_panel(&mut self.tree, root, &stats_params, &mut stats_targets);
             stats::update_stats_panel_values(&mut self.tree, &nodes, &stats_params, &stats_targets);
-            self.stats_targets = Some(stats_targets);
-            self.stats_nodes = Some(nodes);
-            self.last_stats_rect = Some(stats_rect);
-            self.last_zoom_factor = params.zoom_factor;
+            self.stats.targets = Some(stats_targets);
+            self.stats.nodes = Some(nodes);
+            self.stats.last_rect = Some(stats_rect);
+            self.chrome.last_zoom_factor = params.context.zoom_factor;
         } else {
-            self.stats_nodes = None;
-            self.stats_targets = None;
-            self.last_stats_rect = None;
+            self.stats.nodes = None;
+            self.stats.targets = None;
+            self.stats.last_rect = None;
         }
     }
 
@@ -62,24 +62,24 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(hierarchy_rect) = params.hierarchy_panel_rect
+        if let Some(hierarchy_rect) = params.panel_rects.hierarchy
             && hierarchy_rect.width > 20.0
             && hierarchy_rect.height > 20.0
         {
             let hier_params = HierarchyPanelParams {
                 panel_rect: hierarchy_rect,
-                world: params.world,
-                selected_entity: params.selected_entity,
-                search_query: &self.hierarchy_search_query,
-                is_editing: params.is_editing,
-                is_2d: params.is_2d,
-                scroll_y: self.hierarchy_scroll_y,
-                active_submenu: self.hierarchy_active_submenu,
-                active_sub_submenu: self.hierarchy_active_sub_submenu,
-                is_add_menu_open: self.hierarchy_is_add_menu_open,
-                active_context_menu: self.hierarchy_active_context_menu,
-                cursor_pos: self.cursor_pos,
-                is_search_focused: self.hierarchy_is_search_focused,
+                world: params.scene.world,
+                selected_entity: params.scene.selected_entity,
+                search_query: &self.hierarchy.interactions.search_query,
+                is_editing: params.context.is_editing,
+                is_2d: params.context.is_2d_mode,
+                scroll_y: self.hierarchy.scroll_y,
+                active_submenu: self.hierarchy.active_submenu,
+                active_sub_submenu: self.hierarchy.active_sub_submenu,
+                is_add_menu_open: self.hierarchy.is_add_menu_open,
+                active_context_menu: self.hierarchy.active_context_menu,
+                cursor_pos: self.cursor_pos(),
+                is_search_focused: self.hierarchy.is_search_focused,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
@@ -89,11 +89,11 @@ impl IrisEditorOverlay {
                 root,
                 &hier_params,
                 &mut hier_targets,
-                &mut self.hierarchy_rows_cache,
+                &mut self.hierarchy.rows_cache,
             );
-            self.hierarchy_targets = Some(hier_targets);
+            self.hierarchy.targets = Some(hier_targets);
         } else {
-            self.hierarchy_targets = None;
+            self.hierarchy.targets = None;
         }
     }
 
@@ -103,14 +103,15 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(inspector_rect) = params.inspector_panel_rect
+        if let Some(inspector_rect) = params.panel_rects.inspector
             && inspector_rect.width > 20.0
             && inspector_rect.height > 20.0
         {
             let num_input_ref = self
-                .inspector_active_number_input
+                .inspector
+                .active_number_input
                 .as_ref()
-                .filter(|session| Some(session.entity) == params.selected_entity)
+                .filter(|session| Some(session.entity) == params.scene.selected_entity)
                 .map(|session| super::inspector::ActiveNumberInputState {
                     id: session.id,
                     buffer: session.buffer.as_str(),
@@ -118,39 +119,42 @@ impl IrisEditorOverlay {
                     is_all_selected: session.is_all_selected,
                 });
             let text_input_ref = self
-                .inspector_active_text_input
+                .inspector
+                .active_text_input
                 .as_ref()
-                .filter(|(ent, _, _)| Some(*ent) == params.selected_entity)
+                .filter(|(ent, _, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, id, s)| (*id, s.as_str()));
             let rename_buf_ref = self
-                .inspector_rename_buffer
+                .inspector
+                .rename_buffer
                 .as_ref()
-                .filter(|(ent, _)| Some(*ent) == params.selected_entity)
+                .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, s)| s.as_str());
             let hex_buf_ref = self
-                .inspector_hex_buffer
+                .inspector
+                .hex_buffer
                 .as_ref()
-                .filter(|(ent, _)| Some(*ent) == params.selected_entity)
+                .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, s)| s.as_str());
 
             let insp_params = super::inspector::InspectorPanelParams {
                 panel_rect: inspector_rect,
-                world: params.world,
-                selected_entity: params.selected_entity,
-                inspector_euler: params.inspector_euler,
-                inspector_color_hex: params.inspector_color_hex,
-                saved_swatches: params.saved_swatches,
-                cursor_pos: self.cursor_pos,
-                scroll_y: self.inspector_scroll_y,
-                active_dropdown: self.inspector_active_dropdown,
-                active_submenu: self.inspector_active_submenu,
-                is_add_menu_open: self.inspector_is_add_menu_open,
-                is_color_picker_open: self.inspector_is_color_picker_open,
+                world: params.scene.world,
+                selected_entity: params.scene.selected_entity,
+                inspector_euler: params.panel_data.inspector_euler,
+                inspector_color_hex: params.panel_data.inspector_color_hex,
+                saved_swatches: params.panel_data.saved_swatches,
+                cursor_pos: self.cursor_pos(),
+                scroll_y: self.inspector.scroll_y,
+                active_dropdown: self.inspector.active_dropdown,
+                active_submenu: self.inspector.active_submenu,
+                is_add_menu_open: self.inspector.is_add_menu_open,
+                is_color_picker_open: self.inspector.is_color_picker_open,
                 active_number_input: num_input_ref,
                 active_text_input: text_input_ref,
                 active_rename_buffer: rename_buf_ref,
                 active_hex_buffer: hex_buf_ref,
-                inspector_hsv: self.inspector_hsv,
+                inspector_hsv: self.inspector.hsv,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
@@ -161,9 +165,9 @@ impl IrisEditorOverlay {
                 &insp_params,
                 &mut insp_targets,
             );
-            self.inspector_targets = Some(insp_targets);
+            self.inspector.targets = Some(insp_targets);
         } else {
-            self.inspector_targets = None;
+            self.inspector.targets = None;
         }
     }
 
@@ -173,19 +177,19 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(console_rect) = params.console_panel_rect
+        if let Some(console_rect) = params.panel_rects.console
             && console_rect.width > 20.0
             && console_rect.height > 20.0
         {
             let console_params = super::console::ConsolePanelParams {
                 panel_rect: console_rect,
-                entries: params.console_entries,
-                scroll_y: self.console_scroll_y,
-                filter: self.console_filter,
-                search_query: &self.console_search_query,
-                is_search_focused: self.console_is_search_focused,
-                auto_scroll: self.console_auto_scroll,
-                cursor_pos: self.cursor_pos,
+                entries: params.panel_data.console_entries,
+                scroll_y: self.console.scroll_y,
+                filter: self.console.filter,
+                search_query: &self.console.search_query,
+                is_search_focused: self.console.is_search_focused,
+                auto_scroll: self.console.auto_scroll,
+                cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
@@ -196,9 +200,9 @@ impl IrisEditorOverlay {
                 &console_params,
                 &mut console_targets,
             );
-            self.console_targets = Some(console_targets);
+            self.console.targets = Some(console_targets);
         } else {
-            self.console_targets = None;
+            self.console.targets = None;
         }
     }
 
@@ -208,41 +212,44 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(assets_rect) = params.assets_panel_rect
+        if let Some(assets_rect) = params.panel_rects.assets
             && assets_rect.width > 20.0
             && assets_rect.height > 20.0
         {
             let is_root_folder =
-                params.asset_browser.current_folder == std::path::Path::new("assets");
-            let query_lower = self.assets_search_query.trim().to_ascii_lowercase();
+                params.panel_data.asset_browser.current_folder == std::path::Path::new("assets");
+            let query_lower = self.assets.search_query.trim().to_ascii_lowercase();
 
             let filtered_items: Vec<_> = params
+                .panel_data
                 .asset_browser
                 .cached_items
                 .iter()
                 .filter(|item| {
-                    if !params.asset_browser.show_engine_content
+                    if !params.panel_data.asset_browser.show_engine_content
                         && item.source == crate::ui::panels::assets::types::AssetSource::Engine
                     {
                         return false;
                     }
-                    if params.is_2d && item.is_3d {
+                    if params.context.is_2d_mode && item.is_3d {
                         return false;
                     }
-                    if !params.is_2d
+                    if !params.context.is_2d_mode
                         && !item.is_3d
                         && item.category == crate::ui::panels::assets::types::AssetCategory::Scenes
                     {
                         return false;
                     }
                     if !is_root_folder
-                        && !item.path.starts_with(&params.asset_browser.current_folder)
+                        && !item
+                            .path
+                            .starts_with(&params.panel_data.asset_browser.current_folder)
                     {
                         return false;
                     }
-                    if params.asset_browser.active_category
+                    if params.panel_data.asset_browser.active_category
                         != crate::ui::panels::assets::types::AssetCategory::All
-                        && item.category != params.asset_browser.active_category
+                        && item.category != params.panel_data.asset_browser.active_category
                     {
                         return false;
                     }
@@ -260,30 +267,30 @@ impl IrisEditorOverlay {
                 .cloned()
                 .collect();
 
-            self.assets_selected_asset = params.asset_browser.selected_asset.clone();
+            self.assets.selected_asset = params.panel_data.asset_browser.selected_asset.clone();
 
             let assets_params = super::assets::AssetsPanelParams {
                 panel_rect: assets_rect,
                 screen_size: (self.screen_width, self.screen_height),
-                current_folder: &self.assets_current_folder,
-                search_query: &self.assets_search_query,
-                is_search_focused: self.assets_is_search_focused,
-                active_category: params.asset_browser.active_category,
-                view_mode: params.asset_browser.view_mode,
-                selected_asset: params.asset_browser.selected_asset.as_deref(),
-                cached_items: &params.asset_browser.cached_items,
+                current_folder: &self.assets.current_folder,
+                search_query: &self.assets.search_query,
+                is_search_focused: self.assets.is_search_focused,
+                active_category: params.panel_data.asset_browser.active_category,
+                view_mode: params.panel_data.asset_browser.view_mode,
+                selected_asset: params.panel_data.asset_browser.selected_asset.as_deref(),
+                cached_items: &params.panel_data.asset_browser.cached_items,
                 filtered_items: &filtered_items,
-                is_2d_mode: params.is_2d,
-                show_engine_content: params.asset_browser.show_engine_content,
-                sidebar_width: params.asset_browser.sidebar_width,
-                sidebar_collapsed: params.asset_browser.sidebar_collapsed,
-                scroll_y: self.assets_scroll_y,
-                tree_scroll_y: self.assets_tree_scroll_y,
-                cursor_pos: self.cursor_pos,
+                is_2d_mode: params.context.is_2d_mode,
+                show_engine_content: params.panel_data.asset_browser.show_engine_content,
+                sidebar_width: params.panel_data.asset_browser.sidebar_width,
+                sidebar_collapsed: params.panel_data.asset_browser.sidebar_collapsed,
+                scroll_y: self.assets.scroll_y,
+                tree_scroll_y: self.assets.tree_scroll_y,
+                cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                active_context_menu: self.assets_context_menu.as_ref(),
-                active_preview_modal: self.assets_preview_modal.as_ref(),
-                thumbnail_layers: &self.thumbnail_layers,
+                active_context_menu: self.assets.context_menu.as_ref(),
+                active_preview_modal: self.assets.preview_modal.as_ref(),
+                thumbnail_layers: &self.assets.thumbnail_layers,
             };
 
             let mut assets_targets = super::assets::AssetsPanelTargets::default();
@@ -293,9 +300,9 @@ impl IrisEditorOverlay {
                 &assets_params,
                 &mut assets_targets,
             );
-            self.assets_targets = Some(assets_targets);
+            self.assets.targets = Some(assets_targets);
         } else {
-            self.assets_targets = None;
+            self.assets.targets = None;
         }
     }
 
@@ -305,17 +312,21 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(timeline_rect) = params.timeline_panel_rect {
-            let anim_player = params
-                .selected_entity
-                .and_then(|ent| params.world.get::<&ae_animation::AnimationPlayer>(ent).ok());
+        if let Some(timeline_rect) = params.panel_rects.timeline {
+            let anim_player = params.scene.selected_entity.and_then(|ent| {
+                params
+                    .scene
+                    .world
+                    .get::<&ae_animation::AnimationPlayer>(ent)
+                    .ok()
+            });
 
             let timeline_params = super::timeline::TimelinePanelParams {
                 panel_rect: timeline_rect,
-                entity: params.selected_entity,
+                entity: params.scene.selected_entity,
                 animation_player: anim_player.as_deref(),
-                cursor_pos: self.cursor_pos,
-                is_dragging_scrubber: self.timeline_is_dragging,
+                cursor_pos: self.cursor_pos(),
+                is_dragging_scrubber: self.timeline.is_dragging,
             };
 
             let mut timeline_targets = super::timeline::TimelinePanelTargets::default();
@@ -325,10 +336,10 @@ impl IrisEditorOverlay {
                 &timeline_params,
                 &mut timeline_targets,
             );
-            self.timeline_targets = Some(timeline_targets);
+            self.timeline.targets = Some(timeline_targets);
         } else {
-            self.timeline_targets = None;
-            self.timeline_is_dragging = false;
+            self.timeline.targets = None;
+            self.timeline.is_dragging = false;
         }
     }
 
@@ -338,15 +349,15 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(material_rect) = params.material_panel_rect {
+        if let Some(material_rect) = params.panel_rects.material {
             let material_params = super::material::MaterialPanelParams {
                 panel_rect: material_rect,
-                entity: params.selected_entity,
-                world: params.world,
-                textures: params.textures,
-                models: params.models,
-                cursor_pos: self.cursor_pos,
-                scroll_y: self.material_scroll_y,
+                entity: params.scene.selected_entity,
+                world: params.scene.world,
+                textures: params.panel_data.textures,
+                models: params.panel_data.models,
+                cursor_pos: self.cursor_pos(),
+                scroll_y: self.material.scroll_y,
             };
 
             let mut material_targets = super::material::MaterialPanelTargets::default();
@@ -356,9 +367,9 @@ impl IrisEditorOverlay {
                 &material_params,
                 &mut material_targets,
             );
-            self.material_targets = Some(material_targets);
+            self.material.targets = Some(material_targets);
         } else {
-            self.material_targets = None;
+            self.material.targets = None;
         }
     }
 
@@ -368,22 +379,22 @@ impl IrisEditorOverlay {
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
-        if let Some(designer_rect) = params.ui_designer_panel_rect {
+        if let Some(designer_rect) = params.panel_rects.ui_designer {
             let designer_params = super::ui_designer::UiDesignerPanelParams {
                 panel_rect: designer_rect,
-                world: params.world,
-                selected_entity: params.selected_entity,
-                cursor_pos: self.cursor_pos,
-                state: params.ui_designer_state,
-                is_aspect_dropdown_open: self.ui_designer_is_aspect_open,
-                is_add_menu_open: self.ui_designer_is_add_menu_open,
+                world: params.scene.world,
+                selected_entity: params.scene.selected_entity,
+                cursor_pos: self.cursor_pos(),
+                state: params.panel_data.ui_designer_state,
+                is_aspect_dropdown_open: self.ui_designer.is_aspect_open,
+                is_add_menu_open: self.ui_designer.is_add_menu_open,
             };
 
             let targets =
                 super::ui_designer::build_ui_designer_panel(&mut self.tree, root, &designer_params);
-            self.ui_designer_targets = Some(targets);
+            self.ui_designer.targets = Some(targets);
         } else {
-            self.ui_designer_targets = None;
+            self.ui_designer.targets = None;
         }
     }
 
@@ -400,10 +411,10 @@ impl IrisEditorOverlay {
         match panel {
             PanelId::Viewport => {
                 let vp_rect = super::floating_layer::active_panel_content_rect(
-                    params.layout_state,
+                    params.context.layout_state,
                     PanelId::Viewport,
                 )
-                .unwrap_or(params.viewport_rect);
+                .unwrap_or(params.viewport.viewport_rect);
                 if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
                     self.build_viewport_content(parent, vp_rect, params);
                 }

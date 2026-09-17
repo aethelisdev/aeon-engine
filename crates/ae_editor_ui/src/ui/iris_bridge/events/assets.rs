@@ -17,26 +17,23 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.assets_targets.as_ref()?;
+        let targets = self.assets.interactions.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
         let mut actions = Vec::new();
 
-        let current_folder = self.assets_current_folder.clone();
-        let search_query = self.assets_search_query.clone();
-
         let ctx = super::super::assets::AssetsEventContext {
-            cursor_pos: self.cursor_pos,
+            cursor_pos: self.cursor_pos(),
             targets,
-            current_folder: &current_folder,
-            search_query: &search_query,
-            is_search_focused: self.assets_is_search_focused,
-            selected_asset: self.assets_selected_asset.as_deref(),
+            current_folder: &self.assets.current_folder,
+            search_query: &self.assets.interactions.search_query,
+            is_search_focused: self.assets.interactions.is_search_focused,
+            selected_asset: self.assets.selected_asset.as_deref(),
         };
 
         let consumed = super::super::assets::handle_assets_panel_event(
             event,
             &ctx,
-            &mut self.assets_click_tracker,
+            &mut self.assets.click_tracker,
             &mut actions,
         );
 
@@ -47,34 +44,34 @@ impl IrisEditorOverlay {
         for action in actions {
             match action {
                 super::super::assets::AssetsPanelAction::Scroll(delta) => {
-                    self.assets_scroll_y = (self.assets_scroll_y - delta).max(0.0);
+                    self.assets.scroll_y = (self.assets.scroll_y - delta).max(0.0);
                 }
                 super::super::assets::AssetsPanelAction::TreeScroll(delta) => {
-                    self.assets_tree_scroll_y = (self.assets_tree_scroll_y - delta).max(0.0);
+                    self.assets.tree_scroll_y = (self.assets.tree_scroll_y - delta).max(0.0);
                 }
                 super::super::assets::AssetsPanelAction::FocusSearch(focused) => {
-                    self.assets_is_search_focused = focused;
+                    self.assets.is_search_focused = focused;
                 }
                 super::super::assets::AssetsPanelAction::SearchInput(ref query) => {
-                    self.assets_search_query = query.clone();
-                    self.assets_actions.push(action);
+                    self.assets.search_query = query.clone();
+                    self.assets.actions.push(action);
                 }
                 super::super::assets::AssetsPanelAction::ClearSearch => {
-                    self.assets_search_query.clear();
-                    self.assets_actions.push(action);
+                    self.assets.search_query.clear();
+                    self.assets.actions.push(action);
                 }
                 super::super::assets::AssetsPanelAction::NavigateFolder(ref path) => {
-                    self.assets_current_folder = path.clone();
-                    self.assets_actions.push(action);
+                    self.assets.current_folder = path.clone();
+                    self.assets.actions.push(action);
                 }
                 super::super::assets::AssetsPanelAction::OpenContextMenu(target, pos) => {
-                    self.assets_context_menu = Some((target, pos));
+                    self.assets.context_menu = Some((target, pos));
                 }
                 super::super::assets::AssetsPanelAction::CloseContextMenu => {
-                    self.assets_context_menu = None;
+                    self.assets.context_menu = None;
                 }
                 super::super::assets::AssetsPanelAction::OpenInspectModal(item) => {
-                    self.assets_preview_modal =
+                    self.assets.preview_modal =
                         Some(super::super::assets::AssetPreviewModalState {
                             item,
                             orbit_yaw: 0.0,
@@ -84,25 +81,25 @@ impl IrisEditorOverlay {
                         });
                 }
                 super::super::assets::AssetsPanelAction::CloseInspectModal => {
-                    self.assets_preview_modal = None;
+                    self.assets.preview_modal = None;
                 }
                 super::super::assets::AssetsPanelAction::InspectOrbitDelta(dx, dy) => {
-                    if let Some(ref mut pm) = self.assets_preview_modal {
+                    if let Some(ref mut pm) = self.assets.preview_modal {
                         pm.orbit_yaw += dx;
                         pm.orbit_pitch = (pm.orbit_pitch + dy).clamp(-1.5, 1.5);
                     }
                 }
                 super::super::assets::AssetsPanelAction::InspectZoomDelta(dz) => {
-                    if let Some(ref mut pm) = self.assets_preview_modal {
+                    if let Some(ref mut pm) = self.assets.preview_modal {
                         pm.zoom_distance = (pm.zoom_distance - dz).clamp(0.4, 3.0);
                     }
                 }
                 super::super::assets::AssetsPanelAction::SelectAsset(ref opt) => {
-                    self.assets_selected_asset = opt.clone();
-                    self.assets_actions.push(action);
+                    self.assets.selected_asset = opt.clone();
+                    self.assets.actions.push(action);
                 }
                 other => {
-                    self.assets_actions.push(other);
+                    self.assets.actions.push(other);
                 }
             }
         }
@@ -114,11 +111,12 @@ impl IrisEditorOverlay {
     /// Terminates an active asset drag interaction, dispatching `EndAssetDrag` and waking the UI.
     /// Returns `true` if an asset drag was active and terminated, or `false` otherwise.
     pub fn end_asset_drag(&mut self) -> bool {
-        if self.assets_click_tracker.is_dragging_asset {
-            self.assets_click_tracker.is_dragging_asset = false;
-            self.assets_click_tracker.potential_drag_item = None;
-            self.assets_click_tracker.drag_start_pos = None;
-            self.assets_actions
+        if self.assets.click_tracker.is_dragging_asset {
+            self.assets.click_tracker.is_dragging_asset = false;
+            self.assets.click_tracker.potential_drag_item = None;
+            self.assets.click_tracker.drag_start_pos = None;
+            self.assets
+                .actions
                 .push(super::super::assets::AssetsPanelAction::EndAssetDrag);
             self.notifier.tag_all();
             true
@@ -135,7 +133,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        if !self.assets_click_tracker.is_dragging_asset {
+        if !self.assets.click_tracker.is_dragging_asset {
             return None;
         }
 

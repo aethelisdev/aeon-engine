@@ -57,64 +57,73 @@ impl IrisEditorOverlay {
         };
         let mut result = IrisOverlayEventResult::default();
 
+        let cursor_x = self.cursor_pos().x;
+        let shift_held = self.chrome.shift_held;
+        let alt_held = self.chrome.alt_held;
+
         // Continuous horizontal mouse drag for Inspector numeric fields
-        if let Some(ref mut drag) = self.inspector_drag_number {
-            let delta = self.cursor_pos.x - drag.start_x;
+        if let Some(ref mut drag) = self.inspector.drag_number {
+            let delta = cursor_x - drag.start_x;
             if delta.abs() > 2.0 {
                 drag.has_dragged = true;
-                self.inspector_active_number_input = None;
-                let speed_mult = if self.shift_held {
+                let speed_mult = if shift_held {
                     5.0
-                } else if self.alt_held {
+                } else if alt_held {
                     0.1
                 } else {
                     1.0
                 };
                 let new_val = (drag.start_val + delta * drag.sensitivity * speed_mult)
                     .clamp(drag.min_val, drag.max_val);
-                self.inspector_actions.push(InspectorAction::SetNumberValue(
-                    drag.entity,
-                    drag.id,
-                    new_val,
-                ));
+                let entity = drag.entity;
+                let id = drag.id;
+
+                self.inspector.active_number_input = None;
+                self.inspector
+                    .interactions
+                    .actions
+                    .push(InspectorAction::SetNumberValue(entity, id, new_val));
                 result.consumed = true;
                 return Some(result);
             }
         }
 
         // Continuous mouse drag for Inspector 2D HSV Color Picker
-        if let Some(mode) = self.inspector_color_drag_mode
-            && let Some(ref insp) = self.inspector_targets
-            && let Some(entity) = insp.inspected_entity
+        if let Some(mode) = self.inspector.color_drag_mode
+            && let Some((sv_box, hue_bar, entity)) =
+                self.inspector.interactions.targets.as_ref().and_then(|t| {
+                    t.inspected_entity
+                        .map(|e| (t.color_picker_sv_box_rect, t.color_picker_hue_bar_rect, e))
+                })
         {
+            let cursor = self.cursor_pos();
             match mode {
                 InspectorColorDragMode::SaturationValue => {
-                    if let Some(sv_rect) = insp.color_picker_sv_box_rect {
-                        let s = ((self.cursor_pos.x - sv_rect.x) / sv_rect.width).clamp(0.0, 1.0);
-                        let v = (1.0 - (self.cursor_pos.y - sv_rect.y) / sv_rect.height)
-                            .clamp(0.0, 1.0);
-                        self.inspector_hsv[1] = s;
-                        self.inspector_hsv[2] = v;
-                        let col = hsv_to_rgb(self.inspector_hsv[0], s, v);
-                        self.inspector_actions
+                    if let Some(sv_rect) = sv_box {
+                        let s = ((cursor.x - sv_rect.x) / sv_rect.width).clamp(0.0, 1.0);
+                        let v = (1.0 - (cursor.y - sv_rect.y) / sv_rect.height).clamp(0.0, 1.0);
+                        self.inspector.hsv[1] = s;
+                        self.inspector.hsv[2] = v;
+                        let col = hsv_to_rgb(self.inspector.hsv[0], s, v);
+                        self.inspector
+                            .actions
                             .push(InspectorAction::LiveSetObjectColor(entity, col));
-                        result.consumed = true;
-                        return Some(result);
                     }
                 }
                 InspectorColorDragMode::Hue => {
-                    if let Some(hue_rect) = insp.color_picker_hue_bar_rect {
-                        let h = (((self.cursor_pos.y - hue_rect.y) / hue_rect.height) * 360.0)
-                            .clamp(0.0, 360.0);
-                        self.inspector_hsv[0] = h;
-                        let col = hsv_to_rgb(h, self.inspector_hsv[1], self.inspector_hsv[2]);
-                        self.inspector_actions
+                    if let Some(hue_rect) = hue_bar {
+                        let h =
+                            (((cursor.y - hue_rect.y) / hue_rect.height) * 360.0).clamp(0.0, 360.0);
+                        self.inspector.hsv[0] = h;
+                        let col = hsv_to_rgb(h, self.inspector.hsv[1], self.inspector.hsv[2]);
+                        self.inspector
+                            .actions
                             .push(InspectorAction::LiveSetObjectColor(entity, col));
-                        result.consumed = true;
-                        return Some(result);
                     }
                 }
             }
+            result.consumed = true;
+            return Some(result);
         }
 
         None
@@ -135,17 +144,22 @@ impl IrisEditorOverlay {
         };
 
         let mut result = IrisOverlayEventResult::default();
-        if self.inspector_color_drag_mode.take().is_some() {
-            if let Some(ref insp) = self.inspector_targets
-                && let Some(entity) = insp.inspected_entity
+        if self.inspector.color_drag_mode.take().is_some() {
+            if let Some(entity) = self
+                .inspector
+                .interactions
+                .targets
+                .as_ref()
+                .and_then(|t| t.inspected_entity)
             {
-                self.inspector_actions
+                self.inspector
+                    .actions
                     .push(InspectorAction::CommitColorEdit(entity));
             }
             result.consumed = true;
             return Some(result);
         }
-        if let Some(drag) = self.inspector_drag_number.take() {
+        if let Some(drag) = self.inspector.drag_number.take() {
             if !drag.has_dragged {
                 // Click in-place without dragging -> activate direct numeric text editing with Select All
                 let initial_str = if drag.start_val.fract().abs() < 1e-4 {
@@ -154,7 +168,7 @@ impl IrisEditorOverlay {
                     format!("{:.3}", drag.start_val)
                 };
                 let cursor_idx = initial_str.len();
-                self.inspector_active_number_input = Some(InspectorNumberInputSession {
+                self.inspector.active_number_input = Some(InspectorNumberInputSession {
                     entity: drag.entity,
                     id: drag.id,
                     buffer: initial_str,
@@ -165,7 +179,8 @@ impl IrisEditorOverlay {
                     max_val: drag.max_val,
                 });
             } else {
-                self.inspector_actions
+                self.inspector
+                    .actions
                     .push(InspectorAction::CommitNumberEdit(drag.entity, drag.id));
             }
             result.consumed = true;
@@ -178,22 +193,27 @@ impl IrisEditorOverlay {
     /// Handles hover events cascading submenus inside the Add Component popup.
     fn handle_inspector_menu_hover(&mut self, event: &WindowEvent) {
         if let WindowEvent::CursorMoved { .. } = event
-            && let Some(ref targets) = self.inspector_targets
-            && self.inspector_is_add_menu_open
+            && self.inspector.is_add_menu_open
+            && let Some(ref targets) = self.inspector.interactions.targets
         {
+            let cursor = self.cursor_pos();
             let in_submenu = targets
                 .active_submenu_rect
-                .is_some_and(|r| r.contains_point(self.cursor_pos));
+                .is_some_and(|r| r.contains_point(cursor));
             let in_add_menu = targets
                 .active_add_menu_rect
-                .is_some_and(|r| r.contains_point(self.cursor_pos));
+                .is_some_and(|r| r.contains_point(cursor));
 
             if !in_submenu && in_add_menu {
+                let mut hovered_cat = None;
                 for &(cat, item_rect) in &targets.add_menu_categories {
-                    if item_rect.contains_point(self.cursor_pos) {
-                        self.inspector_active_submenu = Some(cat);
+                    if item_rect.contains_point(cursor) {
+                        hovered_cat = Some(cat);
                         break;
                     }
+                }
+                if let Some(cat) = hovered_cat {
+                    self.inspector.active_submenu = Some(cat);
                 }
             }
         }
@@ -204,7 +224,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let insp_targets = self.inspector_targets.as_ref()?;
+        let insp_targets = self.inspector.interactions.targets.as_ref()?;
         let WindowEvent::MouseInput {
             state: ElementState::Pressed,
             button,
@@ -215,7 +235,7 @@ impl IrisEditorOverlay {
         };
 
         let mut result = IrisOverlayEventResult::default();
-        let click_point = self.cursor_pos;
+        let click_point = self.cursor_pos();
         let ui_button = match button {
             WinitMouseButton::Left => MouseButton::Left,
             WinitMouseButton::Right => MouseButton::Right,
@@ -226,17 +246,19 @@ impl IrisEditorOverlay {
         let entity_opt = insp_targets.inspected_entity;
 
         // 1. Check if an active dropdown popup is open and clicked
-        if let Some(active_dd) = self.inspector_active_dropdown {
+        if let Some(active_dd) = self.inspector.active_dropdown {
             if let Some(popup_rect) = insp_targets.active_dropdown_popup_rect
                 && popup_rect.contains_point(click_point)
             {
                 for &(opt_idx, item_rect) in &insp_targets.dropdown_items {
                     if item_rect.contains_point(click_point) {
                         if let Some(entity) = entity_opt {
-                            self.inspector_actions
+                            self.inspector
+                                .interactions
+                                .actions
                                 .push(InspectorAction::SelectDropdown(entity, active_dd, opt_idx));
                         }
-                        self.inspector_active_dropdown = None;
+                        self.inspector.active_dropdown = None;
                         result.consumed = true;
                         return Some(result);
                     }
@@ -244,17 +266,19 @@ impl IrisEditorOverlay {
                 result.consumed = true;
                 return Some(result);
             }
-            self.inspector_active_dropdown = None;
+            self.inspector.active_dropdown = None;
         }
 
         // 1b. Check if 2D HSV Color Picker is open and clicked
-        if self.inspector_is_color_picker_open {
+        if self.inspector.is_color_picker_open {
             if let Some(close_btn) = insp_targets.color_picker_close_btn_rect
                 && close_btn.contains_point(click_point)
             {
-                self.inspector_is_color_picker_open = false;
+                self.inspector.is_color_picker_open = false;
                 if let Some(entity) = entity_opt {
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::CommitColorEdit(entity));
                 }
                 result.consumed = true;
@@ -266,16 +290,20 @@ impl IrisEditorOverlay {
             {
                 let s = ((click_point.x - sv_rect.x) / sv_rect.width).clamp(0.0, 1.0);
                 let v = (1.0 - (click_point.y - sv_rect.y) / sv_rect.height).clamp(0.0, 1.0);
-                self.inspector_hsv[1] = s;
-                self.inspector_hsv[2] = v;
-                let col = hsv_to_rgb(self.inspector_hsv[0], s, v);
+                self.inspector.hsv[1] = s;
+                self.inspector.hsv[2] = v;
+                let col = hsv_to_rgb(self.inspector.hsv[0], s, v);
                 if let Some(entity) = entity_opt {
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::StartColorEdit(entity));
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::LiveSetObjectColor(entity, col));
                 }
-                self.inspector_color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
+                self.inspector.color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
                 result.consumed = true;
                 return Some(result);
             }
@@ -285,15 +313,19 @@ impl IrisEditorOverlay {
             {
                 let h =
                     (((click_point.y - hue_rect.y) / hue_rect.height) * 360.0).clamp(0.0, 360.0);
-                self.inspector_hsv[0] = h;
-                let col = hsv_to_rgb(h, self.inspector_hsv[1], self.inspector_hsv[2]);
+                self.inspector.hsv[0] = h;
+                let col = hsv_to_rgb(h, self.inspector.hsv[1], self.inspector.hsv[2]);
                 if let Some(entity) = entity_opt {
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::StartColorEdit(entity));
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::LiveSetObjectColor(entity, col));
                 }
-                self.inspector_color_drag_mode = Some(InspectorColorDragMode::Hue);
+                self.inspector.color_drag_mode = Some(InspectorColorDragMode::Hue);
                 result.consumed = true;
                 return Some(result);
             }
@@ -302,18 +334,20 @@ impl IrisEditorOverlay {
         // 2. Check if a string text input box is clicked
         for &(text_id, box_rect, ref cur_val) in &insp_targets.text_inputs {
             if box_rect.contains_point(click_point) {
-                if let Some((prev_ent, prev_id, prev_buf)) = self.inspector_active_text_input.take()
+                if let Some((prev_ent, prev_id, prev_buf)) = self.inspector.active_text_input.take()
                     && prev_id != text_id
                 {
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::SetTextValue(prev_ent, prev_id, prev_buf));
                 }
                 if let Some(entity) = entity_opt {
-                    self.inspector_active_text_input = Some((entity, text_id, cur_val.clone()));
+                    self.inspector.active_text_input = Some((entity, text_id, cur_val.clone()));
                 }
-                self.inspector_active_number_input = None;
-                self.inspector_rename_buffer = None;
-                self.inspector_hex_buffer = None;
+                self.inspector.active_number_input = None;
+                self.inspector.rename_buffer = None;
+                self.inspector.hex_buffer = None;
                 result.consumed = true;
                 return Some(result);
             }
@@ -322,22 +356,27 @@ impl IrisEditorOverlay {
         // 2b. Check if a number input box is clicked
         for &(num_id, box_rect, min_val, max_val, cur_val) in &insp_targets.number_inputs {
             if box_rect.contains_point(click_point) {
-                if let Some(prev) = self.inspector_active_number_input.take()
+                if let Some(prev) = self.inspector.active_number_input.take()
                     && prev.id != num_id
                 {
                     if let Ok(v) =
                         inspector::evaluate_inspector_math(&prev.buffer, prev.initial_val)
                     {
                         let clamped_v = prev.id.clamp_value(v.clamp(prev.min_val, prev.max_val));
-                        self.inspector_actions.push(InspectorAction::SetNumberValue(
-                            prev.entity,
-                            prev.id,
-                            clamped_v,
-                        ));
-                        self.inspector_actions
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::SetNumberValue(
+                                prev.entity,
+                                prev.id,
+                                clamped_v,
+                            ));
+                        self.inspector
+                            .interactions
+                            .actions
                             .push(InspectorAction::CommitNumberEdit(prev.entity, prev.id));
                     } else {
-                        self.inspector_edit_start_snapshot = None;
+                        self.inspector.edit_start_snapshot = None;
                     }
                 }
                 let sensitivity = match num_id {
@@ -376,9 +415,11 @@ impl IrisEditorOverlay {
                     _ => 0.05,
                 };
                 if let Some(entity) = entity_opt {
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::StartNumberEdit(entity, num_id));
-                    self.inspector_drag_number = Some(InspectorNumberDragState {
+                    self.inspector.drag_number = Some(InspectorNumberDragState {
                         entity,
                         id: num_id,
                         start_x: click_point.x,
@@ -395,37 +436,44 @@ impl IrisEditorOverlay {
         }
 
         // Commit active number input if clicked outside
-        if let Some(session) = self.inspector_active_number_input.take() {
+        if let Some(session) = self.inspector.active_number_input.take() {
             if let Ok(v) = inspector::evaluate_inspector_math(&session.buffer, session.initial_val)
             {
                 let clamped_v = session
                     .id
                     .clamp_value(v.clamp(session.min_val, session.max_val));
-                self.inspector_actions.push(InspectorAction::SetNumberValue(
-                    session.entity,
-                    session.id,
-                    clamped_v,
-                ));
-                self.inspector_actions
+                self.inspector
+                    .interactions
+                    .actions
+                    .push(InspectorAction::SetNumberValue(
+                        session.entity,
+                        session.id,
+                        clamped_v,
+                    ));
+                self.inspector
+                    .interactions
+                    .actions
                     .push(InspectorAction::CommitNumberEdit(
                         session.entity,
                         session.id,
                     ));
             } else {
-                self.inspector_edit_start_snapshot = None;
+                self.inspector.edit_start_snapshot = None;
             }
         }
 
         // Commit active text input if clicked outside
-        if let Some((ent, id, buf)) = self.inspector_active_text_input.take() {
-            self.inspector_actions
+        if let Some((ent, id, buf)) = self.inspector.active_text_input.take() {
+            self.inspector
+                .interactions
+                .actions
                 .push(InspectorAction::SetTextValue(ent, id, buf));
         }
 
         // Commit active hex input if clicked outside
         if let Some(ref hex_rect) = insp_targets.hex_input_rect
             && !hex_rect.contains_point(click_point)
-            && let Some((ent, buf)) = self.inspector_hex_buffer.take()
+            && let Some((ent, buf)) = self.inspector.hex_buffer.take()
         {
             let clean_hex = buf.trim_start_matches('#');
             if (clean_hex.len() == 6 || clean_hex.len() == 3)
@@ -444,15 +492,18 @@ impl IrisEditorOverlay {
                         ((rgb & 0xF) * 17) as f32 / 255.0,
                     )
                 };
-                self.inspector_actions.push(InspectorAction::SetObjectColor(
-                    ent,
-                    Color::rgba(r, g, b, 1.0),
-                ));
+                self.inspector
+                    .interactions
+                    .actions
+                    .push(InspectorAction::SetObjectColor(
+                        ent,
+                        Color::rgba(r, g, b, 1.0),
+                    ));
             }
         }
 
         // Close color picker if clicked outside
-        if self.inspector_is_color_picker_open {
+        if self.inspector.is_color_picker_open {
             let inside_picker = insp_targets
                 .color_picker_popup_rect
                 .is_some_and(|r| r.contains_point(click_point));
@@ -460,9 +511,11 @@ impl IrisEditorOverlay {
                 .color_swatch_rect
                 .is_some_and(|r| r.contains_point(click_point));
             if !inside_picker && !inside_swatch {
-                self.inspector_is_color_picker_open = false;
+                self.inspector.is_color_picker_open = false;
                 if let Some(entity) = entity_opt {
-                    self.inspector_actions
+                    self.inspector
+                        .interactions
+                        .actions
                         .push(InspectorAction::CommitColorEdit(entity));
                 }
             }
@@ -475,44 +528,44 @@ impl IrisEditorOverlay {
         for action in actions {
             match action {
                 InspectorAction::OpenAddComponentMenu(_) => {
-                    self.inspector_is_add_menu_open = true;
-                    self.inspector_active_submenu = None;
-                    self.active_menu = None;
-                    self.hierarchy_is_add_menu_open = false;
-                    self.hierarchy_active_context_menu = None;
+                    self.inspector.is_add_menu_open = true;
+                    self.inspector.active_submenu = None;
+                    self.menubar.active_menu = None;
+                    self.hierarchy.is_add_menu_open = false;
+                    self.hierarchy.active_context_menu = None;
                 }
                 InspectorAction::CloseAddComponentMenu => {
-                    self.inspector_is_add_menu_open = false;
-                    self.inspector_active_submenu = None;
+                    self.inspector.is_add_menu_open = false;
+                    self.inspector.active_submenu = None;
                 }
                 InspectorAction::OpenAddSubmenu(cat) => {
-                    self.inspector_active_submenu = Some(cat);
+                    self.inspector.active_submenu = Some(cat);
                 }
                 InspectorAction::CloseAddSubmenu => {
-                    self.inspector_active_submenu = None;
+                    self.inspector.active_submenu = None;
                 }
                 InspectorAction::SelectDropdown(_ent, dd_id, _) => {
-                    if self.inspector_active_dropdown == Some(dd_id) {
-                        self.inspector_active_dropdown = None;
+                    if self.inspector.active_dropdown == Some(dd_id) {
+                        self.inspector.active_dropdown = None;
                     } else {
-                        self.inspector_active_dropdown = Some(dd_id);
+                        self.inspector.active_dropdown = Some(dd_id);
                     }
                 }
                 InspectorAction::FocusRename => {
                     if let Some(entity) = entity_opt {
-                        self.inspector_rename_buffer = Some((entity, String::new()));
+                        self.inspector.rename_buffer = Some((entity, String::new()));
                     }
                 }
                 InspectorAction::FocusHexInput => {
                     if let Some(entity) = entity_opt {
-                        self.inspector_hex_buffer = Some((entity, String::from("#")));
+                        self.inspector.hex_buffer = Some((entity, String::from("#")));
                     }
                 }
                 InspectorAction::ToggleColorPicker => {
-                    self.inspector_is_color_picker_open = !self.inspector_is_color_picker_open;
+                    self.inspector.is_color_picker_open = !self.inspector.is_color_picker_open;
                 }
                 other => {
-                    self.inspector_actions.push(other);
+                    self.inspector.interactions.actions.push(other);
                 }
             }
         }

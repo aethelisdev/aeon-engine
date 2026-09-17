@@ -35,6 +35,7 @@ pub use panel::build_inspector_panel;
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use types::{
     ActiveNumberInputState, ComponentCategory, ComponentCheckboxId, InspectorAction,
-    InspectorDropdownId, InspectorNumberInputId, InspectorPanelParams, InspectorPanelTargets,
+    InspectorColorDragMode, InspectorDropdownId, InspectorNumberDragState, InspectorNumberInputId,
+    InspectorNumberInputSession, InspectorPanelParams, InspectorPanelState, InspectorPanelTargets,
     InspectorTextInputId, TransformAxisType,
 };

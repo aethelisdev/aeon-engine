@@ -33,10 +33,10 @@ impl EngineUi {
                 }
                 iris_bridge::PreferencesAction::SelectTab(t) => {
                     self.preferences_tab = t;
-                    self.iris_overlay.preferences_tab = t;
+                    self.iris_overlay.preferences.tab = t;
                 }
                 iris_bridge::PreferencesAction::ToggleDropdown(dd) => {
-                    self.iris_overlay.preferences_dropdown = dd;
+                    self.iris_overlay.preferences.dropdown = dd;
                 }
                 iris_bridge::PreferencesAction::SetUiScale(s) => {
                     self.ui_zoom_factor = s.clamp(0.6, 2.0);
@@ -201,8 +201,8 @@ impl EngineUi {
                     }
                 },
                 iris_bridge::PreferencesAction::Scroll(delta) => {
-                    self.iris_overlay.preferences_scroll_y =
-                        (self.iris_overlay.preferences_scroll_y + delta).max(0.0);
+                    self.iris_overlay.preferences.scroll_y =
+                        (self.iris_overlay.preferences.scroll_y + delta).max(0.0);
                 }
                 iris_bridge::PreferencesAction::ToggleSection(_) => {}
             }
@@ -257,7 +257,7 @@ impl EngineUi {
                     ui_actions.push(EngineUiAction::SelectEntity(Some(ent)));
                 }
                 iris_bridge::ViewportHudAction::ToggleDropdown(dd) => {
-                    self.iris_overlay.viewport_hud_dropdown = dd;
+                    self.iris_overlay.viewport_hud.dropdown = dd;
                 }
                 iris_bridge::ViewportHudAction::ResumeGame => {
                     ui_actions.push(EngineUiAction::ResumeGame);
@@ -403,7 +403,7 @@ impl EngineUi {
                     _ => {}
                 },
                 iris_bridge::AssetsPanelAction::InspectAsset(item) => {
-                    self.iris_overlay.assets_preview_modal = Some(
+                    self.iris_overlay.assets.preview_modal = Some(
                         crate::ui::iris_bridge::assets::types::AssetPreviewModalState {
                             item,
                             orbit_yaw: 0.0,
@@ -439,7 +439,7 @@ impl EngineUi {
                 }
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
                     if let Some(payload) = self.asset_browser.drag_payload.take() {
-                        let cursor_pos = self.iris_overlay.cursor_pos;
+                        let cursor_pos = self.iris_overlay.cursor_pos();
                         if self.last_viewport_rect.contains_point(cursor_pos)
                             && self.last_viewport_rect.width > 20.0
                             && self.last_viewport_rect.height > 20.0
@@ -540,7 +540,7 @@ impl EngineUi {
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         let Some(entity) = self.selected_entity else {
-            self.iris_overlay.timeline_actions.clear();
+            self.iris_overlay.timeline.actions.clear();
             return;
         };
 

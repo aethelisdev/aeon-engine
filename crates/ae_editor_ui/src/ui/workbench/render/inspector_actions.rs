@@ -37,8 +37,8 @@ impl EngineUi {
                 | InspectorAction::LiveSetObjectColor(..)
                 | InspectorAction::CommitColorEdit(..) => {
                     handle_color_edit_action(
-                        &mut self.iris_overlay.inspector_color_edit_start,
-                        &mut self.iris_overlay.inspector_hsv,
+                        &mut self.iris_overlay.inspector.color_edit_start,
+                        &mut self.iris_overlay.inspector.hsv,
                         &mut self.inspector_color_hex,
                         world,
                         ui_actions,
@@ -46,7 +46,7 @@ impl EngineUi {
                     );
                 }
                 InspectorAction::SetObjectColor(entity, col) => {
-                    self.iris_overlay.inspector_color_edit_start = None;
+                    self.iris_overlay.inspector.color_edit_start = None;
                     self.handle_set_object_color(world, ui_actions, entity, col);
                 }
                 InspectorAction::AddColorToPalette(col) => {
@@ -90,18 +90,18 @@ impl EngineUi {
                     if let Some(handler) = registry.get_by_name(comp_name)
                         && let Some(old_bytes) = handler.capture(world, entity)
                     {
-                        self.iris_overlay.inspector_edit_start_snapshot =
+                        self.iris_overlay.inspector.edit_start_snapshot =
                             Some((entity, comp_name, old_bytes));
                     }
                 }
                 InspectorAction::SetNumberValue(entity, num_id, val) => {
-                    if self.iris_overlay.inspector_edit_start_snapshot.is_none() {
+                    if self.iris_overlay.inspector.edit_start_snapshot.is_none() {
                         let comp_name = num_id.component_name();
                         let registry = ae_core::registry::ComponentRegistry::global();
                         if let Some(handler) = registry.get_by_name(comp_name)
                             && let Some(old_bytes) = handler.capture(world, entity)
                         {
-                            self.iris_overlay.inspector_edit_start_snapshot =
+                            self.iris_overlay.inspector.edit_start_snapshot =
                                 Some((entity, comp_name, old_bytes));
                         }
                     }
@@ -110,7 +110,7 @@ impl EngineUi {
                 InspectorAction::CommitNumberEdit(entity, num_id) => {
                     let comp_name = num_id.component_name();
                     if let Some((snap_entity, snap_comp_name, old_bytes)) =
-                        self.iris_overlay.inspector_edit_start_snapshot.take()
+                        self.iris_overlay.inspector.edit_start_snapshot.take()
                         && snap_entity == entity
                         && snap_comp_name == comp_name
                     {
@@ -344,7 +344,7 @@ impl EngineUi {
         let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
         self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
         let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
-        self.iris_overlay.inspector_hsv = [h, s, v];
+        self.iris_overlay.inspector.hsv = [h, s, v];
         ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
     }
 }

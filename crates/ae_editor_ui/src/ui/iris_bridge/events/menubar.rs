@@ -17,21 +17,22 @@ impl IrisEditorOverlay {
 
         match event {
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor_pos = Point::new(position.x as f32, position.y as f32);
+                self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
 
                 // Desktop-standard behavior: when any dropdown menu is active,
                 // hovering over other menu headers automatically switches the open menu.
-                if self.active_menu.is_some() && self.cursor_pos.y <= Self::MENUBAR_HEIGHT {
-                    if self.cursor_pos.x >= 6.0 && self.cursor_pos.x < 44.0 {
-                        self.active_menu = Some(ActiveMenu::File);
-                    } else if self.cursor_pos.x >= 44.0 && self.cursor_pos.x < 84.0 {
-                        self.active_menu = Some(ActiveMenu::Edit);
-                    } else if self.cursor_pos.x >= 84.0 && self.cursor_pos.x < 126.0 {
-                        self.active_menu = Some(ActiveMenu::View);
-                    } else if self.cursor_pos.x >= 126.0 && self.cursor_pos.x < 186.0 {
-                        self.active_menu = Some(ActiveMenu::Window);
-                    } else if self.cursor_pos.x >= 186.0 && self.cursor_pos.x < 226.0 {
-                        self.active_menu = Some(ActiveMenu::Help);
+                if self.menubar.active_menu.is_some() && self.cursor_pos().y <= Self::MENUBAR_HEIGHT
+                {
+                    if self.cursor_pos().x >= 6.0 && self.cursor_pos().x < 44.0 {
+                        self.menubar.active_menu = Some(ActiveMenu::File);
+                    } else if self.cursor_pos().x >= 44.0 && self.cursor_pos().x < 84.0 {
+                        self.menubar.active_menu = Some(ActiveMenu::Edit);
+                    } else if self.cursor_pos().x >= 84.0 && self.cursor_pos().x < 126.0 {
+                        self.menubar.active_menu = Some(ActiveMenu::View);
+                    } else if self.cursor_pos().x >= 126.0 && self.cursor_pos().x < 186.0 {
+                        self.menubar.active_menu = Some(ActiveMenu::Window);
+                    } else if self.cursor_pos().x >= 186.0 && self.cursor_pos().x < 226.0 {
+                        self.menubar.active_menu = Some(ActiveMenu::Help);
                     }
                 }
             }
@@ -40,65 +41,70 @@ impl IrisEditorOverlay {
                 button: WinitMouseButton::Left,
                 ..
             } => {
-                let click_point = self.cursor_pos;
+                let click_point = self.cursor_pos();
 
                 // 1. Check if clicking on menubar buttons
                 if click_point.y <= Self::MENUBAR_HEIGHT {
                     result.consumed = true;
-                    self.hierarchy_is_add_menu_open = false;
-                    self.hierarchy_active_submenu = None;
-                    self.hierarchy_active_sub_submenu = None;
-                    self.hierarchy_active_context_menu = None;
-                    self.viewport_hud_dropdown = None;
-                    self.preferences_dropdown = None;
+                    self.hierarchy.is_add_menu_open = false;
+                    self.hierarchy.active_submenu = None;
+                    self.hierarchy.active_sub_submenu = None;
+                    self.hierarchy.active_context_menu = None;
+                    self.viewport_hud.dropdown = None;
+                    self.preferences.dropdown = None;
 
                     if click_point.x >= 6.0 && click_point.x < 44.0 {
-                        self.active_menu = if self.active_menu == Some(ActiveMenu::File) {
-                            None
-                        } else {
-                            Some(ActiveMenu::File)
-                        };
+                        self.menubar.active_menu =
+                            if self.menubar.active_menu == Some(ActiveMenu::File) {
+                                None
+                            } else {
+                                Some(ActiveMenu::File)
+                            };
                         return Some(result);
                     }
 
                     if click_point.x >= 44.0 && click_point.x < 84.0 {
-                        self.active_menu = if self.active_menu == Some(ActiveMenu::Edit) {
-                            None
-                        } else {
-                            Some(ActiveMenu::Edit)
-                        };
+                        self.menubar.active_menu =
+                            if self.menubar.active_menu == Some(ActiveMenu::Edit) {
+                                None
+                            } else {
+                                Some(ActiveMenu::Edit)
+                            };
                         return Some(result);
                     }
 
                     if click_point.x >= 84.0 && click_point.x < 126.0 {
-                        self.active_menu = if self.active_menu == Some(ActiveMenu::View) {
-                            None
-                        } else {
-                            Some(ActiveMenu::View)
-                        };
+                        self.menubar.active_menu =
+                            if self.menubar.active_menu == Some(ActiveMenu::View) {
+                                None
+                            } else {
+                                Some(ActiveMenu::View)
+                            };
                         return Some(result);
                     }
 
                     if click_point.x >= 126.0 && click_point.x < 186.0 {
-                        self.active_menu = if self.active_menu == Some(ActiveMenu::Window) {
-                            None
-                        } else {
-                            Some(ActiveMenu::Window)
-                        };
+                        self.menubar.active_menu =
+                            if self.menubar.active_menu == Some(ActiveMenu::Window) {
+                                None
+                            } else {
+                                Some(ActiveMenu::Window)
+                            };
                         return Some(result);
                     }
 
                     if click_point.x >= 186.0 && click_point.x < 226.0 {
-                        self.active_menu = if self.active_menu == Some(ActiveMenu::Help) {
-                            None
-                        } else {
-                            Some(ActiveMenu::Help)
-                        };
+                        self.menubar.active_menu =
+                            if self.menubar.active_menu == Some(ActiveMenu::Help) {
+                                None
+                            } else {
+                                Some(ActiveMenu::Help)
+                            };
                         return Some(result);
                     }
 
                     if click_point.x >= (self.screen_width - 90.0) {
-                        self.active_menu = None;
+                        self.menubar.active_menu = None;
                         result.ui_action = Some(crate::ui::EngineUiAction::ChangeMode(
                             ae_core::modules::EngineMode::Play,
                         ));
@@ -106,15 +112,15 @@ impl IrisEditorOverlay {
                     }
 
                     // Clicked menubar empty area -> close dropdown
-                    self.active_menu = None;
+                    self.menubar.active_menu = None;
                     return Some(result);
                 }
 
                 // 2. Check if clicking on an item inside the active dropdown popup
-                if self.active_menu.is_some() {
+                if self.menubar.active_menu.is_some() {
                     let mut clicked_item = None;
 
-                    for (item_rect, action) in &self.dropdown_items {
+                    for (item_rect, action) in &self.menubar.dropdown_items {
                         if item_rect.contains_point(click_point) {
                             clicked_item = Some(action.clone());
                             break;
@@ -129,13 +135,13 @@ impl IrisEditorOverlay {
                             DropdownAction::OpenPreferences => result.open_preferences = true,
                             DropdownAction::OpenAbout => result.open_about = true,
                         }
-                        self.active_menu = None;
+                        self.menubar.active_menu = None;
                         result.consumed = true;
                         return Some(result);
                     }
 
                     // Clicked outside dropdown -> dismiss popup
-                    self.active_menu = None;
+                    self.menubar.active_menu = None;
                     result.consumed = true;
                     return Some(result);
                 }

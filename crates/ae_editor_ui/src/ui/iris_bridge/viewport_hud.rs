@@ -17,4 +17,7 @@ pub mod toolbar;
 pub mod types;
 
 pub use builder::build_viewport_hud;
-pub use types::{ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets};
+pub use types::{
+    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
+    ViewportHudTargets,
+};

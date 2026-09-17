@@ -20,7 +20,6 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.ui_designer_targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         // ── 1. Mouse Click Handling ───────────────────────────────────────────
@@ -30,58 +29,66 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let click_point = self.cursor_pos;
-            let click_res = handle_ui_designer_click(
-                click_point,
-                targets,
-                self.ui_designer_is_aspect_open,
-                self.ui_designer_is_add_menu_open,
-            );
+            let click_point = self.cursor_pos();
+            let (click_res, panel_rect) = {
+                let targets = self.ui_designer.interactions.targets.as_ref()?;
+                let res = handle_ui_designer_click(
+                    click_point,
+                    targets,
+                    self.ui_designer.is_aspect_open,
+                    self.ui_designer.is_add_menu_open,
+                );
+                (res, targets.panel_rect)
+            };
 
             if let Some(action) = click_res.action {
                 match action {
                     UiDesignerAction::ToggleAspectDropdown => {
-                        self.ui_designer_is_aspect_open = !self.ui_designer_is_aspect_open;
-                        self.ui_designer_is_add_menu_open = false;
+                        self.ui_designer.is_aspect_open = !self.ui_designer.is_aspect_open;
+                        self.ui_designer.is_add_menu_open = false;
                     }
                     UiDesignerAction::ToggleAddMenu => {
-                        self.ui_designer_is_add_menu_open = !self.ui_designer_is_add_menu_open;
-                        self.ui_designer_is_aspect_open = false;
+                        self.ui_designer.is_add_menu_open = !self.ui_designer.is_add_menu_open;
+                        self.ui_designer.is_aspect_open = false;
                     }
                     UiDesignerAction::ClosePopups => {
-                        self.ui_designer_is_aspect_open = false;
-                        self.ui_designer_is_add_menu_open = false;
+                        self.ui_designer.is_aspect_open = false;
+                        self.ui_designer.is_add_menu_open = false;
                     }
                     UiDesignerAction::SetAspectRatio(ratio) => {
-                        self.ui_designer_is_aspect_open = false;
-                        self.ui_designer_actions
+                        self.ui_designer.is_aspect_open = false;
+                        self.ui_designer
+                            .interactions
+                            .actions
                             .push(UiDesignerAction::SetAspectRatio(ratio));
                     }
                     UiDesignerAction::SpawnElement(elem) => {
-                        self.ui_designer_is_add_menu_open = false;
-                        self.ui_designer_actions
+                        self.ui_designer.is_add_menu_open = false;
+                        self.ui_designer
+                            .interactions
+                            .actions
                             .push(UiDesignerAction::SpawnElement(elem));
                     }
                     other => {
-                        self.ui_designer_actions.push(other);
+                        self.ui_designer.interactions.actions.push(other);
                     }
                 }
                 result.consumed = true;
             }
 
             if let Some(drag) = click_res.start_element_drag {
-                self.ui_designer_drag_state = Some(drag);
-                self.ui_designer_last_cursor = click_point;
+                self.ui_designer.drag_state = Some(drag);
+                self.ui_designer.last_cursor = click_point;
                 result.consumed = true;
             }
 
             if click_res.start_canvas_pan {
-                self.ui_designer_is_panning = true;
-                self.ui_designer_last_cursor = click_point;
+                self.ui_designer.is_panning = true;
+                self.ui_designer.last_cursor = click_point;
                 result.consumed = true;
             }
 
-            if targets.panel_rect.contains_point(click_point) {
+            if panel_rect.contains_point(click_point) {
                 result.consumed = true;
                 return Some(result);
             }
@@ -89,22 +96,28 @@ impl IrisEditorOverlay {
 
         // ── 2. Mouse Dragging & Panning (CursorMoved) ─────────────────────────
         if let WindowEvent::CursorMoved { .. } = event
-            && (self.ui_designer_drag_state.is_some() || self.ui_designer_is_panning)
+            && (self.ui_designer.drag_state.is_some() || self.ui_designer.is_panning)
         {
+            let cursor = self.cursor_pos();
             let delta = [
-                self.cursor_pos.x - self.ui_designer_last_cursor.x,
-                self.cursor_pos.y - self.ui_designer_last_cursor.y,
+                cursor.x - self.ui_designer.last_cursor.x,
+                cursor.y - self.ui_designer.last_cursor.y,
             ];
-            self.ui_designer_last_cursor = self.cursor_pos;
+            self.ui_designer.last_cursor = cursor;
 
-            if let Some(drag_action) = handle_ui_designer_drag(
-                self.cursor_pos,
-                delta,
-                self.ui_designer_drag_state.as_ref(),
-                self.ui_designer_is_panning,
-                targets,
-            ) {
-                self.ui_designer_actions.push(drag_action);
+            let drag_action = {
+                let targets = self.ui_designer.interactions.targets.as_ref()?;
+                handle_ui_designer_drag(
+                    cursor,
+                    delta,
+                    self.ui_designer.drag_state.as_ref(),
+                    self.ui_designer.is_panning,
+                    targets,
+                )
+            };
+
+            if let Some(action) = drag_action {
+                self.ui_designer.interactions.actions.push(action);
             }
             result.consumed = true;
             return Some(result);
@@ -117,8 +130,8 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let had_drag = self.ui_designer_drag_state.take().is_some();
-            let had_pan = std::mem::take(&mut self.ui_designer_is_panning);
+            let had_drag = self.ui_designer.drag_state.take().is_some();
+            let had_pan = std::mem::take(&mut self.ui_designer.is_panning);
             if had_drag || had_pan {
                 result.consumed = true;
                 return Some(result);
@@ -126,21 +139,26 @@ impl IrisEditorOverlay {
         }
 
         // ── 4. Mouse Wheel Scroll (Canvas Zoom) ────────────────────────────────
-        if let WindowEvent::MouseWheel { delta, .. } = event
-            && targets.panel_rect.contains_point(self.cursor_pos)
-        {
+        if let WindowEvent::MouseWheel { delta, .. } = event {
+            let cursor = self.cursor_pos();
             let delta_y = match delta {
                 MouseScrollDelta::LineDelta(_, y) => *y,
                 MouseScrollDelta::PixelDelta(pos) => (pos.y as f32) / 20.0,
             };
 
-            if let Some(scroll_action) =
-                handle_ui_designer_scroll(self.cursor_pos, delta_y, targets)
-            {
-                self.ui_designer_actions.push(scroll_action);
+            let scroll_action = {
+                let targets = self.ui_designer.interactions.targets.as_ref()?;
+                if !targets.panel_rect.contains_point(cursor) {
+                    return None;
+                }
+                handle_ui_designer_scroll(cursor, delta_y, targets)
+            };
+
+            if let Some(action) = scroll_action {
+                self.ui_designer.interactions.actions.push(action);
+                result.consumed = true;
+                return Some(result);
             }
-            result.consumed = true;
-            return Some(result);
         }
 
         None

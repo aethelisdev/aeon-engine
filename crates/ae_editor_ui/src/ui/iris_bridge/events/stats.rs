@@ -13,7 +13,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let stats_targets = self.stats_targets.as_ref()?;
+        let stats_targets = self.stats.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         if let WindowEvent::MouseInput {
@@ -22,18 +22,18 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let click_point = self.cursor_pos;
+            let click_point = self.cursor_pos();
             if let Some(wire_rect) = stats_targets.wireframe_checkbox_rect
                 && wire_rect.contains_point(click_point)
             {
-                self.stats_actions.push(StatsPanelAction::ToggleWireframe);
+                self.stats.actions.push(StatsPanelAction::ToggleWireframe);
                 result.consumed = true;
                 return Some(result);
             }
             if let Some(grid_rect) = stats_targets.grid_checkbox_rect
                 && grid_rect.contains_point(click_point)
             {
-                self.stats_actions.push(StatsPanelAction::ToggleGrid);
+                self.stats.actions.push(StatsPanelAction::ToggleGrid);
                 result.consumed = true;
                 return Some(result);
             }
@@ -61,33 +61,33 @@ impl IrisEditorOverlay {
             winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
         };
 
-        if let Some(ref targets) = self.stats_targets
-            && targets.panel_rect.contains_point(self.cursor_pos)
+        if let Some(ref targets) = self.stats.targets
+            && targets.panel_rect.contains_point(self.cursor_pos())
         {
-            self.stats_scroll_y = (self.stats_scroll_y - delta_y).max(0.0);
+            self.stats.scroll_y = (self.stats.scroll_y - delta_y).max(0.0);
             result.consumed = true;
             return Some(result);
         }
-        if let Some(ref targets) = self.hierarchy_targets
-            && targets.panel_rect.contains_point(self.cursor_pos)
+        if let Some(ref targets) = self.hierarchy.targets
+            && targets.panel_rect.contains_point(self.cursor_pos())
         {
-            self.hierarchy_scroll_y = (self.hierarchy_scroll_y - delta_y).max(0.0);
+            self.hierarchy.scroll_y = (self.hierarchy.scroll_y - delta_y).max(0.0);
             result.consumed = true;
             return Some(result);
         }
-        if let Some(ref targets) = self.preferences_targets
-            && targets.card_rect.contains_point(self.cursor_pos)
+        if let Some(ref targets) = self.preferences.targets
+            && targets.card_rect.contains_point(self.cursor_pos())
         {
-            self.preferences_scroll_y = (self.preferences_scroll_y - delta_y).max(0.0);
+            self.preferences.scroll_y = (self.preferences.scroll_y - delta_y).max(0.0);
             result.consumed = true;
             return Some(result);
         }
-        if let Some(ref targets) = self.inspector_targets
+        if let Some(ref targets) = self.inspector.targets
             && targets
                 .scroll_container_rect
-                .contains_point(self.cursor_pos)
+                .contains_point(self.cursor_pos())
         {
-            self.inspector_scroll_y = (self.inspector_scroll_y - delta_y).max(0.0);
+            self.inspector.scroll_y = (self.inspector.scroll_y - delta_y).max(0.0);
             result.consumed = true;
             return Some(result);
         }

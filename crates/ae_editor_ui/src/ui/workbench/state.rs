@@ -263,16 +263,7 @@ impl EngineUi {
 
     /// Returns whether any modal dialog, search input, or inspector field currently captures keyboard events.
     pub fn wants_keyboard_input(&self) -> bool {
-        self.iris_overlay.hierarchy_is_search_focused
-            || self.iris_overlay.console_is_search_focused
-            || self.iris_overlay.assets_is_search_focused
-            || self.iris_overlay.viewport_is_search_focused
-            || self.iris_overlay.inspector_active_number_input.is_some()
-            || self.iris_overlay.inspector_active_text_input.is_some()
-            || self.iris_overlay.inspector_rename_buffer.is_some()
-            || self.iris_overlay.inspector_hex_buffer.is_some()
-            || self.iris_overlay.new_folder_targets.is_some()
-            || self.iris_overlay.rename_targets.is_some()
+        self.iris_overlay.is_any_text_input_focused()
     }
 
     /// Polls asynchronous native file dialog receivers and applies their actions.

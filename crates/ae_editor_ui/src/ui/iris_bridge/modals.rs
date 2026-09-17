@@ -10,9 +10,11 @@ pub mod file_ops;
 pub mod loading;
 #[cfg(test)]
 mod tests;
+pub mod types;
 
 pub use file_ops::{
     DeleteModalTargets, FolderModalParams, NewFolderModalTargets, RenameModalParams,
     RenameModalTargets, build_delete_modal, build_new_folder_modal, build_rename_modal,
 };
 pub use loading::{LoadingOverlayParams, LoadingOverlayTargets, build_loading_overlay};
+pub use types::ModalsOverlayState;

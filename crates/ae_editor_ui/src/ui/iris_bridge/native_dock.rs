@@ -334,7 +334,7 @@ pub fn build_native_dock(
 /// Rendered as topmost floating overlays so they are drawn above the 3D Viewport texture,
 /// docked panels, and floating windows.
 pub fn build_native_dock_drag_overlays(
-    tree: &mut UiTree,
+    _tree: &mut UiTree,
     parent: WidgetId,
     layout_state: &PanelLayoutState,
     workspace_rect: Rect,
@@ -363,11 +363,11 @@ pub fn build_native_dock_drag_overlays(
 
         // Drop preview rectangle overlay
         if let Some(zone) = drop_zone {
-            build_drop_preview_node(tree, parent, leaf.content_rect, zone, &nav_style);
+            build_drop_preview_node(parent, leaf.content_rect, zone, &nav_style);
         }
 
         // 5-way compass buttons
-        build_dock_navigator_nodes(tree, parent, &geometry, drop_zone, &nav_style);
+        build_dock_navigator_nodes(parent, &geometry, drop_zone, &nav_style);
     }
 
     // Floating tab badge following the cursor
@@ -376,7 +376,7 @@ pub fn build_native_dock_drag_overlays(
         title: drag.tab_data.title(),
         icon: Some(drag.tab_data.icon()),
     };
-    build_floating_tab_badge(tree, parent, badge_params);
+    build_floating_tab_badge(parent, badge_params);
 }
 
 /// Adds an absolutely positioned native docking rectangle to the retained Iris tree.

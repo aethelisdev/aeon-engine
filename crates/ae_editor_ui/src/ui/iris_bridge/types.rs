@@ -3,12 +3,20 @@
 
 //! Type definitions, actions, and event response structures for the Iris UI editor bridge.
 
-use super::about::AboutDialogTargets;
-use super::hierarchy::{AddSubmenuId, HierarchyAction, HierarchyPanelTargets, HierarchyRow};
-use super::modals::*;
-use super::preferences::{PreferencesDropdownId, PreferencesSliderId, PreferencesTargets};
-use super::stats::{StatsPanelAction, StatsPanelNodes, StatsPanelTargets};
-use super::viewport_hud::{ViewportHudAction, ViewportHudDropdownId, ViewportHudTargets};
+use super::assets::AssetsPanelState;
+use super::console::ConsolePanelState;
+use super::hierarchy::HierarchyPanelState;
+use super::inspector::InspectorPanelState;
+pub use super::inspector::{
+    InspectorColorDragMode, InspectorNumberDragState, InspectorNumberInputSession,
+};
+use super::material::MaterialPanelState;
+use super::modals::ModalsOverlayState;
+use super::preferences::PreferencesDialogState;
+use super::stats::StatsPanelState;
+use super::timeline::TimelinePanelState;
+use super::ui_designer::UiDesignerPanelState;
+use super::viewport_hud::ViewportHudState;
 use crate::ui::EngineUiAction;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use ae_core::modules::EngineModule;
@@ -87,7 +95,111 @@ pub struct IrisOverlayEventResult {
     pub clear_console_entries: bool,
 }
 
-/// Central state manager governing Iris UI editor overlays, menu bar, modal dialogs, and status bar rendering.
+/// Standardized interaction and hit-testing container for Iris UI editor panels.
+/// Encapsulates the recurring panel-level fields (transient hit-test targets,
+/// scroll offset, search filter query, focus state, and dispatched action queue)
+/// to eliminate boilerplate bloat across panel definitions.
+#[derive(Debug, Clone)]
+pub struct PanelInteractionState<TTargets, TAction> {
+    /// Cached interaction and hit-testing targets from the latest layout/render pass.
+    pub targets: Option<TTargets>,
+    /// Content area vertical scroll offset.
+    pub scroll_y: f32,
+    /// Whether the panel's search input field is currently focused for text editing.
+    pub is_search_focused: bool,
+    /// Active text query typed in the search filter input.
+    pub search_query: String,
+    /// Queue of dispatched actions waiting to be consumed by the editor workbench.
+    pub actions: Vec<TAction>,
+}
+
+impl<TTargets, TAction> Default for PanelInteractionState<TTargets, TAction> {
+    fn default() -> Self {
+        Self {
+            targets: None,
+            scroll_y: 0.0,
+            is_search_focused: false,
+            search_query: String::new(),
+            actions: Vec::new(),
+        }
+    }
+}
+
+impl<TTargets, TAction> PanelInteractionState<TTargets, TAction> {
+    /// Consumes and returns all pending dispatched actions.
+    pub fn take_actions(&mut self) -> Vec<TAction> {
+        std::mem::take(&mut self.actions)
+    }
+
+    /// Resets transient per-frame interaction targets.
+    pub fn clear_targets(&mut self) {
+        self.targets = None;
+    }
+}
+
+/// Top menubar and floating dropdown interaction state.
+#[derive(Debug, Default, Clone)]
+pub struct MenubarOverlayState {
+    /// Currently open dropdown menu category.
+    pub active_menu: Option<ActiveMenu>,
+    /// Interactive dropdown item hit-testing targets.
+    pub dropdown_items: Vec<(Rect, DropdownAction)>,
+    /// Cached bounding box of the active floating dropdown.
+    pub dropdown_rect: Option<Rect>,
+}
+
+/// Window chrome, dock frame, cursor tracking, and invalidation state.
+#[derive(Debug, Clone)]
+pub struct IrisChromeState {
+    /// Current mouse cursor coordinates in logical pixels.
+    pub cursor_pos: Point,
+    /// Last recorded cursor position for detecting interactive hover transitions and invalidation.
+    pub last_cursor_pos: Point,
+    /// Native dock chrome interaction frame from the last layout reconstruction.
+    pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
+    /// Active bounding rectangles of all independent floating windows for solid occlusion and text culling.
+    pub floating_window_rects: Vec<Rect>,
+    /// Whether Shift modifier key is currently held down.
+    pub shift_held: bool,
+    /// Whether Alt modifier key is currently held down.
+    pub alt_held: bool,
+    /// Whether Control modifier key is currently held down.
+    pub ctrl_held: bool,
+    /// Last recorded screen dimensions.
+    pub last_dimensions: (f32, f32),
+    /// Last recorded UI Zoom factor.
+    pub last_zoom_factor: f32,
+    /// Last recorded count of floating windows.
+    pub last_floating_count: usize,
+    /// Last recorded presence of the 3D viewport rendered texture for reactive viewport binding.
+    pub last_has_viewport_texture: bool,
+    /// Last recorded presence of an active asset drag payload to trigger immediate overlay rebuild upon completion or cancellation.
+    pub last_has_drag_payload: bool,
+    /// Explicit flag requesting full layout reconstruction on invalidation.
+    pub needs_layout_rebuild: bool,
+}
+
+impl Default for IrisChromeState {
+    fn default() -> Self {
+        Self {
+            cursor_pos: Point::default(),
+            last_cursor_pos: Point::new(-1000.0, -1000.0),
+            native_dock_frame: None,
+            floating_window_rects: Vec::new(),
+            shift_held: false,
+            alt_held: false,
+            ctrl_held: false,
+            last_dimensions: (0.0, 0.0),
+            last_zoom_factor: 1.0,
+            last_floating_count: 0,
+            last_has_viewport_texture: false,
+            last_has_drag_payload: false,
+            needs_layout_rebuild: false,
+        }
+    }
+}
+
+/// Central coordinator governing Iris UI editor overlays, chrome, modals, and panel subsystems.
 pub struct IrisEditorOverlay {
     /// Generational UI tree storing active overlay widget nodes.
     pub tree: UiTree,
@@ -101,283 +213,98 @@ pub struct IrisEditorOverlay {
     pub text_renderer: Option<TextRenderer>,
     /// Active frame drawing command stream.
     pub command_list: DrawCommandList,
-    /// Current mouse cursor coordinates.
-    pub cursor_pos: Point,
-    /// Currently open dropdown menu category.
-    pub active_menu: Option<ActiveMenu>,
-    /// Interactive dropdown item hit-testing targets.
-    pub dropdown_items: Vec<(Rect, DropdownAction)>,
-    /// Cached bounding box of the active floating dropdown.
-    pub dropdown_rect: Option<Rect>,
-    /// Cached bounding box and close button hit targets of the active About dialog.
-    pub about_targets: Option<AboutDialogTargets>,
-    /// Cached bounding box and button targets of the active Delete Confirmation modal.
-    pub delete_targets: Option<DeleteModalTargets>,
-    /// Cached bounding box and input targets of the active New Folder modal.
-    pub new_folder_targets: Option<NewFolderModalTargets>,
-    /// Cached bounding box and input targets of the active Rename modal.
-    pub rename_targets: Option<RenameModalTargets>,
-    /// Cached bounding box targets of the active Asset Loading splash screen.
-    pub loading_targets: Option<LoadingOverlayTargets>,
-    /// Cached bounding box and interactive widget targets of the active Preferences dialog.
-    pub preferences_targets: Option<PreferencesTargets>,
-    /// Cached interaction targets for 3D Viewport HUD.
-    pub viewport_hud_targets: Option<ViewportHudTargets>,
-    /// Currently open dropdown menu in Viewport HUD.
-    pub viewport_hud_dropdown: Option<ViewportHudDropdownId>,
-    /// Dispatched action queue for Viewport HUD interactions.
-    pub viewport_hud_actions: Vec<ViewportHudAction>,
-    /// Cached interaction targets for Performance Stats & Telemetry panel.
-    pub stats_targets: Option<StatsPanelTargets>,
-    /// Persistent node handles for the Stats & Profiler panel in retained mode.
-    pub stats_nodes: Option<StatsPanelNodes>,
-    /// Last bounding rectangle allocated for the Stats & Profiler panel.
-    pub last_stats_rect: Option<Rect>,
-    /// Cached interaction targets for Scene Hierarchy panel.
-    pub hierarchy_targets: Option<HierarchyPanelTargets>,
-    /// Persistent pre-allocated row cache for Scene Hierarchy to eliminate per-frame allocations.
-    pub hierarchy_rows_cache: Vec<HierarchyRow>,
-    /// Content area vertical scroll offset for Scene Hierarchy panel.
-    pub hierarchy_scroll_y: f32,
-    /// Active search filter query for Scene Hierarchy panel.
-    pub hierarchy_search_query: String,
-    /// Whether the `➕` Add Menu is open in Scene Hierarchy.
-    pub hierarchy_is_add_menu_open: bool,
-    /// Currently open cascading submenu in Scene Hierarchy Add Menu.
-    pub hierarchy_active_submenu: Option<AddSubmenuId>,
-    /// Currently open cascading sub-submenu (Level 3) in Scene Hierarchy Add Menu.
-    pub hierarchy_active_sub_submenu: Option<AddSubmenuId>,
-    /// Currently open right-click context menu in Scene Hierarchy.
-    pub hierarchy_active_context_menu: Option<(hecs::Entity, Point)>,
-    /// Whether search input box is focused in Scene Hierarchy.
-    pub hierarchy_is_search_focused: bool,
-    /// Dispatched action queue for Scene Hierarchy panel interactions.
-    pub hierarchy_actions: Vec<HierarchyAction>,
-    /// Cached interaction targets for Developer Console panel.
-    pub console_targets: Option<super::console::ConsolePanelTargets>,
-    /// Content area vertical scroll offset for Developer Console panel.
-    pub console_scroll_y: f32,
-    /// Active log level severity filter for Developer Console panel.
-    pub console_filter: super::console::ConsoleFilterLevel,
-    /// Active search filter text query for Developer Console panel.
-    pub console_search_query: String,
-    /// Whether search input box is focused in Developer Console panel.
-    pub console_is_search_focused: bool,
-    /// Whether Developer Console automatically scrolls down when new logs arrive.
-    pub console_auto_scroll: bool,
-    /// Dispatched action queue for Developer Console panel interactions.
-    pub console_actions: Vec<super::console::ConsoleAction>,
-    /// Cached interaction targets for Content / Asset Browser panel.
-    pub assets_targets: Option<super::assets::AssetsPanelTargets>,
-    /// Content area vertical scroll offset for Asset Browser panel.
-    pub assets_scroll_y: f32,
-    /// Folder tree sidebar vertical scroll offset for Asset Browser panel.
-    pub assets_tree_scroll_y: f32,
-    /// Active search filter text query in Asset Browser panel.
-    pub assets_search_query: String,
-    /// Current folder path in Asset Browser panel.
-    pub assets_current_folder: std::path::PathBuf,
-    /// Whether search input box is focused in Asset Browser panel.
-    pub assets_is_search_focused: bool,
-    /// Double-click tracking state for asset spawning.
-    pub assets_click_tracker: super::assets::AssetClickTracker,
-    /// Dispatched action queue for Asset Browser panel interactions.
-    pub assets_actions: Vec<super::assets::AssetsPanelAction>,
-    /// Active right-click context menu in Asset Browser: `(target, click_pos)`.
-    pub assets_context_menu: Option<(super::assets::AssetsContextMenuTarget, Point)>,
-    /// Active Quick Asset Preview modal state in Asset Browser.
-    pub assets_preview_modal: Option<super::assets::AssetPreviewModalState>,
-    /// Currently selected asset path in Asset Browser.
-    pub assets_selected_asset: Option<std::path::PathBuf>,
-    /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (16..255).
-    pub thumbnail_layers: std::collections::HashMap<std::path::PathBuf, u32>,
-    /// Next available layer index in the 2D Texture Array (16..255).
-    pub next_thumbnail_layer: u32,
-    /// Cached interaction targets for Animation Timeline Studio panel.
-    pub timeline_targets: Option<super::timeline::TimelinePanelTargets>,
-    /// Whether user is actively dragging the timeline scrubber playhead needle.
-    pub timeline_is_dragging: bool,
-    /// Dispatched action queue for Animation Timeline Studio panel interactions.
-    pub timeline_actions: Vec<super::timeline::TimelineAction>,
-    /// Selected entity handle cached for timeline interactions.
-    pub timeline_selected_entity: Option<hecs::Entity>,
-    /// Cached interaction targets for Material & Surface Studio panel.
-    pub material_targets: Option<super::material::MaterialPanelTargets>,
-    /// Content area vertical scroll offset for Material & Surface Studio panel.
-    pub material_scroll_y: f32,
-    /// Dispatched action queue for Material & Surface Studio panel interactions.
-    pub material_actions: Vec<super::material::MaterialAction>,
-    /// Selected entity handle cached for material panel interactions.
-    pub material_selected_entity: Option<hecs::Entity>,
-    /// Cached interaction targets for 2D Visual UI Designer panel.
-    pub ui_designer_targets: Option<super::ui_designer::UiDesignerPanelTargets>,
-    /// Dispatched action queue for 2D Visual UI Designer panel interactions.
-    pub ui_designer_actions: Vec<super::ui_designer::UiDesignerAction>,
-    /// Whether the Aspect Ratio dropdown popup is open in the UI Designer.
-    pub ui_designer_is_aspect_open: bool,
-    /// Whether the Add Element palette popup is open in the UI Designer.
-    pub ui_designer_is_add_menu_open: bool,
-    /// Active element dragging state in the UI Designer.
-    pub ui_designer_drag_state: Option<ae_uidesign::UiDragState>,
-    /// Whether user is currently panning the UI Designer virtual canvas.
-    pub ui_designer_is_panning: bool,
-    /// Last mouse cursor coordinates recorded during UI Designer dragging or panning.
-    pub ui_designer_last_cursor: Point,
-    /// Cached interaction targets for Scene Inspector panel.
-    pub inspector_targets: Option<super::inspector::InspectorPanelTargets>,
-    /// Content area vertical scroll offset for Scene Inspector panel.
-    pub inspector_scroll_y: f32,
-    /// Whether `➕ Add Component` menu is open in Inspector.
-    pub inspector_is_add_menu_open: bool,
-    /// Currently open category submenu in Add Component menu.
-    pub inspector_active_submenu: Option<super::inspector::ComponentCategory>,
-    /// Currently open dropdown in Inspector.
-    pub inspector_active_dropdown: Option<super::inspector::InspectorDropdownId>,
-    /// Currently active number input editing session in Inspector.
-    pub inspector_active_number_input: Option<InspectorNumberInputSession>,
-    /// Currently active string text input editing state in Inspector: `(entity, id, buffer)`.
-    pub inspector_active_text_input:
-        Option<(hecs::Entity, super::inspector::InspectorTextInputId, String)>,
-    /// Whether Shift modifier key is currently held down.
-    pub shift_held: bool,
-    /// Whether Alt modifier key is currently held down.
-    pub alt_held: bool,
-    /// Whether Control modifier key is currently held down.
-    pub ctrl_held: bool,
-    /// Active continuous horizontal mouse drag state for Inspector numeric fields.
-    pub inspector_drag_number: Option<InspectorNumberDragState>,
-    /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
-    pub inspector_edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
-    /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
-    pub inspector_color_edit_start: Option<(hecs::Entity, ae_core::ecs::Color)>,
-    /// Live entity rename text buffer if currently focused: `(entity, buffer)`.
-    pub inspector_rename_buffer: Option<(hecs::Entity, String)>,
-    /// Live HEX color text input editing buffer if currently focused: `(entity, buffer)`.
-    pub inspector_hex_buffer: Option<(hecs::Entity, String)>,
-    /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
-    pub inspector_hsv: [f32; 3],
-    /// Active mouse dragging mode on the 2D HSV color picker.
-    pub inspector_color_drag_mode: Option<InspectorColorDragMode>,
-    /// Whether the floating Color Picker popup is currently open.
-    pub inspector_is_color_picker_open: bool,
-    /// Dispatched action queue for Inspector panel interactions.
-    pub inspector_actions: Vec<super::inspector::InspectorAction>,
     /// Selective redraw and change notification engine.
     pub notifier: UiNotifier,
     /// Central registry of dockable tool and workspace panels.
     pub panels: PanelRegistry,
-    /// Last recorded screen dimensions.
-    pub last_dimensions: (f32, f32),
-    /// Last recorded UI Zoom factor.
-    pub last_zoom_factor: f32,
-    /// Last recorded selected entity for detecting Inspector invalidation.
-    pub last_selected_entity: Option<hecs::Entity>,
-    /// Last recorded count of floating windows.
-    pub last_floating_count: usize,
-    /// Last recorded modal visibility state for detecting dialog popups.
-    pub last_modal_active: bool,
-    /// Last recorded presence of the 3D viewport rendered texture for reactive viewport binding.
-    pub last_has_viewport_texture: bool,
-    /// Last recorded presence of an active asset drag payload to trigger immediate overlay rebuild upon completion or cancellation.
-    pub last_has_drag_payload: bool,
-    /// Last recorded cursor position for detecting interactive hover transitions and invalidation.
-    pub last_cursor_pos: Point,
-    /// Explicit flag requesting full layout reconstruction on invalidation.
-    pub needs_layout_rebuild: bool,
-    /// Content area vertical scroll offset for Stats & Telemetry panel.
-    pub stats_scroll_y: f32,
-    /// Accumulated frame count within the current 250ms telemetry rolling average window.
-    pub stats_frame_counter: u32,
-    /// Timestamp of the last visual rolling window update for the FPS text in the Stats panel.
-    pub stats_last_fps_refresh: std::time::Instant,
-    /// Windowed rolling average FPS displayed in the UI, updated every 250ms for rock-solid readability.
-    pub stats_displayed_fps: f32,
-    /// Dispatched action queue for Stats & Telemetry panel interactions.
-    pub stats_actions: Vec<StatsPanelAction>,
-    /// Custom floating position coordinates for the Preferences panel.
-    pub preferences_pos: Option<Point>,
-    /// Active drag offset from window top-left when dragging the title bar.
-    pub preferences_drag_offset: Option<Point>,
-    /// Currently selected tab index in the Preferences dialog (0..=9).
-    pub preferences_tab: u8,
-    /// Content area vertical scroll offset for Preferences dialog.
-    pub preferences_scroll_y: f32,
-    /// Currently open dropdown ComboBox in the Preferences dialog.
-    pub preferences_dropdown: Option<PreferencesDropdownId>,
-    /// Currently active slider drag descriptor: `(slider_id, track_rect, min_val, max_val)`.
-    pub active_slider_drag: Option<(PreferencesSliderId, Rect, f32, f32)>,
-    /// Dispatched action queue for Preferences dialog interactions.
-    pub preferences_actions: Vec<super::preferences::PreferencesAction>,
-    /// Live typing input buffer for the new folder modal.
-    pub new_folder_buffer: String,
-    /// Live typing input buffer for the rename modal.
-    pub rename_buffer: String,
-    /// Set of currently collapsed card/section identifiers in the Preferences dialog.
-    pub collapsed_sections: HashSet<&'static str>,
-    /// Currently active inline number input editing state in Preferences: `(slider_id, typed_buffer)`.
-    pub active_number_input: Option<(PreferencesSliderId, String)>,
+    /// Creation instant used for smooth sub-second continuous UI animations.
+    pub start_time: std::time::Instant,
+    /// Target surface texture format.
+    pub target_format: wgpu::TextureFormat,
+    /// Texture resources and bind group for the editor tools icon atlas (`editor_tools.png`).
+    pub tools_texture: Option<(wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
     /// Last measured screen width.
     pub screen_width: f32,
     /// Last measured screen height.
     pub screen_height: f32,
     /// Whether the editor overlays are visible.
     pub is_visible: bool,
-    /// Target surface texture format.
-    pub target_format: wgpu::TextureFormat,
-    /// Creation instant used for smooth sub-second continuous UI animations.
-    pub start_time: std::time::Instant,
-    /// Active search filter text query in Viewport Add Object popup.
-    pub viewport_search_query: String,
-    /// Whether search input box is focused in Viewport Add Object popup.
-    pub viewport_is_search_focused: bool,
-    /// Texture resources and bind group for the editor tools icon atlas (`editor_tools.png`).
-    pub tools_texture: Option<(wgpu::Texture, wgpu::TextureView, wgpu::BindGroup)>,
-    /// Active bounding rectangles of all independent floating windows for solid occlusion and text culling.
-    pub floating_window_rects: Vec<Rect>,
-    /// Native dock chrome interaction frame from the last layout reconstruction.
-    pub native_dock_frame: Option<super::native_dock::NativeDockFrame>,
+
+    // --- Modular Subsystem States ---
+    /// Window chrome, dock frame, cursor tracking, and invalidation state.
+    pub chrome: IrisChromeState,
+    /// Top menu bar and dropdown interaction state.
+    pub menubar: MenubarOverlayState,
+    /// Modal dialogs and asset loading splash overlays.
+    pub modals: ModalsOverlayState,
+    /// Preferences modal dialog interactive state.
+    pub preferences: PreferencesDialogState,
+    /// 3D Viewport HUD controls and dropdown state.
+    pub viewport_hud: ViewportHudState,
+    /// Performance Stats & Telemetry profiler panel state.
+    pub stats: StatsPanelState,
+    /// Scene Hierarchy tree panel state.
+    pub hierarchy: HierarchyPanelState,
+    /// Developer Console and log filter panel state.
+    pub console: ConsolePanelState,
+    /// Content / Asset Browser panel state.
+    pub assets: AssetsPanelState,
+    /// Animation Timeline Studio panel state.
+    pub timeline: TimelinePanelState,
+    /// Material & Surface Studio panel state.
+    pub material: MaterialPanelState,
+    /// 2D Visual UI Designer panel state.
+    pub ui_designer: UiDesignerPanelState,
+    /// Scene Inspector component editor panel state.
+    pub inspector: InspectorPanelState,
 }
 
-/// Parameters required for reconstructing and resolving all Iris UI editor overlays.
-pub struct OverlayUpdateParams<'a> {
+impl IrisEditorOverlay {
+    /// Returns the current logical cursor position.
+    #[inline]
+    pub fn cursor_pos(&self) -> Point {
+        self.chrome.cursor_pos
+    }
+
+    /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
+    pub fn is_any_text_input_focused(&self) -> bool {
+        self.hierarchy.is_search_focused
+            || self.console.is_search_focused
+            || self.assets.is_search_focused
+            || self.viewport_hud.is_search_focused
+            || self.inspector.active_number_input.is_some()
+            || self.inspector.active_text_input.is_some()
+            || self.inspector.rename_buffer.is_some()
+            || self.inspector.hex_buffer.is_some()
+            || self.modals.new_folder_targets.is_some()
+            || self.modals.rename_targets.is_some()
+    }
+}
+
+/// Global editor context, dimension, and layout parameters for overlay updates.
+pub struct EditorContextParams<'a> {
     /// Screen dimensions (width, height) in physical pixels.
     pub dimensions: (f32, f32),
+    /// Current display/UI zoom factor (e.g. 1.0 = 100%).
+    pub zoom_factor: f32,
     /// Whether the editor is currently in Edit mode.
     pub is_editing: bool,
-    /// Whether the project is running in 2D dimension mode.
-    pub is_2d: bool,
+    /// Whether the editor and project are running in 2D dimension mode.
+    pub is_2d_mode: bool,
     /// Active panel layout state reference.
     pub layout_state: &'a PanelLayoutState,
     /// Whether undo is available.
     pub can_undo: bool,
     /// Whether redo is available.
     pub can_redo: bool,
-    /// Whether the About Aeon Engine modal dialogue is currently visible.
-    pub show_about: bool,
-    /// Whether the Preferences modal dialogue is currently visible.
-    pub show_preferences: bool,
-    /// Reference to graphics settings for Preferences rendering.
-    pub graphics_settings: &'a GraphicsSettings,
-    /// Reference to snapping settings for Preferences rendering.
-    pub snapping_settings: &'a SnapSettings,
-    /// Reference to editor configuration for Preferences rendering.
-    pub editor_config: &'a EditorConfig,
     /// Whether live hot-reload editor updates are active.
     pub enable_live_updates: bool,
-    /// Set of enabled engine core modules for Preferences rendering.
-    pub enabled_modules: &'a HashSet<EngineModule>,
-    /// Current display/UI zoom factor (e.g. 1.0 = 100%).
-    pub zoom_factor: f32,
-    /// Optional target path pending delete confirmation.
-    pub delete_target: Option<&'a Path>,
-    /// Optional new folder parent path.
-    pub new_folder_parent: Option<&'a Path>,
-    /// Optional rename target path and is_folder flag.
-    pub rename_target: Option<(&'a Path, bool)>,
-    /// Whether background assets are currently being loaded.
-    pub is_loading_assets: bool,
     /// Optional status notification message spans with text color.
     pub status_spans: Option<&'a [(String, Color)]>,
+}
+
+/// 3D Viewport canvas bounds, camera, and navigation state.
+pub struct ViewportParams<'a> {
     /// Whether the resolved 3D viewport render target texture is present.
     pub has_viewport_texture: bool,
     /// Screen rectangle bounding the 3D viewport canvas.
@@ -386,48 +313,54 @@ pub struct OverlayUpdateParams<'a> {
     pub camera: &'a ae_renderer::camera::Camera,
     /// Whether wireframe rendering is currently enabled.
     pub wireframe_enabled: bool,
+    /// Whether the viewport coordinate grid is enabled.
+    pub grid_enabled: bool,
     /// Currently active gizmo manipulation mode (Translate, Rotate, Scale).
     pub gizmo_mode: ae_editor::gizmo::GizmoMode,
     /// Currently active gizmo coordinate space (World, Local).
     pub gizmo_space: ae_editor::gizmo::GizmoSpace,
-    /// Currently selected entity in the editor, if any.
-    pub selected_entity: Option<hecs::Entity>,
-    /// Active ECS world reference for billboard entity query.
+}
+
+/// Active ECS scene, selection handle, and entity population telemetry.
+pub struct SceneParams<'a> {
+    /// Active ECS world reference for entity queries.
     pub world: &'a hecs::World,
-    /// Bounding rectangle allocated for the Performance Stats panel, if active.
-    pub stats_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the Scene Hierarchy panel, if active.
-    pub hierarchy_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the Scene Inspector panel, if active.
-    pub inspector_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the Developer Console panel, if active.
-    pub console_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the Content / Asset Browser panel, if active.
-    pub assets_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the Animation Timeline Studio panel, if active.
-    pub timeline_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the Material & Surface Studio panel, if active.
-    pub material_panel_rect: Option<Rect>,
-    /// Bounding rectangle allocated for the 2D Visual UI Designer panel, if active.
-    pub ui_designer_panel_rect: Option<Rect>,
-    /// Reference to persistent UI Designer state for canvas and toolbar rendering.
-    pub ui_designer_state: &'a ae_uidesign::UiDesignerState,
-    /// GPU texture asset repository for material panel inspection.
-    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-    /// GPU 3D model asset repository for material panel inspection.
-    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-    /// Reference to persistent asset browser state for Content Browser rendering.
-    pub asset_browser: &'a crate::ui::panels::assets::AssetBrowserState,
-    /// Slice of active in-memory log entries for Developer Console rendering.
-    pub console_entries: &'a [crate::ui::types::ConsoleEntry],
-    /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
-    pub inspector_euler: &'a [f32; 3],
-    /// Hex color string cache for object appearance editing (e.g. `"#6699cc"`).
-    pub inspector_color_hex: &'a str,
-    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
-    pub saved_swatches: &'a [[f32; 4]],
-    /// Whether the viewport coordinate grid is enabled.
-    pub grid_enabled: bool,
+    /// Currently selected entity in the scene, if any.
+    pub selected_entity: Option<hecs::Entity>,
+    /// Count of active entities in the ECS world.
+    pub active_entities_count: usize,
+}
+
+/// Modal dialog display flags and file system operation targets.
+pub struct DialogParams<'a> {
+    /// Whether the About Aeon Engine modal dialogue is currently visible.
+    pub show_about: bool,
+    /// Whether the Preferences modal dialogue is currently visible.
+    pub show_preferences: bool,
+    /// Optional target path pending delete confirmation.
+    pub delete_target: Option<&'a Path>,
+    /// Optional new folder parent path.
+    pub new_folder_parent: Option<&'a Path>,
+    /// Optional rename target path and is_folder flag.
+    pub rename_target: Option<(&'a Path, bool)>,
+    /// Whether background assets are currently being loaded.
+    pub is_loading_assets: bool,
+}
+
+/// Engine configuration, snapping, and preferences settings references.
+pub struct OverlayPreferencesParams<'a> {
+    /// Reference to graphics settings for Preferences rendering.
+    pub graphics_settings: &'a GraphicsSettings,
+    /// Reference to snapping settings for Preferences rendering.
+    pub snapping_settings: &'a SnapSettings,
+    /// Reference to editor configuration for Preferences rendering.
+    pub editor_config: &'a EditorConfig,
+    /// Set of enabled engine core modules for Preferences rendering.
+    pub enabled_modules: &'a HashSet<EngineModule>,
+}
+
+/// Engine performance telemetry, frame pacing, and hardware statistics.
+pub struct TelemetryParams<'a> {
     /// Real-time engine frames per second (FPS) rate.
     pub fps: f32,
     /// Historical frame pacing ring buffer.
@@ -436,73 +369,80 @@ pub struct OverlayUpdateParams<'a> {
     pub frame_pacing_stats: &'a ae_core::telemetry::FramePacingStats,
     /// CPU thread synchronization timings breakdown.
     pub cpu_timings: &'a ae_core::telemetry::CpuSyncTimings,
-    /// GPU render pass execution durations.
+    /// GPU render pass profiling breakdown.
     pub gpu_pass_timings: &'a ae_core::telemetry::GpuPassTimings,
-    /// Granular draw call metrics and batch counts.
+    /// GPU draw calls, pipeline binds, and primitive counts.
     pub draw_call_stats: &'a ae_core::telemetry::DrawCallBreakdown,
-    /// Categorized VRAM memory consumption.
+    /// Video memory (VRAM) budget allocation breakdown.
     pub vram_stats: &'a ae_core::telemetry::VramStats,
-    /// Total rendered triangles in current frame.
-    pub render_triangles: u64,
-    /// Total rendered vertices in current frame.
-    pub render_vertices: u64,
-    /// Hardware GPU adapter device name.
+    /// Total rendered triangles count.
+    pub render_triangles: usize,
+    /// Total rendered vertices count.
+    pub render_vertices: usize,
+    /// Name of active GPU hardware adapter.
     pub gpu_adapter_name: &'a str,
-    /// Active graphics API backend (e.g. Vulkan, Metal, DX12).
+    /// Active rendering backend identifier (e.g. Vulkan, DX12, Metal).
     pub gpu_backend: &'a str,
-    /// Count of active entities in the ECS world.
-    pub active_entities_count: usize,
-    /// Whether the editor is running in 2D dimension mode.
-    pub is_2d_mode: bool,
 }
 
-/// Active horizontal mouse drag state for interactive Inspector numeric inputs.
-#[derive(Debug, Clone, Copy)]
-pub struct InspectorNumberDragState {
-    /// Inspected target ECS entity.
-    pub entity: hecs::Entity,
-    /// Target numeric input identifier.
-    pub id: super::inspector::InspectorNumberInputId,
-    /// Starting X coordinate of the cursor when mouse was pressed.
-    pub start_x: f32,
-    /// Starting value of the numeric field before dragging began.
-    pub start_val: f32,
-    /// Lower clamp bound.
-    pub min_val: f32,
-    /// Upper clamp bound.
-    pub max_val: f32,
-    /// Value delta per dragged pixel.
-    pub sensitivity: f32,
-    /// Whether mouse has dragged beyond threshold.
-    pub has_dragged: bool,
+/// Bounding rectangles computed by dock system for active overlay panels.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct OverlayPanelRects {
+    /// Bounds of active Stats panel, if visible.
+    pub stats: Option<Rect>,
+    /// Bounds of active Hierarchy panel, if visible.
+    pub hierarchy: Option<Rect>,
+    /// Bounds of active Inspector panel, if visible.
+    pub inspector: Option<Rect>,
+    /// Bounds of active Developer Console panel, if visible.
+    pub console: Option<Rect>,
+    /// Bounds of active Content Browser panel, if visible.
+    pub assets: Option<Rect>,
+    /// Bounds of active Timeline panel, if visible.
+    pub timeline: Option<Rect>,
+    /// Bounds of active Material panel, if visible.
+    pub material: Option<Rect>,
+    /// Bounds of active 2D Visual UI Designer panel, if visible.
+    pub ui_designer: Option<Rect>,
 }
 
-/// Dragging mode on the 2D HSV color picker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InspectorColorDragMode {
-    /// Dragging on the 2D Saturation-Value box.
-    SaturationValue,
-    /// Dragging on the vertical Rainbow Hue spectrum bar.
-    Hue,
+/// Subsystem data repositories and live editor caches consumed by panel builders.
+pub struct OverlayPanelData<'a> {
+    /// Reference to persistent UI Designer state for canvas and toolbar rendering.
+    pub ui_designer_state: &'a ae_uidesign::UiDesignerState,
+    /// Reference to persistent asset browser state for Content Browser rendering.
+    pub asset_browser: &'a crate::ui::panels::assets::AssetBrowserState,
+    /// Slice of active in-memory log entries for Developer Console rendering.
+    pub console_entries: &'a [crate::ui::types::ConsoleEntry],
+    /// GPU texture asset repository for material panel inspection.
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    /// GPU 3D model asset repository for material panel inspection.
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    /// Euler angle cache for rotation editing: `[yaw, pitch, roll]` in degrees.
+    pub inspector_euler: &'a [f32; 3],
+    /// Hex color string cache for object appearance editing (e.g. `"#6699cc"`).
+    pub inspector_color_hex: &'a str,
+    /// Saved swatches palette: list of RGBA float arrays `[r, g, b, a]`.
+    pub saved_swatches: &'a [[f32; 4]],
 }
 
-/// Active numeric text input session in Inspector.
-#[derive(Debug, Clone)]
-pub struct InspectorNumberInputSession {
-    /// Target entity being modified.
-    pub entity: hecs::Entity,
-    /// Identifier of the specific numeric field being edited.
-    pub id: super::inspector::InspectorNumberInputId,
-    /// Text buffer containing the current expression or number.
-    pub buffer: String,
-    /// Byte cursor index within the buffer for caret rendering and insertion.
-    pub cursor_idx: usize,
-    /// Whether the text in the buffer is fully selected.
-    pub is_all_selected: bool,
-    /// Initial baseline value before editing started.
-    pub initial_val: f32,
-    /// Minimum allowed value for clamping.
-    pub min_val: f32,
-    /// Maximum allowed value for clamping.
-    pub max_val: f32,
+/// Parameters required for reconstructing and resolving all Iris UI editor overlays.
+/// Composed of domain-specific parameter sub-structures to eliminate tight coupling.
+pub struct OverlayUpdateParams<'a> {
+    /// Global editor context and window properties.
+    pub context: EditorContextParams<'a>,
+    /// 3D Viewport canvas bounds, camera, and navigation state.
+    pub viewport: ViewportParams<'a>,
+    /// Scene graph, active entity, and ECS world access.
+    pub scene: SceneParams<'a>,
+    /// Modal dialog flags and file operations.
+    pub dialogs: DialogParams<'a>,
+    /// Engine configuration and preferences data.
+    pub preferences: OverlayPreferencesParams<'a>,
+    /// Performance statistics, frame pacing, and hardware telemetry.
+    pub telemetry: TelemetryParams<'a>,
+    /// Layout rectangles computed by the dock system for active panels.
+    pub panel_rects: OverlayPanelRects,
+    /// Subsystem data repositories and caches consumed by panel builders.
+    pub panel_data: OverlayPanelData<'a>,
 }

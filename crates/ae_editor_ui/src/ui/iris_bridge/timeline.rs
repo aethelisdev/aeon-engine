@@ -18,4 +18,4 @@ pub mod types;
 
 pub use events::{handle_timeline_click, handle_timeline_drag};
 pub use panel::build_timeline_panel;
-pub use types::{TimelineAction, TimelinePanelParams, TimelinePanelTargets};
+pub use types::{TimelineAction, TimelinePanelParams, TimelinePanelState, TimelinePanelTargets};

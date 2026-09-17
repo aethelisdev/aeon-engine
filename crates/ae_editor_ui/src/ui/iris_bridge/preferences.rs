@@ -19,6 +19,6 @@ pub use builder::{
     build_preferences_dialog,
 };
 pub use types::{
-    PHYSICS_HZ_PRESETS, PreferencesAction, PreferencesDropdownId, PreferencesParams,
-    PreferencesSliderId, PreferencesTargets, PreferencesToggleId,
+    PHYSICS_HZ_PRESETS, PreferencesAction, PreferencesDialogState, PreferencesDropdownId,
+    PreferencesParams, PreferencesSliderId, PreferencesTargets, PreferencesToggleId,
 };

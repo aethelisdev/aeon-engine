@@ -484,7 +484,7 @@ pub struct InspectorPanelParams<'a> {
 }
 
 /// Hit-test target collections generated during Inspector layout construction.
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct InspectorPanelTargets {
     /// Inspected ECS entity associated with these hit-test targets.
     pub inspected_entity: Option<hecs::Entity>,
@@ -595,4 +595,109 @@ pub struct ComboboxWithButtonParams {
     pub btn_label: &'static str,
     /// Vertical Y position within the card.
     pub row_y: f32,
+}
+
+/// Active horizontal mouse drag state for interactive Inspector numeric inputs.
+#[derive(Debug, Clone, Copy)]
+pub struct InspectorNumberDragState {
+    /// Inspected target ECS entity.
+    pub entity: hecs::Entity,
+    /// Target numeric input identifier.
+    pub id: InspectorNumberInputId,
+    /// Starting X coordinate of the cursor when mouse was pressed.
+    pub start_x: f32,
+    /// Starting value of the numeric field before dragging began.
+    pub start_val: f32,
+    /// Lower clamp bound.
+    pub min_val: f32,
+    /// Upper clamp bound.
+    pub max_val: f32,
+    /// Value delta per dragged pixel.
+    pub sensitivity: f32,
+    /// Whether mouse has dragged beyond threshold.
+    pub has_dragged: bool,
+}
+
+/// Dragging mode on the 2D HSV color picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InspectorColorDragMode {
+    /// Dragging on the 2D Saturation-Value box.
+    SaturationValue,
+    /// Dragging on the vertical Rainbow Hue spectrum bar.
+    Hue,
+}
+
+/// Active numeric text input session in Inspector.
+#[derive(Debug, Clone)]
+pub struct InspectorNumberInputSession {
+    /// Target entity being modified.
+    pub entity: hecs::Entity,
+    /// Identifier of the specific numeric field being edited.
+    pub id: InspectorNumberInputId,
+    /// Text buffer containing the current expression or number.
+    pub buffer: String,
+    /// Byte cursor index within the buffer for caret rendering and insertion.
+    pub cursor_idx: usize,
+    /// Whether the text in the buffer is fully selected.
+    pub is_all_selected: bool,
+    /// Initial baseline value before editing started.
+    pub initial_val: f32,
+    /// Minimum allowed value for clamping.
+    pub min_val: f32,
+    /// Maximum allowed value for clamping.
+    pub max_val: f32,
+}
+
+/// Persistent interactive state for the Scene Inspector panel overlay.
+#[derive(Debug, Default)]
+pub struct InspectorPanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<
+        InspectorPanelTargets,
+        InspectorAction,
+    >,
+    /// Whether `➕ Add Component` menu is open in Inspector.
+    pub is_add_menu_open: bool,
+    /// Currently open category submenu in Add Component menu.
+    pub active_submenu: Option<ComponentCategory>,
+    /// Currently open dropdown in Inspector.
+    pub active_dropdown: Option<InspectorDropdownId>,
+    /// Currently active number input editing session in Inspector.
+    pub active_number_input: Option<InspectorNumberInputSession>,
+    /// Currently active string text input editing state in Inspector: `(entity, id, buffer)`.
+    pub active_text_input: Option<(hecs::Entity, InspectorTextInputId, String)>,
+    /// Active continuous horizontal mouse drag state for Inspector numeric fields.
+    pub drag_number: Option<InspectorNumberDragState>,
+    /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
+    pub edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
+    /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
+    pub color_edit_start: Option<(hecs::Entity, ae_core::ecs::Color)>,
+    /// Live entity rename text buffer if currently focused: `(entity, buffer)`.
+    pub rename_buffer: Option<(hecs::Entity, String)>,
+    /// Live HEX color text input editing buffer if currently focused: `(entity, buffer)`.
+    pub hex_buffer: Option<(hecs::Entity, String)>,
+    /// Live HSV color cache: `[hue (0..360), saturation (0..1), value (0..1)]`.
+    pub hsv: [f32; 3],
+    /// Active mouse dragging mode on the 2D HSV color picker.
+    pub color_drag_mode: Option<InspectorColorDragMode>,
+    /// Whether the floating Color Picker popup is currently open.
+    pub is_color_picker_open: bool,
+    /// Last recorded selected entity for detecting Inspector invalidation.
+    pub last_selected_entity: Option<hecs::Entity>,
+}
+
+impl std::ops::Deref for InspectorPanelState {
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<
+        InspectorPanelTargets,
+        InspectorAction,
+    >;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for InspectorPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
 }

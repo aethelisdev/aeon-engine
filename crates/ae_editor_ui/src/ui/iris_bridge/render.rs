@@ -443,36 +443,36 @@ impl IrisEditorOverlay {
         let mut active_dropdown_rects: Vec<Rect> = Vec::new();
         let mut active_modal_rects: Vec<Rect> = Vec::new();
 
-        if let Some(r) = self.dropdown_rect {
+        if let Some(r) = self.menubar.dropdown_rect {
             active_dropdown_rects.push(r);
         }
-        if let Some(ref t) = self.preferences_targets {
+        if let Some(ref t) = self.preferences.targets {
             active_modal_rects.push(t.card_rect);
             if let Some(r) = t.active_dropdown_popup_rect {
                 active_dropdown_rects.push(r);
             }
         }
-        if let Some(ref t) = self.about_targets {
+        if let Some(ref t) = self.modals.about_targets {
             active_modal_rects.push(t.dialog_rect);
         }
-        if let Some(ref t) = self.delete_targets {
+        if let Some(ref t) = self.modals.delete_targets {
             active_modal_rects.push(t.dialog_rect);
         }
-        if let Some(ref t) = self.new_folder_targets {
+        if let Some(ref t) = self.modals.new_folder_targets {
             active_modal_rects.push(t.dialog_rect);
         }
-        if let Some(ref t) = self.rename_targets {
+        if let Some(ref t) = self.modals.rename_targets {
             active_modal_rects.push(t.dialog_rect);
         }
-        if let Some(ref t) = self.loading_targets {
+        if let Some(ref t) = self.modals.loading_targets {
             active_modal_rects.push(t.card_rect);
         }
-        if let Some(ref hud) = self.viewport_hud_targets
+        if let Some(ref hud) = self.viewport_hud.targets
             && let Some(r) = hud.active_dropdown_popup_rect
         {
             active_dropdown_rects.push(r);
         }
-        if let Some(ref hier) = self.hierarchy_targets {
+        if let Some(ref hier) = self.hierarchy.targets {
             if let Some(r) = hier.active_add_menu_rect {
                 active_dropdown_rects.push(r);
             }
@@ -486,7 +486,7 @@ impl IrisEditorOverlay {
                 active_dropdown_rects.push(r);
             }
         }
-        if let Some(ref insp) = self.inspector_targets {
+        if let Some(ref insp) = self.inspector.targets {
             if let Some(r) = insp.active_add_menu_rect {
                 active_dropdown_rects.push(r);
             }
@@ -500,7 +500,7 @@ impl IrisEditorOverlay {
                 active_dropdown_rects.push(r);
             }
         }
-        if let Some(ref assets) = self.assets_targets {
+        if let Some(ref assets) = self.assets.targets {
             if let Some(ref ctx_menu) = assets.context_menu {
                 active_dropdown_rects.push(ctx_menu.card_rect);
             }
@@ -513,7 +513,7 @@ impl IrisEditorOverlay {
             &self.tree,
             &active_dropdown_rects,
             &active_modal_rects,
-            &self.floating_window_rects,
+            &self.chrome.floating_window_rects,
         );
         if let Some(txt_renderer) = &mut self.text_renderer {
             txt_renderer.prepare(
@@ -549,10 +549,10 @@ impl IrisEditorOverlay {
         };
 
         for item in items {
-            if self.next_thumbnail_layer >= 256 {
+            if self.assets.next_thumbnail_layer >= 256 {
                 break;
             }
-            if self.thumbnail_layers.contains_key(&item.path) {
+            if self.assets.thumbnail_layers.contains_key(&item.path) {
                 continue;
             }
 
@@ -560,7 +560,7 @@ impl IrisEditorOverlay {
                 &item.path,
                 item.category,
             ) {
-                let layer = self.next_thumbnail_layer;
+                let layer = self.assets.next_thumbnail_layer;
                 let mips = ae_texture::generate_mipmap_chain(64, 64, &rgba);
 
                 for (mip_level, level_data) in mips.iter().enumerate() {
@@ -590,8 +590,10 @@ impl IrisEditorOverlay {
                     );
                 }
 
-                self.thumbnail_layers.insert(item.path.clone(), layer);
-                self.next_thumbnail_layer += 1;
+                self.assets
+                    .thumbnail_layers
+                    .insert(item.path.clone(), layer);
+                self.assets.next_thumbnail_layer += 1;
             }
         }
     }

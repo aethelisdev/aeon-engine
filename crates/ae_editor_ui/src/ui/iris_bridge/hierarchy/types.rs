@@ -156,3 +156,39 @@ pub struct HierarchyPanelParams<'a> {
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
 }
+
+/// Persistent interactive state for the Scene Hierarchy panel overlay.
+#[derive(Debug, Default, Clone)]
+pub struct HierarchyPanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<
+        HierarchyPanelTargets,
+        HierarchyAction,
+    >,
+    /// Persistent pre-allocated row cache to eliminate per-frame allocations.
+    pub rows_cache: Vec<HierarchyRow>,
+    /// Whether the `➕` Add Menu is open in Scene Hierarchy.
+    pub is_add_menu_open: bool,
+    /// Currently open cascading submenu in Scene Hierarchy Add Menu.
+    pub active_submenu: Option<AddSubmenuId>,
+    /// Currently open cascading sub-submenu (Level 3) in Scene Hierarchy Add Menu.
+    pub active_sub_submenu: Option<AddSubmenuId>,
+    /// Currently open right-click context menu in Scene Hierarchy.
+    pub active_context_menu: Option<(hecs::Entity, Point)>,
+}
+
+impl std::ops::Deref for HierarchyPanelState {
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<
+        HierarchyPanelTargets,
+        HierarchyAction,
+    >;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for HierarchyPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}

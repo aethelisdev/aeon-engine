@@ -58,7 +58,7 @@ pub enum ViewportHudAction {
 }
 
 /// Hit-test interaction target collection for Viewport HUD widgets.
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ViewportHudTargets {
     /// Clickable buttons in the toolbar: `(Action, ScreenRect)`.
     pub buttons: Vec<(ViewportHudAction, Rect)>,
@@ -100,4 +100,26 @@ pub struct ViewportHudParams<'a> {
     pub is_editing: bool,
     /// Whether the active project / dimension mode is 2D.
     pub is_2d: bool,
+}
+
+/// Persistent interactive state for the 3D Viewport HUD overlay.
+#[derive(Debug, Default, Clone)]
+pub struct ViewportHudState {
+    /// Cached interaction targets for 3D Viewport HUD.
+    pub targets: Option<ViewportHudTargets>,
+    /// Currently open dropdown menu in Viewport HUD.
+    pub dropdown: Option<ViewportHudDropdownId>,
+    /// Dispatched action queue for Viewport HUD interactions.
+    pub actions: Vec<ViewportHudAction>,
+    /// Active search filter text query in Viewport Add Object popup.
+    pub search_query: String,
+    /// Whether search input box is focused in Viewport Add Object popup.
+    pub is_search_focused: bool,
+}
+
+impl ViewportHudState {
+    /// Consumes and returns all pending dispatched Viewport HUD actions.
+    pub fn take_actions(&mut self) -> Vec<ViewportHudAction> {
+        std::mem::take(&mut self.actions)
+    }
 }

@@ -20,6 +20,7 @@ pub const INPUT_MODAL_WIDTH: f32 = 390.0;
 pub const INPUT_MODAL_HEIGHT: f32 = 170.0;
 
 /// Hit testing targets for the Delete Confirmation modal dialogue.
+#[derive(Debug, Clone)]
 pub struct DeleteModalTargets {
     /// Full bounding box of the modal card.
     pub dialog_rect: Rect,
@@ -32,6 +33,7 @@ pub struct DeleteModalTargets {
 }
 
 /// Hit testing targets for the New Folder creation modal dialogue.
+#[derive(Debug, Clone)]
 pub struct NewFolderModalTargets {
     /// Full bounding box of the modal card.
     pub dialog_rect: Rect,
@@ -46,6 +48,7 @@ pub struct NewFolderModalTargets {
 }
 
 /// Hit testing targets for the Rename asset/folder modal dialogue.
+#[derive(Debug, Clone)]
 pub struct RenameModalTargets {
     /// Full bounding box of the modal card.
     pub dialog_rect: Rect,

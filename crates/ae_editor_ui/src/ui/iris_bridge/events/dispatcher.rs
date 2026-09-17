@@ -14,14 +14,14 @@ impl IrisEditorOverlay {
 
         // 1. Track modifier keys for accelerated / fine-tune dragging
         if let WindowEvent::ModifiersChanged(modifiers) = event {
-            self.shift_held = modifiers.state().shift_key();
-            self.alt_held = modifiers.state().alt_key();
-            self.ctrl_held = modifiers.state().control_key();
+            self.chrome.shift_held = modifiers.state().shift_key();
+            self.chrome.alt_held = modifiers.state().alt_key();
+            self.chrome.ctrl_held = modifiers.state().control_key();
         }
 
         // 2. Real-time cursor position tracking
         if let WindowEvent::CursorMoved { position, .. } = event {
-            self.cursor_pos = Point::new(position.x as f32, position.y as f32);
+            self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
         }
 
         // 3. Inspector active dragging / scrubber motion & release (runs globally)
@@ -45,14 +45,14 @@ impl IrisEditorOverlay {
         }
 
         // 4. Loading Splash Screen (blocks all underlying interactions)
-        if self.loading_targets.is_some() {
+        if self.modals.loading_targets.is_some() {
             result.consumed = true;
             return result;
         }
 
         // 5. Top Menubar and Dropdowns (Prioritized above modal dialogs whenever a dropdown
         // is open or the cursor is positioned over the menubar header)
-        if (self.active_menu.is_some() || self.cursor_pos.y <= Self::MENUBAR_HEIGHT)
+        if (self.menubar.active_menu.is_some() || self.cursor_pos().y <= Self::MENUBAR_HEIGHT)
             && let Some(mb_res) = self.handle_menubar_event(event)
         {
             return mb_res;
@@ -60,13 +60,13 @@ impl IrisEditorOverlay {
 
         // 5b. Active Floating Popups (Hierarchy Add Menu/Submenus/Context Menu, Inspector Add Menu/Dropdown/Color Picker)
         // These are topmost UI elements; clicks and hovers inside them MUST be handled before modal dialogs!
-        if self.is_point_over_hierarchy_popup(self.cursor_pos)
+        if self.is_point_over_hierarchy_popup(self.cursor_pos())
             && let Some(hier_res) = self.handle_hierarchy_window_event(event)
         {
             return hier_res;
         }
 
-        if self.is_point_over_inspector_popup(self.cursor_pos)
+        if self.is_point_over_inspector_popup(self.cursor_pos())
             && let Some(insp_res) = self.handle_inspector_window_event(event)
         {
             return insp_res;
@@ -95,9 +95,10 @@ impl IrisEditorOverlay {
         // 9. Floating Window Occlusion Check:
         // If cursor is over an active floating window, docked panels must NOT claim the event!
         let is_cursor_over_floating = self
+            .chrome
             .floating_window_rects
             .iter()
-            .any(|r| r.contains_point(self.cursor_pos));
+            .any(|r| r.contains_point(self.cursor_pos()));
 
         if !is_cursor_over_floating {
             // 10. Docked Panels Event Dispatch

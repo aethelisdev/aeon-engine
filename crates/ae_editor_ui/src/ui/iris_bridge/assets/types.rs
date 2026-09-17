@@ -7,6 +7,7 @@
 //! 100% native Iris UI GPU SDF Asset Browser panel.
 //!
 
+use super::events::AssetClickTracker;
 use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::{Point, Rect};
 use std::collections::HashMap;
@@ -332,5 +333,59 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
         format!("{}...", &text[..split_idx])
     } else {
         text.to_string()
+    }
+}
+
+/// Persistent interactive state for the Asset Browser panel overlay.
+#[derive(Debug, Clone)]
+pub struct AssetsPanelState {
+    /// Common panel interaction state (targets, scroll_y, search, actions).
+    pub interactions:
+        crate::ui::iris_bridge::types::PanelInteractionState<AssetsPanelTargets, AssetsPanelAction>,
+    /// Folder tree sidebar vertical scroll offset.
+    pub tree_scroll_y: f32,
+    /// Current folder path in Asset Browser panel.
+    pub current_folder: PathBuf,
+    /// Double-click tracking state for asset spawning.
+    pub click_tracker: AssetClickTracker,
+    /// Active right-click context menu: `(target, click_pos)`.
+    pub context_menu: Option<(AssetsContextMenuTarget, Point)>,
+    /// Active Quick Asset Preview modal state.
+    pub preview_modal: Option<AssetPreviewModalState>,
+    /// Currently selected asset path.
+    pub selected_asset: Option<PathBuf>,
+    /// Dynamic thumbnail layer cache mapping asset paths to 2D Texture Array layers (32..255).
+    pub thumbnail_layers: HashMap<PathBuf, u32>,
+    /// Next available layer index in the 2D Texture Array (32..255).
+    pub next_thumbnail_layer: u32,
+}
+
+impl Default for AssetsPanelState {
+    fn default() -> Self {
+        Self {
+            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            tree_scroll_y: 0.0,
+            current_folder: PathBuf::from("assets"),
+            click_tracker: AssetClickTracker::default(),
+            context_menu: None,
+            preview_modal: None,
+            selected_asset: None,
+            thumbnail_layers: HashMap::new(),
+            next_thumbnail_layer: 32,
+        }
+    }
+}
+
+impl std::ops::Deref for AssetsPanelState {
+    type Target =
+        crate::ui::iris_bridge::types::PanelInteractionState<AssetsPanelTargets, AssetsPanelAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for AssetsPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
     }
 }

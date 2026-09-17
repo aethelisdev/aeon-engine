@@ -17,8 +17,8 @@ impl IrisEditorOverlay {
     /// dock tabs, tab close targets, and all panel-specific interactive elements (buttons, inputs,
     /// sliders, chips, and color pickers).
     pub fn requested_cursor_icon(&self) -> CursorIcon {
-        let p = self.cursor_pos;
-        if self.inspector_drag_number.is_some() {
+        let p = self.cursor_pos();
+        if self.inspector.drag_number.is_some() {
             return CursorIcon::EwResize;
         }
 
@@ -28,7 +28,7 @@ impl IrisEditorOverlay {
         }
 
         // 1. Floating window resize edges
-        for rect in &self.floating_window_rects {
+        for rect in &self.chrome.floating_window_rects {
             if rect.contains_point(p) {
                 const MARGIN: f32 = 6.0;
                 let on_left = p.x <= rect.x + MARGIN;
@@ -51,11 +51,12 @@ impl IrisEditorOverlay {
         // 2. Occlusion check: underlying docked splitters and tabs must not change cursor if occluded
         let is_occluded = self.is_point_over_modal_or_dropdown(p)
             || self
+                .chrome
                 .floating_window_rects
                 .iter()
                 .any(|r| r.contains_point(p));
 
-        if !is_occluded && let Some(ref frame) = self.native_dock_frame {
+        if !is_occluded && let Some(ref frame) = self.chrome.native_dock_frame {
             for tab in &frame.tab_targets {
                 if tab.rect.contains_point(p) {
                     return CursorIcon::Pointer;
@@ -75,13 +76,13 @@ impl IrisEditorOverlay {
                 }
             }
         }
-        if let Some(mode) = self.inspector_color_drag_mode {
+        if let Some(mode) = self.inspector.color_drag_mode {
             return match mode {
                 InspectorColorDragMode::SaturationValue => CursorIcon::Crosshair,
                 InspectorColorDragMode::Hue => CursorIcon::NsResize,
             };
         }
-        if let Some(ref targets) = self.inspector_targets {
+        if let Some(ref targets) = self.inspector.targets {
             if targets
                 .color_picker_sv_box_rect
                 .is_some_and(|r| r.contains_point(p))
@@ -149,7 +150,7 @@ impl IrisEditorOverlay {
         }
 
         // 3. Hierarchy interactive items
-        if let Some(ref targets) = self.hierarchy_targets
+        if let Some(ref targets) = self.hierarchy.targets
             && (targets.add_btn_rect.contains_point(p)
                 || targets.delete_btn_rect.is_some_and(|r| r.contains_point(p))
                 || targets
@@ -164,7 +165,7 @@ impl IrisEditorOverlay {
         }
 
         // 4. Viewport HUD interactive items
-        if let Some(ref hud) = self.viewport_hud_targets
+        if let Some(ref hud) = self.viewport_hud.targets
             && (hud.buttons.iter().any(|(_, r)| r.contains_point(p))
                 || hud
                     .dropdown_triggers
@@ -176,7 +177,7 @@ impl IrisEditorOverlay {
         }
 
         // 5. Assets panel interactive items
-        if let Some(ref targets) = self.assets_targets {
+        if let Some(ref targets) = self.assets.targets {
             if let Some(ref pm) = targets.preview_modal {
                 if pm.close_btn_rect.contains_point(p)
                     || pm.reveal_btn_rect.contains_point(p)
@@ -225,7 +226,7 @@ impl IrisEditorOverlay {
         }
 
         // 6. Material & Surface Studio interactive items
-        if let Some(ref targets) = self.material_targets
+        if let Some(ref targets) = self.material.targets
             && (targets
                 .btn_change_texture
                 .is_some_and(|r| r.contains_point(p))
@@ -247,7 +248,7 @@ impl IrisEditorOverlay {
         }
 
         // 7. 2D Visual UI Designer interactive items
-        if let Some(ref targets) = self.ui_designer_targets
+        if let Some(ref targets) = self.ui_designer.targets
             && (targets.btn_aspect.is_some_and(|r| r.contains_point(p))
                 || targets.btn_zoom_out.is_some_and(|r| r.contains_point(p))
                 || targets.btn_zoom_reset.is_some_and(|r| r.contains_point(p))
