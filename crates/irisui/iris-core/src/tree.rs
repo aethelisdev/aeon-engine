@@ -5,7 +5,7 @@
 
 use crate::dirty::DirtyFlags;
 use crate::error::IrisCoreError;
-use crate::geometry::Point;
+use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
 use crate::node::{UiLayer, WidgetNode};
 use slotmap::SlotMap;
@@ -297,7 +297,8 @@ impl UiTree {
         self.hit_test_layered_recursive(
             root_id,
             point,
-            UiLayer::Content,
+            UiLayer::Background,
+            None,
             &mut layer_hits,
             &mut has_active_modal,
         );
@@ -337,6 +338,7 @@ impl UiTree {
         current_id: WidgetId,
         point: Point,
         inherited_layer: UiLayer,
+        clip_rect: Option<Rect>,
         layer_hits: &mut [Option<WidgetId>; 6],
         has_active_modal: &mut bool,
     ) {
@@ -357,9 +359,21 @@ impl UiTree {
             *has_active_modal = true;
         }
 
-        if node.style.clip_children && !node.computed_rect.contains_point(point) {
-            return;
-        }
+        // Elevated overlay layers break out of parent scissor boundaries
+        let effective_clip = if effective_layer > inherited_layer {
+            None
+        } else {
+            clip_rect
+        };
+
+        let child_clip = if node.style.clip_children {
+            match effective_clip {
+                Some(existing) => Some(existing.intersect(node.computed_rect)),
+                None => Some(node.computed_rect),
+            }
+        } else {
+            effective_clip
+        };
 
         // Traverse children in reverse order (top-most sibling first)
         for &child_id in node.children.iter().rev() {
@@ -367,12 +381,14 @@ impl UiTree {
                 child_id,
                 point,
                 effective_layer,
+                child_clip,
                 layer_hits,
                 has_active_modal,
             );
         }
 
-        if node.interactive && node.computed_rect.contains_point(point) {
+        let is_within_clip = effective_clip.is_none_or(|c| c.contains_point(point));
+        if node.interactive && is_within_clip && node.computed_rect.contains_point(point) {
             let idx = effective_layer.index();
             if layer_hits[idx].is_none() {
                 layer_hits[idx] = Some(current_id);
@@ -384,7 +400,7 @@ impl UiTree {
     pub fn layer_at(&self, point: Point) -> Option<UiLayer> {
         let root_id = self.root?;
         let mut highest: Option<UiLayer> = None;
-        self.find_layer_at_recursive(root_id, point, UiLayer::Content, &mut highest);
+        self.find_layer_at_recursive(root_id, point, UiLayer::Background, None, &mut highest);
         highest
     }
 
@@ -393,6 +409,7 @@ impl UiTree {
         current_id: WidgetId,
         point: Point,
         inherited_layer: UiLayer,
+        clip_rect: Option<Rect>,
         highest: &mut Option<UiLayer>,
     ) {
         let Some(node) = self.nodes.get(current_id) else {
@@ -407,7 +424,23 @@ impl UiTree {
             inherited_layer
         };
 
-        if node.computed_rect.contains_point(point) {
+        let effective_clip = if effective_layer > inherited_layer {
+            None
+        } else {
+            clip_rect
+        };
+
+        let child_clip = if node.style.clip_children {
+            match effective_clip {
+                Some(existing) => Some(existing.intersect(node.computed_rect)),
+                None => Some(node.computed_rect),
+            }
+        } else {
+            effective_clip
+        };
+
+        let is_within_clip = effective_clip.is_none_or(|c| c.contains_point(point));
+        if is_within_clip && node.computed_rect.contains_point(point) {
             *highest = match *highest {
                 Some(prev) => Some(prev.max(effective_layer)),
                 None => Some(effective_layer),
@@ -415,7 +448,7 @@ impl UiTree {
         }
 
         for &child_id in &node.children {
-            self.find_layer_at_recursive(child_id, point, effective_layer, highest);
+            self.find_layer_at_recursive(child_id, point, effective_layer, child_clip, highest);
         }
     }
 

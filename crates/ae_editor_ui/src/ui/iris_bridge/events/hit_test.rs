@@ -49,6 +49,27 @@ impl IrisEditorOverlay {
         false
     }
 
+    /// Returns true if the coordinate is over an active UI Designer floating popup (Aspect Ratio selector or Add Element palette).
+    pub fn is_point_over_ui_designer_popup(&self, point: Point) -> bool {
+        if let Some(ref targets) = self.ui_designer.interactions.targets {
+            if self.ui_designer.is_aspect_open
+                && targets
+                    .aspect_popup_rect
+                    .is_some_and(|r| r.contains_point(point))
+            {
+                return true;
+            }
+            if self.ui_designer.is_add_menu_open
+                && targets
+                    .add_popup_rect
+                    .is_some_and(|r| r.contains_point(point))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Returns true if the coordinate is over an active floating modal dialog, Preferences window, or menubar dropdown.
     /// When true, underlying dock splitters, tabs, and panel controls MUST NOT receive click or drag interactions.
     pub fn is_point_over_modal_or_dropdown(&self, point: Point) -> bool {
@@ -78,7 +99,10 @@ impl IrisEditorOverlay {
         {
             return true;
         }
-        if self.is_point_over_hierarchy_popup(point) || self.is_point_over_inspector_popup(point) {
+        if self.is_point_over_hierarchy_popup(point)
+            || self.is_point_over_inspector_popup(point)
+            || self.is_point_over_ui_designer_popup(point)
+        {
             return true;
         }
         if self
@@ -144,7 +168,10 @@ impl IrisEditorOverlay {
         {
             return true;
         }
-        if self.is_point_over_hierarchy_popup(point) || self.is_point_over_inspector_popup(point) {
+        if self.is_point_over_hierarchy_popup(point)
+            || self.is_point_over_inspector_popup(point)
+            || self.is_point_over_ui_designer_popup(point)
+        {
             return true;
         }
         if self.modals.about_targets.is_some()

@@ -117,8 +117,66 @@ impl DrawCommandList {
         });
     }
 
-    /// Resets the hardware scissor rectangle to full screen.
-    pub fn push_reset_scissor(&mut self) {
-        self.commands.push(DrawCommand::ResetScissor);
+    /// Merges another `DrawCommandList` onto the end of this list, rebasing batch indices.
+    /// Preserves exact Z-ordering while shifting batch start indices and texture instance pointers
+    /// to maintain consistency with the appended buffers.
+    pub fn append(&mut self, mut other: DrawCommandList) {
+        let quad_offset = self.quads.len() as u32;
+        let tex_offset = self.texture_quads.len() as u32;
+        let ext_offset = self.external_texture_quads.len() as u32;
+
+        self.quads.append(&mut other.quads);
+        self.texture_quads.append(&mut other.texture_quads);
+        self.external_texture_quads
+            .append(&mut other.external_texture_quads);
+
+        for mut cmd in other.commands {
+            match &mut cmd {
+                DrawCommand::DrawSdfQuads { start, .. } => *start += quad_offset,
+                DrawCommand::DrawTexture { instance_index } => *instance_index += tex_offset,
+                DrawCommand::DrawExternalTexture { instance_index, .. } => {
+                    *instance_index += ext_offset
+                }
+                DrawCommand::SetScissor { .. } | DrawCommand::ResetScissor => {}
+            }
+            self.commands.push(cmd);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_draw_command_list_append_rebases_indices() {
+        let mut list_a = DrawCommandList::new();
+        list_a.push_quad(QuadInstance::default());
+        list_a.push_quad(QuadInstance::default());
+        assert_eq!(list_a.quads.len(), 2);
+        assert_eq!(
+            list_a.commands,
+            vec![DrawCommand::DrawSdfQuads { start: 0, count: 2 }]
+        );
+
+        let mut list_b = DrawCommandList::new();
+        list_b.push_quad(QuadInstance::default());
+        assert_eq!(list_b.quads.len(), 1);
+        assert_eq!(
+            list_b.commands,
+            vec![DrawCommand::DrawSdfQuads { start: 0, count: 1 }]
+        );
+
+        list_a.append(list_b);
+        assert_eq!(list_a.quads.len(), 3);
+        assert_eq!(list_a.commands.len(), 2);
+        assert_eq!(
+            list_a.commands[0],
+            DrawCommand::DrawSdfQuads { start: 0, count: 2 }
+        );
+        assert_eq!(
+            list_a.commands[1],
+            DrawCommand::DrawSdfQuads { start: 2, count: 1 }
+        );
     }
 }

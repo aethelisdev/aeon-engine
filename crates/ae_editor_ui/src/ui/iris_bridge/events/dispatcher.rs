@@ -97,6 +97,12 @@ impl IrisEditorOverlay {
             return insp_res;
         }
 
+        if self.is_point_over_ui_designer_popup(self.cursor_pos())
+            && let Some(ui_res) = self.handle_ui_designer_window_event(event)
+        {
+            return ui_res;
+        }
+
         // 5c. Active Dock Tab Overflow Dropdown Menu (Topmost popup overlay)
         if self.chrome.active_dock_overflow.is_some()
             && let Some(dock_res) = self.handle_dock_overflow_event(event)

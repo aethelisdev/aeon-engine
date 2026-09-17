@@ -81,6 +81,7 @@ pub fn build_aspect_ratio_popup(
         let itm_id = tree.create_node();
         if let Some(node) = tree.get_mut(itm_id) {
             node.set_name("AspectOptionItem");
+            node.set_role(WidgetRole::DropdownItem);
             node.computed_rect = itm_rect;
             node.style = Style::new().background(bg).border_radius(3.0);
         }
@@ -173,6 +174,7 @@ pub fn build_add_element_popup(
         let itm_id = tree.create_node();
         if let Some(node) = tree.get_mut(itm_id) {
             node.set_name("AddElementOption");
+            node.set_role(WidgetRole::DropdownItem);
             node.computed_rect = itm_rect;
             node.style = Style::new().background(bg).border_radius(3.0);
         }

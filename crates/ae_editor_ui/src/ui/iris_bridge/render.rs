@@ -8,137 +8,139 @@ use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSection};
 
 impl IrisEditorOverlay {
-    /// Recursively converts computed node bounds and styles into `DrawCommandList` instances.
+    /// Recursively converts computed node bounds and styles into layered `DrawCommandList` instances,
+    /// ensuring strict back-to-front layer ordering: Background -> Content -> Floating -> Modal -> Popup -> Tooltip.
     pub(crate) fn populate_draw_commands(
         &mut self,
         current: WidgetId,
         clip_rect: Option<Rect>,
         frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
     ) {
-        let (child_count, quad, tex_quad, ext_quad, is_oscilloscope, canvas_rect, next_clip) = {
-            let Some(node) = self.tree.get(current) else {
-                return;
-            };
-            if !node.visible {
-                return;
-            }
+        let mut layer_lists: [DrawCommandList; 6] = Default::default();
+        Self::populate_tree_commands_by_layer(
+            &self.tree,
+            current,
+            clip_rect,
+            UiLayer::Background,
+            frame_pacing,
+            &mut layer_lists,
+        );
+        self.command_list.clear();
+        for list in layer_lists {
+            self.command_list.append(list);
+        }
+    }
 
-            let child_clip = if node.style.clip_children {
-                match clip_rect {
-                    Some(existing) => Some(existing.intersect(node.computed_rect)),
-                    None => Some(node.computed_rect),
-                }
-            } else {
-                clip_rect
-            };
+    /// Helper that traverses the UI tree, grouping draw commands by effective `UiLayer`.
+    pub(crate) fn populate_tree_commands_by_layer(
+        tree: &UiTree,
+        current: WidgetId,
+        clip_rect: Option<Rect>,
+        inherited_layer: UiLayer,
+        frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
+        layer_lists: &mut [DrawCommandList; 6],
+    ) {
+        let Some(node) = tree.get(current) else {
+            return;
+        };
+        if !node.visible {
+            return;
+        }
 
-            let has_border = (node.style.border.width.top > 0.0
-                || node.style.border.width.bottom > 0.0
-                || node.style.border.width.left > 0.0
-                || node.style.border.width.right > 0.0)
-                && node.style.border.color.a > 0.0;
-
-            let quad = if node.computed_rect.width > 0.0
-                && node.computed_rect.height > 0.0
-                && (node.style.background_color.a > 0.0
-                    || has_border
-                    || node.style.box_shadow.is_some())
-            {
-                Some(QuadInstance::from_style(
-                    node.computed_rect,
-                    &node.style,
-                    clip_rect,
-                ))
-            } else {
-                None
-            };
-
-            let tex_quad = if let Some(uv) = node.texture_uv {
-                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
-                    let tint = node.texture_tint.unwrap_or(Color::WHITE);
-                    let clip_arr = match clip_rect {
-                        Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
-                        None => [0.0, 0.0, 0.0, 0.0],
-                    };
-                    Some(TextureQuadInstance {
-                        rect: [
-                            node.computed_rect.x,
-                            node.computed_rect.y,
-                            node.computed_rect.width,
-                            node.computed_rect.height,
-                        ],
-                        uv_rect: uv,
-                        tint: [tint.r, tint.g, tint.b, tint.a],
-                        clip_rect: clip_arr,
-                    })
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let ext_quad = if let Some(id) = node.external_texture {
-                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
-                    let tint = node.texture_tint.unwrap_or(Color::WHITE);
-                    let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
-                    Some((
-                        id,
-                        ExternalTextureQuadInstance::with_uv(
-                            node.computed_rect,
-                            uv,
-                            tint,
-                            clip_rect,
-                        ),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-
-            let is_oscilloscope = node.role == WidgetRole::OscilloscopeCanvas;
-            let canvas_rect = node.computed_rect;
-
-            (
-                node.children.len(),
-                quad,
-                tex_quad,
-                ext_quad,
-                is_oscilloscope,
-                canvas_rect,
-                child_clip,
-            )
+        let effective_layer = if node.layer > inherited_layer {
+            node.layer
+        } else {
+            inherited_layer
         };
 
-        if let Some(q) = quad {
-            self.command_list.push_quad(q);
+        // Decouple scissor clip when transitioning into an elevated overlay layer
+        // so that child popups or modal cards are not clipped by parent panel boundaries.
+        let effective_clip = if effective_layer > inherited_layer {
+            None
+        } else {
+            clip_rect
+        };
+
+        let child_clip = if node.style.clip_children {
+            match effective_clip {
+                Some(existing) => Some(existing.intersect(node.computed_rect)),
+                None => Some(node.computed_rect),
+            }
+        } else {
+            effective_clip
+        };
+
+        let has_border = (node.style.border.width.top > 0.0
+            || node.style.border.width.bottom > 0.0
+            || node.style.border.width.left > 0.0
+            || node.style.border.width.right > 0.0)
+            && node.style.border.color.a > 0.0;
+
+        let target_list = &mut layer_lists[effective_layer.index()];
+
+        if node.computed_rect.width > 0.0
+            && node.computed_rect.height > 0.0
+            && (node.style.background_color.a > 0.0
+                || has_border
+                || node.style.box_shadow.is_some())
+        {
+            target_list.push_quad(QuadInstance::from_style(
+                node.computed_rect,
+                &node.style,
+                effective_clip,
+            ));
         }
-        if let Some(tq) = tex_quad {
-            self.command_list.push_texture_quad(tq);
+
+        if let Some(uv) = node.texture_uv
+            && node.computed_rect.width > 0.0
+            && node.computed_rect.height > 0.0
+        {
+            let tint = node.texture_tint.unwrap_or(Color::WHITE);
+            let clip_arr = match effective_clip {
+                Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
+                None => [0.0, 0.0, 0.0, 0.0],
+            };
+            target_list.push_texture_quad(TextureQuadInstance {
+                rect: [
+                    node.computed_rect.x,
+                    node.computed_rect.y,
+                    node.computed_rect.width,
+                    node.computed_rect.height,
+                ],
+                uv_rect: uv,
+                tint: [tint.r, tint.g, tint.b, tint.a],
+                clip_rect: clip_arr,
+            });
         }
-        if let Some((id, eq)) = ext_quad {
-            self.command_list.push_external_texture_quad(id, eq);
+
+        if let Some(id) = node.external_texture
+            && node.computed_rect.width > 0.0
+            && node.computed_rect.height > 0.0
+        {
+            let tint = node.texture_tint.unwrap_or(Color::WHITE);
+            let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
+            target_list.push_external_texture_quad(
+                id,
+                ExternalTextureQuadInstance::with_uv(node.computed_rect, uv, tint, effective_clip),
+            );
         }
 
         // Render oscilloscope telemetry trace at exact canvas Z-order
-        if is_oscilloscope && let Some(ring) = frame_pacing {
-            super::stats::append_oscilloscope_quads(&mut self.command_list, canvas_rect, ring);
+        if node.role == WidgetRole::OscilloscopeCanvas
+            && let Some(ring) = frame_pacing
+        {
+            super::stats::append_oscilloscope_quads(target_list, node.computed_rect, ring);
         }
 
-        for i in 0..child_count {
-            let child_id = {
-                let Some(node) = self.tree.get(current) else {
-                    break;
-                };
-                if i < node.children.len() {
-                    node.children[i]
-                } else {
-                    break;
-                }
-            };
-            self.populate_draw_commands(child_id, next_clip, frame_pacing);
+        for &child_id in &node.children {
+            Self::populate_tree_commands_by_layer(
+                tree,
+                child_id,
+                child_clip,
+                effective_layer,
+                frame_pacing,
+                layer_lists,
+            );
         }
     }
 
@@ -373,5 +375,77 @@ impl IrisEditorOverlay {
         self.renderer
             .set_texture_bind_group(Some(bind_group.clone()));
         self.tools_texture = Some((texture, view, bind_group));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_quad_layer_ordering_and_clipping_decoupling() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        // Content layer panel with clip_children enabled
+        let panel = tree.create_node();
+        if let Some(node) = tree.get_mut(panel) {
+            node.computed_rect = Rect::new(0.0, 0.0, 400.0, 400.0);
+            node.style = Style::new()
+                .background(Color::rgba(0.1, 0.1, 0.1, 1.0))
+                .clip_children(true);
+            node.layer = UiLayer::Content;
+        }
+        let _ = tree.add_child(root, panel);
+
+        // Popup layer dropdown inside the panel (breaks out of parent scissor clip)
+        let popup = tree.create_node();
+        if let Some(node) = tree.get_mut(popup) {
+            node.computed_rect = Rect::new(100.0, 350.0, 200.0, 200.0);
+            node.style = Style::new().background(Color::rgba(0.2, 0.2, 0.2, 1.0));
+            node.layer = UiLayer::Popup;
+        }
+        let _ = tree.add_child(panel, popup);
+
+        // Modal dialog (Preferences) added to root
+        let modal = tree.create_node();
+        if let Some(node) = tree.get_mut(modal) {
+            node.computed_rect = Rect::new(50.0, 50.0, 500.0, 500.0);
+            node.style = Style::new().background(Color::rgba(0.3, 0.3, 0.3, 1.0));
+            node.layer = UiLayer::Modal;
+        }
+        let _ = tree.add_child(root, modal);
+
+        let mut layer_lists: [DrawCommandList; 6] = Default::default();
+        IrisEditorOverlay::populate_tree_commands_by_layer(
+            &tree,
+            root,
+            None,
+            UiLayer::Background,
+            None,
+            &mut layer_lists,
+        );
+
+        assert_eq!(layer_lists[UiLayer::Content.index()].quads.len(), 1);
+        assert_eq!(layer_lists[UiLayer::Modal.index()].quads.len(), 1);
+        assert_eq!(layer_lists[UiLayer::Popup.index()].quads.len(), 1);
+
+        // Verify popup decoupled from parent panel scissor clipping
+        let popup_quad = &layer_lists[UiLayer::Popup.index()].quads[0];
+        assert_eq!(popup_quad.clip_rect, [0.0, 0.0, 0.0, 0.0]); // Unclipped full screen
+
+        let mut final_list = DrawCommandList::new();
+        for list in layer_lists {
+            final_list.append(list);
+        }
+
+        assert_eq!(final_list.quads.len(), 3);
+        // Content (Panel) at index 0 (width 400.0)
+        assert_eq!(final_list.quads[0].rect[2], 400.0);
+        // Modal (Preferences) at index 1 (width 500.0)
+        assert_eq!(final_list.quads[1].rect[2], 500.0);
+        // Popup (Dropdown) at index 2 (width 200.0 - rendered on top of Modal and Content)
+        assert_eq!(final_list.quads[2].rect[2], 200.0);
     }
 }

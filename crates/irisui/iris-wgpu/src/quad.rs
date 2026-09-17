@@ -8,7 +8,7 @@ use iris_core::{Rect, Style};
 
 /// Per-instance vertex buffer data uploaded to the GPU for each SDF Quad.
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Pod, Zeroable)]
 pub struct QuadInstance {
     /// Screen-space bounding rectangle `[x, y, width, height]`.
     pub rect: [f32; 4],

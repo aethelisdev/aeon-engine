@@ -169,6 +169,7 @@ impl IrisEditorOverlay {
             WindowEvent::MouseWheel { delta, .. } => {
                 if !self.is_point_over_hierarchy_popup(self.cursor_pos())
                     && !self.is_point_over_inspector_popup(self.cursor_pos())
+                    && !self.is_point_over_ui_designer_popup(self.cursor_pos())
                     && targets.content_rect.contains_point(self.cursor_pos())
                 {
                     let scroll_y = match delta {
@@ -202,6 +203,7 @@ impl IrisEditorOverlay {
                 // Occlusion: If cursor is over an active foreground popup, Preferences must NOT intercept the click
                 if self.is_point_over_hierarchy_popup(click_point)
                     || self.is_point_over_inspector_popup(click_point)
+                    || self.is_point_over_ui_designer_popup(click_point)
                 {
                     return None;
                 }
