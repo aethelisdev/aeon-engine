@@ -48,6 +48,16 @@ impl EngineUi {
         if let Some(panel) = iris_res.toggle_panel {
             self.layout_state.activate_or_open(panel);
         }
+        if let Some((leaf, tab_idx)) = iris_res.activate_dock_tab {
+            let _ = self
+                .layout_state
+                .dock_state
+                .tree
+                .set_active_tab(leaf, tab_idx);
+            self.iris_overlay.chrome.active_dock_overflow = None;
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+            return true;
+        }
         if iris_res.reset_layout {
             self.layout_state.reset_to_default();
         }

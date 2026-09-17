@@ -527,6 +527,11 @@ impl IrisEditorOverlay {
                 active_modal_rects.push(modal.dialog_rect);
             }
         }
+        if let Some(ref frame) = self.chrome.native_dock_frame
+            && let Some(r) = frame.active_overflow_rect
+        {
+            active_dropdown_rects.push(r);
+        }
 
         let sections = Self::collect_text_sections_from_tree(
             &self.tree,

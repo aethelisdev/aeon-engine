@@ -41,17 +41,20 @@ pub fn build_native_dock_overflow_menu(
     frame.active_overflow_rect = Some(menu_rect);
 
     // Menu container card
-    add_rect_node(
+    let menu_card_id = add_rect_node(
         tree,
         parent,
         menu_rect,
         "IrisDockOverflowMenu",
         Style::new()
-            .background(Color::from_u8(22, 26, 36, 250))
+            .background(Color::from_u8(22, 26, 36, 255))
             .border(1.0, Color::from_u8(50, 60, 80, 200))
             .corner_radii(CornerRadii::all(4.0))
             .clip_children(true),
     );
+    if let Some(node) = tree.get_mut(menu_card_id) {
+        node.set_role(WidgetRole::DropdownPopup);
+    }
 
     for (index, panel) in tabs.iter().enumerate() {
         let is_active = index == *active_tab;
@@ -62,24 +65,39 @@ pub fn build_native_dock_overflow_menu(
             menu_width - (menu_padding * 2.0),
             item_height,
         );
-        let is_hovered = !params.is_cursor_occluded && item_rect.contains_point(params.cursor_pos);
+        let is_hovered = item_rect.contains_point(params.cursor_pos);
 
-        let item_bg = if is_hovered {
-            ELEVATION_3_HOVERED_PILL
+        let (item_bg, item_border_col) = if is_hovered && is_active {
+            (
+                Color::from_u8(38, 64, 96, 255),
+                Color::from_u8(64, 160, 220, 180),
+            )
+        } else if is_hovered {
+            (
+                Color::from_u8(36, 48, 68, 255),
+                Color::from_u8(70, 110, 160, 160),
+            )
         } else if is_active {
-            Color::from_u8(32, 42, 58, 220)
+            (
+                Color::from_u8(28, 42, 60, 220),
+                Color::from_u8(40, 75, 110, 140),
+            )
         } else {
-            Color::TRANSPARENT
+            (Color::TRANSPARENT, Color::TRANSPARENT)
         };
-        add_rect_node(
+        let item_id = add_rect_node(
             tree,
-            parent,
+            menu_card_id,
             item_rect,
             "IrisDockOverflowItem",
             Style::new()
                 .background(item_bg)
+                .border(1.0, item_border_col)
                 .corner_radii(CornerRadii::all(3.0)),
         );
+        if let Some(node) = tree.get_mut(item_id) {
+            node.set_role(WidgetRole::DropdownItem);
+        }
 
         let atlas_icon = panel.atlas_icon();
         let title = if atlas_icon.is_some() {
@@ -93,11 +111,11 @@ pub fn build_native_dock_overflow_menu(
             } else if is_hovered {
                 Color::WHITE
             } else {
-                TEXT_REGULAR
+                Color::rgba(0.70, 0.75, 0.85, 1.0)
             };
             add_icon_node(
                 tree,
-                parent,
+                item_id,
                 Rect::new(item_rect.x + 6.0, item_rect.y + 5.0, 16.0, 16.0),
                 "IrisDockOverflowItemIcon",
                 uv,
@@ -119,15 +137,15 @@ pub fn build_native_dock_overflow_menu(
         } else if is_hovered {
             TEXT_BRIGHT
         } else {
-            TEXT_REGULAR
+            Color::rgba(0.85, 0.88, 0.94, 1.0)
         };
-        add_text_node(tree, parent, label_rect, &title, text_col, TextAlign::Left);
+        add_text_node(tree, item_id, label_rect, &title, text_col, TextAlign::Left);
 
         if is_active {
             let check_rect = Rect::new(item_rect.right() - 20.0, item_rect.y + 4.0, 16.0, 18.0);
             add_text_node(
                 tree,
-                parent,
+                item_id,
                 check_rect,
                 "✓",
                 ACCENT_CYAN,

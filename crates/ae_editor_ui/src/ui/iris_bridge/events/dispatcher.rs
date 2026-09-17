@@ -97,6 +97,13 @@ impl IrisEditorOverlay {
             return insp_res;
         }
 
+        // 5c. Active Dock Tab Overflow Dropdown Menu (Topmost popup overlay)
+        if self.chrome.active_dock_overflow.is_some()
+            && let Some(dock_res) = self.handle_dock_overflow_event(event)
+        {
+            return dock_res;
+        }
+
         // 6. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
         // Topmost modal cards; must be evaluated before Preferences so clicks and close actions
         // on active modal dialogs are never intercepted by the background Preferences panel.

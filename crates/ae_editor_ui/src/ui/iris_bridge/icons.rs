@@ -71,11 +71,11 @@ pub const ICON_GEAR: [f32; 4] = [0.0, 0.0, 1.0, 16.0];
 /// 4-pointed diamond sparkle star icon representing shaders, visual effects, and keyframes - Layer 17.
 pub const ICON_SPARKLE: [f32; 4] = [0.0, 0.0, 1.0, 17.0];
 
-/// Up-pointing chevron/triangle icon for expanding sections, moving upward, or increasing values - Layer 18.
-pub const ICON_CHEVRON_UP: [f32; 4] = [0.0, 0.0, 1.0, 18.0];
+/// Down-pointing chevron/triangle icon for collapsing sections, moving downward, or dropdown indicators - Layer 18.
+pub const ICON_CHEVRON_DOWN: [f32; 4] = [0.0, 0.0, 1.0, 18.0];
 
-/// Down-pointing chevron/triangle icon for collapsing sections, moving downward, or dropdown indicators - Layer 19.
-pub const ICON_CHEVRON_DOWN: [f32; 4] = [0.0, 0.0, 1.0, 19.0];
+/// Up-pointing chevron/triangle icon for expanding sections, moving upward, or increasing values - Layer 19.
+pub const ICON_CHEVRON_UP: [f32; 4] = [0.0, 0.0, 1.0, 19.0];
 
 /// Starting layer in the 2D Texture Array reserved for dynamically generated asset thumbnails.
 /// Layers 0..31 are strictly reserved for canonical static system, editor, and tool icons.

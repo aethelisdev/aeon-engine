@@ -321,13 +321,20 @@ pub fn build_native_dock(
             } else {
                 TEXT_MUTED
             };
-            add_text_node(
+            let icon_size = 12.0;
+            let icon_rect = Rect::new(
+                chevron_rect.x + (chevron_rect.width - icon_size) * 0.5,
+                chevron_rect.y + (chevron_rect.height - icon_size) * 0.5,
+                icon_size,
+                icon_size,
+            );
+            add_icon_node(
                 tree,
                 strip_id,
-                chevron_rect,
-                "▾",
+                icon_rect,
+                "IrisDockTabChevronIcon",
+                crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN,
                 chevron_text_col,
-                TextAlign::Center,
             );
             frame.chevron_targets.push(NativeDockChevronTarget {
                 leaf: leaf.node_id,

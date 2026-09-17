@@ -93,6 +93,8 @@ pub struct IrisOverlayEventResult {
     pub cancel_rename: bool,
     /// Whether to clear the cached console log entries in the editor UI state.
     pub clear_console_entries: bool,
+    /// Dock tab activation request specifying leaf identifier and target tab index.
+    pub activate_dock_tab: Option<(irisui::dock::DockNodeId, usize)>,
 }
 
 /// Standardized interaction and hit-testing container for Iris UI editor panels.

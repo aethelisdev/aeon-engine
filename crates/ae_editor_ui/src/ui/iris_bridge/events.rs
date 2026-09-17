@@ -7,6 +7,7 @@ pub mod assets;
 pub mod console;
 pub mod cursor;
 pub mod dispatcher;
+pub mod dock_overflow;
 pub mod hierarchy;
 pub mod hit_test;
 pub mod inspector;

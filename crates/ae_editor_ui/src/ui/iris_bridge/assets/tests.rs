@@ -588,8 +588,8 @@ fn test_engine_and_sidebar_vector_icons() {
     // Verify canonical texture coordinates on layer 16..19 and thumbnail layer reservation
     assert_eq!(ICON_GEAR, [0.0, 0.0, 1.0, 16.0]);
     assert_eq!(ICON_SPARKLE, [0.0, 0.0, 1.0, 17.0]);
-    assert_eq!(ICON_CHEVRON_UP, [0.0, 0.0, 1.0, 18.0]);
-    assert_eq!(ICON_CHEVRON_DOWN, [0.0, 0.0, 1.0, 19.0]);
+    assert_eq!(ICON_CHEVRON_DOWN, [0.0, 0.0, 1.0, 18.0]);
+    assert_eq!(ICON_CHEVRON_UP, [0.0, 0.0, 1.0, 19.0]);
     assert_eq!(FIRST_THUMBNAIL_LAYER, 32);
 
     let mut tree = UiTree::new();
