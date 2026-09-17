@@ -87,6 +87,7 @@ impl IrisEditorOverlay {
             || (self.chrome.last_zoom_factor - params.context.zoom_factor).abs() > 1e-4
             || self.chrome.last_floating_count != floating_count
             || self.modals.last_modal_active != modal_active
+            || self.preferences.last_tab != self.preferences.tab
             || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
             || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
@@ -580,6 +581,7 @@ impl IrisEditorOverlay {
         self.inspector.last_selected_entity = params.scene.selected_entity;
         self.chrome.last_floating_count = floating_count;
         self.modals.last_modal_active = modal_active;
+        self.preferences.last_tab = self.preferences.tab;
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
         self.chrome.last_has_drag_payload = has_drag_payload;
         self.chrome.last_cursor_pos = self.cursor_pos();

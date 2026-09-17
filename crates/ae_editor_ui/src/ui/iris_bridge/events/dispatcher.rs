@@ -10,6 +10,31 @@ use winit::event::WindowEvent;
 impl IrisEditorOverlay {
     /// Intercepts and processes window mouse input and cursor movement events across all active Iris UI subsystems.
     pub fn handle_event(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
+        let result = self.dispatch_window_event_internal(event);
+        // Reactive Event Invalidation: If any UI element consumed this event or produced
+        // an action/state change, immediately flag the UI tree as dirty so the next frame
+        // reflects the change instantly, even if the mouse cursor does not move a single pixel.
+        if result.consumed
+            || result.preferences_action.is_some()
+            || result.ui_action.is_some()
+            || result.toggle_panel.is_some()
+            || result.open_preferences
+            || result.close_preferences
+            || result.open_about
+            || result.close_about
+            || result.confirm_delete
+            || result.cancel_delete
+            || result.create_folder.is_some()
+            || result.apply_rename.is_some()
+            || result.reset_layout
+        {
+            self.notifier.tag_all();
+        }
+        result
+    }
+
+    /// Internal routing pipeline that tests UI layers in strict Z-order.
+    fn dispatch_window_event_internal(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
         let mut result = IrisOverlayEventResult::default();
 
         // 1. Track modifier keys for accelerated / fine-tune dragging
@@ -72,14 +97,16 @@ impl IrisEditorOverlay {
             return insp_res;
         }
 
-        // 6. Preferences Floating Dialog
-        if let Some(pref_result) = self.handle_preferences_event(event) {
-            return pref_result;
-        }
-
-        // 7. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
+        // 6. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
+        // Topmost modal cards; must be evaluated before Preferences so clicks and close actions
+        // on active modal dialogs are never intercepted by the background Preferences panel.
         if let Some(modal_result) = self.handle_modal_events(event) {
             return modal_result;
+        }
+
+        // 7. Preferences Floating Dialog
+        if let Some(pref_result) = self.handle_preferences_event(event) {
+            return pref_result;
         }
 
         // 8. Top Menubar and Dropdowns (Fallback interaction route)
@@ -87,7 +114,7 @@ impl IrisEditorOverlay {
             return mb_res;
         }
 
-        // 8. Viewport HUD Controls (Interactive on docked or floating viewports)
+        // 8b. Viewport HUD Controls (Interactive on docked or floating viewports)
         if let Some(hud_res) = self.handle_viewport_hud_window_event(event) {
             return hud_res;
         }

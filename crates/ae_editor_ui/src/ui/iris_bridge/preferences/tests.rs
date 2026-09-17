@@ -126,4 +126,41 @@ fn test_preferences_dialog_builder_and_hit_targets() {
         !targets.card_rect.contains_point(outside_point),
         "Card rect must not contain outside points to permit docked panel clicks"
     );
+
+    // Verify all 10 sidebar navigation tabs are generated with distinct hit rects
+    assert_eq!(
+        targets.tabs.len(),
+        10,
+        "Preferences must generate exactly 10 sidebar tabs"
+    );
+    for (idx, &(tab_idx, tab_rect)) in targets.tabs.iter().enumerate() {
+        assert_eq!(tab_idx, super::builder::SIDEBAR_TABS[idx].1);
+        assert!(tab_rect.width > 100.0);
+        assert!(tab_rect.height >= 24.0);
+        let center = Point::new(
+            tab_rect.x + tab_rect.width * 0.5,
+            tab_rect.y + tab_rect.height * 0.5,
+        );
+        assert!(
+            tab_rect.contains_point(center),
+            "Tab rect must contain its center point"
+        );
+    }
+
+    // Verify Graphics tab (index 1) hit-testing
+    let (_, graphics_tab_rect) = targets.tabs[1];
+    let click_point = Point::new(graphics_tab_rect.x + 10.0, graphics_tab_rect.y + 10.0);
+    assert!(graphics_tab_rect.contains_point(click_point));
+
+    // Verify PreferencesDialogState last_tab tracking for reactive updates
+    let mut state = super::types::PreferencesDialogState::default();
+    assert_eq!(state.tab, 0);
+    assert_eq!(state.last_tab, 0);
+    state.tab = 1;
+    assert_ne!(
+        state.tab, state.last_tab,
+        "Tab change must produce dirty delta between tab and last_tab"
+    );
+    state.last_tab = state.tab;
+    assert_eq!(state.tab, state.last_tab);
 }

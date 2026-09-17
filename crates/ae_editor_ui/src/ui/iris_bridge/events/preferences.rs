@@ -300,6 +300,7 @@ impl IrisEditorOverlay {
                         self.preferences.dropdown = None;
                         self.preferences.active_number_input = None;
                         self.preferences.scroll_y = 0.0;
+                        self.notifier.tag_all();
                         result.preferences_action = Some(PreferencesAction::SelectTab(tab_idx));
                         result.consumed = true;
                         return Some(result);

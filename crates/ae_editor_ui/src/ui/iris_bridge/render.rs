@@ -14,7 +14,7 @@ struct TextCollectionContext<'a> {
     active_modal_rects: &'a [Rect],
     floating_window_rects: &'a [Rect],
     is_inside_dropdown: bool,
-    is_inside_modal: bool,
+    modal_layer: Option<usize>,
     is_inside_floating: bool,
 }
 
@@ -168,7 +168,7 @@ impl IrisEditorOverlay {
                 active_modal_rects,
                 floating_window_rects,
                 is_inside_dropdown: false,
-                is_inside_modal: false,
+                modal_layer: None,
                 is_inside_floating: false,
             };
             Self::collect_node_text_from_tree(tree, root, &ctx, &mut sections);
@@ -201,7 +201,17 @@ impl IrisEditorOverlay {
         let child_is_inside_dropdown = ctx.is_inside_dropdown || is_dropdown_element;
 
         let is_modal_element = node.role == WidgetRole::ModalWindow;
-        let child_is_inside_modal = ctx.is_inside_modal || is_modal_element;
+        let detected_layer = if is_modal_element {
+            ctx.active_modal_rects.iter().position(|r| {
+                (r.x - node.computed_rect.x).abs() < 2.0
+                    && (r.y - node.computed_rect.y).abs() < 2.0
+                    && (r.width - node.computed_rect.width).abs() < 2.0
+                    && (r.height - node.computed_rect.height).abs() < 2.0
+            })
+        } else {
+            None
+        };
+        let child_modal_layer = detected_layer.or(ctx.modal_layer);
 
         let is_floating_element = node.role == WidgetRole::FloatingWindow;
         let child_is_inside_floating = ctx.is_inside_floating || is_floating_element;
@@ -287,47 +297,56 @@ impl IrisEditorOverlay {
                 }
             }
 
-            // 2. Modal dialogs occlude background docked panels, but do NOT occlude dropdowns or their own content
-            if !child_is_inside_dropdown && !child_is_inside_modal && !is_fully_occluded {
-                for modal in ctx.active_modal_rects {
-                    let vert_overlap = node.computed_rect.bottom() > modal.y
-                        && node.computed_rect.y < modal.bottom();
-                    if !vert_overlap {
-                        continue;
-                    }
-                    let horiz_overlap = text_max_x > modal.x && text_min_x < modal.right();
-                    if !horiz_overlap {
-                        continue;
-                    }
+            // 2. Modal dialogs occlude background docked panels and lower-tier modal layers.
+            // Elements in modal layer K can only be occluded by modals in layer J > K (modals drawn on top of them).
+            // Non-modal elements (docked/background) are occluded by all active modals (layer >= 0).
+            if !child_is_inside_dropdown && !is_fully_occluded {
+                let min_modal_idx = match child_modal_layer {
+                    Some(tier) => tier + 1,
+                    None => 0,
+                };
 
-                    if text_min_x >= modal.x
-                        && text_max_x <= modal.right()
-                        && text_center_y >= modal.y
-                        && text_center_y <= modal.bottom()
-                    {
-                        is_fully_occluded = true;
-                        break;
-                    }
+                if min_modal_idx < ctx.active_modal_rects.len() {
+                    for modal in &ctx.active_modal_rects[min_modal_idx..] {
+                        let vert_overlap = node.computed_rect.bottom() > modal.y
+                            && node.computed_rect.y < modal.bottom();
+                        if !vert_overlap {
+                            continue;
+                        }
+                        let horiz_overlap = text_max_x > modal.x && text_min_x < modal.right();
+                        if !horiz_overlap {
+                            continue;
+                        }
 
-                    if text_min_x < modal.x && text_max_x > modal.x {
-                        let clip_sub = Rect::new(0.0, 0.0, modal.x, 100_000.0);
-                        effective_clip = match effective_clip {
-                            Some(c) => Some(c.intersect(clip_sub)),
-                            None => Some(clip_sub),
-                        };
-                    } else if text_min_x < modal.right() && text_max_x > modal.right() {
-                        let clip_sub = Rect::new(modal.right(), 0.0, 100_000.0, 100_000.0);
-                        effective_clip = match effective_clip {
-                            Some(c) => Some(c.intersect(clip_sub)),
-                            None => Some(clip_sub),
-                        };
+                        if text_min_x >= modal.x
+                            && text_max_x <= modal.right()
+                            && text_center_y >= modal.y
+                            && text_center_y <= modal.bottom()
+                        {
+                            is_fully_occluded = true;
+                            break;
+                        }
+
+                        if text_min_x < modal.x && text_max_x > modal.x {
+                            let clip_sub = Rect::new(0.0, 0.0, modal.x, 100_000.0);
+                            effective_clip = match effective_clip {
+                                Some(c) => Some(c.intersect(clip_sub)),
+                                None => Some(clip_sub),
+                            };
+                        } else if text_min_x < modal.right() && text_max_x > modal.right() {
+                            let clip_sub = Rect::new(modal.right(), 0.0, 100_000.0, 100_000.0);
+                            effective_clip = match effective_clip {
+                                Some(c) => Some(c.intersect(clip_sub)),
+                                None => Some(clip_sub),
+                            };
+                        }
                     }
                 }
             }
 
             // 3. Floating windows occlude background docked panels, but do NOT occlude modals or dropdowns
             if !child_is_inside_dropdown
-                && !child_is_inside_modal
+                && child_modal_layer.is_none()
                 && !child_is_inside_floating
                 && !is_fully_occluded
             {
@@ -396,7 +415,7 @@ impl IrisEditorOverlay {
             active_modal_rects: ctx.active_modal_rects,
             floating_window_rects: ctx.floating_window_rects,
             is_inside_dropdown: child_is_inside_dropdown,
-            is_inside_modal: child_is_inside_modal,
+            modal_layer: child_modal_layer,
             is_inside_floating: child_is_inside_floating,
         };
 

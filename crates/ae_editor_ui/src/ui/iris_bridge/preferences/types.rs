@@ -192,6 +192,8 @@ pub struct PreferencesDialogState {
     pub drag_offset: Option<Point>,
     /// Currently selected tab index in the Preferences dialog (0..=9).
     pub tab: u8,
+    /// Previously rendered tab index in Preferences to trigger reactive invalidation on tab switches.
+    pub last_tab: u8,
     /// Content area vertical scroll offset for Preferences dialog.
     pub scroll_y: f32,
     /// Currently open dropdown ComboBox in the Preferences dialog.
