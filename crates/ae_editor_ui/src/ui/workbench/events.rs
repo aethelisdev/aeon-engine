@@ -600,7 +600,12 @@ impl EngineUi {
         }
 
         let consumed = iris_res.consumed || dock_consumed;
-        if consumed {
+        if consumed
+            || (matches!(event, WindowEvent::CursorMoved { .. })
+                && self
+                    .iris_overlay
+                    .is_point_over_overlay(self.iris_overlay.cursor_pos))
+        {
             self.iris_overlay.notifier.tag_all();
         }
         consumed

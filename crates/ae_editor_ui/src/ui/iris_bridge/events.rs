@@ -5,6 +5,7 @@
 
 pub mod assets;
 pub mod console;
+pub mod cursor;
 pub mod dispatcher;
 pub mod hierarchy;
 pub mod hit_test;

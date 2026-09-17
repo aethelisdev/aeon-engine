@@ -168,16 +168,32 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 3. Occlusion Check: If the point is inside an active floating window,
-        // all underlying docked panels (UI Designer, Hierarchy, Stats, Console, Assets,
-        // Timeline, Material, Inspector) and the bottom status bar are occluded and
-        // MUST NOT claim the point!
-        let is_occluded_by_floating = self
+        // 3. Floating Window Check: If the point is inside an active floating window,
+        // it is directly over an interactive UI window layer.
+        let is_over_floating = self
             .floating_window_rects
             .iter()
             .any(|r| r.contains_point(point));
-        if is_occluded_by_floating {
-            return false;
+        if is_over_floating {
+            return true;
+        }
+
+        // 3b. Native Dock Tabs, Close Buttons & Splitters
+        if let Some(ref frame) = self.native_dock_frame
+            && (frame
+                .tab_targets
+                .iter()
+                .any(|t| t.rect.contains_point(point))
+                || frame
+                    .close_targets
+                    .iter()
+                    .any(|c| c.rect.contains_point(point))
+                || frame
+                    .splitter_targets
+                    .iter()
+                    .any(|s| s.rect.contains_point(point)))
+        {
+            return true;
         }
 
         // 4. Background Docked Panels (only tested when NOT occluded by floating windows)

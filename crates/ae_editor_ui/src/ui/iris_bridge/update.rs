@@ -87,6 +87,7 @@ impl IrisEditorOverlay {
             last_modal_active: false,
             last_has_viewport_texture: false,
             last_has_drag_payload: false,
+            last_cursor_pos: Point::new(-1000.0, -1000.0),
             needs_layout_rebuild: false,
             stats_scroll_y: 0.0,
             stats_frame_counter: 0,
@@ -168,6 +169,12 @@ impl IrisEditorOverlay {
         let floating_count = params.layout_state.dock_state.floating_windows.len();
 
         let has_drag_payload = params.asset_browser.drag_payload.is_some();
+        let cursor_moved = (self.last_cursor_pos.x - self.cursor_pos.x).abs() > 0.001
+            || (self.last_cursor_pos.y - self.cursor_pos.y).abs() > 0.001;
+        let is_over_ui = cursor_moved
+            && (self.is_point_over_overlay(self.cursor_pos)
+                || self.is_point_over_overlay(self.last_cursor_pos));
+
         if self.last_dimensions != params.dimensions
             || (self.last_zoom_factor - params.zoom_factor).abs() > 1e-4
             || self.last_floating_count != floating_count
@@ -177,6 +184,7 @@ impl IrisEditorOverlay {
             || self.active_menu.is_some()
             || self.needs_layout_rebuild
             || has_drag_payload
+            || is_over_ui
         {
             self.notifier.tag_all();
         }
@@ -653,6 +661,7 @@ impl IrisEditorOverlay {
         self.last_modal_active = modal_active;
         self.last_has_viewport_texture = params.has_viewport_texture;
         self.last_has_drag_payload = has_drag_payload;
+        self.last_cursor_pos = self.cursor_pos;
         self.needs_layout_rebuild = false;
         self.notifier.clear_all();
     }
