@@ -145,6 +145,7 @@ fn test_assets_actions_dispatch() {
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
+        hit_target: None,
     };
 
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
@@ -194,6 +195,7 @@ fn test_assets_right_click_context_menu_dispatch() {
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
+        hit_target: None,
     };
 
     let consumed = events::handle_assets_right_click(&ctx, &mut actions);
@@ -284,6 +286,7 @@ fn test_preview_modal_build_and_actions() {
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
+        hit_target: None,
     };
 
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
@@ -571,6 +574,7 @@ fn test_engine_toggle_action_dispatch() {
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
+        hit_target: None,
     };
 
     let mut tracker = AssetClickTracker::default();
@@ -774,4 +778,100 @@ fn test_is_scene_json_3d_detection() {
         }
     ]);
     assert!(!is_scene_json_3d(&scene_2d_sprite));
+}
+
+#[test]
+fn test_assets_context_menu_builder_and_hit_testing() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    if let Some(node) = tree.get_mut(root_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
+    let _ = tree.set_root(root_id);
+
+    let item = AssetItem {
+        name: "character.glb".to_string(),
+        path: PathBuf::from("assets/models/character.glb"),
+        relative_path: "models/character.glb".to_string(),
+        category: AssetCategory::Models3D,
+        source: AssetSource::Project,
+        file_size_bytes: 4096,
+        metadata_badge: "4.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: true,
+    };
+
+    let ctx_menu_data = (
+        AssetsContextMenuTarget::Asset(item.clone()),
+        Point::new(200.0, 150.0),
+    );
+    let thumbnail_layers = std::collections::HashMap::new();
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1920.0, 1080.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &[],
+        filtered_items: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 200.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(210.0, 160.0),
+        blink_caret: false,
+        active_context_menu: Some(&ctx_menu_data),
+        active_preview_modal: None,
+        thumbnail_layers: &thumbnail_layers,
+    };
+
+    let mut targets = AssetsPanelTargets::default();
+    super::context_menu::build_assets_context_menu(&mut tree, root_id, &params, &mut targets);
+
+    assert!(targets.context_menu.is_some());
+    let cm = targets.context_menu.unwrap();
+    assert_eq!(cm.card_rect.x, 200.0);
+    assert_eq!(cm.card_rect.y, 150.0);
+
+    // Hit test Quick Inspect (tag 0)
+    let hit_inspect = tree
+        .hit_test_target(Point::new(220.0, 195.0))
+        .expect("Must hit inspect item");
+    assert_eq!(hit_inspect.layer, UiLayer::Popup);
+    assert_eq!(hit_inspect.role, WidgetRole::DropdownItem);
+    assert_eq!(hit_inspect.tag, super::types::ASSET_CTX_INSPECT);
+
+    // Test event dispatch with hit target
+    let mut tracker = AssetClickTracker::default();
+    let mut actions = Vec::new();
+    let ctx = AssetsEventContext {
+        cursor_pos: Point::new(220.0, 195.0),
+        targets: &AssetsPanelTargets {
+            context_menu: Some(cm),
+            ..Default::default()
+        },
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+        hit_target: Some(hit_inspect),
+    };
+
+    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
+    assert!(consumed);
+    assert!(actions.contains(&AssetsPanelAction::CloseContextMenu));
+    assert!(
+        actions
+            .iter()
+            .any(|a| matches!(a, AssetsPanelAction::OpenInspectModal(_)))
+    );
 }

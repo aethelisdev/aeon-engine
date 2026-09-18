@@ -140,9 +140,15 @@ pub struct HierarchyPanelTargets {
     pub entity_rows: Vec<(hecs::Entity, Rect, Rect, Option<Rect>)>,
     /// Bounding rectangles of all active cascading Add Menu popup cards (if open).
     pub active_add_menu_rects: Vec<Rect>,
-    /// Right-click context menu target: `(target_entity, menu_rect, delete_btn_rect, toggle_vis_btn_rect)`.
-    pub active_context_menu: Option<(hecs::Entity, Rect, Rect, Rect)>,
+    /// Right-click context menu target: `(target_entity, menu_card_rect)`.
+    pub active_context_menu: Option<(hecs::Entity, Rect)>,
 }
+
+/// Numerical tag for deleting the target entity via right-click context menu.
+pub const HIERARCHY_CTX_DELETE: u64 = 0;
+
+/// Numerical tag for toggling target entity visibility via right-click context menu.
+pub const HIERARCHY_CTX_VISIBILITY: u64 = 1;
 
 /// Parameters passed to the Hierarchy panel builder and value updater.
 pub struct HierarchyPanelParams<'a> {

@@ -3,9 +3,12 @@
 
 //! # Scene Hierarchy Right-Click Entity Context Menu Builder
 //!
-//! Renders the floating context menu for deleting entities or toggling visibility.
+//! Renders the floating context menu for deleting entities or toggling visibility
+//! using the unified `ContextMenuBuilder` widget.
 
-use super::types::{HierarchyPanelParams, HierarchyPanelTargets};
+use super::types::{
+    HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HierarchyPanelParams, HierarchyPanelTargets,
+};
 use irisui::prelude::*;
 
 /// Builds the right-click entity context menu in the `UiTree` if active.
@@ -21,113 +24,20 @@ pub fn build_context_menu(
         return;
     };
 
-    let menu_w = 160.0;
-    let menu_h = 56.0;
-    let menu_x = click_pos
-        .x
-        .min(params.panel_rect.right() - menu_w - 4.0)
-        .max(4.0);
-    let menu_y = click_pos
-        .y
-        .min(params.panel_rect.bottom() - menu_h - 4.0)
-        .max(4.0);
-
-    let card_rect = Rect::new(menu_x, menu_y, menu_w, menu_h);
-
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("EntityContextMenuCard");
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
-            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90))
-            .border_radius(5.0)
-            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75));
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    // 1. Delete Entity Item
-    let del_rect = Rect::new(menu_x + 4.0, menu_y + 4.0, menu_w - 8.0, 22.0);
-    let is_del_hovered = del_rect.contains_point(params.cursor_pos);
-    let (del_bg, del_text_col) = if is_del_hovered {
-        (
-            Color::rgba(0.40, 0.10, 0.10, 0.90),
-            Color::rgba(1.0, 0.50, 0.50, 1.0),
+    let card_rect = ContextMenuBuilder::new(click_pos)
+        .cursor_pos(params.cursor_pos)
+        .width(160.0)
+        .destructive_item_with_icon(
+            HIERARCHY_CTX_DELETE,
+            ContextMenuIcon::Text("🗑"),
+            "Delete Entity",
         )
-    } else {
-        (Color::TRANSPARENT, Color::rgba(0.95, 0.40, 0.40, 0.90))
-    };
-
-    let del_id = tree.create_node();
-    if let Some(node) = tree.get_mut(del_id) {
-        node.set_name("ContextDeleteEntity");
-        node.computed_rect = del_rect;
-        node.style = Style::new().background(del_bg).border_radius(3.0);
-    }
-    let _ = tree.add_child(card_id, del_id);
-
-    let del_ic_id = tree.create_node();
-    if let Some(node) = tree.get_mut(del_ic_id) {
-        node.set_name("DeleteIcon");
-        node.set_text("🗑");
-        node.font_size = 11.0;
-        node.line_height = 22.0;
-        node.computed_rect = Rect::new(del_rect.x + 6.0, del_rect.y, 16.0, 22.0);
-    }
-    let _ = tree.add_child(del_id, del_ic_id);
-
-    let del_lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(del_lbl_id) {
-        node.set_name("DeleteLabel");
-        node.set_text("Delete Entity");
-        node.font_size = 11.0;
-        node.line_height = 22.0;
-        node.text_color = del_text_col;
-        node.computed_rect = Rect::new(del_rect.x + 24.0, del_rect.y, del_rect.width - 28.0, 22.0);
-    }
-    let _ = tree.add_child(del_id, del_lbl_id);
-
-    // 2. Toggle Visibility Item
-    let vis_rect = Rect::new(menu_x + 4.0, menu_y + 28.0, menu_w - 8.0, 22.0);
-    let is_vis_hovered = vis_rect.contains_point(params.cursor_pos);
-    let (vis_bg, vis_text_col) = if is_vis_hovered {
-        (
-            Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover (#29303c)
-            Color::WHITE,
+        .item_with_icon(
+            HIERARCHY_CTX_VISIBILITY,
+            ContextMenuIcon::Text("👁"),
+            "Toggle Visibility",
         )
-    } else {
-        (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
-    };
+        .build(tree, parent_id);
 
-    let vis_id = tree.create_node();
-    if let Some(node) = tree.get_mut(vis_id) {
-        node.set_name("ContextToggleVisibility");
-        node.computed_rect = vis_rect;
-        node.style = Style::new().background(vis_bg).border_radius(3.0);
-    }
-    let _ = tree.add_child(card_id, vis_id);
-
-    let vis_ic_id = tree.create_node();
-    if let Some(node) = tree.get_mut(vis_ic_id) {
-        node.set_name("VisibilityIcon");
-        node.set_text("👁");
-        node.font_size = 11.0;
-        node.line_height = 22.0;
-        node.computed_rect = Rect::new(vis_rect.x + 6.0, vis_rect.y, 16.0, 22.0);
-    }
-    let _ = tree.add_child(vis_id, vis_ic_id);
-
-    let vis_lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(vis_lbl_id) {
-        node.set_name("VisibilityLabel");
-        node.set_text("Toggle Visibility");
-        node.font_size = 11.0;
-        node.line_height = 22.0;
-        node.text_color = vis_text_col;
-        node.computed_rect = Rect::new(vis_rect.x + 24.0, vis_rect.y, vis_rect.width - 28.0, 22.0);
-    }
-    let _ = tree.add_child(vis_id, vis_lbl_id);
-
-    targets.active_context_menu = Some((target_entity, card_rect, del_rect, vis_rect));
+    targets.active_context_menu = Some((target_entity, card_rect));
 }

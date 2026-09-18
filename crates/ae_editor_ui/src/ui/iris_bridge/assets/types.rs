@@ -137,25 +137,26 @@ pub struct AssetRowTarget {
     pub item: AssetItem,
 }
 
+/// Numerical tags assigned to items within the Asset Browser right-click context menu.
+pub const ASSET_CTX_INSPECT: u64 = 0;
+/// Numerical tag for spawning an asset into the active scene.
+pub const ASSET_CTX_SPAWN: u64 = 1;
+/// Numerical tag for creating a new subfolder.
+pub const ASSET_CTX_NEW_FOLDER: u64 = 2;
+/// Numerical tag for renaming an asset or folder.
+pub const ASSET_CTX_RENAME: u64 = 3;
+/// Numerical tag for deleting an asset or folder.
+pub const ASSET_CTX_DELETE: u64 = 4;
+/// Numerical tag for copying an asset's file path to the system clipboard.
+pub const ASSET_CTX_COPY_PATH: u64 = 5;
+/// Numerical tag for revealing an asset or folder in the OS file manager.
+pub const ASSET_CTX_REVEAL: u64 = 6;
+
 /// Hit-testing targets for an active Asset Browser right-click context menu.
 #[derive(Debug, Clone)]
 pub struct AssetsContextMenuTargets {
-    /// Full bounding box of the floating context menu card.
+    /// Full bounding box of the floating context menu card (used for outside-click dismissal).
     pub card_rect: Rect,
-    /// Hit target of the 'Quick Inspect' item (for assets).
-    pub inspect_rect: Option<Rect>,
-    /// Hit target of the primary 'Spawn / Load' item (for assets).
-    pub spawn_rect: Option<Rect>,
-    /// Hit target of the 'New Subfolder' item (for folders).
-    pub new_folder_rect: Option<Rect>,
-    /// Hit target of the 'Rename' item.
-    pub rename_rect: Option<Rect>,
-    /// Hit target of the 'Delete' item.
-    pub delete_rect: Option<Rect>,
-    /// Hit target of the 'Copy File Path' item (for assets).
-    pub copy_path_rect: Option<Rect>,
-    /// Hit target of the 'Reveal in Explorer' item.
-    pub reveal_rect: Option<Rect>,
     /// Target subject of the active context menu.
     pub target: AssetsContextMenuTarget,
 }

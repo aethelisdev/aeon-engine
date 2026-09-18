@@ -65,6 +65,46 @@ impl IrisEditorOverlay {
                 return Some(result);
             }
 
+            // 1.2 Direct Hit-Testing on Right-Click Entity Context Menu (Zero-Allocation O(1) Dispatch)
+            if let Some((target_ent, _)) = self.hierarchy.active_context_menu
+                && ui_button == MouseButton::Left
+                && let Some(hit) = self.tree.hit_test_target(click_point)
+                && hit.layer == UiLayer::Popup
+            {
+                if hit.role == WidgetRole::DropdownItem {
+                    match hit.tag {
+                        hierarchy::types::HIERARCHY_CTX_DELETE => {
+                            self.hierarchy
+                                .interactions
+                                .actions
+                                .push(HierarchyAction::SelectEntity(Some(target_ent)));
+                            self.hierarchy
+                                .interactions
+                                .actions
+                                .push(HierarchyAction::DeleteSelected);
+                            self.hierarchy.active_context_menu = None;
+                            self.notifier.tag_all();
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        hierarchy::types::HIERARCHY_CTX_VISIBILITY => {
+                            self.hierarchy
+                                .interactions
+                                .actions
+                                .push(HierarchyAction::ToggleVisibility(target_ent));
+                            self.hierarchy.active_context_menu = None;
+                            self.notifier.tag_all();
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        _ => {}
+                    }
+                }
+                // Clicked inside context menu container background
+                result.consumed = true;
+                return Some(result);
+            }
+
             let hier_targets = self.hierarchy.interactions.targets.as_ref()?;
             let search_input_rect = hier_targets.search_input_rect;
 

@@ -79,23 +79,13 @@ pub fn handle_hierarchy_click(
     targets: &HierarchyPanelTargets,
     out_actions: &mut Vec<HierarchyAction>,
 ) -> bool {
-    // 1. Right-Click Context Menu Interaction
-    if let Some((target_ent, menu_rect, del_rect, vis_rect)) = targets.active_context_menu {
-        if menu_rect.contains_point(point) {
-            if del_rect.contains_point(point) {
-                out_actions.push(HierarchyAction::SelectEntity(Some(target_ent)));
-                out_actions.push(HierarchyAction::DeleteSelected);
-                out_actions.push(HierarchyAction::CloseContextMenu);
-                return true;
-            }
-            if vis_rect.contains_point(point) {
-                out_actions.push(HierarchyAction::ToggleVisibility(target_ent));
-                out_actions.push(HierarchyAction::CloseContextMenu);
-                return true;
-            }
-            return true;
-        } else {
+    // 1. Right-Click Context Menu Outside-Click Check
+    // (Actual item click dispatch is resolved via zero-allocation UiTree hit-testing)
+    if let Some((_target_ent, menu_rect)) = targets.active_context_menu {
+        if !menu_rect.contains_point(point) {
             out_actions.push(HierarchyAction::CloseContextMenu);
+        } else {
+            return true;
         }
     }
 

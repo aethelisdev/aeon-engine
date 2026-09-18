@@ -21,13 +21,17 @@ impl IrisEditorOverlay {
         let mut result = IrisOverlayEventResult::default();
         let mut actions = Vec::new();
 
+        let cursor = self.cursor_pos();
+        let hit_target = self.tree.hit_test_target(cursor);
+
         let ctx = super::super::assets::AssetsEventContext {
-            cursor_pos: self.cursor_pos(),
+            cursor_pos: cursor,
             targets,
             current_folder: &self.assets.current_folder,
             search_query: &self.assets.interactions.search_query,
             is_search_focused: self.assets.interactions.is_search_focused,
             selected_asset: self.assets.selected_asset.as_deref(),
+            hit_target,
         };
 
         let consumed = super::super::assets::handle_assets_panel_event(

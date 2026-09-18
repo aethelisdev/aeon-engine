@@ -15,6 +15,7 @@ pub mod button;
 pub mod canvas;
 pub mod cascading_menu;
 pub mod color_picker;
+pub mod context_menu;
 pub mod dropdown;
 pub mod input;
 pub mod inspector;
@@ -33,6 +34,9 @@ pub use cascading_menu::{
 };
 pub use color_picker::{
     HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, hsv_to_rgb, rgb_to_hsv,
+};
+pub use context_menu::{
+    ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
 pub use dropdown::{ComboboxPopupBuilder, ComboboxPopupFrame, ComboboxPopupStyle};
 pub use input::{

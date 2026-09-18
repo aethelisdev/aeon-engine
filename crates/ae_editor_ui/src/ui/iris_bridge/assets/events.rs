@@ -7,9 +7,13 @@
 //! search box focus, 3D orbit dragging, and keyboard shortcuts (Space, F2, Delete, Escape).
 //!
 
-use super::types::{AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelTargets};
+use super::types::{
+    ASSET_CTX_COPY_PATH, ASSET_CTX_DELETE, ASSET_CTX_INSPECT, ASSET_CTX_NEW_FOLDER,
+    ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuTarget,
+    AssetsPanelAction, AssetsPanelTargets,
+};
 use crate::ui::panels::assets::types::{AssetItem, AssetViewMode};
-use irisui::prelude::Point;
+use irisui::prelude::{HitTargetInfo, Point, UiLayer, WidgetRole};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
@@ -48,6 +52,8 @@ pub struct AssetsEventContext<'a> {
     pub is_search_focused: bool,
     /// Currently selected asset path, if any.
     pub selected_asset: Option<&'a Path>,
+    /// Optional hit target information evaluated via `UiTree::hit_test_target` at cursor position.
+    pub hit_target: Option<HitTargetInfo>,
 }
 
 /// Evaluates a mouse click event against the active Asset Browser panel hit targets.
@@ -90,46 +96,35 @@ pub fn handle_assets_click(
         return true;
     }
 
-    // 0b. Floating Context Menu Interactions
+    // 0b. Floating Context Menu Interactions (Zero-Allocation O(1) Dispatch)
     if let Some(ref cm) = targets.context_menu {
-        if cm.card_rect.contains_point(cursor_pos) {
-            if let Some(r) = cm.inspect_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
-                    out_actions.push(AssetsPanelAction::OpenInspectModal(item.clone()));
+        if let Some(ref hit) = ctx.hit_target
+            && hit.layer == UiLayer::Popup
+            && hit.role == WidgetRole::DropdownItem
+        {
+            out_actions.push(AssetsPanelAction::CloseContextMenu);
+            match hit.tag {
+                ASSET_CTX_INSPECT => {
+                    if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
+                        out_actions.push(AssetsPanelAction::OpenInspectModal(item.clone()));
+                    }
                 }
-                return true;
-            }
-            if let Some(r) = cm.spawn_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
-                    out_actions.push(AssetsPanelAction::SpawnAsset(
-                        item.path.clone(),
-                        item.category,
-                    ));
+                ASSET_CTX_SPAWN => {
+                    if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
+                        out_actions.push(AssetsPanelAction::SpawnAsset(
+                            item.path.clone(),
+                            item.category,
+                        ));
+                    }
                 }
-                return true;
-            }
-            if let Some(r) = cm.new_folder_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                let parent = match &cm.target {
-                    AssetsContextMenuTarget::Folder(path) => path.clone(),
-                    AssetsContextMenuTarget::Asset(_) => current_folder.to_path_buf(),
-                };
-                out_actions.push(AssetsPanelAction::OpenCreateSubfolder(parent));
-                return true;
-            }
-            if let Some(r) = cm.rename_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                match &cm.target {
+                ASSET_CTX_NEW_FOLDER => {
+                    let parent = match &cm.target {
+                        AssetsContextMenuTarget::Folder(path) => path.clone(),
+                        AssetsContextMenuTarget::Asset(_) => current_folder.to_path_buf(),
+                    };
+                    out_actions.push(AssetsPanelAction::OpenCreateSubfolder(parent));
+                }
+                ASSET_CTX_RENAME => match &cm.target {
                     AssetsContextMenuTarget::Asset(item) => {
                         out_actions.push(AssetsPanelAction::OpenRename(
                             item.path.clone(),
@@ -145,42 +140,36 @@ pub fn handle_assets_click(
                             .to_string();
                         out_actions.push(AssetsPanelAction::OpenRename(path.clone(), name, true));
                     }
+                },
+                ASSET_CTX_DELETE => {
+                    let path = match &cm.target {
+                        AssetsContextMenuTarget::Asset(item) => item.path.clone(),
+                        AssetsContextMenuTarget::Folder(path) => path.clone(),
+                    };
+                    out_actions.push(AssetsPanelAction::OpenDelete(path));
                 }
-                return true;
-            }
-            if let Some(r) = cm.delete_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                let path = match &cm.target {
-                    AssetsContextMenuTarget::Asset(item) => item.path.clone(),
-                    AssetsContextMenuTarget::Folder(path) => path.clone(),
-                };
-                out_actions.push(AssetsPanelAction::OpenDelete(path));
-                return true;
-            }
-            if let Some(r) = cm.copy_path_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
-                    out_actions.push(AssetsPanelAction::CopyPath(item.path.clone()));
+                ASSET_CTX_COPY_PATH => {
+                    if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
+                        out_actions.push(AssetsPanelAction::CopyPath(item.path.clone()));
+                    }
                 }
-                return true;
-            }
-            if let Some(r) = cm.reveal_rect
-                && r.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::CloseContextMenu);
-                let path = match &cm.target {
-                    AssetsContextMenuTarget::Asset(item) => item.path.clone(),
-                    AssetsContextMenuTarget::Folder(path) => path.clone(),
-                };
-                out_actions.push(AssetsPanelAction::RevealFolder(path));
-                return true;
+                ASSET_CTX_REVEAL => {
+                    let path = match &cm.target {
+                        AssetsContextMenuTarget::Asset(item) => item.path.clone(),
+                        AssetsContextMenuTarget::Folder(path) => path.clone(),
+                    };
+                    out_actions.push(AssetsPanelAction::RevealFolder(path));
+                }
+                _ => {}
             }
             return true;
         }
+
+        if cm.card_rect.contains_point(cursor_pos) {
+            // Clicked inside context menu card background
+            return true;
+        }
+
         // Clicked outside context menu card: dismiss context menu and proceed with click
         out_actions.push(AssetsPanelAction::CloseContextMenu);
     }

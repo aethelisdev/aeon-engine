@@ -439,3 +439,58 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         Some(AddSubmenuId::Objects2D)
     );
 }
+
+#[test]
+fn test_hierarchy_context_menu_builder_and_hit_testing() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    if let Some(node) = tree.get_mut(root_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
+    let _ = tree.set_root(root_id);
+
+    let mut world = World::new();
+    let entity = world.spawn(("TestEntity",));
+    let mut targets = HierarchyPanelTargets::default();
+
+    let params = HierarchyPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+        world: &world,
+        selected_entity: Some(entity),
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        scroll_y: 0.0,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: false,
+        active_context_menu: Some((entity, Point::new(120.0, 200.0))),
+        cursor_pos: Point::new(125.0, 210.0),
+        is_search_focused: false,
+        blink_caret: false,
+    };
+
+    super::context_menu::build_context_menu(&mut tree, root_id, &params, &mut targets);
+
+    assert!(targets.active_context_menu.is_some());
+    let (target_ent, card_rect) = targets.active_context_menu.unwrap();
+    assert_eq!(target_ent, entity);
+    assert_eq!(card_rect.x, 120.0);
+    assert_eq!(card_rect.y, 200.0);
+
+    // Hit test delete item (tag 0)
+    let hit_del = tree
+        .hit_test_target(Point::new(130.0, 212.0))
+        .expect("Must hit Delete item");
+    assert_eq!(hit_del.layer, UiLayer::Popup);
+    assert_eq!(hit_del.role, WidgetRole::DropdownItem);
+    assert_eq!(hit_del.tag, super::types::HIERARCHY_CTX_DELETE);
+
+    // Hit test toggle visibility item (tag 1)
+    let hit_vis = tree
+        .hit_test_target(Point::new(130.0, 236.0))
+        .expect("Must hit Visibility item");
+    assert_eq!(hit_vis.layer, UiLayer::Popup);
+    assert_eq!(hit_vis.role, WidgetRole::DropdownItem);
+    assert_eq!(hit_vis.tag, super::types::HIERARCHY_CTX_VISIBILITY);
+}
