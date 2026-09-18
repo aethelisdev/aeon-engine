@@ -253,9 +253,6 @@ impl EngineUi {
                     };
                     *snap_changed = true;
                 }
-                iris_bridge::ViewportHudAction::SelectEntity(ent) => {
-                    ui_actions.push(EngineUiAction::SelectEntity(Some(ent)));
-                }
                 iris_bridge::ViewportHudAction::ToggleDropdown(dd) => {
                     self.iris_overlay.viewport_hud.dropdown = dd;
                 }

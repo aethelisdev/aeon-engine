@@ -47,8 +47,6 @@ pub enum ViewportHudAction {
     ToggleGizmoSpace,
     /// Toggles entity translation/rotation snapping.
     ToggleSnapping,
-    /// Selects an entity in the active scene.
-    SelectEntity(Entity),
     /// Toggles a dropdown popup menu open or closed.
     ToggleDropdown(Option<ViewportHudDropdownId>),
     /// Resumes active in-game gameplay from the pause overlay.
@@ -58,9 +56,9 @@ pub enum ViewportHudAction {
 }
 
 /// Hit-test interaction target collection for Viewport HUD widgets.
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ViewportHudTargets {
-    /// Clickable buttons in the toolbar: `(Action, ScreenRect)`.
+    /// Action trigger buttons: `(Action, ScreenRect)`.
     pub buttons: Vec<(ViewportHudAction, Rect)>,
     /// Dropdown trigger buttons: `(DropdownId, ScreenRect)`.
     pub dropdown_triggers: Vec<(ViewportHudDropdownId, Rect)>,
@@ -70,8 +68,6 @@ pub struct ViewportHudTargets {
     pub active_dropdown_popup_rect: Option<Rect>,
     /// 3D compass axis snap knobs: `(Action, ScreenRect)`.
     pub compass_knobs: Vec<(ViewportHudAction, Rect)>,
-    /// 3D projected billboard icons: `(Entity, ScreenRect)`.
-    pub billboard_icons: Vec<(Entity, Rect)>,
 }
 
 /// Parameter block passed into the Viewport HUD builder.
@@ -94,7 +90,7 @@ pub struct ViewportHudParams<'a> {
     pub active_dropdown: Option<ViewportHudDropdownId>,
     /// Currently selected entity in the editor, if any.
     pub selected_entity: Option<Entity>,
-    /// Active ECS world reference for billboard entity query.
+    /// Active ECS world reference for gameplay HUD and runtime entity queries.
     pub world: &'a World,
     /// Whether the editor is currently in Edit mode (vs Play mode).
     pub is_editing: bool,

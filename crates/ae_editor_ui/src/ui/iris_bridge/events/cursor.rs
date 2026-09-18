@@ -186,8 +186,7 @@ impl IrisEditorOverlay {
                 || hud
                     .dropdown_triggers
                     .iter()
-                    .any(|(_, r)| r.contains_point(p))
-                || hud.billboard_icons.iter().any(|(_, r)| r.contains_point(p)))
+                    .any(|(_, r)| r.contains_point(p)))
         {
             return CursorIcon::Pointer;
         }

@@ -4,7 +4,6 @@
 //! Interaction and event handling subsystem for the 3D Viewport HUD overlay.
 
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
-use crate::ui::iris_bridge::viewport_hud::ViewportHudAction;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
@@ -68,17 +67,6 @@ impl IrisEditorOverlay {
             for (action, rect) in &hud_targets.compass_knobs {
                 if rect.contains_point(click_point) {
                     self.viewport_hud.actions.push(action.clone());
-                    result.consumed = true;
-                    return Some(result);
-                }
-            }
-
-            // 5. Check billboard icons
-            for (ent, rect) in &hud_targets.billboard_icons {
-                if rect.contains_point(click_point) {
-                    self.viewport_hud
-                        .actions
-                        .push(ViewportHudAction::SelectEntity(*ent));
                     result.consumed = true;
                     return Some(result);
                 }

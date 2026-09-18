@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Root builder orchestrating toolbar, compass, camera HUD, and billboard overlays.
+//! Root builder orchestrating toolbar, compass, and camera HUD overlays.
 //!
 
-use super::billboards;
 use super::camera_hud;
 use super::compass;
 use super::play_hud;
@@ -35,9 +34,6 @@ pub fn build_viewport_hud(
 
             // 3. Bottom-right Camera Info HUD
             camera_hud::build_camera_hud(tree, parent_id, params);
-
-            // 4. 3D projected billboard icons
-            billboards::build_billboard_icons(tree, parent_id, params, targets);
         }
 
         // 5. Active dropdown popup if open

@@ -648,10 +648,6 @@ impl EngineUi {
                         .compass_knobs
                         .iter()
                         .any(|(_, r)| r.contains_point(point))
-                    || hud
-                        .billboard_icons
-                        .iter()
-                        .any(|(_, r)| r.contains_point(point))
                 {
                     return true;
                 }
