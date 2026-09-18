@@ -99,9 +99,12 @@ fn discover_layer_occluders(
         WidgetRole::DropdownPopup | WidgetRole::ModalWindow | WidgetRole::FloatingWindow
     ) || effective_layer >= UiLayer::Floating;
 
-    let is_opaque = node.style.background_color.a > 0.85;
+    // An occluder MUST be a recognized top-level container AND strictly opaque (alpha >= 0.90).
+    // Semi-transparent elements like modal scrims (alpha ~ 0.55) or sub-cards must NEVER occlude background text.
+    let is_opaque = node.style.background_color.a >= 0.90;
 
-    let occluder_idx = if (is_layer_container || is_opaque)
+    let occluder_idx = if is_layer_container
+        && is_opaque
         && node.computed_rect.width > 2.0
         && node.computed_rect.height > 2.0
     {
@@ -216,7 +219,7 @@ fn collect_node_text<'a>(
                 continue;
             }
 
-            // If text is 100% covered by occluder, cull it entirely
+            // If the entire text bounding footprint falls within the opaque occluder, cull it completely
             if text_min_x >= occluder.rect.x
                 && text_max_x <= occluder.rect.right()
                 && text_center_y >= occluder.rect.y
@@ -226,25 +229,42 @@ fn collect_node_text<'a>(
                 break;
             }
 
-            // Scissor clip if partially overlapping horizontally
-            if text_min_x < occluder.rect.x && text_max_x > occluder.rect.x {
-                let clip_sub = Rect::new(0.0, 0.0, occluder.rect.x, 100_000.0);
-                effective_clip = match effective_clip {
-                    Some(c) => Some(c.intersect(clip_sub)),
-                    None => Some(clip_sub),
-                };
-            } else if text_min_x < occluder.rect.right() && text_max_x > occluder.rect.right() {
-                let clip_sub = Rect::new(occluder.rect.right(), 0.0, 100_000.0, 100_000.0);
-                effective_clip = match effective_clip {
-                    Some(c) => Some(c.intersect(clip_sub)),
-                    None => Some(clip_sub),
-                };
+            // If text is vertically within the occluder and partially covered horizontally, scissor-clip it
+            let text_vertically_covered = node.computed_rect.y >= occluder.rect.y
+                && node.computed_rect.bottom() <= occluder.rect.bottom();
+            if text_vertically_covered {
+                if text_min_x < occluder.rect.x && text_max_x > occluder.rect.x {
+                    let clip_sub = Rect::new(
+                        0.0,
+                        node.computed_rect.y,
+                        occluder.rect.x,
+                        node.computed_rect.height,
+                    );
+                    effective_clip = match effective_clip {
+                        Some(c) => Some(c.intersect(clip_sub)),
+                        None => Some(clip_sub),
+                    };
+                } else if text_min_x < occluder.rect.right() && text_max_x > occluder.rect.right() {
+                    let clip_sub = Rect::new(
+                        occluder.rect.right(),
+                        node.computed_rect.y,
+                        100_000.0,
+                        node.computed_rect.height,
+                    );
+                    effective_clip = match effective_clip {
+                        Some(c) => Some(c.intersect(clip_sub)),
+                        None => Some(clip_sub),
+                    };
+                }
             }
         }
 
-        // Also test against any extra occluders provided by host application
-        if !is_fully_occluded {
+        // Also test against any extra occluders provided by host application (only for content/background layers)
+        if effective_layer <= UiLayer::Content {
             for occluder in ctx.extra_occluders {
+                if is_fully_occluded {
+                    break;
+                }
                 let vert_overlap = node.computed_rect.bottom() > occluder.y
                     && node.computed_rect.y < occluder.bottom();
                 if !vert_overlap {

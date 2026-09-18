@@ -198,19 +198,7 @@ impl IrisEditorOverlay {
             } => {
                 let click_point = self.cursor_pos();
 
-                // Occlusion: If cursor is over an active foreground popup, Preferences must NOT intercept the click
-                if self.is_point_over_popup(click_point) {
-                    return None;
-                }
-
-                // Legitimate click on Preferences: dismiss any open floating menus
-                self.hierarchy.is_add_menu_open = false;
-                self.hierarchy.active_submenu = None;
-                self.hierarchy.active_sub_submenu = None;
-                self.inspector.active_dropdown = None;
-                self.inspector.is_add_menu_open = false;
-
-                // 1. If an active dropdown popup is open
+                // 1. If Preferences' own active dropdown popup is open, handle clicks on it first
                 if let Some(popup_rect) = targets.active_dropdown_popup_rect {
                     if popup_rect.contains_point(click_point) {
                         if let Some(&(idx, _, _)) = targets
@@ -229,6 +217,18 @@ impl IrisEditorOverlay {
                         self.preferences.dropdown = None;
                     }
                 }
+
+                // Occlusion: If cursor is over an external active foreground popup, Preferences must NOT intercept the click
+                if self.is_point_over_popup(click_point) {
+                    return None;
+                }
+
+                // Legitimate click on Preferences: dismiss any open floating menus
+                self.hierarchy.is_add_menu_open = false;
+                self.hierarchy.active_submenu = None;
+                self.hierarchy.active_sub_submenu = None;
+                self.inspector.active_dropdown = None;
+                self.inspector.is_add_menu_open = false;
 
                 // 2. Direct numeric input box clicks
                 for &(slider_id, box_rect, _, _, cur_val) in &targets.number_inputs {

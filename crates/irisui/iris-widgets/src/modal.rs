@@ -9,7 +9,7 @@
 use iris_core::color::Color;
 use iris_core::geometry::{Point, Rect};
 use iris_core::id::WidgetId;
-use iris_core::node::WidgetRole;
+use iris_core::node::{UiLayer, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
@@ -146,6 +146,8 @@ pub struct ModalDialogBuilder {
     screen_size: Option<(f32, f32)>,
     has_scrim: bool,
     has_close_btn: bool,
+    header_icon_uv: Option<[f32; 4]>,
+    header_icon_tint: Option<Color>,
     confirm_btn: Option<(String, Option<Color>)>,
     confirm_btn_width: f32,
     cancel_btn: Option<String>,
@@ -165,6 +167,8 @@ impl ModalDialogBuilder {
             screen_size: None,
             has_scrim: true,
             has_close_btn: true,
+            header_icon_uv: None,
+            header_icon_tint: None,
             confirm_btn: None,
             confirm_btn_width: 120.0,
             cancel_btn: None,
@@ -172,6 +176,14 @@ impl ModalDialogBuilder {
             cursor_pos: Point::new(-1.0, -1.0),
             style: ModalDialogStyle::default(),
         }
+    }
+
+    /// Configures an optional GPU SDF texture array icon drawn in the header bar.
+    /// Automatically offsets the title text rightwards by 20px so it never overlaps the icon.
+    pub fn header_icon(mut self, uv: [f32; 4], tint: Color) -> Self {
+        self.header_icon_uv = Some(uv);
+        self.header_icon_tint = Some(tint);
+        self
     }
 
     /// Sets explicit dimensions for the modal dialog card.
@@ -257,12 +269,16 @@ impl ModalDialogBuilder {
 
         let dialog_rect = Rect::new(left, top, self.width, self.height);
 
-        // 1. Semi-transparent backdrop scrim (full screen modal blocker)
+        // 1. Semi-Transparent Scrim Overlay (Full Screen)
         let scrim_id = if self.has_scrim {
+            let (screen_w, screen_h) = self
+                .screen_size
+                .unwrap_or((self.width + 400.0, self.height + 400.0));
             let node_id = tree.create_node();
             if let Some(node) = tree.get_mut(node_id) {
                 node.set_name("ModalScrim");
-                node.set_role(WidgetRole::ModalWindow);
+                node.set_role(WidgetRole::Default);
+                node.layer = UiLayer::Modal;
                 node.computed_rect = Rect::new(0.0, 0.0, screen_w, screen_h);
                 node.style = Style::new().background(self.style.scrim_color);
             }
@@ -310,6 +326,23 @@ impl ModalDialogBuilder {
         }
         let _ = tree.add_child(card_id, header_id);
 
+        // Header Icon (if configured)
+        let title_start_x = if let Some(uv) = self.header_icon_uv {
+            let icon_node = tree.create_node();
+            if let Some(node) = tree.get_mut(icon_node) {
+                node.set_name("ModalHeaderIcon");
+                node.set_texture_uv(uv);
+                if let Some(tint) = self.header_icon_tint {
+                    node.set_texture_tint(tint);
+                }
+                node.computed_rect = Rect::new(left + 14.0, top + 9.0, 14.0, 14.0);
+            }
+            let _ = tree.add_child(header_id, icon_node);
+            left + 34.0
+        } else {
+            left + 14.0
+        };
+
         // Header Title Label
         let title_label = tree.create_node();
         if let Some(node) = tree.get_mut(title_label) {
@@ -318,8 +351,12 @@ impl ModalDialogBuilder {
             node.font_size = 12.5;
             node.line_height = 16.0;
             node.text_color = self.style.title_color;
-            node.computed_rect =
-                Rect::new(left + 14.0, top + 7.0, (self.width - 60.0).max(20.0), 18.0);
+            node.computed_rect = Rect::new(
+                title_start_x,
+                top + 7.0,
+                (self.width - (title_start_x - left) - 46.0).max(20.0),
+                18.0,
+            );
             node.text_align = TextAlign::Left;
         }
         let _ = tree.add_child(header_id, title_label);

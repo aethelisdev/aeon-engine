@@ -174,6 +174,10 @@ pub fn build_new_folder_modal(
     let cursor_pos = params.cursor_pos;
 
     let frame = ModalDialogBuilder::new("Create New Folder")
+        .header_icon(
+            crate::ui::iris_bridge::icons::ICON_FOLDER,
+            Color::rgba(0.95, 0.76, 0.28, 1.0),
+        )
         .size(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT)
         .center_on_screen(screen_width, screen_height)
         .cursor_pos(cursor_pos)
@@ -187,17 +191,6 @@ pub fn build_new_folder_modal(
 
     let left = frame.dialog_rect.x;
     let top = frame.dialog_rect.y;
-
-    // Header Icon (GPU SDF Texture Array ICON_FOLDER)
-    let icon_node = tree.create_node();
-    if let Some(node) = tree.get_mut(icon_node) {
-        node.set_name("NewFolderIcon");
-        node.set_role(WidgetRole::ModalWindow);
-        node.set_texture_uv(crate::ui::iris_bridge::icons::ICON_FOLDER);
-        node.computed_rect = Rect::new(left + 14.0, top + 9.0, 14.0, 14.0);
-        node.set_texture_tint(Color::rgba(0.95, 0.76, 0.28, 1.0));
-    }
-    let _ = tree.add_child(frame.header_id, icon_node);
 
     // Location Subtitle
     let loc_label = tree.create_node();

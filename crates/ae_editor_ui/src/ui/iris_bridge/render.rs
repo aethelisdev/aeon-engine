@@ -148,11 +148,21 @@ impl IrisEditorOverlay {
     /// Delegates directly to Iris UI's native layer-aware typography collection engine.
     pub fn collect_text_sections_from_tree<'a>(
         tree: &'a UiTree,
-        _active_dropdown_rects: &[Rect],
-        _active_modal_rects: &[Rect],
-        _floating_window_rects: &[Rect],
+        active_dropdown_rects: &[Rect],
+        active_modal_rects: &[Rect],
+        floating_window_rects: &[Rect],
     ) -> Vec<TextSection<'a>> {
-        collect_text_sections(tree)
+        let mut extra_occluders = Vec::new();
+        extra_occluders.extend_from_slice(active_dropdown_rects);
+        extra_occluders.extend_from_slice(active_modal_rects);
+        extra_occluders.extend_from_slice(floating_window_rects);
+
+        if extra_occluders.is_empty() {
+            collect_text_sections(tree)
+        } else {
+            let options = irisui::text::TextCollectionOptions { extra_occluders };
+            irisui::text::collect_text_sections_with_options(tree, &options)
+        }
     }
 
     /// Renders the Iris UI overlay into the target surface framebuffer.

@@ -114,35 +114,6 @@ pub fn build_asset_preview_modal(
     let _ = tree.add_child(header_id, cat_id);
     cur_hx += cat_badge_w + 10.0;
 
-    // Asset Name
-    let name_w = (modal_w - 280.0).max(80.0);
-    let name_rect = Rect::new(cur_hx, modal_y, name_w, header_h);
-    let name_id = tree.create_node();
-    if let Some(node) = tree.get_mut(name_id) {
-        node.set_name("PreviewAssetName");
-        node.set_text(&modal.item.name);
-        node.font_size = 12.5;
-        node.line_height = header_h;
-        node.text_color = Color::WHITE;
-        node.computed_rect = name_rect;
-    }
-    let _ = tree.add_child(header_id, name_id);
-    cur_hx += name_w + 10.0;
-
-    // File Size Label
-    let size_text = AssetBrowserState::format_file_size(modal.item.file_size_bytes);
-    let size_rect = Rect::new(cur_hx, modal_y, 70.0, header_h);
-    let size_id = tree.create_node();
-    if let Some(node) = tree.get_mut(size_id) {
-        node.set_name("PreviewSizeLabel");
-        node.set_text(&size_text);
-        node.font_size = 10.5;
-        node.line_height = header_h;
-        node.text_color = Color::rgba(0.65, 0.70, 0.80, 1.0);
-        node.computed_rect = size_rect;
-    }
-    let _ = tree.add_child(header_id, size_id);
-
     // Close "✖" Button (Top Right)
     let close_btn_rect = Rect::new(dialog_rect.right() - 28.0, modal_y + 6.0, 22.0, 22.0);
     let is_close_hovered = close_btn_rect.contains_point(params.cursor_pos);
@@ -168,6 +139,37 @@ pub fn build_asset_preview_modal(
             .border_radius(4.0);
     }
     let _ = tree.add_child(header_id, close_id);
+
+    // File Size Label (Right-aligned immediately adjacent to the close button)
+    let size_w = 80.0;
+    let size_x = close_btn_rect.x - size_w - 8.0;
+    let size_text = AssetBrowserState::format_file_size(modal.item.file_size_bytes);
+    let size_rect = Rect::new(size_x, modal_y, size_w, header_h);
+    let size_id = tree.create_node();
+    if let Some(node) = tree.get_mut(size_id) {
+        node.set_name("PreviewSizeLabel");
+        node.set_text(&size_text);
+        node.font_size = 10.5;
+        node.line_height = header_h;
+        node.text_align = TextAlign::Right;
+        node.text_color = Color::rgba(0.65, 0.70, 0.80, 1.0);
+        node.computed_rect = size_rect;
+    }
+    let _ = tree.add_child(header_id, size_id);
+
+    // Asset Name (Flexibly occupies the space between the category badge and the size label)
+    let name_w = (size_x - 10.0 - cur_hx).max(40.0);
+    let name_rect = Rect::new(cur_hx, modal_y, name_w, header_h);
+    let name_id = tree.create_node();
+    if let Some(node) = tree.get_mut(name_id) {
+        node.set_name("PreviewAssetName");
+        node.set_text(&modal.item.name);
+        node.font_size = 12.5;
+        node.line_height = header_h;
+        node.text_color = Color::WHITE;
+        node.computed_rect = name_rect;
+    }
+    let _ = tree.add_child(header_id, name_id);
 
     // 4. Content Body
     let body_y = modal_y + header_h + 8.0;
