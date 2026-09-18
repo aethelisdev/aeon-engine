@@ -143,7 +143,7 @@ impl ShadowSystem {
             } else {
                 0
             },
-            _pad: 0,
+            cascade_count: graphics_settings.shadow_cascades.clamp(1, 4),
         };
 
         let light_space_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -442,6 +442,7 @@ impl ShadowSystem {
         };
         self.light_space_uniform.shadow_bias = graphics_settings.shadow_bias;
         self.light_space_uniform.pcf_radius = graphics_settings.shadow_pcf.radius();
+        self.light_space_uniform.cascade_count = cascades as u32;
         queue.write_buffer(
             &self.light_space_buffer,
             0,
@@ -700,6 +701,7 @@ impl ShadowSystem {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use cgmath::InnerSpace;
     /// Tests that computing shadow cascades with a vertical light vector does not generate NaN values.
     #[test]
@@ -763,5 +765,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Verifies that `LightSpaceUniform` has a 16-byte aligned size matching the GPU WGSL layout (288 bytes).
+    #[test]
+    fn test_light_space_uniform_size_and_alignment() {
+        assert_eq!(
+            std::mem::size_of::<LightSpaceUniform>(),
+            288,
+            "LightSpaceUniform must be exactly 288 bytes to match shader.wgsl layout"
+        );
+        assert_eq!(
+            std::mem::size_of::<LightSpaceUniform>() % 16,
+            0,
+            "LightSpaceUniform must be 16-byte aligned for WebGPU uniform buffers"
+        );
     }
 }

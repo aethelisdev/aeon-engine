@@ -38,7 +38,8 @@ pub struct LightSpaceUniform {
     pub shadow_bias: f32,
     pub pcf_radius: i32,
     pub shadow_enabled: u32,
-    pub _pad: u32,
+    /// Active number of cascades (1 to 4) configured in graphics settings.
+    pub cascade_count: u32,
 }
 
 /// GPU uniform for the procedural sky and volumetric clouds shader: sun position,

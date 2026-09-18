@@ -42,7 +42,7 @@ struct LightSpaceUniform {
     shadow_bias: f32,
     pcf_radius: i32,
     shadow_enabled: u32,
-    _pad: u32,
+    cascade_count: u32,
 }
 
 @group(2) @binding(0) var shadow_map: texture_depth_2d_array;
@@ -95,14 +95,23 @@ fn sample_shadow_pcf(world_pos: vec3<f32>) -> f32 {
         return 1.0; 
     }
 
+    let cascades = i32(light_space.cascade_count);
+    if cascades <= 0 {
+        return 1.0;
+    }
+
     let dist = distance(world_pos, camera.camera_pos.xyz);
-    var cascade_idx: i32 = 3;
-    if dist < light_space.cascade_splits[0] {
-        cascade_idx = 0;
-    } else if dist < light_space.cascade_splits[1] {
-        cascade_idx = 1;
-    } else if dist < light_space.cascade_splits[2] {
-        cascade_idx = 2;
+    var cascade_idx: i32 = -1;
+    for (var i: i32 = 0; i < cascades; i += 1) {
+        if dist < light_space.cascade_splits[i] {
+            cascade_idx = i;
+            break;
+        }
+    }
+
+    // Distance exceeds furthest active cascade split distance (outside shadow range)
+    if cascade_idx < 0 {
+        return 1.0;
     }
 
     let frag_pos_light = light_space.matrices[cascade_idx] * vec4<f32>(world_pos, 1.0);
