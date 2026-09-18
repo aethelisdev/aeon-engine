@@ -198,7 +198,6 @@ pub fn build_add_component_menu(
     if let Some(frame) =
         CascadingMenuBuilder::new(targets.add_component_btn_rect, &menu_items, &active_path)
             .cursor_pos(params.cursor_pos)
-            .viewport_bounds(params.panel_rect)
             .open_upward(true)
             .name("AddComponentMenu")
             .build(tree, parent_id)

@@ -3,7 +3,7 @@
 
 //! Text section and measurement descriptors for typography rendering.
 
-use iris_core::{Color, Rect, TextAlign};
+use iris_core::{Color, Rect, TextAlign, TextWrap};
 use std::borrow::Cow;
 
 /// A descriptor containing text content, styling, color, and bounding constraints.
@@ -19,6 +19,8 @@ pub struct TextSection<'a> {
     pub color: Color,
     /// Horizontal text alignment.
     pub align: TextAlign,
+    /// Text wrapping behavior mode.
+    pub wrap: TextWrap,
     /// Bounding rectangle in screen-space coordinates where text should be placed.
     pub bounds: Rect,
     /// Optional scissor clipping rectangle in screen-space coordinates.
@@ -35,6 +37,7 @@ impl<'a> TextSection<'a> {
             line_height: 18.0,
             color: Color::WHITE,
             align: TextAlign::Left,
+            wrap: TextWrap::Auto,
             bounds,
             clip_bounds: None,
         }
@@ -59,6 +62,13 @@ impl<'a> TextSection<'a> {
     #[inline]
     pub fn with_align(mut self, align: TextAlign) -> Self {
         self.align = align;
+        self
+    }
+
+    /// Sets the text wrapping behavior mode.
+    #[inline]
+    pub fn with_wrap(mut self, wrap: TextWrap) -> Self {
+        self.wrap = wrap;
         self
     }
 

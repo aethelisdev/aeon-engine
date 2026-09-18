@@ -7,7 +7,7 @@ use crate::color::Color;
 use crate::dirty::DirtyFlags;
 use crate::geometry::{Point, Rect, Size};
 use crate::id::WidgetId;
-use crate::style::{Style, TextAlign};
+use crate::style::{Style, TextAlign, TextWrap};
 
 /// Type-safe host identifier for externally managed 2D textures (e.g. 3D Viewport render target).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -132,6 +132,8 @@ pub struct WidgetNode {
     pub text_color: Color,
     /// Text alignment.
     pub text_align: TextAlign,
+    /// Text wrapping configuration mode.
+    pub text_wrap: TextWrap,
     /// Whether this node and its subtree are visible.
     pub visible: bool,
     /// Whether this node can receive mouse and keyboard interaction events.
@@ -171,12 +173,29 @@ impl WidgetNode {
             line_height: Self::DEFAULT_LINE_HEIGHT,
             text_color: Color::WHITE,
             text_align: TextAlign::Left,
+            text_wrap: TextWrap::Auto,
             visible: true,
             interactive: true,
             role: WidgetRole::Default,
             layer: UiLayer::Content,
             tag: 0,
             name: None,
+        }
+    }
+
+    /// Sets the text wrapping configuration mode in a fluent builder style.
+    #[inline]
+    pub fn with_text_wrap(mut self, wrap: TextWrap) -> Self {
+        self.text_wrap = wrap;
+        self
+    }
+
+    /// Sets the text wrapping configuration mode on this node.
+    #[inline]
+    pub fn set_text_wrap(&mut self, wrap: TextWrap) {
+        if self.text_wrap != wrap {
+            self.text_wrap = wrap;
+            self.dirty |= DirtyFlags::TEXT | DirtyFlags::LAYOUT | DirtyFlags::PAINT;
         }
     }
 

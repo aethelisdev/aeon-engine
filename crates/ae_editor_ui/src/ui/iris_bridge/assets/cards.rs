@@ -230,7 +230,8 @@ fn build_empty_assets_notice(tree: &mut UiTree, parent_id: WidgetId, vp_rect: Re
         node.style = Style::new()
             .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
             .border_radius(6.0)
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70));
+            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70))
+            .clip_children(true);
     }
     let _ = tree.add_child(parent_id, box_id);
 
@@ -271,7 +272,7 @@ fn build_empty_assets_notice(tree: &mut UiTree, parent_id: WidgetId, vp_rect: Re
     let _ = tree.add_child(box_id, title_id);
 
     // Subtitle text
-    let sub_rect = Rect::new(notice_x + 10.0, notice_y + 74.0, notice_w - 20.0, 36.0);
+    let sub_rect = Rect::new(notice_x + 14.0, notice_y + 74.0, notice_w - 28.0, 42.0);
     let sub_id = tree.create_node();
     if let Some(node) = tree.get_mut(sub_id) {
         node.set_name("EmptyNoticeSub");
@@ -281,6 +282,7 @@ fn build_empty_assets_notice(tree: &mut UiTree, parent_id: WidgetId, vp_rect: Re
         node.font_size = 11.0;
         node.line_height = 18.0;
         node.text_align = TextAlign::Center;
+        node.text_wrap = TextWrap::Word;
         node.text_color = Color::rgba(0.58, 0.62, 0.72, 1.0);
         node.computed_rect = sub_rect;
     }

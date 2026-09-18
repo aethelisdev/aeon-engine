@@ -25,7 +25,8 @@ pub fn build_no_entity_selected(tree: &mut UiTree, parent_id: WidgetId, panel_re
         node.style = Style::new()
             .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
             .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
-            .border_radius(8.0);
+            .border_radius(8.0)
+            .clip_children(true);
     }
     let _ = tree.add_child(parent_id, card_id);
 
@@ -52,6 +53,7 @@ pub fn build_no_entity_selected(tree: &mut UiTree, parent_id: WidgetId, panel_re
         node.set_text("No Entity Selected");
         node.font_size = 12.0;
         node.line_height = 20.0;
+        node.text_align = TextAlign::Center;
         node.text_color = Color::rgba(0.90, 0.92, 0.95, 1.0);
         node.computed_rect = Rect::new(card_x + 12.0, card_y + 50.0, card_w - 24.0, 20.0);
     }
@@ -66,8 +68,10 @@ pub fn build_no_entity_selected(tree: &mut UiTree, parent_id: WidgetId, panel_re
         );
         node.font_size = 10.5;
         node.line_height = 16.0;
+        node.text_align = TextAlign::Center;
+        node.text_wrap = TextWrap::Word;
         node.text_color = Color::rgba(0.55, 0.58, 0.64, 1.0);
-        node.computed_rect = Rect::new(card_x + 14.0, card_y + 74.0, card_w - 28.0, 36.0);
+        node.computed_rect = Rect::new(card_x + 14.0, card_y + 74.0, card_w - 28.0, 44.0);
     }
     let _ = tree.add_child(card_id, desc_id);
 }
@@ -92,7 +96,8 @@ pub fn build_no_renderable_geometry(
         node.style = Style::new()
             .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
             .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
-            .border_radius(8.0);
+            .border_radius(8.0)
+            .clip_children(true);
     }
     let _ = tree.add_child(parent_id, card_id);
 
@@ -119,6 +124,7 @@ pub fn build_no_renderable_geometry(
         node.set_text("No Renderable Geometry");
         node.font_size = 12.0;
         node.line_height = 20.0;
+        node.text_align = TextAlign::Center;
         node.text_color = Color::rgba(0.90, 0.92, 0.95, 1.0);
         node.computed_rect = Rect::new(card_x + 12.0, card_y + 48.0, card_w - 24.0, 20.0);
     }
@@ -131,8 +137,10 @@ pub fn build_no_renderable_geometry(
         node.set_text("Selected entity does not have a 3D Model or 2D Sprite component attached.");
         node.font_size = 10.5;
         node.line_height = 16.0;
+        node.text_align = TextAlign::Center;
+        node.text_wrap = TextWrap::Word;
         node.text_color = Color::rgba(0.55, 0.58, 0.64, 1.0);
-        node.computed_rect = Rect::new(card_x + 14.0, card_y + 70.0, card_w - 28.0, 34.0);
+        node.computed_rect = Rect::new(card_x + 14.0, card_y + 70.0, card_w - 28.0, 42.0);
     }
     let _ = tree.add_child(card_id, desc_id);
 

@@ -268,7 +268,6 @@ pub fn build_add_menu(
 
     if let Some(frame) = CascadingMenuBuilder::new(targets.add_btn_rect, &menu_items, &active_path)
         .cursor_pos(params.cursor_pos)
-        .viewport_bounds(params.panel_rect)
         .name("HierarchyAddMenu")
         .build(tree, parent_id)
     {

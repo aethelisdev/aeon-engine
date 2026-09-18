@@ -79,11 +79,14 @@ impl TextRenderer {
         for section in sections {
             let buffer = text_system.shape_text(
                 &section.text,
-                section.font_size * zoom,
-                section.line_height * zoom,
-                section.bounds.width * zoom,
-                section.bounds.height * zoom,
-                section.align,
+                crate::system::TextShapeParams {
+                    font_size: section.font_size * zoom,
+                    line_height: section.line_height * zoom,
+                    bounds_width: section.bounds.width * zoom,
+                    bounds_height: section.bounds.height * zoom,
+                    align: section.align,
+                    wrap: section.wrap,
+                },
             );
             self.buffers.push(buffer);
         }
@@ -92,7 +95,9 @@ impl TextRenderer {
         for (sec, buf) in sections.iter().zip(self.buffers.iter()) {
             let scaled_bounds_h = sec.bounds.height * zoom;
             let scaled_line_h = sec.line_height * zoom;
-            let y_offset = ((scaled_bounds_h - scaled_line_h) * 0.5).max(0.0);
+            let line_count = buf.layout_runs().count().max(1) as f32;
+            let total_text_h = line_count * scaled_line_h;
+            let y_offset = ((scaled_bounds_h - total_text_h) * 0.5).max(0.0);
             let bounds = if let Some(clip) = sec.clip_bounds {
                 TextBounds {
                     left: (clip.x * zoom).max(0.0) as i32,
@@ -104,8 +109,8 @@ impl TextRenderer {
                 TextBounds {
                     left: (sec.bounds.x * zoom).max(0.0) as i32,
                     top: (sec.bounds.y * zoom).max(0.0) as i32,
-                    right: ((sec.bounds.x + sec.bounds.width.max(200.0)) * zoom) as i32,
-                    bottom: ((sec.bounds.y + sec.bounds.height.max(40.0)) * zoom) as i32,
+                    right: (sec.bounds.right() * zoom).max(0.0) as i32,
+                    bottom: (sec.bounds.bottom() * zoom).max(0.0) as i32,
                 }
             };
             text_areas.push(TextArea {

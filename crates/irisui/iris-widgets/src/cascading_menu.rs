@@ -221,6 +221,7 @@ struct CascadingRenderContext<'a, 'b> {
     tree: &'a mut UiTree,
     rendered_rects: &'b mut Vec<Rect>,
     item_nodes: &'b mut Vec<(u64, WidgetId)>,
+    effective_viewport: Option<Rect>,
 }
 
 /// Fluent builder for constructing multi-level cascading popup menus in [`UiTree`].
@@ -315,10 +316,20 @@ impl<'a> CascadingMenuBuilder<'a> {
             self.anchor_rect.bottom() + 2.0
         };
 
+        let effective_vp = self.viewport_bounds.or_else(|| {
+            tree.root()
+                .and_then(|r| tree.get(r))
+                .map(|n| n.computed_rect)
+                .filter(|r| r.width > 0.0 && r.height > 0.0)
+        });
+
         // Clamp root position inside viewport if provided
-        if let Some(vp) = self.viewport_bounds {
+        if let Some(vp) = effective_vp {
             if root_x + menu_w > vp.right() {
                 root_x = (vp.right() - menu_w - 4.0).max(vp.x + 4.0);
+            }
+            if root_x < vp.x {
+                root_x = vp.x + 4.0;
             }
             if root_y + root_h > vp.bottom() {
                 root_y = (vp.bottom() - root_h - 4.0).max(vp.y + 4.0);
@@ -340,6 +351,7 @@ impl<'a> CascadingMenuBuilder<'a> {
             tree,
             rendered_rects: &mut rendered_popup_rects,
             item_nodes: &mut item_nodes,
+            effective_viewport: effective_vp,
         };
 
         self.render_items_recursive(&mut ctx, root_popup_id, self.items, root_rect, 0);
@@ -571,10 +583,30 @@ impl<'a> CascadingMenuBuilder<'a> {
                 let mut sub_x = card_rect.right() + 2.0;
                 let mut sub_y = item_rect.y - 4.0;
 
-                if let Some(vp) = self.viewport_bounds {
-                    if sub_x + sub_w > vp.right() {
-                        sub_x = card_rect.x - sub_w - 2.0;
+                if let Some(vp) = ctx.effective_viewport {
+                    let right_candidate = card_rect.right() + 2.0;
+                    let left_candidate = card_rect.x - sub_w - 2.0;
+                    let right_fits = right_candidate + sub_w <= vp.right();
+                    let left_fits = left_candidate >= vp.x;
+
+                    if right_fits {
+                        sub_x = right_candidate;
+                    } else if left_fits {
+                        // Overflowing on the right, but fits cleanly on the left
+                        sub_x = left_candidate;
+                    } else {
+                        // Neither side fits completely without clipping; choose the side with more available space and clamp
+                        let right_space = vp.right() - card_rect.right();
+                        let left_space = card_rect.x - vp.x;
+                        if left_space > right_space {
+                            sub_x = left_candidate.max(vp.x + 4.0);
+                        } else {
+                            sub_x = right_candidate
+                                .min(vp.right() - sub_w - 4.0)
+                                .max(vp.x + 4.0);
+                        }
                     }
+
                     if sub_y + sub_h > vp.bottom() {
                         sub_y = (vp.bottom() - sub_h - 4.0).max(vp.y + 4.0);
                     }
@@ -700,6 +732,45 @@ mod tests {
         assert!(
             sub_rect.x < root_rect.x,
             "Submenu must flip to the left when overflowing right viewport bound"
+        );
+        assert!(
+            sub_rect.x >= viewport.x,
+            "Submenu must never be clamped past the left viewport bound"
+        );
+    }
+
+    #[test]
+    fn test_cascading_menu_opens_right_when_fits() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let items = vec![CascadingMenuItem::branch(
+            "Nested",
+            None,
+            10,
+            vec![CascadingMenuItem::item("Leaf", 11)],
+        )];
+
+        let viewport = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+
+        // Place anchor on left side (e.g. Hierarchy + button at x: 240)
+        let frame = CascadingMenuBuilder::new(Rect::new(240.0, 50.0, 24.0, 24.0), &items, &[10])
+            .width(190.0)
+            .viewport_bounds(viewport)
+            .build(&mut tree, root)
+            .expect("Menu should build");
+
+        assert_eq!(frame.rendered_popup_rects.len(), 2);
+        let root_rect = frame.rendered_popup_rects[0];
+        let sub_rect = frame.rendered_popup_rects[1];
+
+        // Since 1920 has plenty of room, submenu MUST open to the right of root_rect
+        assert!(
+            sub_rect.x > root_rect.x,
+            "Submenu must open to the right when space is available on the right: root_x={}, sub_x={}",
+            root_rect.x,
+            sub_rect.x
         );
     }
 }

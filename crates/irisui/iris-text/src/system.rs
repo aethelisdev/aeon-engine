@@ -4,7 +4,7 @@
 //! Central font system, text layout measurement, and shaped glyph caching engine.
 
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache};
-use iris_core::{Size, TextAlign};
+use iris_core::{Size, TextAlign, TextWrap};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -23,6 +23,24 @@ struct ShapeCacheKey {
     bounds_width_bits: u32,
     bounds_height_bits: u32,
     align: u8,
+    wrap: u8,
+}
+
+/// Parameters describing typography metrics, bounding constraints, and alignment for text shaping.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextShapeParams {
+    /// Font size in pixels.
+    pub font_size: f32,
+    /// Line height in pixels.
+    pub line_height: f32,
+    /// Bounding width constraint in pixels.
+    pub bounds_width: f32,
+    /// Bounding height constraint in pixels.
+    pub bounds_height: f32,
+    /// Horizontal text alignment.
+    pub align: TextAlign,
+    /// Text wrapping behavior mode.
+    pub wrap: TextWrap,
 }
 
 /// Core text system managing font discovery, shaping caches, and layout measurement.
@@ -158,41 +176,55 @@ impl TextSystem {
     }
 
     /// Creates and shapes a `cosmic_text::Buffer` for rendering a text section with caching.
-    pub fn shape_text(
-        &mut self,
-        text: &str,
-        font_size: f32,
-        line_height: f32,
-        bounds_width: f32,
-        bounds_height: f32,
-        align: TextAlign,
-    ) -> Buffer {
-        let align_code = match align {
+    pub fn shape_text(&mut self, text: &str, params: TextShapeParams) -> Buffer {
+        let align_code = match params.align {
             TextAlign::Left => 0,
             TextAlign::Center => 1,
             TextAlign::Right => 2,
         };
 
+        let wrap_code = match params.wrap {
+            TextWrap::Auto => 0,
+            TextWrap::None => 1,
+            TextWrap::Word => 2,
+        };
+
         let key = ShapeCacheKey {
             text: text.to_string(),
-            font_size_bits: font_size.to_bits(),
-            line_height_bits: line_height.to_bits(),
-            bounds_width_bits: bounds_width.to_bits(),
-            bounds_height_bits: bounds_height.to_bits(),
+            font_size_bits: params.font_size.to_bits(),
+            line_height_bits: params.line_height.to_bits(),
+            bounds_width_bits: params.bounds_width.to_bits(),
+            bounds_height_bits: params.bounds_height.to_bits(),
             align: align_code,
+            wrap: wrap_code,
         };
 
         if let Some(cached) = self.shape_cache.get(&key) {
             return cached.clone();
         }
 
-        let metrics = Metrics::new(font_size, line_height);
+        let metrics = Metrics::new(params.font_size, params.line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
-        buffer.set_size(Some(bounds_width.max(1.0)), Some(bounds_height.max(1.0)));
-        buffer.set_wrap(cosmic_text::Wrap::None);
+        buffer.set_size(
+            Some(params.bounds_width.max(1.0)),
+            Some(params.bounds_height.max(1.0)),
+        );
 
-        let cosmic_align = match align {
+        let should_wrap = match params.wrap {
+            TextWrap::None => false,
+            TextWrap::Word => true,
+            TextWrap::Auto => params.bounds_height >= params.line_height * 1.4,
+        };
+
+        let cosmic_wrap = if should_wrap {
+            cosmic_text::Wrap::Word
+        } else {
+            cosmic_text::Wrap::None
+        };
+        buffer.set_wrap(cosmic_wrap);
+
+        let cosmic_align = match params.align {
             TextAlign::Left => cosmic_text::Align::Left,
             TextAlign::Center => cosmic_text::Align::Center,
             TextAlign::Right => cosmic_text::Align::Right,

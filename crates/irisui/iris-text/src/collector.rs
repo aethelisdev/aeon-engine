@@ -293,6 +293,7 @@ fn collect_node_text<'a>(
                 line_height: node.line_height,
                 color: node.text_color,
                 align: node.text_align,
+                wrap: node.text_wrap,
                 bounds: node.computed_rect,
                 clip_bounds: effective_clip,
             };

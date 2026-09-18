@@ -64,6 +64,19 @@ pub enum TextAlign {
     Right,
 }
 
+/// Text wrapping behavior within a container or bounding box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum TextWrap {
+    /// Automatically wraps text at word boundaries if the bounding box height allows multiple lines
+    /// (i.e. `bounds_height >= line_height * 1.4`), otherwise preserves single-line rendering.
+    #[default]
+    Auto,
+    /// Disables text wrapping, rendering the text as a single unbroken line.
+    None,
+    /// Wraps text at word boundaries whenever it exceeds the available bounding width.
+    Word,
+}
+
 /// Complete styling specification for a widget node.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Style {

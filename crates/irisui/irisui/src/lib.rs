@@ -42,7 +42,9 @@ pub mod prelude {
     pub use iris_core::geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
     pub use iris_core::id::WidgetId;
     pub use iris_core::node::{ExternalTextureId, UiLayer, WidgetNode, WidgetRole};
-    pub use iris_core::style::{AlignItems, FlexDirection, JustifyContent, Style, TextAlign};
+    pub use iris_core::style::{
+        AlignItems, FlexDirection, JustifyContent, Style, TextAlign, TextWrap,
+    };
     pub use iris_core::tree::{HitTargetInfo, UiTree};
 
     pub use iris_dock::{
