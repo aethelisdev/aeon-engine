@@ -48,16 +48,19 @@ pub mod prelude {
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DockDragState, DockError,
         DockLayoutOptions, DockNavigatorGeometry, DockNavigatorStyle, DockNode, DockNodeId,
-        DockPanel, DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingDragState,
-        FloatingResizeEdge, FloatingTabBadgeParams, FloatingWindow, FloatingWindowClickAction,
-        FloatingWindowId, FloatingWindowStyle, LeafLayoutInfo, MultiViewportManager, PanelRegistry,
-        SimpleTabViewer, SplitDirection, SplitterLayoutInfo, TabBarLayoutInfo,
-        TabContextMenuAction, TabContextMenuState, TabLayoutInfo, TabViewer, UiNotifier,
-        build_dock_navigator_nodes, build_drop_preview_node, build_floating_tab_badge,
+        DockOverflowClickAction, DockOverflowItemTarget, DockOverflowMenuFrame,
+        DockOverflowMenuParams, DockOverflowMenuStyle, DockPanel, DockState, DockStyle, DockTree,
+        DropZone, FloatingDockWindow, FloatingDragState, FloatingResizeEdge,
+        FloatingTabBadgeParams, FloatingWindow, FloatingWindowClickAction, FloatingWindowId,
+        FloatingWindowStyle, LeafLayoutInfo, MultiViewportManager, PanelRegistry, SimpleTabViewer,
+        SplitDirection, SplitterLayoutInfo, TabBarLayoutInfo, TabContextMenuAction,
+        TabContextMenuState, TabLayoutInfo, TabViewer, UiNotifier, build_dock_navigator_nodes,
+        build_dock_overflow_menu, build_drop_preview_node, build_floating_tab_badge,
         build_floating_windows_layer, calculate_screen_drop_zone, calculate_tab_reorder_index,
         compute_dock_layout, compute_dock_layout_advanced, compute_dock_layout_with_options,
         compute_dock_layout_with_viewer, compute_floating_layouts, compute_tab_bar_layout,
-        detect_resize_edge, evaluate_floating_window_click, hit_test_navigator,
+        detect_resize_edge, evaluate_dock_overflow_click, evaluate_floating_window_click,
+        hit_test_navigator,
     };
     pub use iris_layout::{LayoutEngine, LayoutError};
     pub use iris_text::{

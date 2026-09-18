@@ -17,6 +17,7 @@ pub mod floating;
 pub mod layout;
 pub mod navigator;
 pub mod notifier;
+pub mod overflow;
 pub mod panel;
 pub mod state;
 pub mod style;
@@ -45,6 +46,10 @@ pub use navigator::{
     build_drop_preview_node, build_floating_tab_badge, hit_test_navigator,
 };
 pub use notifier::UiNotifier;
+pub use overflow::{
+    DockOverflowClickAction, DockOverflowItemTarget, DockOverflowMenuFrame, DockOverflowMenuParams,
+    DockOverflowMenuStyle, build_dock_overflow_menu, evaluate_dock_overflow_click,
+};
 pub use panel::{DockPanel, PanelRegistry};
 pub use state::{ActiveSplitterDrag, DockState};
 pub use style::DockStyle;
