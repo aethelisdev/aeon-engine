@@ -13,7 +13,7 @@ pub enum SceneDialogAction {
     LoadFrom(std::path::PathBuf),
 }
 
-pub use irisui::dock::{FloatingDragState, FloatingResizeEdge};
+use irisui::dock::FloatingDragState;
 
 /// The main UI management system for the Aeon Engine.
 /// Owns the Iris UI overlay pipeline, docking layout, and all persistent

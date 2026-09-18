@@ -2,8 +2,9 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
-use crate::ui::workbench::state::{EngineUi, FloatingDragState, FloatingResizeEdge};
+use crate::ui::workbench::state::EngineUi;
 use irisui::dock::SplitDirection;
+use irisui::dock::{FloatingDragState, FloatingResizeEdge};
 use irisui::prelude::{Point, Rect};
 use winit::{
     event::{ElementState, MouseButton, WindowEvent},

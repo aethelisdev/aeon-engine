@@ -83,31 +83,21 @@ impl IrisEditorOverlay {
             return mb_res;
         }
 
-        // 5b. Active Floating Popups (Hierarchy Add Menu/Submenus/Context Menu, Inspector Add Menu/Dropdown/Color Picker)
-        // These are topmost UI elements; clicks and hovers inside them MUST be handled before modal dialogs!
-        if self.is_point_over_hierarchy_popup(self.cursor_pos())
-            && let Some(hier_res) = self.handle_hierarchy_window_event(event)
-        {
-            return hier_res;
-        }
-
-        if self.is_point_over_inspector_popup(self.cursor_pos())
-            && let Some(insp_res) = self.handle_inspector_window_event(event)
-        {
-            return insp_res;
-        }
-
-        if self.is_point_over_ui_designer_popup(self.cursor_pos())
-            && let Some(ui_res) = self.handle_ui_designer_window_event(event)
-        {
-            return ui_res;
-        }
-
-        // 5c. Active Dock Tab Overflow Dropdown Menu (Topmost popup overlay)
-        if self.chrome.active_dock_overflow.is_some()
-            && let Some(dock_res) = self.handle_dock_overflow_event(event)
-        {
-            return dock_res;
+        // 5b. Active Floating Popups (Hierarchy, Inspector, UI Designer, Dock Overflow)
+        // These belong to UiLayer::Popup; events inside them MUST be handled before modal dialogs!
+        if self.is_point_over_popup(self.cursor_pos()) {
+            if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
+                return hier_res;
+            }
+            if let Some(insp_res) = self.handle_inspector_window_event(event) {
+                return insp_res;
+            }
+            if let Some(ui_res) = self.handle_ui_designer_window_event(event) {
+                return ui_res;
+            }
+            if let Some(dock_res) = self.handle_dock_overflow_event(event) {
+                return dock_res;
+            }
         }
 
         // 6. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)
