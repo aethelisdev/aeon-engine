@@ -3,13 +3,15 @@
 
 //! # Viewport HUD Dropdown Popup Renderer
 //!
-//! Renders top-layer floating popup menus for Camera Projection Modes and Shading Modes.
+//! Renders top-layer floating popup menus for Camera Projection Modes and Shading Modes
+//! using standardized [`ComboboxPopupBuilder`].
 
 use super::types::{
     ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets,
 };
-use ae_renderer::camera::ProjectionMode;
+use ae_renderer::camera::{Camera, ProjectionMode};
 use irisui::prelude::*;
+use irisui::widgets::{ComboboxPopupBuilder, ComboboxPopupStyle};
 
 /// Renders active floating popup menus in the Viewport HUD.
 pub fn render_viewport_hud_dropdown_popup(
@@ -17,7 +19,7 @@ pub fn render_viewport_hud_dropdown_popup(
     parent_id: WidgetId,
     active_dd: ViewportHudDropdownId,
     params: &ViewportHudParams<'_>,
-    targets: &mut ViewportHudTargets,
+    targets: &ViewportHudTargets,
 ) {
     let Some(&(_, btn_rect)) = targets
         .dropdown_triggers
@@ -27,7 +29,7 @@ pub fn render_viewport_hud_dropdown_popup(
         return;
     };
 
-    let (items_count, options): (usize, Vec<(String, ViewportHudAction, bool)>) = match active_dd {
+    let (labels, selected_index): (Vec<&str>, Option<usize>) = match active_dd {
         ViewportHudDropdownId::CameraMode => {
             let is_persp = params.camera.mode == ProjectionMode::Perspective;
             let is_top = !is_persp && params.camera.pitch.0 < -1.5;
@@ -37,133 +39,112 @@ pub fn render_viewport_hud_dropdown_popup(
                 !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
             let is_ortho = !is_persp && !is_top && !is_front && !is_right;
 
-            let target = params.camera.target;
-            let d = 10.0;
-
-            let opts = vec![
-                (
-                    "Perspective".to_string(),
-                    ViewportHudAction::SetCameraMode(ProjectionMode::Perspective),
-                    is_persp,
-                ),
-                (
-                    "📐 Orthographic".to_string(),
-                    ViewportHudAction::SetCameraMode(ProjectionMode::Orthographic),
-                    is_ortho,
-                ),
-                (
-                    "📐 Top".to_string(),
-                    ViewportHudAction::SetCameraTransform {
-                        pitch: cgmath::Rad(-std::f32::consts::FRAC_PI_2 + 0.001),
-                        yaw: cgmath::Rad(0.0),
-                        position: cgmath::Point3::new(target.x, target.y + d, target.z),
-                        mode: Some(ProjectionMode::Orthographic),
-                    },
-                    is_top,
-                ),
-                (
-                    "📐 Front".to_string(),
-                    ViewportHudAction::SetCameraTransform {
-                        pitch: cgmath::Rad(0.0),
-                        yaw: cgmath::Rad(std::f32::consts::FRAC_PI_2),
-                        position: cgmath::Point3::new(target.x, target.y, target.z - d),
-                        mode: Some(ProjectionMode::Orthographic),
-                    },
-                    is_front,
-                ),
-                (
-                    "📐 Right".to_string(),
-                    ViewportHudAction::SetCameraTransform {
-                        pitch: cgmath::Rad(0.0),
-                        yaw: cgmath::Rad(0.0),
-                        position: cgmath::Point3::new(target.x - d, target.y, target.z),
-                        mode: Some(ProjectionMode::Orthographic),
-                    },
-                    is_right,
-                ),
-            ];
-            (opts.len(), opts)
+            let selected = if is_persp {
+                Some(0)
+            } else if is_ortho {
+                Some(1)
+            } else if is_top {
+                Some(2)
+            } else if is_front {
+                Some(3)
+            } else if is_right {
+                Some(4)
+            } else {
+                None
+            };
+            (
+                vec![
+                    "Perspective",
+                    "📐 Orthographic",
+                    "📐 Top",
+                    "📐 Front",
+                    "📐 Right",
+                ],
+                selected,
+            )
         }
         ViewportHudDropdownId::ShadingMode => {
-            let opts = vec![
-                (
-                    "Lit".to_string(),
-                    ViewportHudAction::ToggleWireframe,
-                    !params.wireframe_enabled,
-                ),
-                (
-                    "Wireframe".to_string(),
-                    ViewportHudAction::ToggleWireframe,
-                    params.wireframe_enabled,
-                ),
-            ];
-            (opts.len(), opts)
+            let selected = if params.wireframe_enabled {
+                Some(1)
+            } else {
+                Some(0)
+            };
+            (vec!["Lit", "Wireframe"], selected)
         }
     };
 
-    let popup_h = (items_count as f32) * 22.0 + 4.0;
-    let popup_rect = Rect::new(
-        btn_rect.x,
-        btn_rect.y + btn_rect.height + 2.0,
-        btn_rect.width.max(130.0),
-        popup_h,
-    );
-    targets.active_dropdown_popup_rect = Some(popup_rect);
+    let style = ComboboxPopupStyle {
+        background: Color::rgba(0.07, 0.08, 0.11, 0.98),
+        border_width: 1.0,
+        border_color: Color::rgba(0.24, 0.28, 0.38, 0.70),
+        border_radius: 4.0,
+        shadow_y: 6.0,
+        shadow_blur: 16.0,
+        shadow_color: Color::rgba(0.0, 0.0, 0.0, 0.75),
+        item_idle_bg: Color::TRANSPARENT,
+        item_hover_bg: Color::rgba(0.20, 0.23, 0.32, 0.95),
+        item_selected_bg: Color::rgba(0.0, 0.35, 0.45, 0.85),
+        text_idle_color: Color::rgba(0.85, 0.88, 0.95, 1.0),
+        text_hover_color: Color::WHITE,
+        text_selected_color: Color::rgba(0.0, 0.90, 1.0, 1.0),
+        font_size: 11.0,
+        row_height: 22.0,
+        item_padding_x: 6.0,
+    };
 
-    let popup_id = tree.create_node();
-    if let Some(node) = tree.get_mut(popup_id) {
-        node.set_name("ViewportHudPopup");
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = popup_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.07, 0.08, 0.11, 0.98))
-            .border(1.0, Color::rgba(0.24, 0.28, 0.38, 0.70))
-            .border_radius(4.0)
-            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75));
-    }
-    let _ = tree.add_child(parent_id, popup_id);
+    ComboboxPopupBuilder::new(btn_rect)
+        .name("ViewportHudPopup")
+        .min_width(130.0)
+        .items(&labels)
+        .selected_index(selected_index)
+        .cursor_pos(params.cursor_pos)
+        .style(style)
+        .build(tree, parent_id);
+}
 
-    for (idx, (label, action, is_selected)) in options.into_iter().enumerate() {
-        let item_y = popup_rect.y + 2.0 + (idx as f32) * 22.0;
-        let item_rect = Rect::new(popup_rect.x + 2.0, item_y, popup_rect.width - 4.0, 20.0);
-        let is_hovered = item_rect.contains_point(params.cursor_pos);
-
-        let item_id = tree.create_node();
-        if let Some(node) = tree.get_mut(item_id) {
-            node.set_name("ViewportHudPopupItem");
-            node.computed_rect = item_rect;
-            let bg = if is_selected {
-                Color::rgba(0.0, 0.35, 0.45, 0.85)
-            } else if is_hovered {
-                Color::rgba(0.20, 0.23, 0.32, 0.95)
-            } else {
-                Color::rgba(0.0, 0.0, 0.0, 0.0)
-            };
-            node.style = Style::new().background(bg).border_radius(3.0);
+/// Resolves a dispatched [`ViewportHudAction`] from a selected dropdown option index.
+#[must_use]
+pub fn resolve_viewport_hud_dropdown_action(
+    dropdown_id: ViewportHudDropdownId,
+    index: usize,
+    camera: &Camera,
+) -> Option<ViewportHudAction> {
+    match dropdown_id {
+        ViewportHudDropdownId::CameraMode => {
+            let target = camera.target;
+            let d = 10.0;
+            match index {
+                0 => Some(ViewportHudAction::SetCameraMode(
+                    ProjectionMode::Perspective,
+                )),
+                1 => Some(ViewportHudAction::SetCameraMode(
+                    ProjectionMode::Orthographic,
+                )),
+                2 => Some(ViewportHudAction::SetCameraTransform {
+                    pitch: cgmath::Rad(-std::f32::consts::FRAC_PI_2 + 0.001),
+                    yaw: cgmath::Rad(0.0),
+                    position: cgmath::Point3::new(target.x, target.y + d, target.z),
+                    mode: Some(ProjectionMode::Orthographic),
+                }),
+                3 => Some(ViewportHudAction::SetCameraTransform {
+                    pitch: cgmath::Rad(0.0),
+                    yaw: cgmath::Rad(std::f32::consts::FRAC_PI_2),
+                    position: cgmath::Point3::new(target.x, target.y, target.z - d),
+                    mode: Some(ProjectionMode::Orthographic),
+                }),
+                4 => Some(ViewportHudAction::SetCameraTransform {
+                    pitch: cgmath::Rad(0.0),
+                    yaw: cgmath::Rad(0.0),
+                    position: cgmath::Point3::new(target.x - d, target.y, target.z),
+                    mode: Some(ProjectionMode::Orthographic),
+                }),
+                _ => None,
+            }
         }
-        let _ = tree.add_child(popup_id, item_id);
-
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("ViewportHudItemText");
-            node.set_text(&label);
-            node.font_size = 11.0;
-            node.line_height = 20.0;
-            node.text_color = if is_selected {
-                Color::rgba(0.0, 0.90, 1.0, 1.0)
-            } else if is_hovered {
-                Color::rgba(1.0, 1.0, 1.0, 1.0)
-            } else {
-                Color::rgba(0.85, 0.88, 0.95, 1.0)
-            };
-            node.computed_rect =
-                Rect::new(item_rect.x + 6.0, item_rect.y, item_rect.width - 12.0, 20.0);
-        }
-        let _ = tree.add_child(item_id, lbl_id);
-
-        targets
-            .active_dropdown_items
-            .push((action, item_rect, label));
+        ViewportHudDropdownId::ShadingMode => match index {
+            0 | 1 => Some(ViewportHudAction::ToggleWireframe),
+            _ => None,
+        },
     }
 }
 
@@ -181,6 +162,8 @@ mod tests {
     fn test_camera_mode_dropdown_options_and_orthographic_mode() {
         let mut tree = UiTree::new();
         let root = tree.create_node();
+        let _ = tree.set_root(root);
+
         let camera = Camera {
             position: cgmath::Point3::new(0.0, 5.0, 10.0),
             yaw: cgmath::Rad(0.0),
@@ -222,38 +205,34 @@ mod tests {
             root,
             ViewportHudDropdownId::CameraMode,
             &params,
-            &mut targets,
+            &targets,
         );
 
-        assert_eq!(targets.active_dropdown_items.len(), 5);
+        // Verify that hit_test_target finds the dropdown items
+        let hit_item1 = tree
+            .hit_test_target(Point::new(20.0, 75.0))
+            .expect("Orthographic item must be hit");
+        assert_eq!(hit_item1.layer, UiLayer::Popup);
+        assert_eq!(hit_item1.role, WidgetRole::DropdownItem);
+        assert_eq!(hit_item1.tag, 1);
 
-        let labels: Vec<&str> = targets
-            .active_dropdown_items
-            .iter()
-            .map(|(_, _, l)| l.as_str())
-            .collect();
+        // Verify action resolution for Orthographic (index 1)
         assert_eq!(
-            labels,
-            vec![
-                "Perspective",
-                "📐 Orthographic",
-                "📐 Top",
-                "📐 Front",
-                "📐 Right"
-            ]
+            resolve_viewport_hud_dropdown_action(ViewportHudDropdownId::CameraMode, 1, &camera),
+            Some(ViewportHudAction::SetCameraMode(
+                ProjectionMode::Orthographic
+            ))
         );
 
-        // Verify that Orthographic sets camera mode
-        assert_eq!(
-            targets.active_dropdown_items[1].0,
-            ViewportHudAction::SetCameraMode(ProjectionMode::Orthographic)
-        );
-
-        // Verify that Top, Front, Right include mode: Some(ProjectionMode::Orthographic)
+        // Verify action resolution for Top, Front, Right (indices 2, 3, 4)
         for idx in [2, 3, 4] {
-            match &targets.active_dropdown_items[idx].0 {
-                ViewportHudAction::SetCameraTransform { mode, .. } => {
-                    assert_eq!(*mode, Some(ProjectionMode::Orthographic));
+            match resolve_viewport_hud_dropdown_action(
+                ViewportHudDropdownId::CameraMode,
+                idx,
+                &camera,
+            ) {
+                Some(ViewportHudAction::SetCameraTransform { mode, .. }) => {
+                    assert_eq!(mode, Some(ProjectionMode::Orthographic));
                 }
                 other => panic!(
                     "Expected SetCameraTransform action at index {}, got {:?}",

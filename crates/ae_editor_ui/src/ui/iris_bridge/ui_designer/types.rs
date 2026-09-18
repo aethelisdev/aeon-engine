@@ -75,16 +75,6 @@ pub struct UiDesignerPanelTargets {
     /// Hit target for `➕ Add Element` palette button.
     pub btn_add_element: Option<Rect>,
 
-    // ── Popup Targets ─────────────────────────────────────────────────────────
-    /// Full bounding box of the Aspect Ratio dropdown popup window if open.
-    pub aspect_popup_rect: Option<Rect>,
-    /// Hit targets for individual Aspect Ratio options: `(preset, rect)`.
-    pub aspect_dropdown_options: Vec<(CanvasAspectRatio, Rect)>,
-    /// Full bounding box of the Add Element palette popup window if open.
-    pub add_popup_rect: Option<Rect>,
-    /// Hit targets for individual UI element spawn options: `(element_type, rect)`.
-    pub add_menu_options: Vec<(UiElementType, Rect)>,
-
     // ── Canvas Element Hit Targets ────────────────────────────────────────────
     /// Hit targets for on-canvas UI elements: `(entity, screen_rect)`.
     pub element_rects: Vec<(hecs::Entity, Rect)>,

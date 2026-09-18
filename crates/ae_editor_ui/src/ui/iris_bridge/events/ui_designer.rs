@@ -30,10 +30,12 @@ impl IrisEditorOverlay {
         } = event
         {
             let click_point = self.cursor_pos();
+            let hit_target = self.tree.hit_test_target(click_point);
             let (click_res, panel_rect) = {
                 let targets = self.ui_designer.interactions.targets.as_ref()?;
                 let res = handle_ui_designer_click(
                     click_point,
+                    hit_target.as_ref(),
                     targets,
                     self.ui_designer.is_aspect_open,
                     self.ui_designer.is_add_menu_open,

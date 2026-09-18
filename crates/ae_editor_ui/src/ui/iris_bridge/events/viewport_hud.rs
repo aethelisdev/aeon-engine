@@ -4,6 +4,8 @@
 //! Interaction and event handling subsystem for the 3D Viewport HUD overlay.
 
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
+use crate::ui::iris_bridge::viewport_hud::ViewportHudAction;
+use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
@@ -23,20 +25,24 @@ impl IrisEditorOverlay {
         {
             let click_point = self.cursor_pos();
 
-            // 1. If an active dropdown popup is open
-            if self.viewport_hud.dropdown.is_some() {
-                for (action, rect, _) in &hud_targets.active_dropdown_items {
-                    if rect.contains_point(click_point) {
-                        self.viewport_hud.actions.push(action.clone());
-                        self.viewport_hud.dropdown = None;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-                }
-
-                if let Some(popup_rect) = hud_targets.active_dropdown_popup_rect
-                    && !popup_rect.contains_point(click_point)
+            // 1. If an active dropdown popup is open, check if an item was clicked
+            if let Some(dd_id) = self.viewport_hud.dropdown {
+                let hit_target = self.tree.hit_test_target(click_point);
+                if let Some(ref hit) = hit_target
+                    && hit.layer == UiLayer::Popup
+                    && hit.role == WidgetRole::DropdownItem
                 {
+                    self.viewport_hud
+                        .actions
+                        .push(ViewportHudAction::SelectDropdownItem(
+                            dd_id,
+                            hit.tag as usize,
+                        ));
+                    self.viewport_hud.dropdown = None;
+                    result.consumed = true;
+                    return Some(result);
+                } else {
+                    // Clicked outside dropdown items; dismiss active dropdown
                     self.viewport_hud.dropdown = None;
                 }
             }

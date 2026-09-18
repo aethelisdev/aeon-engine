@@ -214,10 +214,41 @@ impl EngineUi {
         &mut self,
         snapping: &mut ae_editor::snapping::SnapSettings,
         snap_changed: &mut bool,
+        camera: &ae_renderer::camera::Camera,
         ui_actions: &mut Vec<EngineUiAction>,
     ) {
         for action in self.iris_overlay.take_viewport_hud_actions() {
             match action {
+                iris_bridge::ViewportHudAction::SelectDropdownItem(dd_id, idx) => {
+                    if let Some(resolved) =
+                        iris_bridge::viewport_hud::popup::resolve_viewport_hud_dropdown_action(
+                            dd_id, idx, camera,
+                        )
+                    {
+                        match resolved {
+                            iris_bridge::ViewportHudAction::SetCameraMode(cmode) => {
+                                ui_actions.push(EngineUiAction::SetCameraMode(cmode));
+                            }
+                            iris_bridge::ViewportHudAction::SetCameraTransform {
+                                pitch,
+                                yaw,
+                                position,
+                                mode,
+                            } => {
+                                ui_actions.push(EngineUiAction::SetCameraTransform {
+                                    pitch,
+                                    yaw,
+                                    position,
+                                    mode,
+                                });
+                            }
+                            iris_bridge::ViewportHudAction::ToggleWireframe => {
+                                self.wireframe_enabled = !self.wireframe_enabled;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
                 iris_bridge::ViewportHudAction::SetCameraMode(cmode) => {
                     ui_actions.push(EngineUiAction::SetCameraMode(cmode));
                 }

@@ -43,8 +43,8 @@ pub fn build_ui_designer_panel(
     build_designer_toolbar(tree, root_id, params, &mut targets);
 
     // ── 4. Dropdown Popups (Rendered on top of toolbar) ───────────────────────
-    build_aspect_ratio_popup(tree, root_id, params, &mut targets);
-    build_add_element_popup(tree, root_id, params, &mut targets);
+    build_aspect_ratio_popup(tree, root_id, params, &targets);
+    build_add_element_popup(tree, root_id, params, &targets);
 
     targets
 }

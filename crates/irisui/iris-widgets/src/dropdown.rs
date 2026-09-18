@@ -95,10 +95,14 @@ pub struct ComboboxPopupFrame {
 pub struct ComboboxPopupBuilder<'a> {
     trigger_rect: Rect,
     items: Vec<&'a str>,
+    item_icons: Vec<Option<&'a str>>,
     selected_index: Option<usize>,
     cursor_pos: Point,
     style: ComboboxPopupStyle,
     menu_name: &'static str,
+    custom_width: Option<f32>,
+    min_width: Option<f32>,
+    align_right: bool,
 }
 
 impl<'a> ComboboxPopupBuilder<'a> {
@@ -108,10 +112,14 @@ impl<'a> ComboboxPopupBuilder<'a> {
         Self {
             trigger_rect,
             items: Vec::new(),
+            item_icons: Vec::new(),
             selected_index: None,
             cursor_pos: Point::new(-1000.0, -1000.0),
             style: ComboboxPopupStyle::default(),
             menu_name: "ComboboxDropdownPopup",
+            custom_width: None,
+            min_width: None,
+            align_right: false,
         }
     }
 
@@ -119,6 +127,41 @@ impl<'a> ComboboxPopupBuilder<'a> {
     #[inline]
     pub fn items(mut self, items: &[&'a str]) -> Self {
         self.items = items.to_vec();
+        self.item_icons = Vec::new();
+        self
+    }
+
+    /// Sets the list of text option labels paired with optional icon strings.
+    /// When an icon string is provided, a dedicated icon node is generated to the left
+    /// of the text label.
+    #[inline]
+    pub fn items_with_icons(mut self, items: &[(&'a str, Option<&'a str>)]) -> Self {
+        self.items = items.iter().map(|(l, _)| *l).collect();
+        self.item_icons = items.iter().map(|(_, i)| *i).collect();
+        self
+    }
+
+    /// Sets an explicit width in pixels for the dropdown menu popup.
+    /// When set, this overrides the default behavior of matching the trigger button width.
+    #[inline]
+    pub fn width(mut self, width: f32) -> Self {
+        self.custom_width = Some(width);
+        self
+    }
+
+    /// Sets a minimum width in pixels for the dropdown menu popup.
+    /// Ensures the popup does not shrink below this width even if the trigger button is narrower.
+    #[inline]
+    pub fn min_width(mut self, min_width: f32) -> Self {
+        self.min_width = Some(min_width);
+        self
+    }
+
+    /// Aligns the popup menu's right edge with the trigger button's right edge.
+    /// Useful for dropdown buttons anchored to the right side of a panel or screen boundary.
+    #[inline]
+    pub fn align_right(mut self, align_right: bool) -> Self {
+        self.align_right = align_right;
         self
     }
 
@@ -156,10 +199,19 @@ impl<'a> ComboboxPopupBuilder<'a> {
     pub fn build(self, tree: &mut UiTree, parent_id: WidgetId) -> ComboboxPopupFrame {
         let items_count = self.items.len();
         let popup_h = (items_count as f32) * self.style.row_height + 4.0;
+        let mut popup_w = self.custom_width.unwrap_or(self.trigger_rect.width);
+        if let Some(min_w) = self.min_width {
+            popup_w = popup_w.max(min_w);
+        }
+        let popup_x = if self.align_right {
+            self.trigger_rect.right() - popup_w
+        } else {
+            self.trigger_rect.x
+        };
         let popup_rect = Rect::new(
-            self.trigger_rect.x,
+            popup_x,
             self.trigger_rect.y + self.trigger_rect.height + 2.0,
-            self.trigger_rect.width,
+            popup_w,
             popup_h,
         );
 
@@ -214,6 +266,43 @@ impl<'a> ComboboxPopupBuilder<'a> {
             }
             let _ = tree.add_child(popup_id, item_id);
 
+            let icon_opt = self.item_icons.get(idx).copied().flatten();
+            if let Some(icon_str) = icon_opt {
+                let icon_id = tree.create_node();
+                if let Some(node) = tree.get_mut(icon_id) {
+                    node.set_name("DropdownItemIcon");
+                    node.set_role(WidgetRole::Default);
+                    node.set_layer(UiLayer::Popup);
+                    node.set_tag(idx as u64);
+                    node.interactive = false;
+                    node.set_text(icon_str);
+                    node.font_size = 11.0;
+                    node.line_height = self.style.row_height - 2.0;
+                    node.text_align = TextAlign::Left;
+                    node.text_color = if is_selected {
+                        self.style.text_selected_color
+                    } else if is_hovered {
+                        self.style.text_hover_color
+                    } else {
+                        self.style.text_idle_color
+                    };
+                    node.computed_rect = Rect::new(
+                        item_rect.x + self.style.item_padding_x,
+                        item_rect.y,
+                        18.0,
+                        self.style.row_height - 2.0,
+                    );
+                }
+                let _ = tree.add_child(item_id, icon_id);
+            }
+
+            let text_x = if icon_opt.is_some() {
+                item_rect.x + self.style.item_padding_x + 22.0
+            } else {
+                item_rect.x + self.style.item_padding_x
+            };
+            let text_w = (item_rect.right() - self.style.item_padding_x - text_x).max(0.0);
+
             let lbl_id = tree.create_node();
             if let Some(node) = tree.get_mut(lbl_id) {
                 node.set_name("DropdownItemText");
@@ -232,12 +321,8 @@ impl<'a> ComboboxPopupBuilder<'a> {
                 } else {
                     self.style.text_idle_color
                 };
-                node.computed_rect = Rect::new(
-                    item_rect.x + self.style.item_padding_x,
-                    item_rect.y,
-                    item_rect.width - (self.style.item_padding_x * 2.0),
-                    self.style.row_height - 2.0,
-                );
+                node.computed_rect =
+                    Rect::new(text_x, item_rect.y, text_w, self.style.row_height - 2.0);
             }
             let _ = tree.add_child(item_id, lbl_id);
 
@@ -290,5 +375,38 @@ mod tests {
         assert_eq!(hit_target.layer, UiLayer::Popup);
         assert_eq!(hit_target.role, WidgetRole::DropdownItem);
         assert_eq!(hit_target.tag, 1);
+    }
+
+    #[test]
+    fn test_combobox_popup_builder_custom_width_align_right_and_icons() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+
+        let trigger = Rect::new(400.0, 50.0, 80.0, 24.0);
+        let items = [
+            ("Panel", Some("🔲")),
+            ("Button", Some("🔘")),
+            ("Text", None),
+        ];
+
+        let frame = ComboboxPopupBuilder::new(trigger)
+            .items_with_icons(&items)
+            .width(200.0)
+            .align_right(true)
+            .build(&mut tree, root);
+
+        assert_eq!(frame.item_ids.len(), 3);
+        assert_eq!(frame.popup_rect.width, 200.0);
+        // trigger.right() is 400 + 80 = 480. popup_x = 480 - 200 = 280.
+        assert_eq!(frame.popup_rect.x, 280.0);
+
+        // Verify hit target on first item with icon
+        let hit_target = tree
+            .hit_test_target(Point::new(300.0, 85.0))
+            .expect("First item must be hit");
+        assert_eq!(hit_target.layer, UiLayer::Popup);
+        assert_eq!(hit_target.role, WidgetRole::DropdownItem);
+        assert_eq!(hit_target.tag, 0);
     }
 }

@@ -120,7 +120,7 @@ fn test_ui_designer_click_hit_testing() {
         targets.btn_aspect.map_or(0.0, |r| r.x + 5.0),
         targets.btn_aspect.map_or(0.0, |r| r.y + 5.0),
     );
-    let click_res = handle_ui_designer_click(aspect_btn_p, &targets, false, false);
+    let click_res = handle_ui_designer_click(aspect_btn_p, None, &targets, false, false);
     assert_eq!(
         click_res.action,
         Some(UiDesignerAction::ToggleAspectDropdown)
@@ -129,12 +129,56 @@ fn test_ui_designer_click_hit_testing() {
     // Click on element
     let elem_rect = targets.element_rects[0].1;
     let elem_p = Point::new(elem_rect.x + 10.0, elem_rect.y + 10.0);
-    let elem_click = handle_ui_designer_click(elem_p, &targets, false, false);
+    let elem_click = handle_ui_designer_click(elem_p, None, &targets, false, false);
     assert_eq!(
         elem_click.action,
         Some(UiDesignerAction::SelectEntity(Some(ent)))
     );
     assert!(elem_click.start_element_drag.is_some());
+
+    // Test aspect ratio selection via HitTargetInfo
+    let aspect_hit = HitTargetInfo {
+        id: root,
+        name: Some("AspectOptionItem".to_string()),
+        layer: UiLayer::Popup,
+        role: WidgetRole::DropdownItem,
+        tag: 1, // Ratio16x10
+        rect: Rect::new(100.0, 100.0, 150.0, 24.0),
+    };
+    let aspect_click = handle_ui_designer_click(
+        Point::new(120.0, 110.0),
+        Some(&aspect_hit),
+        &targets,
+        true,
+        false,
+    );
+    assert_eq!(
+        aspect_click.action,
+        Some(UiDesignerAction::SetAspectRatio(
+            CanvasAspectRatio::Ratio16x10
+        ))
+    );
+
+    // Test add element selection via HitTargetInfo
+    let add_hit = HitTargetInfo {
+        id: root,
+        name: Some("AddElementOption".to_string()),
+        layer: UiLayer::Popup,
+        role: WidgetRole::DropdownItem,
+        tag: 3, // Button
+        rect: Rect::new(100.0, 100.0, 150.0, 24.0),
+    };
+    let add_click = handle_ui_designer_click(
+        Point::new(120.0, 110.0),
+        Some(&add_hit),
+        &targets,
+        false,
+        true,
+    );
+    assert_eq!(
+        add_click.action,
+        Some(UiDesignerAction::SpawnElement(UiElementType::Button))
+    );
 }
 
 #[test]

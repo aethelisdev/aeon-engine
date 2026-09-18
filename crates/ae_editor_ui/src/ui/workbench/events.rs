@@ -632,14 +632,11 @@ impl EngineUi {
 
         // 2. If the point is inside the active 3D viewport canvas (docked or floating)
         if self.last_viewport_rect.contains_point(point) {
-            // Check if there are Viewport HUD interactive controls (toolbar buttons, dropdown, compass, billboard icons)
-            if let Some(ref hud) = self.iris_overlay.viewport_hud.targets {
-                if let Some(dd_rect) = hud.active_dropdown_popup_rect
-                    && dd_rect.contains_point(point)
-                {
-                    return true;
-                }
-                if hud.buttons.iter().any(|(_, r)| r.contains_point(point))
+            if self.iris_overlay.is_point_over_popup(point) {
+                return true;
+            }
+            if let Some(ref hud) = self.iris_overlay.viewport_hud.targets
+                && (hud.buttons.iter().any(|(_, r)| r.contains_point(point))
                     || hud
                         .dropdown_triggers
                         .iter()
@@ -647,10 +644,9 @@ impl EngineUi {
                     || hud
                         .compass_knobs
                         .iter()
-                        .any(|(_, r)| r.contains_point(point))
-                {
-                    return true;
-                }
+                        .any(|(_, r)| r.contains_point(point)))
+            {
+                return true;
             }
 
             // Check if another detached floating window occludes this viewport point

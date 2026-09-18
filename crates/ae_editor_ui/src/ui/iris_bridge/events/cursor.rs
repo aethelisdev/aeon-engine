@@ -9,6 +9,7 @@
 
 use crate::ui::iris_bridge::types::{InspectorColorDragMode, IrisEditorOverlay};
 use irisui::dock::SplitDirection;
+use irisui::prelude::*;
 use winit::window::CursorIcon;
 
 impl IrisEditorOverlay {
@@ -24,6 +25,14 @@ impl IrisEditorOverlay {
 
         // 0. Top Menubar buttons
         if p.y <= Self::MENUBAR_HEIGHT {
+            return CursorIcon::Pointer;
+        }
+
+        // 0b. Foreground popup items (Combobox / Dropdown popups across all panels)
+        if let Some(hit) = self.tree.hit_test_target(p)
+            && hit.layer == UiLayer::Popup
+            && hit.role == WidgetRole::DropdownItem
+        {
             return CursorIcon::Pointer;
         }
 
@@ -272,10 +281,6 @@ impl IrisEditorOverlay {
                 || targets.btn_anchors.is_some_and(|r| r.contains_point(p))
                 || targets.btn_grid.is_some_and(|r| r.contains_point(p))
                 || targets.btn_add_element.is_some_and(|r| r.contains_point(p))
-                || targets
-                    .aspect_popup_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets.add_popup_rect.is_some_and(|r| r.contains_point(p))
                 || targets
                     .element_rects
                     .iter()

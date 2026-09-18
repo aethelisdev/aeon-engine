@@ -152,7 +152,12 @@ impl EngineUi {
             ui_actions: params.ui_actions,
         });
 
-        self.process_viewport_hud_actions(&mut cur_snap, &mut snap_changed, params.ui_actions);
+        self.process_viewport_hud_actions(
+            &mut cur_snap,
+            &mut snap_changed,
+            params.camera,
+            params.ui_actions,
+        );
         self.process_stats_actions();
         self.process_hierarchy_actions(params.ui_actions);
         self.process_inspector_actions(params.world, params.ui_actions);

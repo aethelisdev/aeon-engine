@@ -7,8 +7,9 @@
 //! against the UI Designer targets.
 //!
 
+use super::popups::{ASPECT_RATIO_PRESETS, UI_ELEMENT_TYPES};
 use super::types::{UiDesignerAction, UiDesignerPanelTargets, UiDragState};
-use irisui::prelude::Point;
+use irisui::prelude::*;
 
 /// Result returned from evaluating a mouse click on the UI Designer panel.
 #[derive(Debug, Clone, Default)]
@@ -24,6 +25,7 @@ pub struct UiDesignerClickResult {
 /// Evaluates a mouse click against active UI Designer targets.
 pub fn handle_ui_designer_click(
     click_pos: Point,
+    hit_target: Option<&HitTargetInfo>,
     targets: &UiDesignerPanelTargets,
     is_aspect_dropdown_open: bool,
     is_add_menu_open: bool,
@@ -32,15 +34,12 @@ pub fn handle_ui_designer_click(
 
     // ── 1. Aspect Ratio Popup ─────────────────────────────────────────────────
     if is_aspect_dropdown_open {
-        if let Some(popup_rect) = targets.aspect_popup_rect
-            && popup_rect.contains_point(click_pos)
+        if let Some(hit) = hit_target
+            && hit.layer == UiLayer::Popup
+            && hit.role == WidgetRole::DropdownItem
+            && let Some(&preset) = ASPECT_RATIO_PRESETS.get(hit.tag as usize)
         {
-            for (preset, rect) in &targets.aspect_dropdown_options {
-                if rect.contains_point(click_pos) {
-                    result.action = Some(UiDesignerAction::SetAspectRatio(*preset));
-                    return result;
-                }
-            }
+            result.action = Some(UiDesignerAction::SetAspectRatio(preset));
             return result;
         }
         // Clicked outside open popup: dismiss it
@@ -50,15 +49,12 @@ pub fn handle_ui_designer_click(
 
     // ── 2. Add Element Palette Popup ──────────────────────────────────────────
     if is_add_menu_open {
-        if let Some(popup_rect) = targets.add_popup_rect
-            && popup_rect.contains_point(click_pos)
+        if let Some(hit) = hit_target
+            && hit.layer == UiLayer::Popup
+            && hit.role == WidgetRole::DropdownItem
+            && let Some(&elem_type) = UI_ELEMENT_TYPES.get(hit.tag as usize)
         {
-            for (elem_type, rect) in &targets.add_menu_options {
-                if rect.contains_point(click_pos) {
-                    result.action = Some(UiDesignerAction::SpawnElement(*elem_type));
-                    return result;
-                }
-            }
+            result.action = Some(UiDesignerAction::SpawnElement(elem_type));
             return result;
         }
         // Clicked outside open popup: dismiss it

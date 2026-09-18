@@ -49,6 +49,8 @@ pub enum ViewportHudAction {
     ToggleSnapping,
     /// Toggles a dropdown popup menu open or closed.
     ToggleDropdown(Option<ViewportHudDropdownId>),
+    /// Dispatches selection of an item within an active dropdown menu.
+    SelectDropdownItem(ViewportHudDropdownId, usize),
     /// Resumes active in-game gameplay from the pause overlay.
     ResumeGame,
     /// Exits in-game play mode and returns to editor mode.
@@ -62,10 +64,6 @@ pub struct ViewportHudTargets {
     pub buttons: Vec<(ViewportHudAction, Rect)>,
     /// Dropdown trigger buttons: `(DropdownId, ScreenRect)`.
     pub dropdown_triggers: Vec<(ViewportHudDropdownId, Rect)>,
-    /// Items inside an open dropdown popup: `(Action, ItemRect, Label)`.
-    pub active_dropdown_items: Vec<(ViewportHudAction, Rect, String)>,
-    /// Bounding rectangle of the active open dropdown popup.
-    pub active_dropdown_popup_rect: Option<Rect>,
     /// 3D compass axis snap knobs: `(Action, ScreenRect)`.
     pub compass_knobs: Vec<(ViewportHudAction, Rect)>,
 }
