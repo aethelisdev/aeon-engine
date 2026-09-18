@@ -520,10 +520,6 @@ pub struct InspectorPanelTargets {
     pub preset_btn_rect: Option<Rect>,
     /// Dropdown trigger combo boxes: `(DropdownId, Rect, CurrentSelectedIndex)`.
     pub dropdowns: Vec<(InspectorDropdownId, Rect, usize)>,
-    /// Active floating dropdown popup bounding box.
-    pub active_dropdown_popup_rect: Option<Rect>,
-    /// Interactive items inside an active dropdown popup: `(OptionIndex, Rect)`.
-    pub dropdown_items: Vec<(usize, Rect)>,
     /// Component boolean checkboxes: `(CheckboxId, Rect, CurrentValue)`.
     pub checkboxes: Vec<(ComponentCheckboxId, Rect, bool)>,
     /// Component trash/delete buttons: `(ComponentName, Rect)`.

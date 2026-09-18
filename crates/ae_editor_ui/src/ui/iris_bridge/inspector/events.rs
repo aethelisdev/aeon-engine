@@ -51,20 +51,7 @@ pub fn handle_inspector_click(
         return true;
     }
 
-    // 3. Check Active Dropdown items
-    if let Some(popup_rect) = targets.active_dropdown_popup_rect
-        && popup_rect.contains_point(pos)
-    {
-        for &(_opt_idx, item_rect) in &targets.dropdown_items {
-            if item_rect.contains_point(pos) {
-                // Resolved in parent handler
-                return true;
-            }
-        }
-        return true;
-    }
-
-    // 4. Check Active Color Picker Popup items
+    // 3. Check Active Color Picker Popup items
     if let Some(picker_rect) = targets.color_picker_popup_rect
         && picker_rect.contains_point(pos)
     {
@@ -226,7 +213,7 @@ pub fn handle_inspector_click(
     }
 
     // 18. If clicking outside menus while an Add Menu is open, dismiss it
-    if targets.active_add_menu_rect.is_some() || targets.active_dropdown_popup_rect.is_some() {
+    if targets.active_add_menu_rect.is_some() {
         out_actions.push(InspectorAction::CloseAddComponentMenu);
         return true;
     }

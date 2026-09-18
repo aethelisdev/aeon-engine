@@ -247,24 +247,23 @@ impl IrisEditorOverlay {
 
         // 1. Check if an active dropdown popup is open and clicked
         if let Some(active_dd) = self.inspector.active_dropdown {
-            if let Some(popup_rect) = insp_targets.active_dropdown_popup_rect
-                && popup_rect.contains_point(click_point)
-            {
-                for &(opt_idx, item_rect) in &insp_targets.dropdown_items {
-                    if item_rect.contains_point(click_point) {
-                        if let Some(entity) = entity_opt {
-                            self.inspector
-                                .interactions
-                                .actions
-                                .push(InspectorAction::SelectDropdown(entity, active_dd, opt_idx));
-                        }
-                        self.inspector.active_dropdown = None;
-                        result.consumed = true;
-                        return Some(result);
+            if let Some(hit) = self.tree.hit_test_target(click_point) {
+                if hit.layer == UiLayer::Popup && hit.role == WidgetRole::DropdownItem {
+                    let opt_idx = hit.tag as usize;
+                    if let Some(entity) = entity_opt {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::SelectDropdown(entity, active_dd, opt_idx));
                     }
+                    self.inspector.active_dropdown = None;
+                    result.consumed = true;
+                    return Some(result);
                 }
-                result.consumed = true;
-                return Some(result);
+                if hit.layer == UiLayer::Popup && hit.role == WidgetRole::DropdownPopup {
+                    result.consumed = true;
+                    return Some(result);
+                }
             }
             self.inspector.active_dropdown = None;
         }

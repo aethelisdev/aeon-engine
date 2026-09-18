@@ -162,11 +162,6 @@ impl IrisEditorOverlay {
             {
                 return CursorIcon::Pointer;
             }
-            if let Some(popup_r) = targets.active_dropdown_popup_rect
-                && popup_r.contains_point(p)
-            {
-                return CursorIcon::Pointer;
-            }
             if let Some(picker_r) = targets.color_picker_popup_rect
                 && picker_r.contains_point(p)
             {

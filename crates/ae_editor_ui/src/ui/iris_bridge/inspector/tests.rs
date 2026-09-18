@@ -678,3 +678,56 @@ fn test_color_picker_drag_and_undo_restoration() {
         panic!("Expected EngineUiAction::ModifyColor");
     }
 }
+
+#[test]
+fn test_inspector_dropdown_popup_combobox_builder_and_hit_testing() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
+    let _ = tree.set_root(root);
+    let mut world = hecs::World::new();
+    let entity = world.spawn((Position::default(),));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+    params.active_dropdown = Some(InspectorDropdownId::RigidBodyType);
+
+    let mut targets = InspectorPanelTargets::default();
+    let anchor_rect = Rect::new(100.0, 100.0, 120.0, 24.0);
+    targets
+        .dropdowns
+        .push((InspectorDropdownId::RigidBodyType, anchor_rect, 0));
+
+    // Build the dropdown popup with ComboboxPopupBuilder
+    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params, &targets);
+
+    // Option 0: "Dynamic" (tag = 0)
+    let opt0_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 10.0);
+    let hit0 = tree
+        .hit_test_target(opt0_point)
+        .expect("Must hit dropdown item 0");
+    assert_eq!(hit0.layer, UiLayer::Popup);
+    assert_eq!(hit0.role, WidgetRole::DropdownItem);
+    assert_eq!(hit0.tag, 0);
+
+    // Option 1: "Kinematic" (tag = 1)
+    let opt1_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 22.0 + 10.0);
+    let hit1 = tree
+        .hit_test_target(opt1_point)
+        .expect("Must hit dropdown item 1");
+    assert_eq!(hit1.layer, UiLayer::Popup);
+    assert_eq!(hit1.role, WidgetRole::DropdownItem);
+    assert_eq!(hit1.tag, 1);
+
+    // Option 2: "Static" (tag = 2)
+    let opt2_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 44.0 + 10.0);
+    let hit2 = tree
+        .hit_test_target(opt2_point)
+        .expect("Must hit dropdown item 2");
+    assert_eq!(hit2.layer, UiLayer::Popup);
+    assert_eq!(hit2.role, WidgetRole::DropdownItem);
+    assert_eq!(hit2.tag, 2);
+}
