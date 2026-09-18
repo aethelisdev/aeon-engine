@@ -14,6 +14,7 @@ pub mod asset_card;
 pub mod button;
 pub mod canvas;
 pub mod color_picker;
+pub mod dropdown;
 pub mod input;
 pub mod inspector;
 pub mod menubar;
@@ -28,6 +29,7 @@ pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
 pub use color_picker::{
     HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, hsv_to_rgb, rgb_to_hsv,
 };
+pub use dropdown::{ComboboxPopupBuilder, ComboboxPopupFrame, ComboboxPopupStyle};
 pub use input::{
     CheckboxBuilder, DragValueBuilder, SliderBuilder, TextInputBuilder, TextInputState,
 };

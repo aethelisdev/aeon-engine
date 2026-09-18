@@ -267,7 +267,7 @@ impl EventDispatcher {
 
         match event {
             UiEvent::MouseMove { point } => {
-                let hit = tree.hit_test(point);
+                let hit = tree.hit_test_layered(point);
 
                 // Check for hover changes
                 if hit != focus.hovered {
@@ -289,7 +289,7 @@ impl EventDispatcher {
                 }
             }
             UiEvent::MouseDown { button: _, point } => {
-                let hit = tree.hit_test(point);
+                let hit = tree.hit_test_layered(point);
                 focus.pressed = hit;
                 focus.press_origin = Some(point);
 
@@ -305,7 +305,7 @@ impl EventDispatcher {
                 }
             }
             UiEvent::MouseUp { button, point } => {
-                let hit = tree.hit_test(point);
+                let hit = tree.hit_test_layered(point);
 
                 if let Some(pressed_id) = focus.pressed
                     && hit == Some(pressed_id)

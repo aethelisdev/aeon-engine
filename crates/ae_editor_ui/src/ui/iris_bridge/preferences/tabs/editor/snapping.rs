@@ -300,71 +300,16 @@ pub fn render_snap_mode_dropdown_popup(
     combo_rect: Rect,
     snapping: &SnapSettings,
     cursor_pos: Point,
-    targets: &mut PreferencesTargets,
+    _targets: &mut PreferencesTargets,
 ) {
-    let popup_h = (SNAP_MODE_OPTIONS.len() as f32) * 24.0 + 4.0;
-    let popup_rect = Rect::new(
-        combo_rect.x,
-        combo_rect.y + combo_rect.height + 2.0,
-        combo_rect.width,
-        popup_h,
-    );
-    targets.active_dropdown_popup_rect = Some(popup_rect);
-
-    let popup_id = tree.create_node();
-    if let Some(node) = tree.get_mut(popup_id) {
-        node.set_name("SnapPopup");
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = popup_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.08, 0.09, 0.13, 0.98))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
-            .border_radius(6.0)
-            .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.85));
-    }
-    let _ = tree.add_child(parent_id, popup_id);
-
-    for (idx, &(mode, label)) in SNAP_MODE_OPTIONS.iter().enumerate() {
-        let item_y = popup_rect.y + 2.0 + (idx as f32) * 24.0;
-        let item_rect = Rect::new(popup_rect.x + 2.0, item_y, popup_rect.width - 4.0, 22.0);
-        let is_hovered = item_rect.contains_point(cursor_pos);
-        let is_selected = snapping.mode == mode;
-
-        let item_id = tree.create_node();
-        if let Some(node) = tree.get_mut(item_id) {
-            node.set_name("SnapPopupItem");
-            node.computed_rect = item_rect;
-            let bg = if is_selected {
-                Color::rgba(0.0, 0.35, 0.45, 0.80)
-            } else if is_hovered {
-                Color::rgba(0.24, 0.27, 0.37, 0.95)
-            } else {
-                Color::rgba(0.0, 0.0, 0.0, 0.0)
-            };
-            node.style = Style::new().background(bg).border_radius(4.0);
-        }
-        let _ = tree.add_child(popup_id, item_id);
-
-        let txt = tree.create_node();
-        if let Some(node) = tree.get_mut(txt) {
-            node.set_name("SnapItemText");
-            node.set_text(label);
-            node.font_size = 11.5;
-            node.line_height = 22.0;
-            node.text_color = if is_selected {
-                Color::rgba(0.0, 0.90, 1.0, 1.0)
-            } else if is_hovered {
-                Color::rgba(1.0, 1.0, 1.0, 1.0)
-            } else {
-                Color::rgba(0.85, 0.88, 0.95, 1.0)
-            };
-            node.computed_rect =
-                Rect::new(item_rect.x + 8.0, item_rect.y, item_rect.width - 16.0, 22.0);
-        }
-        let _ = tree.add_child(item_id, txt);
-
-        targets
-            .active_dropdown_items
-            .push((idx, item_rect, label.to_string()));
-    }
+    let labels: Vec<&str> = SNAP_MODE_OPTIONS.iter().map(|(_, l)| *l).collect();
+    let selected_idx = SNAP_MODE_OPTIONS
+        .iter()
+        .position(|(m, _)| *m == snapping.mode);
+    ComboboxPopupBuilder::new(combo_rect)
+        .items(&labels)
+        .selected_index(selected_idx)
+        .cursor_pos(cursor_pos)
+        .name("SnapPopup")
+        .build(tree, parent_id);
 }

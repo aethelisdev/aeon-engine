@@ -7,7 +7,7 @@ use crate::dirty::DirtyFlags;
 use crate::error::IrisCoreError;
 use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
-use crate::node::{UiLayer, WidgetNode};
+use crate::node::{UiLayer, WidgetNode, WidgetRole};
 use slotmap::SlotMap;
 
 /// The central hierarchical arena storing all UI nodes.
@@ -464,6 +464,23 @@ impl UiTree {
         false
     }
 
+    /// Performs layered hit-testing and returns detailed metadata for the hit widget.
+    /// Evaluates the highest priority [`UiLayer`] under `point` via [`UiTree::hit_test_layered`],
+    /// then extracts the node's properties, role, effective layer, and tag with zero heap allocations for numeric queries.
+    pub fn hit_test_target(&self, point: Point) -> Option<HitTargetInfo> {
+        let hit_id = self.hit_test_layered(point)?;
+        let node = self.nodes.get(hit_id)?;
+        let layer = self.effective_layer(hit_id);
+        Some(HitTargetInfo {
+            id: hit_id,
+            layer,
+            role: node.role,
+            tag: node.tag,
+            rect: node.computed_rect,
+            name: node.name.clone(),
+        })
+    }
+
     /// Helper to recursively collect all descendant keys in a subtree.
     fn collect_subtree(&self, id: WidgetId, list: &mut Vec<WidgetId>) {
         list.push(id);
@@ -473,6 +490,26 @@ impl UiTree {
             }
         }
     }
+}
+
+/// Comprehensive metadata and interaction properties of a hit-tested widget.
+/// Returned by [`UiTree::hit_test_target`] to supply the host application with
+/// the widget's identifier, effective stacking layer, functional role, user-defined tag,
+/// layout boundary rectangle, and optional debug name in a single query.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HitTargetInfo {
+    /// Generational unique identifier of the hit widget.
+    pub id: WidgetId,
+    /// Effective stacking context layer computed from hierarchy inheritance.
+    pub layer: UiLayer,
+    /// Semantic functional role assigned to the widget.
+    pub role: WidgetRole,
+    /// User-defined numeric tag or action identifier associated with the widget.
+    pub tag: u64,
+    /// Absolute computed screen-space rectangle of the widget.
+    pub rect: Rect,
+    /// Optional debug name of the widget node.
+    pub name: Option<String>,
 }
 
 #[cfg(test)]
@@ -543,5 +580,35 @@ mod tests {
         // Outside modal over bg_btn: blocked by active modal!
         let hit_outside = tree.hit_test_layered(Point::new(60.0, 60.0));
         assert_eq!(hit_outside, None);
+    }
+
+    #[test]
+    fn test_hit_test_target_metadata_extraction() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        }
+
+        let dropdown_item = tree.create_node();
+        if let Some(node) = tree.get_mut(dropdown_item) {
+            node.computed_rect = Rect::new(200.0, 150.0, 120.0, 24.0);
+            node.role = WidgetRole::DropdownItem;
+            node.layer = UiLayer::Popup;
+            node.tag = 2; // Option index 2
+            node.name = Some("Fps120Option".to_string());
+        }
+        tree.add_child(root, dropdown_item).unwrap();
+
+        let hit_target = tree
+            .hit_test_target(Point::new(250.0, 160.0))
+            .expect("Dropdown item must be hit");
+
+        assert_eq!(hit_target.id, dropdown_item);
+        assert_eq!(hit_target.layer, UiLayer::Popup);
+        assert_eq!(hit_target.role, WidgetRole::DropdownItem);
+        assert_eq!(hit_target.tag, 2);
+        assert_eq!(hit_target.name.as_deref(), Some("Fps120Option"));
+        assert_eq!(hit_target.rect, Rect::new(200.0, 150.0, 120.0, 24.0));
     }
 }

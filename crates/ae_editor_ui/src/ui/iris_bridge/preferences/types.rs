@@ -112,10 +112,6 @@ pub struct PreferencesTargets {
     pub sliders: Vec<(PreferencesSliderId, Rect, f32, f32, f32)>,
     /// Interactive dropdown combobox buttons: `(dropdown_id, button_rect)`.
     pub dropdowns: Vec<(PreferencesDropdownId, Rect)>,
-    /// Active open dropdown item list: `(item_index, rect, label)`.
-    pub active_dropdown_items: Vec<(usize, Rect, String)>,
-    /// Active open dropdown menu popup bounding box.
-    pub active_dropdown_popup_rect: Option<Rect>,
     /// Collapsible card / section header hit targets: `(section_id, header_rect)`.
     pub section_toggles: Vec<(&'static str, Rect)>,
     /// Interactive direct numeric input box targets: `(slider_id, box_rect, min_val, max_val, current_val)`.

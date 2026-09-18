@@ -197,29 +197,31 @@ impl IrisEditorOverlay {
                 ..
             } => {
                 let click_point = self.cursor_pos();
+                let hit_target = self.tree.hit_test_target(click_point);
 
-                // 1. If Preferences' own active dropdown popup is open, handle clicks on it first
-                if let Some(popup_rect) = targets.active_dropdown_popup_rect {
-                    if popup_rect.contains_point(click_point) {
-                        if let Some(&(idx, _, _)) = targets
-                            .active_dropdown_items
-                            .iter()
-                            .find(|(_, r, _)| r.contains_point(click_point))
-                            && let Some(dd_id) = self.preferences.dropdown
-                        {
-                            result.preferences_action =
-                                Some(PreferencesAction::SelectDropdownItem(dd_id, idx));
-                            self.preferences.dropdown = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
+                // 1. If Preferences' own active dropdown popup is open, query the hit widget directly
+                if let Some(dd_id) = self.preferences.dropdown {
+                    if let Some(ref hit) = hit_target
+                        && hit.layer == UiLayer::Popup
+                        && hit.role == WidgetRole::DropdownItem
+                    {
+                        let selected_idx = hit.tag as usize;
+                        result.preferences_action =
+                            Some(PreferencesAction::SelectDropdownItem(dd_id, selected_idx));
+                        self.preferences.dropdown = None;
+                        result.consumed = true;
+                        return Some(result);
                     } else {
+                        // Clicked outside dropdown items; dismiss the active dropdown
                         self.preferences.dropdown = None;
                     }
                 }
 
                 // Occlusion: If cursor is over an external active foreground popup, Preferences must NOT intercept the click
-                if self.is_point_over_popup(click_point) {
+                if hit_target
+                    .as_ref()
+                    .is_some_and(|h| h.layer == UiLayer::Popup)
+                {
                     return None;
                 }
 

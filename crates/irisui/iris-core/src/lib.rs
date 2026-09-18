@@ -32,7 +32,7 @@ pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
 pub use id::WidgetId;
 pub use node::{ExternalTextureId, UiLayer, WidgetNode, WidgetRole};
 pub use style::{AlignItems, FlexDirection, JustifyContent, Style, TextAlign};
-pub use tree::UiTree;
+pub use tree::{HitTargetInfo, UiTree};
 
 #[cfg(test)]
 mod tests {

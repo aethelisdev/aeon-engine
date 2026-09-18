@@ -619,9 +619,7 @@ impl EngineUi {
 
         if let Some(ref targets) = self.iris_overlay.preferences.targets
             && (targets.card_rect.contains_point(point)
-                || targets
-                    .active_dropdown_popup_rect
-                    .is_some_and(|r| r.contains_point(point)))
+                || self.iris_overlay.preferences.dropdown.is_some())
         {
             return true;
         }

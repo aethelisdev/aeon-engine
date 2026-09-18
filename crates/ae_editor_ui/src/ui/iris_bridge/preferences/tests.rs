@@ -169,6 +169,9 @@ fn test_preferences_dialog_builder_and_hit_targets() {
 fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
     let mut tree = UiTree::new();
     let root_id = tree.create_node();
+    if let Some(root_node) = tree.get_mut(root_id) {
+        root_node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
     let _ = tree.set_root(root_id);
 
     let collapsed = HashSet::new();
@@ -197,46 +200,31 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
         enabled_modules: &enabled_modules,
     };
 
-    let (_widget_id, targets) = build_preferences_dialog(&mut tree, params);
+    let (widget_id, targets) = build_preferences_dialog(&mut tree, params);
+    let _ = tree.add_child(root_id, widget_id);
 
-    // Verify that the dropdown popup rect was correctly computed
-    let popup_rect = targets
-        .active_dropdown_popup_rect
-        .expect("FpsLimit dropdown popup rect must be generated");
-    assert!(popup_rect.width > 50.0);
-    assert!(popup_rect.height > 20.0);
-
-    // Verify that active dropdown items were populated (e.g. 60 FPS, 120 FPS, Uncapped)
-    assert!(
-        !targets.active_dropdown_items.is_empty(),
-        "Active dropdown items must not be empty when dropdown is open"
-    );
-
-    // Pick the second item (e.g. 120 FPS) and verify hit-testing
-    let (target_idx, item_rect, ref _label) = targets.active_dropdown_items[1];
-    let click_point = Point::new(
-        item_rect.x + item_rect.width * 0.5,
-        item_rect.y + item_rect.height * 0.5,
-    );
-
-    // Must be inside both popup_rect and item_rect
-    assert!(
-        popup_rect.contains_point(click_point),
-        "Click on dropdown item must be contained within active_dropdown_popup_rect"
-    );
-    assert!(
-        item_rect.contains_point(click_point),
-        "Click on dropdown item must be contained within its item rect"
-    );
-
-    // Verify finding the matching item by click_point
-    let matched_item = targets
-        .active_dropdown_items
+    // Find the FpsLimit dropdown button rect from targets
+    let (_, btn_rect) = targets
+        .dropdowns
         .iter()
-        .find(|(_, r, _)| r.contains_point(click_point));
+        .find(|(id, _)| *id == super::types::PreferencesDropdownId::FpsLimit)
+        .expect("FpsLimit dropdown button must exist in targets");
+
+    // Compute expected second item (index 1: 120 FPS) click position
+    let item1_click_point = Point::new(
+        btn_rect.x + btn_rect.width * 0.5,
+        btn_rect.y + btn_rect.height + 4.0 + 24.0 + 10.0,
+    );
+
+    // Hit-test target directly on the UiTree with zero manual Rect lists
+    let hit = tree
+        .hit_test_target(item1_click_point)
+        .expect("Second dropdown item must be hit in retained UiTree");
+
+    assert_eq!(hit.layer, UiLayer::Popup);
+    assert_eq!(hit.role, WidgetRole::DropdownItem);
     assert_eq!(
-        matched_item.map(|(idx, _, _)| *idx),
-        Some(target_idx),
-        "Simulated click must cleanly match target dropdown item index"
+        hit.tag, 1,
+        "Item index tag must match second option (120 FPS)"
     );
 }

@@ -43,7 +43,7 @@ pub mod prelude {
     pub use iris_core::id::WidgetId;
     pub use iris_core::node::{ExternalTextureId, UiLayer, WidgetNode, WidgetRole};
     pub use iris_core::style::{AlignItems, FlexDirection, JustifyContent, Style, TextAlign};
-    pub use iris_core::tree::UiTree;
+    pub use iris_core::tree::{HitTargetInfo, UiTree};
 
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DockDragState, DockError,
@@ -70,10 +70,11 @@ pub mod prelude {
     };
     pub use iris_widgets::{
         AssetCardBuilder, ButtonBuilder, CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold,
-        CheckboxBuilder, ColorPickerBuilder, DragValueBuilder, DropdownBuilder,
-        DropdownMenuBuilder, HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets,
-        LabelBuilder, MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle,
-        PanelBuilder, PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder,
-        TabBuilder, TextInputBuilder, TextInputState, TreeItemBuilder, hsv_to_rgb, rgb_to_hsv,
+        CheckboxBuilder, ColorPickerBuilder, ComboboxPopupBuilder, ComboboxPopupFrame,
+        ComboboxPopupStyle, DragValueBuilder, DropdownBuilder, DropdownMenuBuilder,
+        HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, LabelBuilder,
+        MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle, PanelBuilder,
+        PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder,
+        TextInputBuilder, TextInputState, TreeItemBuilder, hsv_to_rgb, rgb_to_hsv,
     };
 }

@@ -75,8 +75,6 @@ pub fn build_preferences_dialog(
         toggles: Vec::new(),
         sliders: Vec::new(),
         dropdowns: Vec::new(),
-        active_dropdown_items: Vec::new(),
-        active_dropdown_popup_rect: None,
         section_toggles: Vec::new(),
         number_inputs: Vec::new(),
     };

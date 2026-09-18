@@ -140,6 +140,8 @@ pub struct WidgetNode {
     pub role: WidgetRole,
     /// Explicit stacking layer for Z-ordering, occlusion culling, and hit-test priority.
     pub layer: UiLayer,
+    /// User-defined numeric tag or action identifier associated with this node (e.g. dropdown item index).
+    pub tag: u64,
     /// Optional debug name for inspection and profiling.
     pub name: Option<String>,
 }
@@ -173,8 +175,22 @@ impl WidgetNode {
             interactive: true,
             role: WidgetRole::Default,
             layer: UiLayer::Content,
+            tag: 0,
             name: None,
         }
+    }
+
+    /// Sets the user-defined numeric tag or action identifier in a fluent builder style.
+    #[inline]
+    pub fn with_tag(mut self, tag: u64) -> Self {
+        self.tag = tag;
+        self
+    }
+
+    /// Sets the user-defined numeric tag or action identifier on this node.
+    #[inline]
+    pub fn set_tag(&mut self, tag: u64) {
+        self.tag = tag;
     }
 
     /// Sets the semantic functional role of the node, automatically updating the stacking layer if default.
@@ -360,5 +376,18 @@ mod tests {
 
         let custom_layer_node = WidgetNode::new(dummy_id).with_layer(UiLayer::Tooltip);
         assert_eq!(custom_layer_node.layer, UiLayer::Tooltip);
+    }
+
+    #[test]
+    fn test_widget_node_tag() {
+        let dummy_id = WidgetId::default();
+        let mut node = WidgetNode::new(dummy_id);
+        assert_eq!(node.tag, 0);
+
+        node.set_tag(42);
+        assert_eq!(node.tag, 42);
+
+        let tagged = WidgetNode::new(dummy_id).with_tag(101);
+        assert_eq!(tagged.tag, 101);
     }
 }

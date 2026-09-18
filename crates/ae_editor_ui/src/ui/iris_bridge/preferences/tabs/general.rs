@@ -244,68 +244,16 @@ pub fn build_general_tab(
 
         // Floating Popup list if open
         if is_open {
-            let popup_h = UI_SCALES.len() as f32 * 26.0 + 8.0;
-            let popup_rect =
-                Rect::new(combo_rect.x, combo_rect.y + 32.0, combo_rect.width, popup_h);
-            targets.active_dropdown_popup_rect = Some(popup_rect);
-
-            let popup_id = tree.create_node();
-            if let Some(node) = tree.get_mut(popup_id) {
-                node.set_name("UiScalePopup");
-                node.set_role(WidgetRole::DropdownPopup);
-                node.computed_rect = popup_rect;
-                node.style = Style::new()
-                    .background(Color::rgba(0.08, 0.09, 0.13, 0.98))
-                    .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.80))
-                    .border_radius(4.0)
-                    .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
-            }
-            let _ = tree.add_child(card_id, popup_id);
-
-            for (idx, &(val, label)) in UI_SCALES.iter().enumerate() {
-                let item_y = popup_rect.y + 4.0 + (idx as f32 * 26.0);
-                let item_rect = Rect::new(popup_rect.x + 4.0, item_y, popup_rect.width - 8.0, 24.0);
-                let is_item_hovered = item_rect.contains_point(params.cursor_pos);
-                let is_item_selected = (current_zoom - val).abs() < 0.01;
-
-                let item_id = tree.create_node();
-                if let Some(node) = tree.get_mut(item_id) {
-                    node.set_name("ScalePopupItem");
-                    node.computed_rect = item_rect;
-                    let item_bg = if is_item_selected {
-                        Color::rgba(0.0, 0.35, 0.45, 0.80)
-                    } else if is_item_hovered {
-                        Color::rgba(0.18, 0.20, 0.28, 0.90)
-                    } else {
-                        Color::rgba(0.0, 0.0, 0.0, 0.0)
-                    };
-                    node.style = Style::new().background(item_bg).border_radius(3.0);
-                }
-                let _ = tree.add_child(popup_id, item_id);
-
-                let item_lbl_id = tree.create_node();
-                if let Some(node) = tree.get_mut(item_lbl_id) {
-                    node.set_name("ScaleItemText");
-                    node.set_text(label);
-                    node.font_size = 11.5;
-                    node.line_height = 24.0;
-                    let text_color = if is_item_selected {
-                        Color::rgba(0.0, 0.90, 1.0, 1.0)
-                    } else if is_item_hovered {
-                        Color::rgba(1.0, 1.0, 1.0, 1.0)
-                    } else {
-                        Color::rgba(0.75, 0.78, 0.85, 1.0)
-                    };
-                    node.text_color = text_color;
-                    node.computed_rect =
-                        Rect::new(item_rect.x + 8.0, item_rect.y, item_rect.width - 16.0, 24.0);
-                }
-                let _ = tree.add_child(item_id, item_lbl_id);
-
-                targets
-                    .active_dropdown_items
-                    .push((idx, item_rect, label.to_string()));
-            }
+            let labels: Vec<&str> = UI_SCALES.iter().map(|(_, l)| *l).collect();
+            let selected_idx = UI_SCALES
+                .iter()
+                .position(|(val, _)| (current_zoom - val).abs() < 0.01);
+            ComboboxPopupBuilder::new(combo_rect)
+                .items(&labels)
+                .selected_index(selected_idx)
+                .cursor_pos(params.cursor_pos)
+                .name("UiScalePopup")
+                .build(tree, card_id);
         }
     }
 
