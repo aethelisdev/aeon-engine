@@ -158,8 +158,8 @@ mod tests {
         assert!(tree.get(dropdown_id).is_some());
 
         let mut menu_bar = MenuBarBuilder::new(&mut tree, 1920.0);
-        menu_bar.add_menu_button("File", false, false);
-        menu_bar.add_action_button("▶ Play", Color::GREEN, Color::WHITE, false);
+        menu_bar.add_menu_button(0, "File", false, false);
+        menu_bar.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
         let menu_id = menu_bar.build();
         assert!(tree.get(menu_id).is_some());
 

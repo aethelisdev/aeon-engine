@@ -140,10 +140,23 @@ impl IrisEditorOverlay {
             return;
         }
 
+        let cursor = self.cursor_pos();
+        let (hovered_menu, is_play_hovered) = if let Some(hit) = self.tree.hit_test_target(cursor) {
+            let menu = if hit.role == WidgetRole::MenuBarItem {
+                ActiveMenu::from_tag(hit.tag)
+            } else {
+                None
+            };
+            let play = hit.role == WidgetRole::Button && hit.tag == menubar::TAG_ACTION_PLAY_PAUSE;
+            (menu, play)
+        } else {
+            (None, false)
+        };
+
         self.tree.clear();
         self.layout_engine.clear();
         self.command_list.clear();
-        self.menubar.dropdown_items.clear();
+        self.menubar.actions.clear();
         self.chrome.floating_window_rects.clear();
         self.menubar.dropdown_rect = None;
         self.modals.about_targets = None;
@@ -220,11 +233,10 @@ impl IrisEditorOverlay {
             return;
         };
 
-        let cursor = self.cursor_pos();
-
-        if let Some(root_node) = self.tree.get_mut(root) {
-            root_node.set_name("IrisRoot");
-            root_node.set_style(
+        // Root container spans full viewport with column layout
+        if let Some(node) = self.tree.get_mut(root) {
+            node.set_name("IrisEditorRoot");
+            node.set_style(
                 Style::new()
                     .flex_col()
                     .justify_content(JustifyContent::SpaceBetween)
@@ -234,14 +246,16 @@ impl IrisEditorOverlay {
         }
 
         // 1. Top MenuBar
-        let menu_bar_id = menubar::build_top_menu_bar(
+        let menu_output = menubar::build_top_menu_bar(
             &mut self.tree,
             screen_width,
-            cursor,
             self.menubar.active_menu,
+            hovered_menu,
+            is_play_hovered,
             params.context.is_editing,
         );
-        let _ = self.tree.add_child(root, menu_bar_id);
+        let _ = self.tree.add_child(root, menu_output.root_id);
+        self.menubar.button_ids = menu_output.menu_button_ids.to_vec();
 
         // 2. Bottom Diagnostics & Status Bar
         let status_bar_id = status_bar::build_bottom_status_bar(
@@ -549,15 +563,16 @@ impl IrisEditorOverlay {
         // 6k. Top Menubar Dropdown Popup (Rendered as topmost overlay above all docked panels,
         // floating windows, and modal dialogs so it always has absolute top visual hierarchy)
         if let Some(active) = self.menubar.active_menu {
-            let anchor_x = match active {
-                ActiveMenu::File => 6.0,
-                ActiveMenu::Edit => 44.0,
-                ActiveMenu::View => 84.0,
-                ActiveMenu::Window => 126.0,
-                ActiveMenu::Help => 186.0,
-            };
+            let anchor_x = self
+                .menubar
+                .button_ids
+                .iter()
+                .find(|(m, _)| *m == active)
+                .and_then(|(_, id)| self.tree.get(*id))
+                .map(|n| n.computed_rect.x)
+                .unwrap_or(6.0);
 
-            let (dropdown_id, items, dd_rect) = menubar::build_floating_dropdown(
+            let (dropdown_id, actions, dd_rect) = menubar::build_floating_dropdown(
                 &mut self.tree,
                 active,
                 anchor_x,
@@ -570,7 +585,7 @@ impl IrisEditorOverlay {
             if let Some(root_id) = self.tree.root() {
                 let _ = self.tree.add_child(root_id, dropdown_id);
             }
-            self.menubar.dropdown_items = items;
+            self.menubar.actions = actions;
             self.menubar.dropdown_rect = Some(dd_rect);
         }
 

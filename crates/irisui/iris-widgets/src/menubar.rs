@@ -4,7 +4,8 @@
 //! Top application menu bar and dropdown menu item builders.
 
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, UiTree, WidgetId, WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Point, Style, TextAlign, UiTree, WidgetId,
+    WidgetRole,
 };
 
 /// Helper builder for the top horizontal application menu bar.
@@ -70,12 +71,16 @@ impl<'a> MenuBarBuilder<'a> {
     /// Appends a clickable text menu item (e.g. "File", "Edit", "View") to the left group.
     pub fn add_menu_button(
         &mut self,
+        tag: u64,
         label: impl Into<String>,
         is_active: bool,
         is_hovered: bool,
     ) -> WidgetId {
         let btn_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(btn_id) {
+            node.set_name("MenuBarItem");
+            node.set_role(WidgetRole::MenuBarItem);
+            node.set_tag(tag);
             node.set_text(label);
             node.font_size = 12.0;
             node.line_height = 14.0;
@@ -109,6 +114,7 @@ impl<'a> MenuBarBuilder<'a> {
     /// Appends an action control button (e.g. "▶ Play" or "⏹ Stop") to the right group.
     pub fn add_action_button(
         &mut self,
+        tag: u64,
         label: impl Into<String>,
         bg_color: Color,
         text_color: Color,
@@ -116,6 +122,9 @@ impl<'a> MenuBarBuilder<'a> {
     ) -> WidgetId {
         let btn_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(btn_id) {
+            node.set_name("MenuBarActionButton");
+            node.set_role(WidgetRole::Button);
+            node.set_tag(tag);
             node.set_text(label);
             node.font_size = 11.0;
             node.line_height = 13.0;
@@ -155,6 +164,10 @@ impl<'a> MenuBarBuilder<'a> {
 pub struct DropdownMenuBuilder<'a> {
     tree: &'a mut UiTree,
     node_id: WidgetId,
+    x: f32,
+    y: f32,
+    width: f32,
+    curr_y: f32,
 }
 
 impl<'a> DropdownMenuBuilder<'a> {
@@ -164,6 +177,7 @@ impl<'a> DropdownMenuBuilder<'a> {
         if let Some(node) = tree.get_mut(node_id) {
             node.set_name("DropdownMenu");
             node.set_role(WidgetRole::DropdownPopup);
+            node.set_layer(iris_core::UiLayer::Popup);
             node.set_style(
                 Style::new()
                     .flex_col()
@@ -178,18 +192,28 @@ impl<'a> DropdownMenuBuilder<'a> {
             node.computed_rect.y = y;
         }
 
-        Self { tree, node_id }
+        Self {
+            tree,
+            node_id,
+            x,
+            y,
+            width,
+            curr_y: y + 4.0,
+        }
     }
 
     /// Appends a clickable menu item row with left icon, label, and right shortcut in distinct columns.
     pub fn add_item(
         &mut self,
+        tag: u64,
         icon: &str,
         label: &str,
         shortcut: Option<&str>,
         enabled: bool,
-        is_hovered: bool,
+        cursor_pos: Point,
     ) -> WidgetId {
+        let row_rect = iris_core::Rect::new(self.x + 4.0, self.curr_y, self.width - 8.0, 24.0);
+        let is_hovered = enabled && row_rect.contains_point(cursor_pos);
         let row_id = self.tree.create_node();
 
         let (text_color, bg) = if !enabled {
@@ -200,11 +224,16 @@ impl<'a> DropdownMenuBuilder<'a> {
             (Color::hex("#dcdce2"), Color::TRANSPARENT)
         };
 
+        let mut text_x = row_rect.x + 6.0;
         if !icon.is_empty() {
+            let icon_rect = iris_core::Rect::new(text_x, row_rect.y + 5.0, 18.0, 14.0);
             let icon_id = self.tree.create_node();
             if let Some(node) = self.tree.get_mut(icon_id) {
                 node.set_name("DropdownIcon");
                 node.set_role(WidgetRole::DropdownIcon);
+                node.set_layer(iris_core::UiLayer::Popup);
+                node.interactive = false;
+                node.computed_rect = icon_rect;
                 node.set_text(icon);
                 node.font_size = 12.0;
                 node.line_height = 14.0;
@@ -212,12 +241,19 @@ impl<'a> DropdownMenuBuilder<'a> {
                 node.text_color = text_color;
             }
             let _ = self.tree.add_child(row_id, icon_id);
+            text_x += 22.0;
         }
 
+        let sc_w = if shortcut.is_some() { 70.0 } else { 0.0 };
+        let label_w = (row_rect.right() - text_x - sc_w - 6.0).max(10.0);
+        let label_rect = iris_core::Rect::new(text_x, row_rect.y + 5.0, label_w, 14.0);
         let label_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(label_id) {
             node.set_name("DropdownLabel");
             node.set_role(WidgetRole::DropdownLabel);
+            node.set_layer(iris_core::UiLayer::Popup);
+            node.interactive = false;
+            node.computed_rect = label_rect;
             node.set_text(label);
             node.font_size = 12.0;
             node.line_height = 14.0;
@@ -227,10 +263,15 @@ impl<'a> DropdownMenuBuilder<'a> {
         let _ = self.tree.add_child(row_id, label_id);
 
         if let Some(sc) = shortcut {
+            let sc_rect =
+                iris_core::Rect::new(row_rect.right() - 68.0, row_rect.y + 5.0, 62.0, 14.0);
             let sc_id = self.tree.create_node();
             if let Some(sc_node) = self.tree.get_mut(sc_id) {
                 sc_node.set_name("DropdownShortcut");
                 sc_node.set_role(WidgetRole::DropdownShortcut);
+                sc_node.set_layer(iris_core::UiLayer::Popup);
+                sc_node.interactive = false;
+                sc_node.computed_rect = sc_rect;
                 sc_node.set_text(sc);
                 sc_node.font_size = 11.0;
                 sc_node.line_height = 14.0;
@@ -251,6 +292,9 @@ impl<'a> DropdownMenuBuilder<'a> {
         if let Some(row_node) = self.tree.get_mut(row_id) {
             row_node.set_name("DropdownItem");
             row_node.set_role(WidgetRole::DropdownItem);
+            row_node.set_layer(iris_core::UiLayer::Popup);
+            row_node.set_tag(tag);
+            row_node.computed_rect = row_rect;
             row_node.set_style(
                 Style::new()
                     .height(24.0)
@@ -265,15 +309,21 @@ impl<'a> DropdownMenuBuilder<'a> {
         }
 
         let _ = self.tree.add_child(self.node_id, row_id);
+        self.curr_y += 24.0;
         row_id
     }
 
     /// Appends a subtle 1px horizontal separator divider line.
     pub fn add_separator(&mut self) -> WidgetId {
+        self.curr_y += 3.0;
+        let sep_rect = iris_core::Rect::new(self.x + 4.0, self.curr_y, self.width - 8.0, 1.0);
         let sep_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(sep_id) {
             node.set_name("DropdownSeparator");
             node.set_role(WidgetRole::Separator);
+            node.set_layer(iris_core::UiLayer::Popup);
+            node.interactive = false;
+            node.computed_rect = sep_rect;
             node.set_style(
                 Style::new()
                     .height(1.0)
@@ -283,12 +333,80 @@ impl<'a> DropdownMenuBuilder<'a> {
         }
 
         let _ = self.tree.add_child(self.node_id, sep_id);
+        self.curr_y += 4.0;
         sep_id
     }
 
-    /// Consumes the builder and returns the root `WidgetId` of the dropdown.
+    /// Consumes the builder, updates the bounding box of the dropdown, and returns the root `WidgetId` and bounding `Rect`.
     #[inline]
-    pub fn build(self) -> WidgetId {
-        self.node_id
+    pub fn build(self) -> (WidgetId, iris_core::Rect) {
+        let card_rect = iris_core::Rect::new(
+            self.x,
+            self.y,
+            self.width,
+            (self.curr_y - self.y + 4.0).max(30.0),
+        );
+        if let Some(node) = self.tree.get_mut(self.node_id) {
+            node.computed_rect = card_rect;
+        }
+        (self.node_id, card_rect)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iris_core::{Point, UiLayer};
+
+    #[test]
+    fn test_menu_bar_builder_tag_and_roles() {
+        let mut tree = UiTree::new();
+        let mut builder = MenuBarBuilder::new(&mut tree, 1280.0);
+        let btn_file = builder.add_menu_button(0, "File", false, false);
+        let btn_edit = builder.add_menu_button(1, "Edit", true, false);
+        let btn_play = builder.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
+        let root = builder.build();
+
+        assert_eq!(tree.get(btn_file).unwrap().tag, 0);
+        assert_eq!(tree.get(btn_file).unwrap().role, WidgetRole::MenuBarItem);
+        assert_eq!(tree.get(btn_edit).unwrap().tag, 1);
+        assert_eq!(tree.get(btn_edit).unwrap().role, WidgetRole::MenuBarItem);
+        assert_eq!(tree.get(btn_play).unwrap().tag, 100);
+        assert_eq!(tree.get(btn_play).unwrap().role, WidgetRole::Button);
+        assert!(tree.get(root).is_some());
+    }
+
+    #[test]
+    fn test_dropdown_menu_builder_hit_testing() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+        let mut dd = DropdownMenuBuilder::new(&mut tree, 100.0, 26.0, 200.0);
+        dd.add_item(10, "🗎", "New", Some("Ctrl N"), true, Point::ZERO);
+        dd.add_separator();
+        dd.add_item(11, "🖫", "Save", Some("Ctrl S"), true, Point::ZERO);
+        let (dd_id, dd_rect) = dd.build();
+        let _ = tree.add_child(root, dd_id);
+
+        assert_eq!(dd_rect.x, 100.0);
+        assert_eq!(dd_rect.y, 26.0);
+        assert_eq!(dd_rect.width, 200.0);
+        assert!(tree.get(dd_id).is_some());
+
+        // Hit test first item (y = 26 + 4 + 10 = 40.0)
+        let hit_item = tree.hit_test_target(Point::new(120.0, 40.0));
+        assert!(hit_item.is_some());
+        let info = hit_item.unwrap();
+        assert_eq!(info.role, WidgetRole::DropdownItem);
+        assert_eq!(info.layer, UiLayer::Popup);
+        assert_eq!(info.tag, 10);
+
+        // Hit test second item (after separator)
+        let hit_save = tree.hit_test_target(Point::new(120.0, 68.0));
+        assert!(hit_save.is_some());
+        let info_save = hit_save.unwrap();
+        assert_eq!(info_save.role, WidgetRole::DropdownItem);
+        assert_eq!(info_save.layer, UiLayer::Popup);
+        assert_eq!(info_save.tag, 11);
     }
 }

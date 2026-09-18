@@ -37,6 +37,10 @@ pub enum WidgetRole {
     FloatingWindow,
     /// Canvas for drawing real-time audio or profiler oscilloscope curves.
     OscilloscopeCanvas,
+    /// Clickable menu bar header button (e.g. File, Edit, View, Window, Help).
+    MenuBarItem,
+    /// General-purpose clickable push button or action control.
+    Button,
 }
 
 /// Explicit rendering and interaction stacking layer (stacking context) in the UI hierarchy.
@@ -83,9 +87,11 @@ impl WidgetRole {
     #[inline]
     pub const fn default_layer(&self) -> UiLayer {
         match self {
-            WidgetRole::Default | WidgetRole::Separator | WidgetRole::OscilloscopeCanvas => {
-                UiLayer::Content
-            }
+            WidgetRole::Default
+            | WidgetRole::Separator
+            | WidgetRole::OscilloscopeCanvas
+            | WidgetRole::MenuBarItem
+            | WidgetRole::Button => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
             WidgetRole::ModalWindow => UiLayer::Modal,
             WidgetRole::DropdownPopup

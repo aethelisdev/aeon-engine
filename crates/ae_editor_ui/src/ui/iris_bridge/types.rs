@@ -43,6 +43,33 @@ pub enum ActiveMenu {
     Help,
 }
 
+impl ActiveMenu {
+    /// Converts this menu category to its numeric widget tag.
+    #[inline]
+    pub const fn to_tag(self) -> u64 {
+        match self {
+            Self::File => 0,
+            Self::Edit => 1,
+            Self::View => 2,
+            Self::Window => 3,
+            Self::Help => 4,
+        }
+    }
+
+    /// Resolves an active menu category from its numeric widget tag.
+    #[inline]
+    pub const fn from_tag(tag: u64) -> Option<Self> {
+        match tag {
+            0 => Some(Self::File),
+            1 => Some(Self::Edit),
+            2 => Some(Self::View),
+            3 => Some(Self::Window),
+            4 => Some(Self::Help),
+            _ => None,
+        }
+    }
+}
+
 /// Action payload dispatched from clicking a dropdown menu item.
 #[derive(Debug, Clone)]
 pub enum DropdownAction {
@@ -144,8 +171,10 @@ impl<TTargets, TAction> PanelInteractionState<TTargets, TAction> {
 pub struct MenubarOverlayState {
     /// Currently open dropdown menu category.
     pub active_menu: Option<ActiveMenu>,
-    /// Interactive dropdown item hit-testing targets.
-    pub dropdown_items: Vec<(Rect, DropdownAction)>,
+    /// Widget identifiers of active top menu header buttons for dynamic coordinate resolution.
+    pub button_ids: Vec<(ActiveMenu, WidgetId)>,
+    /// Dispatched action callbacks indexed by numeric tag from active dropdown items.
+    pub actions: Vec<DropdownAction>,
     /// Cached bounding box of the active floating dropdown.
     pub dropdown_rect: Option<Rect>,
 }

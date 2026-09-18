@@ -23,15 +23,12 @@ impl IrisEditorOverlay {
             return CursorIcon::EwResize;
         }
 
-        // 0. Top Menubar buttons
-        if p.y <= Self::MENUBAR_HEIGHT {
-            return CursorIcon::Pointer;
-        }
-
-        // 0b. Foreground popup items (Combobox / Dropdown popups across all panels)
+        // 0. Top Menubar buttons & Foreground popup items
         if let Some(hit) = self.tree.hit_test_target(p)
-            && hit.layer == UiLayer::Popup
-            && hit.role == WidgetRole::DropdownItem
+            && (hit.role == WidgetRole::MenuBarItem
+                || (hit.role == WidgetRole::Button
+                    && hit.tag == super::super::menubar::TAG_ACTION_PLAY_PAUSE)
+                || (hit.layer == UiLayer::Popup && hit.role == WidgetRole::DropdownItem))
         {
             return CursorIcon::Pointer;
         }
