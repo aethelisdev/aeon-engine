@@ -17,6 +17,7 @@ pub mod color_picker;
 pub mod input;
 pub mod inspector;
 pub mod menubar;
+pub mod modal;
 pub mod panel;
 pub mod status_bar;
 pub mod typography;
@@ -32,6 +33,7 @@ pub use input::{
 };
 pub use inspector::{ColorPickerBuilder, DropdownBuilder, PropertyRowBuilder};
 pub use menubar::{DropdownMenuBuilder, MenuBarBuilder};
+pub use modal::{ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle};
 pub use panel::PanelBuilder;
 pub use status_bar::StatusBarBuilder;
 pub use typography::{LabelBuilder, SectionHeaderBuilder};

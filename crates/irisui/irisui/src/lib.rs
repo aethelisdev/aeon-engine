@@ -72,8 +72,8 @@ pub mod prelude {
         AssetCardBuilder, ButtonBuilder, CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold,
         CheckboxBuilder, ColorPickerBuilder, DragValueBuilder, DropdownBuilder,
         DropdownMenuBuilder, HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets,
-        LabelBuilder, MenuBarBuilder, PanelBuilder, PropertyRowBuilder, SectionHeaderBuilder,
-        SliderBuilder, StatusBarBuilder, TabBuilder, TextInputBuilder, TextInputState,
-        TreeItemBuilder, hsv_to_rgb, rgb_to_hsv,
+        LabelBuilder, MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle,
+        PanelBuilder, PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder,
+        TabBuilder, TextInputBuilder, TextInputState, TreeItemBuilder, hsv_to_rgb, rgb_to_hsv,
     };
 }
