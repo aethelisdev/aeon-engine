@@ -72,12 +72,13 @@ pub mod prelude {
         ExternalTextures, IrisRenderer, QuadInstance, TextureQuadInstance, TextureQuadPipeline,
     };
     pub use iris_widgets::{
-        AssetCardBuilder, ButtonBuilder, CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold,
-        CheckboxBuilder, ColorPickerBuilder, ComboboxPopupBuilder, ComboboxPopupFrame,
-        ComboboxPopupStyle, DragValueBuilder, DropdownBuilder, DropdownMenuBuilder,
-        HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, LabelBuilder,
-        MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle, PanelBuilder,
-        PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder,
-        TextInputBuilder, TextInputState, TreeItemBuilder, hsv_to_rgb, rgb_to_hsv,
+        AssetCardBuilder, ButtonBuilder, CanvasBuilder, CascadingMenuBuilder, CascadingMenuFrame,
+        CascadingMenuIcon, CascadingMenuItem, CascadingMenuStyle, ChartDrawer, ChartStyle,
+        ChartThreshold, CheckboxBuilder, ColorPickerBuilder, ComboboxPopupBuilder,
+        ComboboxPopupFrame, ComboboxPopupStyle, DragValueBuilder, DropdownBuilder,
+        DropdownMenuBuilder, HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets,
+        LabelBuilder, MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle,
+        PanelBuilder, PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder,
+        TabBuilder, TextInputBuilder, TextInputState, TreeItemBuilder, hsv_to_rgb, rgb_to_hsv,
     };
 }

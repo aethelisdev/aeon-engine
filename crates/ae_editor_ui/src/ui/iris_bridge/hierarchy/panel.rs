@@ -99,72 +99,20 @@ pub fn handle_hierarchy_click(
         }
     }
 
-    // 2. Cascading Add Menu Sub-Submenu Interaction (Level 3)
-    if let Some(sub2_rect) = targets.active_sub_submenu_rect
-        && sub2_rect.contains_point(point)
-    {
-        for (item_rect, action) in &targets.submenu_items {
-            if item_rect.contains_point(point) {
-                out_actions.push(action.clone());
-                out_actions.push(HierarchyAction::CloseAddMenu);
-                out_actions.push(HierarchyAction::CloseSubmenu);
-                out_actions.push(HierarchyAction::CloseSubSubmenu);
-                return true;
-            }
+    // 2. Cascading Add Menu Outside-Click Check
+    // (Actual item click dispatch is resolved via zero-allocation UiTree hit-testing)
+    if !targets.active_add_menu_rects.is_empty() {
+        let inside_menu = targets
+            .active_add_menu_rects
+            .iter()
+            .any(|r| r.contains_point(point));
+        if !inside_menu && !targets.add_btn_rect.contains_point(point) {
+            out_actions.push(HierarchyAction::CloseAddMenu);
+            out_actions.push(HierarchyAction::CloseSubmenu);
+            out_actions.push(HierarchyAction::CloseSubSubmenu);
+        } else if inside_menu {
+            return true;
         }
-        return true;
-    }
-
-    // 3. Cascading Add Menu Submenu Interaction (Level 2)
-    if let Some(sub_rect) = targets.active_submenu_rect
-        && sub_rect.contains_point(point)
-    {
-        for (branch_rect, sub_id) in &targets.submenu_branch_items {
-            if branch_rect.contains_point(point) {
-                out_actions.push(HierarchyAction::OpenSubSubmenu(*sub_id));
-                return true;
-            }
-        }
-        for (item_rect, action) in &targets.submenu_items {
-            if item_rect.contains_point(point) {
-                out_actions.push(action.clone());
-                out_actions.push(HierarchyAction::CloseAddMenu);
-                out_actions.push(HierarchyAction::CloseSubmenu);
-                out_actions.push(HierarchyAction::CloseSubSubmenu);
-                return true;
-            }
-        }
-        return true;
-    }
-
-    // 4. Cascading Add Menu Root Card Interaction (Level 1)
-    if let Some(card_rect) = targets.active_add_menu_rect
-        && card_rect.contains_point(point)
-    {
-        for (item_rect, target_payload) in &targets.add_menu_items {
-            if item_rect.contains_point(point) {
-                match target_payload {
-                    Ok(submenu_id) => {
-                        out_actions.push(HierarchyAction::OpenSubmenu(*submenu_id));
-                        out_actions.push(HierarchyAction::CloseSubSubmenu);
-                    }
-                    Err(action) => {
-                        out_actions.push(action.clone());
-                        out_actions.push(HierarchyAction::CloseAddMenu);
-                        out_actions.push(HierarchyAction::CloseSubmenu);
-                        out_actions.push(HierarchyAction::CloseSubSubmenu);
-                    }
-                }
-                return true;
-            }
-        }
-        return true;
-    }
-
-    if targets.active_add_menu_rect.is_some() {
-        out_actions.push(HierarchyAction::CloseAddMenu);
-        out_actions.push(HierarchyAction::CloseSubmenu);
-        out_actions.push(HierarchyAction::CloseSubSubmenu);
     }
 
     // 4. Header `➕` Add Menu Button
@@ -219,21 +167,9 @@ pub fn handle_hierarchy_click(
 
 /// Handles interactive hover events on the Scene Hierarchy panel.
 pub fn handle_hierarchy_hover(
-    point: Point,
-    targets: &HierarchyPanelTargets,
-    out_actions: &mut Vec<HierarchyAction>,
+    _point: Point,
+    _targets: &HierarchyPanelTargets,
+    _out_actions: &mut Vec<HierarchyAction>,
 ) -> bool {
-    // Check submenu hover switching if Add Menu is open
-    if targets.active_add_menu_rect.is_some() {
-        for (item_rect, target_payload) in &targets.add_menu_items {
-            if item_rect.contains_point(point)
-                && let Ok(submenu_id) = target_payload
-            {
-                out_actions.push(HierarchyAction::OpenSubmenu(*submenu_id));
-                return true;
-            }
-        }
-    }
-
     false
 }

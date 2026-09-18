@@ -37,6 +37,35 @@ pub enum AddSubmenuId {
     StressBenchmarks,
 }
 
+impl AddSubmenuId {
+    /// Converts the submenu variant into a unique numeric tag for widget routing.
+    #[inline]
+    pub const fn to_tag(self) -> u64 {
+        match self {
+            Self::Objects3D => 1,
+            Self::Objects2D => 2,
+            Self::UiCanvas => 3,
+            Self::HudPresets => 4,
+            Self::AssetsPrefabs => 5,
+            Self::StressBenchmarks => 6,
+        }
+    }
+
+    /// Reconstructs the submenu variant from a widget tag if it represents a branch.
+    #[inline]
+    pub const fn from_tag(tag: u64) -> Option<Self> {
+        match tag {
+            1 => Some(Self::Objects3D),
+            2 => Some(Self::Objects2D),
+            3 => Some(Self::UiCanvas),
+            4 => Some(Self::HudPresets),
+            5 => Some(Self::AssetsPrefabs),
+            6 => Some(Self::StressBenchmarks),
+            _ => None,
+        }
+    }
+}
+
 /// Actions dispatched from the Hierarchy panel to the engine UI processor.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HierarchyAction {
@@ -109,18 +138,8 @@ pub struct HierarchyPanelTargets {
     pub scroll_container_rect: Rect,
     /// Clickable entity rows: `(entity, row_rect, eye_btn_rect, foldout_rect)`.
     pub entity_rows: Vec<(hecs::Entity, Rect, Rect, Option<Rect>)>,
-    /// Bounding rectangle of the active Add Menu root card (if open).
-    pub active_add_menu_rect: Option<Rect>,
-    /// Bounding rectangle of the active Add Menu submenu card (if open).
-    pub active_submenu_rect: Option<Rect>,
-    /// Bounding rectangle of the active Add Menu nested sub-submenu card (if open).
-    pub active_sub_submenu_rect: Option<Rect>,
-    /// Add menu main category item targets: `(item_rect, submenu_id_or_action)`.
-    pub add_menu_items: Vec<(Rect, Result<AddSubmenuId, HierarchyAction>)>,
-    /// Add menu submenu branch item targets: `(item_rect, sub_submenu_id)`.
-    pub submenu_branch_items: Vec<(Rect, AddSubmenuId)>,
-    /// Add menu submenu item targets: `(item_rect, action)`.
-    pub submenu_items: Vec<(Rect, HierarchyAction)>,
+    /// Bounding rectangles of all active cascading Add Menu popup cards (if open).
+    pub active_add_menu_rects: Vec<Rect>,
     /// Right-click context menu target: `(target_entity, menu_rect, delete_btn_rect, toggle_vis_btn_rect)`.
     pub active_context_menu: Option<(hecs::Entity, Rect, Rect, Rect)>,
 }

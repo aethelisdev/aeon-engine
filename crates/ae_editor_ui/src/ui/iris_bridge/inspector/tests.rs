@@ -731,3 +731,52 @@ fn test_inspector_dropdown_popup_combobox_builder_and_hit_testing() {
     assert_eq!(hit2.role, WidgetRole::DropdownItem);
     assert_eq!(hit2.tag, 2);
 }
+
+/// Verifies that the cascading Add Component menu renders properly via [`CascadingMenuBuilder`],
+/// supports multi-level flyout submenus, and provides $O(1)$ zero-allocation hit-testing for components.
+#[test]
+fn test_inspector_cascading_add_component_menu_builder_and_hit_testing() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let _ = tree.set_root(root);
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
+
+    let mut world = hecs::World::new();
+    let ent = world.spawn(());
+
+    let mut targets = InspectorPanelTargets {
+        add_component_btn_rect: Rect::new(100.0, 400.0, 150.0, 24.0),
+        ..Default::default()
+    };
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let mut params = create_default_test_params(&world, Some(ent), &euler, &swatches);
+    params.is_add_menu_open = true;
+    params.active_submenu = Some(ComponentCategory::Physics);
+    params.cursor_pos = Point::new(120.0, 390.0);
+
+    add_menu::build_add_component_menu(&mut tree, root, &params, &mut targets);
+
+    assert!(
+        targets.active_add_component_rects.len() >= 2,
+        "Both root Add Component card and Physics submenu card must be rendered"
+    );
+
+    let sub_rect = targets.active_add_component_rects[1];
+    let click_point = Point::new(sub_rect.x + 20.0, sub_rect.y + 10.0);
+
+    let hit = tree
+        .hit_test_target(click_point)
+        .expect("Must hit component item in submenu");
+    assert_eq!(hit.layer, UiLayer::Popup);
+    assert_eq!(hit.role, WidgetRole::DropdownItem);
+
+    let resolved_name = add_menu::resolve_component_name_from_tag(hit.tag);
+    assert!(
+        resolved_name.is_some(),
+        "Hit tag must resolve to a valid component name"
+    );
+}

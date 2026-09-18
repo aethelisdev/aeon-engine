@@ -301,6 +301,37 @@ impl ComponentCategory {
             Self::CustomDynamic => "⚡",
         }
     }
+
+    /// Converts the component category into a unique numeric tag for widget routing.
+    #[inline]
+    pub const fn to_tag(self) -> u64 {
+        match self {
+            Self::Animation => 1,
+            Self::Audio => 2,
+            Self::Gameplay => 3,
+            Self::Hierarchy => 4,
+            Self::Physics => 5,
+            Self::Rendering => 6,
+            Self::UiHud => 7,
+            Self::CustomDynamic => 8,
+        }
+    }
+
+    /// Reconstructs the component category from a widget tag if it represents a branch.
+    #[inline]
+    pub const fn from_tag(tag: u64) -> Option<Self> {
+        match tag {
+            1 => Some(Self::Animation),
+            2 => Some(Self::Audio),
+            3 => Some(Self::Gameplay),
+            4 => Some(Self::Hierarchy),
+            5 => Some(Self::Physics),
+            6 => Some(Self::Rendering),
+            7 => Some(Self::UiHud),
+            8 => Some(Self::CustomDynamic),
+            _ => None,
+        }
+    }
 }
 
 /// User actions emitted by interactive widgets in the Inspector panel.
@@ -528,14 +559,8 @@ pub struct InspectorPanelTargets {
     pub add_component_btn_rect: Rect,
     /// `💾 Save as Prefab` button bounding box.
     pub save_prefab_btn_rect: Rect,
-    /// Bounding rectangle of the top-level Add Component menu.
-    pub active_add_menu_rect: Option<Rect>,
-    /// Interactive items inside the top-level Add Component menu: `(Category, Rect)`.
-    pub add_menu_categories: Vec<(ComponentCategory, Rect)>,
-    /// Bounding rectangle of the cascading Add Component submenu flyout.
-    pub active_submenu_rect: Option<Rect>,
-    /// Interactive items inside the cascading Add Component submenu: `(ComponentName, Rect)`.
-    pub submenu_components: Vec<(&'static str, Rect)>,
+    /// Bounding rectangles of all active cascading Add Component popup cards (if open).
+    pub active_add_component_rects: Vec<Rect>,
     /// Audio file picker `📁` button hit-test rect.
     pub audio_pick_btn_rect: Option<Rect>,
     /// Audio play/stop preview toggle button hit-test rect.

@@ -13,6 +13,7 @@
 pub mod asset_card;
 pub mod button;
 pub mod canvas;
+pub mod cascading_menu;
 pub mod color_picker;
 pub mod dropdown;
 pub mod input;
@@ -26,6 +27,10 @@ pub mod typography;
 pub use asset_card::{AssetCardBuilder, TreeItemBuilder};
 pub use button::{ButtonBuilder, TabBuilder};
 pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
+pub use cascading_menu::{
+    CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
+    CascadingMenuStyle,
+};
 pub use color_picker::{
     HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, hsv_to_rgb, rgb_to_hsv,
 };

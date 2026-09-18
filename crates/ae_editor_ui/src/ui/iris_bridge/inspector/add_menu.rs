@@ -3,153 +3,48 @@
 
 //! # Cascading `➕ Add Component` Menu Builder
 //!
-//! Renders the 8-category cascading floating dropdown menu for attaching components.
+//! Provides the data-driven cascading dropdown menu tree for attaching ECS components
+//! via [`CascadingMenuBuilder`].
+//!
+//! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use super::registry::InspectorRegistry;
 use super::types::{ComponentCategory, InspectorPanelParams, InspectorPanelTargets};
 use irisui::prelude::*;
 
-/// Builds the cascading Add Component menu and its active category submenu.
-pub fn build_add_component_menu(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &InspectorPanelParams<'_>,
-    targets: &mut InspectorPanelTargets,
-) {
-    targets.active_add_menu_rect = None;
-    targets.active_submenu_rect = None;
-    targets.add_menu_categories.clear();
-    targets.submenu_components.clear();
-
-    if !params.is_add_menu_open {
-        return;
+/// Computes a stable, collision-resistant 64-bit FNV-1a hash tag for an attachable component type name.
+#[inline]
+pub fn component_name_to_tag(name: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in name.as_bytes() {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
     }
-
-    let menu_x = targets.add_component_btn_rect.x;
-    let menu_w = 175.0;
-    let item_h = 22.0;
-
-    let all_categories = [
-        ComponentCategory::Animation,
-        ComponentCategory::Audio,
-        ComponentCategory::Gameplay,
-        ComponentCategory::Hierarchy,
-        ComponentCategory::Physics,
-        ComponentCategory::Rendering,
-        ComponentCategory::UiHud,
-        ComponentCategory::CustomDynamic,
-    ];
-
-    let categories: Vec<ComponentCategory> = all_categories
-        .into_iter()
-        .filter(|&cat| category_has_available(cat, params.world, params.selected_entity))
-        .collect();
-
-    if categories.is_empty() {
-        return;
-    }
-
-    let total_h = (categories.len() as f32) * item_h + 8.0;
-    let menu_y = (targets.add_component_btn_rect.y - total_h - 2.0).max(30.0);
-    let card_rect = Rect::new(menu_x, menu_y, menu_w, total_h);
-    targets.active_add_menu_rect = Some(card_rect);
-
-    // Root Add Menu Card
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("AddComponentMenuPopup");
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.086, 0.090, 0.106, 0.98))
-            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90)) // Clean neutral dark border
-            .border_radius(5.0)
-            .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    let mut cur_y = menu_y + 4.0;
-    let mut submenu_anchor_y = cur_y;
-
-    for cat in categories {
-        let item_rect = Rect::new(menu_x + 4.0, cur_y, menu_w - 8.0, item_h);
-        let is_hovered = item_rect.contains_point(params.cursor_pos);
-        let is_active_sub = params.active_submenu == Some(cat);
-
-        if is_active_sub {
-            submenu_anchor_y = cur_y;
-        }
-
-        let (bg, text_col) = if is_active_sub || is_hovered {
-            (Color::rgba(0.157, 0.165, 0.188, 0.98), Color::WHITE)
-        } else {
-            (Color::TRANSPARENT, Color::rgba(0.886, 0.894, 0.918, 1.0))
-        };
-
-        let row_id = tree.create_node();
-        if let Some(node) = tree.get_mut(row_id) {
-            node.set_name(format!("AddCategory_{:?}", cat));
-            node.computed_rect = item_rect;
-            node.style = Style::new().background(bg).border_radius(3.0);
-        }
-        let _ = tree.add_child(card_id, row_id);
-
-        // Category Icon
-        let ic_id = tree.create_node();
-        if let Some(node) = tree.get_mut(ic_id) {
-            node.set_name("CategoryIcon");
-            node.set_text(cat.icon());
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
-        }
-        let _ = tree.add_child(row_id, ic_id);
-
-        // Category Label
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("CategoryLabel");
-            node.set_text(cat.title());
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.text_color = text_col;
-            node.computed_rect =
-                Rect::new(item_rect.x + 24.0, cur_y, item_rect.width - 40.0, item_h);
-        }
-        let _ = tree.add_child(row_id, lbl_id);
-
-        // Submenu Arrow "▸"
-        let arw_id = tree.create_node();
-        if let Some(node) = tree.get_mut(arw_id) {
-            node.set_name("CategoryArrow");
-            node.set_text("▸");
-            node.font_size = 10.0;
-            node.line_height = item_h;
-            node.text_align = TextAlign::Right;
-            node.text_color = Color::rgba(0.54, 0.56, 0.60, 1.0);
-            node.computed_rect = Rect::new(item_rect.right() - 16.0, cur_y, 12.0, item_h);
-        }
-        let _ = tree.add_child(row_id, arw_id);
-
-        targets.add_menu_categories.push((cat, item_rect));
-        cur_y += item_h;
-    }
-
-    // Build Active Category Submenu if open
-    if let Some(cat) = params.active_submenu {
-        build_category_submenu(
-            tree,
-            parent_id,
-            menu_x + menu_w + 2.0,
-            submenu_anchor_y,
-            cat,
-            params,
-            targets,
-        );
-    }
+    if hash < 1000 { hash + 1000 } else { hash }
 }
 
-/// Checks if a component category has at least one attachable component for the entity.
+/// Resolves a numeric menu item tag into its canonical component type name.
+pub fn resolve_component_name_from_tag(tag: u64) -> Option<&'static str> {
+    let registry = InspectorRegistry::global();
+    for handler in registry.handlers() {
+        let name = handler.component_name();
+        if component_name_to_tag(name) == tag {
+            return Some(name);
+        }
+    }
+
+    let comp_registry = ae_core::registry::ComponentRegistry::global();
+    for handler in comp_registry.handlers() {
+        let name = handler.type_name();
+        if component_name_to_tag(name) == tag {
+            return Some(name);
+        }
+    }
+
+    None
+}
+
+/// Checks if a component category has at least one attachable component for the selected entity.
 fn category_has_available(
     cat: ComponentCategory,
     world: &hecs::World,
@@ -185,151 +80,129 @@ fn category_has_available(
     }
 }
 
-/// Component item descriptor representing an attachable entry in the submenu.
-struct SubmenuItemEntry {
-    comp_name: &'static str,
-    display_title: &'static str,
-    icon: &'static str,
-    atlas_icon: Option<[f32; 4]>,
-    header_color: Color,
-}
+/// Constructs the declarative cascading menu item hierarchy for `➕ Add Component`.
+pub fn get_add_component_menu_items(
+    world: &hecs::World,
+    entity: Option<hecs::Entity>,
+) -> Vec<CascadingMenuItem> {
+    let all_categories = [
+        ComponentCategory::Animation,
+        ComponentCategory::Audio,
+        ComponentCategory::Gameplay,
+        ComponentCategory::Hierarchy,
+        ComponentCategory::Physics,
+        ComponentCategory::Rendering,
+        ComponentCategory::UiHud,
+        ComponentCategory::CustomDynamic,
+    ];
 
-/// Builds the cascading flyout submenu for a specific component category.
-fn build_category_submenu(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    sub_x: f32,
-    sub_y: f32,
-    cat: ComponentCategory,
-    params: &InspectorPanelParams<'_>,
-    targets: &mut InspectorPanelTargets,
-) {
-    let items: Vec<SubmenuItemEntry> = if cat == ComponentCategory::CustomDynamic {
-        let registry = InspectorRegistry::global();
-        let handled_names: std::collections::HashSet<_> = registry
-            .handlers()
-            .iter()
-            .map(|h| h.component_name())
-            .collect();
-        let comp_registry = ae_core::registry::ComponentRegistry::global();
-        comp_registry
-            .handlers()
-            .iter()
-            .filter(|h| {
-                let name = h.type_name();
-                !handled_names.contains(name)
-                    && !super::dynamic_reflection::is_internal_or_specialized(name)
-                    && if let Some(entity) = params.selected_entity {
-                        !h.has_component(params.world, entity)
+    let mut result = Vec::with_capacity(all_categories.len());
+
+    for cat in all_categories {
+        if !category_has_available(cat, world, entity) {
+            continue;
+        }
+
+        let child_items: Vec<CascadingMenuItem> = if cat == ComponentCategory::CustomDynamic {
+            let registry = InspectorRegistry::global();
+            let handled_names: std::collections::HashSet<_> = registry
+                .handlers()
+                .iter()
+                .map(|h| h.component_name())
+                .collect();
+            let comp_registry = ae_core::registry::ComponentRegistry::global();
+            comp_registry
+                .handlers()
+                .iter()
+                .filter(|h| {
+                    let name = h.type_name();
+                    !handled_names.contains(name)
+                        && !super::dynamic_reflection::is_internal_or_specialized(name)
+                        && if let Some(ent) = entity {
+                            !h.has_component(world, ent)
+                        } else {
+                            true
+                        }
+                })
+                .map(|h| {
+                    let name = h.type_name();
+                    CascadingMenuItem::item_with_icon(
+                        name,
+                        CascadingMenuIcon::Text("🧩"),
+                        component_name_to_tag(name),
+                    )
+                })
+                .collect()
+        } else {
+            let registry = InspectorRegistry::global();
+            registry
+                .find_by_category(cat)
+                .into_iter()
+                .filter(|h| {
+                    if let Some(ent) = entity {
+                        !h.has_component(world, ent)
                     } else {
                         true
                     }
-            })
-            .map(|h| SubmenuItemEntry {
-                comp_name: h.type_name(),
-                display_title: h.type_name(),
-                icon: "🧩",
-                atlas_icon: None,
-                header_color: Color::rgba(0.70, 0.72, 0.78, 1.0),
-            })
-            .collect()
-    } else {
-        let registry = InspectorRegistry::global();
-        let all_handlers = registry.find_by_category(cat);
-        all_handlers
-            .into_iter()
-            .filter(|h| {
-                if let Some(entity) = params.selected_entity {
-                    !h.has_component(params.world, entity)
-                } else {
-                    true
-                }
-            })
-            .map(|h| SubmenuItemEntry {
-                comp_name: h.component_name(),
-                display_title: h.display_title(),
-                icon: h.icon(),
-                atlas_icon: h.atlas_icon(),
-                header_color: h.header_color(),
-            })
-            .collect()
-    };
+                })
+                .map(|h| {
+                    let name = h.component_name();
+                    let icon = if let Some(uv) = h.atlas_icon() {
+                        CascadingMenuIcon::Texture(uv)
+                    } else {
+                        CascadingMenuIcon::Text(h.icon())
+                    };
+                    CascadingMenuItem::item_with_icon(
+                        h.display_title(),
+                        icon,
+                        component_name_to_tag(name),
+                    )
+                })
+                .collect()
+        };
 
-    if items.is_empty() {
+        result.push(CascadingMenuItem::branch(
+            cat.title(),
+            Some(CascadingMenuIcon::Text(cat.icon())),
+            cat.to_tag(),
+            child_items,
+        ));
+    }
+
+    result
+}
+
+/// Builds the cascading `➕ Add Component` menu in the [`UiTree`] using [`CascadingMenuBuilder`].
+pub fn build_add_component_menu(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &InspectorPanelParams<'_>,
+    targets: &mut InspectorPanelTargets,
+) {
+    targets.active_add_component_rects.clear();
+
+    if !params.is_add_menu_open {
         return;
     }
 
-    let item_h = 22.0;
-    let sub_w = 210.0;
-    let total_h = (items.len() as f32) * item_h + 8.0;
-
-    let sub_rect = Rect::new(sub_x, sub_y, sub_w, total_h);
-    targets.active_submenu_rect = Some(sub_rect);
-
-    let sub_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sub_id) {
-        node.set_name("AddComponentSubmenuPopup");
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = sub_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.086, 0.090, 0.106, 0.98))
-            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90))
-            .border_radius(5.0)
-            .box_shadow(0.0, 6.0, 18.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
+    let menu_items = get_add_component_menu_items(params.world, params.selected_entity);
+    if menu_items.is_empty() {
+        return;
     }
-    let _ = tree.add_child(parent_id, sub_id);
 
-    let mut cur_y = sub_y + 4.0;
+    let mut active_path = Vec::new();
+    if let Some(cat) = params.active_submenu {
+        active_path.push(cat.to_tag());
+    }
 
-    for item in items {
-        let item_rect = Rect::new(sub_x + 4.0, cur_y, sub_w - 8.0, item_h);
-        let is_hovered = item_rect.contains_point(params.cursor_pos);
-
-        let (bg, text_col) = if is_hovered {
-            (Color::rgba(0.157, 0.165, 0.188, 0.98), Color::WHITE)
-        } else {
-            (Color::TRANSPARENT, Color::rgba(0.886, 0.894, 0.918, 1.0))
-        };
-
-        let row_id = tree.create_node();
-        if let Some(node) = tree.get_mut(row_id) {
-            node.set_name(format!("SubmenuItem_{}", item.comp_name));
-            node.computed_rect = item_rect;
-            node.style = Style::new().background(bg).border_radius(3.0);
-        }
-        let _ = tree.add_child(sub_id, row_id);
-
-        // Component Icon
-        let ic_id = tree.create_node();
-        if let Some(node) = tree.get_mut(ic_id) {
-            node.set_name("SubmenuItemIcon");
-            if let Some(uv) = item.atlas_icon {
-                node.set_texture_uv(uv);
-                node.set_texture_tint(item.header_color);
-                node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y + 4.0, 14.0, 14.0);
-            } else {
-                node.set_text(item.icon);
-                node.font_size = 11.0;
-                node.line_height = item_h;
-                node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
-            }
-        }
-        let _ = tree.add_child(row_id, ic_id);
-
-        // Component Label
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("SubmenuItemLabel");
-            node.set_text(item.display_title);
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.text_color = text_col;
-            node.computed_rect =
-                Rect::new(item_rect.x + 24.0, cur_y, item_rect.width - 28.0, item_h);
-        }
-        let _ = tree.add_child(row_id, lbl_id);
-
-        targets.submenu_components.push((item.comp_name, item_rect));
-        cur_y += item_h;
+    if let Some(frame) =
+        CascadingMenuBuilder::new(targets.add_component_btn_rect, &menu_items, &active_path)
+            .cursor_pos(params.cursor_pos)
+            .viewport_bounds(params.panel_rect)
+            .open_upward(true)
+            .name("AddComponentMenu")
+            .build(tree, parent_id)
+    {
+        targets.active_add_component_rects = frame.rendered_popup_rects;
     }
 }

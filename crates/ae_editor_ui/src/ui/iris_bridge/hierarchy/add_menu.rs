@@ -3,653 +3,275 @@
 
 //! # Scene Hierarchy `➕` Cascading Add Menu Builder
 //!
-//! Renders the cascading multi-level dropdown menus for spawning 3D shapes,
-//! 2D UI elements, HUD presets, asset imports, and stress test benchmarks.
+//! Provides the data-driven cascading multi-level dropdown menu tree for spawning 3D shapes,
+//! 2D UI elements, HUD presets, asset imports, and stress test benchmarks via [`CascadingMenuBuilder`].
+//!
+//! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
 use irisui::prelude::*;
 
-/// Visual icon representation for menu items (either text emoji or texture quad from atlas).
-#[derive(Clone, Copy, PartialEq)]
-enum MenuItemIcon {
-    Text(&'static str),
-    Texture([f32; 4]),
-    Separator,
+/// Resolves a numeric menu item tag into its corresponding [`HierarchyAction`].
+#[inline]
+pub fn get_hierarchy_add_menu_action(tag: u64) -> Option<HierarchyAction> {
+    match tag {
+        // 3D Shapes
+        101 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cube)),
+        102 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Sphere)),
+        103 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cylinder)),
+        104 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Capsule)),
+        105 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Torus)),
+        106 => Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Triangle)),
+
+        // 2D Objects
+        201 => Some(HierarchyAction::SpawnDefaultSprite),
+        202 => Some(HierarchyAction::SpawnPlayerSprite),
+        203 => Some(HierarchyAction::SpawnEmpty2D),
+
+        // UI & Canvas Elements
+        301 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::Panel,
+        )),
+        302 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::Text,
+        )),
+        303 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::Button,
+        )),
+        304 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::Image,
+        )),
+        305 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::ProgressBar,
+        )),
+        306 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::Slider,
+        )),
+        307 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::Checkbox,
+        )),
+        308 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::TextInput,
+        )),
+        309 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::HealthBar,
+        )),
+        310 => Some(HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::ScoreDisplay,
+        )),
+
+        // Asset Imports
+        401 => Some(HierarchyAction::OpenModelDialog),
+        402 => Some(HierarchyAction::OpenLoadPrefabDialog),
+
+        // Benchmarks & Sandboxes
+        501 => Some(HierarchyAction::SpawnPhase1TestSandbox),
+        502 => Some(HierarchyAction::AaaOpenWorldTest),
+        503 => Some(HierarchyAction::StressTest(10_000)),
+        504 => Some(HierarchyAction::StressTest(100_000)),
+        505 => Some(HierarchyAction::StressTest(10_000_000)),
+        506 => Some(HierarchyAction::Explode),
+
+        _ => None,
+    }
 }
 
-/// Descriptor for a top-level category item in the Add Menu.
-struct AddMenuCategoryItem {
-    icon: MenuItemIcon,
-    label: &'static str,
-    has_sub: bool,
-    sub_id: Option<AddSubmenuId>,
-    action: Option<HierarchyAction>,
+/// Constructs the declarative cascading menu item hierarchy for Scene Hierarchy.
+pub fn get_hierarchy_add_menu_items(is_2d: bool) -> Vec<CascadingMenuItem> {
+    let ui_canvas_items = vec![
+        CascadingMenuItem::item_with_icon("Panel / Canvas Box", CascadingMenuIcon::Text("🟩"), 301),
+        CascadingMenuItem::item_with_icon("Text Label", CascadingMenuIcon::Text("🔤"), 302),
+        CascadingMenuItem::item_with_icon("Interactive Button", CascadingMenuIcon::Text("🔘"), 303),
+        CascadingMenuItem::item_with_icon("Image / Icon", CascadingMenuIcon::Text("🖼️"), 304),
+        CascadingMenuItem::item_with_icon("Progress Bar", CascadingMenuIcon::Text("📊"), 305),
+        CascadingMenuItem::item_with_icon("Numeric Slider", CascadingMenuIcon::Text("🎚️"), 306),
+        CascadingMenuItem::item_with_icon("Toggle Checkbox", CascadingMenuIcon::Text("☑️"), 307),
+        CascadingMenuItem::item_with_icon("Text Input Field", CascadingMenuIcon::Text("📝"), 308),
+        CascadingMenuItem::separator(),
+        CascadingMenuItem::branch(
+            "HUD Presets",
+            Some(CascadingMenuIcon::Text("🎮")),
+            AddSubmenuId::HudPresets.to_tag(),
+            vec![
+                CascadingMenuItem::item_with_icon(
+                    "Health Bar (Player Tag)",
+                    CascadingMenuIcon::Text("❤️"),
+                    309,
+                ),
+                CascadingMenuItem::item_with_icon(
+                    "Score Display (Score Tag)",
+                    CascadingMenuIcon::Text("⭐"),
+                    310,
+                ),
+            ],
+        ),
+    ];
+
+    let asset_items = vec![
+        CascadingMenuItem::item_with_icon(
+            "3D Model...",
+            CascadingMenuIcon::Texture(ICON_CUBE),
+            401,
+        ),
+        CascadingMenuItem::item_with_icon(
+            "Load Prefab...",
+            CascadingMenuIcon::Texture(ICON_FOLDER),
+            402,
+        ),
+    ];
+
+    if is_2d {
+        vec![
+            CascadingMenuItem::branch(
+                "2D Objects",
+                Some(CascadingMenuIcon::Text("🖼️")),
+                AddSubmenuId::Objects2D.to_tag(),
+                vec![
+                    CascadingMenuItem::item_with_icon("Sprite", CascadingMenuIcon::Text("🖼️"), 201),
+                    CascadingMenuItem::item_with_icon(
+                        "Player Sprite",
+                        CascadingMenuIcon::Text("🏃"),
+                        202,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "Empty 2D Object",
+                        CascadingMenuIcon::Text("📦"),
+                        203,
+                    ),
+                ],
+            ),
+            CascadingMenuItem::branch(
+                "UI & Canvas",
+                Some(CascadingMenuIcon::Text("🎨")),
+                AddSubmenuId::UiCanvas.to_tag(),
+                ui_canvas_items,
+            ),
+            CascadingMenuItem::branch(
+                "Assets & Prefabs",
+                Some(CascadingMenuIcon::Texture(ICON_FOLDER)),
+                AddSubmenuId::AssetsPrefabs.to_tag(),
+                asset_items,
+            ),
+        ]
+    } else {
+        vec![
+            CascadingMenuItem::branch(
+                "3D Objects",
+                Some(CascadingMenuIcon::Texture(ICON_CUBE)),
+                AddSubmenuId::Objects3D.to_tag(),
+                vec![
+                    CascadingMenuItem::item_with_icon(
+                        "Cube",
+                        CascadingMenuIcon::Texture(ICON_CUBE),
+                        101,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "Sphere",
+                        CascadingMenuIcon::Texture(ICON_SPHERE),
+                        102,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "Cylinder",
+                        CascadingMenuIcon::Text("🧪"),
+                        103,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "Capsule",
+                        CascadingMenuIcon::Text("💊"),
+                        104,
+                    ),
+                    CascadingMenuItem::item_with_icon("Torus", CascadingMenuIcon::Text("🍩"), 105),
+                    CascadingMenuItem::item_with_icon(
+                        "Triangle",
+                        CascadingMenuIcon::Text("📐"),
+                        106,
+                    ),
+                ],
+            ),
+            CascadingMenuItem::branch(
+                "UI & Canvas",
+                Some(CascadingMenuIcon::Text("🎨")),
+                AddSubmenuId::UiCanvas.to_tag(),
+                ui_canvas_items,
+            ),
+            CascadingMenuItem::branch(
+                "Assets & Prefabs",
+                Some(CascadingMenuIcon::Texture(ICON_FOLDER)),
+                AddSubmenuId::AssetsPrefabs.to_tag(),
+                asset_items,
+            ),
+            CascadingMenuItem::separator(),
+            CascadingMenuItem::item_with_icon(
+                "Phase 1 Test Sandbox",
+                CascadingMenuIcon::Text("🎮"),
+                501,
+            ),
+            CascadingMenuItem::branch(
+                "Stress Benchmarks",
+                Some(CascadingMenuIcon::Text("⚡")),
+                AddSubmenuId::StressBenchmarks.to_tag(),
+                vec![
+                    CascadingMenuItem::item_with_icon(
+                        "OpenWorld (10km)",
+                        CascadingMenuIcon::Text("🏰"),
+                        502,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "10,000 Entities",
+                        CascadingMenuIcon::Text("⚡"),
+                        503,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "100,000 Entities",
+                        CascadingMenuIcon::Text("⚡"),
+                        504,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "10,000,000 Universe",
+                        CascadingMenuIcon::Text("⚡"),
+                        505,
+                    ),
+                    CascadingMenuItem::item_with_icon(
+                        "Explode!",
+                        CascadingMenuIcon::Text("💥"),
+                        506,
+                    ),
+                ],
+            ),
+        ]
+    }
 }
 
-/// Builds the cascading `➕` Add Menu and its active submenus in the `UiTree`.
+/// Builds the cascading `➕` Add Menu in the [`UiTree`] using [`CascadingMenuBuilder`].
 pub fn build_add_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
     targets: &mut HierarchyPanelTargets,
 ) {
-    targets.active_add_menu_rect = None;
-    targets.active_submenu_rect = None;
-    targets.active_sub_submenu_rect = None;
-    targets.add_menu_items.clear();
-    targets.submenu_branch_items.clear();
-    targets.submenu_items.clear();
+    targets.active_add_menu_rects.clear();
 
     if !params.is_add_menu_open {
         return;
     }
 
-    let menu_x = (targets.add_btn_rect.x)
-        .min(params.panel_rect.right() - 190.0)
-        .max(4.0);
-    let menu_y = targets.add_btn_rect.bottom() + 2.0;
-    let menu_w = 185.0;
+    let menu_items = get_hierarchy_add_menu_items(params.is_2d);
 
-    let root_items: Vec<AddMenuCategoryItem> = if params.is_2d {
-        vec![
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Text("🖼️"),
-                label: "2D Objects",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::Objects2D),
-                action: None,
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Text("🎨"),
-                label: "UI & Canvas",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::UiCanvas),
-                action: None,
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Texture(ICON_FOLDER),
-                label: "Assets & Prefabs",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::AssetsPrefabs),
-                action: None,
-            },
-        ]
-    } else {
-        vec![
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Texture(ICON_CUBE),
-                label: "3D Objects",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::Objects3D),
-                action: None,
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Text("🎨"),
-                label: "UI & Canvas",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::UiCanvas),
-                action: None,
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Texture(ICON_FOLDER),
-                label: "Assets & Prefabs",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::AssetsPrefabs),
-                action: None,
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Separator,
-                label: "",
-                has_sub: false,
-                sub_id: None,
-                action: None,
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Text("🎮"),
-                label: "Phase 1 Test Sandbox",
-                has_sub: false,
-                sub_id: None,
-                action: Some(HierarchyAction::SpawnPhase1TestSandbox),
-            },
-            AddMenuCategoryItem {
-                icon: MenuItemIcon::Text("⚡"),
-                label: "Stress Benchmarks",
-                has_sub: true,
-                sub_id: Some(AddSubmenuId::StressBenchmarks),
-                action: None,
-            },
-        ]
-    };
-
-    let item_h = 24.0;
-    let sep_h = 5.0;
-    let total_h = root_items
-        .iter()
-        .map(|it| {
-            if it.icon == MenuItemIcon::Separator {
-                sep_h
-            } else {
-                item_h
-            }
-        })
-        .sum::<f32>()
-        + 8.0;
-
-    let card_rect = Rect::new(menu_x, menu_y, menu_w, total_h);
-    targets.active_add_menu_rect = Some(card_rect);
-
-    // Root Add Menu Card Container (100% opaque background prevents any bleed-through of underlying rows)
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("AddMenuCard");
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
-            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90)) // Clean neutral dark border
-            .border_radius(5.0)
-            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    let mut cur_y = menu_y + 4.0;
-    let mut submenu_anchor_y = cur_y;
-
-    for item in &root_items {
-        if item.icon == MenuItemIcon::Separator {
-            let sep_id = tree.create_node();
-            if let Some(node) = tree.get_mut(sep_id) {
-                node.set_name("MenuSeparator");
-                node.set_role(WidgetRole::Separator);
-                node.computed_rect = Rect::new(menu_x + 6.0, cur_y + 2.0, menu_w - 12.0, 1.0);
-                node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
-            }
-            let _ = tree.add_child(card_id, sep_id);
-            cur_y += sep_h;
-            continue;
-        }
-
-        let item_rect = Rect::new(menu_x + 4.0, cur_y, menu_w - 8.0, item_h);
-        let is_hovered = item_rect.contains_point(params.cursor_pos);
-        let is_active_sub = item.sub_id.is_some() && item.sub_id == params.active_submenu;
-
-        if is_active_sub {
-            submenu_anchor_y = cur_y;
-        }
-
-        let (bg, text_col) = if is_active_sub || is_hovered {
-            (
-                Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover
-                Color::WHITE,
-            )
-        } else {
-            (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
-        };
-
-        let row_id = tree.create_node();
-        if let Some(node) = tree.get_mut(row_id) {
-            node.set_name(format!("AddMenuItem_{}", item.label));
-            node.set_role(WidgetRole::DropdownItem);
-            node.computed_rect = item_rect;
-            node.style = Style::new().background(bg).border_radius(3.0);
-        }
-        let _ = tree.add_child(card_id, row_id);
-
-        // Icon (text emoji or atlas texture quad)
-        let ic_id = tree.create_node();
-        if let Some(node) = tree.get_mut(ic_id) {
-            node.set_name("ItemIcon");
-            node.set_role(WidgetRole::DropdownIcon);
-            match item.icon {
-                MenuItemIcon::Text(txt) => {
-                    node.set_text(txt);
-                    node.font_size = 11.0;
-                    node.line_height = item_h;
-                    node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
-                }
-                MenuItemIcon::Texture(uv) => {
-                    node.texture_uv = Some(uv);
-                    node.texture_tint = Some(Color::WHITE);
-                    let ic_size = 14.0;
-                    node.computed_rect = Rect::new(
-                        item_rect.x + 6.0,
-                        cur_y + (item_h - ic_size) * 0.5,
-                        ic_size,
-                        ic_size,
-                    );
-                }
-                MenuItemIcon::Separator => {}
-            }
-        }
-        let _ = tree.add_child(row_id, ic_id);
-
-        // Label
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("ItemLabel");
-            node.set_role(WidgetRole::DropdownLabel);
-            node.set_text(item.label);
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.text_color = text_col;
-            node.computed_rect =
-                Rect::new(item_rect.x + 24.0, cur_y, item_rect.width - 40.0, item_h);
-        }
-        let _ = tree.add_child(row_id, lbl_id);
-
-        // Submenu arrow "▸"
-        if item.has_sub {
-            let arw_id = tree.create_node();
-            if let Some(node) = tree.get_mut(arw_id) {
-                node.set_name("SubmenuArrow");
-                node.set_role(WidgetRole::DropdownShortcut);
-                node.set_text("▸");
-                node.font_size = 10.0;
-                node.line_height = item_h;
-                node.text_align = TextAlign::Right;
-                node.text_color = Color::rgba(0.60, 0.63, 0.72, 0.85);
-                node.computed_rect = Rect::new(item_rect.right() - 16.0, cur_y, 12.0, item_h);
-            }
-            let _ = tree.add_child(row_id, arw_id);
-        }
-
-        let target_payload = if let Some(sid) = item.sub_id {
-            Ok(sid)
-        } else if let Some(ref action) = item.action {
-            Err(action.clone())
-        } else {
-            continue;
-        };
-
-        targets.add_menu_items.push((item_rect, target_payload));
-        cur_y += item_h;
-    }
-
-    // Build Active Submenu if open
-    if let Some(submenu_id) = params.active_submenu {
-        let (sub_anchor_y, sub_card_rect) = build_submenu(
-            tree,
-            parent_id,
-            SubmenuDescriptor {
-                sub_x: menu_x + menu_w,
-                sub_y: submenu_anchor_y,
-                submenu_id,
-                is_sub_submenu: false,
-            },
-            params,
-            targets,
-        );
-
-        if let Some(sub_sub_id) = params.active_sub_submenu {
-            let _ = build_submenu(
-                tree,
-                parent_id,
-                SubmenuDescriptor {
-                    sub_x: sub_card_rect.right(),
-                    sub_y: sub_anchor_y,
-                    submenu_id: sub_sub_id,
-                    is_sub_submenu: true,
-                },
-                params,
-                targets,
-            );
-        }
-    }
-}
-
-/// Layout positioning and hierarchy descriptor for building a cascading submenu.
-struct SubmenuDescriptor {
-    sub_x: f32,
-    sub_y: f32,
-    submenu_id: AddSubmenuId,
-    is_sub_submenu: bool,
-}
-
-/// Builds an active cascading submenu.
-fn build_submenu(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    desc: SubmenuDescriptor,
-    params: &HierarchyPanelParams<'_>,
-    targets: &mut HierarchyPanelTargets,
-) -> (f32, Rect) {
-    let SubmenuDescriptor {
-        sub_x,
-        sub_y,
-        submenu_id,
-        is_sub_submenu,
-    } = desc;
-
-    let items: Vec<(
-        MenuItemIcon,
-        &str,
-        Option<HierarchyAction>,
-        Option<AddSubmenuId>,
-    )> = match submenu_id {
-        AddSubmenuId::Objects2D => vec![
-            (
-                MenuItemIcon::Text("🖼️"),
-                "Sprite",
-                Some(HierarchyAction::SpawnDefaultSprite),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🏃"),
-                "Player Sprite",
-                Some(HierarchyAction::SpawnPlayerSprite),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("📦"),
-                "Empty 2D Object",
-                Some(HierarchyAction::SpawnEmpty2D),
-                None,
-            ),
-        ],
-        AddSubmenuId::Objects3D => vec![
-            (
-                MenuItemIcon::Texture(ICON_CUBE),
-                "Cube",
-                Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cube)),
-                None,
-            ),
-            (
-                MenuItemIcon::Texture(ICON_SPHERE),
-                "Sphere",
-                Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Sphere)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🧪"),
-                "Cylinder",
-                Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Cylinder)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("💊"),
-                "Capsule",
-                Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Capsule)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🍩"),
-                "Torus",
-                Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Torus)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("📐"),
-                "Triangle",
-                Some(HierarchyAction::SpawnShape(ae_core::ecs::Shape::Triangle)),
-                None,
-            ),
-        ],
-        AddSubmenuId::UiCanvas => vec![
-            (
-                MenuItemIcon::Text("🟩"),
-                "Panel / Canvas Box",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Panel,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🔤"),
-                "Text Label",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Text,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🔘"),
-                "Interactive Button",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Button,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🖼️"),
-                "Image / Icon",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Image,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("📊"),
-                "Progress Bar",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::ProgressBar,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("🎚️"),
-                "Numeric Slider",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Slider,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("☑️"),
-                "Toggle Checkbox",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::Checkbox,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("📝"),
-                "Text Input Field",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::TextInput,
-                )),
-                None,
-            ),
-            (MenuItemIcon::Separator, "", None, None),
-            (
-                MenuItemIcon::Text("🎮"),
-                "HUD Presets ▸",
-                None,
-                Some(AddSubmenuId::HudPresets),
-            ),
-        ],
-        AddSubmenuId::HudPresets => vec![
-            (
-                MenuItemIcon::Text("❤️"),
-                "Health Bar (Player Tag)",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::HealthBar,
-                )),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("⭐"),
-                "Score Display (Score Tag)",
-                Some(HierarchyAction::SpawnUiElement(
-                    crate::ui::UiElementType::ScoreDisplay,
-                )),
-                None,
-            ),
-        ],
-        AddSubmenuId::AssetsPrefabs => vec![
-            (
-                MenuItemIcon::Texture(ICON_CUBE),
-                "3D Model...",
-                Some(HierarchyAction::OpenModelDialog),
-                None,
-            ),
-            (
-                MenuItemIcon::Texture(ICON_FOLDER),
-                "Load Prefab...",
-                Some(HierarchyAction::OpenLoadPrefabDialog),
-                None,
-            ),
-        ],
-        AddSubmenuId::StressBenchmarks => vec![
-            (
-                MenuItemIcon::Text("🏰"),
-                "OpenWorld (10km)",
-                Some(HierarchyAction::AaaOpenWorldTest),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("⚡"),
-                "10,000 Entities",
-                Some(HierarchyAction::StressTest(10_000)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("⚡"),
-                "100,000 Entities",
-                Some(HierarchyAction::StressTest(100_000)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("⚡"),
-                "10,000,000 Universe",
-                Some(HierarchyAction::StressTest(10_000_000)),
-                None,
-            ),
-            (
-                MenuItemIcon::Text("💥"),
-                "Explode!",
-                Some(HierarchyAction::Explode),
-                None,
-            ),
-        ],
-    };
-
-    let item_h = 24.0;
-    let mut total_h = 8.0;
-    for (ic, _, _, _) in &items {
-        if *ic == MenuItemIcon::Separator {
-            total_h += 5.0;
-        } else {
-            total_h += item_h;
+    let mut active_path = Vec::new();
+    if let Some(sub) = params.active_submenu {
+        active_path.push(sub.to_tag());
+        if let Some(sub_sub) = params.active_sub_submenu {
+            active_path.push(sub_sub.to_tag());
         }
     }
 
-    let sub_w = if is_sub_submenu { 205.0 } else { 195.0 };
-    let card_rect = Rect::new(sub_x, sub_y, sub_w, total_h);
-    if is_sub_submenu {
-        targets.active_sub_submenu_rect = Some(card_rect);
-    } else {
-        targets.active_submenu_rect = Some(card_rect);
+    if let Some(frame) = CascadingMenuBuilder::new(targets.add_btn_rect, &menu_items, &active_path)
+        .cursor_pos(params.cursor_pos)
+        .viewport_bounds(params.panel_rect)
+        .name("HierarchyAddMenu")
+        .build(tree, parent_id)
+    {
+        targets.active_add_menu_rects = frame.rendered_popup_rects;
     }
-
-    // Submenu Card Container (100% opaque background prevents any bleed-through of underlying rows)
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name(if is_sub_submenu {
-            "AddSubSubmenuCard"
-        } else {
-            "AddSubmenuCard"
-        });
-        node.set_role(WidgetRole::DropdownPopup);
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.082, 0.090, 0.106, 0.98))
-            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90)) // Clean neutral dark border
-            .border_radius(5.0)
-            .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.70));
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    let mut cur_y = sub_y + 4.0;
-    let mut active_branch_anchor_y = cur_y;
-
-    for (icon, label, action_opt, sub_opt) in items {
-        if icon == MenuItemIcon::Separator {
-            let sep_id = tree.create_node();
-            if let Some(node) = tree.get_mut(sep_id) {
-                node.set_name("SubmenuSeparator");
-                node.set_role(WidgetRole::Separator);
-                node.computed_rect = Rect::new(sub_x + 6.0, cur_y + 2.0, sub_w - 12.0, 1.0);
-                node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
-            }
-            let _ = tree.add_child(card_id, sep_id);
-            cur_y += 5.0;
-            continue;
-        }
-
-        let item_rect = Rect::new(sub_x + 4.0, cur_y, sub_w - 8.0, item_h);
-        let is_active_branch = sub_opt.is_some() && sub_opt == params.active_sub_submenu;
-        let is_hovered = item_rect.contains_point(params.cursor_pos) || is_active_branch;
-        if is_active_branch {
-            active_branch_anchor_y = cur_y;
-        }
-
-        let (bg, text_col) = if is_hovered {
-            (
-                Color::rgba(0.161, 0.188, 0.235, 0.95), // Modern subtle dark blue-gray hover
-                Color::WHITE,
-            )
-        } else {
-            (Color::TRANSPARENT, Color::rgba(0.85, 0.87, 0.92, 1.0))
-        };
-
-        let row_id = tree.create_node();
-        if let Some(node) = tree.get_mut(row_id) {
-            node.set_name(format!("SubmenuItem_{}", label));
-            node.set_role(WidgetRole::DropdownItem);
-            node.computed_rect = item_rect;
-            node.style = Style::new().background(bg).border_radius(3.0);
-        }
-        let _ = tree.add_child(card_id, row_id);
-
-        let ic_id = tree.create_node();
-        if let Some(node) = tree.get_mut(ic_id) {
-            node.set_name("SubmenuItemIcon");
-            node.set_role(WidgetRole::DropdownIcon);
-            match icon {
-                MenuItemIcon::Text(txt) => {
-                    node.set_text(txt);
-                    node.font_size = 11.0;
-                    node.line_height = item_h;
-                    node.computed_rect = Rect::new(item_rect.x + 6.0, cur_y, 16.0, item_h);
-                }
-                MenuItemIcon::Texture(uv) => {
-                    node.texture_uv = Some(uv);
-                    node.texture_tint = Some(Color::WHITE);
-                    let ic_size = 14.0;
-                    node.computed_rect = Rect::new(
-                        item_rect.x + 6.0,
-                        cur_y + (item_h - ic_size) * 0.5,
-                        ic_size,
-                        ic_size,
-                    );
-                }
-                MenuItemIcon::Separator => {}
-            }
-        }
-        let _ = tree.add_child(row_id, ic_id);
-
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("SubmenuItemLabel");
-            node.set_role(WidgetRole::DropdownLabel);
-            node.set_text(label);
-            node.font_size = 11.0;
-            node.line_height = item_h;
-            node.text_color = text_col;
-            node.computed_rect =
-                Rect::new(item_rect.x + 24.0, cur_y, item_rect.width - 28.0, item_h);
-        }
-        let _ = tree.add_child(row_id, lbl_id);
-
-        if let Some(act) = action_opt {
-            targets.submenu_items.push((item_rect, act));
-        } else if let Some(sub) = sub_opt {
-            targets.submenu_branch_items.push((item_rect, sub));
-        }
-
-        cur_y += item_h;
-    }
-
-    (active_branch_anchor_y, card_rect)
 }

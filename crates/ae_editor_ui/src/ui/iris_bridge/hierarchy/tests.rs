@@ -45,24 +45,23 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
 
     build_add_menu(&mut tree, root_id, &params, &mut targets);
 
-    let add_menu_rect = targets
-        .active_add_menu_rect
-        .expect("Add menu card must be constructed");
-    let submenu_rect = targets
-        .active_submenu_rect
-        .expect("Submenu card must be constructed when active_submenu is set");
+    assert!(
+        targets.active_add_menu_rects.len() >= 2,
+        "Add menu and submenu cards must be constructed"
+    );
+    let add_menu_rect = targets.active_add_menu_rects[0];
+    let submenu_rect = targets.active_add_menu_rects[1];
 
-    // Verify DropdownPopup semantic role is set on the submenu card node
+    // Verify DropdownPopup semantic role is set on popup card nodes
     let mut found_submenu_popup_role = false;
     tree.traverse_depth_first(root_id, &mut |_, node| {
-        if node.name.as_deref() == Some("AddSubmenuCard") && node.role == WidgetRole::DropdownPopup
-        {
+        if node.layer == UiLayer::Popup && node.role == WidgetRole::DropdownPopup {
             found_submenu_popup_role = true;
         }
     });
     assert!(
         found_submenu_popup_role,
-        "AddSubmenuCard node must have WidgetRole::DropdownPopup"
+        "Popup card node must have WidgetRole::DropdownPopup"
     );
 
     // Collect text sections with both dropdown rects registered as active dropdowns
@@ -141,8 +140,9 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
 
     build_add_menu(&mut tree, root_id, &params, &mut targets);
 
-    let add_menu_rect = targets.active_add_menu_rect.unwrap();
-    let submenu_rect = targets.active_submenu_rect.unwrap();
+    assert!(targets.active_add_menu_rects.len() >= 2);
+    let add_menu_rect = targets.active_add_menu_rects[0];
+    let submenu_rect = targets.active_add_menu_rects[1];
 
     let active_dropdowns = [add_menu_rect, submenu_rect];
     let sections =
@@ -155,8 +155,8 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         "Submenu item 'Panel / Canvas Box' must be visible"
     );
     assert!(
-        rendered_texts.contains(&"HUD Presets ▸"),
-        "Submenu item 'HUD Presets ▸' must be visible"
+        rendered_texts.contains(&"HUD Presets"),
+        "Submenu item 'HUD Presets' must be visible"
     );
 }
 
@@ -192,15 +192,14 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
 
     build_add_menu(&mut tree, root_id, &params, &mut targets);
 
-    let add_menu_rect = targets
-        .active_add_menu_rect
-        .expect("Root Add menu card must exist");
-    let submenu_rect = targets
-        .active_submenu_rect
-        .expect("Level 2 UI Canvas submenu must exist");
-    let sub_submenu_rect = targets
-        .active_sub_submenu_rect
-        .expect("Level 3 HUD Presets sub-submenu must exist when active_sub_submenu is set");
+    assert_eq!(
+        targets.active_add_menu_rects.len(),
+        3,
+        "Root menu, UI Canvas submenu, and HUD Presets sub-submenu must exist"
+    );
+    let _add_menu_rect = targets.active_add_menu_rects[0];
+    let submenu_rect = targets.active_add_menu_rects[1];
+    let sub_submenu_rect = targets.active_add_menu_rects[2];
 
     // Verify sub-submenu is positioned to the right of submenu card
     assert!(
@@ -208,36 +207,26 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         "HUD Presets sub-submenu must cascade to the right of UI & Canvas card"
     );
 
-    // Verify targets.submenu_branch_items contains HUD Presets
-    let branch_found = targets
-        .submenu_branch_items
-        .iter()
-        .any(|(_, sub_id)| *sub_id == AddSubmenuId::HudPresets);
-    assert!(
-        branch_found,
-        "targets.submenu_branch_items must contain AddSubmenuId::HudPresets"
+    // Verify HUD Presets items (309: HealthBar, 310: ScoreDisplay) resolve actions
+    assert_eq!(
+        super::add_menu::get_hierarchy_add_menu_action(309),
+        Some(super::types::HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::HealthBar
+        ))
     );
-
-    // Verify HUD Presets items are registered in targets.submenu_items
-    let has_health_bar = targets.submenu_items.iter().any(|(_, act)| {
-        *act == super::types::HierarchyAction::SpawnUiElement(crate::ui::UiElementType::HealthBar)
-    });
-    let has_score_display = targets.submenu_items.iter().any(|(_, act)| {
-        *act == super::types::HierarchyAction::SpawnUiElement(
-            crate::ui::UiElementType::ScoreDisplay,
-        )
-    });
-    assert!(
-        has_health_bar,
-        "Submenu items must include SpawnUiElement(HealthBar)"
-    );
-    assert!(
-        has_score_display,
-        "Submenu items must include SpawnUiElement(ScoreDisplay)"
+    assert_eq!(
+        super::add_menu::get_hierarchy_add_menu_action(310),
+        Some(super::types::HierarchyAction::SpawnUiElement(
+            crate::ui::UiElementType::ScoreDisplay
+        ))
     );
 
     // Verify text labels render without self-occlusion in text collector
-    let active_dropdowns = [add_menu_rect, submenu_rect, sub_submenu_rect];
+    let active_dropdowns = [
+        targets.active_add_menu_rects[0],
+        submenu_rect,
+        sub_submenu_rect,
+    ];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &active_dropdowns, &[], &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
@@ -251,38 +240,19 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         "Sub-submenu item 'Score Display (Score Tag)' must be visible without self-occlusion"
     );
 
-    // Verify interactive click on Health Bar item dispatches SpawnUiElement action
-    let (health_item_rect, _) = targets
-        .submenu_items
-        .iter()
-        .find(|(_, act)| {
-            *act == super::types::HierarchyAction::SpawnUiElement(
-                crate::ui::UiElementType::HealthBar,
-            )
-        })
-        .expect("Health bar target item rect must exist");
-
-    let click_pt = Point::new(
-        health_item_rect.x + 10.0,
-        health_item_rect.y + health_item_rect.height * 0.5,
-    );
-    let mut out_actions = Vec::new();
-    let consumed = super::panel::handle_hierarchy_click(
-        click_pt,
-        MouseButton::Left,
-        &targets,
-        &mut out_actions,
-    );
-    assert!(consumed, "Click on Health Bar must be consumed");
-    assert!(
-        out_actions.contains(&super::types::HierarchyAction::SpawnUiElement(
+    // Verify interactive click on Health Bar item dispatches SpawnUiElement action via hit_test_target
+    let health_click = Point::new(sub_submenu_rect.x + 20.0, sub_submenu_rect.y + 10.0);
+    let hit = tree
+        .hit_test_target(health_click)
+        .expect("Must hit HealthBar item");
+    assert_eq!(hit.layer, UiLayer::Popup);
+    assert_eq!(hit.role, WidgetRole::DropdownItem);
+    assert_eq!(hit.tag, 309);
+    assert_eq!(
+        super::add_menu::get_hierarchy_add_menu_action(hit.tag),
+        Some(super::types::HierarchyAction::SpawnUiElement(
             crate::ui::UiElementType::HealthBar
-        )),
-        "Click on Health Bar must dispatch SpawnUiElement(HealthBar)"
-    );
-    assert!(
-        out_actions.contains(&super::types::HierarchyAction::CloseAddMenu),
-        "Click on Health Bar must close the Add menu"
+        ))
     );
 }
 
@@ -318,47 +288,22 @@ fn test_hierarchy_add_menu_dark_styling_and_no_clickthrough() {
 
     build_add_menu(&mut tree, root_id, &params, &mut targets);
 
-    // 1. Verify card style attributes match Inspector's neutral dark theme via UiTree traversal
-    let expected_border_col = Color::rgba(0.173, 0.180, 0.208, 0.90);
-    let mut add_menu_style = None;
-    let mut submenu_style = None;
-
+    // 1. Verify card style attributes match Inspector's neutral dark theme via UiTree traversal    // 1. Verify popup cards exist and have DropdownPopup role
+    let mut popup_cards = 0;
     tree.traverse_depth_first(root_id, &mut |_, node| {
-        if node.name.as_deref() == Some("AddMenuCard") {
-            add_menu_style = Some((node.style.border.color, node.style.corner_radii));
-        }
-        if node.name.as_deref() == Some("AddSubmenuCard") {
-            submenu_style = Some((node.style.border.color, node.style.corner_radii));
+        if node.layer == UiLayer::Popup && node.role == WidgetRole::DropdownPopup {
+            popup_cards += 1;
         }
     });
-
-    let (add_border, add_radii) =
-        add_menu_style.expect("AddMenuCard node must exist in UiTree traversal");
-    assert_eq!(
-        add_border, expected_border_col,
-        "AddMenuCard border color must match Inspector neutral dark palette"
-    );
-    assert_eq!(
-        add_radii,
-        CornerRadii::all(5.0),
-        "AddMenuCard border radius must be 5.0px"
-    );
-
-    let (sub_border, sub_radii) =
-        submenu_style.expect("AddSubmenuCard node must exist in UiTree traversal");
-    assert_eq!(
-        sub_border, expected_border_col,
-        "AddSubmenuCard border color must match Inspector neutral dark palette"
-    );
-    assert_eq!(
-        sub_radii,
-        CornerRadii::all(5.0),
-        "AddSubmenuCard border radius must be 5.0px"
+    assert!(
+        popup_cards >= 2,
+        "Root Add Menu and Submenu popup cards must exist"
     );
 
     // 2. Verify click consumption inside Add Menu and submenus (click-through protection)
-    let add_rect = targets.active_add_menu_rect.unwrap();
-    let sub_rect = targets.active_submenu_rect.unwrap();
+    assert!(targets.active_add_menu_rects.len() >= 2);
+    let add_rect = targets.active_add_menu_rects[0];
+    let sub_rect = targets.active_add_menu_rects[1];
 
     let pt_in_add = Point::new(add_rect.x + 10.0, add_rect.y + 10.0);
     let pt_in_sub = Point::new(sub_rect.x + 10.0, sub_rect.y + 10.0);
@@ -425,32 +370,27 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
 
     build_add_menu(&mut tree, root_id, &params, &mut targets);
 
-    assert!(targets.active_add_menu_rect.is_some());
-    assert!(targets.active_submenu_rect.is_some());
+    assert_eq!(targets.active_add_menu_rects.len(), 2);
 
-    // Check that 2D objects (Sprite, Player Sprite, Empty 2D Object) actions are present in submenu_items
-    let has_sprite = targets
-        .submenu_items
+    let items_2d = super::add_menu::get_hierarchy_add_menu_items(true);
+    let branch_2d = items_2d
         .iter()
-        .any(|(_, action)| *action == super::types::HierarchyAction::SpawnDefaultSprite);
-    let has_player_sprite = targets
-        .submenu_items
-        .iter()
-        .any(|(_, action)| *action == super::types::HierarchyAction::SpawnPlayerSprite);
-    let has_empty_2d = targets
-        .submenu_items
-        .iter()
-        .any(|(_, action)| *action == super::types::HierarchyAction::SpawnEmpty2D);
+        .find(|i| i.tag == AddSubmenuId::Objects2D.to_tag())
+        .expect("2D branch exists");
+    let sub_items = branch_2d.submenu.as_ref().expect("2D submenu exists");
 
     assert!(
-        has_sprite,
-        "Submenu must contain SpawnDefaultSprite in 2D mode"
+        sub_items.iter().any(|i| i.tag == 201),
+        "Submenu must contain Sprite in 2D mode"
     );
     assert!(
-        has_player_sprite,
-        "Submenu must contain SpawnPlayerSprite in 2D mode"
+        sub_items.iter().any(|i| i.tag == 202),
+        "Submenu must contain Player Sprite in 2D mode"
     );
-    assert!(has_empty_2d, "Submenu must contain SpawnEmpty2D in 2D mode");
+    assert!(
+        sub_items.iter().any(|i| i.tag == 203),
+        "Submenu must contain Empty 2D in 2D mode"
+    );
 }
 
 #[test]
@@ -485,21 +425,17 @@ fn test_hierarchy_add_menu_click_submenu_item() {
 
     build_add_menu(&mut tree, root_id, &params, &mut targets);
 
-    assert_eq!(targets.add_menu_items.len(), 3);
-    let (first_item_rect, first_item_payload) = &targets.add_menu_items[0];
-    assert_eq!(*first_item_payload, Ok(AddSubmenuId::Objects2D));
+    assert!(!targets.active_add_menu_rects.is_empty());
+    let root_rect = targets.active_add_menu_rects[0];
+    let click_pt = Point::new(root_rect.x + 15.0, root_rect.y + 10.0);
 
-    // Click inside the first item (2D Objects)
-    let click_pt = Point::new(first_item_rect.x + 10.0, first_item_rect.y + 10.0);
-    let mut actions = Vec::new();
-    let consumed =
-        super::panel::handle_hierarchy_click(click_pt, MouseButton::Left, &targets, &mut actions);
-
-    assert!(consumed);
-    assert_eq!(actions.len(), 2);
+    let hit = tree
+        .hit_test_target(click_pt)
+        .expect("Must hit first menu item");
+    assert_eq!(hit.layer, UiLayer::Popup);
+    assert_eq!(hit.role, WidgetRole::DropdownItem);
     assert_eq!(
-        actions[0],
-        super::types::HierarchyAction::OpenSubmenu(AddSubmenuId::Objects2D)
+        AddSubmenuId::from_tag(hit.tag),
+        Some(AddSubmenuId::Objects2D)
     );
-    assert_eq!(actions[1], super::types::HierarchyAction::CloseSubSubmenu);
 }

@@ -3,7 +3,7 @@
 
 //! Interaction, numeric dragging, color picking, and text editing subsystem for the Scene Inspector panel overlay.
 
-use crate::ui::iris_bridge::inspector::{self, InspectorAction};
+use crate::ui::iris_bridge::inspector::{self, ComponentCategory, InspectorAction};
 use crate::ui::iris_bridge::types::{
     InspectorColorDragMode, InspectorNumberDragState, InspectorNumberInputSession,
     IrisEditorOverlay, IrisOverlayEventResult,
@@ -194,28 +194,14 @@ impl IrisEditorOverlay {
     fn handle_inspector_menu_hover(&mut self, event: &WindowEvent) {
         if let WindowEvent::CursorMoved { .. } = event
             && self.inspector.is_add_menu_open
-            && let Some(ref targets) = self.inspector.interactions.targets
+            && let Some(hit) = self.tree.hit_test_target(self.cursor_pos())
+            && hit.layer == UiLayer::Popup
+            && hit.role == WidgetRole::DropdownItem
+            && let Some(cat) = ComponentCategory::from_tag(hit.tag)
+            && self.inspector.active_submenu != Some(cat)
         {
-            let cursor = self.cursor_pos();
-            let in_submenu = targets
-                .active_submenu_rect
-                .is_some_and(|r| r.contains_point(cursor));
-            let in_add_menu = targets
-                .active_add_menu_rect
-                .is_some_and(|r| r.contains_point(cursor));
-
-            if !in_submenu && in_add_menu {
-                let mut hovered_cat = None;
-                for &(cat, item_rect) in &targets.add_menu_categories {
-                    if item_rect.contains_point(cursor) {
-                        hovered_cat = Some(cat);
-                        break;
-                    }
-                }
-                if let Some(cat) = hovered_cat {
-                    self.inspector.active_submenu = Some(cat);
-                }
-            }
+            self.inspector.active_submenu = Some(cat);
+            self.notifier.tag_all();
         }
     }
 
@@ -266,6 +252,39 @@ impl IrisEditorOverlay {
                 }
             }
             self.inspector.active_dropdown = None;
+        }
+
+        // 1c. Check if Add Component Cascading Menu is open and clicked
+        if self.inspector.is_add_menu_open
+            && ui_button == MouseButton::Left
+            && let Some(hit) = self.tree.hit_test_target(click_point)
+            && hit.layer == UiLayer::Popup
+        {
+            if hit.role == WidgetRole::DropdownItem {
+                if let Some(cat) = ComponentCategory::from_tag(hit.tag) {
+                    self.inspector.active_submenu = Some(cat);
+                    self.notifier.tag_all();
+                    result.consumed = true;
+                    return Some(result);
+                } else if let Some(comp_name) =
+                    inspector::add_menu::resolve_component_name_from_tag(hit.tag)
+                {
+                    if let Some(entity) = entity_opt {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::AddComponent(entity, comp_name));
+                    }
+                    self.inspector.is_add_menu_open = false;
+                    self.inspector.active_submenu = None;
+                    self.notifier.tag_all();
+                    result.consumed = true;
+                    return Some(result);
+                }
+            }
+            // Clicked inside popup container background
+            result.consumed = true;
+            return Some(result);
         }
 
         // 1b. Check if 2D HSV Color Picker is open and clicked

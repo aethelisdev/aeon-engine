@@ -3,9 +3,9 @@
 
 //! Interaction and event handling subsystem for the Scene Hierarchy panel overlay.
 
-use crate::ui::iris_bridge::hierarchy::{self, HierarchyAction};
+use crate::ui::iris_bridge::hierarchy::{self, AddSubmenuId, HierarchyAction};
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
-use irisui::prelude::MouseButton;
+use irisui::prelude::{MouseButton, UiLayer, WidgetRole};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
@@ -16,7 +16,7 @@ impl IrisEditorOverlay {
     ) -> Option<IrisOverlayEventResult> {
         let mut result = IrisOverlayEventResult::default();
 
-        // 1. Mouse Input Handling (Entity clicking, context menus, search bar focus)
+        // 1. Mouse Input Handling (Entity clicking, context menus, search bar focus, add menu)
         if let WindowEvent::MouseInput {
             state: ElementState::Pressed,
             button,
@@ -30,6 +30,40 @@ impl IrisEditorOverlay {
                 WinitMouseButton::Middle => MouseButton::Middle,
                 _ => MouseButton::Left,
             };
+
+            // 1.1 Direct Hit-Testing on Add Menu Items (Zero-Allocation O(1) Dispatch)
+            if self.hierarchy.is_add_menu_open
+                && ui_button == MouseButton::Left
+                && let Some(hit) = self.tree.hit_test_target(click_point)
+                && hit.layer == UiLayer::Popup
+            {
+                if hit.role == WidgetRole::DropdownItem {
+                    if let Some(sub_id) = AddSubmenuId::from_tag(hit.tag) {
+                        if sub_id == AddSubmenuId::HudPresets {
+                            self.hierarchy.active_sub_submenu = Some(sub_id);
+                        } else {
+                            self.hierarchy.active_submenu = Some(sub_id);
+                            self.hierarchy.active_sub_submenu = None;
+                        }
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
+                    } else if let Some(action) =
+                        hierarchy::add_menu::get_hierarchy_add_menu_action(hit.tag)
+                    {
+                        self.hierarchy.interactions.actions.push(action);
+                        self.hierarchy.is_add_menu_open = false;
+                        self.hierarchy.active_submenu = None;
+                        self.hierarchy.active_sub_submenu = None;
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
+                    }
+                }
+                // Clicked inside popup container background
+                result.consumed = true;
+                return Some(result);
+            }
 
             let hier_targets = self.hierarchy.interactions.targets.as_ref()?;
             let search_input_rect = hier_targets.search_input_rect;
@@ -116,69 +150,30 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 2. Cursor Motion Handling (Add Menu hover and cascading submenus)
+        // 2. Cursor Motion Handling (Cascading Submenu Hover via UiTree Hit-Testing)
         if let WindowEvent::CursorMoved { .. } = event
             && self.hierarchy.is_add_menu_open
-            && let Some(hier_targets) = self.hierarchy.interactions.targets.as_ref()
         {
             let cursor = self.cursor_pos();
-            let in_sub_sub = hier_targets
-                .active_sub_submenu_rect
-                .is_some_and(|r| r.contains_point(cursor));
-            let in_submenu = hier_targets
-                .active_submenu_rect
-                .is_some_and(|r| r.contains_point(cursor));
-            let in_add_menu = hier_targets
-                .active_add_menu_rect
-                .is_some_and(|r| r.contains_point(cursor));
-
-            if in_sub_sub {
-                // Inside level-3 sub-submenu (e.g. HUD Presets). Keep both open!
-                result.consumed = true;
-                self.notifier.tag_all();
-                return Some(result);
-            } else if in_submenu {
-                // Inside level-2 submenu (e.g. UI & Canvas).
-                let mut hovered_branch = None;
-                for (branch_rect, sub_id) in &hier_targets.submenu_branch_items {
-                    if branch_rect.contains_point(cursor) {
-                        hovered_branch = Some(*sub_id);
-                        break;
-                    }
-                }
-                if let Some(branch_id) = hovered_branch {
-                    if self.hierarchy.active_sub_submenu != Some(branch_id) {
-                        self.hierarchy.active_sub_submenu = Some(branch_id);
-                        self.notifier.tag_all();
-                    }
-                } else {
-                    let hovering_other_item = hier_targets
-                        .submenu_items
-                        .iter()
-                        .any(|(r, _)| r.contains_point(cursor));
-                    if hovering_other_item && self.hierarchy.active_sub_submenu.is_some() {
-                        self.hierarchy.active_sub_submenu = None;
-                        self.notifier.tag_all();
-                    }
-                }
-                result.consumed = true;
-                return Some(result);
-            } else if in_add_menu {
-                // Inside level-1 root Add Menu
-                for (item_rect, target_payload) in &hier_targets.add_menu_items {
-                    if item_rect.contains_point(cursor) {
-                        if let Ok(submenu_id) = target_payload {
-                            if self.hierarchy.active_submenu != Some(*submenu_id) {
-                                self.hierarchy.active_submenu = Some(*submenu_id);
-                                self.hierarchy.active_sub_submenu = None;
+            if let Some(hit) = self.tree.hit_test_target(cursor)
+                && hit.layer == UiLayer::Popup
+            {
+                if hit.role == WidgetRole::DropdownItem {
+                    if let Some(sub_id) = AddSubmenuId::from_tag(hit.tag) {
+                        if sub_id == AddSubmenuId::HudPresets {
+                            if self.hierarchy.active_sub_submenu != Some(sub_id) {
+                                self.hierarchy.active_sub_submenu = Some(sub_id);
                                 self.notifier.tag_all();
                             }
-                        } else if self.hierarchy.active_submenu.is_some() {
-                            self.hierarchy.active_submenu = None;
+                        } else if self.hierarchy.active_submenu != Some(sub_id) {
+                            self.hierarchy.active_submenu = Some(sub_id);
                             self.hierarchy.active_sub_submenu = None;
                             self.notifier.tag_all();
                         }
-                        break;
+                    } else if self.hierarchy.active_sub_submenu.is_some() {
+                        // Hovering non-branch item in Level 2: close Level 3 sub-submenu
+                        self.hierarchy.active_sub_submenu = None;
+                        self.notifier.tag_all();
                     }
                 }
                 result.consumed = true;

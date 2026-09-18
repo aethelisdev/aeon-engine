@@ -22,33 +22,18 @@ pub fn handle_inspector_click(
 
     let entity_opt = targets.inspected_entity;
 
-    // 1. Check Submenu items inside open Add Component menu
-    if let Some(sub_rect) = targets.active_submenu_rect
-        && sub_rect.contains_point(pos)
-    {
-        for &(comp_name, item_rect) in &targets.submenu_components {
-            if item_rect.contains_point(pos) {
-                if let Some(entity) = entity_opt {
-                    out_actions.push(InspectorAction::AddComponent(entity, comp_name));
-                }
-                out_actions.push(InspectorAction::CloseAddComponentMenu);
-                return true;
-            }
+    // 1. Cascading Add Component Menu Outside-Click Check
+    // (Actual item click dispatch is resolved via zero-allocation UiTree hit-testing)
+    if !targets.active_add_component_rects.is_empty() {
+        let inside_menu = targets
+            .active_add_component_rects
+            .iter()
+            .any(|r| r.contains_point(pos));
+        if !inside_menu && !targets.add_component_btn_rect.contains_point(pos) {
+            out_actions.push(InspectorAction::CloseAddComponentMenu);
+        } else if inside_menu {
+            return true;
         }
-        return true;
-    }
-
-    // 2. Check Categories inside open Add Component menu
-    if let Some(add_rect) = targets.active_add_menu_rect
-        && add_rect.contains_point(pos)
-    {
-        for &(cat, item_rect) in &targets.add_menu_categories {
-            if item_rect.contains_point(pos) {
-                out_actions.push(InspectorAction::OpenAddSubmenu(cat));
-                return true;
-            }
-        }
-        return true;
     }
 
     // 3. Check Active Color Picker Popup items
@@ -68,7 +53,7 @@ pub fn handle_inspector_click(
 
     // 5. `➕ Add Component` Button
     if targets.add_component_btn_rect.contains_point(pos) {
-        if targets.active_add_menu_rect.is_some() {
+        if !targets.active_add_component_rects.is_empty() {
             out_actions.push(InspectorAction::CloseAddComponentMenu);
         } else {
             out_actions.push(InspectorAction::OpenAddComponentMenu(pos));
@@ -213,7 +198,7 @@ pub fn handle_inspector_click(
     }
 
     // 18. If clicking outside menus while an Add Menu is open, dismiss it
-    if targets.active_add_menu_rect.is_some() {
+    if !targets.active_add_component_rects.is_empty() {
         out_actions.push(InspectorAction::CloseAddComponentMenu);
         return true;
     }
