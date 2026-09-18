@@ -174,6 +174,8 @@ impl IrisEditorOverlay {
                     }
                     other => {
                         self.hierarchy.interactions.actions.push(other);
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
                     }
                 }
             }

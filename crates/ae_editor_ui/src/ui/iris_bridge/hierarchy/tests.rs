@@ -494,3 +494,117 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
     assert_eq!(hit_vis.role, WidgetRole::DropdownItem);
     assert_eq!(hit_vis.tag, super::types::HIERARCHY_CTX_VISIBILITY);
 }
+
+#[test]
+fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
+    use super::types::HierarchyAction;
+    use crate::ui::iris_bridge::icons::{ICON_EYE_CLOSED, ICON_EYE_OPEN};
+
+    let mut world = hecs::World::new();
+    let entity = world.spawn((ae_core::ecs::Name("TestEntity".into()),));
+
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    if let Some(node) = tree.get_mut(root_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+    }
+    let _ = tree.set_root(root_id);
+
+    let mut targets = HierarchyPanelTargets::default();
+    let mut rows_cache = Vec::new();
+
+    let panel_rect = Rect::new(0.0, 40.0, 300.0, 600.0);
+    let params = HierarchyPanelParams {
+        panel_rect,
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        scroll_y: 0.0,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: false,
+        active_context_menu: None,
+        cursor_pos: Point::new(10.0, 10.0),
+        is_search_focused: false,
+        blink_caret: false,
+    };
+
+    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut targets, &mut rows_cache);
+
+    assert_eq!(targets.entity_rows.len(), 1);
+    let (ent, _row_rect, eye_rect, _) = targets.entity_rows[0];
+    assert_eq!(ent, entity);
+
+    // Initial state: entity is visible, eye should use ICON_EYE_OPEN
+    let mut eye_uv_opt = None;
+    tree.traverse_depth_first(root_id, &mut |_, node| {
+        if node.name.as_deref() == Some("EyeVisibilityButton") {
+            eye_uv_opt = node.texture_uv;
+        }
+    });
+    assert_eq!(eye_uv_opt, Some(ICON_EYE_OPEN));
+
+    // Simulate clicking the Eye button
+    let eye_center = Point::new(
+        eye_rect.x + eye_rect.width * 0.5,
+        eye_rect.y + eye_rect.height * 0.5,
+    );
+    let mut click_actions = Vec::new();
+    let consumed = super::panel::handle_hierarchy_click(
+        eye_center,
+        MouseButton::Left,
+        &targets,
+        &mut click_actions,
+    );
+
+    assert!(consumed);
+    assert_eq!(click_actions.len(), 1);
+    assert_eq!(click_actions[0], HierarchyAction::ToggleVisibility(entity));
+
+    // Execute toggle visibility on the entity (mimicking components::handle_toggle_visibility)
+    assert!(world.get::<&ae_core::ecs::Hidden>(entity).is_err());
+    let _ = world.insert_one(entity, ae_core::ecs::Hidden);
+    assert!(world.get::<&ae_core::ecs::Hidden>(entity).is_ok());
+
+    // Rebuilding hierarchy panel with mutated world must now reflect ICON_EYE_CLOSED
+    let mut new_tree = UiTree::new();
+    let new_root = new_tree.create_node();
+    let _ = new_tree.set_root(new_root);
+    let mut new_targets = HierarchyPanelTargets::default();
+    let mut new_rows_cache = Vec::new();
+
+    let new_params = HierarchyPanelParams {
+        panel_rect,
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        scroll_y: 0.0,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: false,
+        active_context_menu: None,
+        cursor_pos: Point::new(10.0, 10.0),
+        is_search_focused: false,
+        blink_caret: false,
+    };
+
+    super::panel::build_hierarchy_panel(
+        &mut new_tree,
+        new_root,
+        &new_params,
+        &mut new_targets,
+        &mut new_rows_cache,
+    );
+
+    let mut closed_eye_uv_opt = None;
+    new_tree.traverse_depth_first(new_root, &mut |_, node| {
+        if node.name.as_deref() == Some("EyeVisibilityButton") {
+            closed_eye_uv_opt = node.texture_uv;
+        }
+    });
+    assert_eq!(closed_eye_uv_opt, Some(ICON_EYE_CLOSED));
+}

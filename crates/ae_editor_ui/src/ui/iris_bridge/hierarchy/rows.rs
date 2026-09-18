@@ -489,9 +489,16 @@ fn render_single_row(
     let _ = tree.add_child(row_id, icon_id);
 
     // 4. Entity Name Text (Centered horizontally across the row)
+    let is_visible = params
+        .world
+        .get::<&ae_core::ecs::Hidden>(row.entity)
+        .is_err();
+
     let name_id = tree.create_node();
     let text_color = if is_selected {
         Color::rgba(0.0, 0.95, 1.0, 1.0) // Bright cyan #00e5ff
+    } else if !is_visible {
+        Color::rgba(0.55, 0.60, 0.72, 0.65) // Muted slate when entity is hidden in viewport
     } else {
         Color::rgba(0.88, 0.91, 0.98, 1.0) // Crisp slate white
     };
@@ -514,14 +521,15 @@ fn render_single_row(
     // 5. Eye Visibility Button (Right-aligned edge column)
     let eye_w = 22.0;
     let eye_rect = Rect::new(list_x + list_w - eye_w - 2.0, cur_y, eye_w, row_h);
-    let is_visible = params
-        .world
-        .get::<&ae_core::ecs::Hidden>(row.entity)
-        .is_err();
+    let is_eye_hovered = eye_rect.contains_point(params.cursor_pos);
 
     let (eye_uv, eye_col) = if !is_visible {
-        (ICON_EYE_CLOSED, Color::rgba(1.0, 1.0, 1.0, 1.0))
-    } else if is_selected {
+        if is_eye_hovered {
+            (ICON_EYE_CLOSED, Color::rgba(0.0, 0.95, 1.0, 1.0))
+        } else {
+            (ICON_EYE_CLOSED, Color::rgba(0.55, 0.60, 0.72, 0.65))
+        }
+    } else if is_eye_hovered || is_selected {
         (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
     } else {
         (ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))

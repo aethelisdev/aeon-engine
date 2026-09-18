@@ -596,6 +596,7 @@ impl EngineUi {
                     .is_point_over_overlay(self.iris_overlay.cursor_pos()))
         {
             self.iris_overlay.notifier.tag_all();
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
         }
         consumed
     }
