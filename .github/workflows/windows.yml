@@ -1,0 +1,39 @@
+name: Aeon Engine Windows CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test-windows:
+    name: Build & Test (Windows DX12/Vulkan)
+    runs-on: windows-latest
+    if: github.repository == 'AethelisDEV/aeon-engine'
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install Rust Toolchain (stable)
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+
+    - name: Ensure Clippy Component
+      run: rustup component add clippy
+
+    - name: Cache Cargo Dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: "aeon-engine-windows-cache"
+
+    - name: Workspace Cargo Clippy
+      run: cargo clippy --workspace --all-targets -- -D warnings
+
+    - name: Workspace Tests
+      run: cargo test --workspace --verbose
