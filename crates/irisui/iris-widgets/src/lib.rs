@@ -57,7 +57,10 @@ pub use console::{
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
-pub use dropdown::{ComboboxPopupBuilder, ComboboxPopupFrame, ComboboxPopupStyle};
+pub use dropdown::{
+    ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,
+    ComboboxPopupFrame, ComboboxPopupStyle, ComboboxRowBuilder, ComboboxRowFrame, ComboboxRowStyle,
+};
 pub use grid_view::ResponsiveGrid;
 pub use input::{
     CheckboxBuilder, DragValueBuilder, SliderBuilder, TextInputBuilder, TextInputState,

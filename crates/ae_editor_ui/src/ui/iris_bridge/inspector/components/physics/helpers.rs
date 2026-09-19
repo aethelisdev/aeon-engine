@@ -200,75 +200,20 @@ pub fn render_combobox_row(
 ) {
     let padding = 8.0;
     let row_h = 22.0;
-    let combo_w = 88.0; // Compact combobox width matching Image 2!
-
-    let lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name(format!("ComboLbl_{:?}", params.dropdown_id));
-        node.set_text(params.label);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(ctx.base_x + padding, params.row_y, params.label_w, row_h);
-    }
-    let _ = tree.add_child(card_id, lbl_id);
-
-    let combo_rect = Rect::new(
-        ctx.base_x + padding + params.label_w + 4.0,
-        params.row_y,
-        combo_w,
-        row_h,
-    );
+    let combo_w = 88.0;
     let is_open = ctx.params.active_dropdown == Some(params.dropdown_id);
-    let is_hovered = combo_rect.contains_point(ctx.params.cursor_pos);
 
-    let combo_node_id = tree.create_node();
-    if let Some(node) = tree.get_mut(combo_node_id) {
-        node.set_name(format!("ComboboxPill_{:?}", params.dropdown_id));
-        node.computed_rect = combo_rect;
-        let (bg, border) = if is_open {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.353, 0.376, 0.439, 0.95), // Clean neutral active ring
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-    }
-    let _ = tree.add_child(card_id, combo_node_id);
-
-    let txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(txt_id) {
-        node.set_name(format!("ComboboxPillTxt_{:?}", params.dropdown_id));
-        let arrow = if is_open { "▲" } else { "▼" };
-        node.set_text(format!("{}  {}", params.selected_text, arrow));
-        node.font_size = 10.5;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_open {
-            Color::WHITE
-        } else {
-            Color::rgba(0.886, 0.894, 0.918, 1.0)
-        };
-        node.computed_rect = combo_rect;
-    }
-    let _ = tree.add_child(combo_node_id, txt_id);
+    let frame = ComboboxRowBuilder::new(ctx.base_x + padding, params.row_y, row_h)
+        .name(format!("ComboRow_{:?}", params.dropdown_id))
+        .label(params.label, params.label_w)
+        .combo(combo_w, params.selected_text)
+        .is_open(is_open)
+        .cursor_pos(ctx.params.cursor_pos)
+        .build(tree, card_id);
 
     ctx.targets
         .dropdowns
-        .push((params.dropdown_id, combo_rect, 0));
+        .push((params.dropdown_id, frame.combo_frame.button_rect, 0));
 }
 
 /// Helper function rendering a dropdown combobox with a side action button (e.g. `[ ↺ Preset ]`).
@@ -283,110 +228,22 @@ pub fn render_combobox_row_with_btn(
     let label_w = 85.0;
     let combo_w = 80.0;
     let btn_w = 58.0;
-
-    let lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name(format!("ComboWithBtnLbl_{:?}", params.dropdown_id));
-        node.set_text(params.label);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(ctx.base_x + padding, params.row_y, label_w, row_h);
-    }
-    let _ = tree.add_child(card_id, lbl_id);
-
-    // Combobox Pill
-    let combo_rect = Rect::new(
-        ctx.base_x + padding + label_w + 4.0,
-        params.row_y,
-        combo_w,
-        row_h,
-    );
     let is_open = ctx.params.active_dropdown == Some(params.dropdown_id);
-    let is_hovered = combo_rect.contains_point(ctx.params.cursor_pos);
 
-    let combo_node_id = tree.create_node();
-    if let Some(node) = tree.get_mut(combo_node_id) {
-        node.set_name(format!("ComboboxPill_{:?}", params.dropdown_id));
-        node.computed_rect = combo_rect;
-        let (bg, border) = if is_open {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.353, 0.376, 0.439, 0.95),
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-    }
-    let _ = tree.add_child(card_id, combo_node_id);
-
-    let txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(txt_id) {
-        node.set_name(format!("ComboboxPillTxt_{:?}", params.dropdown_id));
-        let arrow = if is_open { "▲" } else { "▼" };
-        node.set_text(format!("{}  {}", params.selected_text, arrow));
-        node.font_size = 10.5;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_open {
-            Color::WHITE
-        } else {
-            Color::rgba(0.886, 0.894, 0.918, 1.0)
-        };
-        node.computed_rect = combo_rect;
-    }
-    let _ = tree.add_child(combo_node_id, txt_id);
+    let frame = ComboboxRowBuilder::new(ctx.base_x + padding, params.row_y, row_h)
+        .name(format!("ComboWithBtnRow_{:?}", params.dropdown_id))
+        .label(params.label, label_w)
+        .combo(combo_w, params.selected_text)
+        .action_button(params.btn_label, btn_w)
+        .is_open(is_open)
+        .cursor_pos(ctx.params.cursor_pos)
+        .build(tree, card_id);
 
     ctx.targets
         .dropdowns
-        .push((params.dropdown_id, combo_rect, 0));
+        .push((params.dropdown_id, frame.combo_frame.button_rect, 0));
 
-    // Preset Action Button `[ ↺ Preset ]`
-    let btn_rect = Rect::new(combo_rect.right() + 6.0, params.row_y, btn_w, row_h);
-    let is_btn_hovered = btn_rect.contains_point(ctx.params.cursor_pos);
-
-    let btn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(btn_id) {
-        node.set_name("PresetResetBtn");
-        node.computed_rect = btn_rect;
-        let (bg, border, txt_col) = if is_btn_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-                Color::WHITE,
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-                Color::rgba(0.82, 0.84, 0.88, 1.0),
-            )
-        };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-        node.set_text(params.btn_label);
-        node.font_size = 10.5;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = txt_col;
-    }
-    let _ = tree.add_child(card_id, btn_id);
-
-    ctx.targets.preset_btn_rect = Some(btn_rect);
+    ctx.targets.preset_btn_rect = frame.action_btn_rect;
 }
 
 /// Helper function rendering a boolean checkbox row.
