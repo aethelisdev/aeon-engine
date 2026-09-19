@@ -33,7 +33,9 @@ pub use cascading_menu::{
     CascadingMenuStyle,
 };
 pub use color_picker::{
-    HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, hsv_to_rgb, rgb_to_hsv,
+    ColorPickerClickAction, ColorPickerCursor, ColorPickerDragMode, HsvColorPickerBuilder,
+    HsvColorPickerState, HsvColorPickerTargets, evaluate_color_picker_click,
+    evaluate_color_picker_cursor, evaluate_color_picker_drag, hsv_to_rgb, rgb_to_hsv,
 };
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,

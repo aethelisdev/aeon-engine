@@ -90,38 +90,25 @@ impl IrisEditorOverlay {
 
         // Continuous mouse drag for Inspector 2D HSV Color Picker
         if let Some(mode) = self.inspector.color_drag_mode
-            && let Some((sv_box, hue_bar, entity)) =
-                self.inspector.interactions.targets.as_ref().and_then(|t| {
-                    t.inspected_entity
-                        .map(|e| (t.color_picker_sv_box_rect, t.color_picker_hue_bar_rect, e))
-                })
+            && let Some((picker, entity)) = self
+                .inspector
+                .interactions
+                .targets
+                .as_ref()
+                .and_then(|t| t.color_picker.as_ref().zip(t.inspected_entity))
         {
             let cursor = self.cursor_pos();
-            match mode {
-                InspectorColorDragMode::SaturationValue => {
-                    if let Some(sv_rect) = sv_box {
-                        let s = ((cursor.x - sv_rect.x) / sv_rect.width).clamp(0.0, 1.0);
-                        let v = (1.0 - (cursor.y - sv_rect.y) / sv_rect.height).clamp(0.0, 1.0);
-                        self.inspector.hsv[1] = s;
-                        self.inspector.hsv[2] = v;
-                        let col = hsv_to_rgb(self.inspector.hsv[0], s, v);
-                        self.inspector
-                            .actions
-                            .push(InspectorAction::LiveSetObjectColor(entity, col));
-                    }
-                }
-                InspectorColorDragMode::Hue => {
-                    if let Some(hue_rect) = hue_bar {
-                        let h =
-                            (((cursor.y - hue_rect.y) / hue_rect.height) * 360.0).clamp(0.0, 360.0);
-                        self.inspector.hsv[0] = h;
-                        let col = hsv_to_rgb(h, self.inspector.hsv[1], self.inspector.hsv[2]);
-                        self.inspector
-                            .actions
-                            .push(InspectorAction::LiveSetObjectColor(entity, col));
-                    }
-                }
-            }
+            let mut state = HsvColorPickerState {
+                hue: self.inspector.hsv[0],
+                saturation: self.inspector.hsv[1],
+                value: self.inspector.hsv[2],
+                alpha: 1.0,
+            };
+            let col = irisui::prelude::evaluate_color_picker_drag(picker, &mut state, mode, cursor);
+            self.inspector.hsv = [state.hue, state.saturation, state.value];
+            self.inspector
+                .actions
+                .push(InspectorAction::LiveSetObjectColor(entity, col));
             result.consumed = true;
             return Some(result);
         }
@@ -288,64 +275,66 @@ impl IrisEditorOverlay {
         }
 
         // 1b. Check if 2D HSV Color Picker is open and clicked
-        if self.inspector.is_color_picker_open {
-            if let Some(close_btn) = insp_targets.color_picker_close_btn_rect
-                && close_btn.contains_point(click_point)
-            {
-                self.inspector.is_color_picker_open = false;
-                if let Some(entity) = entity_opt {
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::CommitColorEdit(entity));
+        if self.inspector.is_color_picker_open
+            && let Some(ref picker) = insp_targets.color_picker
+        {
+            let mut state = HsvColorPickerState {
+                hue: self.inspector.hsv[0],
+                saturation: self.inspector.hsv[1],
+                value: self.inspector.hsv[2],
+                alpha: 1.0,
+            };
+            let action =
+                irisui::prelude::evaluate_color_picker_click(picker, &mut state, click_point);
+            match action {
+                irisui::prelude::ColorPickerClickAction::Close => {
+                    self.inspector.is_color_picker_open = false;
+                    if let Some(entity) = entity_opt {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::CommitColorEdit(entity));
+                    }
+                    result.consumed = true;
+                    return Some(result);
                 }
-                result.consumed = true;
-                return Some(result);
-            }
-
-            if let Some(sv_rect) = insp_targets.color_picker_sv_box_rect
-                && sv_rect.contains_point(click_point)
-            {
-                let s = ((click_point.x - sv_rect.x) / sv_rect.width).clamp(0.0, 1.0);
-                let v = (1.0 - (click_point.y - sv_rect.y) / sv_rect.height).clamp(0.0, 1.0);
-                self.inspector.hsv[1] = s;
-                self.inspector.hsv[2] = v;
-                let col = hsv_to_rgb(self.inspector.hsv[0], s, v);
-                if let Some(entity) = entity_opt {
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::StartColorEdit(entity));
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::LiveSetObjectColor(entity, col));
+                irisui::prelude::ColorPickerClickAction::StartSvDrag { color } => {
+                    self.inspector.hsv = [state.hue, state.saturation, state.value];
+                    if let Some(entity) = entity_opt {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::StartColorEdit(entity));
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::LiveSetObjectColor(entity, color));
+                    }
+                    self.inspector.color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
+                    result.consumed = true;
+                    return Some(result);
                 }
-                self.inspector.color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
-                result.consumed = true;
-                return Some(result);
-            }
-
-            if let Some(hue_rect) = insp_targets.color_picker_hue_bar_rect
-                && hue_rect.contains_point(click_point)
-            {
-                let h =
-                    (((click_point.y - hue_rect.y) / hue_rect.height) * 360.0).clamp(0.0, 360.0);
-                self.inspector.hsv[0] = h;
-                let col = hsv_to_rgb(h, self.inspector.hsv[1], self.inspector.hsv[2]);
-                if let Some(entity) = entity_opt {
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::StartColorEdit(entity));
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::LiveSetObjectColor(entity, col));
+                irisui::prelude::ColorPickerClickAction::StartHueDrag { color } => {
+                    self.inspector.hsv = [state.hue, state.saturation, state.value];
+                    if let Some(entity) = entity_opt {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::StartColorEdit(entity));
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::LiveSetObjectColor(entity, color));
+                    }
+                    self.inspector.color_drag_mode = Some(InspectorColorDragMode::Hue);
+                    result.consumed = true;
+                    return Some(result);
                 }
-                self.inspector.color_drag_mode = Some(InspectorColorDragMode::Hue);
-                result.consumed = true;
-                return Some(result);
+                irisui::prelude::ColorPickerClickAction::CardConsumed => {
+                    result.consumed = true;
+                    return Some(result);
+                }
+                irisui::prelude::ColorPickerClickAction::Miss => {}
             }
         }
 
@@ -523,8 +512,9 @@ impl IrisEditorOverlay {
         // Close color picker if clicked outside
         if self.inspector.is_color_picker_open {
             let inside_picker = insp_targets
-                .color_picker_popup_rect
-                .is_some_and(|r| r.contains_point(click_point));
+                .color_picker
+                .as_ref()
+                .is_some_and(|p| p.card_rect.contains_point(click_point));
             let inside_swatch = insp_targets
                 .color_swatch_rect
                 .is_some_and(|r| r.contains_point(click_point));

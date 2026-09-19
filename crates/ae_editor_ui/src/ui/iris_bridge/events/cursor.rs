@@ -106,17 +106,14 @@ impl IrisEditorOverlay {
             };
         }
         if let Some(ref targets) = self.inspector.targets {
-            if targets
-                .color_picker_sv_box_rect
-                .is_some_and(|r| r.contains_point(p))
+            if let Some(ref picker) = targets.color_picker
+                && let Some(cur) = irisui::prelude::evaluate_color_picker_cursor(picker, p, None)
             {
-                return CursorIcon::Crosshair;
-            }
-            if targets
-                .color_picker_hue_bar_rect
-                .is_some_and(|r| r.contains_point(p))
-            {
-                return CursorIcon::NsResize;
+                return match cur {
+                    irisui::prelude::ColorPickerCursor::Crosshair => CursorIcon::Crosshair,
+                    irisui::prelude::ColorPickerCursor::NsResize => CursorIcon::NsResize,
+                    irisui::prelude::ColorPickerCursor::Pointer => CursorIcon::Pointer,
+                };
             }
             if targets
                 .number_inputs
@@ -154,14 +151,6 @@ impl IrisEditorOverlay {
                     .palette_swatches
                     .iter()
                     .any(|(_, r, _)| r.contains_point(p))
-                || targets
-                    .color_picker_close_btn_rect
-                    .is_some_and(|r| r.contains_point(p))
-            {
-                return CursorIcon::Pointer;
-            }
-            if let Some(picker_r) = targets.color_picker_popup_rect
-                && picker_r.contains_point(p)
             {
                 return CursorIcon::Pointer;
             }

@@ -152,6 +152,137 @@ pub struct HsvColorPickerTargets {
     pub close_btn_rect: Option<Rect>,
 }
 
+/// Action evaluated from clicking over an active Color Picker widget.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ColorPickerClickAction {
+    /// Clicked on the close button (`✖`).
+    Close,
+    /// Clicked on the 2D Saturation-Value box, updating HSV and initiating a drag gesture.
+    StartSvDrag {
+        /// Newly computed color with updated saturation and value.
+        color: Color,
+    },
+    /// Clicked on the vertical Rainbow Hue spectrum bar, updating Hue and initiating a drag gesture.
+    StartHueDrag {
+        /// Newly computed color with updated hue.
+        color: Color,
+    },
+    /// Click landed inside the popup card (e.g. background, header, preview) and was consumed without state mutation.
+    CardConsumed,
+    /// Click was completely outside the popup card boundaries.
+    Miss,
+}
+
+/// Drag mode for continuous Color Picker mouse interaction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColorPickerDragMode {
+    /// Dragging across the 2D Saturation-Value matrix.
+    SaturationValue,
+    /// Dragging along the vertical Rainbow Hue spectrum bar.
+    Hue,
+}
+
+/// Cursor shape to render when hovering over Color Picker interactive regions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorPickerCursor {
+    /// Crosshair cursor over the 2D Saturation-Value matrix.
+    Crosshair,
+    /// North-South vertical resize cursor over the Hue bar.
+    NsResize,
+    /// Hand pointer cursor over buttons or card background.
+    Pointer,
+}
+
+/// Evaluates a mouse click event against an active Color Picker popup.
+///
+/// Mutates `state` in-place if an interactive sub-element (SV box or Hue bar) was clicked,
+/// and returns the resulting semantic action.
+pub fn evaluate_color_picker_click(
+    targets: &HsvColorPickerTargets,
+    state: &mut HsvColorPickerState,
+    click_point: Point,
+) -> ColorPickerClickAction {
+    if let Some(close_btn) = targets.close_btn_rect
+        && close_btn.contains_point(click_point)
+    {
+        return ColorPickerClickAction::Close;
+    }
+
+    if targets.sv_box_rect.contains_point(click_point) {
+        state.update_from_sv_point(click_point, targets.sv_box_rect);
+        return ColorPickerClickAction::StartSvDrag {
+            color: state.to_color(),
+        };
+    }
+
+    if targets.hue_bar_rect.contains_point(click_point) {
+        state.update_from_hue_point(click_point, targets.hue_bar_rect);
+        return ColorPickerClickAction::StartHueDrag {
+            color: state.to_color(),
+        };
+    }
+
+    if targets.card_rect.contains_point(click_point) {
+        ColorPickerClickAction::CardConsumed
+    } else {
+        ColorPickerClickAction::Miss
+    }
+}
+
+/// Evaluates continuous mouse dragging over an active Color Picker widget.
+///
+/// Updates `state` based on the specified active drag mode and returns the updated [`Color`].
+pub fn evaluate_color_picker_drag(
+    targets: &HsvColorPickerTargets,
+    state: &mut HsvColorPickerState,
+    mode: ColorPickerDragMode,
+    cursor: Point,
+) -> Color {
+    match mode {
+        ColorPickerDragMode::SaturationValue => {
+            state.update_from_sv_point(cursor, targets.sv_box_rect);
+        }
+        ColorPickerDragMode::Hue => {
+            state.update_from_hue_point(cursor, targets.hue_bar_rect);
+        }
+    }
+    state.to_color()
+}
+
+/// Evaluates the appropriate mouse cursor icon for a point over an active Color Picker.
+///
+/// Prioritizes active drag gestures before inspecting hit targets.
+pub fn evaluate_color_picker_cursor(
+    targets: &HsvColorPickerTargets,
+    point: Point,
+    active_drag: Option<ColorPickerDragMode>,
+) -> Option<ColorPickerCursor> {
+    if let Some(mode) = active_drag {
+        return match mode {
+            ColorPickerDragMode::SaturationValue => Some(ColorPickerCursor::Crosshair),
+            ColorPickerDragMode::Hue => Some(ColorPickerCursor::NsResize),
+        };
+    }
+
+    if targets.sv_box_rect.contains_point(point) {
+        return Some(ColorPickerCursor::Crosshair);
+    }
+
+    if targets.hue_bar_rect.contains_point(point) {
+        return Some(ColorPickerCursor::NsResize);
+    }
+
+    if targets
+        .close_btn_rect
+        .is_some_and(|r| r.contains_point(point))
+        || targets.card_rect.contains_point(point)
+    {
+        return Some(ColorPickerCursor::Pointer);
+    }
+
+    None
+}
+
 /// Builder for constructing retained 2D HSV Color Pickers in the `UiTree`.
 pub struct HsvColorPickerBuilder<'a> {
     tree: &'a mut UiTree,
@@ -509,5 +640,94 @@ mod tests {
         assert!(targets.sv_box_rect.width > 100.0);
         assert!(targets.hue_bar_rect.width > 10.0);
         assert!(targets.close_btn_rect.is_some());
+    }
+
+    #[test]
+    fn test_evaluate_color_picker_click_and_drag() {
+        let targets = HsvColorPickerTargets {
+            card_rect: Rect::new(50.0, 50.0, 200.0, 220.0),
+            sv_box_rect: Rect::new(60.0, 80.0, 150.0, 120.0),
+            hue_bar_rect: Rect::new(215.0, 80.0, 20.0, 120.0),
+            preview_rect: Rect::new(60.0, 210.0, 175.0, 20.0),
+            close_btn_rect: Some(Rect::new(230.0, 55.0, 15.0, 15.0)),
+        };
+
+        let mut state = HsvColorPickerState {
+            hue: 0.0,
+            saturation: 1.0,
+            value: 1.0,
+            alpha: 1.0,
+        };
+
+        // 1. Close click
+        let close_action =
+            evaluate_color_picker_click(&targets, &mut state, Point::new(235.0, 60.0));
+        assert_eq!(close_action, ColorPickerClickAction::Close);
+
+        // 2. SV click
+        let sv_action = evaluate_color_picker_click(&targets, &mut state, Point::new(135.0, 140.0));
+        match sv_action {
+            ColorPickerClickAction::StartSvDrag { color } => {
+                assert!(color.r > 0.0);
+                assert!(state.saturation > 0.4 && state.saturation < 0.6);
+            }
+            _ => panic!("Expected StartSvDrag"),
+        }
+
+        // 3. Hue click
+        let hue_action =
+            evaluate_color_picker_click(&targets, &mut state, Point::new(220.0, 140.0));
+        match hue_action {
+            ColorPickerClickAction::StartHueDrag { color: _ } => {
+                assert!(state.hue > 170.0 && state.hue < 190.0);
+            }
+            _ => panic!("Expected StartHueDrag"),
+        }
+
+        // 4. Card Consumed
+        let card_action = evaluate_color_picker_click(&targets, &mut state, Point::new(55.0, 55.0));
+        assert_eq!(card_action, ColorPickerClickAction::CardConsumed);
+
+        // 5. Miss
+        let miss_action = evaluate_color_picker_click(&targets, &mut state, Point::new(10.0, 10.0));
+        assert_eq!(miss_action, ColorPickerClickAction::Miss);
+
+        // 6. Continuous Drag
+        let updated = evaluate_color_picker_drag(
+            &targets,
+            &mut state,
+            ColorPickerDragMode::SaturationValue,
+            Point::new(60.0, 80.0), // top-left: s=0, v=1 (white)
+        );
+        assert!((state.saturation - 0.0).abs() < 0.01);
+        assert!((state.value - 1.0).abs() < 0.01);
+        assert!((updated.r - 1.0).abs() < 0.01 && (updated.g - 1.0).abs() < 0.01);
+
+        // 7. Cursor Evaluation
+        assert_eq!(
+            evaluate_color_picker_cursor(&targets, Point::new(100.0, 100.0), None),
+            Some(ColorPickerCursor::Crosshair)
+        );
+        assert_eq!(
+            evaluate_color_picker_cursor(&targets, Point::new(220.0, 100.0), None),
+            Some(ColorPickerCursor::NsResize)
+        );
+        assert_eq!(
+            evaluate_color_picker_cursor(&targets, Point::new(235.0, 60.0), None),
+            Some(ColorPickerCursor::Pointer)
+        );
+        assert_eq!(
+            evaluate_color_picker_cursor(&targets, Point::new(10.0, 10.0), None),
+            None
+        );
+        // Active drag overrides hover position
+        assert_eq!(
+            evaluate_color_picker_cursor(
+                &targets,
+                Point::new(10.0, 10.0),
+                Some(ColorPickerDragMode::Hue)
+            ),
+            Some(ColorPickerCursor::NsResize)
+        );
     }
 }

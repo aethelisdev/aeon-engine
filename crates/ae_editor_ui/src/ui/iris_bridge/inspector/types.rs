@@ -540,14 +540,8 @@ pub struct InspectorPanelTargets {
     pub clear_palette_btn_rect: Option<Rect>,
     /// Palette color swatch pills: `(SwatchIndex, Rect, Color)`.
     pub palette_swatches: Vec<(usize, Rect, Color)>,
-    /// Floating Color Picker popup bounding box.
-    pub color_picker_popup_rect: Option<Rect>,
-    /// Floating Color Picker close `✖` button bounding box.
-    pub color_picker_close_btn_rect: Option<Rect>,
-    /// Floating Color Picker 2D Saturation-Value box bounding rect.
-    pub color_picker_sv_box_rect: Option<Rect>,
-    /// Floating Color Picker vertical Rainbow Hue bar bounding rect.
-    pub color_picker_hue_bar_rect: Option<Rect>,
+    /// Interactive hit targets for the floating Color Picker popup (if open).
+    pub color_picker: Option<irisui::prelude::HsvColorPickerTargets>,
     /// Physics material preset reset button hit-test rect.
     pub preset_btn_rect: Option<Rect>,
     /// Dropdown trigger combo boxes: `(DropdownId, Rect, CurrentSelectedIndex)`.
@@ -641,13 +635,9 @@ pub struct InspectorNumberDragState {
 }
 
 /// Dragging mode on the 2D HSV color picker.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InspectorColorDragMode {
-    /// Dragging on the 2D Saturation-Value box.
-    SaturationValue,
-    /// Dragging on the vertical Rainbow Hue spectrum bar.
-    Hue,
-}
+///
+/// Aliased directly to [`irisui::prelude::ColorPickerDragMode`].
+pub type InspectorColorDragMode = irisui::prelude::ColorPickerDragMode;
 
 /// Active numeric text input session in Inspector.
 #[derive(Debug, Clone)]

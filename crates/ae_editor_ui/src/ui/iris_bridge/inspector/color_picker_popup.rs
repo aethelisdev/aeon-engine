@@ -16,10 +16,7 @@ pub fn build_color_picker_popup(
     params: &InspectorPanelParams<'_>,
     targets: &mut InspectorPanelTargets,
 ) {
-    targets.color_picker_popup_rect = None;
-    targets.color_picker_close_btn_rect = None;
-    targets.color_picker_sv_box_rect = None;
-    targets.color_picker_hue_bar_rect = None;
+    targets.color_picker = None;
 
     if !params.is_color_picker_open {
         return;
@@ -47,10 +44,7 @@ pub fn build_color_picker_popup(
     )
     .build();
 
-    targets.color_picker_popup_rect = Some(picker_targets.card_rect);
-    targets.color_picker_close_btn_rect = picker_targets.close_btn_rect;
-    targets.color_picker_sv_box_rect = Some(picker_targets.sv_box_rect);
-    targets.color_picker_hue_bar_rect = Some(picker_targets.hue_bar_rect);
+    targets.color_picker = Some(picker_targets);
 }
 
 /// Dispatches interactive 2D HSV color picker actions: start, live preview, and atomic commit.

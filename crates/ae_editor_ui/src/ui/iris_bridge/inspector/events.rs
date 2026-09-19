@@ -37,12 +37,10 @@ pub fn handle_inspector_click(
     }
 
     // 3. Check Active Color Picker Popup items
-    if let Some(picker_rect) = targets.color_picker_popup_rect
-        && picker_rect.contains_point(pos)
+    if let Some(ref picker) = targets.color_picker
+        && picker.card_rect.contains_point(pos)
     {
-        if let Some(close_rect) = targets.color_picker_close_btn_rect
-            && close_rect.contains_point(pos)
-        {
+        if picker.close_btn_rect.is_some_and(|r| r.contains_point(pos)) {
             out_actions.push(InspectorAction::ToggleColorPicker);
             return true;
         }
