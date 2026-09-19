@@ -377,7 +377,11 @@ pub struct PanelTabViewer;
 
 impl irisui::dock::TabViewer<PanelId> for PanelTabViewer {
     fn title(&self, tab: &PanelId) -> String {
-        format!("{} {}", tab.icon(), tab.title())
+        if tab.atlas_icon().is_some() {
+            tab.title().to_string()
+        } else {
+            format!("{} {}", tab.icon(), tab.title())
+        }
     }
 
     fn atlas_icon(&self, tab: &PanelId) -> Option<[f32; 4]> {

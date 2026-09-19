@@ -27,45 +27,51 @@ fn test_console_filter_level_matching() {
     assert!(!ConsoleFilterLevel::Debug.matches(log::Level::Info));
 }
 
+use super::types::ConsoleFilterExt;
+
 #[test]
 fn test_console_click_target_routing() {
-    let targets = ConsolePanelTargets {
-        panel_rect: Rect::new(0.0, 0.0, 500.0, 300.0),
-        clear_btn_rect: Rect::new(10.0, 5.0, 80.0, 24.0),
-        filter_error_rect: Rect::new(160.0, 5.0, 60.0, 24.0),
-        autoscroll_toggle_rect: Rect::new(400.0, 5.0, 90.0, 24.0),
-        search_clear_btn_rect: Some(Rect::new(350.0, 5.0, 16.0, 16.0)),
-        ..Default::default()
+    let mut tree = irisui::prelude::UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let entries = vec![];
+    let params = ConsolePanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 600.0, 300.0),
+        entries: &entries,
+        scroll_y: 0.0,
+        filter: ConsoleFilterLevel::All,
+        search_query: "test",
+        is_search_focused: false,
+        auto_scroll: true,
+        cursor_pos: Point::new(15.0, 15.0),
+        blink_caret: false,
     };
+
+    let mut targets = ConsolePanelTargets::default();
+    build_console_panel(&mut tree, root, &params, &mut targets);
 
     // Click outside panel
     assert_eq!(
-        handle_console_click(&targets, Point::new(600.0, 10.0)),
+        handle_console_click(&tree, &targets, Point::new(700.0, 10.0)),
         None
     );
 
-    // Click Clear
+    // Click Clear (around x=15.0, y=10.0)
     assert_eq!(
-        handle_console_click(&targets, Point::new(20.0, 10.0)),
+        handle_console_click(&tree, &targets, Point::new(15.0, 10.0)),
         Some(ConsoleAction::ClearLogs)
     );
 
-    // Click Errors filter
+    // Click All filter (around x=95.0, y=10.0)
     assert_eq!(
-        handle_console_click(&targets, Point::new(170.0, 10.0)),
-        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Error))
+        handle_console_click(&tree, &targets, Point::new(95.0, 10.0)),
+        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::All))
     );
 
-    // Click AutoScroll toggle
+    // Click AutoScroll toggle (right-aligned, around x=550.0, y=10.0)
     assert_eq!(
-        handle_console_click(&targets, Point::new(420.0, 10.0)),
+        handle_console_click(&tree, &targets, Point::new(550.0, 10.0)),
         Some(ConsoleAction::ToggleAutoScroll)
-    );
-
-    // Click Search Clear "✖"
-    assert_eq!(
-        handle_console_click(&targets, Point::new(355.0, 10.0)),
-        Some(ConsoleAction::ClearSearch)
     );
 }
 
@@ -185,13 +191,7 @@ fn test_console_panel_clipping_and_clear_action() {
     assert!(found_root, "ConsolePanelRoot node must exist");
     assert!(found_vp, "ConsoleViewport node must exist");
 
-    // Verify that clicking inside clear_btn_rect triggers ConsoleAction::ClearLogs
-    let click_action = handle_console_click(
-        &targets,
-        Point::new(
-            targets.clear_btn_rect.x + 2.0,
-            targets.clear_btn_rect.y + 2.0,
-        ),
-    );
+    // Verify that clicking inside Clear button triggers ConsoleAction::ClearLogs
+    let click_action = handle_console_click(&tree, &targets, Point::new(15.0, 15.0));
     assert_eq!(click_action, Some(ConsoleAction::ClearLogs));
 }

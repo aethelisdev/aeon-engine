@@ -34,6 +34,14 @@ impl IrisEditorOverlay {
             return CursorIcon::Pointer;
         }
 
+        // 0b. Console toolbar buttons & search input
+        if let Some(cur) = evaluate_console_toolbar_cursor(&self.tree, p) {
+            return match cur {
+                ConsoleToolbarCursor::Pointer => CursorIcon::Pointer,
+                ConsoleToolbarCursor::Text => CursorIcon::Text,
+            };
+        }
+
         // 1. Floating window resize edges
         for rect in &self.chrome.floating_window_rects {
             if rect.contains_point(p) {

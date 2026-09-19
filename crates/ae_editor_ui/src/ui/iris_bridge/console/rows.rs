@@ -7,7 +7,7 @@
 //! console viewport using high-performance Iris UI retained-mode widget nodes.
 //!
 
-use super::types::ConsolePanelParams;
+use super::types::{ConsoleFilterExt, ConsolePanelParams};
 use irisui::prelude::*;
 
 /// Standard height in physical pixels for a single console log row.

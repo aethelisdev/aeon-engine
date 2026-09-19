@@ -59,11 +59,12 @@ pub fn build_console_panel(
     let clear_w = 76.0;
     let clear_rect = Rect::new(cur_x, btn_y, clear_w, btn_h);
     let is_clear_hovered = clear_rect.contains_point(params.cursor_pos);
-    targets.clear_btn_rect = clear_rect;
 
     let clear_id = tree.create_node();
     if let Some(node) = tree.get_mut(clear_id) {
         node.set_name("ConsoleClearBtn");
+        node.role = WidgetRole::Button;
+        node.tag = CONSOLE_TAG_CLEAR;
         node.set_text("🧹 Clear");
         node.font_size = 11.0;
         node.line_height = btn_h;
@@ -114,11 +115,14 @@ pub fn build_console_panel(
                             count: usize,
                             is_active: bool,
                             active_color: Color,
+                            tag: u64,
                             rect: Rect| {
         let is_hovered = rect.contains_point(params.cursor_pos);
         let btn_id = tree.create_node();
         if let Some(node) = tree.get_mut(btn_id) {
             node.set_name("FilterBtn");
+            node.role = WidgetRole::Button;
+            node.tag = tag;
             node.set_text(format!("{} ({})", label, count));
             node.font_size = 11.0;
             node.line_height = btn_h;
@@ -159,13 +163,13 @@ pub fn build_console_panel(
     // 1. All
     let all_w = 58.0;
     let all_rect = Rect::new(cur_x, btn_y, all_w, btn_h);
-    targets.filter_all_rect = all_rect;
     build_filter_btn(
         tree,
         "All",
         count_all,
         params.filter == ConsoleFilterLevel::All,
         Color::rgba(0.0, 0.85, 1.0, 0.95),
+        CONSOLE_TAG_FILTER_ALL,
         all_rect,
     );
     cur_x += all_w + 4.0;
@@ -173,13 +177,13 @@ pub fn build_console_panel(
     // 2. Errors
     let err_w = 76.0;
     let err_rect = Rect::new(cur_x, btn_y, err_w, btn_h);
-    targets.filter_error_rect = err_rect;
     build_filter_btn(
         tree,
         "Errors",
         count_err,
         params.filter == ConsoleFilterLevel::Error,
         Color::rgba(0.95, 0.30, 0.30, 0.95),
+        CONSOLE_TAG_FILTER_ERROR,
         err_rect,
     );
     cur_x += err_w + 4.0;
@@ -187,13 +191,13 @@ pub fn build_console_panel(
     // 3. Warnings
     let warn_w = 88.0;
     let warn_rect = Rect::new(cur_x, btn_y, warn_w, btn_h);
-    targets.filter_warn_rect = warn_rect;
     build_filter_btn(
         tree,
         "Warnings",
         count_warn,
         params.filter == ConsoleFilterLevel::Warn,
         Color::rgba(0.95, 0.70, 0.15, 0.95),
+        CONSOLE_TAG_FILTER_WARN,
         warn_rect,
     );
     cur_x += warn_w + 4.0;
@@ -201,13 +205,13 @@ pub fn build_console_panel(
     // 4. Info
     let info_w = 68.0;
     let info_rect = Rect::new(cur_x, btn_y, info_w, btn_h);
-    targets.filter_info_rect = info_rect;
     build_filter_btn(
         tree,
         "Info",
         count_info,
         params.filter == ConsoleFilterLevel::Info,
         Color::rgba(0.20, 0.70, 0.95, 0.95),
+        CONSOLE_TAG_FILTER_INFO,
         info_rect,
     );
     cur_x += info_w + 4.0;
@@ -215,20 +219,19 @@ pub fn build_console_panel(
     // 5. Debug
     let dbg_w = 76.0;
     let dbg_rect = Rect::new(cur_x, btn_y, dbg_w, btn_h);
-    targets.filter_debug_rect = dbg_rect;
     build_filter_btn(
         tree,
         "Debug",
         count_debug,
         params.filter == ConsoleFilterLevel::Debug,
         Color::rgba(0.65, 0.50, 0.95, 0.95),
+        CONSOLE_TAG_FILTER_DEBUG,
         dbg_rect,
     );
     cur_x += dbg_w + 12.0;
 
     // ── Search Input Field ──
     let search_w = 210.0;
-    targets.search_clear_btn_rect = None;
     if tb_rect.right() - cur_x > search_w + 150.0 {
         let search_rect = Rect::new(cur_x, btn_y, search_w, btn_h);
         targets.search_input_rect = search_rect;
@@ -238,6 +241,7 @@ pub fn build_console_panel(
         let search_box_id = tree.create_node();
         if let Some(node) = tree.get_mut(search_box_id) {
             node.set_name("ConsoleSearchBox");
+            node.tag = CONSOLE_TAG_SEARCH_INPUT;
             node.computed_rect = search_rect;
             let (border_c, border_w) = if params.is_search_focused {
                 (Color::rgba(0.0, 0.90, 1.0, 0.95), 1.5)
@@ -257,6 +261,7 @@ pub fn build_console_panel(
         let icon_id = tree.create_node();
         if let Some(node) = tree.get_mut(icon_id) {
             node.set_name("SearchIcon");
+            node.interactive = false;
             node.set_text("🔍");
             node.font_size = 11.0;
             node.line_height = btn_h;
@@ -285,6 +290,7 @@ pub fn build_console_panel(
         let text_w = search_w - 44.0;
         if let Some(node) = tree.get_mut(search_text_id) {
             node.set_name("SearchQueryText");
+            node.interactive = false;
             node.set_text(display_text);
             node.font_size = 11.0;
             node.line_height = btn_h;
@@ -304,6 +310,7 @@ pub fn build_console_panel(
             let caret_id = tree.create_node();
             if let Some(node) = tree.get_mut(caret_id) {
                 node.set_name("ConsoleSearchCaret");
+                node.interactive = false;
                 node.computed_rect = Rect::new(caret_x, btn_y + 4.0, 1.5, btn_h - 8.0);
                 node.style = Style::new()
                     .background(Color::rgba(0.0, 0.90, 1.0, 1.0))
@@ -315,11 +322,12 @@ pub fn build_console_panel(
         // Clear Search "✖" Button
         if !params.search_query.is_empty() {
             let clear_rect = Rect::new(cur_x + search_w - 20.0, btn_y + 3.0, 16.0, 18.0);
-            targets.search_clear_btn_rect = Some(clear_rect);
 
             let clr_id = tree.create_node();
             if let Some(node) = tree.get_mut(clr_id) {
                 node.set_name("SearchClearButton");
+                node.role = WidgetRole::Button;
+                node.tag = CONSOLE_TAG_SEARCH_CLEAR;
                 node.set_text("✖");
                 node.font_size = 9.5;
                 node.line_height = 18.0;
@@ -334,12 +342,13 @@ pub fn build_console_panel(
     // ── Auto-Scroll Toggle & Status (Right-aligned) ──
     let auto_w = 98.0;
     let auto_rect = Rect::new(tb_rect.right() - auto_w - 8.0, btn_y, auto_w, btn_h);
-    targets.autoscroll_toggle_rect = auto_rect;
     let is_auto_hovered = auto_rect.contains_point(params.cursor_pos);
 
     let auto_id = tree.create_node();
     if let Some(node) = tree.get_mut(auto_id) {
         node.set_name("AutoScrollToggle");
+        node.role = WidgetRole::Button;
+        node.tag = CONSOLE_TAG_AUTOSCROLL;
         node.set_text(if params.auto_scroll {
             "✓ Auto-Scroll"
         } else {

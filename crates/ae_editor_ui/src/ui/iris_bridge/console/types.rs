@@ -10,36 +10,16 @@
 use crate::ui::types::ConsoleEntry;
 use irisui::prelude::{Point, Rect};
 
-/// Log level filter modes for the Developer Console.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum ConsoleFilterLevel {
-    /// Display all log messages without severity filtering.
-    #[default]
-    All,
-    /// Display only error messages.
-    Error,
-    /// Display only warning messages.
-    Warn,
-    /// Display only informational messages.
-    Info,
-    /// Display only debug messages.
-    Debug,
+pub use irisui::prelude::ConsoleFilterLevel;
+
+/// Extension methods for `ConsoleFilterLevel` log matching.
+pub trait ConsoleFilterExt {
+    /// Checks if a log entry matches the current filter level.
+    fn matches(&self, level: log::Level) -> bool;
 }
 
-impl ConsoleFilterLevel {
-    /// Returns the human-readable label for the filter button.
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::All => "All",
-            Self::Error => "Errors",
-            Self::Warn => "Warnings",
-            Self::Info => "Info",
-            Self::Debug => "Debug",
-        }
-    }
-
-    /// Checks if a log entry matches the current filter level.
-    pub fn matches(&self, level: log::Level) -> bool {
+impl ConsoleFilterExt for ConsoleFilterLevel {
+    fn matches(&self, level: log::Level) -> bool {
         match self {
             Self::All => true,
             Self::Error => level == log::Level::Error,
@@ -73,28 +53,14 @@ pub struct ConsolePanelParams<'a> {
 }
 
 /// Interactive click and hover targets registered during console layout construction.
+///
+/// Note: Toolbar buttons and filters are resolved via semantic tags and `UiTree::hit_test_target`.
 #[derive(Clone, Debug, Default)]
 pub struct ConsolePanelTargets {
     /// Bounding box of the complete console panel.
     pub panel_rect: Rect,
-    /// Bounding box of the "Clear Logs" button.
-    pub clear_btn_rect: Rect,
-    /// Bounding box of the "All" filter button.
-    pub filter_all_rect: Rect,
-    /// Bounding box of the "Errors" filter button.
-    pub filter_error_rect: Rect,
-    /// Bounding box of the "Warnings" filter button.
-    pub filter_warn_rect: Rect,
-    /// Bounding box of the "Info" filter button.
-    pub filter_info_rect: Rect,
-    /// Bounding box of the "Debug" filter button.
-    pub filter_debug_rect: Rect,
-    /// Bounding box of the "Auto-Scroll" toggle.
-    pub autoscroll_toggle_rect: Rect,
     /// Bounding box of the search input field.
     pub search_input_rect: Rect,
-    /// Optional bounding box of the search clear "✖" button.
-    pub search_clear_btn_rect: Option<Rect>,
     /// Bounding box of the scrollable log entries viewport.
     pub rows_viewport_rect: Rect,
     /// Total computed height of all filtered log rows.

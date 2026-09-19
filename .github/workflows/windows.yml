@@ -32,6 +32,12 @@ jobs:
       with:
         shared-key: "aeon-engine-windows-cache"
 
+    - name: Enable Windows Audio Service
+      run: |
+        Set-Service -Name Audiosrv -StartupType Automatic
+        Start-Service -Name Audiosrv -ErrorAction SilentlyContinue
+      shell: powershell
+
     - name: Workspace Cargo Clippy
       run: cargo clippy --workspace --all-targets -- -D warnings
 

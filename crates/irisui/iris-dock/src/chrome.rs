@@ -312,7 +312,11 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
             .iter()
             .map(|tab| {
                 let atlas_icon = params.viewer.atlas_icon(tab);
-                let title = params.viewer.title(tab);
+                let title = if atlas_icon.is_some() {
+                    params.viewer.raw_title(tab)
+                } else {
+                    params.viewer.title(tab)
+                };
                 let char_count = title.chars().count();
                 let is_closeable = params.viewer.closeable(tab);
                 let close_w = if is_closeable { 18.0f32 } else { 0.0f32 };

@@ -30,11 +30,35 @@ impl Default for AudioManager {
 }
 
 impl AudioManager {
+    /// Creates and initializes the `AudioManager` in silent headless fallback mode without hardware output.
+    ///
+    /// Useful for automated CI pipelines, server headless execution, or environments without physical audio devices.
+    pub fn new_silent() -> Self {
+        Self {
+            _stream: None,
+            stream_handle: None,
+            sinks: HashMap::new(),
+            master_volume: 1.0,
+            is_muted: false,
+        }
+    }
+
     /// Creates and initializes the `AudioManager` with hardware output device streams.
     ///
-    /// If no physical audio output device is present or audio driver initialization fails,
-    /// falls back gracefully without crashing or interrupting engine execution.
+    /// If running in headless CI environments (`CI`, `GITHUB_ACTIONS`, or `AEON_HEADLESS_AUDIO`)
+    /// or if no physical audio output device is present or audio driver initialization fails,
+    /// falls back gracefully to silent audio mode without crashing or interrupting engine execution.
     pub fn new() -> Self {
+        if std::env::var("AEON_HEADLESS_AUDIO").is_ok()
+            || (cfg!(target_os = "windows")
+                && (std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok()))
+        {
+            log::info!(
+                "🔊 Headless environment detected. Initializing audio manager in silent mode."
+            );
+            return Self::new_silent();
+        }
+
         let (stream, stream_handle) = match rodio::OutputStream::try_default() {
             Ok((s, h)) => {
                 log::info!(

@@ -88,4 +88,11 @@ mod tests {
 
         assert!(world.contains(ent));
     }
+
+    #[test]
+    fn test_audio_manager_silent_fallback() {
+        let manager = AudioManager::new_silent();
+        assert_eq!(manager.master_volume(), 1.0);
+        assert!(!manager.is_muted());
+    }
 }

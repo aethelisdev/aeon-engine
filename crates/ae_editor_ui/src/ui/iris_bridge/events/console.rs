@@ -29,7 +29,8 @@ impl IrisEditorOverlay {
         } = event
         {
             let click_point = self.cursor_pos();
-            if let Some(action) = super::super::console::handle_console_click(targets, click_point)
+            if let Some(action) =
+                super::super::console::handle_console_click(&self.tree, targets, click_point)
             {
                 match action {
                     super::super::console::ConsoleAction::ClearLogs => {
