@@ -278,10 +278,6 @@ pub fn build_hierarchy_rows(
                         container_id,
                         row,
                         row_rect,
-                        cur_y,
-                        list_x,
-                        list_w,
-                        row_h,
                         params,
                     },
                     targets,
@@ -314,10 +310,6 @@ pub fn build_hierarchy_rows(
                         container_id,
                         row,
                         row_rect,
-                        cur_y,
-                        list_x,
-                        list_w,
-                        row_h,
                         params,
                     },
                     targets,
@@ -353,10 +345,6 @@ struct SingleRowParams<'a, 'b> {
     container_id: WidgetId,
     row: &'a HierarchyRow,
     row_rect: Rect,
-    cur_y: f32,
-    list_x: f32,
-    list_w: f32,
-    row_h: f32,
     params: &'a HierarchyPanelParams<'b>,
 }
 
@@ -370,131 +358,33 @@ fn render_single_row(
     let row = ctx.row;
     let params = ctx.params;
     let row_rect = ctx.row_rect;
-    let cur_y = ctx.cur_y;
-    let list_x = ctx.list_x;
-    let list_w = ctx.list_w;
-    let row_h = ctx.row_h;
 
     let is_selected = params.selected_entity == Some(row.entity);
     let is_hovered = row_rect.contains_point(params.cursor_pos);
 
-    let row_id = tree.create_node();
-    if let Some(node) = tree.get_mut(row_id) {
-        node.set_name(format!("EntityRow_{:?}", row.entity));
-        node.computed_rect = row_rect;
-
-        let (bg, border, border_w) = if is_selected {
-            (
-                Color::rgba(0.02, 0.22, 0.32, 0.95), // Dark petrol blue capsule
-                Color::rgba(0.0, 0.88, 1.0, 0.95),   // Vibrant Cyan ring #00e5ff
-                1.5,
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.10, 0.14, 0.20, 0.60),
-                Color::rgba(0.18, 0.24, 0.35, 0.50),
-                1.0,
-            )
-        } else {
-            (Color::TRANSPARENT, Color::TRANSPARENT, 0.0)
-        };
-
-        node.style = Style::new()
-            .background(bg)
-            .border(border_w, border)
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(container_id, row_id);
-
-    // 1. Hierarchy Tree Connector Lines (Aeon Engine Blue GPU SDF lines for children)
-    if row.depth > 0 {
-        let tree_line_color = Color::rgba(0.20, 0.55, 0.90, 0.85); // Aeon Engine Blue
-        for d in 0..row.depth {
-            let stem_x = list_x + 8.5 + d as f32 * 14.0;
-            let is_last_level = d == row.depth - 1;
-
-            // Vertical branch line
-            let v_h = if is_last_level { row_h * 0.5 } else { row_h };
-            let v_id = tree.create_node();
-            if let Some(node) = tree.get_mut(v_id) {
-                node.set_name("TreeLineVertical");
-                node.computed_rect = Rect::new(stem_x, cur_y, 1.2, v_h);
-                node.style = Style::new().background(tree_line_color);
-            }
-            let _ = tree.add_child(row_id, v_id);
-
-            // Horizontal branch arm into icon
-            if is_last_level {
-                let h_id = tree.create_node();
-                if let Some(node) = tree.get_mut(h_id) {
-                    node.set_name("TreeLineHorizontal");
-                    node.computed_rect = Rect::new(stem_x, cur_y + row_h * 0.5 - 0.6, 9.0, 1.2);
-                    node.style = Style::new().background(tree_line_color);
-                }
-                let _ = tree.add_child(row_id, h_id);
-            }
-        }
-    }
-
-    // 2. Foldout Arrow (for parent nodes)
-    let indent = row.depth as f32 * 14.0;
-    let prefix_x = list_x + 6.0 + indent;
-
-    if row.has_children {
-        let fold_id = tree.create_node();
-        if let Some(node) = tree.get_mut(fold_id) {
-            node.set_name("FoldoutArrow");
-            node.set_text("▼");
-            node.font_size = 9.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.65, 0.68, 0.78, 1.0);
-            node.computed_rect = Rect::new(prefix_x, cur_y, 10.0, row_h);
-        }
-        let _ = tree.add_child(row_id, fold_id);
-    }
-
-    // 3. Component Icon (Left-aligned column)
-    let icon_x = if row.has_children {
-        prefix_x + 12.0
-    } else {
-        prefix_x + 2.0
-    };
     let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
-    let comp_icon_size = 16.0;
-    let comp_icon_y = cur_y + (row_h - comp_icon_size) * 0.5;
-    let icon_id = tree.create_node();
+    let row_icon = match comp_icon {
+        EntityIcon::Texture(uv, tint) => TreeRowIcon::Texture {
+            uv,
+            tint,
+            size: 16.0,
+        },
+        EntityIcon::Text(icon_str) => TreeRowIcon::Text {
+            text: icon_str,
+            color: if is_selected {
+                Color::rgba(0.0, 0.95, 1.0, 1.0)
+            } else {
+                Color::WHITE
+            },
+            size: 12.0,
+        },
+    };
 
-    if let Some(node) = tree.get_mut(icon_id) {
-        node.set_name("ComponentIcon");
-        match comp_icon {
-            EntityIcon::Texture(uv, tint) => {
-                node.computed_rect = Rect::new(icon_x, comp_icon_y, comp_icon_size, comp_icon_size);
-                node.set_texture_uv(uv);
-                node.set_texture_tint(tint);
-            }
-            EntityIcon::Text(icon_str) => {
-                node.computed_rect = Rect::new(icon_x, cur_y, 16.0, row_h);
-                node.set_text(icon_str);
-                node.font_size = 12.0;
-                node.line_height = row_h;
-                let icon_color = if is_selected {
-                    Color::rgba(0.0, 0.95, 1.0, 1.0)
-                } else {
-                    Color::WHITE
-                };
-                node.text_color = icon_color;
-            }
-        }
-    }
-    let _ = tree.add_child(row_id, icon_id);
-
-    // 4. Entity Name Text (Centered horizontally across the row)
     let is_visible = params
         .world
         .get::<&ae_core::ecs::Hidden>(row.entity)
         .is_err();
 
-    let name_id = tree.create_node();
     let text_color = if is_selected {
         Color::rgba(0.0, 0.95, 1.0, 1.0) // Bright cyan #00e5ff
     } else if !is_visible {
@@ -503,24 +393,38 @@ fn render_single_row(
         Color::rgba(0.88, 0.91, 0.98, 1.0) // Crisp slate white
     };
 
-    if let Some(node) = tree.get_mut(name_id) {
-        node.set_name("EntityName");
-        if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity) {
-            node.set_text(&name_comp.0);
-        } else {
-            node.set_text(format!("Entity {:?}", row.entity));
-        }
-        node.font_size = 11.5;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = text_color;
-        node.computed_rect = Rect::new(list_x + 28.0, cur_y, list_w - 56.0, row_h);
-    }
-    let _ = tree.add_child(row_id, name_id);
+    let entity_name = if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity) {
+        name_comp.0.clone()
+    } else {
+        format!("Entity {:?}", row.entity)
+    };
+
+    let row_frame = TreeRowBuilder::new(row_rect)
+        .name(format!("EntityRow_{:?}", row.entity))
+        .depth(row.depth as usize)
+        .has_children(row.has_children)
+        .is_expanded(true)
+        .is_selected(is_selected)
+        .is_hovered(is_hovered)
+        .draw_connector_lines(true)
+        .icon(Some(row_icon))
+        .label(entity_name)
+        .label_color(Some(text_color))
+        .label_align(TextAlign::Center)
+        .trailing_reserve_width(28.0)
+        .style(TreeRowStyle::hierarchy_default())
+        .build(tree, container_id);
+
+    let row_id = row_frame.row_id;
 
     // 5. Eye Visibility Button (Right-aligned edge column)
     let eye_w = 22.0;
-    let eye_rect = Rect::new(list_x + list_w - eye_w - 2.0, cur_y, eye_w, row_h);
+    let eye_rect = Rect::new(
+        row_rect.right() - eye_w - 2.0,
+        row_rect.y,
+        eye_w,
+        row_rect.height,
+    );
     let is_eye_hovered = eye_rect.contains_point(params.cursor_pos);
 
     let (eye_uv, eye_col) = if !is_visible {
@@ -538,7 +442,7 @@ fn render_single_row(
     let eye_id = tree.create_node();
     let eye_icon_size = 18.0;
     let eye_icon_x = eye_rect.x + (eye_w - eye_icon_size) * 0.5;
-    let eye_icon_y = eye_rect.y + (row_h - eye_icon_size) * 0.5;
+    let eye_icon_y = eye_rect.y + (row_rect.height - eye_icon_size) * 0.5;
     if let Some(node) = tree.get_mut(eye_id) {
         node.set_name("EyeVisibilityButton");
         node.computed_rect = Rect::new(eye_icon_x, eye_icon_y, eye_icon_size, eye_icon_size);

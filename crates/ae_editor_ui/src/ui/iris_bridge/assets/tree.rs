@@ -206,98 +206,44 @@ fn render_folder_recursive(
     );
     let is_hovered = row_rect.contains_point(ctx.params.cursor_pos);
 
-    // Tree Node Row Capsule
-    let row_id = tree.create_node();
-    if let Some(node) = tree.get_mut(row_id) {
-        node.set_name("FolderRow");
-        node.computed_rect = row_rect;
-        let bg_color = if is_selected {
-            Color::rgba(0.08, 0.22, 0.32, 0.90)
-        } else if is_hovered {
-            Color::rgba(0.14, 0.16, 0.22, 0.70)
-        } else {
-            Color::TRANSPARENT
-        };
-        let border_color = if is_selected {
-            Color::rgba(0.0, 0.85, 1.0, 0.80)
-        } else {
-            Color::TRANSPARENT
-        };
-        node.style = Style::new()
-            .background(bg_color)
-            .border_radius(4.0)
-            .border(1.0, border_color);
-    }
-    let _ = tree.add_child(parent_id, row_id);
-
-    let mut cur_x = row_rect.x + 4.0 + (depth as f32 * 14.0);
-
-    // 1. Expand / Collapse Chevron indicator (▾ / ▸)
-    let chevron_rect = if has_children {
-        let ch_rect = Rect::new(cur_x, row_rect.y, 14.0, row_rect.height);
-        let ch_id = tree.create_node();
-        if let Some(node) = tree.get_mut(ch_id) {
-            node.set_name("FolderChevron");
-            node.set_text(if is_expanded { "▾" } else { "▸" });
-            node.font_size = 11.0;
-            node.line_height = row_rect.height;
-            node.text_align = TextAlign::Center;
-            node.text_color = if is_selected {
-                Color::rgba(0.0, 0.90, 1.0, 1.0)
-            } else {
-                Color::rgba(0.60, 0.65, 0.75, 1.0)
-            };
-            node.computed_rect = ch_rect;
-        }
-        let _ = tree.add_child(row_id, ch_id);
-        Some(ch_rect)
+    let label_color = if is_selected {
+        Color::WHITE
+    } else if is_hovered {
+        Color::rgba(0.90, 0.92, 0.96, 1.0)
     } else {
-        None
+        Color::rgba(0.75, 0.78, 0.85, 1.0)
     };
-    cur_x += 16.0;
 
-    // 2. Canonical Vector Folder Icon (`ICON_FOLDER`, Layer 6)
-    let icon_size = 16.0;
-    let icon_y = row_rect.y + (row_rect.height - icon_size) * 0.5;
-    let icon_rect = Rect::new(cur_x, icon_y, icon_size, icon_size);
-    let icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(icon_id) {
-        node.set_name("FolderIcon");
-        node.computed_rect = icon_rect;
-        node.set_texture_uv(ICON_FOLDER);
-        node.set_texture_tint(if is_selected {
+    let folder_icon = TreeRowIcon::Texture {
+        uv: ICON_FOLDER,
+        tint: if is_selected {
             Color::rgba(0.0, 0.90, 1.0, 1.0) // Cyan when selected
         } else {
             Color::rgba(0.95, 0.76, 0.28, 1.0) // Warm folder amber
-        });
-    }
-    let _ = tree.add_child(row_id, icon_id);
-    cur_x += icon_size + 6.0;
+        },
+        size: 16.0,
+    };
 
-    // 3. Folder Name Label
-    let name_w = (row_rect.right() - cur_x).max(20.0);
-    let name_rect = Rect::new(cur_x, row_rect.y, name_w, row_rect.height);
-    let name_id = tree.create_node();
-    if let Some(node) = tree.get_mut(name_id) {
-        node.set_name("FolderName");
-        node.set_text(folder_name);
-        node.font_size = 11.5;
-        node.line_height = row_rect.height;
-        node.text_color = if is_selected {
-            Color::WHITE
-        } else if is_hovered {
-            Color::rgba(0.90, 0.92, 0.96, 1.0)
-        } else {
-            Color::rgba(0.75, 0.78, 0.85, 1.0)
-        };
-        node.computed_rect = name_rect;
-    }
-    let _ = tree.add_child(row_id, name_id);
+    let frame = TreeRowBuilder::new(row_rect)
+        .name("FolderRow")
+        .depth(depth)
+        .has_children(has_children)
+        .is_expanded(is_expanded)
+        .is_selected(is_selected)
+        .is_hovered(is_hovered)
+        .draw_connector_lines(false)
+        .foldout_glyphs("▾", "▸")
+        .icon(Some(folder_icon))
+        .label(folder_name)
+        .label_color(Some(label_color))
+        .label_align(TextAlign::Left)
+        .style(TreeRowStyle::folder_default())
+        .build(tree, parent_id);
 
     // Register Target
     ctx.targets.folder_nodes.push(FolderTreeNodeTarget {
-        row_rect,
-        chevron_rect,
+        row_rect: frame.row_rect,
+        chevron_rect: frame.foldout_rect,
         path: path.to_path_buf(),
         has_children,
         is_expanded,

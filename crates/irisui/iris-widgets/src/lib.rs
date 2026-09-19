@@ -26,9 +26,10 @@ pub mod modal;
 pub mod numeric_input;
 pub mod panel;
 pub mod status_bar;
+pub mod tree_view;
 pub mod typography;
 
-pub use asset_card::{AssetCardBuilder, TreeItemBuilder};
+pub use asset_card::AssetCardBuilder;
 pub use button::{ButtonBuilder, TabBuilder};
 pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
 pub use card::{CardBuilder, CardFrame, CardIcon, CardStyle};
@@ -60,6 +61,7 @@ pub use modal::{ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle};
 pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericInputStyle};
 pub use panel::PanelBuilder;
 pub use status_bar::StatusBarBuilder;
+pub use tree_view::{TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle};
 pub use typography::{LabelBuilder, SectionHeaderBuilder};
 
 #[cfg(test)]
@@ -151,8 +153,11 @@ mod tests {
         let drag_id = DragValueBuilder::new(&mut tree, "X", 1.23, Color::RED, false).build();
         assert!(tree.get(drag_id).is_some());
 
-        let tree_item_id = TreeItemBuilder::new(&mut tree, "Player Character", true).build();
-        assert!(tree.get(tree_item_id).is_some());
+        let row_frame = TreeRowBuilder::new(iris_core::Rect::new(0.0, 0.0, 200.0, 24.0))
+            .label("Player Character")
+            .is_selected(true)
+            .build(&mut tree, tab_id);
+        assert!(tree.get(row_frame.row_id).is_some());
 
         let asset_id =
             AssetCardBuilder::new(&mut tree, "shader.wgsl", "WGSL", Color::YELLOW).build();

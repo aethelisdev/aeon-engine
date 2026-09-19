@@ -90,8 +90,8 @@ pub mod prelude {
         LabelBuilder, MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle,
         NumericInputEditState, NumericInputPillBuilder, NumericInputStyle, PanelBuilder,
         PropertyRowBuilder, SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder,
-        TextInputBuilder, TextInputState, TreeItemBuilder, evaluate_color_picker_click,
-        evaluate_color_picker_cursor, evaluate_color_picker_drag, evaluate_console_toolbar_click,
-        evaluate_console_toolbar_cursor, hsv_to_rgb, rgb_to_hsv,
+        TextInputBuilder, TextInputState, TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle,
+        evaluate_color_picker_click, evaluate_color_picker_cursor, evaluate_color_picker_drag,
+        evaluate_console_toolbar_click, evaluate_console_toolbar_cursor, hsv_to_rgb, rgb_to_hsv,
     };
 }
