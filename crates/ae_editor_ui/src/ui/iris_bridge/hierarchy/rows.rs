@@ -239,54 +239,57 @@ pub fn build_hierarchy_rows(
     let scroll_rect = Rect::new(list_x, list_y, list_w, list_h);
     targets.scroll_container_rect = scroll_rect;
 
-    let container_id = tree.create_node();
-    if let Some(node) = tree.get_mut(container_id) {
-        node.set_name("HierarchyRowsContainer");
-        node.computed_rect = scroll_rect;
-        node.style = Style::new().clip_children(true);
-    }
-    let _ = tree.add_child(parent_id, container_id);
-
     let query_lower = params.search_query.trim().to_lowercase();
     let row_h = 24.0;
     let row_gap = 3.0;
     let item_stride = row_h + row_gap;
 
+    let total_rows = if query_lower.is_empty() {
+        rows.len()
+    } else {
+        rows.iter()
+            .filter(|row| {
+                if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity) {
+                    name_comp.0.to_lowercase().contains(&query_lower)
+                } else {
+                    format!("Entity {:?}", row.entity)
+                        .to_lowercase()
+                        .contains(&query_lower)
+                }
+            })
+            .count()
+    };
+
+    let vlist = VirtualList::new(total_rows, item_stride);
+    let scroll_frame = ScrollAreaBuilder::new(scroll_rect, vlist.total_content_height())
+        .name("HierarchyRowsContainer")
+        .scroll_y(params.scroll_y)
+        .cursor_pos(Some(params.cursor_pos))
+        .build(tree, parent_id);
+
+    let container_id = scroll_frame.container_id;
     let mut rendered_count = 0;
 
     if query_lower.is_empty() {
         rendered_count = rows.len();
-        let total_rows = rows.len();
-        let skip_count = if params.scroll_y > 0.0 {
-            (params.scroll_y / item_stride).floor() as usize
-        } else {
-            0
-        };
-        let start_idx = skip_count.min(total_rows);
-        let mut cur_y = list_y - params.scroll_y + (start_idx as f32) * item_stride;
-
-        for row in &rows[start_idx..] {
-            if cur_y > list_y + list_h {
-                break;
-            }
-
-            let row_rect = Rect::new(list_x, cur_y, list_w, row_h);
-            if cur_y + row_h >= list_y {
-                render_single_row(
-                    tree,
-                    SingleRowParams {
-                        container_id,
-                        row,
-                        row_rect,
-                        params,
-                    },
-                    targets,
-                );
-            }
-            cur_y += item_stride;
+        let slice = vlist.compute_slice(list_h, params.scroll_y);
+        for (offset, row) in rows[slice.start_idx..slice.end_idx].iter().enumerate() {
+            let row_idx = slice.start_idx + offset;
+            let row_y = vlist.item_y(row_idx, list_y, params.scroll_y);
+            let row_rect = Rect::new(list_x, row_y, list_w, row_h);
+            render_single_row(
+                tree,
+                SingleRowParams {
+                    container_id,
+                    row,
+                    row_rect,
+                    params,
+                },
+                targets,
+            );
         }
     } else {
-        let mut cur_y = list_y - params.scroll_y;
+        let mut matching_idx = 0;
         for row in rows {
             let matches = if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity)
             {
@@ -301,9 +304,9 @@ pub fn build_hierarchy_rows(
             }
 
             rendered_count += 1;
-            let row_rect = Rect::new(list_x, cur_y, list_w, row_h);
-
-            if cur_y + row_h >= list_y && cur_y <= list_y + list_h {
+            if vlist.is_item_visible(matching_idx, list_h, params.scroll_y) {
+                let row_y = vlist.item_y(matching_idx, list_y, params.scroll_y);
+                let row_rect = Rect::new(list_x, row_y, list_w, row_h);
                 render_single_row(
                     tree,
                     SingleRowParams {
@@ -315,7 +318,7 @@ pub fn build_hierarchy_rows(
                     targets,
                 );
             }
-            cur_y += item_stride;
+            matching_idx += 1;
         }
     }
 

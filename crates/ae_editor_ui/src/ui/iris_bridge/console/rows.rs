@@ -43,9 +43,9 @@ pub fn build_console_rows(
     }
 
     let total_filtered = matching_indices.len();
-    let total_content_height =
-        (total_filtered as f32 * CONSOLE_ROW_HEIGHT).max(viewport_rect.height);
-    let max_scroll_y = (total_content_height - viewport_rect.height).max(0.0);
+    let vlist = VirtualList::new(total_filtered, CONSOLE_ROW_HEIGHT);
+    let total_content_height = vlist.total_content_height().max(viewport_rect.height);
+    let max_scroll_y = vlist.max_scroll_y(viewport_rect.height);
 
     if total_filtered == 0 {
         let msg = if has_query {
@@ -63,24 +63,24 @@ pub fn build_console_rows(
         return (total_content_height, max_scroll_y);
     }
 
-    // 2. Compute virtualized row slice
+    // 2. Compute virtualized row slice via iris-widgets VirtualList
     let effective_scroll_y = if params.auto_scroll {
         max_scroll_y
     } else {
         params.scroll_y.clamp(0.0, max_scroll_y)
     };
 
-    let start_idx = (effective_scroll_y / CONSOLE_ROW_HEIGHT).floor() as usize;
-    let visible_count = (viewport_rect.height / CONSOLE_ROW_HEIGHT).ceil() as usize + 2;
-    let end_idx = (start_idx + visible_count).min(total_filtered);
+    let slice = vlist.compute_slice(viewport_rect.height, effective_scroll_y);
 
     // 3. Render visible rows via iris-widgets ConsoleRowBuilder
-    for (offset, &entry_idx) in matching_indices[start_idx..end_idx].iter().enumerate() {
-        let filtered_idx = start_idx + offset;
+    for (offset, &entry_idx) in matching_indices[slice.start_idx..slice.end_idx]
+        .iter()
+        .enumerate()
+    {
+        let filtered_idx = slice.start_idx + offset;
         let entry = &params.entries[entry_idx];
 
-        let row_y =
-            viewport_rect.y + (filtered_idx as f32 * CONSOLE_ROW_HEIGHT) - effective_scroll_y;
+        let row_y = vlist.item_y(filtered_idx, viewport_rect.y, effective_scroll_y);
         if row_y + CONSOLE_ROW_HEIGHT <= viewport_rect.y || row_y >= viewport_rect.bottom() {
             continue;
         }

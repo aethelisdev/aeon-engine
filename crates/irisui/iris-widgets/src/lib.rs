@@ -26,6 +26,7 @@ pub mod menubar;
 pub mod modal;
 pub mod numeric_input;
 pub mod panel;
+pub mod scroll_area;
 pub mod status_bar;
 pub mod timeline;
 pub mod tree_view;
@@ -71,6 +72,10 @@ pub use menubar::{DropdownMenuBuilder, MenuBarBuilder};
 pub use modal::{ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle};
 pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericInputStyle};
 pub use panel::PanelBuilder;
+pub use scroll_area::{
+    ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit,
+    ScrollBarVisibility, ScrollDirection, VirtualList, VirtualSlice,
+};
 pub use status_bar::StatusBarBuilder;
 pub use timeline::{
     DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, MediaTransportAction,

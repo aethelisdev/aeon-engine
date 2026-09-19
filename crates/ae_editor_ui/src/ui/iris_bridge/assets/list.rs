@@ -63,17 +63,18 @@ pub fn build_asset_list_table(
     cur_col_x += col_status_w;
     build_header_label(tree, hdr_id, "Actions", cur_col_x, hdr_y, col_act_w);
 
-    // 2. Table Data Rows
-    let mut cur_y = vp_rect.y + LIST_HEADER_HEIGHT + 8.0 - params.scroll_y;
+    // 2. Table Data Rows via iris-widgets VirtualList
+    let table_y = vp_rect.y + LIST_HEADER_HEIGHT + 8.0;
+    let available_table_h = (vp_rect.height - (LIST_HEADER_HEIGHT + 8.0)).max(10.0);
+    let vlist = VirtualList::new(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0);
+    let slice = vlist.compute_slice(available_table_h, params.scroll_y);
 
-    for (row_idx, item) in params.filtered_items.iter().enumerate() {
-        let row_y = cur_y;
-        cur_y += LIST_ROW_HEIGHT + 2.0;
-
-        // Viewport Scissor Cull: skip row if outside visible viewport
-        if row_y + LIST_ROW_HEIGHT < vp_rect.y || row_y > vp_rect.bottom() {
-            continue;
-        }
+    for (offset, item) in params.filtered_items[slice.start_idx..slice.end_idx]
+        .iter()
+        .enumerate()
+    {
+        let row_idx = slice.start_idx + offset;
+        let row_y = vlist.item_y(row_idx, table_y, params.scroll_y);
 
         let row_rect = Rect::new(vp_rect.x + 8.0, row_y, total_w, LIST_ROW_HEIGHT);
         let is_selected = params.selected_asset == Some(&item.path);

@@ -7,7 +7,7 @@
 //! virtualized scrollable log entries viewport.
 //!
 
-use super::rows::build_console_rows;
+use super::rows::{CONSOLE_ROW_HEIGHT, build_console_rows};
 use super::types::{ConsolePanelParams, ConsolePanelTargets};
 use irisui::prelude::*;
 
@@ -76,24 +76,26 @@ pub fn build_console_panel(
         targets.search_input_rect = search_rect;
     }
 
-    // 4. Scrollable Log Rows Viewport
+    // 4. Scrollable Log Rows Viewport via iris-widgets ScrollAreaBuilder
     let vp_y = params.panel_rect.y + CONSOLE_TOOLBAR_HEIGHT + 1.0;
     let vp_h = (params.panel_rect.height - CONSOLE_TOOLBAR_HEIGHT - 2.0).max(10.0);
     let vp_rect = Rect::new(params.panel_rect.x, vp_y, params.panel_rect.width, vp_h);
     targets.rows_viewport_rect = vp_rect;
 
-    let vp_id = tree.create_node();
-    if let Some(node) = tree.get_mut(vp_id) {
-        node.set_name("ConsoleViewport");
-        node.computed_rect = vp_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.05, 0.06, 0.08, 0.98))
-            .clip_children(true);
+    let vlist = VirtualList::new(params.entries.len(), CONSOLE_ROW_HEIGHT);
+    let scroll_frame = ScrollAreaBuilder::new(vp_rect, vlist.total_content_height())
+        .name("ConsoleViewport")
+        .scroll_y(params.scroll_y)
+        .cursor_pos(Some(params.cursor_pos))
+        .build(tree, root_id);
+
+    if let Some(node) = tree.get_mut(scroll_frame.container_id) {
+        node.style = node.style.background(Color::rgba(0.05, 0.06, 0.08, 0.98));
     }
-    let _ = tree.add_child(root_id, vp_id);
 
     // 5. Render Rows
-    let (content_h, max_scroll) = build_console_rows(tree, vp_id, params, vp_rect);
+    let (content_h, max_scroll) =
+        build_console_rows(tree, scroll_frame.container_id, params, vp_rect);
     targets.total_content_height = content_h;
     targets.max_scroll_y = max_scroll;
 }

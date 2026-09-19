@@ -256,38 +256,12 @@ pub fn build_preferences_dialog(
     };
     targets.total_content_height = total_h;
 
-    // 8. Custom Scrollbar Indicator if content overflows
-    if total_h > content_rect.height {
-        let track_w = 4.0;
-        let track_x = content_rect.x + content_rect.width - 8.0;
-        let track_y = content_rect.y + 4.0;
-        let track_h = content_rect.height - 8.0;
-
-        let track_id = tree.create_node();
-        if let Some(node) = tree.get_mut(track_id) {
-            node.set_name("PrefScrollTrack");
-            node.computed_rect = Rect::new(track_x, track_y, track_w, track_h);
-            node.style = Style::new()
-                .background(Color::rgba(0.12, 0.14, 0.20, 0.40))
-                .border_radius(2.0);
-        }
-        let _ = tree.add_child(card_id, track_id);
-
-        let max_scroll = (total_h - content_rect.height + 32.0).max(1.0);
-        let thumb_h = ((content_rect.height / total_h) * track_h).clamp(24.0, track_h);
-        let scroll_ratio = (params.scroll_offset_y / max_scroll).clamp(0.0, 1.0);
-        let thumb_y = track_y + scroll_ratio * (track_h - thumb_h);
-
-        let thumb_id = tree.create_node();
-        if let Some(node) = tree.get_mut(thumb_id) {
-            node.set_name("PrefScrollThumb");
-            node.computed_rect = Rect::new(track_x, thumb_y, track_w, thumb_h);
-            node.style = Style::new()
-                .background(Color::rgba(0.28, 0.34, 0.48, 0.85))
-                .border_radius(2.0);
-        }
-        let _ = tree.add_child(card_id, thumb_id);
-    }
+    // 8. Custom Scrollbar Indicator via iris-widgets ScrollAreaBuilder
+    let _scroll_frame = ScrollAreaBuilder::new(content_rect, total_h)
+        .name("PrefScroll")
+        .scroll_y(params.scroll_offset_y)
+        .cursor_pos(Some(params.cursor_pos))
+        .build(tree, card_id);
 
     (card_id, targets)
 }
