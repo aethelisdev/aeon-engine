@@ -48,8 +48,11 @@ pub use color_picker::{
 pub use console::{
     CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
-    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, ConsoleFilterLevel, ConsoleToolbarAction,
-    ConsoleToolbarCursor, evaluate_console_toolbar_click, evaluate_console_toolbar_cursor,
+    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, ConsoleEmptyNoticeBuilder,
+    ConsoleFilterLevel, ConsoleLogCounts, ConsoleLogLevel, ConsoleRowBuilder, ConsoleRowFrame,
+    ConsoleRowStyle, ConsoleToolbarAction, ConsoleToolbarBuilder, ConsoleToolbarCursor,
+    ConsoleToolbarFrame, ConsoleToolbarStyle, evaluate_console_toolbar_click,
+    evaluate_console_toolbar_cursor,
 };
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
