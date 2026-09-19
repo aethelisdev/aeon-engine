@@ -37,181 +37,56 @@ pub fn build_asset_grid_cards(
     }
 
     let items = params.filtered_items;
-    let avail_w = (vp_rect.width - 20.0).max(CARD_WIDTH);
-    let cols = ((avail_w + CARD_SPACING) / (CARD_WIDTH + CARD_SPACING))
-        .floor()
-        .max(1.0) as usize;
+    let grid = ResponsiveGrid::new(CARD_WIDTH, CARD_HEIGHT)
+        .spacing(CARD_SPACING, CARD_SPACING)
+        .padding(10.0, 10.0);
 
-    let start_x = vp_rect.x + 10.0;
-    let mut cur_y = vp_rect.y + 10.0 - params.scroll_y;
+    let visible_cells = grid.compute_visible_cells(vp_rect, items.len(), params.scroll_y);
 
-    for chunk in items.chunks(cols) {
-        let row_y = cur_y;
-        cur_y += CARD_HEIGHT + CARD_SPACING;
+    for (item_idx, card_rect) in visible_cells {
+        let item = &items[item_idx];
+        let is_selected = params.selected_asset == Some(&item.path);
+        let is_hovered = card_rect.contains_point(params.cursor_pos);
+        let cat_color = resolve_category_color(item.category);
 
-        // Viewport Scissor Cull: skip rows completely outside visible screen
-        if row_y + CARD_HEIGHT < vp_rect.y || row_y > vp_rect.bottom() {
-            continue;
-        }
-
-        for (col_idx, item) in chunk.iter().enumerate() {
-            let card_x = start_x + (col_idx as f32 * (CARD_WIDTH + CARD_SPACING));
-            let card_rect = Rect::new(card_x, row_y, CARD_WIDTH, CARD_HEIGHT);
-            let is_selected = params.selected_asset == Some(&item.path);
-            let is_hovered = card_rect.contains_point(params.cursor_pos);
-
-            let cat_color = resolve_category_color(item.category);
-
-            // 1. Card Outer Container
-            let card_id = tree.create_node();
-            if let Some(node) = tree.get_mut(card_id) {
-                node.set_name("AssetCard");
-                node.computed_rect = card_rect;
-                let bg_color = if is_selected {
-                    Color::rgba(0.10, 0.13, 0.18, 0.98)
-                } else if is_hovered {
-                    Color::rgba(0.11, 0.12, 0.16, 0.95)
-                } else {
-                    Color::rgba(0.07, 0.08, 0.10, 0.95)
-                };
-                let border_color = if is_selected {
-                    Color::rgba(0.0, 0.90, 1.0, 1.0) // Aeon Cyan selected
-                } else if is_hovered {
-                    cat_color
-                } else {
-                    Color::rgba(0.16, 0.18, 0.23, 0.70)
-                };
-                let border_width = if is_selected { 1.5 } else { 1.0 };
-                node.style = Style::new()
-                    .background(bg_color)
-                    .border_radius(6.0)
-                    .border(border_width, border_color)
-                    .clip_children(true);
+        let preview = if let Some(&layer) = params.thumbnail_layers.get(&item.path) {
+            AssetCardPreview::Texture {
+                uv: [0.0, 0.0, 1.0, layer as f32],
+                tint: Color::WHITE,
             }
-            let _ = tree.add_child(parent_id, card_id);
-
-            // 2. Category Pill Badge (Top Left)
-            let badge_rect = Rect::new(card_x + 6.0, row_y + 6.0, 38.0, 16.0);
-            let badge_id = tree.create_node();
-            if let Some(node) = tree.get_mut(badge_id) {
-                node.set_name("CategoryBadge");
-                node.set_text(item.category.badge());
-                node.font_size = 9.0;
-                node.line_height = 16.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = cat_color;
-                node.computed_rect = badge_rect;
-                node.style = Style::new()
-                    .background(Color::rgba(cat_color.r, cat_color.g, cat_color.b, 0.16))
-                    .border_radius(3.0);
+        } else {
+            let (uv_coords, tint_color) = resolve_category_icon(item.category);
+            AssetCardPreview::VectorIcon {
+                uv: uv_coords,
+                tint: tint_color,
+                size: 28.0,
             }
-            let _ = tree.add_child(card_id, badge_id);
+        };
 
-            // 3. VRAM Resident Indicator Dot (Top Right)
-            if item.is_loaded_in_memory {
-                let dot_rect = Rect::new(card_rect.right() - 14.0, row_y + 8.0, 7.0, 7.0);
-                let dot_id = tree.create_node();
-                if let Some(node) = tree.get_mut(dot_id) {
-                    node.set_name("VramResidentDot");
-                    node.computed_rect = dot_rect;
-                    node.style = Style::new()
-                        .background(Color::rgba(0.0, 0.90, 1.0, 1.0))
-                        .border_radius(3.5);
-                }
-                let _ = tree.add_child(card_id, dot_id);
-            }
+        let display_name = truncate_display_name(&item.name, 14, 11);
 
-            // 4. Center Thumbnail / Vector Icon Preview Box (54x54 px)
-            let box_size = 54.0;
-            let box_x = card_x + (CARD_WIDTH - box_size) * 0.5;
-            let box_y = row_y + 26.0;
-            let box_rect = Rect::new(box_x, box_y, box_size, box_size);
-
-            let preview_box_id = tree.create_node();
-            if let Some(node) = tree.get_mut(preview_box_id) {
-                node.set_name("ThumbnailBox");
-                node.computed_rect = box_rect;
-                node.style = Style::new()
-                    .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
-                    .border_radius(4.0)
-                    .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60));
-            }
-            let _ = tree.add_child(card_id, preview_box_id);
-
-            if let Some(&layer) = params.thumbnail_layers.get(&item.path) {
-                // Real rendered thumbnail quad
-                let thumb_id = tree.create_node();
-                if let Some(node) = tree.get_mut(thumb_id) {
-                    node.set_name("CardRealThumbnail");
-                    node.computed_rect = box_rect;
-                    node.set_texture_uv([0.0, 0.0, 1.0, layer as f32]);
-                    node.set_texture_tint(Color::WHITE);
-                    node.style = Style::new().border_radius(4.0);
-                }
-                let _ = tree.add_child(preview_box_id, thumb_id);
+        let frame = AssetCardBuilder::new(card_rect)
+            .name("AssetCard")
+            .badge(Some(AssetCardBadge::new(item.category.badge(), cat_color)))
+            .status_dot(if item.is_loaded_in_memory {
+                Some(Color::rgba(0.0, 0.90, 1.0, 1.0))
             } else {
-                // Category Vector Icon quad centered in preview box
-                let (uv_coords, tint_color) = resolve_category_icon(item.category);
-                let icon_dim = 28.0;
-                let icon_rect = Rect::new(
-                    box_x + (box_size - icon_dim) * 0.5,
-                    box_y + (box_size - icon_dim) * 0.5,
-                    icon_dim,
-                    icon_dim,
-                );
-                let icon_id = tree.create_node();
-                if let Some(node) = tree.get_mut(icon_id) {
-                    node.set_name("CardVectorIcon");
-                    node.computed_rect = icon_rect;
-                    node.set_texture_uv(uv_coords);
-                    node.set_texture_tint(tint_color);
-                }
-                let _ = tree.add_child(preview_box_id, icon_id);
-            }
+                None
+            })
+            .preview(Some(preview))
+            .title(display_name)
+            .metadata(&item.metadata_badge)
+            .is_selected(is_selected)
+            .is_hovered(is_hovered)
+            .hover_border_color(Some(cat_color))
+            .build(tree, parent_id);
 
-            // 5. Truncated Asset Name Label (UTF-8 safe Unicode truncation)
-            let display_name = truncate_display_name(&item.name, 14, 11);
-            let name_rect = Rect::new(card_x + 4.0, row_y + 84.0, CARD_WIDTH - 8.0, 16.0);
-            let name_id = tree.create_node();
-            if let Some(node) = tree.get_mut(name_id) {
-                node.set_name("CardAssetName");
-                node.set_text(&display_name);
-                node.font_size = 11.0;
-                node.line_height = 16.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = if is_selected {
-                    Color::WHITE
-                } else if is_hovered {
-                    Color::rgba(0.92, 0.94, 0.98, 1.0)
-                } else {
-                    Color::rgba(0.80, 0.83, 0.90, 1.0)
-                };
-                node.computed_rect = name_rect;
-            }
-            let _ = tree.add_child(card_id, name_id);
-
-            // 6. Metadata Badge / Size Label (Bottom)
-            let meta_rect = Rect::new(card_x + 4.0, row_y + 102.0, CARD_WIDTH - 8.0, 14.0);
-            let meta_id = tree.create_node();
-            if let Some(node) = tree.get_mut(meta_id) {
-                node.set_name("CardMetadata");
-                node.set_text(&item.metadata_badge);
-                node.font_size = 9.5;
-                node.line_height = 14.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = Color::rgba(0.50, 0.54, 0.64, 1.0);
-                node.computed_rect = meta_rect;
-            }
-            let _ = tree.add_child(card_id, meta_id);
-
-            // Register Hit Target
-            targets.grid_cards.push(AssetCardTarget {
-                rect: card_rect,
-                path: item.path.clone(),
-                category: item.category,
-                item: item.clone(),
-            });
-        }
+        targets.grid_cards.push(AssetCardTarget {
+            rect: frame.card_rect,
+            path: item.path.clone(),
+            category: item.category,
+            item: item.clone(),
+        });
     }
 }
 

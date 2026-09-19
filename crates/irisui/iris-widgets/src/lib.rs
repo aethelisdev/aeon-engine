@@ -19,6 +19,7 @@ pub mod color_picker;
 pub mod console;
 pub mod context_menu;
 pub mod dropdown;
+pub mod grid_view;
 pub mod input;
 pub mod inspector;
 pub mod menubar;
@@ -29,7 +30,9 @@ pub mod status_bar;
 pub mod tree_view;
 pub mod typography;
 
-pub use asset_card::AssetCardBuilder;
+pub use asset_card::{
+    AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
+};
 pub use button::{ButtonBuilder, TabBuilder};
 pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
 pub use card::{CardBuilder, CardFrame, CardIcon, CardStyle};
@@ -52,6 +55,7 @@ pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
 pub use dropdown::{ComboboxPopupBuilder, ComboboxPopupFrame, ComboboxPopupStyle};
+pub use grid_view::ResponsiveGrid;
 pub use input::{
     CheckboxBuilder, DragValueBuilder, SliderBuilder, TextInputBuilder, TextInputState,
 };
@@ -159,9 +163,11 @@ mod tests {
             .build(&mut tree, tab_id);
         assert!(tree.get(row_frame.row_id).is_some());
 
-        let asset_id =
-            AssetCardBuilder::new(&mut tree, "shader.wgsl", "WGSL", Color::YELLOW).build();
-        assert!(tree.get(asset_id).is_some());
+        let asset_frame = AssetCardBuilder::new(iris_core::Rect::new(0.0, 0.0, 115.0, 125.0))
+            .title("shader.wgsl")
+            .badge(Some(AssetCardBadge::new("WGSL", Color::YELLOW)))
+            .build(&mut tree, tab_id);
+        assert!(tree.get(asset_frame.card_id).is_some());
 
         let checkbox_id = CheckboxBuilder::new(&mut tree, "Cast Shadows", true).build();
         assert!(tree.get(checkbox_id).is_some());
