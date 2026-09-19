@@ -43,24 +43,17 @@ impl IrisEditorOverlay {
         }
 
         // 1. Floating window resize edges
-        for rect in &self.chrome.floating_window_rects {
-            if rect.contains_point(p) {
-                const MARGIN: f32 = 6.0;
-                let on_left = p.x <= rect.x + MARGIN;
-                let on_right = p.x >= rect.right() - MARGIN;
-                let on_top = p.y <= rect.y + MARGIN;
-                let on_bottom = p.y >= rect.bottom() - MARGIN;
-
-                if (on_top && on_left) || (on_bottom && on_right) {
-                    return CursorIcon::NwseResize;
-                } else if (on_top && on_right) || (on_bottom && on_left) {
-                    return CursorIcon::NeswResize;
-                } else if on_left || on_right {
-                    return CursorIcon::ColResize;
-                } else if on_top || on_bottom {
-                    return CursorIcon::RowResize;
-                }
-            }
+        if let Some(edge_cursor) = evaluate_floating_resize_cursor(
+            &self.chrome.floating_window_rects,
+            p,
+            DEFAULT_RESIZE_MARGIN,
+        ) {
+            return match edge_cursor {
+                FloatingWindowCursor::NwseResize => CursorIcon::NwseResize,
+                FloatingWindowCursor::NeswResize => CursorIcon::NeswResize,
+                FloatingWindowCursor::ColResize => CursorIcon::ColResize,
+                FloatingWindowCursor::RowResize => CursorIcon::RowResize,
+            };
         }
 
         // 2. Occlusion check: underlying docked splitters and tabs must not change cursor if occluded
@@ -312,5 +305,38 @@ mod tests {
         };
         assert!(close.rect.contains_point(Point::new(80.0, 20.0)));
         assert!(!close.rect.contains_point(Point::new(50.0, 20.0)));
+    }
+
+    #[test]
+    fn test_floating_window_resize_cursor_mapping() {
+        use irisui::dock::{
+            DEFAULT_RESIZE_MARGIN, FloatingWindowCursor, evaluate_floating_resize_cursor,
+        };
+        use winit::window::CursorIcon;
+
+        let rects = vec![Rect::new(100.0, 100.0, 200.0, 200.0)];
+
+        // Top-left resize edge
+        let hit = evaluate_floating_resize_cursor(
+            &rects,
+            Point::new(102.0, 102.0),
+            DEFAULT_RESIZE_MARGIN,
+        );
+        assert_eq!(hit, Some(FloatingWindowCursor::NwseResize));
+        let mapped: CursorIcon = match hit.unwrap() {
+            FloatingWindowCursor::NwseResize => CursorIcon::NwseResize,
+            FloatingWindowCursor::NeswResize => CursorIcon::NeswResize,
+            FloatingWindowCursor::ColResize => CursorIcon::ColResize,
+            FloatingWindowCursor::RowResize => CursorIcon::RowResize,
+        };
+        assert_eq!(mapped, CursorIcon::NwseResize);
+
+        // Center should return None
+        let hit_center = evaluate_floating_resize_cursor(
+            &rects,
+            Point::new(200.0, 200.0),
+            DEFAULT_RESIZE_MARGIN,
+        );
+        assert_eq!(hit_center, None);
     }
 }

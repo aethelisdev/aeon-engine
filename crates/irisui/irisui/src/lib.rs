@@ -48,23 +48,24 @@ pub mod prelude {
     pub use iris_core::tree::{HitTargetInfo, UiTree};
 
     pub use iris_dock::{
-        ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DockChevronTarget,
-        DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget, DockDragState,
-        DockError, DockLayoutOptions, DockNavigatorGeometry, DockNavigatorStyle, DockNode,
-        DockNodeId, DockOverflowClickAction, DockOverflowItemTarget, DockOverflowMenuFrame,
-        DockOverflowMenuParams, DockOverflowMenuStyle, DockPanel, DockSplitterTarget, DockState,
-        DockStyle, DockTabTarget, DockTree, DropZone, FloatingDockWindow, FloatingDragState,
-        FloatingResizeEdge, FloatingTabBadgeParams, FloatingWindow, FloatingWindowClickAction,
+        ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DEFAULT_RESIZE_MARGIN,
+        DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
+        DockDragState, DockError, DockLayoutOptions, DockNavigatorGeometry, DockNavigatorStyle,
+        DockNode, DockNodeId, DockOverflowClickAction, DockOverflowItemTarget,
+        DockOverflowMenuFrame, DockOverflowMenuParams, DockOverflowMenuStyle, DockPanel,
+        DockSplitterTarget, DockState, DockStyle, DockTabTarget, DockTree, DropZone,
+        FloatingDockWindow, FloatingDragState, FloatingResizeEdge, FloatingTabBadgeParams,
+        FloatingWindow, FloatingWindowClampBounds, FloatingWindowClickAction, FloatingWindowCursor,
         FloatingWindowId, FloatingWindowStyle, LeafLayoutInfo, MultiViewportManager, PanelRegistry,
         SimpleTabViewer, SplitDirection, SplitterLayoutInfo, TabBarLayoutInfo,
         TabContextMenuAction, TabContextMenuState, TabLayoutInfo, TabViewer, UiNotifier,
         build_dock_chrome, build_dock_navigator_nodes, build_dock_overflow_menu,
         build_drop_preview_node, build_floating_tab_badge, build_floating_windows_layer,
-        calculate_screen_drop_zone, calculate_tab_reorder_index, compute_dock_layout,
-        compute_dock_layout_advanced, compute_dock_layout_with_options,
+        calculate_screen_drop_zone, calculate_tab_reorder_index, clamp_floating_windows,
+        compute_dock_layout, compute_dock_layout_advanced, compute_dock_layout_with_options,
         compute_dock_layout_with_viewer, compute_floating_layouts, compute_tab_bar_layout,
-        detect_resize_edge, evaluate_dock_overflow_click, evaluate_floating_window_click,
-        hit_test_navigator,
+        detect_resize_edge, evaluate_dock_overflow_click, evaluate_floating_resize_cursor,
+        evaluate_floating_window_click, find_active_tab_content_rect, hit_test_navigator,
     };
     pub use iris_layout::{LayoutEngine, LayoutError};
     pub use iris_text::{

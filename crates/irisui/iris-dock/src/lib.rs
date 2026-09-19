@@ -37,9 +37,10 @@ pub use drag_drop::{
     calculate_leaf_half_drop_zone, calculate_screen_drop_zone,
 };
 pub use floating::{
-    FloatingDragState, FloatingResizeEdge, FloatingWindow, FloatingWindowClickAction,
-    FloatingWindowStyle, build_floating_windows_layer, detect_resize_edge,
-    evaluate_floating_window_click,
+    DEFAULT_RESIZE_MARGIN, FloatingDragState, FloatingResizeEdge, FloatingWindow,
+    FloatingWindowClampBounds, FloatingWindowClickAction, FloatingWindowCursor,
+    FloatingWindowStyle, build_floating_windows_layer, clamp_floating_windows, detect_resize_edge,
+    evaluate_floating_resize_cursor, evaluate_floating_window_click, find_active_tab_content_rect,
 };
 pub use layout::{
     ComputedDockLayout, ComputedFloatingLayout, DockLayoutOptions, LeafLayoutInfo,

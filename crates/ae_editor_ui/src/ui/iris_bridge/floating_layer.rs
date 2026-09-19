@@ -9,7 +9,7 @@
 //!
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState, PanelTabViewer};
-use irisui::dock::{DockNode, FloatingWindowStyle, build_floating_windows_layer};
+use irisui::dock::{FloatingWindowStyle, build_floating_windows_layer};
 use irisui::prelude::*;
 
 /// Checks if a panel currently resides within any active floating window.
@@ -26,27 +26,11 @@ pub fn is_panel_in_floating_window(layout_state: &PanelLayoutState, panel: Panel
 /// Floating panel builders use this rectangle instead of the retired host renderer's bounds,
 /// ensuring their content begins below the native title and tab strip rather than covering it.
 pub fn active_panel_content_rect(layout_state: &PanelLayoutState, panel: PanelId) -> Option<Rect> {
-    const TITLE_BAR_HEIGHT: f32 = 26.0;
-
-    layout_state
-        .dock_state
-        .floating_windows
-        .iter()
-        .find_map(|window| {
-            for (_, node) in window.tree.iter() {
-                if let DockNode::Leaf { tabs, active_tab } = node
-                    && tabs.get(*active_tab).is_some_and(|active| *active == panel)
-                {
-                    return Some(Rect::new(
-                        window.rect.x,
-                        window.rect.y + TITLE_BAR_HEIGHT,
-                        window.rect.width,
-                        (window.rect.height - TITLE_BAR_HEIGHT).max(0.0),
-                    ));
-                }
-            }
-            None
-        })
+    find_active_tab_content_rect(
+        &layout_state.dock_state.floating_windows,
+        &panel,
+        FloatingWindowStyle::DEFAULT_TITLE_BAR_HEIGHT,
+    )
 }
 
 /// Resolves the content rectangle of the 3D viewport when detached in a floating window.

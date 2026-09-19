@@ -2,7 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Modular panel identification, tree docking state (`iris_dock`),
 /// and layout persistence for the Aeon Engine editor interface.
-use irisui::dock::{DockState, DockTree};
+use irisui::dock::{DockState, DockTree, FloatingWindowClampBounds, clamp_floating_windows};
 use serde::{Deserialize, Serialize};
 
 /// Unique identifier for each editor tool panel.
@@ -280,8 +280,10 @@ impl PanelLayoutState {
     /// Clamps all floating windows to ensure their title bars and content remain accessible within the workspace bounds.
     ///
     /// Constrains vertical coordinates so floating panel title bars never get pushed underneath
-    /// the top menubar (`min_y`) or off the bottom of the screen. Horizontally, ensures at least
-    /// a visible grab margin remains accessible.
+    /// Constrains all detached floating windows to stay within user-accessible viewport boundaries.
+    ///
+    /// Delegates directly to the core Iris UI docking framework (`clamp_floating_windows`),
+    /// ensuring that title bars remain accessible below the top menubar and grab handles remain visible.
     pub fn clamp_floating_windows(
         &mut self,
         screen_w: f32,
@@ -289,24 +291,10 @@ impl PanelLayoutState {
         min_y: f32,
         status_bar_h: f32,
     ) {
-        const TAB_BAR_H: f32 = 26.0;
-        let available_h = (screen_h - min_y - status_bar_h).max(TAB_BAR_H);
-        let max_y = (screen_h - status_bar_h - TAB_BAR_H).max(min_y);
-
-        for win in &mut self.dock_state.floating_windows {
-            if screen_w > 100.0 {
-                win.rect.width = win.rect.width.clamp(220.0, screen_w);
-            }
-            if available_h > TAB_BAR_H {
-                win.rect.height = win.rect.height.clamp(140.0, available_h);
-            }
-
-            win.rect.y = win.rect.y.clamp(min_y, max_y);
-
-            let max_x = (screen_w - 60.0).max(0.0);
-            let min_x = (60.0 - win.rect.width).min(0.0);
-            win.rect.x = win.rect.x.clamp(min_x, max_x);
-        }
+        let bounds = FloatingWindowClampBounds::new(screen_w, screen_h)
+            .with_min_y(min_y)
+            .with_bottom_inset(status_bar_h);
+        clamp_floating_windows(&mut self.dock_state.floating_windows, &bounds);
     }
 
     /// Docks a floating window back to its canonical home leaf in the tree.
