@@ -298,7 +298,7 @@ mod tests {
         let tab = NativeDockTabTarget {
             leaf: DockNodeId::default(),
             tab_index: 0,
-            panel: PanelId::Hierarchy,
+            tab: PanelId::Hierarchy,
             rect: Rect::new(10.0, 10.0, 80.0, 24.0),
             leaf_rect: Rect::new(10.0, 10.0, 200.0, 400.0),
         };

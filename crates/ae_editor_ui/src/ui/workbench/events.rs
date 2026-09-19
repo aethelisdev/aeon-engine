@@ -520,7 +520,7 @@ impl EngineUi {
                         self.pending_tab_drag = Some(crate::ui::workbench::state::PendingTabDrag {
                             leaf: target.leaf,
                             tab_index: target.tab_index,
-                            panel: target.panel,
+                            panel: target.tab,
                             press_pos: p,
                             leaf_rect: target.leaf_rect,
                             floating_window_id: None,

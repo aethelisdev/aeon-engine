@@ -5,7 +5,7 @@
 //!
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
-use irisui::dock::{DockNodeId, SplitDirection};
+use irisui::dock::DockNodeId;
 use irisui::prelude::*;
 
 /// Height of each native docking tab strip in logical editor pixels.
@@ -49,39 +49,13 @@ impl NativeDockFrame {
 }
 
 /// Native Iris tab hit target linked to a stable dock tree leaf and tab index.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeDockTabTarget {
-    /// Leaf that owns the tab.
-    pub leaf: DockNodeId,
-    /// Tab index within the owning leaf.
-    pub tab_index: usize,
-    /// Panel kind.
-    pub panel: PanelId,
-    /// Logical editor-space click bounds.
-    pub rect: Rect,
-    /// Bounding rectangle of the owning leaf pane.
-    pub leaf_rect: Rect,
-}
+pub type NativeDockTabTarget = irisui::dock::DockTabTarget<PanelId>;
 
 /// Native Iris tab close button hit target.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeDockCloseTarget {
-    /// Leaf that owns the tab.
-    pub leaf: DockNodeId,
-    /// Tab index within the owning leaf.
-    pub tab_index: usize,
-    /// Logical editor-space click bounds.
-    pub rect: Rect,
-}
+pub type NativeDockCloseTarget = irisui::dock::DockCloseTarget;
 
 /// Native Iris dock tab overflow chevron button hit target.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeDockChevronTarget {
-    /// Leaf that owns the overflowing tab bar.
-    pub leaf: DockNodeId,
-    /// Logical editor-space click bounds of the chevron button.
-    pub rect: Rect,
-}
+pub type NativeDockChevronTarget = irisui::dock::DockChevronTarget;
 
 /// Native Iris dock tab overflow dropdown menu item target.
 #[derive(Debug, Clone, Copy)]
@@ -97,16 +71,20 @@ pub struct NativeDockOverflowItemTarget {
 }
 
 /// Native Iris splitter hit target linked to a stable split node.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeDockSplitterTarget {
-    /// Split node that owns the divider.
-    pub node: DockNodeId,
-    /// Axis along which the divider moves.
-    pub direction: SplitDirection,
-    /// Logical editor-space drag bounds.
-    pub rect: Rect,
-    /// Parent-axis dimension used to normalize drag distance into a split ratio.
-    pub total_dimension: f32,
+pub type NativeDockSplitterTarget = irisui::dock::DockSplitterTarget;
+
+impl From<DockChromeFrame<PanelId>> for NativeDockFrame {
+    fn from(chrome: DockChromeFrame<PanelId>) -> Self {
+        Self {
+            panel_rects: chrome.panel_rects,
+            tab_targets: chrome.tab_targets,
+            close_targets: chrome.close_targets,
+            splitter_targets: chrome.splitter_targets,
+            chevron_targets: chrome.chevron_targets,
+            overflow_item_targets: Vec::new(),
+            active_overflow_rect: None,
+        }
+    }
 }
 
 /// Parameters passed to build the floating dock tab overflow dropdown menu.

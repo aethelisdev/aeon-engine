@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod chrome;
 pub mod context_menu;
 pub mod drag_drop;
 pub mod floating;
@@ -26,6 +27,10 @@ pub mod tab_viewer;
 pub mod tree;
 pub mod viewport;
 
+pub use chrome::{
+    DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
+    DockSplitterTarget, DockTabTarget, build_dock_chrome,
+};
 pub use context_menu::{TabContextMenuAction, TabContextMenuState};
 pub use drag_drop::{
     DockDragState, DropZone, calculate_drop_preview_rect, calculate_drop_zone,
