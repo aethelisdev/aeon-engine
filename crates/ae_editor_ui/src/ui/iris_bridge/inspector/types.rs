@@ -475,6 +475,19 @@ pub struct ActiveNumberInputState<'a> {
     pub is_all_selected: bool,
 }
 
+impl<'a> ActiveNumberInputState<'a> {
+    /// Converts this active number input state to an Iris UI [`NumericInputEditState`].
+    #[must_use]
+    pub fn to_edit_state(&self, blink_caret: bool) -> NumericInputEditState<'a> {
+        NumericInputEditState {
+            buffer: self.buffer,
+            cursor_idx: self.cursor_idx,
+            is_all_selected: self.is_all_selected,
+            blink_caret,
+        }
+    }
+}
+
 /// Input parameters supplied to the Inspector panel layout builder.
 pub struct InspectorPanelParams<'a> {
     /// Bounding rectangle of the docked Inspector panel tab.

@@ -12,7 +12,6 @@
 //! - Visibility toggle checkbox
 //!
 
-use super::components::physics::helpers::render_component_header;
 use super::registry::ComponentRenderContext;
 use super::types::{
     ComboboxRowParams, ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
@@ -45,27 +44,18 @@ pub fn build_ui_transform_card(
     let card_h = 24.0 + num_rows * (row_h + row_gap) + padding * 2.0;
     let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-    // 1. Outer Card Container
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("UiTransformCard");
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.0, 0.75, 0.95, 0.70))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    // 2. Card Header
-    render_component_header(
+    let card_id = super::components::physics::helpers::build_component_card(
         tree,
-        card_id,
+        parent_id,
         ctx,
-        "📐",
-        "2D Screen Transform",
-        Color::rgba(0.0, 0.85, 1.0, 1.0),
-        "UiElement",
+        super::components::physics::helpers::ComponentHeaderProps {
+            atlas_icon: None,
+            icon: "📐",
+            display_title: "2D Screen Transform",
+            header_color: Color::rgba(0.0, 0.85, 1.0, 1.0),
+            component_name: "UiElement",
+        },
+        card_rect,
     );
 
     let mut cur_y = ctx.base_y + padding + 22.0;

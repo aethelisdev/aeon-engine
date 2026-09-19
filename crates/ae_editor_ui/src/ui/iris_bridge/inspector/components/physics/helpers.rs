@@ -28,119 +28,37 @@ pub struct ComponentHeaderProps {
     pub component_name: &'static str,
 }
 
-/// Helper function rendering a standard component card header with a fallback text icon, title, and trash button.
-pub fn render_component_header(
+/// Helper function constructing the standardized component card using Iris UI's [`CardBuilder`].
+pub fn build_component_card(
     tree: &mut UiTree,
-    card_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-    icon: &'static str,
-    display_title: &'static str,
-    header_color: Color,
-    component_name: &'static str,
-) {
-    render_component_header_with_props(
-        tree,
-        card_id,
-        ctx,
-        ComponentHeaderProps {
-            atlas_icon: None,
-            icon,
-            display_title,
-            header_color,
-            component_name,
-        },
-    );
-}
-
-/// Helper function rendering a component card header with an optional hardware-accelerated GPU atlas icon quad.
-///
-/// If `props.atlas_icon` is provided (`Some([u_min, v_min, u_max, layer])`), it renders a crisp $14\times14$ px
-/// texture quad tinted in `props.header_color` and displays `props.display_title` directly. Otherwise, it falls back
-/// to rendering `props.icon` prepended to `props.display_title`.
-pub fn render_component_header_with_props(
-    tree: &mut UiTree,
-    card_id: WidgetId,
+    parent_id: WidgetId,
     ctx: &mut ComponentRenderContext<'_>,
     props: ComponentHeaderProps,
-) {
-    let padding = 8.0;
-    let del_btn_size = 18.0; // Compact square pill matching Image 2
+    card_rect: Rect,
+) -> WidgetId {
+    let mut builder = CardBuilder::new(tree, parent_id)
+        .name(format!("{}Card", props.component_name))
+        .rect(card_rect)
+        .title(props.display_title)
+        .title_color(props.header_color)
+        .with_delete_action(true)
+        .cursor_pos(ctx.params.cursor_pos);
 
-    let (text_offset_x, text_content) = if let Some(uv) = props.atlas_icon {
-        let icon_id = tree.create_node();
-        if let Some(node) = tree.get_mut(icon_id) {
-            node.set_name(format!("HeaderIcon_{}", props.component_name));
-            node.computed_rect =
-                Rect::new(ctx.base_x + padding, ctx.base_y + padding + 3.0, 14.0, 14.0);
-            node.set_texture_uv(uv);
-            node.set_texture_tint(props.header_color);
-        }
-        let _ = tree.add_child(card_id, icon_id);
-        (18.0, props.display_title.to_string())
+    if let Some(uv) = props.atlas_icon {
+        builder = builder.icon_atlas(uv, props.header_color);
     } else {
-        (0.0, format!("{} {}", props.icon, props.display_title))
-    };
-
-    let hdr_rect = Rect::new(
-        ctx.base_x + padding + text_offset_x,
-        ctx.base_y + padding,
-        ctx.card_w - padding * 2.0 - del_btn_size - 4.0 - text_offset_x,
-        20.0,
-    );
-
-    // Title Node
-    let hdr_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hdr_id) {
-        node.set_name(format!("Header_{}", props.component_name));
-        node.set_text(text_content);
-        node.font_size = 11.5;
-        node.line_height = 20.0;
-        node.text_color = props.header_color;
-        node.computed_rect = hdr_rect;
+        builder = builder.icon_text(props.icon);
     }
-    let _ = tree.add_child(card_id, hdr_id);
 
-    // Component Trash / Delete Button (Dark slate badge matching Image 2)
-    let del_rect = Rect::new(
-        ctx.base_x + ctx.card_w - padding - del_btn_size,
-        ctx.base_y + padding,
-        del_btn_size,
-        del_btn_size,
-    );
-    let is_del_hovered = del_rect.contains_point(ctx.params.cursor_pos);
+    let frame = builder.build();
 
-    let del_id = tree.create_node();
-    if let Some(node) = tree.get_mut(del_id) {
-        node.set_name(format!("DelBtn_{}", props.component_name));
-        node.computed_rect = del_rect;
-        node.set_text("🗑");
-        node.font_size = 10.5;
-        node.line_height = del_btn_size;
-        node.text_align = TextAlign::Center;
-        let (bg, border, txt_col) = if is_del_hovered {
-            (
-                Color::rgba(0.35, 0.10, 0.10, 0.95),
-                Color::rgba(0.70, 0.18, 0.18, 0.85),
-                Color::rgba(1.0, 0.40, 0.40, 1.0),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-                Color::rgba(0.54, 0.56, 0.60, 1.0),
-            )
-        };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-        node.text_color = txt_col;
+    if let Some(del_rect) = frame.delete_btn_rect {
+        ctx.targets
+            .component_delete_btns
+            .push((props.component_name, del_rect));
     }
-    let _ = tree.add_child(card_id, del_id);
 
-    ctx.targets
-        .component_delete_btns
-        .push((props.component_name, del_rect));
+    frame.card_id
 }
 
 /// Helper function rendering a compact numeric input row with optional unit suffix.
@@ -172,103 +90,32 @@ pub fn render_numeric_row_compact(
         params.box_w,
         row_h,
     );
-    let editing_state = ctx
+    let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
+    let edit_state = ctx
         .params
         .active_number_input
-        .filter(|s| s.id == params.input_id);
-    let is_editing = editing_state.is_some();
-    let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
+        .filter(|s| s.id == params.input_id)
+        .map(|s| s.to_edit_state(ctx.params.blink_caret));
 
-    let box_id = tree.create_node();
-    if let Some(node) = tree.get_mut(box_id) {
-        node.set_name(format!("NumPill_{:?}", params.input_id));
-        node.computed_rect = box_rect;
-        let (bg, border) = if is_editing {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.0, 0.80, 1.00, 0.95), // Glowing cyan active border
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
+    let custom_text = if params.input_id == InspectorNumberInputId::CharacterMaxSlope {
+        Some(format!("{:.0}°", params.val))
+    } else if params.input_id == InspectorNumberInputId::ActionSpeedRange {
+        Some(format!("{:.0}", params.val))
+    } else {
+        None
+    };
+
+    let mut builder = NumericInputPillBuilder::new(box_rect)
+        .name(format!("NumPill_{:?}", params.input_id))
+        .value(params.val)
+        .decimals(2)
+        .edit_state(edit_state)
+        .is_hovered(is_hovered);
+
+    if let Some(txt) = custom_text {
+        builder = builder.custom_text(txt);
     }
-    let _ = tree.add_child(card_id, box_id);
-
-    // Render vivid selection highlight pill behind numeric value when in Select-All mode
-    if let Some(s) = editing_state.filter(|s| s.is_all_selected) {
-        let buf = s.buffer;
-        let tot_w = buf.len() as f32 * 6.5;
-        let cx = box_rect.x + box_rect.width * 0.5;
-        let val_start_x = cx - tot_w * 0.5;
-        let val_w = (buf.len() as f32 * 6.5).max(14.0);
-
-        let sel_x = (val_start_x - 3.0).clamp(box_rect.x + 3.0, box_rect.right() - 8.0);
-        let sel_max_w = (box_rect.right() - 3.0 - sel_x).max(4.0);
-        let sel_w = (val_w + 6.0).min(sel_max_w);
-        let sel_rect = Rect::new(
-            sel_x,
-            box_rect.y + 2.5,
-            sel_w,
-            (box_rect.height - 5.0).max(4.0),
-        );
-
-        let sel_id = tree.create_node();
-        if let Some(node) = tree.get_mut(sel_id) {
-            node.set_name(format!("NumSel_{:?}", params.input_id));
-            node.computed_rect = sel_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                .border_radius(3.0);
-        }
-        let _ = tree.add_child(box_id, sel_id);
-    }
-
-    // Value Text
-    let txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(txt_id) {
-        node.set_name(format!("NumVal_{:?}", params.input_id));
-        let display_str = if let Some(s) = editing_state {
-            let buf = s.buffer;
-            let cursor = s.cursor_idx.min(buf.len());
-            let (left, right) = buf.split_at(cursor);
-            if s.is_all_selected {
-                buf.to_string()
-            } else if ctx.params.blink_caret {
-                format!("{}|{}", left, right)
-            } else {
-                format!("{}{}", left, right)
-            }
-        } else if params.input_id == InspectorNumberInputId::CharacterMaxSlope {
-            format!("{:.0}°", params.val)
-        } else if params.input_id == InspectorNumberInputId::ActionSpeedRange {
-            format!("{:.0}", params.val)
-        } else {
-            format!("{:.2}", params.val)
-        };
-        node.set_text(display_str);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_editing {
-            Color::WHITE
-        } else {
-            Color::rgba(0.886, 0.894, 0.918, 1.0)
-        };
-        node.computed_rect = box_rect;
-    }
-    let _ = tree.add_child(box_id, txt_id);
+    builder.build(tree, card_id);
 
     let (min_val, max_val) = params.input_id.valid_range();
 
@@ -322,96 +169,20 @@ pub fn render_numeric_row(
 
     // Box
     let box_rect = Rect::new(ctx.base_x + padding + label_w + 6.0, row_y, box_w, row_h);
-    let editing_state = ctx.params.active_number_input.filter(|s| s.id == input_id);
-    let is_editing = editing_state.is_some();
     let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
+    let edit_state = ctx
+        .params
+        .active_number_input
+        .filter(|s| s.id == input_id)
+        .map(|s| s.to_edit_state(ctx.params.blink_caret));
 
-    let box_id = tree.create_node();
-    if let Some(node) = tree.get_mut(box_id) {
-        node.set_name(format!("NumBox_{:?}", input_id));
-        node.computed_rect = box_rect;
-        let (bg, border) = if is_editing {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.0, 0.80, 1.00, 0.95), // Glowing cyan active border
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-    }
-    let _ = tree.add_child(card_id, box_id);
-
-    // Render vivid selection highlight pill behind numeric value when in Select-All mode
-    if let Some(s) = editing_state.filter(|s| s.is_all_selected) {
-        let buf = s.buffer;
-        let tot_w = buf.len() as f32 * 6.5;
-        let cx = box_rect.x + box_rect.width * 0.5;
-        let val_start_x = cx - tot_w * 0.5;
-        let val_w = (buf.len() as f32 * 6.5).max(14.0);
-
-        let sel_x = (val_start_x - 3.0).clamp(box_rect.x + 3.0, box_rect.right() - 8.0);
-        let sel_max_w = (box_rect.right() - 3.0 - sel_x).max(4.0);
-        let sel_w = (val_w + 6.0).min(sel_max_w);
-        let sel_rect = Rect::new(
-            sel_x,
-            box_rect.y + 2.5,
-            sel_w,
-            (box_rect.height - 5.0).max(4.0),
-        );
-
-        let sel_id = tree.create_node();
-        if let Some(node) = tree.get_mut(sel_id) {
-            node.set_name(format!("NumSel_{:?}", input_id));
-            node.computed_rect = sel_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                .border_radius(3.0);
-        }
-        let _ = tree.add_child(box_id, sel_id);
-    }
-
-    // Value Text
-    let txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(txt_id) {
-        node.set_name(format!("NumVal_{:?}", input_id));
-        let display_str = if let Some(s) = editing_state {
-            let buf = s.buffer;
-            let cursor = s.cursor_idx.min(buf.len());
-            let (left, right) = buf.split_at(cursor);
-            if s.is_all_selected {
-                buf.to_string()
-            } else if ctx.params.blink_caret {
-                format!("{}|{}", left, right)
-            } else {
-                format!("{}{}", left, right)
-            }
-        } else {
-            format!("{:.2}", val)
-        };
-        node.set_text(display_str);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_editing {
-            Color::WHITE
-        } else {
-            Color::rgba(0.886, 0.894, 0.918, 1.0)
-        };
-        node.computed_rect = box_rect;
-    }
-    let _ = tree.add_child(box_id, txt_id);
+    NumericInputPillBuilder::new(box_rect)
+        .name(format!("NumBox_{:?}", input_id))
+        .value(val)
+        .decimals(2)
+        .edit_state(edit_state)
+        .is_hovered(is_hovered)
+        .build(tree, card_id);
 
     let (min_val, max_val) = input_id.valid_range();
 

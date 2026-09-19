@@ -10,10 +10,7 @@ use super::super::types::{
     ComboboxRowParams, CompactNumericRowParams, ComponentCategory, InspectorDropdownId,
     InspectorNumberInputId,
 };
-use super::physics::{
-    ComponentHeaderProps, render_combobox_row, render_component_header,
-    render_component_header_with_props, render_numeric_row_compact,
-};
+use super::physics::{render_combobox_row, render_numeric_row_compact};
 use irisui::prelude::*;
 
 /// Inspector handler for `💡 Light`.
@@ -55,25 +52,18 @@ impl ComponentInspectorHandler for LightHandler {
         let card_h = 24.0 + 3.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("LightCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-                .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let mut cur_y = ctx.base_y + padding + 22.0;
@@ -187,28 +177,18 @@ impl ComponentInspectorHandler for ModelMeshHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("ModelMeshCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-                .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header_with_props(
+        let card_id = super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            ComponentHeaderProps {
+            super::physics::helpers::ComponentHeaderProps {
                 atlas_icon: self.atlas_icon(),
                 icon: self.icon(),
                 display_title: self.display_title(),
                 header_color: self.header_color(),
                 component_name: self.component_name(),
             },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;
@@ -282,25 +262,18 @@ impl ComponentInspectorHandler for ShapeHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("ShapeCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-                .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;

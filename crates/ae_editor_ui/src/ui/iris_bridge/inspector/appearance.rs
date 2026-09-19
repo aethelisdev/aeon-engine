@@ -31,34 +31,14 @@ pub fn build_appearance_card(
     let card_h = 24.0 + 22.0 + 4.0 + 22.0 + 6.0 + palette_h + padding * 2.0 + 2.0;
     let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-    // 1. Outer Card Container
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("AppearanceCard");
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    // 2. Card Header
-    let hdr_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hdr_id) {
-        node.set_name("AppearanceHeader");
-        node.set_text("🎨 Appearance");
-        node.font_size = 11.5;
-        node.line_height = 20.0;
-        node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-        node.computed_rect = Rect::new(
-            ctx.base_x + padding,
-            ctx.base_y + padding,
-            ctx.card_w - padding * 2.0,
-            20.0,
-        );
-    }
-    let _ = tree.add_child(card_id, hdr_id);
+    let frame = CardBuilder::new(tree, parent_id)
+        .name("AppearanceCard")
+        .rect(card_rect)
+        .title("Appearance")
+        .icon_text("🎨")
+        .title_color(Color::rgba(0.886, 0.894, 0.918, 1.0))
+        .build();
+    let card_id = frame.card_id;
 
     let mut cur_y = ctx.base_y + padding + 22.0;
 

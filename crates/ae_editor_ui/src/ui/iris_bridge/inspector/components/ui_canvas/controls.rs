@@ -11,7 +11,7 @@
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::super::types::ComponentCategory;
-use super::super::physics::render_component_header;
+
 use irisui::prelude::*;
 
 /// Inspector handler for UiSlider component.
@@ -59,25 +59,18 @@ impl ComponentInspectorHandler for UiSliderHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiSliderCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;
@@ -154,25 +147,18 @@ impl ComponentInspectorHandler for UiCheckboxHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiCheckboxCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;
@@ -247,25 +233,18 @@ impl ComponentInspectorHandler for UiTextInputHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiTextInputCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;
@@ -339,25 +318,18 @@ impl ComponentInspectorHandler for UiLayoutGroupHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiLayoutGroupCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;

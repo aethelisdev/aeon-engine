@@ -9,7 +9,7 @@ use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::types::{
     CompactNumericRowParams, ComponentCategory, ComponentCheckboxId, InspectorNumberInputId,
 };
-use super::physics::{render_checkbox_row, render_component_header, render_numeric_row_compact};
+use super::physics::{render_checkbox_row, render_numeric_row_compact};
 use irisui::prelude::*;
 
 /// Inspector handler for AudioSource` component.
@@ -67,25 +67,18 @@ impl ComponentInspectorHandler for AudioSourceHandler {
         let card_h = 24.0 + 6.0 * (row_h + spacing) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("AudioSourceCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-                .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let mut cur_y = ctx.base_y + padding + 24.0 + 4.0;
@@ -362,25 +355,18 @@ impl ComponentInspectorHandler for AudioListenerHandler {
         let card_h = 24.0 + 26.0 + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("AudioListenerCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-                .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let desc_id = tree.create_node();

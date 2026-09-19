@@ -16,9 +16,7 @@ use super::super::super::types::{
     ComboboxRowParams, CompactNumericRowParams, ComponentCategory, ComponentCheckboxId,
     InspectorDropdownId, InspectorNumberInputId, InspectorTextInputId,
 };
-use super::super::physics::{
-    render_checkbox_row, render_combobox_row, render_component_header, render_numeric_row_compact,
-};
+use super::super::physics::{render_checkbox_row, render_combobox_row, render_numeric_row_compact};
 use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
@@ -114,25 +112,18 @@ impl ComponentInspectorHandler for UiPanelHandler {
         let card_h = 24.0 + 2.0 * (row_h + row_gap) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiPanelCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let mut cur_y = ctx.base_y + padding + 22.0;
@@ -223,25 +214,18 @@ impl ComponentInspectorHandler for UiTextHandler {
         let card_h = 24.0 + 3.0 * (row_h + row_gap) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiTextCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let mut cur_y = ctx.base_y + padding + 22.0;
@@ -420,25 +404,18 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
         let card_h = 24.0 + 2.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiProgressBarCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;
@@ -553,25 +530,18 @@ impl ComponentInspectorHandler for UiButtonHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiButtonCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;
@@ -638,25 +608,18 @@ impl ComponentInspectorHandler for UiImageHandler {
         let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("UiImageCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.06, 0.07, 0.10, 0.98))
-                .border(1.0, Color::rgba(0.16, 0.19, 0.26, 0.80))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::super::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            self.icon(),
-            self.display_title(),
-            self.header_color(),
-            self.component_name(),
+            super::super::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: self.icon(),
+                display_title: self.display_title(),
+                header_color: self.header_color(),
+                component_name: self.component_name(),
+            },
+            card_rect,
         );
 
         let cur_y = ctx.base_y + padding + 22.0;

@@ -6,7 +6,6 @@
 //! Automatically inspects and renders cards for any ECS components registered
 //! in `ComponentRegistry` that lack dedicated static `ComponentInspectorHandler` cards.
 
-use super::components::physics::helpers::render_component_header;
 use super::registry::{ComponentRenderContext, InspectorRegistry};
 use irisui::prelude::*;
 
@@ -42,25 +41,18 @@ pub fn render_dynamic_component_cards(
         let card_h = 24.0 + padding * 2.0 + 24.0;
         let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
 
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name(format!("DynamicCard_{}", type_name));
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-                .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_id);
-
-        render_component_header(
+        let card_id = super::components::physics::helpers::build_component_card(
             tree,
-            card_id,
+            parent_id,
             ctx,
-            "🧩",
-            type_name,
-            Color::rgba(0.40, 0.80, 0.90, 1.0),
-            type_name,
+            super::components::physics::helpers::ComponentHeaderProps {
+                atlas_icon: None,
+                icon: "🧩",
+                display_title: type_name,
+                header_color: Color::rgba(0.40, 0.80, 0.90, 1.0),
+                component_name: type_name,
+            },
+            card_rect,
         );
 
         // Body: show JSON serialized representation or marker info

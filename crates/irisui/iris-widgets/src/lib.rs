@@ -13,6 +13,7 @@
 pub mod asset_card;
 pub mod button;
 pub mod canvas;
+pub mod card;
 pub mod cascading_menu;
 pub mod color_picker;
 pub mod console;
@@ -22,6 +23,7 @@ pub mod input;
 pub mod inspector;
 pub mod menubar;
 pub mod modal;
+pub mod numeric_input;
 pub mod panel;
 pub mod status_bar;
 pub mod typography;
@@ -29,6 +31,7 @@ pub mod typography;
 pub use asset_card::{AssetCardBuilder, TreeItemBuilder};
 pub use button::{ButtonBuilder, TabBuilder};
 pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
+pub use card::{CardBuilder, CardFrame, CardIcon, CardStyle};
 pub use cascading_menu::{
     CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
     CascadingMenuStyle,
@@ -54,6 +57,7 @@ pub use input::{
 pub use inspector::{ColorPickerBuilder, DropdownBuilder, PropertyRowBuilder};
 pub use menubar::{DropdownMenuBuilder, MenuBarBuilder};
 pub use modal::{ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle};
+pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericInputStyle};
 pub use panel::PanelBuilder;
 pub use status_bar::StatusBarBuilder;
 pub use typography::{LabelBuilder, SectionHeaderBuilder};
