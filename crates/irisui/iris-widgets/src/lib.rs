@@ -27,6 +27,7 @@ pub mod modal;
 pub mod numeric_input;
 pub mod panel;
 pub mod status_bar;
+pub mod timeline;
 pub mod tree_view;
 pub mod typography;
 
@@ -71,6 +72,11 @@ pub use modal::{ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle};
 pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericInputStyle};
 pub use panel::PanelBuilder;
 pub use status_bar::StatusBarBuilder;
+pub use timeline::{
+    DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, MediaTransportAction,
+    MediaTransportBarBuilder, MediaTransportBarFrame, MediaTransportStyle, TimelineKeyframeMarker,
+    TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle,
+};
 pub use tree_view::{TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle};
 pub use typography::{LabelBuilder, SectionHeaderBuilder};
 
