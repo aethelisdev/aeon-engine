@@ -8,6 +8,7 @@ use std::sync::Arc;
 use winit::window::Window;
 
 /// Helper function to choose the optimal WGPU `PresentMode` based on the requested `FpsLimit` and GPU capabilities.
+///
 /// Prioritizes `Mailbox` as first priority because it provides the highest frame-queue swap throughput
 /// without causing DX12 driver teardown stalls. Falls back to `AutoNoVsync`, `Immediate`, and `Fifo`.
 pub(crate) fn choose_present_mode(
@@ -37,11 +38,13 @@ pub(crate) fn choose_present_mode(
 }
 
 /// Default swap-chain frame latency (number of frames queued ahead on GPU).
+///
 /// Uses `2` to enable double-buffered CPU-GPU pipelining. CPU prepares frame N
 /// while GPU renders frame N-1, maximizing throughput without input lag.
 pub(crate) const DEFAULT_FRAME_LATENCY: u32 = 2;
 
 /// Determines the swap-chain frame latency (number of frames buffered ahead of display).
+///
 /// Returns `DEFAULT_FRAME_LATENCY` (`2`) to allow double-buffered CPU-GPU pipelining.
 #[inline]
 pub(crate) fn choose_frame_latency(_limit: FpsLimit) -> u32 {
@@ -245,6 +248,7 @@ impl RenderState {
     }
 
     /// Checks if graphics settings changed and rebuilds GPU resources as needed.
+    ///
     /// Returns `Some(new_msaa_count)` when MSAA sample count changed, so the caller
     /// (engine) can rebuild external systems (e.g. overlay renderers) that depend on MSAA.
     pub fn apply_settings_changes(&mut self) -> Option<u32> {

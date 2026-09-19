@@ -118,6 +118,7 @@ impl DrawCommandList {
     }
 
     /// Merges another `DrawCommandList` onto the end of this list, rebasing batch indices.
+    ///
     /// Preserves exact Z-ordering while shifting batch start indices and texture instance pointers
     /// to maintain consistency with the appended buffers.
     pub fn append(&mut self, mut other: DrawCommandList) {

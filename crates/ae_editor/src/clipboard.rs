@@ -25,6 +25,7 @@ pub fn copy_selected(world: &hecs::World, editor: &mut EditorState) {
 }
 
 /// Pastes all entity snapshots from `editor.clipboard` into the ECS world.
+///
 /// New entities receive a slight position offset (+0.5, +0.5) and a " (Copy)" suffix.
 /// Pushes an undoable `Command::Spawn` or `Command::Batch` onto `editor.undo_stack`
 /// and updates the selection to the newly pasted entities.

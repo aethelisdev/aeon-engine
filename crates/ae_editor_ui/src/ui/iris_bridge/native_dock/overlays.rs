@@ -14,6 +14,7 @@ use irisui::prelude::*;
 use super::types::{NATIVE_DOCK_TAB_HEIGHT, SPLITTER_THICKNESS};
 
 /// Renders 5-way compass dock navigator, drop zone preview, and floating tab badge overlays.
+///
 /// Rendered as topmost floating overlays so they are drawn above the 3D Viewport texture,
 /// docked panels, and floating windows.
 pub fn build_native_dock_drag_overlays(

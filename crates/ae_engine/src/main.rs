@@ -9,6 +9,7 @@ pub mod hud;
 pub mod icon;
 
 /// Aeon Engine — Main Entry Point
+///
 /// Initializes the winit event loop, creates the application window with embedded icon,
 /// and delegates all event processing to `AeEngine`. Implements `ApplicationHandler` for
 /// the modern winit 0.30+ callback-based architecture.
@@ -40,6 +41,7 @@ use winit::platform::{wayland::WindowAttributesExtWayland, x11::WindowAttributes
 use engine::AeEngine;
 
 /// Global memory allocator configured for Linux to optimize performance native-wide.
+///
 /// Substitutes the standard allocator with `Jemalloc` under Linux native execution,
 /// while leaving Windows and macOS defaults completely untouched.
 #[cfg(target_os = "linux")]
@@ -47,6 +49,7 @@ use engine::AeEngine;
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 /// Application shell that owns the engine and manages the winit event loop.
+///
 /// Uses `Option<AeEngine>` to support deferred initialization (engine is created
 /// in `resumed()` when the window is ready). Also tracks frame timing for FPS limiting.
 struct AeApp {
@@ -265,6 +268,7 @@ impl ApplicationHandler for AeApp {
 
     /// Continuous event loop and rendering process driver.
     /// Drives the continuous event loop rendering cycle in combination with `ControlFlow::Poll`.
+    ///
     /// In Uncapped mode, the draw operation is triggered directly within this function to completely bypass
     /// the winit/Win32 event queue (`WM_PAINT` / `request_redraw`) limitations (1000Hz cap) and run at GPU swapchain speed.
     /// In limited modes (60/120 FPS), a high-precision spin-sleep timing pacer is applied before rendering.
@@ -304,6 +308,7 @@ impl ApplicationHandler for AeApp {
 
 impl AeApp {
     /// Per-frame update + render cycle with error recovery.
+    ///
     /// Executes the engine's update (`engine.update()`) and render (`engine.render()`) loops.
     /// Manages async scene loading, file saving/loading triggers, and handles window resizing
     /// in the event of a WGPU SurfaceLost error.

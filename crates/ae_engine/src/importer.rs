@@ -427,6 +427,7 @@ pub fn process_async_imports(engine: &mut AeEngine) {
 }
 
 /// Handle a file drag-and-dropped into the application window.
+///
 /// Automatically resolves matching `AssetLoader` via `AssetLoaderRegistry`
 /// using `Path::extension()` without magic string searches.
 pub fn handle_dropped_file(engine: &mut AeEngine, path: PathBuf) {

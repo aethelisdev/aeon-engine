@@ -12,6 +12,7 @@ use std::io::BufReader;
 
 /// High-performance audio mixer managing hardware output streams, active sound sinks,
 /// and real-time 3D spatial updates.
+///
 /// Integrates with the engine event bus and Module Isolation architecture (`EngineModule::Audio`).
 /// When audio is disabled, all mixing operations are bypassed with zero CPU/VRAM allocations.
 pub struct AudioManager {
@@ -30,6 +31,7 @@ impl Default for AudioManager {
 
 impl AudioManager {
     /// Creates and initializes the `AudioManager` with hardware output device streams.
+    ///
     /// If no physical audio output device is present or audio driver initialization fails,
     /// falls back gracefully without crashing or interrupting engine execution.
     pub fn new() -> Self {
@@ -160,6 +162,7 @@ impl AudioManager {
     }
 
     /// Per-frame 3D Spatial Audio and ECS update loop.
+    ///
     /// Iterates active `AudioSource` entities, queries `AudioListener` ear position,
     /// computes distance attenuation falloff and panning gain, and updates hardware audio sinks.
     /// Bypasses all processing if `is_audio_enabled` is `false` (Module Isolation).

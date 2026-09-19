@@ -22,6 +22,7 @@ pub struct UiContext<'a> {
 }
 
 /// Dispatches UI action commands from the UI layer into engine state mutations.
+///
 /// Each `EngineUiAction` variant maps to a specific domain sub-handler in the `processor` module:
 /// - `spawning`: Model, Sprite, Shape creation & entity deletion
 /// - `transform`: Keep World Transform parenting & hierarchy updates

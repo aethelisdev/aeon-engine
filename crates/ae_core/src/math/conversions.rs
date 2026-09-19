@@ -72,6 +72,7 @@ impl ToCgmath for glam::Quat {
 }
 
 /// Decomposes a 4×4 cgmath Matrix into `glam` translation, rotation, and scale tuple.
+///
 /// Handles non-uniform scaling magnitudes, orthonormal rotation extraction, and
 /// negative (mirrored) scale detection via rotation sub-matrix determinant sign.
 /// When the determinant is negative, the X-axis scale is negated to preserve a

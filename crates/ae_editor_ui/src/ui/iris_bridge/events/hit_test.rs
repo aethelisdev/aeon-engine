@@ -11,12 +11,14 @@ use irisui::prelude::*;
 
 impl IrisEditorOverlay {
     /// Returns true if the coordinate is over any active popup layer widget (dropdowns, menus, palettes).
+    ///
     /// Evaluated via [`UiTree::layer_at`] against [`UiLayer::Popup`] without inspecting panel structs.
     pub fn is_point_over_popup(&self, point: Point) -> bool {
         self.tree.layer_at(point) == Some(UiLayer::Popup)
     }
 
     /// Returns true if the coordinate is over an active floating modal dialog, Preferences window, or menubar dropdown.
+    ///
     /// When true, underlying dock splitters, tabs, and panel controls MUST NOT receive click or drag interactions.
     pub fn is_point_over_modal_or_dropdown(&self, point: Point) -> bool {
         if point.y <= Self::MENUBAR_HEIGHT {
@@ -31,6 +33,7 @@ impl IrisEditorOverlay {
     }
 
     /// Returns true if the given coordinate is over any interactive Iris UI element.
+    ///
     /// Checks top menubar, bottom status bar, and queries the native UI tree via [`UiTree::hit_test_layered`].
     /// In the 3D viewport region without UI quads, returns `false` to allow camera and scene manipulation.
     pub fn is_point_over_overlay(&self, point: Point) -> bool {

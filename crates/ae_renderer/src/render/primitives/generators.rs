@@ -3,6 +3,7 @@
 use crate::render::types::Vertex;
 
 /// Generates a parametric UV Sphere mesh with smooth normals.
+///
 /// latitude_bands and longitude_bands determine resolution (smoothness).
 pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex> {
     let mut vertices = Vec::new();
@@ -55,6 +56,7 @@ pub fn generate_sphere(latitude_bands: u32, longitude_bands: u32) -> Vec<Vertex>
 }
 
 /// Generates a parametric Cylinder mesh with smooth normals and caps.
+///
 /// segments determines circle resolution. Fits in a unit box (radius=0.5, height=1.0).
 pub fn generate_cylinder(segments: u32) -> Vec<Vertex> {
     let mut vertices = Vec::new();

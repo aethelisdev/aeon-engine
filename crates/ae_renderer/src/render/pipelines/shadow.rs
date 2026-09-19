@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Creates the Shadow rendering pipeline modernized for Wgpu 23+ (v2026 stable).
+///
 /// Depth-only pass with bias for shadow acne prevention.
 pub(crate) fn create_shadow_pipeline(
     device: &wgpu::Device,
@@ -52,6 +53,7 @@ pub(crate) fn create_shadow_pipeline(
 }
 
 /// Creates the Alpha-Tested Cutout Shadow rendering pipeline.
+///
 /// Executes `fs_shadow_cutout` to discard transparent texels during shadow pass,
 /// enabling crisp shadows for foliage, hair, clothing, and decals.
 pub(crate) fn create_shadow_cutout_pipeline(

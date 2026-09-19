@@ -14,6 +14,7 @@ use iris_core::{Color, Rect};
 use wgpu::util::DeviceExt;
 
 /// Per-instance data for compositing one external two-dimensional texture into screen space.
+///
 /// The texture is sampled in its supplied linear view format. Tint colors are converted from the
 /// public sRGB `Color` representation before upload, preserving correct output on sRGB surfaces.
 #[repr(C)]
@@ -31,6 +32,7 @@ pub struct ExternalTextureQuadInstance {
 
 impl ExternalTextureQuadInstance {
     /// Creates a full-coverage external texture quad with an optional screen-space clip boundary.
+    ///
     /// The destination rectangle must describe physical pixels in the same coordinate space as the
     /// prepared screen size. The supplied tint is converted to linear color because the fragment
     /// output is written into a linear rendering pipeline.
@@ -39,6 +41,7 @@ impl ExternalTextureQuadInstance {
     }
 
     /// Creates an external texture quad using explicit normalized source UV bounds.
+    ///
     /// Callers can use this for cropped render targets or vertically flipped source views. UV
     /// validation remains the caller's responsibility because texture addressing policy belongs to
     /// the owner of the external render target. An absent clip is represented by inverted bounds,
@@ -71,6 +74,7 @@ struct UnitVertex {
 }
 
 /// GPU resources used to draw a reusable external `Texture2D` quad in an Iris render pass.
+///
 /// The pipeline accepts a standard `TextureViewDimension::D2` binding and therefore cannot be
 /// used for icon atlases. Call [`Self::prepare`] before [`Self::render`] on every frame that the
 /// destination geometry or screen size changes. The texture bind group is intentionally supplied
@@ -108,6 +112,7 @@ impl ExternalTexturePipeline {
     const UNIT_INDICES: [u16; 6] = [0, 1, 2, 0, 2, 3];
 
     /// Creates the external texture pipeline for the specified UI surface format.
+    ///
     /// The pipeline uses straight-alpha blending and a linear filtering sampler. Its bind-group
     /// layout requires a single-sampled, filterable `Texture2D` view, matching resolved render
     /// targets such as a 3D viewport color texture.
@@ -289,6 +294,7 @@ impl ExternalTexturePipeline {
     }
 
     /// Creates the texture bind group for one externally owned single-layer texture view.
+    ///
     /// Recreate this bind group only when the source texture view changes, such as after a viewport
     /// resize. The same bind group may be reused across frames while the view remains valid.
     pub fn create_texture_bind_group(
@@ -313,6 +319,7 @@ impl ExternalTexturePipeline {
     }
 
     /// Uploads the screen dimensions and destination instance for the next render call.
+    ///
     /// A single persistent GPU buffer is allocated on the first call and reused thereafter. Zero
     /// screen dimensions are clamped to one pixel to prevent shader division-by-zero during
     /// minimized-window frames.
@@ -327,6 +334,7 @@ impl ExternalTexturePipeline {
     }
 
     /// Uploads all external image destinations once before an ordered render pass.
+    ///
     /// Capacity grows geometrically and is retained when the list shrinks. Empty lists disable
     /// draws without destroying buffers; zero screen dimensions are clamped to one pixel.
     pub fn prepare_instances(
@@ -370,6 +378,7 @@ impl ExternalTexturePipeline {
     }
 
     /// Draws the most recently prepared external texture instance into the active render pass.
+    ///
     /// Calling this before [`Self::prepare`] is safe and records no draw command. The caller owns
     /// render-pass ordering, allowing a future viewport compositor to place the image beneath Iris
     /// overlays without changing the existing texture-array command stream.
@@ -382,6 +391,7 @@ impl ExternalTexturePipeline {
     }
 
     /// Draws a prepared destination using the supplied D2 binding, without changing scissor state.
+    ///
     /// Out-of-range indices and calls before preparation are ignored. Every pipeline binding is
     /// restored, allowing safe interleaving with SDF and texture-array commands.
     pub fn render_instance<'render>(

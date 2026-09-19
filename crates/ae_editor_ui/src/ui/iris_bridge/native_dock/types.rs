@@ -18,6 +18,7 @@ pub const MIN_SHRUNK_TAB_WIDTH: f32 = 68.0;
 pub const CHEVRON_WIDTH: f32 = 24.0;
 
 /// Native dock frame geometry consumed by Iris panel builders and editor hit testing.
+///
 /// The frame is rebuilt from the authoritative Iris split tree every render frame. It keeps
 /// panel content coordinates independent from any legacy immediate-mode dock renderer.
 #[derive(Debug, Clone, Default)]

@@ -16,6 +16,7 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
     /// Handles mouse hovering, clicks, and dismissal for the active dock tab overflow popup menu.
+    ///
     /// Evaluates clicks via [`iris_dock::evaluate_dock_overflow_click`] to route tab activation,
     /// chevron toggling, or outside click dismissal.
     pub(crate) fn handle_dock_overflow_event(

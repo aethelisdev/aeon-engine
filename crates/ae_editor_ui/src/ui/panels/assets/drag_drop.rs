@@ -48,6 +48,7 @@ pub fn compute_ground_intersection(
 }
 
 /// Handles dropping an asset onto the 3D viewport.
+///
 /// Spawns the corresponding 3D model or sprite entity at the calculated world location.
 pub fn handle_viewport_drop(
     state: &mut AssetBrowserState,

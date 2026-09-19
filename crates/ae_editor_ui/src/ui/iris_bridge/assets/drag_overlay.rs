@@ -14,6 +14,7 @@ use ae_renderer::camera::Camera;
 use irisui::prelude::{Color, Point, Rect, Style, UiTree, WidgetId};
 
 /// Constructs topmost floating overlays for an active asset drag operation.
+///
 /// If the cursor is positioned over the 3D/2D viewport, computes the projected
 /// ground intersection point and renders the cyan landing indicator ring.
 /// In addition, constructs a floating tooltip capsule anchored to the cursor.

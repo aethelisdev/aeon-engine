@@ -11,10 +11,12 @@ use std::any::Any;
 use std::collections::HashMap;
 
 /// Lifecycle, interaction, and rendering interface for a dockable user interface panel.
+///
 /// Implementors define their unique identifier, user-facing title, and UI reconstruction logic.
 /// Panels are registered with [`PanelRegistry`] and rendered into dockable host panes.
 pub trait DockPanel: Send + Sync + 'static {
     /// Returns the unique alphanumeric string identifier for this panel.
+    ///
     /// This identifier must remain stable across frames for layout persistence and tab matching.
     fn id(&self) -> &str;
 
@@ -22,11 +24,13 @@ pub trait DockPanel: Send + Sync + 'static {
     fn title(&self) -> &str;
 
     /// Renders the panel contents into the specified [`UiTree`] under `parent`.
+    ///
     /// The `bounds` parameter defines the available physical rectangle allocated to this panel
     /// by the docking layout engine.
     fn render(&mut self, tree: &mut UiTree, parent: WidgetId, bounds: Rect);
 
     /// Determines whether the panel requires a UI rebuild on the current frame.
+    ///
     /// Implementations that rely on continuous telemetry, animation, or external events
     /// can return `true`. Static or retained panels can return `false` when unmodified.
     /// Defaults to `true`.
@@ -35,6 +39,7 @@ pub trait DockPanel: Send + Sync + 'static {
     }
 
     /// Optional callback to handle interactive UI events targeted at this panel.
+    ///
     /// Returns `true` if the event was consumed and should not propagate further.
     /// Defaults to `false`.
     fn on_event(&mut self, _event: &UiEvent) -> bool {
@@ -49,6 +54,7 @@ pub trait DockPanel: Send + Sync + 'static {
 }
 
 /// Central registry and lifecycle manager for dockable panels.
+///
 /// Maintains a collection of [`DockPanel`] instances indexed by their unique string identifiers.
 /// Preserves insertion order while providing $O(1)$ fast lookup and type-safe downcasting.
 #[derive(Default)]
@@ -69,6 +75,7 @@ impl PanelRegistry {
     }
 
     /// Registers a new [`DockPanel`] instance, taking ownership.
+    ///
     /// If a panel with the same identifier already exists, it is replaced in-place,
     /// preserving its position in the insertion order.
     pub fn register<P: DockPanel>(&mut self, panel: P) {
@@ -100,12 +107,14 @@ impl PanelRegistry {
     }
 
     /// Attempts to retrieve and downcast an immutable reference to a concrete panel type.
+    ///
     /// Returns `None` if the panel does not exist or if the requested type does not match.
     pub fn get_downcast<T: 'static>(&self, id: &str) -> Option<&T> {
         self.get(id)?.as_any().downcast_ref::<T>()
     }
 
     /// Attempts to retrieve and downcast a mutable reference to a concrete panel type.
+    ///
     /// Returns `None` if the panel does not exist or if the requested type does not match.
     pub fn get_downcast_mut<T: 'static>(&mut self, id: &str) -> Option<&mut T> {
         self.get_mut(id)?.as_any_mut().downcast_mut::<T>()

@@ -325,6 +325,7 @@ pub fn is_entity_json_3d(entity: &serde_json::Value) -> bool {
 }
 
 /// Inspects a parsed JSON structure to determine if it represents a 3D scene.
+///
 /// Supports standard arrays of entities (`[SavedEntity]`) as well as enveloped objects (`{"dimension": "3D", ...}`).
 pub fn is_scene_json_3d(json: &serde_json::Value) -> bool {
     if let Some(dim) = json.get("dimension").and_then(|v| v.as_str()) {
@@ -352,6 +353,7 @@ pub fn is_scene_json_3d(json: &serde_json::Value) -> bool {
 }
 
 /// Inspects a scene file on disk to determine if it contains 3D entities or 3D scene metadata.
+///
 /// Reads and parses the file safely without modifying runtime state.
 pub fn is_scene_file_3d(path: &Path) -> bool {
     let Ok(file) = std::fs::File::open(path) else {

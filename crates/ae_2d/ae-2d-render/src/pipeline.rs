@@ -18,6 +18,7 @@ pub struct Sprite2DPipeline {
 impl Sprite2DPipeline {
     /// Creates the complete 2D sprite rendering pipeline for a specific target color format,
     /// optional depth-stencil format, and multisampling configuration.
+    ///
     /// Configures alpha blending and backface culling disabled so sprites are visible from any 2D planar angle.
     pub fn new(
         device: &wgpu::Device,

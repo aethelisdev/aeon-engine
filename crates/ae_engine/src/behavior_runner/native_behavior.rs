@@ -14,6 +14,7 @@ use ae_core::events::DynamicEventBus;
 use hecs::World;
 
 /// Executes the frame update lifecycle for all active `NativeBehavior` components.
+///
 /// Ensures borrow safety by temporarily extracting the component from the entity,
 /// executing lifecycle methods against `BehaviorContext`, and restoring the component
 /// if the entity remains valid.

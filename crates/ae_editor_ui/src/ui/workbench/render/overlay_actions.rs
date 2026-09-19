@@ -369,6 +369,7 @@ impl EngineUi {
     }
 
     /// Drains and processes queued actions from the Content / Asset Browser panel.
+    ///
     /// When an asset drag finishes over the active 3D/2D Viewport canvas, computes
     /// the target world coordinates and dispatches the entity spawn action.
     pub fn process_assets_actions(

@@ -76,6 +76,7 @@ impl Default for ComboboxPopupStyle {
 }
 
 /// Output frame produced when building a combobox popup menu into a [`UiTree`].
+///
 /// Contains the generated node keys and the computed bounding rectangle.
 #[derive(Debug, Clone)]
 pub struct ComboboxPopupFrame {
@@ -88,6 +89,7 @@ pub struct ComboboxPopupFrame {
 }
 
 /// Fluent builder for constructing standardized combobox dropdown popup menus into a [`UiTree`].
+///
 /// Creates nodes automatically tagged with their item indices (`node.tag = index as u64`)
 /// and assigned [`WidgetRole::DropdownItem`] on [`UiLayer::Popup`], enabling zero-allocation
 /// retained-mode event dispatching without requiring the host application to track manual `Rect` lists.
@@ -132,6 +134,7 @@ impl<'a> ComboboxPopupBuilder<'a> {
     }
 
     /// Sets the list of text option labels paired with optional icon strings.
+    ///
     /// When an icon string is provided, a dedicated icon node is generated to the left
     /// of the text label.
     #[inline]
@@ -142,6 +145,7 @@ impl<'a> ComboboxPopupBuilder<'a> {
     }
 
     /// Sets an explicit width in pixels for the dropdown menu popup.
+    ///
     /// When set, this overrides the default behavior of matching the trigger button width.
     #[inline]
     pub fn width(mut self, width: f32) -> Self {
@@ -150,6 +154,7 @@ impl<'a> ComboboxPopupBuilder<'a> {
     }
 
     /// Sets a minimum width in pixels for the dropdown menu popup.
+    ///
     /// Ensures the popup does not shrink below this width even if the trigger button is narrower.
     #[inline]
     pub fn min_width(mut self, min_width: f32) -> Self {
@@ -158,6 +163,7 @@ impl<'a> ComboboxPopupBuilder<'a> {
     }
 
     /// Aligns the popup menu's right edge with the trigger button's right edge.
+    ///
     /// Useful for dropdown buttons anchored to the right side of a panel or screen boundary.
     #[inline]
     pub fn align_right(mut self, align_right: bool) -> Self {
@@ -194,6 +200,7 @@ impl<'a> ComboboxPopupBuilder<'a> {
     }
 
     /// Builds the dropdown popup container and item nodes into the target [`UiTree`].
+    ///
     /// Automatically tags each item node with its zero-based index (`node.tag = idx as u64`)
     /// and assigns [`WidgetRole::DropdownItem`] on [`UiLayer::Popup`].
     pub fn build(self, tree: &mut UiTree, parent_id: WidgetId) -> ComboboxPopupFrame {

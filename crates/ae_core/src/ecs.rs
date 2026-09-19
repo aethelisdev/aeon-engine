@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// AE Core - ECS Manager and Hierarchical Transform System.
+///
 /// Manages the `hecs::World` database and hierarchical transform updates.
 use hecs::World;
 use serde::{Deserialize, Serialize};
@@ -19,6 +20,7 @@ pub use ae_plugin_api::{
 pub use crate::registry::{ComponentHandler, ComponentRegistry, TypedComponentHandler};
 
 /// Central ECS manager.
+///
 /// The `update()` method runs linear velocity integration over non-physics entities.
 pub struct EcsManager {
     pub world: World,
@@ -33,6 +35,7 @@ impl EcsManager {
     }
 
     /// Runs velocity integration for moving entities not simulated by the physics solver.
+    ///
     /// Iterates sequentially over contiguous archetype storage in `hecs::World` to ensure 100%
     /// thread-safe, deterministic execution across all `hecs` library releases.
     pub fn update(&mut self, delta_time: f32) {
@@ -59,6 +62,7 @@ impl Default for EcsManager {
 
 /// Updates the world-space GlobalTransform matrices of all entities in parent-child relationships,
 /// and synchronizes standalone entities possessing GlobalTransform components with their local transform.
+///
 /// Uses an event/dirty-propagation model (`TransformDirty`): if a parent or child is dirty,
 /// updates matrices and cascades down the subtree; unchanged subtrees skip matrix multiplications.
 pub fn update_hierarchy_transforms(world: &mut hecs::World) {

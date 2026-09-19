@@ -5,11 +5,13 @@ use super::core::ActiveAxis;
 use cgmath::{InnerSpace, Vector3};
 
 /// Computes the rotation delta (as Euler angles) from drag start/current vectors.
+///
 /// # Arguments
 /// * `active_axis` — The rotation axis being dragged
 /// * `drag_start_vector` — Normalized direction at drag start (from gizmo center to hit)
 /// * `current_vec` — Normalized current direction (from gizmo center to current hit)
 /// * `drag_plane_normal` — Normal of the rotation plane
+///
 /// # Returns
 /// Euler angle delta as `Vector3<f32>`, or `None` if computation fails.
 pub fn calculate_rotate_drag(

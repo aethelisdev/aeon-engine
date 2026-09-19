@@ -14,6 +14,7 @@ use irisui::prelude::*;
 use super::types::{NativeDockFrame, NativeDockOverflowItemTarget, NativeDockOverflowMenuParams};
 
 /// Renders the floating popup dropdown menu listing all tabs for an active dock leaf with overflow.
+///
 /// Dispatches directly into [`iris_dock::build_dock_overflow_menu`] with the engine's [`PanelTabViewer`],
 /// caching the resulting menu bounding box and item targets in [`NativeDockFrame`].
 pub fn build_native_dock_overflow_menu(

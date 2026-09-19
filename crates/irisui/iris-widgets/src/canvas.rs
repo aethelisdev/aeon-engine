@@ -175,6 +175,7 @@ pub struct ChartDrawer;
 
 impl ChartDrawer {
     /// Renders a series of historical data points directly into the `DrawCommandList` as instanced SDF quads.
+    ///
     /// # Arguments
     /// * `command_list` - Hardware draw command buffer.
     /// * `canvas_rect` - Bounding rectangle of the canvas container.

@@ -12,6 +12,7 @@ use crate::render::RenderState;
 
 impl RenderState {
     /// Compiles a WGSL shader from raw source code and registers it into the `AssetManager`.
+    ///
     /// Validates the shader module on the WGPU device and stores both the compiled
     /// `wgpu::ShaderModule` and the raw source text for runtime inspection and pipeline linking.
     pub fn load_shader_from_memory(

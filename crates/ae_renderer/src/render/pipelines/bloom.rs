@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Creates the Bloom rendering pipelines modernized for Wgpu 23+ (v2026 stable).
+///
 /// Returns extract, blur, and composite pipelines for the 3-pass bloom effect.
 pub(crate) fn create_bloom_pipelines(
     device: &wgpu::Device,

@@ -39,11 +39,13 @@ impl Default for Viewport {
 }
 
 /// Generic overlay renderer trait for drawing editor overlays into the main render pass.
+///
 /// Systems that need to draw overlays (e.g. gizmos, debug lines) implement this trait.
 /// RenderState calls `draw_overlay()` without knowing the concrete type, achieving full
 /// decoupling between the render module and editor subsystems.
 pub trait OverlayRenderer {
     /// Draw the overlay into an already-active render pass.
+    ///
     /// Implementors should have already prepared their GPU state (uniforms, vertex data)
     /// via a separate `prepare()` call before this is invoked.
     fn draw_overlay<'a>(&'a self, queue: &wgpu::Queue, pass: &mut wgpu::RenderPass<'a>);
@@ -58,6 +60,7 @@ pub enum RenderError {
 }
 
 /// Live per-frame rendering and geometry metrics collected during render passes.
+///
 /// Tracks total GPU draw calls, batched calls, instanced calls, compute passes,
 /// culled meshes, triangles, vertices, and rendered instance count for real-time profiling.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

@@ -174,6 +174,7 @@ pub fn compute_tab_bar_layout<Tab, V: TabViewer<Tab>>(
 }
 
 /// Calculates the target tab insertion index when dragging a tab over an existing tab bar.
+///
 /// Compares cursor X position against tab midpoints to determine if the dropped tab
 /// should be placed before or after each item in the strip.
 pub fn calculate_tab_reorder_index(

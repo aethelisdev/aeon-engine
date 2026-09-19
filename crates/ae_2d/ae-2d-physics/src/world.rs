@@ -8,6 +8,7 @@ use crate::body::{BodyType2D, RigidBody2D};
 use crate::collider::{Collider2D, ColliderShape2D};
 
 /// Complete 2D rigid-body simulation world powered by Rapier2D.
+///
 /// Encapsulates collision pipelines, numerical integrators, contact solvers, and spatial queries.
 pub struct Physics2DWorld {
     /// Global gravity acceleration vector (units/sec^2). Standard earth gravity is `(0.0, -9.81)`.

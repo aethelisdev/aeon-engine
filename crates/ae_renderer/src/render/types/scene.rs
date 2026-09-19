@@ -9,6 +9,7 @@ use crate::render::types::uniforms::LightUniform;
 use crate::render::types::vertex::Instance;
 
 /// Abstract representation of the scene to decouple RenderState from ECS.
+///
 /// Constructed by `extract()` each frame — performs frustum culling and
 /// sorts transparent objects back-to-front for correct alpha blending.
 pub struct RenderScene {

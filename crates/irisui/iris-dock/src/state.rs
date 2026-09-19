@@ -106,6 +106,7 @@ impl<T> DockState<T> {
     }
 
     /// Updates the division ratio of the actively dragged splitter based on new cursor position.
+    ///
     /// Clamps the ratio mathematically so that neither child pane shrinks below `min_pane_size`.
     pub fn update_splitter_drag(&mut self, current_cursor: f32) {
         if let Some(drag) = self.active_splitter {
@@ -121,6 +122,7 @@ impl<T> DockState<T> {
     }
 
     /// Resets the specified splitter partition ratio back to an even 50/50 balance.
+    ///
     /// Typically triggered by double-clicking on a divider line.
     pub fn reset_splitter(&mut self, node_id: DockNodeId) -> Result<(), DockError> {
         self.tree.set_split_ratio(node_id, 0.5)
@@ -132,6 +134,7 @@ impl<T> DockState<T> {
     }
 
     /// Detaches a tab from a leaf node and initiates a drag-and-drop operation.
+    ///
     /// Stores the source leaf rectangle so detached floating windows preserve their exact
     /// dimensions from the docked workspace.
     pub fn start_tab_drag(
@@ -155,6 +158,7 @@ impl<T> DockState<T> {
     }
 
     /// Detaches a tab from a floating window and initiates a drag-and-drop operation into the dock tree.
+    ///
     /// If the floating window becomes empty, it is automatically removed.
     pub fn start_floating_tab_drag(
         &mut self,
@@ -275,6 +279,7 @@ impl<T> DockState<T> {
     }
 
     /// Drops the actively dragged tab into its target drop zone, tab strip, or detaches it as a floating window.
+    ///
     /// If dropped outside any docking drop zones or tab strips, detaches into an independent floating window.
     pub fn drop_tab_or_float(&mut self, default_size: Point) -> Result<Option<u64>, DockError> {
         let Some(drag) = self.active_drag.take() else {
@@ -375,6 +380,7 @@ impl<T> DockState<T> {
     }
 
     /// Detaches a tab from the main dock tree and converts it into an independent floating window.
+    ///
     /// Returns the unique identifier of the created floating window.
     pub fn detach_tab_to_floating(
         &mut self,

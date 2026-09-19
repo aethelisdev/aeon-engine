@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Creates the full-screen procedural sky pipeline.
+///
 /// Vertex-less draw (3 vertices for a screen triangle).
 pub fn create_sky_pipeline(
     device: &wgpu::Device,

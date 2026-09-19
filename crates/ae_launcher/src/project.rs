@@ -103,6 +103,7 @@ impl ProjectRegistry {
     }
 
     /// Initializes a new project directory structure on disk with `aeon_project.json`.
+    ///
     /// Creates `assets/`, `scenes/`, and an initial empty `scenes/main.ae3d` or `scenes/main.ae2d` file.
     pub fn create_project(
         name: &str,

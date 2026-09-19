@@ -21,6 +21,7 @@ pub enum BoneCapacityPreset {
 }
 
 /// Quad-Word (16-byte aligned) GPU joint matrix structure for SSBO Storage Buffers.
+///
 /// Wraps a $4 \times 4$ column-major float matrix in `#[repr(C)]` layout for direct zero-copy
 /// `bytemuck::cast_slice` upload to `var<storage, read> joint_matrices: array<mat4x4<f32>>;`.
 #[repr(C)]
@@ -55,6 +56,7 @@ impl JointMatrix {
 }
 
 /// A dynamic collection of final joint skinning matrices ready for GPU Storage Buffer upload.
+///
 /// Computes `skinning_matrix = global_transform * inverse_bind_matrix` for every joint in the skeleton.
 #[derive(Debug, Clone, Default)]
 pub struct SkinningPalette {
@@ -101,10 +103,13 @@ impl SkinningPalette {
 }
 
 /// Computes final vertex skinning matrices for a skeleton given evaluated global joint transforms.
+///
 /// For each joint $i$: $\text{SkinningMatrix}_i = \text{GlobalTransform}_i \times \text{InverseBindMatrix}_i$
+///
 /// # Arguments
 /// * `skeleton` - Reference to the target skeleton.
 /// * `global_transforms` - Evaluated global world matrices for each joint.
+///
 /// # Returns
 /// Computed `SkinningPalette` ready for SSBO Storage Buffer upload.
 #[must_use]

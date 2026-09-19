@@ -4,6 +4,7 @@ pub mod behavior;
 pub mod camera;
 pub mod commands;
 /// AE Core - Core engine runtime and orchestration infrastructure.
+///
 /// Provides a dynamic downcasting-based `Resources` store to prevent
 /// borrow checker conflicts between modular subsystems.
 pub mod ecs;

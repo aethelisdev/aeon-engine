@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
 /// Cascaded Shadow Map (CSM) system managing up to 4 shadow cascades.
+///
 /// Owns the shadow depth texture array, per-cascade views, light-space matrices,
 /// and the shadow rendering pipeline.
 pub struct ShadowSystem {

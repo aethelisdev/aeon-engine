@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 /// ECS component attached to entities that emit 2D stereo or 3D spatial audio cues.
+///
 /// Stores sound asset file references (`.wav`, `.ogg`, `.mp3`), playback parameters
 /// (volume gain, pitch modulation, looping toggle), and 3D spatial attenuation bounds
 /// (`min_distance`, `max_distance`). Integrates with `hecs::World` and
@@ -57,6 +58,7 @@ impl AudioSource {
 }
 
 /// ECS marker component designating an entity as the active 3D Spatial Audio Listener (microphone/ear).
+///
 /// Typically attached to the active Camera or Player entity. The `AudioManager` uses
 /// `AudioListener` position and forward vector orientation to calculate real-time stereo
 /// panning, distance falloff attenuation, and Doppler shifts for all active `AudioSource` emitters.

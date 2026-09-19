@@ -5,12 +5,14 @@ use super::core::ActiveAxis;
 use cgmath::{InnerSpace, Quaternion, Rotation, Vector3};
 
 /// Computes the translation delta from a drag plane hit.
+///
 /// # Arguments
 /// * `active_axis` — The axis being dragged
 /// * `current_hit` — The current ray-plane intersection point
 /// * `drag_start_world` — The world position where the drag started
 /// * `space` — The gizmo coordinate space (World or Local)
 /// * `rotation` — Optional entity rotation quaternion for local space transform
+///
 /// # Returns
 /// Axis-constrained translation delta, or `None` if the axis is invalid.
 pub fn calculate_translate_drag(

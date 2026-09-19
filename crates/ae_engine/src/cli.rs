@@ -38,6 +38,7 @@ impl CliArgs {
     }
 
     /// Parses CLI arguments from an arbitrary sequence of string arguments.
+    ///
     /// # Parameters
     /// - `args`: Sequence of argument tokens (first element may be binary name).
     pub fn parse_from<I, T>(args: I) -> Self

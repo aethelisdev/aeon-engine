@@ -37,6 +37,7 @@ impl SpriteVertex {
 }
 
 /// Per-instance GPU data describing a single rendered 2D sprite.
+///
 /// Contains the 4×4 affine model transformation matrix, the UV atlas rectangle, and RGBA tint color.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]

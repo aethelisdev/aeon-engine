@@ -12,6 +12,7 @@ use hecs::{Entity, World};
 use rapier3d::prelude::*;
 
 /// Decoupled wrapper managing Rapier3D simulation datasets.
+///
 /// Handles mapping between ECS Entities and Rapier handles, keeps simulator state,
 /// runs steps, and updates transforms back to the ECS.
 pub struct PhysicsWorld {
@@ -106,6 +107,7 @@ impl PhysicsWorld {
     }
 
     /// Applies a linear impulse to the dynamic rigid body associated with the given entity.
+    ///
     /// Wakes up sleeping rigid bodies and immediately applies physical momentum.
     pub fn apply_impulse(&mut self, entity: Entity, impulse: Vec3) {
         if let Some(&handle) = self.entity_to_body.get(&entity)

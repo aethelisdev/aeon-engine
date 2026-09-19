@@ -12,6 +12,7 @@ use crate::ui::panels::assets::types::{AssetCategory, AssetSource};
 use irisui::prelude::*;
 
 /// Builds the category filter chips row with live item counters.
+///
 /// Iterates through canonical asset categories, calculates filtered asset counts
 /// based on the active engine content visibility setting, and produces responsive
 /// badge buttons within the Iris UI tree.

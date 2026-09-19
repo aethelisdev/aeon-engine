@@ -40,6 +40,7 @@ pub struct DockNavigatorGeometry {
 
 impl DockNavigatorGeometry {
     /// Computes the navigator cross geometry centered inside the specified host content rectangle.
+    ///
     /// # Parameters
     /// - `content_rect`: Total bounding box of the hovered dock leaf or pane.
     /// - `button_size`: Width and height of each square anchor button.
@@ -100,6 +101,7 @@ impl DockNavigatorGeometry {
     }
 
     /// Evaluates if the cursor position hits any of the 5 docking cross buttons.
+    ///
     /// Returns `Some(DropZone)` when hovering directly over an anchor button, or `None` otherwise.
     pub fn hit_test(&self, cursor_pos: Point) -> Option<DropZone> {
         if self.center_button.contains_point(cursor_pos) {
@@ -178,6 +180,7 @@ impl Default for DockNavigatorStyle {
 }
 
 /// Hit-tests a cursor against the 5-way docking cross centered in a host content rectangle.
+///
 /// Returns `None` if `content_rect` is degenerate or smaller than a single button.
 pub fn hit_test_navigator(
     content_rect: Rect,
@@ -195,12 +198,14 @@ pub fn hit_test_navigator(
 }
 
 /// Builds the 5-way docking cross navigator nodes into the widget hierarchy.
+///
 /// Generates 5 styled anchor buttons (Center, Left, Right, Top, Bottom) each featuring:
 /// - An outer bordered card container.
 /// - An inner mini blueprint window frame.
 /// - A top title rim header.
 /// - 4 interior dashed divider segments partitioning the 4 directional buttons into 2 equal halves.
 /// - Active partition highlight filling the targeted half when hovered.
+///
 /// # Parameters
 /// - `tree`: Target UI tree receiving the generated widgets.
 /// - `parent_id`: Parent widget node to which anchor button subtrees will be appended.
@@ -417,6 +422,7 @@ pub struct FloatingTabBadgeParams<'a> {
 }
 
 /// Builds a floating tab capsule badge following the cursor during active tab dragging.
+///
 /// Generates a rounded dark pill containing the tab's icon, title label, and close glyph.
 pub fn build_floating_tab_badge(
     tree: &mut UiTree,

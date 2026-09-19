@@ -68,6 +68,7 @@ impl PanelId {
     }
 
     /// Returns the canonical alphanumeric string identifier for this panel used in registries.
+    ///
     /// This string identifier matches [`iris_dock::DockPanel::id`] for registry lookups.
     pub fn id_str(&self) -> &'static str {
         match self {
@@ -84,6 +85,7 @@ impl PanelId {
     }
 
     /// Parses a string identifier into its corresponding [`PanelId`] if recognized.
+    ///
     /// Returns `None` if the provided string does not match any built-in panel identifier.
     pub fn from_id_str(s: &str) -> Option<Self> {
         match s {
@@ -131,6 +133,7 @@ impl PanelId {
 }
 
 /// Constructs the default tree layout using `iris_dock`.
+///
 /// **Layout Topology:**
 /// - Center: `[Viewport, UiDesigner]` (Tabbed 3D & 2D workspace)
 /// - Left Split (15%): `[Hierarchy, Stats]`
@@ -275,6 +278,7 @@ impl PanelLayoutState {
     }
 
     /// Clamps all floating windows to ensure their title bars and content remain accessible within the workspace bounds.
+    ///
     /// Constrains vertical coordinates so floating panel title bars never get pushed underneath
     /// the top menubar (`min_y`) or off the bottom of the screen. Horizontally, ensures at least
     /// a visible grab margin remains accessible.

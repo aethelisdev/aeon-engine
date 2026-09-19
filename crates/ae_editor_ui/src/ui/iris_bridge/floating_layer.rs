@@ -22,6 +22,7 @@ pub fn is_panel_in_floating_window(layout_state: &PanelLayoutState, panel: Panel
 }
 
 /// Returns the Iris content rectangle assigned to an active panel in a floating window.
+///
 /// Floating panel builders use this rectangle instead of the retired host renderer's bounds,
 /// ensuring their content begins below the native title and tab strip rather than covering it.
 pub fn active_panel_content_rect(layout_state: &PanelLayoutState, panel: PanelId) -> Option<Rect> {
@@ -54,8 +55,10 @@ pub fn resolve_floating_viewport_rect(layout_state: &PanelLayoutState) -> Option
 }
 
 /// Builds the complete native Iris UI floating window hierarchy in the UI tree.
+///
 /// Delegates to the core Iris UI docking framework (`irisui::dock::build_floating_windows_layer`)
 /// which instantiates standard floating window containers, styling quads, tab pills, and controls.
+///
 /// Returns:
 /// - List of floating window bounding rectangles for hardware occlusion culling.
 /// - Active panel mapping `(PanelId, WidgetId)` where `WidgetId` is the floating window container.

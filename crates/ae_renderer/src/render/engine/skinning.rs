@@ -4,6 +4,7 @@ use super::state::RenderState;
 
 impl RenderState {
     /// Evaluates vertex skinning transforms and updates the WGPU vertex buffer in real-time.
+    ///
     /// For each vertex, calculates `position = sum(skin_matrix_i * weight_i * bind_position)`.
     pub fn update_model_skinning(
         &self,

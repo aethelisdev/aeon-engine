@@ -6,6 +6,7 @@ use winit::event::{ElementState, MouseButton};
 pub use winit::keyboard::KeyCode;
 
 /// Input state manager with three-state key and mouse button tracking.
+///
 /// Tracks three distinct sets per key and mouse button:
 /// - `pressed`: currently held down (continuous, e.g., movement)
 /// - `just_pressed`: first pressed this frame (one-shot, e.g., jump, fire)

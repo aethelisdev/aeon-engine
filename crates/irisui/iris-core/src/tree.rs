@@ -11,6 +11,7 @@ use crate::node::{UiLayer, WidgetNode, WidgetRole};
 use slotmap::SlotMap;
 
 /// The central hierarchical arena storing all UI nodes.
+///
 /// `UiTree` manages generational keys, ensures parent-child invariant consistency,
 /// prevents circular references, and coordinates traversal and dirty caching.
 #[derive(Debug, Clone, Default)]
@@ -62,6 +63,7 @@ impl UiTree {
     }
 
     /// Creates and assigns the root node of the tree.
+    ///
     /// # Errors
     /// Returns `IrisCoreError::RootAlreadyExists` if a root node has already been created.
     pub fn create_root(&mut self) -> Result<WidgetId, IrisCoreError> {
@@ -95,6 +97,7 @@ impl UiTree {
     }
 
     /// Attaches a child node to a parent node.
+    ///
     /// # Errors
     /// Returns `IrisCoreError::NodeNotFound` if either the parent or child node key does not exist.
     /// Returns `IrisCoreError::CircularHierarchy` if attaching the child would produce a cyclical loop.
@@ -272,6 +275,7 @@ impl UiTree {
     }
 
     /// Checks if any visible modal window currently exists within the tree.
+    ///
     /// When true, interaction with underlying background or docked panels is blocked.
     pub fn is_modal_active(&self) -> bool {
         self.nodes
@@ -280,6 +284,7 @@ impl UiTree {
     }
 
     /// Performs layered screen-space hit testing, prioritizing higher `UiLayer` stacking contexts.
+    ///
     /// Traversal priority:
     /// 1. `UiLayer::Tooltip`
     /// 2. `UiLayer::Popup`
@@ -287,6 +292,7 @@ impl UiTree {
     /// 4. `UiLayer::Floating`
     /// 5. `UiLayer::Content`
     /// 6. `UiLayer::Background`
+    ///
     /// If an active `UiLayer::Modal` is visible on screen, hits on lower layers
     /// (`Floating`, `Content`, `Background`) are blocked with zero heap allocations.
     pub fn hit_test_layered(&self, point: Point) -> Option<WidgetId> {
@@ -465,6 +471,7 @@ impl UiTree {
     }
 
     /// Performs layered hit-testing and returns detailed metadata for the hit widget.
+    ///
     /// Evaluates the highest priority [`UiLayer`] under `point` via [`UiTree::hit_test_layered`],
     /// then extracts the node's properties, role, effective layer, and tag with zero heap allocations for numeric queries.
     pub fn hit_test_target(&self, point: Point) -> Option<HitTargetInfo> {
@@ -493,6 +500,7 @@ impl UiTree {
 }
 
 /// Comprehensive metadata and interaction properties of a hit-tested widget.
+///
 /// Returned by [`UiTree::hit_test_target`] to supply the host application with
 /// the widget's identifier, effective stacking layer, functional role, user-defined tag,
 /// layout boundary rectangle, and optional debug name in a single query.

@@ -3,12 +3,14 @@
 use super::core::{ActiveAxis, GizmoMode, GizmoSystem};
 use super::render::GizmoVertex;
 /// Aeon Engine - Gizmo Geometry Generation
+///
 /// This module handles mathematical geometry generation for the 3D translation, rotation, and scale gizmo handles.
 /// It constructs procedural vertex data for torus rings, axis arrows, planar quads, and uniform scaling O-rings.
 use cgmath::{InnerSpace, Rotation as _, Vector3};
 
 impl GizmoSystem {
     /// Generates a colored quad on the specified plane for planar translation handles.
+    ///
     /// ### Arguments
     /// * `offset` - Distance from the center where the plane quad starts.
     /// * `size` - Width and height of the square quad.
@@ -53,6 +55,7 @@ impl GizmoSystem {
     }
 
     /// Generates a cylinder + cone/cube arrow for one axis.
+    ///
     /// ### Arguments
     /// * `len` - Total length of the arrow.
     /// * `radius` - Radius of the cylinder shaft.
@@ -142,8 +145,10 @@ impl GizmoSystem {
     }
 
     /// Builds dynamic axis geometry (arrows + planar handles) with real-time hover and active drag highlighting.
+    ///
     /// Applies subtle luminance highlighting ("hafif parlatma") to the hovered axis handle while preserving
     /// its distinctive color identity (Red for X, Green for Y, Blue for Z), and vibrant saturation when dragging.
+    ///
     /// ### Arguments
     /// * `len` - Length of each axis arrow in local units.
     /// * `is_scale` - True for scale mode (cube tips), false for translation mode (cone tips + planar handles).
@@ -311,6 +316,7 @@ impl GizmoSystem {
     }
 
     /// Builds complete axis geometry (3 arrows + optional planar handles).
+    ///
     /// ### Arguments
     /// * `len` - Length of each axis arrow.
     /// * `is_scale` - True if generating geometry for scale mode (cubes), false for translate mode (cones/planes).
@@ -319,6 +325,7 @@ impl GizmoSystem {
     }
 
     /// Generates dynamic dashed interaction/guidelines during dragging or scaling.
+    ///
     /// This generates temporary UI overlay lines such as:
     /// - Red center point coordinates for Scale mode.
     /// - Dashed axis alignment lines when dragging an axis.
@@ -600,6 +607,7 @@ impl GizmoSystem {
     }
 
     /// Generates the uniform scale / center O-ring as an anti-aliased, zero-aliasing Screen-Space SDF Quad.
+    ///
     /// Generates a camera-aligned Quad billboard with normalized `[-1.0, 1.0]` UVs.
     /// The fragment shader renders an analytic sub-pixel anti-aliased circular ring with `fwidth()`.
     pub(crate) fn build_o_ring_mesh(&self) -> Vec<GizmoVertex> {

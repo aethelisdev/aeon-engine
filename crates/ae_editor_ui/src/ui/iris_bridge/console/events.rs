@@ -62,6 +62,7 @@ pub fn handle_console_click(
 }
 
 /// Handles mouse wheel scrolling over the console viewport.
+///
 /// When the user manually scrolls up, automatic scroll-to-bottom is paused.
 /// If scrolled all the way to the bottom, auto-scroll is resumed.
 pub fn handle_console_scroll(

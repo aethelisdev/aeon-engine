@@ -11,6 +11,7 @@ use crate::commands::EntityCommandBuffer;
 use ae_plugin_api::DynamicEventBus;
 
 /// Execution context provided to `Behavior` lifecycle callbacks during active simulation.
+///
 /// Encapsulates references to ECS storage, event dispatcher, deferred entity mutation
 /// queue, frame delta time, and spatial camera vectors.
 pub struct BehaviorContext<'a> {
@@ -27,6 +28,7 @@ pub struct BehaviorContext<'a> {
 }
 
 /// Standard trait interface for pure Rust entity behaviors and gameplay actors.
+///
 /// Implementors define logic hooks that execute automatically during Play mode simulation.
 pub trait Behavior: Send + Sync + 'static {
     /// Invoked once when Play mode initializes or when the component is spawned during runtime.
@@ -85,6 +87,7 @@ pub trait Behavior: Send + Sync + 'static {
 }
 
 /// ECS wrapper component for attaching dynamic pure Rust `Behavior` instances to entities.
+///
 /// Enables flexible, polymorphism-friendly entity scripting while preserving strict
 /// type-safety and 100% safe memory guarantees.
 pub struct NativeBehavior {

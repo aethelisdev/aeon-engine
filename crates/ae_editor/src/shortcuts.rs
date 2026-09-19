@@ -27,6 +27,7 @@ pub struct ShortcutResult {
 }
 
 /// Evaluates all keyboard shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, Ctrl+S, Ctrl+Shift+S, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, Q/W/E/R/F).
+///
 /// Directly dispatches ECS & editor actions (copy/paste, delete, duplicate, rename)
 /// and returns a `ShortcutResult` for engine-level signals (undo/redo, open scene, save scene, camera focus).
 pub fn process_shortcuts(

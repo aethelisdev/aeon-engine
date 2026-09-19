@@ -18,6 +18,7 @@ use ae_renderer::camera::ProjectionMode;
 use irisui::prelude::*;
 
 /// Builds the top-left floating viewport toolbar with projection, shading, gizmo mode, and coordinate space controls.
+///
 /// Configured with 32×32 pixel square tool buttons with subtle rounded corners (`border_radius: 4.0`)
 /// providing clear click targets, spacious icon framing, and distinct modular grouping.
 pub fn build_viewport_toolbar(

@@ -49,6 +49,7 @@ impl TextRenderer {
     }
 
     /// Prepares text buffers and uploads font glyphs to the GPU text atlas.
+    ///
     /// `physical_screen_size` defines the physical target framebuffer resolution (e.g. 1920x1080).
     /// `zoom_factor` specifies the active UI scaling factor (e.g. 1.25, 1.50) to render
     /// font glyphs at exact 1:1 physical pixel resolution without magnification blur or distortion.

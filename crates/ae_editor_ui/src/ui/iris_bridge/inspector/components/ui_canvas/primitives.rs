@@ -23,6 +23,7 @@ use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
 /// Inspector handler for `UiElement`.
+///
 /// Handled as the primary 2D Screen Transform (RectTransform) card at the top of the Inspector.
 pub struct UiElementHandler;
 

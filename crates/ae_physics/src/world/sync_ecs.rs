@@ -14,6 +14,7 @@ use super::PhysicsWorld;
 
 impl PhysicsWorld {
     /// Synchronizes ECS entities having `RigidBody` or `Collider` components to the Rapier simulation.
+    ///
     /// Automatically spawns, updates, or deletes physical bodies in the Rapier world.
     /// Resolves mesh data for `Trimesh` and `ConvexHull` colliders using `get_mesh_data`.
     /// Includes the Upward Depenetration Guard for initial dynamic spawns.

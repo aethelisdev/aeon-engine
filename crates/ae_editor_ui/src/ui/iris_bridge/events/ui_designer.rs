@@ -15,6 +15,7 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDel
 
 impl IrisEditorOverlay {
     /// Routes window events to the 2D Visual UI Designer panel when active.
+    ///
     /// Returns `Some(IrisOverlayEventResult)` if the event was consumed by the UI Designer.
     pub(crate) fn handle_ui_designer_window_event(
         &mut self,

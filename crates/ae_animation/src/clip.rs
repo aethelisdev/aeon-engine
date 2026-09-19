@@ -29,6 +29,7 @@ pub struct Keyframe<T> {
 }
 
 /// A keyframe track for 3D vector properties (Position or Scale).
+///
 /// Uses `Vec3::lerp` for smooth linear interpolation between keyframes.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VectorTrack {
@@ -75,6 +76,7 @@ impl VectorTrack {
 }
 
 /// A keyframe track for Quaternion rotations.
+///
 /// Uses `Quat::slerp` (Spherical Linear Interpolation) to prevent candy-wrapper mesh distortion
 /// when joints undergo large rotations.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

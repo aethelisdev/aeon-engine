@@ -8,6 +8,7 @@ use crate::project::ProjectRegistry;
 use crate::ui::types::ViewLayoutContext;
 
 /// Builds the Recent Projects tab content view into the UI tree.
+///
 /// Iterates over recent projects stored in the registry, constructs project cards,
 /// badges (2D vs 3D icon indicator), file paths, and launch action buttons.
 pub fn build_recent_projects_view(

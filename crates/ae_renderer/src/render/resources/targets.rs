@@ -54,6 +54,7 @@ pub fn create_target_view(
 }
 
 /// Creates both a color render-target texture and its associated view.
+///
 /// This provides access to the raw texture to query the actual driver-selected format
 /// at runtime, helping prevent pipeline validation errors on backends like Vulkan.
 pub fn create_target_texture_and_view(

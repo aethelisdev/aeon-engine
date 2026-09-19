@@ -202,6 +202,7 @@ impl SceneUniforms {
     }
 
     /// Synchronizes both the Sky Shader and the Scene PBR Lighting from the single Global Settings.
+    ///
     /// Computes sun direction from pitch/yaw, derives horizon/zenith colors,
     /// sunset color transitions, ambient fill, and atmospheric fog parameters.
     pub fn update_environment(

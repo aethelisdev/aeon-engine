@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+///
 /// Encapsulates a WGPU texture, its default view, and its dimensions.
 /// Used for rendering intermediate targets such as the 3D viewport.
 pub struct ViewportTexture {

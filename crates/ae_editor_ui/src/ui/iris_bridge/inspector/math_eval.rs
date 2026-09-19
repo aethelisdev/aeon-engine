@@ -22,6 +22,7 @@ pub enum MathEvalError {
 
 /// Evaluates a user-entered text buffer into a numeric value, optionally applying
 /// relative operator prefixes against a known baseline value.
+///
 /// Supports:
 /// - Absolute numbers and expressions: `10`, `-5.5`, `100 / 2`, `(10 + 5) * 3`
 /// - Relative addition: `+5` or `+=5` (returns `baseline + 5.0`)

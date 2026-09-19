@@ -128,6 +128,7 @@ impl GeometrySystem {
     }
 
     /// Writes instance data to the GPU buffer, auto-scaling capacity when needed.
+    ///
     /// # Memory Leak Prevention (WGPU Buffer Allocation Lifecycle)
     /// Overwriting `self.instance_buffer` directly causes the old buffer to be dropped on the
     /// Rust side, but the underlying Vulkan/DX12/Metal resource allocation stays alive inside the

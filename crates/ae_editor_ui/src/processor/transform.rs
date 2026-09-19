@@ -5,6 +5,7 @@ use super::UiContext;
 use cgmath::SquareMatrix;
 
 /// Helper function to retrieve the world-space transformation matrix for an entity.
+///
 /// Prioritizes `GlobalTransform` component, falling back to local transform decomposition.
 pub fn get_world_matrix(world: &hecs::World, entity: hecs::Entity) -> cgmath::Matrix4<f32> {
     if let Ok(gt) = world.get::<&ae_core::ecs::GlobalTransform>(entity) {
@@ -33,6 +34,7 @@ pub fn get_world_matrix(world: &hecs::World, entity: hecs::Entity) -> cgmath::Ma
 }
 
 /// Helper function to decompose a 4x4 matrix into Position, Rotation, and Scale components.
+///
 /// Ensures orthonormal rotation extraction and safe magnitude scale calculations for Keep World Transform parenting.
 pub fn decompose_matrix(
     mat: cgmath::Matrix4<f32>,

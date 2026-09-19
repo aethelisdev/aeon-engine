@@ -34,10 +34,12 @@ impl CpuMipmapLevel {
 }
 
 /// Generates a complete mipmap chain from base level 0 down to 1x1 using 2x2 box downsampling.
+///
 /// # Arguments
 /// * `base_width` - Width of mip level 0.
 /// * `base_height` - Height of mip level 0.
 /// * `base_bytes` - Uncompressed RGBA8 bytes of mip level 0.
+///
 /// # Returns
 /// A `Vec<CpuMipmapLevel>` containing level 0 followed by progressively halved mipmap levels.
 pub fn generate_mipmap_chain(

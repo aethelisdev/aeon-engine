@@ -3,6 +3,7 @@
 use crate::render::types::{DEPTH_FORMAT, Instance, SpriteVertex};
 
 /// Creates the transparent Sprite/Quad overlay rendering pipeline modernized for Wgpu 23+ (v2026 stable).
+///
 /// Uses alpha blending for correct transparency compositing.
 pub(crate) fn create_sprite_pipeline(
     device: &wgpu::Device,

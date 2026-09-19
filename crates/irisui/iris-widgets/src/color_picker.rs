@@ -9,6 +9,7 @@
 use iris_core::{Color, Point, Rect, Style, TextAlign, UiTree, WidgetId, WidgetRole};
 
 /// Converts standard RGB components (0.0 ..= 1.0) to HSV representation.
+///
 /// Returns `(hue, saturation, value)` where:
 /// - `hue`: `0.0 .. 360.0` degrees
 /// - `saturation`: `0.0 ..= 1.0`
@@ -36,6 +37,7 @@ pub fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
 }
 
 /// Converts HSV color representation to standard `Color` (RGBA float).
+///
 /// - `h`: Hue in degrees `0.0 .. 360.0`
 /// - `s`: Saturation `0.0 ..= 1.0`
 /// - `v`: Value / Brightness `0.0 ..= 1.0`

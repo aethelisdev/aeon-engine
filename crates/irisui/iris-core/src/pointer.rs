@@ -7,6 +7,7 @@ use crate::Point;
 use std::time::Duration;
 
 /// Pointer gestures accumulated since the previous frame, in logical UI coordinates.
+///
 /// Feed all pointer transitions before routing consumption. Call `end_frame` only after consumers
 /// have observed release edges, and `cancel` on focus loss so captures cannot remain stuck.
 #[derive(Debug, Default)]
@@ -49,6 +50,7 @@ impl PointerState {
     }
 
     /// Records a primary transition using a monotonic timestamp supplied by the host.
+    ///
     /// Repeated transitions are ignored. Clicks require a short release near the press origin;
     /// moving away and back still counts as a drag, preventing accidental close after dragging.
     pub fn primary_button(&mut self, down: bool, now: Duration) {

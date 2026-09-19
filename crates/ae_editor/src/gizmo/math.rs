@@ -4,11 +4,13 @@
 use cgmath::{InnerSpace, Vector3};
 
 /// Finds the closest point and distance between a ray and a line segment.
+///
 /// # Arguments
 /// * `ro` — Ray origin
 /// * `rd` — Ray direction (unnormalized is fine)
 /// * `p0` — Segment start
 /// * `p1` — Segment end
+///
 /// # Returns
 /// `(distance, closest_point_on_segment)`
 pub fn ray_segment_closest(
@@ -56,11 +58,13 @@ pub fn ray_segment_closest(
 }
 
 /// Computes the intersection point of a ray and a plane.
+///
 /// # Arguments
 /// * `ro` — Ray origin
 /// * `rd` — Ray direction
 /// * `plane_origin` — A point on the plane
 /// * `plane_normal` — The plane's normal vector
+///
 /// # Returns
 /// `Some(hit_point)` if the ray intersects the plane in front of the origin, `None` otherwise.
 pub fn ray_plane(

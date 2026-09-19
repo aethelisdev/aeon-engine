@@ -11,6 +11,7 @@ pub const VIEWPORT_TEXTURE_ID: ExternalTextureId = ExternalTextureId(0);
 
 impl IrisEditorOverlay {
     /// Updates the reusable D2 binding when the renderer replaces the viewport texture view.
+    ///
     /// The source view is retained only while registered. Missing views remove the binding, making
     /// the corresponding draw command a safe no-op during resize and asset reload transitions.
     pub(crate) fn set_viewport_texture(

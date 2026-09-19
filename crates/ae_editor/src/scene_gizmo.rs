@@ -18,6 +18,7 @@ pub enum SceneViewSnap {
 
 impl SceneViewSnap {
     /// Computes target camera pitch, yaw, and position offset for the given view snap.
+    ///
     /// # Parameters
     /// - `target`: The 3D orbit target point of the camera (`Point3<f32>`).
     /// - `distance`: Distance from target point.
@@ -68,16 +69,19 @@ impl SceneViewSnap {
 }
 
 /// 3D Scene Viewport Navigation Gizmo orientation axes calculations.
+///
 /// Projects world axes (X-Red, Y-Green, Z-Blue) into 2D viewport coordinates
 /// and provides click-hit testing for snapping camera views.
 pub struct SceneNavigationGizmo;
 
 impl SceneNavigationGizmo {
     /// Computes 2D viewport screen positions for 3D orientation axis endpoints sorted from back to front.
+    ///
     /// # Parameters
     /// - `pitch`: Active camera pitch angle (`f32` radians).
     /// - `yaw`: Active camera yaw angle (`f32` radians).
     /// - `radius`: Visual pixel radius of the gizmo compass ring.
+    ///
     /// Returns an array of `(dx, dy, label, color_rgb, is_positive)` sorted back-to-front by view depth.
     pub fn compute_axis_endpoints(
         pitch: f32,

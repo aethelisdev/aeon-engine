@@ -268,6 +268,7 @@ impl GizmoSystem {
     }
 
     /// Draws the gizmo inside an existing render pass (no pass creation).
+    ///
     /// Computes model matrix from gizmo position and screen-compensated scale,
     /// then issues draw calls for the active mode's geometry.
     pub fn draw_in_render_pass<'a>(
@@ -505,6 +506,7 @@ impl GizmoSystem {
     }
 
     /// Prepares the gizmo GPU state for an upcoming `draw_overlay()` call.
+    ///
     /// Writes the MVP uniform buffer based on gizmo position, camera distance,
     /// and screen params. Must be called BEFORE `draw_overlay()` in the same frame.
     pub fn prepare_overlay(&self, params: GizmoOverlayPrepareParams<'_>) {

@@ -35,6 +35,7 @@ struct CollectionContext<'a> {
 }
 
 /// Collects shaped text sections from the UI tree with automatic layer-based occlusion culling.
+///
 /// Text elements on lower layers (e.g. `UiLayer::Content`) positioned behind opaque
 /// higher-layer containers (e.g. `UiLayer::Popup`, `UiLayer::Modal`) are automatically
 /// scissored or culled to prevent visual bleeding.

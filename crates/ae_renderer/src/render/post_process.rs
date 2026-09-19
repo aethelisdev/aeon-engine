@@ -5,6 +5,7 @@ use wgpu::util::DeviceExt;
 
 /// Full-screen post-processing system managing Bloom (extract → blur → composite)
 /// and MSAA resolve.
+///
 /// Owns intermediate render targets, bind groups, and the bloom parameter buffer.
 pub struct PostProcessSystem {
     pub bloom_extract_pipeline: wgpu::RenderPipeline,
@@ -25,6 +26,7 @@ pub struct PostProcessSystem {
     pub depth_texture_view: wgpu::TextureView,
 
     /// The actual driver-configured format of the intermediate scene render target.
+    ///
     /// Queried dynamically from the created texture, this format is passed to other
     /// rendering pipelines to guarantee compatibility and prevent Vulkan mismatch panics.
     pub scene_format: wgpu::TextureFormat,

@@ -11,6 +11,7 @@ use crate::tree::DockNodeId;
 use std::fmt::Display;
 
 /// Lifecycle management delegate governing tab presentation and interaction policies.
+///
 /// Implementors customize tab headers, control whether tabs can be closed or torn off,
 /// and intercept close events to prompt for unsaved changes or perform cleanup.
 pub trait TabViewer<Tab> {
@@ -18,18 +19,21 @@ pub trait TabViewer<Tab> {
     fn title(&self, tab: &Tab) -> String;
 
     /// Returns an optional texture UV rectangle for an icon in an atlas `[u0, v0, u1, v1]`.
+    ///
     /// Defaults to `None`.
     fn atlas_icon(&self, _tab: &Tab) -> Option<[f32; 4]> {
         None
     }
 
     /// Returns the raw title text without leading icon prefixes.
+    ///
     /// Defaults to returning `self.title(tab)`.
     fn raw_title(&self, tab: &Tab) -> String {
         self.title(tab)
     }
 
     /// Determines whether a close button (`x`) should be rendered for this tab.
+    ///
     /// Returning `false` prevents the user from closing the tab (e.g., for persistent viewport panes).
     /// Defaults to `true`.
     fn closeable(&self, _tab: &Tab) -> bool {
@@ -37,6 +41,7 @@ pub trait TabViewer<Tab> {
     }
 
     /// Callback invoked when the user requests closing this tab.
+    ///
     /// Return `true` to approve closing and detaching the tab from its host leaf.
     /// Return `false` to veto the close request (e.g., when a dialog warns of unsaved scene modifications).
     /// Defaults to `true`.
@@ -45,10 +50,12 @@ pub trait TabViewer<Tab> {
     }
 
     /// Callback invoked when the user clicks the add tab button (`+`) on a leaf's tab bar.
+    ///
     /// Implementations may display a popup menu or spawn a default panel into the specified leaf.
     fn on_add(&mut self, _leaf_id: DockNodeId) {}
 
     /// Determines whether the tab can be dragged out of its leaf for docking or floating.
+    ///
     /// Returning `false` pins the tab in place within its current leaf.
     /// Defaults to `true`.
     fn is_draggable(&self, _tab: &Tab) -> bool {
@@ -56,18 +63,21 @@ pub trait TabViewer<Tab> {
     }
 
     /// Determines whether this tab may be detached into an independent OS floating window.
+    ///
     /// Defaults to `true`.
     fn allowed_in_windows(&self, _tab: &Tab) -> bool {
         true
     }
 
     /// Determines whether the tab has unsaved modifications and displays a dirty indicator dot (`•`).
+    ///
     /// Defaults to `false`.
     fn is_modified(&self, _tab: &Tab) -> bool {
         false
     }
 
     /// Returns an optional tooltip string displayed when hovering over this tab's header button.
+    ///
     /// Defaults to `None`.
     fn tooltip(&self, _tab: &Tab) -> Option<String> {
         None
@@ -91,6 +101,7 @@ pub trait TabViewer<Tab> {
     }
 
     /// Determines whether the background behind this tab's content should remain transparent.
+    ///
     /// Useful for embedded 3D viewports where the underlying render pass should not be obscured.
     /// Defaults to `false`.
     fn clear_background(&self, _tab: &Tab) -> bool {
@@ -99,6 +110,7 @@ pub trait TabViewer<Tab> {
 }
 
 /// Simple default [`TabViewer`] implementation using [`Display`] for tab titles.
+///
 /// Useful for quick prototyping or uniform tab types that implement `Display`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SimpleTabViewer;

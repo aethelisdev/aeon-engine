@@ -13,6 +13,7 @@ pub struct RenderOptions {
     pub wireframe_enabled: bool,
     pub scale_factor: f32,
     /// Indicates whether the active viewport is running in 2D dimension mode.
+    ///
     /// When `true`, completely bypasses all 3D shadow cascades, 3D PBR forward passes,
     /// and 3D silhouette outlines, delegating rendering to the isolated 2D pipeline.
     pub is_2d_mode: bool,
@@ -46,6 +47,7 @@ pub struct RenderState {
     /// Cached list of present modes supported by the surface on this GPU adapter.
     pub supported_present_modes: Vec<wgpu::PresentMode>,
     /// Wall-clock seconds spent blocking inside `get_current_texture()` + `present()`.
+    ///
     /// On Windows DX12 when DXGI ALLOW_TEARING is unavailable, these calls block at
     /// VSync rate (~16.7ms at 60Hz). This value is subtracted from `time.delta_time`
     /// when calculating the FPS counter so that Uncapped mode displays the engine's
@@ -61,6 +63,7 @@ pub struct RenderState {
 
 impl RenderState {
     /// Computes a granular breakdown of allocated Video RAM (VRAM) across graphics subsystems.
+    ///
     /// Calculates texture memory, static/dynamic vertex and index buffer footprints,
     /// uniform buffers, instance buffers, and render target allocations in megabytes.
     pub fn get_vram_breakdown(

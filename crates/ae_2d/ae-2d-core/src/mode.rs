@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Active dimension mode governing the Aeon Engine runtime and memory budget allocation.
+///
 /// Ensures strict mutual exclusion:
 /// - In `Mode2D`, 3D pipeline resources (Cascaded Shadow Maps, Skybox Cubemaps, PBR IBL textures,
 ///   and 3D mesh buffers) are completely bypassed and never allocated in GPU/CPU memory.

@@ -37,8 +37,10 @@ pub(crate) struct TorusRingDescriptor {
 
 impl GizmoSystem {
     /// Generates a torus ring handle: either a 180-degree front-facing arc or a full 360-degree circle during drag.
+    ///
     /// When idle, generates a clean 180-degree arc facing the camera that never vanishes even when viewed edge-on.
     /// When dragging, generates a complete 360-degree circle for the active handle being rotated.
+    ///
     /// ### Arguments
     /// * `params` - Geometry parameters and orientation descriptor.
     pub(crate) fn build_torus_ring(params: &TorusRingDescriptor) -> Vec<GizmoVertex> {
@@ -124,8 +126,10 @@ impl GizmoSystem {
     }
 
     /// Generates the outer camera-facing screen-space rotation ring (Feature B).
+    ///
     /// The ring is constructed along the camera's right and up vectors, ensuring it remains
     /// a circular handle from any perspective or orthographic view angle.
+    ///
     /// ### Arguments
     /// * `major_radius` - Major radius of the outer screen ring.
     /// * `minor_radius` - Tube thickness of the screen ring.
@@ -214,9 +218,11 @@ impl GizmoSystem {
     }
 
     /// Generates complete dynamic view-aligned rotation ring geometry.
+    ///
     /// Behavior:
     /// - During drag: Active handle becomes a full 360-degree circle so the user sees the complete trajectory.
     /// - When idle: Generates clean 180-degree front arcs for X, Y, Z (never vanishing) plus outer screen ring.
+    ///
     /// ### Arguments
     /// * `radius` - Major radius of the orthogonal rotation rings.
     pub(crate) fn build_dynamic_rotation_vertices(&self, radius: f32) -> Vec<GizmoVertex> {

@@ -12,6 +12,7 @@ use winit::event::WindowEvent;
 
 impl IrisEditorOverlay {
     /// Routes window events to the Content / Asset Browser panel when active.
+    ///
     /// Returns `Some(IrisOverlayEventResult)` if the event was intercepted and consumed.
     pub(crate) fn handle_assets_window_event(
         &mut self,
@@ -113,6 +114,7 @@ impl IrisEditorOverlay {
     }
 
     /// Terminates an active asset drag interaction, dispatching `EndAssetDrag` and waking the UI.
+    ///
     /// Returns `true` if an asset drag was active and terminated, or `false` otherwise.
     pub fn end_asset_drag(&mut self) -> bool {
         if self.assets.click_tracker.is_dragging_asset {
@@ -130,6 +132,7 @@ impl IrisEditorOverlay {
     }
 
     /// Handles global mouse release and keyboard cancellation for active asset drag-and-drop operations.
+    ///
     /// Regardless of whether the cursor is positioned over the menubar, docked panels,
     /// floating windows, or the viewport, releasing the left mouse button or pressing Escape
     /// cleanly concludes the drag interaction.

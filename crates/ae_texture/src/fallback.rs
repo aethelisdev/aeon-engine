@@ -70,6 +70,7 @@ impl FallbackTextureGenerator {
     }
 
     /// Generates a magenta-black checkerboard pattern texture for missing or corrupted assets.
+    ///
     /// # Arguments
     /// * `width` - Target width in pixels.
     /// * `height` - Target height in pixels.

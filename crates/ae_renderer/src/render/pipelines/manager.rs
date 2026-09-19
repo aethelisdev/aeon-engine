@@ -7,6 +7,7 @@
 use super::{grid, pbr, sky, sprite};
 
 /// Centralized pipeline registry holding all render pipelines.
+///
 /// Owns PBR, wireframe, sprite, grid, and sky pipelines. Supports full
 /// rebuild when MSAA sample count changes at runtime.
 pub struct PipelineManager {

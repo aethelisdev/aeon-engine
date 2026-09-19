@@ -4,6 +4,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 2D Sprite Flipbook / Sprite Sheet animation component.
+///
 /// Advances UV sub-rectangles across a sequence of frames at a configurable frame rate.
 /// Can be used standalone or synchronized directly with a `SpriteRenderer` component.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +55,7 @@ impl SpriteAnimation {
     }
 
     /// Creates a grid-based uniform sprite sheet animation given column and row counts.
+    ///
     /// Generates UV rectangles sliced across a standard `[0.0, 0.0, 1.0, 1.0]` texture.
     pub fn from_grid(columns: usize, rows: usize, total_frames: usize, fps: f32) -> Self {
         let cols = columns.max(1);

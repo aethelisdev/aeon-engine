@@ -13,11 +13,14 @@ use image::GenericImageView;
 use winit::window::Icon;
 
 /// Loads a window icon from the specified file path.
+///
 /// # Arguments
 /// * `path` - A string slice that holds the relative or absolute path to the image file.
+///
 /// # Returns
 /// * `Some(Icon)` - If the image was successfully loaded and converted to RGBA pixels.
 /// * `None` - If the file was not found, couldn't be decoded, or conversion failed.
+///
 /// # Implementation Details
 /// 1. Opens the image file.
 /// 2. Converts it to RGBA8 format (required by winit).
@@ -38,8 +41,10 @@ pub fn load_window_icon(path: &str) -> Option<Icon> {
 }
 
 /// Loads a window icon from raw image data (bytes).
+///
 /// This is preferred for cross-platform stability as it allows
 /// embedding the icon in the binary using `include_bytes!`.
+///
 /// # Arguments
 /// * `bytes` - The raw image data (e.g., contents of a .png file).
 pub fn load_icon_from_memory(bytes: &[u8]) -> Option<Icon> {
@@ -63,6 +68,7 @@ pub fn load_icon_from_memory(bytes: &[u8]) -> Option<Icon> {
 
 /// Ensures that the XDG Desktop entry and multi-resolution icons are registered
 /// in accordance with the FreeDesktop.org standard.
+///
 /// This provides universal icon and application matching across ALL Linux Desktop
 /// Environments (GNOME, KDE Plasma, XFCE, Cinnamon, MATE, LXQt, Hyprland, Sway, COSMIC, etc.)
 /// without requiring manual setup scripts or desktop-environment-specific hacks.

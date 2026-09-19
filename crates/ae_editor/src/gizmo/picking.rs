@@ -7,6 +7,7 @@ use cgmath::{InnerSpace, Rotation as _, Vector3};
 
 impl GizmoSystem {
     /// Determines which axis handle the mouse ray is hovering over.
+    ///
     /// Updates `self.hovered_axis` and returns the detected axis.
     pub fn check_intersection(
         &mut self,

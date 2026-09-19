@@ -34,6 +34,7 @@ impl PlatformState {
     }
 
     /// Records physical events before UI consumption and applies editor zoom shortcuts.
+    ///
     /// Returns true only for a handled zoom shortcut. Losing focus cancels pointer state rather
     /// than generating a drop, while button releases remain observable after widget consumption.
     pub fn record(&mut self, event: &WindowEvent, zoom: &mut f32) -> bool {

@@ -16,12 +16,14 @@ pub enum SortMode {
 }
 
 /// Compact 64-bit sort key for zero-allocation, high-performance sprite draw sorting.
+///
 /// Encodes layer, Y-depth or order, and texture index to minimize pipeline state swaps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SpriteSortKey(pub u64);
 
 impl SpriteSortKey {
     /// Constructs a 64-bit sort key from layer, order, and texture asset index.
+    ///
     /// Bit layout:
     /// - `[63..48]` (16 bits): Signed sorting layer mapped to unsigned (`layer as i16 as u16 ^ 0x8000`).
     /// - `[47..32]` (16 bits): Signed order in layer mapped to unsigned.
@@ -39,6 +41,7 @@ impl SpriteSortKey {
     }
 
     /// Constructs a sort key incorporating continuous Y-position for isometric/top-down rendering.
+    ///
     /// Inverts Y so that entities positioned further down the screen (lower Y) receive a higher sort key,
     /// drawing them in front of entities further up.
     pub fn from_y_sort(layer: i32, y_pos: f32, texture_index: u32) -> Self {

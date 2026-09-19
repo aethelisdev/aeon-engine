@@ -20,6 +20,7 @@ pub struct SerializedComponent {
 }
 
 /// Complete dynamic snapshot of an entity's components at a point in time.
+///
 /// Automatically captures all registered components via `ComponentRegistry` without
 /// requiring hardcoded struct fields. Fully extensible for new components and custom plugins.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +80,7 @@ impl EntitySnapshot {
     }
 
     /// Spawns a new entity in the world and applies this snapshot's components.
+    ///
     /// Returns the new entity handle. Used by undo-delete to re-create
     /// a previously destroyed entity with all its original components.
     pub fn spawn(&self, world: &mut hecs::World) -> hecs::Entity {
@@ -132,11 +134,13 @@ impl EntitySnapshot {
 }
 
 /// Undoable/redoable command representing a single atomic operation.
+///
 /// Four variants:
 /// - `Spawn`: entity creation (undo = despawn, redo = re-spawn)
 /// - `Delete`: entity destruction (undo = re-spawn, redo = despawn)
 /// - `Modify`: single property change (undo = restore old, redo = apply new)
 /// - `Batch`: groups multiple commands for atomic multi-entity operations
+///
 /// Entity ID remapping is handled via `remap_entity()` when undo/redo
 /// produces a different entity handle (since `hecs` may reuse or assign new IDs).
 #[derive(Clone, Debug)]
@@ -299,6 +303,7 @@ impl Command {
 }
 
 /// Trackable entity property for single-field undo/redo.
+///
 /// Each variant stores `(old_value, new_value)` to enable bidirectional
 /// restore. Used by `Command::Modify` for inspector-driven property edits.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

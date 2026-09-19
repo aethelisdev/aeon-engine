@@ -65,8 +65,10 @@ impl LayoutEngine {
     }
 
     /// Computes layout for the entire UI tree if layout dirty flags are set.
+    ///
     /// If no nodes have the `LAYOUT` dirty flag set and available size matches,
     /// this function returns immediately with near **0.00 ms** CPU time.
+    ///
     /// # Errors
     /// Returns `LayoutError::Taffy` if internal layout resolution encounters invalid constraints.
     pub fn compute_layout(

@@ -10,6 +10,7 @@
 use std::fmt::Write;
 
 /// Multi-tier fallback strategy for launcher graphics adapter acquisition.
+///
 /// Enumerates physical hardware adapters first, prioritizing high-performance Vulkan adapters,
 /// followed by OpenGL backends and software rasterizer fallbacks.
 pub async fn request_launcher_adapter_and_device(
@@ -261,6 +262,7 @@ fn generate_launcher_diagnostic_report(
 }
 
 /// Calculates a priority ranking score for graphics adapters during launcher initialization.
+///
 /// Higher scores indicate greater preference:
 /// - Vulkan Discrete GPU (100)
 /// - Vulkan Integrated GPU (80)

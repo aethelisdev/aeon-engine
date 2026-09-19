@@ -11,6 +11,7 @@ use crate::commands::EntityCommandBuffer;
 use ae_plugin_api::DynamicEventBus;
 
 /// Execution context passed to `GameState` lifecycle hooks.
+///
 /// Encapsulates access to ECS storage, command queue, event bus, and timing metrics.
 pub struct StateContext<'a> {
     /// Mutable reference to the ECS world for querying or reading entity components.
@@ -86,6 +87,7 @@ impl GameState for DefaultPausedState {
 }
 
 /// Pushdown automaton managing the stack of active `GameState` instances.
+///
 /// Handles state transitions, lifecycle dispatches (`on_enter`, `on_exit`, `on_pause`, `on_resume`),
 /// and per-frame update propagation with zero `unsafe` blocks.
 pub struct StateManager {

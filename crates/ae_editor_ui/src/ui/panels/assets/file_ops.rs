@@ -26,6 +26,7 @@ pub fn create_subfolder(parent: &Path, name: &str) -> std::io::Result<PathBuf> {
 }
 
 /// Renames a file or directory on disk to a new name.
+///
 /// Preserves the original file extension if renaming a file and the extension is omitted.
 pub fn rename_asset_or_folder(target: &Path, new_name: &str) -> std::io::Result<PathBuf> {
     let clean_name = new_name.trim();
@@ -58,6 +59,7 @@ pub fn rename_asset_or_folder(target: &Path, new_name: &str) -> std::io::Result<
 }
 
 /// Deletes a file or directory from the file system.
+///
 /// Directories are removed recursively.
 pub fn delete_asset_or_folder(target: &Path) -> std::io::Result<()> {
     if target.is_dir() {

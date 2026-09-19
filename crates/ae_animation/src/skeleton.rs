@@ -8,6 +8,7 @@ use glam::Mat4;
 use serde::{Deserialize, Serialize};
 
 /// Represents a single joint (bone) within a skeleton.
+///
 /// Joints contain a name, an optional parent index in the topologically sorted hierarchy,
 /// a local bind pose transform, and an inverse bind matrix used for vertex skinning.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +17,7 @@ pub struct Joint {
     pub name: String,
 
     /// Parent joint index within the skeleton's topologically sorted array.
+    ///
     /// Must satisfy `parent_index < joint_index` to maintain a flat-tree topological layout.
     pub parent_index: Option<usize>,
 
@@ -45,6 +47,7 @@ impl Joint {
 }
 
 /// Represents a 3D skeleton composed of a topologically sorted hierarchy of joints.
+///
 /// Joints are guaranteed to be stored such that any parent joint index appears before
 /// its children (`parent_index < child_index`). This flat-tree ordering allows linear,
 /// non-recursive, CPU cache-friendly $O(N)$ global transform evaluation.
@@ -88,10 +91,13 @@ impl Skeleton {
     }
 
     /// Computes global world transforms for all joints from a slice of local pose matrices.
+    ///
     /// Executes a linear $O(N)$ iteration over the topologically sorted joints, avoiding recursion
     /// and maintaining optimal CPU L1/L2 cache locality.
+    ///
     /// # Arguments
     /// * `local_poses` - Slice of local joint matrices. Must have length equal to `self.len()`.
+    ///
     /// # Returns
     /// Vector of computed global matrices for each joint.
     #[must_use]

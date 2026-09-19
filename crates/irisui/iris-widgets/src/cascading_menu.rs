@@ -16,6 +16,7 @@ use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
 /// Visual icon representation for a menu item.
+///
 /// Can either be a Unicode text/emoji glyph or a normalized texture atlas sub-rectangle `[u_min, v_min, u_max, v_max]`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CascadingMenuIcon {
@@ -26,6 +27,7 @@ pub enum CascadingMenuIcon {
 }
 
 /// A single item within a cascading menu tree.
+///
 /// Can represent an actionable leaf item, a branching submenu parent, or a visual separator.
 #[derive(Debug, Clone)]
 pub struct CascadingMenuItem {
@@ -225,6 +227,7 @@ struct CascadingRenderContext<'a, 'b> {
 }
 
 /// Fluent builder for constructing multi-level cascading popup menus in [`UiTree`].
+///
 /// Supports unlimited cascading depth (Level 1 -> Level 2 -> Level 3...), automatic screen boundary
 /// flipping / clamping, and zero-allocation $O(1)$ hit-test event routing via [`WidgetRole::DropdownItem`].
 #[derive(Debug, Clone)]

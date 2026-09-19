@@ -12,6 +12,7 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDel
 
 impl IrisEditorOverlay {
     /// Routes window events to the Material & Surface Studio panel when active.
+    ///
     /// Returns `Some(IrisOverlayEventResult)` if the event was consumed by the material panel.
     pub(crate) fn handle_material_window_event(
         &mut self,

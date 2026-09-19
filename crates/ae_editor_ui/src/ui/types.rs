@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Command enum representing all possible UI-driven actions.
+///
 /// Each variant is dispatched from UI panels (Inspector, Hierarchy, Menu)
 /// and consumed by the engine loop to modify ECS, scene, or editor state.
 #[derive(Clone, Debug)]
@@ -15,6 +16,7 @@ pub enum EngineUiAction {
     ResumeGame,
 
     /// Triggers an ECS-wide asset garbage collection sweep.
+    ///
     /// Identifies all unused CPU/GPU resources that are no longer referenced in the
     /// active ECS scene and frees their memory.
     GarbageCollect,

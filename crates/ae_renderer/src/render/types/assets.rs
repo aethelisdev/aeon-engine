@@ -72,6 +72,7 @@ pub struct ModelAsset {
 
 impl ModelAsset {
     /// Computes the bounding sphere radius from AABB center and half-diagonal.
+    ///
     /// Uses the distance from AABB center to any corner (half-diagonal), which
     /// correctly handles off-center models where `min`/`max` are far from origin.
     /// Falls back to `max(origin_distances)` for backward compatibility with

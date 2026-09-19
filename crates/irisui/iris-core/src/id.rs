@@ -10,6 +10,7 @@ use slotmap::new_key_type;
 
 new_key_type! {
     /// A unique, generational identifier for an individual UI node in the widget tree.
+    ///
     /// `WidgetId` is used to index into the central `UiTree` arena without relying
     /// on raw pointers, preventing dangling references and ensuring memory safety.
     pub struct WidgetId;

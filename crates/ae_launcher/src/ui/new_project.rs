@@ -7,6 +7,7 @@ use crate::icons::{ICON_CUBE, ICON_FOLDER, ICON_PLUS};
 use crate::ui::types::{LauncherUiState, ViewLayoutContext};
 
 /// Builds the New Project wizard tab view into the UI tree.
+///
 /// Constructs interactive project name input (with focus and blinking caret support),
 /// project parent directory locator with folder browser button, dimension mode cards
 /// (including 2D Closed Beta locked badge), Create button, and transient feedback text.

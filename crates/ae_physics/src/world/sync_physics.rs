@@ -9,6 +9,7 @@ use super::PhysicsWorld;
 
 impl PhysicsWorld {
     /// Synchronizes updated positions and velocities from the Rapier simulation back to ECS components.
+    ///
     /// Ignores Kinematic Character Controller (KCC) entities as their movement is managed by `move_character`.
     pub fn sync_physics_to_ecs(&mut self, world: &mut World) {
         for (&entity, &handle) in &self.entity_to_body {
@@ -94,6 +95,7 @@ impl PhysicsWorld {
     }
 
     /// Force-resets all Rapier3D rigid body positions and velocities from current ECS transforms.
+    ///
     /// Useful when toggling Play/Edit mode or restoring scene backups.
     pub fn reset_simulation_poses(&mut self, world: &mut World) {
         use glam::Vec3;

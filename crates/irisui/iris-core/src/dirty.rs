@@ -10,6 +10,7 @@ use bitflags::bitflags;
 
 bitflags! {
     /// Bitflags representing fine-grained dirty states of a widget node.
+    ///
     /// When properties change on a widget, only the relevant dirty flags are raised,
     /// enabling the layout and render engines to selectively update cached computations.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

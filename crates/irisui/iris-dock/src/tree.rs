@@ -156,6 +156,7 @@ impl<T> DockTree<T> {
     }
 
     /// Partitions an existing leaf node into a split container holding two leaves.
+    ///
     /// Placed tabs default to the second child (right or bottom) for backwards compatibility.
     pub fn split(
         &mut self,
@@ -168,6 +169,7 @@ impl<T> DockTree<T> {
     }
 
     /// Partitions an existing leaf node into a split container with explicit child ordering.
+    ///
     /// When `new_is_first` is `true`, `new_tabs` are placed in the first child (left or top)
     /// and existing tabs in the second child (right or bottom).
     pub fn split_ordered(
@@ -219,11 +221,13 @@ impl<T> DockTree<T> {
     }
 
     /// Partitions an existing leaf according to a specified drop zone, inserting the tab safely.
+    ///
     /// - [`crate::drag_drop::DropZone::Center`]: Appends `tab` into the target leaf without partitioning.
     /// - [`crate::drag_drop::DropZone::Left`]: Splits horizontally with ratio 0.5; `tab` is placed in the left child.
     /// - [`crate::drag_drop::DropZone::Right`]: Splits horizontally with ratio 0.5; `tab` is placed in the right child.
     /// - [`crate::drag_drop::DropZone::Top`]: Splits vertically with ratio 0.5; `tab` is placed in the top child.
     /// - [`crate::drag_drop::DropZone::Bottom`]: Splits vertically with ratio 0.5; `tab` is placed in the bottom child.
+    ///
     /// Returns the ID of the leaf hosting the newly docked tab.
     pub fn dock_tab(
         &mut self,
@@ -381,6 +385,7 @@ impl<T> DockTree<T> {
     }
 
     /// Searches the tree for the specified tab by value equality.
+    ///
     /// Returns the host [`DockNodeId`] and tab index within that leaf if found.
     pub fn find_tab(&self, tab: &T) -> Option<(DockNodeId, usize)>
     where
@@ -397,6 +402,7 @@ impl<T> DockTree<T> {
     }
 
     /// Appends a tab into the currently focused leaf, or the first available leaf in the tree.
+    ///
     /// If the tree is entirely empty, a new root leaf is created hosting the tab.
     /// Returns the target [`DockNodeId`] and the inserted tab index.
     pub fn push_to_focused_leaf(&mut self, tab: T) -> Result<(DockNodeId, usize), DockError> {
@@ -422,6 +428,7 @@ impl<T> DockTree<T> {
     }
 
     /// Returns the identifier of the first leaf node found in the tree, if any exists.
+    ///
     /// Useful for safely targeting dock operations when canonical partner leaves are missing,
     /// preventing invalid attempts to dock into non-leaf split nodes.
     pub fn find_first_leaf(&self) -> Option<DockNodeId> {
@@ -466,6 +473,7 @@ impl<T> DockTree<T> {
     }
 
     /// Moves a tab from a specific position to a new target index, either within the same leaf or across leaves.
+    ///
     /// Clamps destination index if it exceeds the target leaf's tab count.
     pub fn move_tab(
         &mut self,
@@ -507,6 +515,7 @@ impl<T> DockTree<T> {
     }
 
     /// Closes all tabs in the specified leaf except the tab at `keep_idx`.
+    ///
     /// Returns the vector of closed tabs, or an error if the node or index is invalid.
     pub fn close_other_tabs(
         &mut self,
@@ -528,6 +537,7 @@ impl<T> DockTree<T> {
     }
 
     /// Closes all tabs located to the right of `from_idx` in the specified leaf.
+    ///
     /// Returns the vector of closed tabs, or an error if the node or index is invalid.
     pub fn close_tabs_to_right(
         &mut self,

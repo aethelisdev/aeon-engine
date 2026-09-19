@@ -10,6 +10,7 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
     /// Handles active continuous mouse dragging and release interactions for the Preferences dialog.
+    ///
     /// Must be invoked at high priority in event dispatch (Step 3b), before the menubar
     /// or docked panels, so that window dragging and slider dragging continue smoothly across
     /// any panel boundary or menubar, and mouse release is reliably captured anywhere on screen.
@@ -378,6 +379,7 @@ impl IrisEditorOverlay {
 }
 
 /// Calculates the clamped screen position for the Preferences dialog during dragging.
+///
 /// Ensures the dialog cannot be dragged above the menubar (y >= 28.0) or beyond the screen edges,
 /// while allowing continuous movement across docked panel boundaries.
 #[inline]

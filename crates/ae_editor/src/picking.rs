@@ -16,10 +16,12 @@ pub struct Ray {
 }
 
 /// Creates a 3D Ray from 2D screen coordinates.
+///
 /// # Arguments
 /// * `mx`, `my` - Mouse coordinates in pixels.
 /// * `width`, `height` - Current dimensions of the renderer's surface.
 /// * `vp_matrix` - View-Projection matrix of the camera.
+///
 /// # Returns
 /// * `Some(Ray)` - If the coordinates are valid and viewport has size.
 pub fn create_ray(
@@ -72,8 +74,10 @@ pub fn create_ray(
 }
 
 /// Intersection test using the Slab Method (Ray vs Axis-Aligned Bounding Box).
+///
 /// * `ray` - The Picking Ray (origin, direction, and max_dist).
 /// * `min`, `max` - Bounds of the box.
+///
 /// # Returns
 /// * `Some(f32)` - The distance `t` along the ray to the intersection point.
 /// * `None` - If no intersection occurred or it's beyond `max_dist`.
@@ -117,6 +121,7 @@ pub fn intersect_aabb(ray: &Ray, min: [f32; 3], max: [f32; 3]) -> Option<f32> {
 }
 
 /// Utility to generate a Model Matrix from ECS components.
+///
 /// Prioritizes `GlobalTransform` if present (ensuring correct world-space raycasting for parent-child hierarchies),
 /// falling back to local `Position`, `Rotation`, and `Scale` components.
 pub fn compute_model_matrix(
@@ -146,6 +151,7 @@ pub fn compute_model_matrix(
 }
 
 /// Ray vs Bounding Sphere intersection test for 3D Viewport Billboard Icons.
+///
 /// Returns closest distance `t` along the ray if ray intersects sphere of `radius` at `center`.
 pub fn intersect_sphere(ray: &Ray, center: Point3<f32>, radius: f32) -> Option<f32> {
     let oc = ray.origin - center;

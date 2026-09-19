@@ -8,6 +8,7 @@ use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
 /// 2D Camera component providing 2D world-to-screen projection, zoom, and smooth target tracking.
+///
 /// Wraps `ae_core::camera::OrthographicProjection` directly, ensuring zero duplication of projection
 /// matrix math while maintaining standard 2D camera controls.
 #[derive(Debug, Clone, Serialize, Deserialize)]

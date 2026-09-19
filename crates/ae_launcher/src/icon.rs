@@ -12,6 +12,7 @@ use image::GenericImageView;
 use winit::window::Icon;
 
 /// Decodes raw image bytes into a Winit-compatible `Icon` structure.
+///
 /// If the image exceeds standard 256x256 dimensions, it is downsampled with
 /// high-fidelity Lanczos3 filtering for crisp display across taskbars and titlebars.
 pub fn load_icon_from_memory(bytes: &[u8]) -> Option<Icon> {
@@ -28,6 +29,7 @@ pub fn load_icon_from_memory(bytes: &[u8]) -> Option<Icon> {
 }
 
 /// Registers the application icon and desktop entry in the FreeDesktop XDG hierarchy.
+///
 /// Ensures proper icon binding under Wayland and X11 compositors for matching `app_id`
 /// entries (`com.aeonengine.Launcher`, `ae_launcher`, etc.).
 #[cfg(target_os = "linux")]

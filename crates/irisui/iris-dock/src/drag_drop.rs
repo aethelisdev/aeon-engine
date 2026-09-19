@@ -50,6 +50,7 @@ pub struct DockDragState<T> {
 }
 
 /// Calculates whether the cursor is hovering over the outer boundary of the entire dock window.
+///
 /// Threshold margin is typically 32.0 px from the window boundary.
 pub fn calculate_screen_drop_zone(
     window_rect: Rect,
@@ -107,9 +108,11 @@ pub fn calculate_drop_zone(content_rect: Rect, cursor_pos: Point) -> Option<Drop
 }
 
 /// Calculates the 4-way edge drop zone within a target leaf content rectangle.
+///
 /// Only the outer 25% strip on each side triggers a directional split.
 /// The inner 50% (center region) returns `None`, which causes the dragged tab
 /// to detach as a floating window when released there.
+///
 /// Zone assignment:
 /// - Left 25% strip  → `Left`  (50/50 horizontal split)
 /// - Right 25% strip → `Right` (50/50 horizontal split)

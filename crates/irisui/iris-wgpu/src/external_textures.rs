@@ -13,6 +13,7 @@ struct RegisteredTexture {
 }
 
 /// Resource table keeping external images separate from texture-array atlas bindings.
+///
 /// Register only single-sampled, filterable D2 views. Reusing an identity with an unchanged view
 /// performs no resource creation; replacing or removing it releases the old registration.
 #[derive(Default)]
@@ -22,6 +23,7 @@ pub struct ExternalTextures {
 
 impl ExternalTextures {
     /// Registers or replaces a source view, returning whether the GPU binding changed.
+    ///
     /// A reference-counted view handle is retained only on replacement to compare resource
     /// identity across frames. This does not copy image data or allocate per-frame image buffers.
     pub fn set(

@@ -4,9 +4,11 @@ use ae_plugin_api::{
     DynamicEventBus, PluginContext, PluginContextFFI, Resources, ScriptingBackend,
 };
 /// AE Plugin Host — Dynamic Plugin Loader with Hot Reload
+///
 /// This crate implements the native plugin backend that loads `.dll`/`.so`/`.dylib`
 /// files at runtime using `libloading`. It supports hot reload by watching file
 /// timestamps and performing safe unload/load cycles with versioned filenames.
+///
 /// # Safety Boundary
 /// This crate contains the ONLY `unsafe` blocks in the entire Aeon Engine codebase.
 /// They are isolated in two functions: `load_library()` and `call_plugin_update()`.
@@ -15,6 +17,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 /// Native plugin backend that loads compiled Rust cdylib plugins.
+///
 /// Implements the `ScriptingBackend` trait for hot-reloadable native code.
 /// Uses versioned file copies to avoid OS library caching issues.
 pub struct NativePluginBackend {
@@ -32,6 +35,7 @@ pub struct NativePluginBackend {
 
 impl NativePluginBackend {
     /// Creates a new NativePluginBackend for the given source library path.
+    ///
     /// # Arguments
     /// * `source_path` - Path to the compiled cdylib (e.g., `target/debug/game_logic.dll`)
     /// * `staging_dir` - Directory for versioned copies (e.g., `target/plugins/`)
@@ -46,6 +50,7 @@ impl NativePluginBackend {
     }
 
     /// Returns the versioned filename for the current version counter.
+    ///
     /// Example: `game_logic_v3.dll`
     fn versioned_filename(&self) -> String {
         let ext = ae_plugin_api::platform_lib_extension();
@@ -58,6 +63,7 @@ impl NativePluginBackend {
     }
 
     /// Copies the source library to a versioned staging path.
+    ///
     /// This prevents OS-level DLL caching issues where the old library
     /// cannot be unloaded because the file is still locked.
     fn copy_to_staging(&self) -> Result<PathBuf, String> {
@@ -84,6 +90,7 @@ impl NativePluginBackend {
     }
 
     /// Loads a library from the given path.
+    ///
     /// # Safety Boundary (1 of 2)
     /// Contains `unsafe` block for `libloading::Library::new()` which calls
     /// the OS-level `LoadLibraryW` (Windows) / `dlopen` (Unix).
@@ -139,10 +146,12 @@ impl NativePluginBackend {
     }
 
     /// Calls the plugin_update function from the loaded library.
+    ///
     /// # Safety Boundary (2 of 2)
     /// Contains `unsafe` blocks for:
     /// - `libloading::Library::get()` — resolves the "plugin_update" symbol
     /// - Calling the resolved FFI function pointer
+    ///
     /// Both are safe because the plugin is compiled with the same `ae_plugin_api`
     /// crate ensuring type-level ABI compatibility.
     fn call_plugin_update(&self, ctx_ffi: &mut PluginContextFFI<'_>) -> Result<(), String> {
@@ -234,6 +243,7 @@ impl ScriptingBackend for NativePluginBackend {
 }
 
 /// Manages multiple scripting backends and orchestrates plugin updates.
+///
 /// The PluginManager is the main entry point for the engine to interact
 /// with the plugin system. It holds a list of backends and calls their
 /// update functions each frame.
@@ -266,6 +276,7 @@ impl PluginManager {
     }
 
     /// Loads a native plugin from the given source path.
+    ///
     /// Convenience method that creates a `NativePluginBackend` and loads it.
     pub fn load_native_plugin(
         &mut self,

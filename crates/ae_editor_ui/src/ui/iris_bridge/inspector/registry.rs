@@ -40,6 +40,7 @@ pub trait ComponentInspectorHandler: Send + Sync {
     fn icon(&self) -> &'static str;
 
     /// Optional GPU SDF atlas icon coordinates (`[u_min, v_min, u_max, layer]`).
+    ///
     /// When `Some`, the component header and menu items render this hardware-accelerated vector icon quad
     /// instead of a plain unicode/emoji text icon.
     fn atlas_icon(&self) -> Option<[f32; 4]> {

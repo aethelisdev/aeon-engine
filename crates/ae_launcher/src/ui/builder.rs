@@ -11,6 +11,7 @@ use crate::ui::sidebar::build_sidebar;
 use crate::ui::types::{LauncherAction, LauncherTab, LauncherUiState, ViewLayoutContext};
 
 /// Builds the complete launcher user interface layout into the provided `UiTree`.
+///
 /// Sets up the root workspace container, delegating sidebar creation to `build_sidebar`
 /// and active tab content rendering to `build_recent_projects_view` or `build_new_project_view`.
 pub fn build_launcher_ui(

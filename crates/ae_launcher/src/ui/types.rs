@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use irisui::prelude::Point;
 
 /// Primary active navigation tab in the launcher sidebar.
+///
 /// Controls whether the launcher presents the list of recently opened projects
 /// or the project creation wizard with template settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -19,6 +20,7 @@ pub enum LauncherTab {
 }
 
 /// User interaction outcome produced during a launcher frame.
+///
 /// Encapsulates discrete actions dispatched by buttons, cards, or inputs
 /// for consumption by the launcher application event loop.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +52,7 @@ pub enum LauncherAction {
 }
 
 /// Mutable interactive state of the Launcher UI.
+///
 /// Maintains user input buffer, active tab selection, focus state,
 /// text caret blink phase, and transient status messages.
 pub struct LauncherUiState {
@@ -98,6 +101,7 @@ impl Default for LauncherUiState {
 }
 
 /// Layout context descriptor for assembling launcher sub-views.
+///
 /// Passes geometric boundaries, cursor coordinates, and action receiver
 /// to sub-view builders without parameter sprawl.
 pub struct ViewLayoutContext<'a> {

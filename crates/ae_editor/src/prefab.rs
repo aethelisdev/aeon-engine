@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Reusable prefab template containing an entity snapshot.
+///
 /// Can be saved to `.aeprefab` (JSON) files and instantiated into any ECS world
 /// at a target 3D position with new entity IDs and full component restoration.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,6 +33,7 @@ impl Prefab {
     }
 
     /// Instantiates the prefab into the target ECS world, optionally overriding its 3D position.
+    ///
     /// Returns the new entity handle. Automatically marks transform dirty for physics sync.
     pub fn instantiate(
         &self,

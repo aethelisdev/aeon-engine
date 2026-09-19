@@ -5,6 +5,7 @@ use crate::input::{InputManager, KeyCode};
 use ae_core::ecs::PlayerTag;
 
 /// Fixed-timestep update loop for Play Mode.
+///
 /// Advances the ECS transform hierarchy and velocity integration by one fixed time step.
 /// Player character movement is exclusively driven by `CharacterController` in the physics system.
 pub fn fixed_update_play_mode(
@@ -16,6 +17,7 @@ pub fn fixed_update_play_mode(
 }
 
 /// Per-frame update for Play Mode (render-rate logic).
+///
 /// Automatically queries the active player entity (or entity with `CharacterController`),
 /// processes mouse look orbit rotation, and maintains a stable spring-arm camera behind the target.
 pub fn update_play_mode(

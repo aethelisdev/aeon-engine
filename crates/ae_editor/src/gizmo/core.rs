@@ -4,6 +4,7 @@
 use cgmath::{Quaternion, Vector3};
 
 /// The functional interaction mode of the 3D viewport gizmo system.
+///
 /// Supports selection-only mode (`Select`) where gizmo handles are suppressed for an
 /// uncluttered viewport, as well as classic transform modes (`Translate`, `Rotate`, `Scale`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -81,6 +82,7 @@ impl GizmoScreenParams {
 }
 
 /// The main Gizmo system — holds state and GPU resources.
+///
 /// Acts as a **coordinator**: delegates math to `math.rs`, intersection to `picking.rs`,
 /// drag logic to `translate.rs`/`rotate.rs`, and rendering to `render.rs`.
 pub struct GizmoSystem {

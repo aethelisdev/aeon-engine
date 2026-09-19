@@ -413,10 +413,12 @@ impl RenderState {
     }
 
     /// Executes the isolated 2D graphics rendering pipeline.
+    ///
     /// Completely decouples 2D execution from 3D graphics machinery:
     /// - 0 shadow cascades updated or rendered ($0.0$ ms shadow pass)
     /// - 0 3D PBR forward passes, skybox passes, or 3D primitive geometry buffer updates
     /// - 0 3D silhouette outline passes
+    ///
     /// Clears the 2D viewport texture using environment settings, renders 2D overlays (instanced sprite batcher),
     /// and runs the Iris UI render pass.
     fn render_2d_frame(

@@ -31,6 +31,7 @@ pub struct IrisRenderPassParams<'a> {
 }
 
 /// Executes an isolated Iris UI render pass on the target surface view.
+///
 /// Overlays prepared SDF quads, text, and texture viewports on top of the
 /// existing framebuffer (using `wgpu::LoadOp::Load` to preserve underlying 3D scene content).
 pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {

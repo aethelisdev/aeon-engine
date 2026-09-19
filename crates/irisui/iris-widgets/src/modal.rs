@@ -179,6 +179,7 @@ impl ModalDialogBuilder {
     }
 
     /// Configures an optional GPU SDF texture array icon drawn in the header bar.
+    ///
     /// Automatically offsets the title text rightwards by 20px so it never overlaps the icon.
     pub fn header_icon(mut self, uv: [f32; 4], tint: Color) -> Self {
         self.header_icon_uv = Some(uv);
@@ -206,6 +207,7 @@ impl ModalDialogBuilder {
     }
 
     /// Toggles whether a full-screen semi-transparent backdrop scrim blocker is spawned.
+    ///
     /// Defaults to `true`.
     pub fn scrim(mut self, enabled: bool) -> Self {
         self.has_scrim = enabled;
@@ -213,6 +215,7 @@ impl ModalDialogBuilder {
     }
 
     /// Toggles the top-right header '✖' close button.
+    ///
     /// Defaults to `true`.
     pub fn close_button(mut self, enabled: bool) -> Self {
         self.has_close_btn = enabled;
@@ -256,6 +259,7 @@ impl ModalDialogBuilder {
     }
 
     /// Builds the complete modal widget hierarchy into the specified [`UiTree`].
+    ///
     /// Returns a [`ModalDialogFrame`] with allocated IDs and bounding rectangles.
     pub fn build(self, tree: &mut UiTree) -> ModalDialogFrame {
         let (screen_w, screen_h) = self.screen_size.unwrap_or((1920.0, 1080.0));

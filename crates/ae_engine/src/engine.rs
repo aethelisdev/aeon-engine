@@ -17,6 +17,7 @@ use winit::window::Window;
 pub use ae_core::modules::EngineMode;
 
 /// The main application state and core controller of the Aeon Engine.
+///
 /// Owns all subsystems: render pipeline, ECS world, UI, camera, gizmo, input,
 /// plugin host, asset manager, profiler, event bus, spatial grid, and undo history.
 /// Orchestrates the per-frame update cycle (physics → ECS → plugins → render → UI).
@@ -39,6 +40,7 @@ pub struct AeEngine {
     /// Tracks active mouse cursor grab status to prevent duplicate Win32 `ShowCursor` calls.
     pub is_cursor_grabbed: bool,
     /// Channel receiver for holding background scene parsing thread results.
+    ///
     /// Once the background thread finishes parallel loading/parsing of all models
     /// and textures, it sends the full `PendingSceneData` package here.
     pub scene_rx: Option<std::sync::mpsc::Receiver<Result<crate::scene::PendingSceneData, String>>>,

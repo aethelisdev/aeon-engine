@@ -12,6 +12,7 @@ use super::super::theme::*;
 use super::types::*;
 
 /// Builds Iris-rendered tab strips, panel backgrounds, and split dividers for the native tree.
+///
 /// The returned geometry is the authoritative panel-coordinate source used by the Iris overlay.
 pub fn build_native_dock(
     tree: &mut UiTree,

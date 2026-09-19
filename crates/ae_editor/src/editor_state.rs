@@ -5,6 +5,7 @@ use hecs::Entity;
 use std::collections::{HashMap, HashSet};
 
 /// Configurable editor parameters exposed in the Preferences panel.
+///
 /// Controls camera movement speeds, mouse sensitivity, undo history depth,
 /// and the physics fixed update frequency (physics_hz).
 /// These values can be modified at runtime.
@@ -33,6 +34,7 @@ impl Default for EditorConfig {
 }
 
 /// Aeon Engine — Editor State
+///
 /// Isolates all logic and state specific to the level editor interface:
 /// selection, dragging state, interaction flags, multi-selection snapshots,
 /// scene backup for Play→Edit restore, and configurable preferences.
@@ -123,6 +125,7 @@ impl EditorState {
     }
 
     /// Restores all backed-up entity snapshots when returning from Play Mode to Edit Mode.
+    ///
     /// Preserves original scene entity states, including user-configured initial velocities,
     /// while cleanly removing transient components or entities created during gameplay.
     pub fn restore_scene(&self, world: &mut hecs::World) {

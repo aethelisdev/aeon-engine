@@ -22,6 +22,7 @@ impl Default for PhysicsMaterialAsset {
 }
 
 /// Generic slotmap-backed asset container with O(1) insert, get, and remove.
+///
 /// Wraps `SlotMap<AssetHandle, T>` to provide a type-safe, generational-index
 /// storage for any asset type (models, textures, shaders, physics materials).
 /// Handles remain valid across insertions/removals of other assets.
@@ -90,6 +91,7 @@ impl<T> Default for AssetStorage<T> {
 }
 
 /// GPU-compiled WGSL shader module with raw source and metadata.
+///
 /// Holds the compiled `wgpu::ShaderModule` alongside its source text and canonical
 /// disk path, allowing hot-reloading, inspector inspection, and dynamic pipeline binding.
 pub struct ShaderAsset {
@@ -104,6 +106,7 @@ pub struct ShaderAsset {
 }
 
 /// Central asset registry managing all loaded models, textures, shaders, and physics materials.
+///
 /// Provides path-based deduplication via `model_path_map`, `texture_path_map`, and `shader_path_map`
 /// to prevent loading the same file twice. Also offers physics mesh data retrieval
 /// for collision shape generation and VRAM usage estimation.
@@ -152,6 +155,7 @@ impl AssetManager {
     }
 
     /// Returns estimated memory usage in bytes (models_vram, textures_vram).
+    ///
     /// Computes model footprints from raw vertex/index buffers and calculates
     /// texture footprints dynamically from pixel dimensions (width * height * 4).
     pub fn get_memory_usage(&self) -> (usize, usize) {
@@ -175,6 +179,7 @@ impl AssetManager {
 
     /// Scans the ECS `hecs::World` for all active `ModelId` and `SpriteId` components,
     /// and unloads any loaded models and textures that are no longer referenced.
+    ///
     /// This sweeps both `models` and `textures` storages, automatically releasing their
     /// CPU memory and GPU/VRAM resources, and cleans up the path-to-handle lookup maps.
     pub fn unload_unused_assets(&mut self, world: &hecs::World) {
@@ -233,6 +238,7 @@ impl AssetManager {
 }
 
 /// Intermediate result of async glTF/GLB file parsing.
+///
 /// Contains all vertex/index data ready for GPU upload, AABB bounds for
 /// auto-scaling and culling, the canonical disk path for deduplication,
 /// and the display name for the ECS entity.
@@ -254,6 +260,7 @@ pub struct ParsedModelData {
 }
 
 /// Verifies if a given file path is secure for the engine to load.
+///
 /// Performs multi-layered validation to block relative path traversal,
 /// UNC network paths, protocol schemes, and null bytes.
 pub fn is_safe_path(path: &str) -> bool {

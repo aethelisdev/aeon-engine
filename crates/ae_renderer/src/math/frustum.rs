@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// View frustum defined by 6 normalized clip planes.
+///
 /// Extracted from a combined view-projection matrix using the Gribb-Hartmann
 /// method, adapted for WGPU's `[0, 1]` Z-buffer range. Used for CPU-side
 /// sphere-frustum and AABB-frustum visibility testing to cull entities and
@@ -12,6 +13,7 @@ pub struct Frustum {
 
 impl Frustum {
     /// Extracts 6 frustum planes from a combined view-projection matrix.
+    ///
     /// Planes are: Left, Right, Bottom, Top, Near, Far.
     /// Near plane uses `row2` directly (WGPU `[0,1]` Z convention).
     /// All planes are normalized for correct distance calculations.
@@ -43,6 +45,7 @@ impl Frustum {
     }
 
     /// Tests whether a bounding sphere is at least partially inside the frustum.
+    ///
     /// Returns `false` (culled) if the sphere is completely behind any of the
     /// 6 planes. Uses signed distance: `distance < -radius` means fully outside.
     pub fn is_sphere_visible(&self, center: cgmath::Vector3<f32>, radius: f32) -> bool {
@@ -58,9 +61,11 @@ impl Frustum {
 
     /// Tests whether an Axis-Aligned Bounding Box (AABB) is at least partially
     /// inside the frustum using the p-vertex technique.
+    ///
     /// For each frustum plane, the "positive vertex" (p-vertex) is selected as
     /// the AABB corner closest to the plane's inward direction. If the p-vertex
     /// lies completely behind any plane, the entire box is outside the frustum.
+    ///
     /// This is significantly more precise than sphere testing for cubic volumes:
     /// a bounding sphere inflates a 250-unit cube to a 216-unit radius sphere,
     /// wasting ~63% of the test volume as false positives. AABB testing eliminates

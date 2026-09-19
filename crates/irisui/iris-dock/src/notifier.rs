@@ -9,6 +9,7 @@
 use std::collections::HashSet;
 
 /// Selective invalidation and redraw notification engine.
+///
 /// Tracks dirty flags on a per-panel basis as well as global workbench-level layout dirty state.
 /// When no panels are marked dirty, the UI pipeline remains completely asleep, bypassing
 /// layout tree reconstruction and avoiding flickering or unwanted panel erasure.
@@ -31,6 +32,7 @@ impl UiNotifier {
     }
 
     /// Initializes an empty UI notifier in a completely clean/sleeping state.
+    ///
     /// Useful in unit tests or when explicit invalidation triggers are required.
     pub fn clean() -> Self {
         Self {
@@ -40,18 +42,21 @@ impl UiNotifier {
     }
 
     /// Tags a specific panel for a selective redraw on the next frame.
+    ///
     /// Only the specified panel's contents will be reconstructed, leaving other panels and the UI shell untouched.
     pub fn tag_redraw(&mut self, panel_id: &str) {
         self.dirty_panels.insert(panel_id.to_string());
     }
 
     /// Tags the entire UI shell and all panels for a full global reconstruction.
+    ///
     /// Should be called upon window resize, display scaling / DPI change, or dock tree structural modifications.
     pub fn tag_all(&mut self) {
         self.global_dirty = true;
     }
 
     /// Queries whether a specific panel has been marked dirty for redraw.
+    ///
     /// If [`Self::is_global_dirty`] is `true`, this method always returns `true` because
     /// a global invalidation rebuilds all panels.
     pub fn is_dirty(&self, panel_id: &str) -> bool {
@@ -59,6 +64,7 @@ impl UiNotifier {
     }
 
     /// Returns `true` if any panel or the global UI shell requires a redraw on this frame.
+    ///
     /// When this returns `false`, the UI coordinator can enter a zero-cost sleep state,
     /// directly replaying the existing GPU command stream without any tree allocations.
     pub fn is_any_dirty(&self) -> bool {
@@ -76,6 +82,7 @@ impl UiNotifier {
     }
 
     /// Clears all dirty flags, returning the notifier to a clean sleep state.
+    ///
     /// Typically invoked at the end of the frame once all dirty commands have been dispatched to the GPU.
     pub fn clear_all(&mut self) {
         self.dirty_panels.clear();
@@ -89,6 +96,7 @@ impl UiNotifier {
 
     /// Polls all panels registered in a [`crate::panel::PanelRegistry`] and marks any panel
     /// reporting [`crate::panel::DockPanel::is_dirty`] as requiring a redraw.
+    ///
     /// This allows self-contained panels (such as telemetries, charts, or animated widgets)
     /// to trigger reactive UI bakes based on their own internal state.
     pub fn poll_registry(&mut self, registry: &crate::panel::PanelRegistry) {

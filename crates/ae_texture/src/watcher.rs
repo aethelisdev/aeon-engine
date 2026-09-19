@@ -23,6 +23,7 @@ impl TextureFileWatcher {
     }
 
     /// Registers or updates a tracked texture path with an initial timestamp.
+    ///
     /// Uses `entry().or_insert_with()` so existing file timestamps are preserved
     /// and not overwritten on every frame check.
     pub fn track_file(&mut self, path: &Path, initial_modified: Option<SystemTime>) {
@@ -48,6 +49,7 @@ impl TextureFileWatcher {
 
     /// Scans all tracked texture files on disk and returns a list of canonical paths
     /// that have been modified since their last recorded timestamp.
+    ///
     /// Automatically updates internal timestamps for modified files.
     pub fn check_modified_files(&mut self) -> Vec<PathBuf> {
         let mut modified = Vec::new();

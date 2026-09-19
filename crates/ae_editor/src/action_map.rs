@@ -14,6 +14,7 @@ pub struct AxisBinding {
 }
 
 /// Input Action Mapping System for virtual action & axis bindings.
+///
 /// Maps logical action names (e.g., "Jump", "MoveForward", "MoveRight", "Interact")
 /// to physical key codes, allowing dynamic key rebinding, multi-key bindings,
 /// analog axis scaling, and JSON serialization.
@@ -26,6 +27,7 @@ pub struct ActionMap {
 
 impl ActionMap {
     /// Creates a new ActionMap with default gameplay bindings.
+    ///
     /// Default bindings:
     /// - `"MoveForward"`: W (+1.0), S (-1.0), Up (+1.0), Down (-1.0)
     /// - `"MoveRight"`: D (+1.0), A (-1.0), Right (+1.0), Left (-1.0)

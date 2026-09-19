@@ -47,6 +47,7 @@ pub fn open_url(url: &str) {
 }
 
 /// Constructs the centered 'About Aeon Engine' modal dialogue in the UI tree.
+///
 /// Delegates modal frame construction (scrim, card, header bar, close icon, bottom button)
 /// to Iris UI's native [`ModalDialogBuilder`].
 pub fn build_about_dialog(

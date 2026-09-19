@@ -120,6 +120,7 @@ impl TextSystem {
     }
 
     /// Measures the dimensions of a text string given font size and line height constraints with caching.
+    ///
     /// Used by the layout engine to calculate intrinsic widget `content_size`.
     pub fn measure_text(
         &mut self,

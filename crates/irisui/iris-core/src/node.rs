@@ -44,6 +44,7 @@ pub enum WidgetRole {
 }
 
 /// Explicit rendering and interaction stacking layer (stacking context) in the UI hierarchy.
+///
 /// Higher layers are drawn on top of lower layers and receive pointer interactions first.
 /// Furthermore, opaque containers in higher layers automatically occlude content and text
 /// located on lower layers, preventing visual bleeding and unwanted click-throughs.
@@ -104,6 +105,7 @@ impl WidgetRole {
 }
 
 /// A single node in the Retained-Mode UI tree stored in the central arena.
+///
 /// Each node holds hierarchical relationships (parent and children references via `WidgetId`),
 /// current style parameters, fine-grained dirty flags, cached layout coordinates, and optional text payload.
 #[derive(Debug, Clone)]

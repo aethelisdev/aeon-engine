@@ -89,6 +89,7 @@ impl Color {
     }
 
     /// Parses a hexadecimal color string (e.g. `"#1e1e24"`, `"#ffffff"`, `"#ff000080"`).
+    ///
     /// Supports 3, 4, 6, and 8 hex digits, with or without a leading `#`.
     pub fn hex(hex_str: &str) -> Self {
         let clean = hex_str.trim().trim_start_matches('#');

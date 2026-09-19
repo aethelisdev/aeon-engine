@@ -6,6 +6,7 @@
 use crate::mipmap::{CpuMipmapLevel, generate_mipmap_chain};
 
 /// Color space specification for texture data.
+///
 /// Defines whether a texture's pixel values are encoded in sRGB (e.g. Albedo/Diffuse maps)
 /// or Linear color space (e.g. Normal maps, Roughness, Metallic, Ambient Occlusion).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -18,6 +19,7 @@ pub enum ColorSpace {
 }
 
 /// Semantic PBR texture map type classification.
+///
 /// Used to automatically select the correct color space (sRGB vs Linear) and default sampler parameters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TextureMapType {
@@ -100,6 +102,7 @@ impl Default for SamplerConfig {
 }
 
 /// Uncompressed CPU-side texture pixel data container.
+///
 /// Holds width, height, raw RGBA bytes, color space, mipmap chain levels, and source label.
 /// Serves as the primary bridge between file loading/procedural generation and GPU uploading.
 #[derive(Debug, Clone)]
@@ -124,6 +127,7 @@ pub struct CpuTextureData {
 
 impl CpuTextureData {
     /// Creates a new CPU texture data container with safety checks on byte buffer size.
+    ///
     /// # Panics
     /// Panics in debug builds if `bytes.len()` does not match `width * height * 4`.
     pub fn new(
@@ -166,6 +170,7 @@ impl CpuTextureData {
     }
 
     /// Automatically generates and stores the CPU mipmap level chain down to 1x1.
+    ///
     /// Returns a mutable reference to `self` for fluent builder usage.
     pub fn generate_mipmaps(&mut self) -> &mut Self {
         self.mipmaps = generate_mipmap_chain(self.width, self.height, &self.bytes);
@@ -180,6 +185,7 @@ impl CpuTextureData {
 }
 
 /// Supported GPU Block Compression (BC) texture formats.
+///
 /// Block compression reduces VRAM footprint by 75-80% using 4x4 texel block encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CompressedTextureFormat {
@@ -250,6 +256,7 @@ impl CompressedTextureData {
 }
 
 /// Grouping container for multi-map PBR material texture asset handles.
+///
 /// Combines Albedo, Normal Map, Metallic-Roughness Map, Ambient Occlusion, and Emissive handles.
 #[derive(Debug, Clone, Default)]
 pub struct PbrMaterialTextures<H> {

@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const MAX_LOGS: usize = 1000;
 
 /// Single log entry stored in the in-memory ring buffer.
+///
 /// Contains the log level, module target, formatted message, and timestamp.
 /// Displayed by the editor's Console panel via `LOGGER.logs`.
 pub struct LogEntry {
@@ -20,6 +21,7 @@ pub struct LogEntry {
 
 /// Dual-output logger: prints colorized logs to the terminal AND stores them
 /// in a `Mutex<VecDeque>` ring buffer for the editor Console panel.
+///
 /// Capped at `MAX_LOGS` (1000) entries to prevent unbounded memory growth.
 /// Filters out verbose wgpu/winit/naga/mio logs to prevent UI lag.
 /// Uses `AtomicU64` counter for lock-free change detection by the UI.
@@ -31,6 +33,7 @@ pub struct EditorLogger {
 }
 
 /// Global static logger instance registered with the `log` crate.
+///
 /// Initialized once via `init()`. Safe for multi-threaded access due to
 /// `Mutex`-protected log storage and `AtomicU64` counter.
 pub static LOGGER: EditorLogger = EditorLogger {
@@ -98,6 +101,7 @@ impl log::Log for EditorLogger {
 }
 
 /// Registers the global `EditorLogger` with the `log` crate at Debug level.
+///
 /// Must be called exactly once at engine startup, before any `log::info!()` calls.
 /// Returns `Err` if another logger has already been registered.
 pub fn init() -> Result<(), log::SetLoggerError> {

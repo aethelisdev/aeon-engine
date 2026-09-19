@@ -12,6 +12,7 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
     /// Routes window events to the Animation Timeline Studio panel when active.
+    ///
     /// Returns `Some(IrisOverlayEventResult)` if the event was consumed by the timeline.
     pub(crate) fn handle_timeline_window_event(
         &mut self,

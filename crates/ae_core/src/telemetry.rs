@@ -8,6 +8,7 @@
 //!
 
 /// Fixed-capacity ring buffer for zero-allocation recording of per-frame metrics.
+///
 /// Stores `N` floating-point frame time samples in a contiguous static array on the stack.
 /// Supports push operations with wrapping, chronological iteration, and statistical calculations
 /// without heap allocations.
@@ -35,6 +36,7 @@ impl<const N: usize> FrameRingBuffer<N> {
     }
 
     /// Pushes a new frame time sample (in milliseconds) into the ring buffer.
+    ///
     /// Overwrites the oldest sample once the buffer capacity `N` is reached.
     pub fn push(&mut self, sample_ms: f32) {
         if N == 0 {
@@ -88,6 +90,7 @@ impl<const N: usize> FrameRingBuffer<N> {
     }
 
     /// Computes statistical performance and frame pacing metrics from the recorded samples.
+    ///
     /// Calculates Average FPS, Frame Pacing Variance (Jitter ms), 1% Low FPS (99th percentile slowest),
     /// 0.1% Low FPS (99.9th percentile slowest / worst spike), and stutter rates.
     pub fn calculate_stats(&self) -> FramePacingStats {

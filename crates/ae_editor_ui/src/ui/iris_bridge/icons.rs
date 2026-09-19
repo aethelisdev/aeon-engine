@@ -78,5 +78,6 @@ pub const ICON_CHEVRON_DOWN: [f32; 4] = [0.0, 0.0, 1.0, 18.0];
 pub const ICON_CHEVRON_UP: [f32; 4] = [0.0, 0.0, 1.0, 19.0];
 
 /// Starting layer in the 2D Texture Array reserved for dynamically generated asset thumbnails.
+///
 /// Layers 0..31 are strictly reserved for canonical static system, editor, and tool icons.
 pub const FIRST_THUMBNAIL_LAYER: u32 = 32;

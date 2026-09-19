@@ -88,6 +88,7 @@ impl AeEngine {
     }
 
     /// Configures mouse cursor locking and visibility for Play Mode vs Edit Mode transitions.
+    ///
     /// Prevents redundant OS `ShowCursor` calls by tracking `is_cursor_grabbed`.
     /// Uses `CursorGrabMode::Locked` for zero-lag pointer lock in FPS/TPS viewports,
     /// falling back to `CursorGrabMode::Confined` if the host OS window manager restricts locking.
@@ -158,6 +159,7 @@ impl AeEngine {
     }
 
     /// Handles non-input window events (CursorMoved for delta tracking, DroppedFile for import).
+    ///
     /// Consumed window events are ignored to prevent clicks/drags from passing to the 3D scene.
     pub fn handle_window_event(&mut self, event: &WindowEvent, consumed: bool) {
         if consumed {

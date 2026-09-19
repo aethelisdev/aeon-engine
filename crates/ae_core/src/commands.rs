@@ -12,6 +12,7 @@
 pub type CommandFn = Box<dyn FnOnce(&mut hecs::World) + Send + Sync>;
 
 /// Deferred entity command buffer queueing mutations to be applied at frame boundaries.
+///
 /// In ECS systems, mutating the entity topology (spawning new entities, despawning dead
 /// actors, or inserting components) while actively querying `hecs::World` leads to aliasing
 /// borrow conflicts or iterator invalidation. The `EntityCommandBuffer` captures these mutation
@@ -53,6 +54,7 @@ impl EntityCommandBuffer {
     }
 
     /// Schedules the deletion (despawning) of the target entity.
+    ///
     /// If the entity does not exist when the command is processed, the operation is safely ignored.
     pub fn despawn(&mut self, entity: hecs::Entity) {
         self.add_command(move |world| {
@@ -85,6 +87,7 @@ impl EntityCommandBuffer {
     }
 
     /// Consumes and executes all queued commands sequentially against `world`.
+    ///
     /// Employs move semantics (`std::mem::take`) to ensure zero redundant cloning
     /// and resets the internal buffer capacity for reuse in subsequent frames.
     pub fn apply(&mut self, world: &mut hecs::World) {

@@ -16,6 +16,7 @@ pub enum SceneDialogAction {
 use irisui::dock::FloatingDragState;
 
 /// The main UI management system for the Aeon Engine.
+///
 /// Owns the Iris UI overlay pipeline, docking layout, and all persistent
 /// editor state (selection, inspector, preferences, console).
 pub struct EngineUi {

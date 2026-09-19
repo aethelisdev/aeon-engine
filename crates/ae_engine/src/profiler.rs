@@ -5,6 +5,7 @@ use ae_core::telemetry::{CpuSyncTimings, FramePacingStats, FrameRingBuffer};
 use std::time::Instant;
 
 /// Per-frame CPU-side performance profiler and frame pacing analyzer.
+///
 /// Tracks high-resolution wall-clock durations (in milliseconds) for ECS logic updates,
 /// physics simulation, render preparation, VSync present synchronization, and Iris UI passes.
 /// Houses a zero-allocation 240-frame ring buffer for real-time stutter and percentile analysis.
@@ -38,6 +39,7 @@ impl Profiler {
     }
 
     /// Marks the beginning of a new frame measurement.
+    ///
     /// Must be called at the very start of the engine update loop.
     /// Pair with `end_frame()` at the end of the frame lifecycle.
     pub fn begin_frame(&mut self) {

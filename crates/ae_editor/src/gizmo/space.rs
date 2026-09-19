@@ -2,6 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Gizmo coordinate space — determines whether gizmo axes align with
 /// world axes (identity orientation) or the selected entity's local rotation.
+///
 /// Used by the gizmo system to orient its visual handles and to compute
 /// drag deltas in the correct coordinate frame. Toggled via the viewport
 /// HUD button next to the W/E/R gizmo mode selector.

@@ -12,6 +12,7 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
     /// Routes window events to the Developer Console panel when active.
+    ///
     /// Returns `Some(IrisOverlayEventResult)` if the event was consumed by the console.
     pub(crate) fn handle_console_window_event(
         &mut self,

@@ -50,6 +50,7 @@ pub enum FloatingDragState {
 }
 
 /// Detects whether the specified cursor point falls within the edge or corner resize margin of a rectangle.
+///
 /// Returns the corresponding [`FloatingResizeEdge`] if the cursor is within `margin` logical pixels
 /// of the border, or `None` if the cursor is inside the window body or entirely outside.
 #[inline]
@@ -195,6 +196,7 @@ pub enum FloatingWindowClickAction<Tab: Clone> {
 }
 
 /// Evaluates mouse clicks against a slice of floating windows ordered from back to front.
+///
 /// Checks front-to-back (reverse iteration) for highest visual priority:
 /// 1. Dock-back button `⤢` (top-right)
 /// 2. Close button `✖` (top-right)
@@ -275,6 +277,7 @@ pub fn evaluate_floating_window_click<Tab: Clone, V: TabViewer<Tab>>(
 }
 
 /// Builds the complete native Iris UI floating window widget hierarchy in the UI tree.
+///
 /// For each floating window:
 /// 1. Creates a container node with `WidgetRole::FloatingWindow` (ensuring correct z-ordering in `UiLayer::Floating`).
 /// 2. Adds the base background quad with drop shadow, border, and rounded corners.
@@ -282,6 +285,7 @@ pub fn evaluate_floating_window_click<Tab: Clone, V: TabViewer<Tab>>(
 /// 4. Adds dock-back `⤢` and close `✖` control buttons.
 /// 5. Adds header baseline divider.
 /// 6. Renders tab pill items with icons, titles, and active indicator line.
+///
 /// Returns:
 /// - List of window bounding rectangles (for hardware occlusion culling).
 /// - Mapping from active `Tab` to its floating window container [`WidgetId`].

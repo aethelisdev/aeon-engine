@@ -21,10 +21,12 @@ pub struct GizmoInputParams<'a> {
 
 impl GizmoSystem {
     /// Top-level input handler called each frame.
+    ///
     /// 1. Updates hover state (when not dragging).
     /// 2. Starts drag on `left_just_pressed`.
     /// 3. Computes delta during drag.
     /// 4. Ends drag on `left_released`.
+    ///
     /// Returns `Some(delta)` when a drag produces movement.
     pub fn handle_input(&mut self, params: GizmoInputParams<'_>) -> Option<Vector3<f32>> {
         let GizmoInputParams {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 /// Shadow map resolution tiers controlling texture size and quality.
+///
 /// Higher resolutions produce sharper shadows but consume more GPU memory.
 /// The `as_u32()` method returns the texture dimension directly.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -27,6 +28,7 @@ impl ShadowResolution {
 }
 
 /// Percentage Closer Filtering quality for shadow edge softness.
+///
 /// Controls the PCF kernel size in the shadow shader. Higher quality
 /// produces softer shadow edges at the cost of more texture samples.
 /// The `radius()` method returns the half-kernel size for the shader.
@@ -56,6 +58,7 @@ impl PcfQuality {
 }
 
 /// Frame rate limit options for the render loop.
+///
 /// Applied via winit present mode / frame pacing. `Uncapped` allows
 /// the GPU to render as fast as possible (may cause tearing without VSync).
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -76,6 +79,7 @@ impl FpsLimit {
 }
 
 /// Atmospheric sky rendering quality levels.
+///
 /// Controls the complexity of the sky shader: from a simple gradient
 /// to a physically-based Rayleigh/Mie scattering model.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -100,6 +104,7 @@ impl SkyQuality {
 }
 
 /// Aggregate runtime graphics configuration exposed in the Settings panel.
+///
 /// Controls shadow mapping, MSAA, bloom post-processing, FPS limiting,
 /// sky atmosphere, sun parameters, and fog. Modified at runtime via
 /// `EngineUiAction::UpdateGraphicsSettings`. All changes take effect

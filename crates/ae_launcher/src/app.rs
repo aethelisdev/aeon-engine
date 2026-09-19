@@ -212,6 +212,7 @@ impl LauncherApp {
     }
 
     /// Calculates the appropriate mouse cursor icon based on current cursor position and active UI tab.
+    ///
     /// Returns `CursorIcon::Text` when hovering over editable text inputs, `CursorIcon::Pointer` when
     /// hovering over clickable cards/buttons, and `CursorIcon::Default` elsewhere.
     fn compute_cursor_icon(&self) -> winit::window::CursorIcon {
@@ -628,6 +629,7 @@ impl ApplicationHandler for LauncherApp {
     }
 
     /// Event loop pacing and idle control.
+    ///
     /// When the text input box is focused, wakes up every 100ms to drive the smooth ~1Hz text cursor
     /// blink animation. When unfocused, drops to `ControlFlow::Wait` for zero CPU consumption.
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {

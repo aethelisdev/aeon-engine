@@ -2,6 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 /// Build script for the Aeon Engine executable.
+///
 /// Embeds Windows resource files (such as the application icon and manifest)
 /// into the executable when compiling for Windows targets.
 fn main() {

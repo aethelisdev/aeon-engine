@@ -14,6 +14,7 @@ use winit::window::CursorIcon;
 
 impl IrisEditorOverlay {
     /// Determines the appropriate mouse cursor icon based on current interactive hover targets.
+    ///
     /// Evaluates cursor position against menubar buttons, window resize borders, docked splitters,
     /// dock tabs, tab close targets, and all panel-specific interactive elements (buttons, inputs,
     /// sliders, chips, and color pickers).

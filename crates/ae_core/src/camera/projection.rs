@@ -3,6 +3,7 @@
 use cgmath::*;
 
 /// Coordinate system correction matrix converting OpenGL clip-space to WGPU clip-space.
+///
 /// OpenGL uses NDC Z range [-1, 1] while WGPU (Vulkan/DX12/Metal) uses [0, 1].
 /// This matrix remaps the Z coordinate accordingly. Applied as a prefix to all
 /// projection matrices in the engine.
@@ -15,6 +16,7 @@ pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 );
 
 /// Determines which projection model the camera uses for 3D-to-2D mapping.
+///
 /// `Perspective` provides realistic depth foreshortening for 3D navigation.
 /// `Orthographic` provides uniform scaling without depth distortion, used
 /// for technical views (Front, Top, Right) and 2D-style editing.
@@ -25,6 +27,7 @@ pub enum ProjectionMode {
 }
 
 /// Stateless utility for building perspective projection matrices.
+///
 /// Encapsulates the perspective projection math: field-of-view based frustum
 /// with depth foreshortening. All methods are pure functions operating on
 /// parameters directly — no internal state is stored.
@@ -32,6 +35,7 @@ pub struct PerspectiveProjection;
 
 impl PerspectiveProjection {
     /// Builds a perspective projection matrix with the given parameters.
+    ///
     /// Applies the OpenGL-to-WGPU coordinate correction automatically.
     /// `fovy` is in degrees, `aspect` is width/height ratio.
     /// Uses safe_aspect `max(0.0001)` to prevent panics when viewport aspect is zero.
@@ -42,6 +46,7 @@ impl PerspectiveProjection {
 }
 
 /// Stateless utility for building orthographic projection matrices.
+///
 /// Encapsulates orthographic projection math: uniform-scale parallel projection
 /// without depth foreshortening. Used for technical/engineering views where
 /// accurate relative sizing is more important than depth perception.
@@ -49,6 +54,7 @@ pub struct OrthographicProjection;
 
 impl OrthographicProjection {
     /// Builds an orthographic projection matrix from scale, aspect ratio, and depth range.
+    ///
     /// The `ortho_scale` controls the visible world-space height. Width is
     /// derived as `ortho_scale * aspect`. Near/far define the depth clipping range.
     /// Uses safe_aspect `max(0.0001)` to prevent degenerate projection panics.
@@ -70,11 +76,13 @@ impl OrthographicProjection {
 }
 
 /// Projection-related methods for the Camera struct.
+///
 /// These methods delegate to `PerspectiveProjection` and `OrthographicProjection`
 /// based on the current `ProjectionMode`, keeping the projection math isolated
 /// in dedicated stateless types while preserving the Camera's unified API.
 impl super::Camera {
     /// Builds the appropriate projection matrix based on the camera's current mode.
+    ///
     /// Delegates to `PerspectiveProjection::build_matrix()` or
     /// `OrthographicProjection::build_matrix()` depending on `self.mode`.
     pub fn build_projection_matrix(&self) -> Matrix4<f32> {
@@ -92,6 +100,7 @@ impl super::Camera {
     }
 
     /// Builds a view-projection matrix with a shorter far-plane, used ONLY for frustum culling.
+    ///
     /// This decouples visual render depth (zfar=2000) from CPU culling range,
     /// restoring the original frustum culling performance by aggressively eliminating
     /// distant objects from the CPU instance list before they ever reach the GPU.

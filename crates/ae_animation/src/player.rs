@@ -22,6 +22,7 @@ pub enum AnimationState {
 }
 
 /// ECS component that manages animation playback, time accumulation, and crossfade blending.
+///
 /// Supports crossfading (`crossfade()`) between `current_clip` and `target_clip` using a smooth
 /// `blend_factor` (0.0 = current clip, 1.0 = target clip) over `blend_duration` seconds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +82,7 @@ impl AnimationPlayer {
     }
 
     /// Initiates a smooth crossfade transition from the current clip to a new target clip.
+    ///
     /// # Arguments
     /// * `new_clip` - The target animation clip to blend into.
     /// * `duration` - Transition duration in seconds (e.g., 0.25s).
@@ -144,6 +146,7 @@ impl AnimationPlayer {
     }
 
     /// Evaluates local joint transform matrices for the given skeleton at current playback time.
+    ///
     /// Handles clip sampling and crossfade blending between `current_clip` and `target_clip`.
     #[must_use]
     pub fn evaluate_pose(&self, skeleton: &Skeleton) -> Vec<Mat4> {

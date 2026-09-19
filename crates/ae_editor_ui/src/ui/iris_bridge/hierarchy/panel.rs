@@ -57,6 +57,7 @@ pub fn build_hierarchy_panel(
 }
 
 /// Builds floating overlays for the Scene Hierarchy panel (Context Menu and Add Menu).
+///
 /// Ensures menus are attached to the root layer on top of all docked panels,
 /// preventing any bleed-through or clipping by neighboring dock tabs.
 pub fn build_hierarchy_overlays(

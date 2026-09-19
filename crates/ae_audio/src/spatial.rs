@@ -4,12 +4,14 @@
 use glam::Vec3;
 
 /// 3D Spatial Audio mathematics for distance attenuation and stereo channel panning.
+///
 /// Implements logarithmic falloff attenuation and vector dot-product stereo panning
 /// based on 3D spatial orientation of the listener and audio source.
 pub struct SpatialAudioMath;
 
 impl SpatialAudioMath {
     /// Computes inverse-distance logarithmic attenuation factor `[0.0, 1.0]`.
+    ///
     /// # Parameters
     /// - `emitter_pos`: 3D position of the sound source entity.
     /// - `listener_pos`: 3D position of the listener (camera/ear).
@@ -40,6 +42,7 @@ impl SpatialAudioMath {
 
     /// Computes left and right channel stereo volume gain factors `(left_gain, right_gain)`
     /// based on 3D spatial angle relative to the listener.
+    ///
     /// # Parameters
     /// - `emitter_pos`: 3D position of the sound source entity.
     /// - `listener_pos`: 3D position of the listener.

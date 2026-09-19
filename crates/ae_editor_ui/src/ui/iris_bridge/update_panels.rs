@@ -399,6 +399,7 @@ impl IrisEditorOverlay {
     }
 
     /// Dispatches rendering for a specific panel into the target container.
+    ///
     /// Resolves the requested [`PanelId`] and delegates to the corresponding
     /// specialized panel builder module.
     pub(crate) fn render_panel_by_id(
@@ -431,6 +432,7 @@ impl IrisEditorOverlay {
     }
 
     /// Renders an external or custom panel registered in [`Self::panels`] by its identifier.
+    ///
     /// Returns `true` if a registered panel was found and rendered, or `false` otherwise.
     pub fn render_custom_panel(&mut self, panel_id: &str, parent: WidgetId, bounds: Rect) -> bool {
         let (panels, tree) = (&mut self.panels, &mut self.tree);
@@ -444,6 +446,7 @@ impl IrisEditorOverlay {
 }
 
 /// Standard dockable panel implementor for built-in editor panels registered in [`PanelRegistry`].
+///
 /// Wraps a strongly typed [`crate::ui::panel_layout::PanelId`] and provides metadata and lifecycle
 /// integration with the Iris UI docking framework.
 #[derive(Debug)]

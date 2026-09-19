@@ -125,6 +125,7 @@ pub struct IrisOverlayEventResult {
 }
 
 /// Standardized interaction and hit-testing container for Iris UI editor panels.
+///
 /// Encapsulates the recurring panel-level fields (transient hit-test targets,
 /// scroll offset, search filter query, focus state, and dispatched action queue)
 /// to eliminate boilerplate bloat across panel definitions.
@@ -461,6 +462,7 @@ pub struct OverlayPanelData<'a> {
 }
 
 /// Parameters required for reconstructing and resolving all Iris UI editor overlays.
+///
 /// Composed of domain-specific parameter sub-structures to eliminate tight coupling.
 pub struct OverlayUpdateParams<'a> {
     /// Global editor context and window properties.

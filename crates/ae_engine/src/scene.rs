@@ -274,6 +274,7 @@ pub fn is_saved_entities_3d(entities: &[SavedEntity]) -> bool {
 }
 
 /// Asynchronously loads a scene JSON from disk.
+///
 /// Spawns a background thread that parallel-parses all unique GLTF meshes and texture files
 /// using Rayon, totally avoiding main-thread frames freeze. Updates the UI overlay status.
 pub(crate) fn load_scene(engine: &mut AeEngine, filepath: &str) -> std::io::Result<()> {

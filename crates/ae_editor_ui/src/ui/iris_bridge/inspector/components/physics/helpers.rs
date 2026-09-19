@@ -53,6 +53,7 @@ pub fn render_component_header(
 }
 
 /// Helper function rendering a component card header with an optional hardware-accelerated GPU atlas icon quad.
+///
 /// If `props.atlas_icon` is provided (`Some([u_min, v_min, u_max, layer])`), it renders a crisp $14\times14$ px
 /// texture quad tinted in `props.header_color` and displays `props.display_title` directly. Otherwise, it falls back
 /// to rendering `props.icon` prepended to `props.display_title`.

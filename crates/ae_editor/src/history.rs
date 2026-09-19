@@ -14,6 +14,7 @@ pub fn push_undo(editor: &mut EditorState, cmd: Command) {
 }
 
 /// Pops the most recent command from the undo stack and reverses it.
+///
 /// After undoing, the command is moved to the redo stack for potential re-application.
 /// If the undo operation changes an Entity ID (e.g., re-spawning a deleted entity),
 /// all remaining stack commands and the current selection are remapped to the new ID.
@@ -41,6 +42,7 @@ pub fn undo(editor: &mut EditorState, world: &mut hecs::World) {
 }
 
 /// Pops the most recent command from the redo stack and re-applies it.
+///
 /// After redoing, the command is pushed back onto the undo stack via `push_undo`.
 /// Entity ID remapping is performed identically to `undo()` to maintain
 /// referential integrity across all stacks and selection state.
@@ -67,6 +69,7 @@ pub fn redo(editor: &mut EditorState, world: &mut hecs::World) {
 }
 
 /// Commits accumulated edit snapshots as undo history commands.
+///
 /// Called when a gizmo drag ends. Compares the pre-drag snapshots
 /// (`current_edit_snapshots`) against current ECS state to produce
 /// per-property `Command::Modify` entries. Multiple entity edits

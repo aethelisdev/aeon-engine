@@ -141,6 +141,7 @@ pub struct DockOverflowMenuParams<'a, Tab> {
 }
 
 /// Builds the dock tab overflow dropdown popup menu into the target [`UiTree`].
+///
 /// Anchors the menu immediately below the trigger chevron button aligned to its right edge.
 /// Generates nodes tagged with `node.tag = tab_index as u64` and role [`WidgetRole::DropdownItem`]
 /// on [`UiLayer::Popup`], ensuring proper stacking and zero-allocation hit testing.
@@ -297,6 +298,7 @@ pub fn build_dock_overflow_menu<Tab, V: TabViewer<Tab>>(
 }
 
 /// Evaluates a mouse click event against an active dock tab overflow menu.
+///
 /// Determines whether the user clicked an item in the menu, clicked the chevron to toggle,
 /// or clicked elsewhere outside to dismiss.
 pub fn evaluate_dock_overflow_click(

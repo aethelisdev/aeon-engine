@@ -160,6 +160,7 @@ impl InspectorNumberInputId {
     }
 
     /// Returns the valid numerical range `[min, max]` allowed for this property.
+    ///
     /// Prevents physics solver singularities, negative extents, negative mass, and invalid ranges.
     #[must_use]
     pub fn valid_range(self) -> (f32, f32) {

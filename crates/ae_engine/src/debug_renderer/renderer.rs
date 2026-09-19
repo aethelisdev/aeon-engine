@@ -8,6 +8,7 @@ use super::shapes::DebugShapes;
 use super::vertex::DebugLineVertex;
 
 /// Self-contained debug wireframe renderer.
+///
 /// Owns its own WGPU pipeline, vertex buffer (auto-growing), uniform buffer,
 /// and bind group. Implements `OverlayRenderer` trait for compositing.
 pub struct DebugRenderer {

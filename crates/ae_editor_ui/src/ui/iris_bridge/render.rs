@@ -145,6 +145,7 @@ impl IrisEditorOverlay {
     }
 
     /// Collects text rendering sections from all visible layout nodes in the tree.
+    ///
     /// Delegates directly to Iris UI's native layer-aware typography collection engine.
     pub fn collect_text_sections_from_tree<'a>(
         tree: &'a UiTree,
@@ -285,6 +286,7 @@ impl IrisEditorOverlay {
     }
 
     /// Ensures that the editor tools 2D texture array (`editor_atlas.png`) is loaded into GPU memory.
+    ///
     /// The master atlas is loaded and sliced into 16 isolated 64x64 pixel layers. Each layer receives
     /// its own independent mipmap chain, physically eliminating texture atlas seam bleeding and
     /// filtering artifacts while maintaining full icon resolution and crispness.

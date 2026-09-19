@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Locates the `ae_engine` binary in the filesystem.
+///
 /// Searches relative to the current executable directory, then checks `target/release` and `target/debug`.
 pub fn find_engine_binary() -> Option<PathBuf> {
     if let Ok(current_exe) = std::env::current_exe()
@@ -72,6 +73,7 @@ pub fn find_engine_binary() -> Option<PathBuf> {
 }
 
 /// Detects whether the launcher is executing within a Cargo workspace development tree.
+///
 /// Returns `Some(workspace_root)` if a valid Cargo workspace containing `Cargo.toml` is found,
 /// or `None` if running as a standalone deployed binary outside the repository.
 pub fn detect_dev_workspace_root() -> Option<PathBuf> {
@@ -110,9 +112,11 @@ pub fn detect_dev_workspace_root() -> Option<PathBuf> {
 }
 
 /// Spawns the Aeon Engine process for a project and terminates the launcher process immediately.
+///
 /// In development environments (when running within a Cargo workspace), it automatically invokes
 /// `cargo run` targeting `ae_engine` with matching build profile (`--release` or debug) to guarantee
 /// that any modified engine code is incrementally recompiled before launching.
+///
 /// In standalone production deployments, it directly executes the precompiled `ae_engine` binary
 /// with zero cargo overhead.
 pub fn launch_engine_and_exit(project_path: &Path, dimension_mode: &str) -> std::io::Result<()> {

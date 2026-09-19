@@ -46,6 +46,7 @@ pub struct SpriteBatch {
 }
 
 /// High-performance instanced 2D Sprite batcher.
+///
 /// Collects sprite draw commands, sorts them using 64-bit sort keys, packs instance buffers,
 /// and issues batched draw calls with zero steady-state heap allocations in per-frame hot loops.
 pub struct SpriteBatcher {
@@ -183,6 +184,7 @@ impl SpriteBatcher {
     }
 
     /// Clears the CPU scratchpad for beginning a new frame.
+    ///
     /// Reuses vector allocation capacity without deallocating.
     pub fn begin_frame(&mut self) {
         self.scratch_keys.clear();
@@ -201,6 +203,7 @@ impl SpriteBatcher {
     }
 
     /// Prepares GPU buffers and creates batches by sorting submitted sprite instances.
+    ///
     /// Automatically reallocates GPU instance buffer if sprite count exceeds current capacity.
     pub fn finish_and_upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         if self.scratch_keys.is_empty() {
@@ -262,6 +265,7 @@ impl SpriteBatcher {
     }
 
     /// Renders all batches into the provided render pass.
+    ///
     /// The `lookup_texture` closure retrieves the texture bind group corresponding to a texture id.
     pub fn render<'a, F>(
         &'a self,

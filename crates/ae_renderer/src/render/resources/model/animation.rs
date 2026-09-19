@@ -4,6 +4,7 @@
 //! GLTF skeletal armature, node hierarchy, and animation clip extraction.
 
 /// Helper to extract skeleton joints and animation clips from glTF document.
+///
 /// Supports both explicit skin armatures and hierarchical scene node animations.
 pub fn parse_gltf_skin_and_animations(
     document: &gltf::Document,

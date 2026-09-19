@@ -7,6 +7,7 @@ impl RenderState {
     pub const MAX_TEXTURE_SIZE: u32 = 8192;
 
     /// Loads a texture from disk using `ae_texture` CPU parsing and uploads it to the GPU.
+    ///
     /// Checks path security, deduplicates paths, parses RGBA pixels on CPU via `ae_texture`,
     /// and constructs the WGPU texture, sampler, and bind group.
     pub fn load_texture(
@@ -58,6 +59,7 @@ impl RenderState {
     }
 
     /// Constructs a WGPU GPU `TextureAsset` (Texture, Sampler, BindGroup) from CPU texture data.
+    ///
     /// Writes all mipmap levels to VRAM and configures sampling according to `SamplerConfig`.
     pub fn build_gpu_texture_asset(
         &self,
@@ -175,6 +177,7 @@ impl RenderState {
     }
 
     /// Uploads CPU texture pixel data (`ae_texture::CpuTextureData`) into a newly created WGPU texture.
+    ///
     /// Registers the texture asset in `AssetManager` with path deduplication.
     pub fn upload_cpu_texture_data(
         &self,
@@ -220,6 +223,7 @@ impl RenderState {
 
     /// Uploads BC1/BC3/BC7 block-compressed texture pixel data (`ae_texture::CompressedTextureData`)
     /// directly into a WGPU compressed texture format.
+    ///
     /// Achieves 75-80% VRAM bandwidth and memory savings for high-resolution PBR material textures.
     pub fn upload_compressed_texture_data(
         &self,

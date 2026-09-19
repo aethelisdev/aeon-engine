@@ -11,6 +11,7 @@ use super::types::{TimelineAction, TimelinePanelTargets};
 use irisui::prelude::Point;
 
 /// Evaluates a mouse click against timeline targets and returns the corresponding action.
+///
 /// Returns `Some((action, start_dragging))` where `start_dragging` is true when the
 /// user clicked on the scrubber track or playhead needle to initiate dragging.
 pub fn handle_timeline_click(

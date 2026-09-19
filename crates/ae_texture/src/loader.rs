@@ -10,6 +10,7 @@ use std::path::Path;
 pub const MAX_TEXTURE_DIMENSION: u32 = 16384;
 
 /// Sanitizes file paths to prevent directory traversal vulnerabilities (e.g. `../..` manipulation).
+///
 /// Returns `false` if the path contains relative traversal sequences (`..`).
 pub fn is_safe_path(path: &str) -> bool {
     let p = Path::new(path);
@@ -22,7 +23,9 @@ pub fn is_safe_path(path: &str) -> bool {
 }
 
 /// Parses a texture file from local disk into uncompressed RGBA8 `CpuTextureData`.
+///
 /// Performs security sanitization, checks dimension bounds, and converts pixels to RGBA8.
+///
 /// # Errors
 /// Returns an error string if path is unsafe, file cannot be read, image format is unknown,
 /// or dimensions exceed `MAX_TEXTURE_DIMENSION`.

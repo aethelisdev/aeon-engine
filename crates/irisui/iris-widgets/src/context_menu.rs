@@ -16,6 +16,7 @@ use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
 /// Visual icon representation for a context menu item or header.
+///
 /// Supports either a Unicode glyph or a GPU texture atlas UV rectangle.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ContextMenuIcon {
@@ -26,6 +27,7 @@ pub enum ContextMenuIcon {
 }
 
 /// Optional header displayed at the very top of the context menu.
+///
 /// Useful for identifying the subject under the cursor (e.g. filename, entity name, folder).
 #[derive(Debug, Clone)]
 pub struct ContextMenuHeader {
@@ -36,6 +38,7 @@ pub struct ContextMenuHeader {
 }
 
 /// An individual item within a context menu.
+///
 /// Can represent an actionable row, a destructive action (rendered in danger tones), or a visual separator line.
 #[derive(Debug, Clone)]
 pub struct ContextMenuItem {
@@ -299,6 +302,7 @@ impl ContextMenuBuilder {
     }
 
     /// Builds the context menu into the `UiTree` and returns its final bounding rectangle.
+    ///
     /// All items are tagged with their respective `tag` numerical value on `UiLayer::Popup`.
     pub fn build(&self, tree: &mut UiTree, parent_id: WidgetId) -> Rect {
         let menu_w = self.width.unwrap_or(self.style.min_width);

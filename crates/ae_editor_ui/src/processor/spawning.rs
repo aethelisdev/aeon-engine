@@ -122,6 +122,7 @@ pub fn handle_spawn_sprite_at(
 }
 
 /// Handles spawning a 3D model entity into the ECS world from an arbitrary file path.
+///
 /// Resolves cached model handles if already uploaded, or dynamically parses the GLTF/GLB file,
 /// uploads vertex and index buffers to GPU memory, and spawns the entity at the target coordinates.
 pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf, pos: [f32; 3]) {
@@ -165,6 +166,7 @@ pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf,
 }
 
 /// Handles spawning a 2D sprite texture asset entity into the ECS world from a file path.
+///
 /// Dynamically loads the texture image from disk into GPU memory if not already cached
 /// and spawns a new sprite entity at the designated 3D world location.
 pub fn handle_spawn_sprite_path_at(ctx: &mut UiContext, path: std::path::PathBuf, pos: [f32; 3]) {

@@ -160,6 +160,7 @@ impl Default for BoundingBox {
 }
 
 /// 2D Sprite component for rendering textured or tinted planar quads.
+///
 /// Attaches to an entity possessing `Position`, `Rotation`, and `Scale` in the ECS world.
 /// Supports texture atlasing via UV sub-rectangles, custom color tinting, horizontal/vertical
 /// flipping, custom pivot offsets, and explicit two-tier sorting order (`sorting_layer` and `order_in_layer`).

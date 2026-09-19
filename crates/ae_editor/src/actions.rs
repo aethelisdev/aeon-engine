@@ -9,6 +9,7 @@ use ae_core::ecs::{
 };
 
 /// Deletes all currently selected entities from the ECS world.
+///
 /// Captures an `EntitySnapshot` for each entity before despawning to enable undo.
 pub fn delete_selected(
     world: &mut hecs::World,

@@ -7,6 +7,7 @@ use crate::icons::{ICON_FOLDER, ICON_PLUS, ICON_WIREFRAME, ICON_WORLD};
 use crate::ui::types::{LauncherTab, LauncherUiState};
 
 /// Builds the left sidebar navigation hierarchy into the UI tree.
+///
 /// Assembles the logo badge, navigation tab buttons ("Recent Projects" and "New Project"),
 /// hover/active state visual feedback, and version footer metadata.
 pub fn build_sidebar(
