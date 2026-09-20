@@ -96,6 +96,24 @@ impl UiTree {
         self.nodes.get_mut(id)
     }
 
+    /// Searches the tree for the first widget node bearing the specified semantic tag.
+    ///
+    /// Useful for locating anchor geometry of active dropdowns, popups, or focused elements.
+    #[inline]
+    #[must_use]
+    pub fn find_node_by_tag(&self, tag: u64) -> Option<(WidgetId, &WidgetNode)> {
+        self.nodes.iter().find(|(_, node)| node.tag == tag)
+    }
+
+    /// Searches the tree for the first widget node satisfying the given predicate closure.
+    #[inline]
+    pub fn find_node<F>(&self, mut predicate: F) -> Option<(WidgetId, &WidgetNode)>
+    where
+        F: FnMut(&WidgetNode) -> bool,
+    {
+        self.nodes.iter().find(|(_, node)| predicate(node))
+    }
+
     /// Attaches a child node to a parent node.
     ///
     /// # Errors

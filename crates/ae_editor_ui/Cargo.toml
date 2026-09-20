@@ -2,7 +2,7 @@
 name = "ae_editor_ui"
 version = "0.9.0"
 edition = "2024"
-description = "Aeon Engine - Editor native Iris UI panels, docking, and overlays"
+description = "Aeon Engine - Clean declarative Iris UI editor layer"
 
 [dependencies]
 hecs = "0.11.0"
@@ -22,9 +22,10 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 winit = "0.30.13"
 wgpu = "30.0.1"
 cgmath = "0.18"
-rayon = "1.12.0"
 gltf = "1.4.1"
+rayon = "1.12.0"
 irisui = { workspace = true }
-
-
-
+iris-core = { workspace = true }
+iris-widgets = { workspace = true }
+iris-layout = { workspace = true }
+iris-dock = { workspace = true }

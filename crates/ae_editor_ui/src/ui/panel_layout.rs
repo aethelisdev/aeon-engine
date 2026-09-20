@@ -61,10 +61,7 @@ impl PanelId {
 
     /// Returns the optional texture array layer coordinates for panels with a dedicated GPU atlas icon.
     pub fn atlas_icon(&self) -> Option<[f32; 4]> {
-        match self {
-            Self::Assets => Some(crate::ui::iris_bridge::icons::ICON_FOLDER),
-            _ => None,
-        }
+        None
     }
 
     /// Returns the canonical alphanumeric string identifier for this panel used in registries.
