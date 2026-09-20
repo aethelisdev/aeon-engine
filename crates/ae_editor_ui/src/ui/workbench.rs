@@ -360,12 +360,6 @@ impl EngineUi {
         self.tree.hit_test_target(p).is_some()
     }
 
-    /// Backwards-compatible alias for [`Self::is_point_over_ui`].
-    #[inline]
-    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
-        self.is_point_over_ui(pos)
-    }
-
     /// Polls asynchronous native file dialog receivers and applies their actions.
     pub fn poll_dialog_receivers(&mut self) {
         let mut completed_indices = Vec::new();
@@ -536,15 +530,10 @@ impl EngineUi {
         self.viewport_rect_width = logical_w;
         self.viewport_rect_height = logical_h;
 
-        // 1. Rebuild UI Tree cleanly
-        self.tree.clear();
-        let root = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(root) {
-            node.name = Some("WorkbenchRoot".to_string());
-            node.computed_rect = Rect::new(0.0, 0.0, logical_w, logical_h);
-            node.interactive = false;
-        }
-        let _ = self.tree.set_root(root);
+        // 1. Rebuild UI Tree cleanly with standardized root canvas
+        let root = self
+            .tree
+            .reset_with_canvas(Rect::new(0.0, 0.0, logical_w, logical_h), "WorkbenchRoot");
 
         // 2. Viewport 3D Render Texture Binding via iris-widgets ViewportCanvasBuilder
         if let Some(vp_tex) = params.viewport_texture_view {
@@ -673,12 +662,7 @@ mod tests {
     #[test]
     fn test_is_point_over_ui_tree_driven_and_hud_isolation() {
         let mut tree = UiTree::new();
-        let root = tree.create_node();
-        if let Some(node) = tree.get_mut(root) {
-            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-            node.interactive = false;
-        }
-        let _ = tree.set_root(root);
+        let root = tree.reset_with_canvas(Rect::new(0.0, 0.0, 1920.0, 1080.0), "WorkbenchRoot");
 
         // 1. Viewport canvas (interactive = false)
         let _canvas_id = ViewportCanvasBuilder::new(&mut tree, Rect::new(0.0, 0.0, 1920.0, 1080.0))

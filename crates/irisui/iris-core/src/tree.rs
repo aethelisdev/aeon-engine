@@ -84,6 +84,23 @@ impl UiTree {
         Ok(())
     }
 
+    /// Clears the tree and allocates a new designated root canvas node with the specified computed bounds.
+    ///
+    /// Establishes a standardized screen canvas root, eliminating manual raw node allocation,
+    /// property manipulation, or coordinate calculations in consumer application layers.
+    pub fn reset_with_canvas(&mut self, bounds: Rect, name: &'static str) -> WidgetId {
+        self.clear();
+        let root_id = self.nodes.insert_with_key(|id| {
+            let mut node = WidgetNode::new(id);
+            node.name = Some(name.to_string());
+            node.computed_rect = bounds;
+            node.interactive = false;
+            node
+        });
+        self.root = Some(root_id);
+        root_id
+    }
+
     /// Retrieves an immutable reference to a widget node.
     #[inline]
     pub fn get(&self, id: WidgetId) -> Option<&WidgetNode> {
@@ -722,5 +739,23 @@ mod tests {
             tree.cursor_at(Point::new(10.0, 10.0)),
             WidgetCursor::Default
         );
+    }
+
+    #[test]
+    fn test_tree_reset_with_canvas() {
+        let mut tree = UiTree::new();
+        let old_node = tree.create_node();
+        let _ = tree.set_root(old_node);
+        assert_eq!(tree.len(), 1);
+
+        let canvas_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        let root = tree.reset_with_canvas(canvas_rect, "ScreenRoot");
+
+        assert_eq!(tree.root(), Some(root));
+        assert_eq!(tree.len(), 1);
+        let node = tree.get(root).expect("root node exists");
+        assert_eq!(node.name.as_deref(), Some("ScreenRoot"));
+        assert_eq!(node.computed_rect, canvas_rect);
+        assert!(!node.interactive);
     }
 }

@@ -201,8 +201,7 @@ impl ApplicationHandler for AeApp {
                 let logical_pos = [cursor_x as f32 / scale, cursor_y as f32 / scale];
 
                 // Only scroll 3D camera if in Play mode (with cursor grabbed) or cursor is strictly inside the 3D viewport in Edit mode
-                if engine.mode == EngineMode::Play || !engine.ui.is_point_over_ui_rects(logical_pos)
-                {
+                if engine.mode == EngineMode::Play || !engine.ui.is_point_over_ui(logical_pos) {
                     engine.handle_mouse_scroll(delta, cursor_x, cursor_y);
                 }
             }
@@ -224,10 +223,9 @@ impl ApplicationHandler for AeApp {
                 let should_handle = if engine.mode == EngineMode::Play {
                     engine.is_cursor_grabbed
                         || *state == ElementState::Released
-                        || !engine.ui.is_point_over_ui_rects(logical_pos)
+                        || !engine.ui.is_point_over_ui(logical_pos)
                 } else {
-                    *state == ElementState::Released
-                        || !engine.ui.is_point_over_ui_rects(logical_pos)
+                    *state == ElementState::Released || !engine.ui.is_point_over_ui(logical_pos)
                 };
 
                 if should_handle {
