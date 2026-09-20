@@ -17,6 +17,7 @@ pub mod external_textures;
 pub mod quad;
 pub mod renderer;
 pub mod texture_pipeline;
+pub mod tree_compiler;
 
 pub use command::{DrawCommand, DrawCommandList};
 pub use external_texture_pipeline::{ExternalTexturePipeline, ExternalTextureQuadInstance};
@@ -24,6 +25,10 @@ pub use external_textures::ExternalTextures;
 pub use quad::QuadInstance;
 pub use renderer::IrisRenderer;
 pub use texture_pipeline::{TextureQuadInstance, TextureQuadPipeline};
+pub use tree_compiler::{
+    CustomDrawCallback, TreeCompilerOptions, compile_tree_draw_commands,
+    compile_tree_draw_commands_into,
+};
 
 #[cfg(test)]
 mod tests {

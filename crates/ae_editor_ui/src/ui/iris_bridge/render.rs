@@ -10,138 +10,30 @@ use irisui::text::{TextRenderer, TextSection};
 impl IrisEditorOverlay {
     /// Recursively converts computed node bounds and styles into layered `DrawCommandList` instances,
     /// ensuring strict back-to-front layer ordering: Background -> Content -> Floating -> Modal -> Popup -> Tooltip.
+    ///
+    /// Delegates directly to Iris UI's native layer-aware command compiler.
     pub(crate) fn populate_draw_commands(
         &mut self,
         current: WidgetId,
         clip_rect: Option<Rect>,
         frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
     ) {
-        let mut layer_lists: [DrawCommandList; 6] = Default::default();
-        Self::populate_tree_commands_by_layer(
-            &self.tree,
-            current,
-            clip_rect,
-            UiLayer::Background,
-            frame_pacing,
-            &mut layer_lists,
-        );
-        self.command_list.clear();
-        for list in layer_lists {
-            self.command_list.append(list);
-        }
-    }
-
-    /// Helper that traverses the UI tree, grouping draw commands by effective `UiLayer`.
-    pub(crate) fn populate_tree_commands_by_layer(
-        tree: &UiTree,
-        current: WidgetId,
-        clip_rect: Option<Rect>,
-        inherited_layer: UiLayer,
-        frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
-        layer_lists: &mut [DrawCommandList; 6],
-    ) {
-        let Some(node) = tree.get(current) else {
-            return;
-        };
-        if !node.visible {
-            return;
-        }
-
-        let effective_layer = if node.layer > inherited_layer {
-            node.layer
-        } else {
-            inherited_layer
-        };
-
-        // Decouple scissor clip when transitioning into an elevated overlay layer
-        // so that child popups or modal cards are not clipped by parent panel boundaries.
-        let effective_clip = if effective_layer > inherited_layer {
-            None
-        } else {
-            clip_rect
-        };
-
-        let child_clip = if node.style.clip_children {
-            match effective_clip {
-                Some(existing) => Some(existing.intersect(node.computed_rect)),
-                None => Some(node.computed_rect),
+        let mut custom_drawer = |target_list: &mut DrawCommandList,
+                                 _id: WidgetId,
+                                 node: &WidgetNode,
+                                 _clip: Option<Rect>| {
+            if node.role == WidgetRole::OscilloscopeCanvas
+                && let Some(ring) = frame_pacing
+            {
+                super::stats::append_oscilloscope_quads(target_list, node.computed_rect, ring);
             }
-        } else {
-            effective_clip
         };
 
-        let has_border = (node.style.border.width.top > 0.0
-            || node.style.border.width.bottom > 0.0
-            || node.style.border.width.left > 0.0
-            || node.style.border.width.right > 0.0)
-            && node.style.border.color.a > 0.0;
+        let mut options = TreeCompilerOptions::new()
+            .with_clip(clip_rect)
+            .with_custom_drawer(&mut custom_drawer);
 
-        let target_list = &mut layer_lists[effective_layer.index()];
-
-        if node.computed_rect.width > 0.0
-            && node.computed_rect.height > 0.0
-            && (node.style.background_color.a > 0.0
-                || has_border
-                || node.style.box_shadow.is_some())
-        {
-            target_list.push_quad(QuadInstance::from_style(
-                node.computed_rect,
-                &node.style,
-                effective_clip,
-            ));
-        }
-
-        if let Some(uv) = node.texture_uv
-            && node.computed_rect.width > 0.0
-            && node.computed_rect.height > 0.0
-        {
-            let tint = node.texture_tint.unwrap_or(Color::WHITE);
-            let clip_arr = match effective_clip {
-                Some(c) => [c.x, c.y, c.x + c.width, c.y + c.height],
-                None => [0.0, 0.0, 0.0, 0.0],
-            };
-            target_list.push_texture_quad(TextureQuadInstance {
-                rect: [
-                    node.computed_rect.x,
-                    node.computed_rect.y,
-                    node.computed_rect.width,
-                    node.computed_rect.height,
-                ],
-                uv_rect: uv,
-                tint: [tint.r, tint.g, tint.b, tint.a],
-                clip_rect: clip_arr,
-            });
-        }
-
-        if let Some(id) = node.external_texture
-            && node.computed_rect.width > 0.0
-            && node.computed_rect.height > 0.0
-        {
-            let tint = node.texture_tint.unwrap_or(Color::WHITE);
-            let uv = node.texture_uv.unwrap_or([0.0, 0.0, 1.0, 1.0]);
-            target_list.push_external_texture_quad(
-                id,
-                ExternalTextureQuadInstance::with_uv(node.computed_rect, uv, tint, effective_clip),
-            );
-        }
-
-        // Render oscilloscope telemetry trace at exact canvas Z-order
-        if node.role == WidgetRole::OscilloscopeCanvas
-            && let Some(ring) = frame_pacing
-        {
-            super::stats::append_oscilloscope_quads(target_list, node.computed_rect, ring);
-        }
-
-        for &child_id in &node.children {
-            Self::populate_tree_commands_by_layer(
-                tree,
-                child_id,
-                child_clip,
-                effective_layer,
-                frame_pacing,
-                layer_lists,
-            );
-        }
+        compile_tree_draw_commands_into(&self.tree, current, &mut options, &mut self.command_list);
     }
 
     /// Collects text rendering sections from all visible layout nodes in the tree.
@@ -429,28 +321,8 @@ mod tests {
         }
         let _ = tree.add_child(root, modal);
 
-        let mut layer_lists: [DrawCommandList; 6] = Default::default();
-        IrisEditorOverlay::populate_tree_commands_by_layer(
-            &tree,
-            root,
-            None,
-            UiLayer::Background,
-            None,
-            &mut layer_lists,
-        );
-
-        assert_eq!(layer_lists[UiLayer::Content.index()].quads.len(), 1);
-        assert_eq!(layer_lists[UiLayer::Modal.index()].quads.len(), 1);
-        assert_eq!(layer_lists[UiLayer::Popup.index()].quads.len(), 1);
-
-        // Verify popup decoupled from parent panel scissor clipping
-        let popup_quad = &layer_lists[UiLayer::Popup.index()].quads[0];
-        assert_eq!(popup_quad.clip_rect, [0.0, 0.0, 0.0, 0.0]); // Unclipped full screen
-
-        let mut final_list = DrawCommandList::new();
-        for list in layer_lists {
-            final_list.append(list);
-        }
+        let mut options = TreeCompilerOptions::new();
+        let final_list = compile_tree_draw_commands(&tree, root, &mut options);
 
         assert_eq!(final_list.quads.len(), 3);
         // Content (Panel) at index 0 (width 400.0)
@@ -459,5 +331,7 @@ mod tests {
         assert_eq!(final_list.quads[1].rect[2], 500.0);
         // Popup (Dropdown) at index 2 (width 200.0 - rendered on top of Modal and Content)
         assert_eq!(final_list.quads[2].rect[2], 200.0);
+        // Verify popup decoupled from parent panel scissor clipping
+        assert_eq!(final_list.quads[2].clip_rect, [0.0, 0.0, 0.0, 0.0]); // Unclipped full screen
     }
 }

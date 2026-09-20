@@ -73,8 +73,10 @@ pub mod prelude {
         collect_text_sections_with_options,
     };
     pub use iris_wgpu::{
-        DrawCommand, DrawCommandList, ExternalTexturePipeline, ExternalTextureQuadInstance,
-        ExternalTextures, IrisRenderer, QuadInstance, TextureQuadInstance, TextureQuadPipeline,
+        CustomDrawCallback, DrawCommand, DrawCommandList, ExternalTexturePipeline,
+        ExternalTextureQuadInstance, ExternalTextures, IrisRenderer, QuadInstance,
+        TextureQuadInstance, TextureQuadPipeline, TreeCompilerOptions, compile_tree_draw_commands,
+        compile_tree_draw_commands_into,
     };
     pub use iris_widgets::{
         AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
