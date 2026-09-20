@@ -24,48 +24,20 @@ pub fn build_physics_card(
     let is_phys_collapsed = ctx.collapsed_sections.contains("editor_physics");
     let phys_h = if is_phys_collapsed { 36.0 } else { 88.0 };
 
-    let phys_card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(phys_card_id) {
-        node.set_name("PhysicsCard");
-        node.computed_rect = Rect::new(
-            ctx.base_x,
-            ctx.content_y + virtual_y - ctx.scroll_y,
-            ctx.content_w,
-            phys_h,
-        );
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, phys_card_id);
-
-    let phys_header_rect = Rect::new(
-        ctx.base_x + 8.0,
-        ctx.content_y + virtual_y - ctx.scroll_y + 6.0,
-        ctx.content_w - 16.0,
-        24.0,
+    let card_rect = Rect::new(
+        ctx.base_x,
+        ctx.content_y + virtual_y - ctx.scroll_y,
+        ctx.content_w,
+        phys_h,
     );
+    let section = SettingSectionBuilder::new(card_rect, "🎮  Physics Settings")
+        .collapsed(is_phys_collapsed)
+        .cursor_pos(Some(ctx.cursor_pos))
+        .build(tree, parent_id);
+    let phys_card_id = section.card_id;
     targets
         .section_toggles
-        .push(("editor_physics", phys_header_rect));
-    let is_phys_hdr_hovered = phys_header_rect.contains_point(ctx.cursor_pos);
-
-    let phys_title = tree.create_node();
-    if let Some(node) = tree.get_mut(phys_title) {
-        node.set_name("PhysTitle");
-        let arrow = if is_phys_collapsed { "▸" } else { "▾" };
-        node.set_text(format!("{} 🎮  Physics Settings", arrow));
-        node.font_size = 13.0;
-        node.line_height = 24.0;
-        node.text_color = if is_phys_hdr_hovered {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.88, 0.91, 0.96, 1.0)
-        };
-        node.computed_rect = phys_header_rect;
-    }
-    let _ = tree.add_child(phys_card_id, phys_title);
+        .push(("editor_physics", section.header_rect));
 
     let track_w = ctx.content_w - 28.0 - 170.0 - ctx.val_box_w - 16.0;
     if !is_phys_collapsed {

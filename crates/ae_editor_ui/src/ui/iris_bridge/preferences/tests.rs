@@ -80,6 +80,7 @@ fn test_preferences_dialog_builder_and_hit_targets() {
         window_pos: Some(Point::new(400.0, 200.0)),
         active_tab: 0,
         scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
         active_dropdown: None,
         collapsed_sections: &collapsed,
         active_number_input: None,
@@ -187,6 +188,7 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
         window_pos: Some(Point::new(400.0, 200.0)),
         active_tab: 1,
         scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
         active_dropdown: Some(super::types::PreferencesDropdownId::FpsLimit),
         collapsed_sections: &collapsed,
         active_number_input: None,
@@ -226,5 +228,100 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
     assert_eq!(
         hit.tag, 1,
         "Item index tag must match second option (120 FPS)"
+    );
+}
+
+#[test]
+fn test_preferences_mouse_wheel_and_scrollbar_interaction() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_node();
+    let _ = tree.set_root(root_id);
+
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let graphics_settings = GraphicsSettings::default();
+    let snapping_settings = SnapSettings::default();
+    let editor_config = EditorConfig::default();
+
+    // Graphics tab (tab 1) has multiple sections overflowing viewport height
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: Some(Point::new(400.0, 200.0)),
+        active_tab: 1,
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        collapsed_sections: &collapsed,
+        active_number_input: None,
+        blink_caret: false,
+        cursor_pos: Point::new(450.0, 300.0),
+        zoom_factor: 1.0,
+        graphics_settings: &graphics_settings,
+        snapping_settings: &snapping_settings,
+        editor_config: &editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+    };
+
+    let (_card_id, targets) = build_preferences_dialog(&mut tree, params);
+
+    // 1. Total content height must be accurately populated and exceed viewport height
+    assert!(
+        targets.total_content_height > targets.content_rect.height,
+        "Graphics tab total content height ({}) must exceed content rect height ({})",
+        targets.total_content_height,
+        targets.content_rect.height
+    );
+
+    // 2. Scrollbar geometry must be computed and returned
+    let scrollbar = targets
+        .scrollbar
+        .expect("Scrollbar indicator must exist when content overflows viewport");
+    assert!(
+        scrollbar.track_rect.height > 0.0,
+        "Scrollbar track height must be positive"
+    );
+    assert!(
+        scrollbar.thumb_rect.height > 0.0,
+        "Scrollbar thumb height must be positive"
+    );
+    assert!(
+        scrollbar.thumb_rect.height < scrollbar.track_rect.height,
+        "Scrollbar thumb height must be less than track height for overflowing content"
+    );
+
+    // 3. Verify mouse wheel maximum scroll range is valid and non-zero
+    let max_scroll = (targets.total_content_height - targets.content_rect.height).max(0.0);
+    assert!(
+        max_scroll > 50.0,
+        "Maximum scroll headroom must be positive and non-zero"
+    );
+
+    // 4. Verify scroll delta from thumb drag
+    let drag_delta_y = 40.0;
+    let scroll_delta = ScrollBarGeometry::scroll_from_thumb_drag(
+        drag_delta_y,
+        scrollbar.track_rect.height,
+        scrollbar.thumb_rect.height,
+        max_scroll,
+    );
+    assert!(
+        scroll_delta > 0.0,
+        "Dragging thumb downwards must produce positive scroll delta"
+    );
+
+    // 5. Verify track click at the bottom of the track scrolls to max_scroll
+    let bottom_click_y = scrollbar.track_rect.y + scrollbar.track_rect.height;
+    let track_scroll = ScrollBarGeometry::scroll_from_track_click(
+        bottom_click_y,
+        scrollbar.track_rect.y,
+        scrollbar.track_rect.height,
+        scrollbar.thumb_rect.height,
+        max_scroll,
+    );
+    assert_eq!(
+        track_scroll, max_scroll,
+        "Clicking bottom of scrollbar track must scroll all the way to max_scroll"
     );
 }

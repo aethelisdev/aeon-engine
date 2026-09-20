@@ -21,48 +21,20 @@ pub fn build_runtime_card(
     let is_rt_collapsed = ctx.collapsed_sections.contains("editor_runtime");
     let rt_h = if is_rt_collapsed { 36.0 } else { 74.0 };
 
-    let rt_card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(rt_card_id) {
-        node.set_name("RuntimeCard");
-        node.computed_rect = Rect::new(
-            ctx.base_x,
-            ctx.content_y + virtual_y - ctx.scroll_y,
-            ctx.content_w,
-            rt_h,
-        );
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, rt_card_id);
-
-    let rt_header_rect = Rect::new(
-        ctx.base_x + 8.0,
-        ctx.content_y + virtual_y - ctx.scroll_y + 6.0,
-        ctx.content_w - 16.0,
-        24.0,
+    let card_rect = Rect::new(
+        ctx.base_x,
+        ctx.content_y + virtual_y - ctx.scroll_y,
+        ctx.content_w,
+        rt_h,
     );
+    let section = SettingSectionBuilder::new(card_rect, "⚙  Runtime Settings")
+        .collapsed(is_rt_collapsed)
+        .cursor_pos(Some(ctx.cursor_pos))
+        .build(tree, parent_id);
+    let rt_card_id = section.card_id;
     targets
         .section_toggles
-        .push(("editor_runtime", rt_header_rect));
-    let is_rt_hdr_hovered = rt_header_rect.contains_point(ctx.cursor_pos);
-
-    let rt_title = tree.create_node();
-    if let Some(node) = tree.get_mut(rt_title) {
-        node.set_name("RtTitle");
-        let arrow = if is_rt_collapsed { "▸" } else { "▾" };
-        node.set_text(format!("{} ⚙  Runtime Settings", arrow));
-        node.font_size = 13.0;
-        node.line_height = 24.0;
-        node.text_color = if is_rt_hdr_hovered {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.88, 0.91, 0.96, 1.0)
-        };
-        node.computed_rect = rt_header_rect;
-    }
-    let _ = tree.add_child(rt_card_id, rt_title);
+        .push(("editor_runtime", section.header_rect));
 
     if !is_rt_collapsed {
         let rt_cb_rect = Rect::new(

@@ -100,11 +100,13 @@ pub mod prelude {
         ModalDialogStyle, NumericInputEditState, NumericInputPillBuilder, NumericInputStyle,
         PanelBuilder, PropertyRowBuilder, ResponsiveGrid, ScrollAreaBuilder, ScrollAreaFrame,
         ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit, ScrollBarVisibility, ScrollDirection,
-        SectionHeaderBuilder, SliderBuilder, StatusBarBuilder, TabBuilder, TextInputBuilder,
-        TextInputState, TimelineKeyframeMarker, TimelineRulerBuilder, TimelineRulerFrame,
-        TimelineRulerStyle, TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle, VirtualList,
-        VirtualSlice, evaluate_color_picker_click, evaluate_color_picker_cursor,
-        evaluate_color_picker_drag, evaluate_console_toolbar_click,
+        SectionHeaderBuilder, SettingRowBuilder, SettingRowFrame, SettingRowStyle,
+        SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, SliderBuilder,
+        StatusBarBuilder, TabBuilder, TabbedDialogBuilder, TabbedDialogFrame, TabbedDialogStyle,
+        TabbedDialogTab, TextInputBuilder, TextInputState, TimelineKeyframeMarker,
+        TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle, TreeRowBuilder, TreeRowFrame,
+        TreeRowIcon, TreeRowStyle, VirtualList, VirtualSlice, evaluate_color_picker_click,
+        evaluate_color_picker_cursor, evaluate_color_picker_drag, evaluate_console_toolbar_click,
         evaluate_console_toolbar_cursor, hsv_to_rgb, rgb_to_hsv,
     };
 }

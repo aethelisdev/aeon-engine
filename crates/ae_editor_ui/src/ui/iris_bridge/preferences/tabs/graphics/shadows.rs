@@ -9,11 +9,11 @@ use super::super::super::types::{
     PreferencesDropdownId, PreferencesParams, PreferencesSliderId, PreferencesTargets,
     PreferencesToggleId,
 };
-use super::helpers::{build_checkbox, build_dropdown_row, build_section_header, build_slider_row};
+use super::helpers::{build_checkbox, build_dropdown_row, build_slider_row};
 use super::types::{CardLayoutContext, CheckboxParams, DropdownRowParams, SliderRowParams};
 use irisui::prelude::*;
 
-/// Builds the Shadows configuration card.
+/// Renders the collapsible Shadows settings section card.
 pub fn build_shadows_card(
     tree: &mut UiTree,
     parent_id: WidgetId,
@@ -30,36 +30,20 @@ pub fn build_shadows_card(
     } else {
         64.0
     };
-    let sh_card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sh_card_id) {
-        node.set_name("ShadowsCard");
-        node.computed_rect = Rect::new(
-            ctx.base_x,
-            ctx.content_rect_y + ctx.y_offset,
-            ctx.content_w,
-            sh_h,
-        );
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, sh_card_id);
-
-    build_section_header(
-        tree,
-        sh_card_id,
-        super::types::SectionHeaderParams {
-            base_x: ctx.base_x,
-            y: ctx.content_rect_y + ctx.y_offset,
-            width: ctx.content_w,
-            section_id: "graphics_shadows",
-            title: "🌓  Shadows",
-            is_collapsed,
-            cursor_pos: params.cursor_pos,
-        },
-        targets,
+    let card_rect = Rect::new(
+        ctx.base_x,
+        ctx.content_rect_y + ctx.y_offset,
+        ctx.content_w,
+        sh_h,
     );
+    let section = SettingSectionBuilder::new(card_rect, "🌓  Shadows")
+        .collapsed(is_collapsed)
+        .cursor_pos(Some(params.cursor_pos))
+        .build(tree, parent_id);
+    let sh_card_id = section.card_id;
+    targets
+        .section_toggles
+        .push(("graphics_shadows", section.header_rect));
 
     if is_collapsed {
         return sh_h;

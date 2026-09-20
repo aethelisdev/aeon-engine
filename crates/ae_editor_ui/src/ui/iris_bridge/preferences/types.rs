@@ -116,6 +116,8 @@ pub struct PreferencesTargets {
     pub section_toggles: Vec<(&'static str, Rect)>,
     /// Interactive direct numeric input box targets: `(slider_id, box_rect, min_val, max_val, current_val)`.
     pub number_inputs: Vec<(PreferencesSliderId, Rect, f32, f32, f32)>,
+    /// Geometric layout of the rendered scrollbar track and thumb, if active.
+    pub scrollbar: Option<ScrollBarGeometry>,
 }
 
 /// Parameters passed to construct the Preferences dialog UI tree.
@@ -130,6 +132,8 @@ pub struct PreferencesParams<'a> {
     pub active_tab: u8,
     /// Vertical scroll offset in physical pixels for the content area.
     pub scroll_offset_y: f32,
+    /// Whether the scrollbar thumb is actively being dragged with the left mouse button.
+    pub is_scrollbar_dragging: bool,
     /// Currently open dropdown menu identifier, if any.
     pub active_dropdown: Option<PreferencesDropdownId>,
     /// Set of currently collapsed card/section identifiers.
@@ -192,10 +196,14 @@ pub struct PreferencesDialogState {
     pub last_tab: u8,
     /// Content area vertical scroll offset for Preferences dialog.
     pub scroll_y: f32,
+    /// Previously rendered scroll offset for Preferences dialog to trigger reactive redraws.
+    pub last_scroll_y: f32,
     /// Currently open dropdown ComboBox in the Preferences dialog.
     pub dropdown: Option<PreferencesDropdownId>,
     /// Currently active slider drag descriptor: `(slider_id, track_rect, min_val, max_val)`.
     pub active_slider_drag: Option<(PreferencesSliderId, Rect, f32, f32)>,
+    /// Active scrollbar dragging state: `(start_cursor_y, start_scroll_y)`.
+    pub active_scrollbar_drag: Option<(f32, f32)>,
     /// Dispatched action queue for Preferences dialog interactions.
     pub actions: Vec<PreferencesAction>,
     /// Set of currently collapsed card/section identifiers in the Preferences dialog.

@@ -18,11 +18,14 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        if self.preferences.drag_offset.is_none() && self.preferences.active_slider_drag.is_none() {
+        if self.preferences.drag_offset.is_none()
+            && self.preferences.active_slider_drag.is_none()
+            && self.preferences.active_scrollbar_drag.is_none()
+        {
             return None;
         }
 
-        let _targets = self.preferences.targets.as_ref()?;
+        let targets = self.preferences.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         match event {
@@ -35,6 +38,7 @@ impl IrisEditorOverlay {
                         self.screen_width,
                         self.screen_height,
                     ));
+                    self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
                 }
@@ -56,6 +60,25 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     return Some(result);
                 }
+                if let Some((start_cursor_y, start_scroll_y)) =
+                    self.preferences.active_scrollbar_drag
+                    && let Some(geom) = targets.scrollbar
+                {
+                    let delta_y = self.cursor_pos().y - start_cursor_y;
+                    let max_scroll =
+                        (targets.total_content_height - targets.content_rect.height).max(0.0);
+                    let scroll_delta = ScrollBarGeometry::scroll_from_thumb_drag(
+                        delta_y,
+                        geom.track_rect.height,
+                        geom.thumb_rect.height,
+                        max_scroll,
+                    );
+                    self.preferences.scroll_y =
+                        (start_scroll_y + scroll_delta).clamp(0.0, max_scroll);
+                    self.notifier.tag_all();
+                    result.consumed = true;
+                    return Some(result);
+                }
             }
             WindowEvent::MouseInput {
                 state: ElementState::Released,
@@ -69,6 +92,12 @@ impl IrisEditorOverlay {
                 }
                 if self.preferences.active_slider_drag.is_some() {
                     self.preferences.active_slider_drag = None;
+                    result.consumed = true;
+                    return Some(result);
+                }
+                if self.preferences.active_scrollbar_drag.is_some() {
+                    self.preferences.active_scrollbar_drag = None;
+                    self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
                 }
@@ -161,6 +190,7 @@ impl IrisEditorOverlay {
                         result.close_preferences = true;
                         self.preferences.drag_offset = None;
                         self.preferences.active_slider_drag = None;
+                        self.preferences.active_scrollbar_drag = None;
                         self.preferences.active_number_input = None;
                     }
                     result.consumed = true;
@@ -169,17 +199,18 @@ impl IrisEditorOverlay {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if !self.is_point_over_popup(self.cursor_pos())
-                    && targets.content_rect.contains_point(self.cursor_pos())
+                    && (targets.content_rect.contains_point(self.cursor_pos())
+                        || targets.card_rect.contains_point(self.cursor_pos()))
                 {
                     let scroll_y = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 28.0,
                         winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
                     };
-                    let max_scroll = (targets.total_content_height - targets.content_rect.height
-                        + 32.0)
-                        .max(0.0);
+                    let max_scroll =
+                        (targets.total_content_height - targets.content_rect.height).max(0.0);
                     self.preferences.scroll_y =
                         (self.preferences.scroll_y - scroll_y).clamp(0.0, max_scroll);
+                    self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
                 }
@@ -300,8 +331,49 @@ impl IrisEditorOverlay {
                         self.preferences.dropdown = None;
                         self.preferences.active_number_input = None;
                         self.preferences.scroll_y = 0.0;
+                        self.preferences.active_scrollbar_drag = None;
                         self.notifier.tag_all();
                         result.preferences_action = Some(PreferencesAction::SelectTab(tab_idx));
+                        result.consumed = true;
+                        return Some(result);
+                    }
+                }
+
+                // 5b. Scrollbar thumb drag or track click
+                if let Some(geom) = targets.scrollbar {
+                    let thumb_hit_rect = Rect::new(
+                        geom.thumb_rect.x - 6.0,
+                        geom.thumb_rect.y,
+                        geom.thumb_rect.width + 12.0,
+                        geom.thumb_rect.height,
+                    );
+                    let track_hit_rect = Rect::new(
+                        geom.track_rect.x - 6.0,
+                        geom.track_rect.y,
+                        geom.track_rect.width + 12.0,
+                        geom.track_rect.height,
+                    );
+
+                    if thumb_hit_rect.contains_point(click_point) {
+                        self.preferences.active_scrollbar_drag =
+                            Some((click_point.y, self.preferences.scroll_y));
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
+                    } else if track_hit_rect.contains_point(click_point) {
+                        let max_scroll =
+                            (targets.total_content_height - targets.content_rect.height).max(0.0);
+                        let new_scroll = ScrollBarGeometry::scroll_from_track_click(
+                            click_point.y,
+                            geom.track_rect.y,
+                            geom.track_rect.height,
+                            geom.thumb_rect.height,
+                            max_scroll,
+                        );
+                        self.preferences.scroll_y = new_scroll.clamp(0.0, max_scroll);
+                        self.preferences.active_scrollbar_drag =
+                            Some((click_point.y, self.preferences.scroll_y));
+                        self.notifier.tag_all();
                         result.consumed = true;
                         return Some(result);
                     }

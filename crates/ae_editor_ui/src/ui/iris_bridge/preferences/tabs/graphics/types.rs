@@ -85,14 +85,3 @@ pub struct CardLayoutContext {
     /// Content area top position in screen coordinates.
     pub content_rect_y: f32,
 }
-
-/// Parameters for rendering a labeled collapsible section header.
-pub struct SectionHeaderParams<'a> {
-    pub base_x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub section_id: &'static str,
-    pub title: &'a str,
-    pub is_collapsed: bool,
-    pub cursor_pos: Point,
-}

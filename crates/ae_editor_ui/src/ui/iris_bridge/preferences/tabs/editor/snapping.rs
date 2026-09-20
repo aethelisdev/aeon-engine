@@ -25,48 +25,20 @@ pub fn build_snapping_card(
     let is_snap_collapsed = ctx.collapsed_sections.contains("editor_snapping");
     let snap_h = if is_snap_collapsed { 36.0 } else { 100.0 };
 
-    let snap_card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(snap_card_id) {
-        node.set_name("SnappingCard");
-        node.computed_rect = Rect::new(
-            ctx.base_x,
-            ctx.content_y + virtual_y - ctx.scroll_y,
-            ctx.content_w,
-            snap_h,
-        );
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, snap_card_id);
-
-    let snap_header_rect = Rect::new(
-        ctx.base_x + 8.0,
-        ctx.content_y + virtual_y - ctx.scroll_y + 6.0,
-        ctx.content_w - 16.0,
-        24.0,
+    let card_rect = Rect::new(
+        ctx.base_x,
+        ctx.content_y + virtual_y - ctx.scroll_y,
+        ctx.content_w,
+        snap_h,
     );
+    let section = SettingSectionBuilder::new(card_rect, "🧲  Snapping")
+        .collapsed(is_snap_collapsed)
+        .cursor_pos(Some(ctx.cursor_pos))
+        .build(tree, parent_id);
+    let snap_card_id = section.card_id;
     targets
         .section_toggles
-        .push(("editor_snapping", snap_header_rect));
-    let is_snap_hdr_hovered = snap_header_rect.contains_point(ctx.cursor_pos);
-
-    let snap_title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(snap_title_id) {
-        node.set_name("SnapTitle");
-        let arrow = if is_snap_collapsed { "▸" } else { "▾" };
-        node.set_text(format!("{} 🧲  Snapping", arrow));
-        node.font_size = 13.0;
-        node.line_height = 24.0;
-        node.text_color = if is_snap_hdr_hovered {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.88, 0.91, 0.96, 1.0)
-        };
-        node.computed_rect = snap_header_rect;
-    }
-    let _ = tree.add_child(snap_card_id, snap_title_id);
+        .push(("editor_snapping", section.header_rect));
 
     let mut snap_combo_rect: Option<Rect> = None;
     if !is_snap_collapsed {

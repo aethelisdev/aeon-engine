@@ -9,7 +9,7 @@ use super::super::super::types::{
     PreferencesDropdownId, PreferencesParams, PreferencesSliderId, PreferencesTargets,
     PreferencesToggleId,
 };
-use super::helpers::{build_checkbox, build_dropdown_row, build_section_header, build_slider_row};
+use super::helpers::{build_checkbox, build_dropdown_row, build_slider_row};
 use super::types::{CardLayoutContext, CheckboxParams, DropdownRowParams, SliderRowParams};
 use ae_renderer::graphics_settings::SkyQuality;
 use irisui::prelude::*;
@@ -35,31 +35,15 @@ pub fn build_environment_card(
     let base_x = ctx.base_x;
     let content_w = ctx.content_w;
 
-    let env_card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(env_card_id) {
-        node.set_name("EnvCard");
-        node.computed_rect = Rect::new(base_x, ctx.content_rect_y + ctx.y_offset, content_w, env_h);
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, env_card_id);
-
-    build_section_header(
-        tree,
-        env_card_id,
-        super::types::SectionHeaderParams {
-            base_x,
-            y: ctx.content_rect_y + ctx.y_offset,
-            width: content_w,
-            section_id: "graphics_env",
-            title: "⛅  Environment & Sky",
-            is_collapsed,
-            cursor_pos: params.cursor_pos,
-        },
-        targets,
-    );
+    let card_rect = Rect::new(base_x, ctx.content_rect_y + ctx.y_offset, content_w, env_h);
+    let section = SettingSectionBuilder::new(card_rect, "⛅  Environment & Sky")
+        .collapsed(is_collapsed)
+        .cursor_pos(Some(params.cursor_pos))
+        .build(tree, parent_id);
+    let env_card_id = section.card_id;
+    targets
+        .section_toggles
+        .push(("graphics_env", section.header_rect));
 
     if is_collapsed {
         return env_h;

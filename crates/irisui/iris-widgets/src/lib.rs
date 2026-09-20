@@ -27,6 +27,7 @@ pub mod modal;
 pub mod numeric_input;
 pub mod panel;
 pub mod scroll_area;
+pub mod settings;
 pub mod status_bar;
 pub mod timeline;
 pub mod tree_view;
@@ -75,6 +76,11 @@ pub use panel::PanelBuilder;
 pub use scroll_area::{
     ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit,
     ScrollBarVisibility, ScrollDirection, VirtualList, VirtualSlice,
+};
+pub use settings::{
+    SettingRowBuilder, SettingRowFrame, SettingRowStyle, SettingSectionBuilder,
+    SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder, TabbedDialogFrame,
+    TabbedDialogStyle, TabbedDialogTab,
 };
 pub use status_bar::StatusBarBuilder;
 pub use timeline::{

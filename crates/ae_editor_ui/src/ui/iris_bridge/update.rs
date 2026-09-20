@@ -88,6 +88,7 @@ impl IrisEditorOverlay {
             || self.chrome.last_floating_count != floating_count
             || self.modals.last_modal_active != modal_active
             || self.preferences.last_tab != self.preferences.tab
+            || (self.preferences.last_scroll_y - self.preferences.scroll_y).abs() > 0.001
             || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
             || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
@@ -393,9 +394,14 @@ impl IrisEditorOverlay {
                     window_pos: self.preferences.pos,
                     active_tab: self.preferences.tab,
                     scroll_offset_y: self.preferences.scroll_y,
+                    is_scrollbar_dragging: self.preferences.active_scrollbar_drag.is_some(),
                     active_dropdown: self.preferences.dropdown,
                     collapsed_sections: &self.preferences.collapsed_sections,
-                    active_number_input: None,
+                    active_number_input: self
+                        .preferences
+                        .active_number_input
+                        .as_ref()
+                        .map(|(id, s)| (*id, s.as_str())),
                     blink_caret,
                     cursor_pos: cursor,
                     zoom_factor: params.context.zoom_factor,
@@ -616,6 +622,7 @@ impl IrisEditorOverlay {
         self.chrome.last_floating_count = floating_count;
         self.modals.last_modal_active = modal_active;
         self.preferences.last_tab = self.preferences.tab;
+        self.preferences.last_scroll_y = self.preferences.scroll_y;
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
         self.chrome.last_has_drag_payload = has_drag_payload;
         self.chrome.last_cursor_pos = self.cursor_pos();

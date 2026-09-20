@@ -92,61 +92,19 @@ pub fn build_general_tab(
         content_w,
         card_h,
     );
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("ScaleGroupCard");
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-            .border_radius(6.0);
-    }
-    let _ = tree.add_child(parent_id, card_id);
-
-    let header_rect = Rect::new(
-        base_x + 8.0,
-        content_rect.y + virtual_y - scroll_y + 6.0,
-        content_w - 16.0,
-        24.0,
-    );
-    targets.section_toggles.push(("general_scale", header_rect));
-    let is_hdr_hovered = header_rect.contains_point(params.cursor_pos);
-
-    // Group Title
-    let grp_title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(grp_title_id) {
-        node.set_name("ScaleGroupTitle");
-        let arrow = if is_collapsed { "▸" } else { "▾" };
-        node.set_text(format!("{} 🔍  Display & UI Scale", arrow));
-        node.font_size = 13.0;
-        node.line_height = 24.0;
-        node.text_color = if is_hdr_hovered {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.88, 0.91, 0.96, 1.0)
-        };
-        node.computed_rect = header_rect;
-    }
-    let _ = tree.add_child(card_id, grp_title_id);
+    let section = SettingSectionBuilder::new(card_rect, "🔍  Display & UI Scale")
+        .collapsed(is_collapsed)
+        .description(
+            "Adjust interface scale for different monitor resolutions (or use Ctrl + / Ctrl - shortcuts):",
+        )
+        .cursor_pos(Some(params.cursor_pos))
+        .build(tree, parent_id);
+    let card_id = section.card_id;
+    targets
+        .section_toggles
+        .push(("general_scale", section.header_rect));
 
     if !is_collapsed {
-        // Group Description
-        let grp_desc_id = tree.create_node();
-        if let Some(node) = tree.get_mut(grp_desc_id) {
-            node.set_name("ScaleGroupDesc");
-            node.set_text("Adjust interface scale for different monitor resolutions (or use Ctrl + / Ctrl - shortcuts):");
-            node.font_size = 11.0;
-            node.line_height = 15.0;
-            node.text_color = Color::rgba(0.60, 0.63, 0.72, 1.0);
-            node.computed_rect = Rect::new(
-                base_x + 14.0,
-                content_rect.y + virtual_y - scroll_y + 34.0,
-                content_w - 28.0,
-                15.0,
-            );
-        }
-        let _ = tree.add_child(card_id, grp_desc_id);
-
         // ComboBox Dropdown Button
         let current_zoom = params.zoom_factor;
         let selected_label = UI_SCALES

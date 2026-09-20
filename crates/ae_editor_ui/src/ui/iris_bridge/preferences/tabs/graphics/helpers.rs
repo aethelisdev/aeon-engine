@@ -6,36 +6,8 @@
 //! Reusable widget builders for section headers, checkboxes, range sliders, and dropdown rows.
 
 use super::super::super::types::PreferencesTargets;
-use super::types::{CheckboxParams, DropdownRowParams, SectionHeaderParams, SliderRowParams};
+use super::types::{CheckboxParams, DropdownRowParams, SliderRowParams};
 use irisui::prelude::*;
-
-/// Parameters for building a labeled collapsible section header.
-pub fn build_section_header(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    p: SectionHeaderParams<'_>,
-    targets: &mut PreferencesTargets,
-) {
-    let header_rect = Rect::new(p.base_x + 8.0, p.y + 6.0, p.width - 16.0, 24.0);
-    let is_hovered = header_rect.contains_point(p.cursor_pos);
-    targets.section_toggles.push((p.section_id, header_rect));
-
-    let title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(title_id) {
-        node.set_name("SectionTitle");
-        let arrow = if p.is_collapsed { "▸" } else { "▾" };
-        node.set_text(format!("{}  {}", arrow, p.title));
-        node.font_size = 13.0;
-        node.line_height = 24.0;
-        node.text_color = if is_hovered {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
-        } else {
-            Color::rgba(0.88, 0.91, 0.96, 1.0)
-        };
-        node.computed_rect = header_rect;
-    }
-    let _ = tree.add_child(parent_id, title_id);
-}
 
 /// Helper to render an interactive checkbox toggle.
 pub fn build_checkbox(
