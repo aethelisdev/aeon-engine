@@ -195,9 +195,10 @@ pub struct EngineUi {
     /// Log count snapshot tracker for change detection.
     pub console_last_count: u64,
 
-    // Cache of UI rects for hit-testing outside UI
-    /// Rectangles of active interactive UI panels.
-    pub ui_rects: Vec<Rect>,
+    /// Active engine execution mode snapshot (Edit, Play, Pause).
+    pub active_mode: ae_core::modules::EngineMode,
+    /// Pending UI action commands queued from interactive widgets to be dispatched to the engine.
+    pub pending_actions: Vec<EngineUiAction>,
 
     /// Surface output color format for lazy text renderer initialization.
     pub output_color_format: wgpu::TextureFormat,
@@ -296,7 +297,8 @@ impl EngineUi {
             gpu_backend: String::new(),
             console_entries: Vec::new(),
             console_last_count: 0,
-            ui_rects: Vec::new(),
+            active_mode: ae_core::modules::EngineMode::Edit,
+            pending_actions: Vec::new(),
         }
     }
 
@@ -350,13 +352,18 @@ impl EngineUi {
     }
 
     /// Returns whether a screen coordinate is over interactive UI elements.
-    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
+    ///
+    /// Evaluates the active [`UiTree`] via [`UiTree::hit_test_target`], respecting layer stacking
+    /// contexts and element interactivity with zero manual coordinate heuristics.
+    pub fn is_point_over_ui(&self, pos: [f32; 2]) -> bool {
         let p = Point::new(pos[0], pos[1]);
-        // Exclude 3D viewport region so camera controls receive mouse events
-        if self.last_viewport_rect.contains_point(p) {
-            return false;
-        }
         self.tree.hit_test_target(p).is_some()
+    }
+
+    /// Backwards-compatible alias for [`Self::is_point_over_ui`].
+    #[inline]
+    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
+        self.is_point_over_ui(pos)
     }
 
     /// Polls asynchronous native file dialog receivers and applies their actions.
@@ -441,9 +448,76 @@ impl EngineUi {
                     self.viewport_rect_height,
                 );
             }
+            winit::event::WindowEvent::MouseInput {
+                state: winit::event::ElementState::Pressed,
+                button: winit::event::MouseButton::Left,
+                ..
+            } => {
+                if let Some(target) = self.tree.hit_test_target(self.cursor_pos) {
+                    if let Some(hud_action) = evaluate_viewport_hud_tag(target.tag) {
+                        self.handle_hud_action(hud_action);
+                        return true;
+                    }
+                    return true;
+                }
+            }
             _ => {}
         }
         false
+    }
+
+    /// Dispatches an action originating from Viewport HUD overlay controls.
+    pub fn handle_hud_action(&mut self, action: ViewportHudAction) {
+        match action {
+            ViewportHudAction::SetGizmoMode(mode) => {
+                self.gizmo_mode = match mode {
+                    ViewportGizmoMode::Select => ae_editor::gizmo::GizmoMode::Select,
+                    ViewportGizmoMode::Translate => ae_editor::gizmo::GizmoMode::Translate,
+                    ViewportGizmoMode::Rotate => ae_editor::gizmo::GizmoMode::Rotate,
+                    ViewportGizmoMode::Scale => ae_editor::gizmo::GizmoMode::Scale,
+                };
+            }
+            ViewportHudAction::ToggleGizmoSpace => {
+                self.gizmo_space = match self.gizmo_space {
+                    ae_editor::gizmo::GizmoSpace::World => ae_editor::gizmo::GizmoSpace::Local,
+                    ae_editor::gizmo::GizmoSpace::Local => ae_editor::gizmo::GizmoSpace::World,
+                };
+            }
+            ViewportHudAction::ToggleSnapping => {
+                self.pending_actions
+                    .push(EngineUiAction::UpdateSnapSettings(
+                        ae_editor::snapping::SnapSettings {
+                            mode: ae_editor::snapping::SnapMode::Toggle,
+                            current_enabled: true,
+                            ..Default::default()
+                        },
+                    ));
+            }
+            ViewportHudAction::ToggleGrid => {
+                self.grid_enabled = !self.grid_enabled;
+            }
+            ViewportHudAction::TogglePlayPause => {
+                let next_mode = if self.active_mode == ae_core::modules::EngineMode::Play {
+                    ae_core::modules::EngineMode::Edit
+                } else {
+                    ae_core::modules::EngineMode::Play
+                };
+                self.pending_actions
+                    .push(EngineUiAction::ChangeMode(next_mode));
+            }
+            ViewportHudAction::StopSimulation => {
+                self.pending_actions.push(EngineUiAction::ChangeMode(
+                    ae_core::modules::EngineMode::Edit,
+                ));
+            }
+            ViewportHudAction::ToggleCameraProjection => {
+                self.pending_actions
+                    .push(EngineUiAction::ToggleCameraProjection);
+            }
+            ViewportHudAction::ToggleWireframe => {
+                self.wireframe_enabled = !self.wireframe_enabled;
+            }
+        }
     }
 
     /// Primary render pass executing Iris UI GPU drawing commands.
@@ -451,6 +525,10 @@ impl EngineUi {
         &mut self,
         params: EditorUiRenderParams<'_>,
     ) -> ae_renderer::render::ViewportRect {
+        self.active_mode = *params.mode;
+        // Drain any pending interactive actions into outgoing queue
+        params.ui_actions.append(&mut self.pending_actions);
+
         let win_size = params.window.inner_size();
         let scale = self.scale_factor();
         let logical_w = win_size.width as f32 / scale;
@@ -462,11 +540,13 @@ impl EngineUi {
         self.tree.clear();
         let root = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(root) {
+            node.name = Some("WorkbenchRoot".to_string());
             node.computed_rect = Rect::new(0.0, 0.0, logical_w, logical_h);
+            node.interactive = false;
         }
         let _ = self.tree.set_root(root);
 
-        // 2. Viewport 3D Render Texture Binding
+        // 2. Viewport 3D Render Texture Binding via iris-widgets ViewportCanvasBuilder
         if let Some(vp_tex) = params.viewport_texture_view {
             let tex_id = ExternalTextureId(1);
             self.renderer.external_textures.set(
@@ -475,13 +555,53 @@ impl EngineUi {
                 tex_id,
                 vp_tex,
             );
-            let vp_node = self.tree.create_node();
-            if let Some(node) = self.tree.get_mut(vp_node) {
-                node.computed_rect = self.last_viewport_rect;
-                node.style = Style::new().background(Color::rgba(0.08, 0.08, 0.10, 1.0));
-                node.external_texture = Some(tex_id);
-            }
-            let _ = self.tree.add_child(root, vp_node);
+
+            let _canvas_id = ViewportCanvasBuilder::new(&mut self.tree, self.last_viewport_rect)
+                .external_texture(tex_id)
+                .background(Color::rgba(0.08, 0.08, 0.10, 1.0))
+                .layer(UiLayer::Background)
+                .cursor(WidgetCursor::Default)
+                .interactive(false)
+                .name("Main3DViewport")
+                .build(Some(root));
+
+            // 3. Floating Viewport HUD Controls via iris-widgets ViewportHudBuilder
+            let vp_gizmo_mode = match self.gizmo_mode {
+                ae_editor::gizmo::GizmoMode::Select => ViewportGizmoMode::Select,
+                ae_editor::gizmo::GizmoMode::Translate => ViewportGizmoMode::Translate,
+                ae_editor::gizmo::GizmoMode::Rotate => ViewportGizmoMode::Rotate,
+                ae_editor::gizmo::GizmoMode::Scale => ViewportGizmoMode::Scale,
+            };
+            let vp_gizmo_space = match self.gizmo_space {
+                ae_editor::gizmo::GizmoSpace::World => ViewportGizmoSpace::World,
+                ae_editor::gizmo::GizmoSpace::Local => ViewportGizmoSpace::Local,
+            };
+            let vp_cam_mode = match params.camera.mode {
+                ae_renderer::camera::ProjectionMode::Perspective => ViewportCameraMode::Perspective,
+                ae_renderer::camera::ProjectionMode::Orthographic => {
+                    ViewportCameraMode::Orthographic
+                }
+            };
+            let vp_eng_mode = match *params.mode {
+                ae_core::modules::EngineMode::Edit => ViewportEngineMode::Editing,
+                ae_core::modules::EngineMode::Play => ViewportEngineMode::Playing,
+            };
+            let frame_ms = if params.fps > 0.1 {
+                1000.0 / params.fps
+            } else {
+                16.67
+            };
+
+            let _hud_frame = ViewportHudBuilder::new(self.last_viewport_rect)
+                .gizmo_mode(vp_gizmo_mode)
+                .gizmo_space(vp_gizmo_space)
+                .snapping(params.snapping.current_enabled)
+                .grid(self.grid_enabled)
+                .wireframe(self.wireframe_enabled)
+                .camera_mode(vp_cam_mode)
+                .engine_mode(vp_eng_mode)
+                .diagnostics(params.fps, frame_ms)
+                .build(&mut self.tree, root);
         }
 
         // 3. Compile Draw Commands
@@ -543,5 +663,65 @@ pub fn map_widget_cursor_to_winit(cur: WidgetCursor) -> winit::window::CursorIco
         WidgetCursor::NeswResize => winit::window::CursorIcon::NeswResize,
         WidgetCursor::NwseResize => winit::window::CursorIcon::NwseResize,
         WidgetCursor::NotAllowed => winit::window::CursorIcon::NotAllowed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_point_over_ui_tree_driven_and_hud_isolation() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+            node.interactive = false;
+        }
+        let _ = tree.set_root(root);
+
+        // 1. Viewport canvas (interactive = false)
+        let _canvas_id = ViewportCanvasBuilder::new(&mut tree, Rect::new(0.0, 0.0, 1920.0, 1080.0))
+            .background(Color::rgba(0.08, 0.08, 0.10, 1.0))
+            .layer(UiLayer::Background)
+            .interactive(false)
+            .name("Main3DViewport")
+            .build(Some(root));
+
+        // 2. Viewport HUD overlay (interactive = true buttons)
+        let _hud_frame = ViewportHudBuilder::new(Rect::new(0.0, 0.0, 1920.0, 1080.0))
+            .gizmo_mode(ViewportGizmoMode::Translate)
+            .build(&mut tree, root);
+
+        // Inside empty 3D viewport canvas: hit_test_target must return None
+        let center_canvas_hit = tree.hit_test_target(Point::new(960.0, 540.0));
+        assert!(center_canvas_hit.is_none());
+
+        // Over Viewport HUD top-left toolbar button (e.g. Move at x=75.0, y=20.0):
+        let hud_btn_hit = tree.hit_test_target(Point::new(75.0, 20.0));
+        assert!(hud_btn_hit.is_some());
+        let info = hud_btn_hit.unwrap();
+        assert_eq!(info.role, WidgetRole::Button);
+        assert_eq!(info.tag, iris_widgets::VIEWPORT_HUD_TAG_GIZMO_TRANSLATE);
+    }
+
+    #[test]
+    fn test_map_widget_cursor_to_winit() {
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Default),
+            winit::window::CursorIcon::Default
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Pointer),
+            winit::window::CursorIcon::Pointer
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Grab),
+            winit::window::CursorIcon::Grab
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::ColResize),
+            winit::window::CursorIcon::ColResize
+        );
     }
 }
