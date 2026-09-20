@@ -8,10 +8,10 @@
 //!
 
 use super::types::{AssetCardTarget, AssetsPanelParams, AssetsPanelTargets, truncate_display_name};
+use crate::assets::types::AssetCategory;
 use crate::ui::iris_bridge::icons::{
     ICON_AUDIO, ICON_CAMERA, ICON_CUBE, ICON_FOLDER, ICON_LIGHT, ICON_SPHERE, ICON_WORLD,
 };
-use crate::ui::panels::assets::types::AssetCategory;
 use irisui::prelude::*;
 
 /// Standard width of an asset grid card in logical pixels.

@@ -9,7 +9,7 @@
 //! 2. Floating cursor tooltip capsule displaying the category badge and asset name.
 //!
 
-use crate::ui::panels::assets::types::AssetDragPayload;
+use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
 use irisui::prelude::{Color, Point, Rect, Style, UiTree, WidgetId};
 
@@ -34,13 +34,11 @@ pub fn build_asset_drag_overlays(
     {
         let center_opt = if !is_2d_mode {
             // 3D Mode: Raycast against horizontal ground plane Y = 0
-            if let Some(world_pos) =
-                crate::ui::panels::assets::drag_drop::compute_ground_intersection(
-                    [cursor_pos.x, cursor_pos.y],
-                    viewport_rect,
-                    camera,
-                )
-            {
+            if let Some(world_pos) = crate::assets::drag_drop::compute_ground_intersection(
+                [cursor_pos.x, cursor_pos.y],
+                viewport_rect,
+                camera,
+            ) {
                 let vp_matrix = camera.build_view_projection_matrix();
                 let pos_v4 = cgmath::Vector4::new(world_pos[0], world_pos[1], world_pos[2], 1.0);
                 let clip_v4 = vp_matrix * pos_v4;

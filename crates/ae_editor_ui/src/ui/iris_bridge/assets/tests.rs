@@ -10,7 +10,7 @@ use super::types::{
     AssetCardTarget, AssetPreviewModalState, AssetsContextMenuTarget, AssetsPanelAction,
     AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
 };
-use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -373,8 +373,8 @@ fn test_assets_card_rendering_with_unicode_filenames() {
 
 #[test]
 fn test_asset_drag_overlay_construction() {
+    use crate::assets::types::{AssetCategory, AssetDragPayload};
     use crate::ui::iris_bridge::assets::build_asset_drag_overlays;
-    use crate::ui::panels::assets::types::{AssetCategory, AssetDragPayload};
     use ae_renderer::camera::Camera;
 
     let mut tree = UiTree::new();
@@ -740,7 +740,7 @@ fn test_bidirectional_scene_filtering() {
 /// Verifies that `is_scene_json_3d` accurately distinguishes 3D vs 2D scene structures.
 #[test]
 fn test_is_scene_json_3d_detection() {
-    use crate::ui::panels::assets::scanner::is_scene_json_3d;
+    use crate::assets::scanner::is_scene_json_3d;
 
     let scene_3d_shape = serde_json::json!([
         {

@@ -405,7 +405,7 @@ impl EngineUi {
                     ui_actions.push(EngineUiAction::OpenModelDialog);
                 }
                 iris_bridge::AssetsPanelAction::RevealFolder(path) => {
-                    let _ = crate::ui::panels::assets::file_ops::open_in_file_explorer(&path);
+                    let _ = crate::assets::file_ops::open_in_file_explorer(&path);
                 }
                 iris_bridge::AssetsPanelAction::CleanVram => {
                     ui_actions.push(EngineUiAction::GarbageCollect);
@@ -415,15 +415,14 @@ impl EngineUi {
                     self.asset_browser.new_folder_name.clear();
                 }
                 iris_bridge::AssetsPanelAction::SpawnAsset(path, cat) => match cat {
-                    crate::ui::panels::assets::types::AssetCategory::Models3D => {
+                    crate::assets::types::AssetCategory::Models3D => {
                         ui_actions.push(EngineUiAction::SpawnModelPathAt(path, [0.0, 0.0, 0.0]));
                     }
-                    crate::ui::panels::assets::types::AssetCategory::Textures2D => {
+                    crate::assets::types::AssetCategory::Textures2D => {
                         ui_actions.push(EngineUiAction::SpawnSpritePathAt(path, [0.0, 0.0, 0.0]));
                     }
-                    crate::ui::panels::assets::types::AssetCategory::Scenes => {
-                        if is_2d_mode && crate::ui::panels::assets::scanner::is_scene_file_3d(&path)
-                        {
+                    crate::assets::types::AssetCategory::Scenes => {
+                        if is_2d_mode && crate::assets::scanner::is_scene_file_3d(&path) {
                             log::warn!("Cannot load 3D scene in 2D mode: {:?}", path);
                         } else {
                             ui_actions.push(EngineUiAction::LoadSceneFromPath(path));
@@ -443,12 +442,11 @@ impl EngineUi {
                     );
                 }
                 iris_bridge::AssetsPanelAction::OpenRename(path, name, is_folder) => {
-                    self.asset_browser.rename_state =
-                        Some(crate::ui::panels::assets::types::RenamingState {
-                            target_path: path,
-                            current_name: name,
-                            is_folder,
-                        });
+                    self.asset_browser.rename_state = Some(crate::assets::types::RenamingState {
+                        target_path: path,
+                        current_name: name,
+                        is_folder,
+                    });
                 }
                 iris_bridge::AssetsPanelAction::OpenDelete(path) => {
                     self.asset_browser.delete_confirmation = Some(path);
@@ -458,7 +456,7 @@ impl EngineUi {
                 }
                 iris_bridge::AssetsPanelAction::StartAssetDrag(item) => {
                     self.asset_browser.drag_payload =
-                        Some(crate::ui::panels::assets::types::AssetDragPayload {
+                        Some(crate::assets::types::AssetDragPayload {
                             path: item.path,
                             name: item.name,
                             category: item.category,
@@ -475,7 +473,7 @@ impl EngineUi {
                         {
                             let world_pos = if !is_2d_mode {
                                 if let Some(hit) =
-                                    crate::ui::panels::assets::drag_drop::compute_ground_intersection(
+                                    crate::assets::drag_drop::compute_ground_intersection(
                                         [cursor_pos.x, cursor_pos.y],
                                         self.last_viewport_rect,
                                         camera,
@@ -510,7 +508,7 @@ impl EngineUi {
                             );
 
                             match payload.category {
-                                crate::ui::panels::assets::types::AssetCategory::Models3D => {
+                                crate::assets::types::AssetCategory::Models3D => {
                                     if let Some(handle) = payload.model_handle {
                                         ui_actions
                                             .push(EngineUiAction::SpawnModelAt(handle, world_pos));
@@ -521,7 +519,7 @@ impl EngineUi {
                                         ));
                                     }
                                 }
-                                crate::ui::panels::assets::types::AssetCategory::Textures2D => {
+                                crate::assets::types::AssetCategory::Textures2D => {
                                     if let Some(handle) = payload.texture_handle {
                                         ui_actions
                                             .push(EngineUiAction::SpawnSpriteAt(handle, world_pos));
@@ -532,11 +530,9 @@ impl EngineUi {
                                         ));
                                     }
                                 }
-                                crate::ui::panels::assets::types::AssetCategory::Scenes => {
+                                crate::assets::types::AssetCategory::Scenes => {
                                     if is_2d_mode
-                                        && crate::ui::panels::assets::scanner::is_scene_file_3d(
-                                            &payload.path,
-                                        )
+                                        && crate::assets::scanner::is_scene_file_3d(&payload.path)
                                     {
                                         log::warn!(
                                             "Cannot load 3D scene in 2D mode: {:?}",

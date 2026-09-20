@@ -83,7 +83,7 @@ impl EngineUi {
         if iris_res.confirm_delete
             && let Some(target) = self.asset_browser.delete_confirmation.take()
         {
-            let _ = crate::ui::panels::assets::file_ops::delete_asset_or_folder(&target);
+            let _ = crate::assets::file_ops::delete_asset_or_folder(&target);
             if self.asset_browser.selected_asset.as_ref() == Some(&target) {
                 self.asset_browser.selected_asset = None;
             }
@@ -95,7 +95,7 @@ impl EngineUi {
         if let Some(folder_name) = iris_res.create_folder
             && let Some(parent) = self.asset_browser.new_folder_parent.take()
         {
-            let _ = crate::ui::panels::assets::file_ops::create_subfolder(&parent, &folder_name);
+            let _ = crate::assets::file_ops::create_subfolder(&parent, &folder_name);
             self.iris_overlay.modals.new_folder_buffer.clear();
             self.asset_browser.new_folder_name.clear();
         }
@@ -108,10 +108,7 @@ impl EngineUi {
         if let Some(new_name) = iris_res.apply_rename
             && let Some(ren) = self.asset_browser.rename_state.take()
         {
-            let _ = crate::ui::panels::assets::file_ops::rename_asset_or_folder(
-                &ren.target_path,
-                &new_name,
-            );
+            let _ = crate::assets::file_ops::rename_asset_or_folder(&ren.target_path, &new_name);
             self.iris_overlay.modals.rename_buffer.clear();
         }
         if iris_res.cancel_rename {

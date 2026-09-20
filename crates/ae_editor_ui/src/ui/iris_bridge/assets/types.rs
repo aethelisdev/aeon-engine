@@ -8,7 +8,7 @@
 //!
 
 use super::events::AssetClickTracker;
-use crate::ui::panels::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::{Point, Rect};
 use std::collections::HashMap;
 use std::path::PathBuf;

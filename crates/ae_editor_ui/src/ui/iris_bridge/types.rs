@@ -446,7 +446,7 @@ pub struct OverlayPanelData<'a> {
     /// Reference to persistent UI Designer state for canvas and toolbar rendering.
     pub ui_designer_state: &'a ae_uidesign::UiDesignerState,
     /// Reference to persistent asset browser state for Content Browser rendering.
-    pub asset_browser: &'a crate::ui::panels::assets::AssetBrowserState,
+    pub asset_browser: &'a crate::assets::AssetBrowserState,
     /// Slice of active in-memory log entries for Developer Console rendering.
     pub console_entries: &'a [crate::ui::types::ConsoleEntry],
     /// GPU texture asset repository for material panel inspection.

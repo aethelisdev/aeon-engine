@@ -13,8 +13,8 @@ use super::types::{
     ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuTarget,
     AssetsContextMenuTargets, AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
 };
+use crate::assets::types::AssetCategory;
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
-use crate::ui::panels::assets::types::AssetCategory;
 use irisui::prelude::*;
 
 /// Width of the floating context menu popup card in logical pixels.

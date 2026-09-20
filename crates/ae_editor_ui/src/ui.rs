@@ -9,7 +9,6 @@
 
 pub mod iris_bridge;
 pub mod panel_layout;
-pub mod panels;
 pub mod types;
 pub mod workbench;
 

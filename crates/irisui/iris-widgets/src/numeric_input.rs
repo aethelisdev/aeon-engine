@@ -95,6 +95,7 @@ pub struct NumericInputPillBuilder<'a> {
     is_hovered: bool,
     style: NumericInputStyle,
     name: Option<String>,
+    tag: u64,
 }
 
 impl<'a> NumericInputPillBuilder<'a> {
@@ -112,6 +113,7 @@ impl<'a> NumericInputPillBuilder<'a> {
             is_hovered: false,
             style: NumericInputStyle::default(),
             name: None,
+            tag: 0,
         }
     }
 
@@ -178,6 +180,13 @@ impl<'a> NumericInputPillBuilder<'a> {
         self
     }
 
+    /// Assigns a semantic identifier tag to the numeric input pill container (`node.tag`).
+    #[must_use]
+    pub fn tag(mut self, tag: u64) -> Self {
+        self.tag = tag;
+        self
+    }
+
     /// Assembles the numeric input pill hierarchy into the provided [`UiTree`] and links it to `parent_id`.
     ///
     /// Returns the [`WidgetId`] of the outer pill container node.
@@ -209,6 +218,7 @@ impl<'a> NumericInputPillBuilder<'a> {
             node.computed_rect = self.rect;
             node.interactive = true;
             node.role = WidgetRole::NumericInput;
+            node.tag = self.tag;
             node.cursor = Some(if is_editing {
                 WidgetCursor::Text
             } else {

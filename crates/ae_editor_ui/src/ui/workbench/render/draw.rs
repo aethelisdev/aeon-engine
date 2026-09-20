@@ -162,7 +162,7 @@ impl EngineUi {
         self.process_hierarchy_actions(params.ui_actions);
         self.process_inspector_actions(params.world, params.ui_actions);
 
-        crate::ui::panels::assets::scanner::rescan_assets_if_needed(
+        crate::assets::scanner::rescan_assets_if_needed(
             &mut self.asset_browser,
             params.models,
             params.textures,

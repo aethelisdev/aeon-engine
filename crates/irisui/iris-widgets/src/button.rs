@@ -59,6 +59,14 @@ impl<'a> ButtonBuilder<'a> {
         }
         self
     }
+
+    /// Assigns a semantic identifier tag to the button node (`node.tag`).
+    pub fn tag(self, tag: u64) -> Self {
+        if let Some(node) = self.tree.get_mut(self.node_id) {
+            node.tag = tag;
+        }
+        self
+    }
 }
 
 /// Helper builder for tab bar headers with active selection highlights.

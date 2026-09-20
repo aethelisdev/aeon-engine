@@ -121,7 +121,7 @@ impl IrisEditorOverlay {
     pub fn ensure_asset_thumbnails(
         &mut self,
         queue: &wgpu::Queue,
-        items: &[crate::ui::panels::assets::types::AssetItem],
+        items: &[crate::assets::types::AssetItem],
     ) {
         let Some((ref texture, _, _)) = self.tools_texture else {
             return;
@@ -135,10 +135,9 @@ impl IrisEditorOverlay {
                 continue;
             }
 
-            if let Some(rgba) = crate::ui::panels::assets::thumbnails::generate_thumbnail_rgba_64(
-                &item.path,
-                item.category,
-            ) {
+            if let Some(rgba) =
+                crate::assets::thumbnails::generate_thumbnail_rgba_64(&item.path, item.category)
+            {
                 let layer = self.assets.next_thumbnail_layer;
                 let mips = ae_texture::generate_mipmap_chain(64, 64, &rgba);
 

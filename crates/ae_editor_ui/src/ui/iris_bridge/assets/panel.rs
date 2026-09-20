@@ -12,9 +12,9 @@ use super::chips::build_category_chips;
 use super::list::build_asset_list_table;
 use super::tree::build_folder_tree_sidebar;
 use super::types::{AssetsPanelParams, AssetsPanelTargets, BreadcrumbTarget};
+use crate::assets::types::{AssetBrowserState, AssetViewMode};
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_GEAR, ICON_PLUS};
 use crate::ui::iris_bridge::theme::*;
-use crate::ui::panels::assets::types::{AssetBrowserState, AssetViewMode};
 use irisui::prelude::*;
 use std::path::PathBuf;
 
@@ -472,8 +472,7 @@ pub fn build_assets_panel(
         .cached_items
         .iter()
         .filter(|i| {
-            params.show_engine_content
-                || i.source != crate::ui::panels::assets::types::AssetSource::Engine
+            params.show_engine_content || i.source != crate::assets::types::AssetSource::Engine
         })
         .collect();
     let total_size: u64 = visible_items.iter().map(|i| i.file_size_bytes).sum();

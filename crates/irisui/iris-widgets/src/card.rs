@@ -109,6 +109,7 @@ pub struct CardBuilder<'a> {
     title_color: Color,
     icon: CardIcon,
     has_delete_action: bool,
+    delete_tag: u64,
     cursor_pos: Point,
     style: CardStyle,
 }
@@ -125,6 +126,7 @@ impl<'a> CardBuilder<'a> {
             title_color: Color::rgba(0.886, 0.894, 0.918, 1.0),
             icon: CardIcon::None,
             has_delete_action: false,
+            delete_tag: 0,
             cursor_pos: Point::new(-1.0, -1.0),
             style: CardStyle::default(),
         }
@@ -169,6 +171,12 @@ impl<'a> CardBuilder<'a> {
     /// Configures whether to display the top-right deletion action button.
     pub fn with_delete_action(mut self, enabled: bool) -> Self {
         self.has_delete_action = enabled;
+        self
+    }
+
+    /// Assigns a semantic identifier tag to the card's deletion action button node (`node.tag`).
+    pub fn delete_tag(mut self, tag: u64) -> Self {
+        self.delete_tag = tag;
         self
     }
 
@@ -245,6 +253,7 @@ impl<'a> CardBuilder<'a> {
             if let Some(node) = self.tree.get_mut(del_id) {
                 node.set_name("CardDeleteBtn");
                 node.set_role(WidgetRole::Button);
+                node.tag = self.delete_tag;
                 node.computed_rect = del_rect;
                 node.set_text("🗑");
                 node.font_size = 10.5;

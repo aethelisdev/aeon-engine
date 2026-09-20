@@ -95,7 +95,7 @@ pub struct EngineUi {
     /// Active UI Zoom / Scaling factor (e.g. 1.0 = 100%, 0.8 = 80%, 1.25 = 125%).
     pub ui_zoom_factor: f32,
     /// Persistent Content / Asset Browser state (directory path, search query, active category filter).
-    pub asset_browser: crate::ui::panels::assets::AssetBrowserState,
+    pub asset_browser: crate::assets::AssetBrowserState,
     /// Persistent 2D UI Designer canvas state (aspect ratio, zoom, pan, grid snap).
     pub ui_designer_state: ae_uidesign::UiDesignerState,
     /// Pending UI actions queued from window event dispatchers.
@@ -196,7 +196,7 @@ impl EngineUi {
             viewport_rect_height: 0.0,
             last_viewport_rect: Rect::new(0.0, 0.0, 0.0, 0.0),
             ui_zoom_factor: 1.0,
-            asset_browser: crate::ui::panels::assets::AssetBrowserState::new(),
+            asset_browser: crate::assets::AssetBrowserState::new(),
             ui_designer_state: ae_uidesign::UiDesignerState::default(),
             active_floating_drag: None,
             pending_tab_drag: None,

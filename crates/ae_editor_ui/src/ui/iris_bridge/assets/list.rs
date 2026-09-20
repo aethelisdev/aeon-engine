@@ -9,10 +9,10 @@
 
 use super::cards::resolve_category_color;
 use super::types::{AssetRowTarget, AssetsPanelParams, AssetsPanelTargets};
+use crate::assets::types::AssetCategory;
 use crate::ui::iris_bridge::icons::{
     ICON_AUDIO, ICON_CUBE, ICON_FOLDER, ICON_SPHERE, ICON_WIREFRAME, ICON_WORLD,
 };
-use crate::ui::panels::assets::types::AssetCategory;
 use irisui::prelude::*;
 
 /// Height of an individual table row in pixels.

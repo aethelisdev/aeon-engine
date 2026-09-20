@@ -227,7 +227,7 @@ impl IrisEditorOverlay {
                 .iter()
                 .filter(|item| {
                     if !params.panel_data.asset_browser.show_engine_content
-                        && item.source == crate::ui::panels::assets::types::AssetSource::Engine
+                        && item.source == crate::assets::types::AssetSource::Engine
                     {
                         return false;
                     }
@@ -236,7 +236,7 @@ impl IrisEditorOverlay {
                     }
                     if !params.context.is_2d_mode
                         && !item.is_3d
-                        && item.category == crate::ui::panels::assets::types::AssetCategory::Scenes
+                        && item.category == crate::assets::types::AssetCategory::Scenes
                     {
                         return false;
                     }
@@ -248,7 +248,7 @@ impl IrisEditorOverlay {
                         return false;
                     }
                     if params.panel_data.asset_browser.active_category
-                        != crate::ui::panels::assets::types::AssetCategory::All
+                        != crate::assets::types::AssetCategory::All
                         && item.category != params.panel_data.asset_browser.active_category
                     {
                         return false;

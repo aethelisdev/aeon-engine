@@ -7,8 +7,8 @@
 //! scene hierarchy summaries, and audio playback previews within the Quick Asset Inspector.
 //!
 
+use crate::assets::types::AssetBrowserState;
 use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
-use crate::ui::panels::assets::types::AssetBrowserState;
 use irisui::prelude::*;
 
 /// Renders the 2D texture specification and analysis section.

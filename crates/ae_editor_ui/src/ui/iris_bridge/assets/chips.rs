@@ -8,7 +8,7 @@
 //!
 
 use super::types::{AssetsPanelParams, AssetsPanelTargets};
-use crate::ui::panels::assets::types::{AssetCategory, AssetSource};
+use crate::assets::types::{AssetCategory, AssetSource};
 use irisui::prelude::*;
 
 /// Builds the category filter chips row with live item counters.

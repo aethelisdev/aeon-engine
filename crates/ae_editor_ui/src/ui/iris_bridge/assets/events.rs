@@ -12,7 +12,7 @@ use super::types::{
     ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuTarget,
     AssetsPanelAction, AssetsPanelTargets,
 };
-use crate::ui::panels::assets::types::{AssetItem, AssetViewMode};
+use crate::assets::types::{AssetItem, AssetViewMode};
 use irisui::prelude::{HitTargetInfo, Point, UiLayer, WidgetRole};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
