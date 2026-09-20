@@ -12,6 +12,7 @@
 use iris_core::color::Color;
 use iris_core::geometry::Rect;
 use iris_core::id::WidgetId;
+use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
@@ -206,6 +207,13 @@ impl<'a> NumericInputPillBuilder<'a> {
         if let Some(node) = tree.get_mut(box_id) {
             node.set_name(base_name);
             node.computed_rect = self.rect;
+            node.interactive = true;
+            node.role = WidgetRole::NumericInput;
+            node.cursor = Some(if is_editing {
+                WidgetCursor::Text
+            } else {
+                WidgetCursor::EwResize
+            });
             node.style = Style::new()
                 .background(bg)
                 .border(self.style.border_width, border_col)

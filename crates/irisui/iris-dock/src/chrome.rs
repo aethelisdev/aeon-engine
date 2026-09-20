@@ -17,7 +17,7 @@ use crate::tree::{DockNodeId, DockTree, SplitDirection};
 use iris_core::color::Color;
 use iris_core::geometry::{CornerRadii, Point, Rect};
 use iris_core::id::WidgetId;
-use iris_core::node::WidgetRole;
+use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
@@ -421,6 +421,10 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
                     .corner_radii(style.tab_corner_radii)
                     .clip_children(true),
             );
+            if let Some(node) = tree.get_mut(tab_id) {
+                node.role = WidgetRole::DockTab;
+                node.cursor = Some(WidgetCursor::Pointer);
+            }
 
             // Active accent line anchored flush to the bottom baseline and spanning full tab width
             if active {
@@ -507,7 +511,14 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
                 } else {
                     style.close_btn_idle_color
                 };
-                add_text_node(tree, tab_id, close_rect, "✖", close_col, TextAlign::Center);
+                let close_id =
+                    add_text_node(tree, tab_id, close_rect, "✖", close_col, TextAlign::Center);
+                if let Some(node) = tree.get_mut(close_id) {
+                    node.set_name("IrisDockTabCloseBtn");
+                    node.role = WidgetRole::Button;
+                    node.cursor = Some(WidgetCursor::Pointer);
+                    node.interactive = true;
+                }
                 frame.close_targets.push(DockCloseTarget {
                     leaf: leaf.node_id,
                     tab_index: index,
@@ -541,13 +552,17 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
             } else {
                 style.chevron_idle_bg
             };
-            add_rect_node(
+            let c_id = add_rect_node(
                 tree,
                 strip_id,
                 chevron_rect,
                 "IrisDockTabChevron",
                 Style::new().background(chevron_bg),
             );
+            if let Some(node) = tree.get_mut(c_id) {
+                node.role = WidgetRole::Button;
+                node.cursor = Some(WidgetCursor::Pointer);
+            }
             let chevron_text_col = if is_chevron_hovered {
                 style.chevron_hovered_icon_col
             } else {
@@ -615,13 +630,25 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
             splitter.rect
         };
 
-        add_rect_node(
+        let s_id = add_rect_node(
             tree,
             parent,
             visual_rect,
             "IrisDockSplitter",
             Style::new().background(splitter_col),
         );
+        if let Some(node) = tree.get_mut(s_id) {
+            match splitter.direction {
+                SplitDirection::Horizontal => {
+                    node.role = WidgetRole::DockSplitterHorizontal;
+                    node.cursor = Some(WidgetCursor::ColResize);
+                }
+                SplitDirection::Vertical => {
+                    node.role = WidgetRole::DockSplitterVertical;
+                    node.cursor = Some(WidgetCursor::RowResize);
+                }
+            }
+        }
         let total_dim = if splitter.direction == SplitDirection::Horizontal {
             params.workspace_rect.width
         } else {
@@ -666,7 +693,7 @@ fn add_text_node(
     text: &str,
     color: Color,
     alignment: TextAlign,
-) {
+) -> WidgetId {
     let id = tree.create_node();
     if let Some(node) = tree.get_mut(id) {
         node.set_name("IrisDockTabLabel");
@@ -678,6 +705,7 @@ fn add_text_node(
         node.interactive = false;
     }
     let _ = tree.add_child(parent, id);
+    id
 }
 
 /// Adds a textured GPU atlas icon node to the retained Iris tree.

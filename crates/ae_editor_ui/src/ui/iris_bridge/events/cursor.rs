@@ -8,9 +8,32 @@
 //! to determine the appropriate system cursor icon (`Pointer`, `Resize`, `Crosshair`, `Text`, `Default`).
 
 use crate::ui::iris_bridge::types::{InspectorColorDragMode, IrisEditorOverlay};
-use irisui::dock::SplitDirection;
+use irisui::dock::{DEFAULT_RESIZE_MARGIN, FloatingWindowCursor, evaluate_floating_resize_cursor};
 use irisui::prelude::*;
 use winit::window::CursorIcon;
+
+/// Converts an engine-agnostic [`WidgetCursor`] enum from Iris UI into a platform-native [`CursorIcon`].
+///
+/// Handles all standard cursor shapes including pointers, directional resize handles,
+/// text carats, grabs, and crosshairs.
+#[inline]
+pub fn map_widget_cursor_to_winit(cur: WidgetCursor) -> CursorIcon {
+    match cur {
+        WidgetCursor::Default => CursorIcon::Default,
+        WidgetCursor::Pointer => CursorIcon::Pointer,
+        WidgetCursor::Text => CursorIcon::Text,
+        WidgetCursor::Crosshair => CursorIcon::Crosshair,
+        WidgetCursor::Grab => CursorIcon::Grab,
+        WidgetCursor::Grabbing => CursorIcon::Grabbing,
+        WidgetCursor::ColResize => CursorIcon::ColResize,
+        WidgetCursor::RowResize => CursorIcon::RowResize,
+        WidgetCursor::EwResize => CursorIcon::EwResize,
+        WidgetCursor::NsResize => CursorIcon::NsResize,
+        WidgetCursor::NeswResize => CursorIcon::NeswResize,
+        WidgetCursor::NwseResize => CursorIcon::NwseResize,
+        WidgetCursor::NotAllowed => CursorIcon::NotAllowed,
+    }
+}
 
 impl IrisEditorOverlay {
     /// Determines the appropriate mouse cursor icon based on current interactive hover targets.
@@ -22,24 +45,6 @@ impl IrisEditorOverlay {
         let p = self.cursor_pos();
         if self.inspector.drag_number.is_some() {
             return CursorIcon::EwResize;
-        }
-
-        // 0. Top Menubar buttons & Foreground popup items
-        if let Some(hit) = self.tree.hit_test_target(p)
-            && (hit.role == WidgetRole::MenuBarItem
-                || (hit.role == WidgetRole::Button
-                    && hit.tag == super::super::menubar::TAG_ACTION_PLAY_PAUSE)
-                || (hit.layer == UiLayer::Popup && hit.role == WidgetRole::DropdownItem))
-        {
-            return CursorIcon::Pointer;
-        }
-
-        // 0b. Console toolbar buttons & search input
-        if let Some(cur) = evaluate_console_toolbar_cursor(&self.tree, p) {
-            return match cur {
-                ConsoleToolbarCursor::Pointer => CursorIcon::Pointer,
-                ConsoleToolbarCursor::Text => CursorIcon::Text,
-            };
         }
 
         // 1. Floating window resize edges
@@ -56,50 +61,14 @@ impl IrisEditorOverlay {
             };
         }
 
-        // 2. Occlusion check: underlying docked splitters and tabs must not change cursor if occluded
-        let is_occluded = self.is_point_over_modal_or_dropdown(p)
-            || self
-                .chrome
-                .floating_window_rects
-                .iter()
-                .any(|r| r.contains_point(p));
-
-        if !is_occluded && let Some(ref frame) = self.chrome.native_dock_frame {
-            if frame
-                .active_overflow_rect
-                .is_some_and(|r| r.contains_point(p))
-            {
-                for item in &frame.overflow_item_targets {
-                    if item.rect.contains_point(p) {
-                        return CursorIcon::Pointer;
-                    }
-                }
-                return CursorIcon::Default;
-            }
-            for tab in &frame.tab_targets {
-                if tab.rect.contains_point(p) {
-                    return CursorIcon::Pointer;
-                }
-            }
-            for chevron in &frame.chevron_targets {
-                if chevron.rect.contains_point(p) {
-                    return CursorIcon::Pointer;
-                }
-            }
-            for close in &frame.close_targets {
-                if close.rect.contains_point(p) {
-                    return CursorIcon::Pointer;
-                }
-            }
-            for splitter in &frame.splitter_targets {
-                if splitter.rect.contains_point(p) {
-                    return match splitter.direction {
-                        SplitDirection::Horizontal => CursorIcon::ColResize,
-                        SplitDirection::Vertical => CursorIcon::RowResize,
-                    };
-                }
-            }
+        // 2. Native Tree-Driven Cursor Resolution (Primary Iris UI Authority)
+        // Resolves menubar items, buttons, dock tabs, close buttons, splitters,
+        // numeric input pills, tree rows, and asset cards with full layer/modal occlusion.
+        let tree_cursor = self.tree.cursor_at(p);
+        if tree_cursor != WidgetCursor::Default {
+            return map_widget_cursor_to_winit(tree_cursor);
         }
+
         if let Some(mode) = self.inspector.color_drag_mode {
             return match mode {
                 InspectorColorDragMode::SaturationValue => CursorIcon::Crosshair,
@@ -338,5 +307,65 @@ mod tests {
             DEFAULT_RESIZE_MARGIN,
         );
         assert_eq!(hit_center, None);
+    }
+
+    #[test]
+    fn test_map_widget_cursor_to_winit_all_variants() {
+        use super::map_widget_cursor_to_winit;
+        use irisui::prelude::WidgetCursor;
+        use winit::window::CursorIcon;
+
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Default),
+            CursorIcon::Default
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Pointer),
+            CursorIcon::Pointer
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Text),
+            CursorIcon::Text
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Crosshair),
+            CursorIcon::Crosshair
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Grab),
+            CursorIcon::Grab
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::Grabbing),
+            CursorIcon::Grabbing
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::ColResize),
+            CursorIcon::ColResize
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::RowResize),
+            CursorIcon::RowResize
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::EwResize),
+            CursorIcon::EwResize
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::NsResize),
+            CursorIcon::NsResize
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::NeswResize),
+            CursorIcon::NeswResize
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::NwseResize),
+            CursorIcon::NwseResize
+        );
+        assert_eq!(
+            map_widget_cursor_to_winit(WidgetCursor::NotAllowed),
+            CursorIcon::NotAllowed
+        );
     }
 }

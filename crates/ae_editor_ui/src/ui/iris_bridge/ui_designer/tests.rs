@@ -142,6 +142,7 @@ fn test_ui_designer_click_hit_testing() {
         name: Some("AspectOptionItem".to_string()),
         layer: UiLayer::Popup,
         role: WidgetRole::DropdownItem,
+        cursor: None,
         tag: 1, // Ratio16x10
         rect: Rect::new(100.0, 100.0, 150.0, 24.0),
     };
@@ -165,6 +166,7 @@ fn test_ui_designer_click_hit_testing() {
         name: Some("AddElementOption".to_string()),
         layer: UiLayer::Popup,
         role: WidgetRole::DropdownItem,
+        cursor: None,
         tag: 3, // Button
         rect: Rect::new(100.0, 100.0, 150.0, 24.0),
     };

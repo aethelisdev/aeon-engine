@@ -16,6 +16,8 @@ impl<'a> ButtonBuilder<'a> {
     pub fn new(tree: &'a mut UiTree, label: impl Into<String>) -> Self {
         let node_id = tree.create_node();
         if let Some(node) = tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = iris_core::WidgetRole::Button;
             node.set_text(label);
             node.text_align = TextAlign::Center;
             node.font_size = 11.0;
@@ -69,6 +71,8 @@ impl TabBuilder {
     pub fn new(tree: &mut UiTree, title: impl Into<String>, active: bool) -> Self {
         let node_id = tree.create_node();
         if let Some(node) = tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = iris_core::WidgetRole::DockTab;
             node.set_text(title);
             node.font_size = 11.0;
             node.line_height = 14.0;

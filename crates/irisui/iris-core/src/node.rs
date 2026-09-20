@@ -41,6 +41,54 @@ pub enum WidgetRole {
     MenuBarItem,
     /// General-purpose clickable push button or action control.
     Button,
+    /// Single-line or multi-line text input field.
+    TextInput,
+    /// Number scrub or drag input pill box control.
+    NumericInput,
+    /// Toggleable checkbox control.
+    Checkbox,
+    /// Color preview swatch or palette picker box.
+    ColorSwatch,
+    /// Docking panel tab header button.
+    DockTab,
+    /// Docking panel horizontal splitter divider line.
+    DockSplitterHorizontal,
+    /// Docking panel vertical splitter divider line.
+    DockSplitterVertical,
+}
+
+/// Canonical hardware mouse cursor shapes supported across the Iris UI ecosystem.
+///
+/// Abstracted from host windowing crates to preserve `iris-core`'s zero-dependency architecture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum WidgetCursor {
+    /// Default context-independent arrow pointer.
+    #[default]
+    Default,
+    /// Hand pointer indicating a clickable link, button, tab, or interactive item.
+    Pointer,
+    /// I-beam insertion cursor indicating selectable or editable text fields.
+    Text,
+    /// Precision crosshair cursor used in 2D canvases, color spectrums, and fine pickers.
+    Crosshair,
+    /// Open hand cursor indicating a draggable canvas, pan surface, or 3D orbit viewport.
+    Grab,
+    /// Closed gripping hand indicating an active dragging operation.
+    Grabbing,
+    /// Horizontal column resize cursor (left/right arrows) for splitters and sidebars.
+    ColResize,
+    /// Vertical row resize cursor (up/down arrows) for splitters and bottom trays.
+    RowResize,
+    /// East-west bidirectional resize/scrub cursor for numeric drag fields.
+    EwResize,
+    /// North-south bidirectional resize/scrub cursor for vertical sliders.
+    NsResize,
+    /// Diagonal resize cursor (Northeast-Southwest) for window corners.
+    NeswResize,
+    /// Diagonal resize cursor (Northwest-Southeast) for window corners.
+    NwseResize,
+    /// Prohibited action cursor indicating invalid drop zone or disabled action.
+    NotAllowed,
 }
 
 /// Explicit rendering and interaction stacking layer (stacking context) in the UI hierarchy.
@@ -92,7 +140,14 @@ impl WidgetRole {
             | WidgetRole::Separator
             | WidgetRole::OscilloscopeCanvas
             | WidgetRole::MenuBarItem
-            | WidgetRole::Button => UiLayer::Content,
+            | WidgetRole::Button
+            | WidgetRole::TextInput
+            | WidgetRole::NumericInput
+            | WidgetRole::Checkbox
+            | WidgetRole::ColorSwatch
+            | WidgetRole::DockTab
+            | WidgetRole::DockSplitterHorizontal
+            | WidgetRole::DockSplitterVertical => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
             WidgetRole::ModalWindow => UiLayer::Modal,
             WidgetRole::DropdownPopup
@@ -100,6 +155,24 @@ impl WidgetRole {
             | WidgetRole::DropdownIcon
             | WidgetRole::DropdownShortcut
             | WidgetRole::DropdownLabel => UiLayer::Popup,
+        }
+    }
+
+    /// Returns the recommended default hardware cursor shape for this widget role, if any.
+    #[inline]
+    pub const fn default_cursor(&self) -> Option<WidgetCursor> {
+        match self {
+            WidgetRole::Button
+            | WidgetRole::MenuBarItem
+            | WidgetRole::DropdownItem
+            | WidgetRole::Checkbox
+            | WidgetRole::ColorSwatch
+            | WidgetRole::DockTab => Some(WidgetCursor::Pointer),
+            WidgetRole::TextInput => Some(WidgetCursor::Text),
+            WidgetRole::NumericInput => Some(WidgetCursor::EwResize),
+            WidgetRole::DockSplitterHorizontal => Some(WidgetCursor::ColResize),
+            WidgetRole::DockSplitterVertical => Some(WidgetCursor::RowResize),
+            _ => None,
         }
     }
 }
@@ -150,6 +223,8 @@ pub struct WidgetNode {
     pub role: WidgetRole,
     /// Explicit stacking layer for Z-ordering, occlusion culling, and hit-test priority.
     pub layer: UiLayer,
+    /// Optional hardware mouse cursor override when hovered over this node.
+    pub cursor: Option<WidgetCursor>,
     /// User-defined numeric tag or action identifier associated with this node (e.g. dropdown item index).
     pub tag: u64,
     /// Optional debug name for inspection and profiling.
@@ -186,6 +261,7 @@ impl WidgetNode {
             interactive: true,
             role: WidgetRole::Default,
             layer: UiLayer::Content,
+            cursor: None,
             tag: 0,
             name: None,
         }
@@ -196,6 +272,19 @@ impl WidgetNode {
     pub fn with_text_wrap(mut self, wrap: TextWrap) -> Self {
         self.text_wrap = wrap;
         self
+    }
+
+    /// Sets the hardware cursor shape override for this node in a fluent builder style.
+    #[inline]
+    pub fn with_cursor(mut self, cursor: WidgetCursor) -> Self {
+        self.cursor = Some(cursor);
+        self
+    }
+
+    /// Sets the hardware cursor shape override for this node.
+    #[inline]
+    pub fn set_cursor(&mut self, cursor: WidgetCursor) {
+        self.cursor = Some(cursor);
     }
 
     /// Sets the text wrapping configuration mode on this node.

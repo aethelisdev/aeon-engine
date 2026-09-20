@@ -150,6 +150,8 @@ impl TextInputBuilder {
         };
 
         if let Some(node) = tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = iris_core::WidgetRole::TextInput;
             node.set_text(display_text);
             node.font_size = 11.0;
             node.line_height = 14.0;
@@ -200,6 +202,8 @@ impl DragValueBuilder {
     ) -> Self {
         let node_id = tree.create_node();
         if let Some(node) = tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = iris_core::WidgetRole::NumericInput;
             node.set_text(format!("{}: {:.2}", axis, value));
             node.font_size = 11.0;
             node.line_height = 14.0;
@@ -244,6 +248,8 @@ impl CheckboxBuilder {
         let display = format!("[{}] {}", mark, label_str);
 
         if let Some(node) = tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = iris_core::WidgetRole::Checkbox;
             node.set_text(display);
             node.font_size = 11.0;
             node.line_height = 14.0;

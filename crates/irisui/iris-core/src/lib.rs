@@ -30,7 +30,7 @@ pub use event::{
 };
 pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
 pub use id::WidgetId;
-pub use node::{ExternalTextureId, UiLayer, WidgetNode, WidgetRole};
+pub use node::{ExternalTextureId, UiLayer, WidgetCursor, WidgetNode, WidgetRole};
 pub use style::{AlignItems, FlexDirection, JustifyContent, Style, TextAlign, TextWrap};
 pub use tree::{HitTargetInfo, UiTree};
 

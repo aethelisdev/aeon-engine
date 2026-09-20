@@ -47,6 +47,26 @@ pub enum FloatingWindowCursor {
     RowResize,
 }
 
+impl FloatingWindowCursor {
+    /// Converts this floating window resize cursor into the standard [`iris_core::node::WidgetCursor`].
+    #[inline]
+    pub const fn to_widget_cursor(self) -> iris_core::node::WidgetCursor {
+        match self {
+            Self::NwseResize => iris_core::node::WidgetCursor::NwseResize,
+            Self::NeswResize => iris_core::node::WidgetCursor::NeswResize,
+            Self::ColResize => iris_core::node::WidgetCursor::ColResize,
+            Self::RowResize => iris_core::node::WidgetCursor::RowResize,
+        }
+    }
+}
+
+impl From<FloatingWindowCursor> for iris_core::node::WidgetCursor {
+    #[inline]
+    fn from(cursor: FloatingWindowCursor) -> Self {
+        cursor.to_widget_cursor()
+    }
+}
+
 impl FloatingResizeEdge {
     /// Resolves the semantic cursor icon hint corresponding to this resize edge or corner.
     #[inline]

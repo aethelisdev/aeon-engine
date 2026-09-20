@@ -13,6 +13,7 @@
 use iris_core::color::Color;
 use iris_core::geometry::Rect;
 use iris_core::id::WidgetId;
+use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
@@ -307,6 +308,9 @@ impl<'a> TreeRowBuilder<'a> {
             let name_str = self.name.as_deref().unwrap_or("TreeRow");
             node.set_name(name_str);
             node.computed_rect = self.rect;
+            node.interactive = true;
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
             node.style = Style::new()
                 .background(bg)
                 .border(border_w, border)
@@ -365,6 +369,9 @@ impl<'a> TreeRowBuilder<'a> {
             let fold_id = tree.create_node();
             if let Some(node) = tree.get_mut(fold_id) {
                 node.set_name("TreeFoldoutArrow");
+                node.interactive = true;
+                node.role = WidgetRole::Button;
+                node.cursor = Some(WidgetCursor::Pointer);
                 node.set_text(if self.is_expanded {
                     self.foldout_glyph_expanded
                 } else {

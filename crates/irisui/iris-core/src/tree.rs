@@ -7,7 +7,7 @@ use crate::dirty::DirtyFlags;
 use crate::error::IrisCoreError;
 use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
-use crate::node::{UiLayer, WidgetNode, WidgetRole};
+use crate::node::{UiLayer, WidgetCursor, WidgetNode, WidgetRole};
 use slotmap::SlotMap;
 
 /// The central hierarchical arena storing all UI nodes.
@@ -478,14 +478,48 @@ impl UiTree {
         let hit_id = self.hit_test_layered(point)?;
         let node = self.nodes.get(hit_id)?;
         let layer = self.effective_layer(hit_id);
+        let cursor = node.cursor.or_else(|| node.role.default_cursor());
         Some(HitTargetInfo {
             id: hit_id,
             layer,
             role: node.role,
+            cursor,
             tag: node.tag,
             rect: node.computed_rect,
             name: node.name.clone(),
         })
+    }
+
+    /// Evaluates the active hardware mouse cursor shape for the widget currently under `point`.
+    ///
+    /// Resolves the highest-priority interactive widget through [`UiTree::hit_test_layered`].
+    /// If the hit widget has an explicit cursor override ([`WidgetNode::cursor`]), it is returned.
+    /// Otherwise, resolves the role's canonical cursor ([`WidgetRole::default_cursor`]).
+    /// If neither is defined, inspects the parent hierarchy until a cursor hint is discovered
+    /// or defaults to [`WidgetCursor::Default`].
+    ///
+    /// Respects layer priority (e.g. modal dialogs and dropdown popups occlude underlying splitters and tabs).
+    pub fn cursor_at(&self, point: Point) -> WidgetCursor {
+        let Some(hit_id) = self.hit_test_layered(point) else {
+            return WidgetCursor::Default;
+        };
+
+        let mut curr = Some(hit_id);
+        while let Some(id) = curr {
+            if let Some(node) = self.nodes.get(id) {
+                if let Some(c) = node.cursor {
+                    return c;
+                }
+                if let Some(c) = node.role.default_cursor() {
+                    return c;
+                }
+                curr = node.parent;
+            } else {
+                break;
+            }
+        }
+
+        WidgetCursor::Default
     }
 
     /// Helper to recursively collect all descendant keys in a subtree.
@@ -512,6 +546,8 @@ pub struct HitTargetInfo {
     pub layer: UiLayer,
     /// Semantic functional role assigned to the widget.
     pub role: WidgetRole,
+    /// Active hardware mouse cursor shape requested by this widget or its functional role.
+    pub cursor: Option<WidgetCursor>,
     /// User-defined numeric tag or action identifier associated with the widget.
     pub tag: u64,
     /// Absolute computed screen-space rectangle of the widget.
@@ -618,5 +654,55 @@ mod tests {
         assert_eq!(hit_target.tag, 2);
         assert_eq!(hit_target.name.as_deref(), Some("Fps120Option"));
         assert_eq!(hit_target.rect, Rect::new(200.0, 150.0, 120.0, 24.0));
+        assert_eq!(hit_target.cursor, Some(WidgetCursor::Pointer));
+    }
+
+    #[test]
+    fn test_tree_cursor_at_layered_priority() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        }
+
+        // 1. Text input in Content layer
+        let input_id = tree.create_node();
+        if let Some(node) = tree.get_mut(input_id) {
+            node.computed_rect = Rect::new(100.0, 100.0, 200.0, 30.0);
+            node.role = WidgetRole::TextInput;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, input_id).unwrap();
+
+        // 2. Numeric drag pill in Content layer
+        let num_id = tree.create_node();
+        if let Some(node) = tree.get_mut(num_id) {
+            node.computed_rect = Rect::new(320.0, 100.0, 80.0, 30.0);
+            node.role = WidgetRole::NumericInput;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, num_id).unwrap();
+
+        // 3. Button in Content layer with explicit Grab cursor override
+        let grab_btn = tree.create_node();
+        if let Some(node) = tree.get_mut(grab_btn) {
+            node.computed_rect = Rect::new(420.0, 100.0, 80.0, 30.0);
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Grab);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, grab_btn).unwrap();
+
+        // Test resolved cursors
+        assert_eq!(tree.cursor_at(Point::new(150.0, 115.0)), WidgetCursor::Text);
+        assert_eq!(
+            tree.cursor_at(Point::new(350.0, 115.0)),
+            WidgetCursor::EwResize
+        );
+        assert_eq!(tree.cursor_at(Point::new(450.0, 115.0)), WidgetCursor::Grab);
+        assert_eq!(
+            tree.cursor_at(Point::new(10.0, 10.0)),
+            WidgetCursor::Default
+        );
     }
 }

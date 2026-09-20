@@ -12,6 +12,7 @@
 use iris_core::color::Color;
 use iris_core::geometry::Rect;
 use iris_core::id::WidgetId;
+use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
@@ -291,6 +292,9 @@ impl<'a> AssetCardBuilder<'a> {
             let name_str = self.name.as_deref().unwrap_or("AssetCard");
             node.set_name(name_str);
             node.computed_rect = self.rect;
+            node.interactive = true;
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
             node.style = Style::new()
                 .background(bg_color)
                 .border_radius(self.style.border_radius)
