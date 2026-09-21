@@ -9,11 +9,13 @@
 
 pub mod menubar;
 pub mod panel_layout;
+pub mod statusbar;
 pub mod types;
 pub mod workbench;
 
 // Re-exports for engine consumption
 pub use menubar::{ActiveMenu, DropdownAction, MENUBAR_HEIGHT, MenuBarState};
 pub use panel_layout::{PanelId, PanelLayoutState};
+pub use statusbar::{STATUS_BAR_HEIGHT, StatusBarParams, build_bottom_status_bar};
 pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
 pub use workbench::{EditorUiRenderParams, EngineUi, SceneDialogAction};

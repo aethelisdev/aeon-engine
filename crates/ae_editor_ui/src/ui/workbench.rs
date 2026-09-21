@@ -221,7 +221,9 @@ impl EngineUi {
                 0.0,
                 crate::ui::menubar::MENUBAR_HEIGHT,
                 size.width as f32 / scale_factor,
-                ((size.height as f32 / scale_factor) - crate::ui::menubar::MENUBAR_HEIGHT)
+                ((size.height as f32 / scale_factor)
+                    - crate::ui::menubar::MENUBAR_HEIGHT
+                    - crate::ui::statusbar::STATUS_BAR_HEIGHT)
                     .max(10.0),
             ),
             viewport_rect_width: size.width as f32 / scale_factor,
@@ -391,7 +393,10 @@ impl EngineUi {
                     0.0,
                     crate::ui::menubar::MENUBAR_HEIGHT,
                     self.viewport_rect_width,
-                    (self.viewport_rect_height - crate::ui::menubar::MENUBAR_HEIGHT).max(10.0),
+                    (self.viewport_rect_height
+                        - crate::ui::menubar::MENUBAR_HEIGHT
+                        - crate::ui::statusbar::STATUS_BAR_HEIGHT)
+                        .max(10.0),
                 );
             }
             _ => {}
@@ -511,7 +516,10 @@ impl EngineUi {
             0.0,
             crate::ui::menubar::MENUBAR_HEIGHT,
             logical_w,
-            (logical_h - crate::ui::menubar::MENUBAR_HEIGHT).max(10.0),
+            (logical_h
+                - crate::ui::menubar::MENUBAR_HEIGHT
+                - crate::ui::statusbar::STATUS_BAR_HEIGHT)
+                .max(10.0),
         );
 
         // 1. Rebuild UI Tree cleanly with standardized root canvas
@@ -529,6 +537,12 @@ impl EngineUi {
             is_editing,
         );
         self.menubar.button_ids = menu_output.menu_button_ids.to_vec();
+
+        let frame_ms = if params.fps > 0.1 {
+            1000.0 / params.fps
+        } else {
+            16.67
+        };
 
         // 3. Viewport 3D Render Texture Binding via iris-widgets ViewportCanvasBuilder
         if let Some(vp_tex) = params.viewport_texture_view {
@@ -570,11 +584,6 @@ impl EngineUi {
                 ae_core::modules::EngineMode::Edit => ViewportEngineMode::Editing,
                 ae_core::modules::EngineMode::Play => ViewportEngineMode::Playing,
             };
-            let frame_ms = if params.fps > 0.1 {
-                1000.0 / params.fps
-            } else {
-                16.67
-            };
 
             let _hud_frame = ViewportHudBuilder::new(self.last_viewport_rect)
                 .gizmo_mode(vp_gizmo_mode)
@@ -588,7 +597,28 @@ impl EngineUi {
                 .build(&mut self.tree, root);
         }
 
-        // 4. Content Text Measurement and Flexbox Layout Pass
+        // 4. Bottom Application Status and Diagnostics Bar
+        if let Some((_, instant)) = &self.status_message
+            && instant.elapsed().as_secs_f32() >= 4.0
+        {
+            self.status_message = None;
+        }
+        let status_spans = self
+            .status_message
+            .as_ref()
+            .map(|(spans, _)| spans.as_slice());
+        let _status_bar_id = crate::ui::statusbar::build_bottom_status_bar(
+            &mut self.tree,
+            Some(root),
+            crate::ui::statusbar::StatusBarParams {
+                screen_width: logical_w,
+                screen_height: logical_h,
+                status_spans,
+                version_text: None,
+            },
+        );
+
+        // 5. Content Text Measurement and Flexbox Layout Pass
         self.layout_engine.clear();
         self.text_system.measure_tree(&mut self.tree, root);
         let _ = self
