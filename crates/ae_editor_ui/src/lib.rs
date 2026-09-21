@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+#![forbid(unsafe_code)]
+#![deny(clippy::allow_attributes)]
+
 /// AE Editor UI — Iris UI-based panel rendering and user interface event handlers.
 pub mod assets;
 pub mod processor;

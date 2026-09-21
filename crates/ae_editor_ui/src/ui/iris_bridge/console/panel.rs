@@ -23,15 +23,15 @@ pub fn build_console_panel(
 ) {
     targets.panel_rect = params.panel_rect;
 
-    // 1. Panel Base Container
-    let root_id = tree.create_node();
-    if let Some(node) = tree.get_mut(root_id) {
-        node.set_name("ConsolePanelRoot");
-        node.computed_rect = params.panel_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.05, 0.06, 0.08, 1.0))
-            .clip_children(true);
-    }
+    // 1. Panel Base Container via iris-widgets PanelBuilder
+    let root_id = PanelBuilder::new(tree)
+        .name("ConsolePanelRoot")
+        .rect(params.panel_rect)
+        .style(|s| {
+            s.background(Color::rgba(0.05, 0.06, 0.08, 1.0))
+                .clip_children(true)
+        })
+        .build();
     let _ = tree.add_child(parent_id, root_id);
 
     // 2. Count metrics for toolbar badges
@@ -39,8 +39,8 @@ pub fn build_console_panel(
     let mut count_warn = 0;
     let mut count_info = 0;
     let mut count_debug = 0;
-    for e in params.entries {
-        match e.level {
+    for entry in params.entries {
+        match entry.level {
             log::Level::Error => count_err += 1,
             log::Level::Warn => count_warn += 1,
             log::Level::Info => count_info += 1,

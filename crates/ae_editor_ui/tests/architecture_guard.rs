@@ -138,3 +138,83 @@ fn test_workbench_no_targets_spaghetti() {
         violations
     );
 }
+
+#[test]
+fn test_strict_zero_allow_attributes() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let crates_dir = Path::new(manifest_dir)
+        .parent()
+        .unwrap_or_else(|| Path::new(manifest_dir));
+
+    let files = collect_rs_files(crates_dir);
+    let mut violations = Vec::new();
+
+    for file in files {
+        if file.ends_with("architecture_guard.rs") {
+            continue;
+        }
+        if let Ok(content) = fs::read_to_string(&file) {
+            for (line_idx, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("//") {
+                    continue;
+                }
+                if line.contains("#[allow(") || line.contains("#![allow(") {
+                    violations.push((
+                        file.display().to_string(),
+                        line_idx + 1,
+                        "Rule 11.1 Violation: #[allow(...)] attribute detected! Linters must never be silenced; fix the root cause.",
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Architecture Guard Failure: Clippy suppressions (#[allow]) are universally forbidden:\n{:?}",
+        violations
+    );
+}
+
+#[test]
+fn test_no_empty_closure_hacks() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let ui_dir = Path::new(manifest_dir).join("src/ui");
+
+    if !ui_dir.exists() {
+        return;
+    }
+
+    let files = collect_rs_files(&ui_dir);
+    let mut violations = Vec::new();
+
+    for file in files {
+        if let Ok(content) = fs::read_to_string(&file) {
+            for (line_idx, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("//") {
+                    continue;
+                }
+                // Check for dummy closure patterns used to bypass declarative UI
+                if trimmed.contains("|_| {}")
+                    || trimmed.contains("|_| ()")
+                    || trimmed.contains("|_scope| {}")
+                    || trimmed.contains("|_s| {}")
+                {
+                    violations.push((
+                        file.display().to_string(),
+                        line_idx + 1,
+                        "Architecture Guard Violation: Dummy empty closure hack detected. You must write genuine declarative UI.",
+                    ));
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Architecture Guard Violation: Detected dummy closure hacks:\n{:?}",
+        violations
+    );
+}

@@ -35,6 +35,39 @@ version = "0.1.0"
 edition = "2024"
 license = "MPL-2.0"
 
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Universal Ban on Linter Suppressions (Rule 11) - Zero Escape Hatches!
+allow_attributes = "deny"
+
+# Absolute Ban on Code Cheats, Placeholders & Debug Cruft
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+
+# Strict Performance & Ownership Rules (Rule 9)
+clone_on_copy = "deny"
+redundant_clone = "deny"
+cloned_instead_of_copied = "deny"
+unnecessary_to_owned = "deny"
+
+# Code Quality & Clean Idioms
+manual_clamp = "deny"
+if_same_then_else = "deny"
+needless_range_loop = "deny"
+needless_borrow = "deny"
+redundant_closure = "deny"
+redundant_pattern_matching = "deny"
+single_match = "deny"
+match_like_matches_macro = "deny"
+
+# Prohibit raw AST node manipulation
+disallowed_methods = "warn"
+
 [workspace.dependencies]
 ae-2d-core = { path = "crates/ae_2d/ae-2d-core" }
 ae-2d-render = { path = "crates/ae_2d/ae-2d-render" }

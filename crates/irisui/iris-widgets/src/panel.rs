@@ -3,7 +3,7 @@
 
 //! Panel and container widget builders for structural layout cards.
 
-use iris_core::{Color, Style, UiTree, WidgetId};
+use iris_core::{Color, Rect, Style, UiTree, WidgetId};
 
 /// Helper builder for creating and configuring structured UI panels and cards.
 pub struct PanelBuilder<'a> {
@@ -28,6 +28,22 @@ impl<'a> PanelBuilder<'a> {
     #[inline]
     pub fn build(self) -> WidgetId {
         self.node_id
+    }
+
+    /// Assigns a human-readable identifier and debug name to the panel node.
+    pub fn name(self, name: impl Into<String>) -> Self {
+        if let Some(node) = self.tree.get_mut(self.node_id) {
+            node.set_name(name);
+        }
+        self
+    }
+
+    /// Sets the explicit computed layout rectangle for the panel node.
+    pub fn rect(self, rect: Rect) -> Self {
+        if let Some(node) = self.tree.get_mut(self.node_id) {
+            node.computed_rect = rect;
+        }
+        self
     }
 
     /// Applies a style modification closure to the panel.

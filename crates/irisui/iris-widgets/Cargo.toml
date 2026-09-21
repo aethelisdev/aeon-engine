@@ -10,3 +10,7 @@ iris-core = { workspace = true }
 iris-layout = { workspace = true }
 iris-wgpu = { workspace = true }
 thiserror = { workspace = true }
+
+[lints]
+workspace = true
+
