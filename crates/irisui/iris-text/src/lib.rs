@@ -93,4 +93,40 @@ mod tests {
             "Expected exactly 1 line for TextWrap::None, got {single_lines}"
         );
     }
+
+    #[test]
+    fn test_measure_tree_populates_content_size() {
+        use iris_core::UiTree;
+
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let child1 = tree.create_node();
+        let child2 = tree.create_node();
+
+        if let Some(node) = tree.get_mut(child1) {
+            node.set_text("File");
+            node.font_size = 12.0;
+            node.line_height = 14.0;
+        }
+
+        if let Some(node) = tree.get_mut(child2) {
+            node.set_text("Very Long Action Button Label");
+            node.font_size = 14.0;
+            node.line_height = 18.0;
+        }
+
+        let _ = tree.add_child(root, child1);
+        let _ = tree.add_child(root, child2);
+
+        let mut system = TextSystem::new();
+        system.measure_tree(&mut tree, root);
+
+        let size1 = tree.get(child1).unwrap().content_size;
+        let size2 = tree.get(child2).unwrap().content_size;
+
+        assert!(size1.width > 0.0);
+        assert!(size1.height >= 14.0);
+        assert!(size2.width > size1.width);
+        assert!(size2.height >= 18.0);
+    }
 }

@@ -7,7 +7,10 @@
 //!
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
-use crate::ui::types::{ConsoleEntry, EngineUiAction};
+pub use crate::ui::types::{
+    ConsoleEntry, EditorUiRenderParams, EngineUiAction, SceneDialogAction,
+    map_widget_cursor_to_winit,
+};
 use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSystem};
 use irisui::wgpu_backend::{IrisRenderer, compile_tree_draw_commands_into};
@@ -15,61 +18,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::time::Instant;
 use winit::window::Window;
-
-/// Action payload sent from async native file dialog threads to the main UI thread.
-#[derive(Debug, Clone)]
-pub enum SceneDialogAction {
-    /// Save active scene to the specified filesystem path.
-    SaveTo(PathBuf),
-    /// Load scene from the specified filesystem path.
-    LoadFrom(PathBuf),
-}
-
-/// Parameters for rendering the entire Editor UI frame.
-pub struct EditorUiRenderParams<'a> {
-    /// WGPU device handle.
-    pub device: &'a wgpu::Device,
-    /// WGPU queue handle.
-    pub queue: &'a wgpu::Queue,
-    /// Active frame command encoder.
-    pub encoder: &'a mut wgpu::CommandEncoder,
-    /// Winit window reference.
-    pub window: &'a Window,
-    /// Target swapchain surface texture view.
-    pub window_surface_view: &'a wgpu::TextureView,
-    /// Viewport 3D rendered texture view, if present.
-    pub viewport_texture_view: Option<&'a wgpu::TextureView>,
-    /// Live frames per second.
-    pub fps: f32,
-    /// Active ECS world reference.
-    pub world: &'a hecs::World,
-    /// Active engine execution mode.
-    pub mode: &'a ae_core::modules::EngineMode,
-    /// Command history undo stack.
-    pub undo_stack: &'a [ae_editor::undo_redo::Command],
-    /// Command history redo stack.
-    pub redo_stack: &'a [ae_editor::undo_redo::Command],
-    /// Active graphics settings.
-    pub graphics_settings: &'a ae_renderer::graphics_settings::GraphicsSettings,
-    /// Viewport snapping configuration.
-    pub snapping: &'a ae_editor::snapping::SnapSettings,
-    /// Editor configuration state.
-    pub editor_state: &'a ae_editor::editor_state::EditorState,
-    /// Active viewport camera.
-    pub camera: &'a ae_renderer::camera::Camera,
-    /// 3D model asset storage.
-    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
-    /// 2D texture asset storage.
-    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
-    /// Shader asset storage.
-    pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
-    /// Active engine modules set.
-    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
-    /// Whether the editor is running in 2D dimension mode.
-    pub is_2d_mode: bool,
-    /// Outgoing UI action queue.
-    pub ui_actions: &'a mut Vec<EngineUiAction>,
-}
 
 /// The main UI management system for the Aeon Engine editor.
 ///
@@ -202,6 +150,8 @@ pub struct EngineUi {
 
     /// Surface output color format for lazy text renderer initialization.
     pub output_color_format: wgpu::TextureFormat,
+    /// Retained top application menu bar and dropdown overlay state.
+    pub menubar: crate::ui::menubar::MenuBarState,
     /// Asset browser state.
     pub asset_browser: crate::assets::AssetBrowserState,
     /// UI designer state.
@@ -266,11 +216,13 @@ impl EngineUi {
             should_exit: false,
             hierarchy_search_query: String::new(),
             ui_zoom_factor: 1.0,
+            menubar: crate::ui::menubar::MenuBarState::new(),
             last_viewport_rect: Rect::new(
                 0.0,
-                0.0,
+                crate::ui::menubar::MENUBAR_HEIGHT,
                 size.width as f32 / scale_factor,
-                size.height as f32 / scale_factor,
+                ((size.height as f32 / scale_factor) - crate::ui::menubar::MENUBAR_HEIGHT)
+                    .max(10.0),
             ),
             viewport_rect_width: size.width as f32 / scale_factor,
             viewport_rect_height: size.height as f32 / scale_factor,
@@ -437,27 +389,53 @@ impl EngineUi {
                 self.viewport_rect_height = size.height as f32 / scale;
                 self.last_viewport_rect = Rect::new(
                     0.0,
-                    0.0,
+                    crate::ui::menubar::MENUBAR_HEIGHT,
                     self.viewport_rect_width,
-                    self.viewport_rect_height,
+                    (self.viewport_rect_height - crate::ui::menubar::MENUBAR_HEIGHT).max(10.0),
                 );
-            }
-            winit::event::WindowEvent::MouseInput {
-                state: winit::event::ElementState::Pressed,
-                button: winit::event::MouseButton::Left,
-                ..
-            } => {
-                if let Some(target) = self.tree.hit_test_target(self.cursor_pos) {
-                    if let Some(hud_action) = evaluate_viewport_hud_tag(target.tag) {
-                        self.handle_hud_action(hud_action);
-                        return true;
-                    }
-                    return true;
-                }
             }
             _ => {}
         }
+
+        let mut menubar_ctx = crate::ui::menubar::MenuBarEventContext {
+            cursor_pos: self.cursor_pos,
+            pending_actions: &mut self.pending_actions,
+            layout_state: &mut self.layout_state,
+            show_preferences: &mut self.show_preferences,
+            show_about: &mut self.show_about,
+            is_editing: self.active_mode == ae_core::modules::EngineMode::Edit,
+            should_exit: &mut self.should_exit,
+        };
+        if crate::ui::menubar::handle_menubar_event(
+            &mut self.menubar,
+            &self.tree,
+            event,
+            &mut menubar_ctx,
+        ) {
+            return true;
+        }
+
+        if let winit::event::WindowEvent::MouseInput {
+            state: winit::event::ElementState::Pressed,
+            button: winit::event::MouseButton::Left,
+            ..
+        } = event
+        {
+            return self.handle_mouse_pressed();
+        }
         false
+    }
+
+    /// Handles left mouse click dispatching actions for interactive widgets.
+    fn handle_mouse_pressed(&mut self) -> bool {
+        if let Some(target) = self.tree.hit_test_target(self.cursor_pos) {
+            if let Some(hud_action) = evaluate_viewport_hud_tag(target.tag) {
+                self.handle_hud_action(hud_action);
+            }
+            true
+        } else {
+            false
+        }
     }
 
     /// Dispatches an action originating from Viewport HUD overlay controls.
@@ -529,13 +507,30 @@ impl EngineUi {
         let logical_h = win_size.height as f32 / scale;
         self.viewport_rect_width = logical_w;
         self.viewport_rect_height = logical_h;
+        self.last_viewport_rect = Rect::new(
+            0.0,
+            crate::ui::menubar::MENUBAR_HEIGHT,
+            logical_w,
+            (logical_h - crate::ui::menubar::MENUBAR_HEIGHT).max(10.0),
+        );
 
         // 1. Rebuild UI Tree cleanly with standardized root canvas
         let root = self
             .tree
             .reset_with_canvas(Rect::new(0.0, 0.0, logical_w, logical_h), "WorkbenchRoot");
 
-        // 2. Viewport 3D Render Texture Binding via iris-widgets ViewportCanvasBuilder
+        // 2. Top Application Menu Bar
+        let is_editing = *params.mode == ae_core::modules::EngineMode::Edit;
+        let menu_output = crate::ui::menubar::build_top_menu_bar(
+            &mut self.tree,
+            Some(root),
+            logical_w,
+            &self.menubar,
+            is_editing,
+        );
+        self.menubar.button_ids = menu_output.menu_button_ids.to_vec();
+
+        // 3. Viewport 3D Render Texture Binding via iris-widgets ViewportCanvasBuilder
         if let Some(vp_tex) = params.viewport_texture_view {
             let tex_id = ExternalTextureId(1);
             self.renderer.external_textures.set(
@@ -554,7 +549,7 @@ impl EngineUi {
                 .name("Main3DViewport")
                 .build(Some(root));
 
-            // 3. Floating Viewport HUD Controls via iris-widgets ViewportHudBuilder
+            // Floating Viewport HUD Controls via iris-widgets ViewportHudBuilder
             let vp_gizmo_mode = match self.gizmo_mode {
                 ae_editor::gizmo::GizmoMode::Select => ViewportGizmoMode::Select,
                 ae_editor::gizmo::GizmoMode::Translate => ViewportGizmoMode::Translate,
@@ -593,12 +588,46 @@ impl EngineUi {
                 .build(&mut self.tree, root);
         }
 
-        // 3. Compile Draw Commands
+        // 4. Content Text Measurement and Flexbox Layout Pass
+        self.layout_engine.clear();
+        self.text_system.measure_tree(&mut self.tree, root);
+        let _ = self
+            .layout_engine
+            .compute_layout(&mut self.tree, Size::new(logical_w, logical_h));
+
+        // 5. Floating Dropdown Popup Overlay (Rendered as topmost overlay with anchor aligned to menu button)
+        if let Some(active) = self.menubar.active_menu {
+            let anchor_x = self
+                .menubar
+                .button_ids
+                .iter()
+                .find(|(m, _)| *m == active)
+                .and_then(|(_, id)| self.tree.get(*id))
+                .map(|n| n.computed_rect.x)
+                .unwrap_or(0.0);
+            let (dd_id, actions, dd_rect) = crate::ui::menubar::build_floating_dropdown(
+                &mut self.tree,
+                Some(root),
+                crate::ui::menubar::DropdownBuildParams {
+                    active,
+                    anchor_x,
+                    cursor_pos: self.cursor_pos,
+                    layout_state: &self.layout_state,
+                    can_undo: !params.undo_stack.is_empty(),
+                    can_redo: !params.redo_stack.is_empty(),
+                },
+            );
+            self.text_system.measure_tree(&mut self.tree, dd_id);
+            self.menubar.actions = actions;
+            self.menubar.dropdown_rect = Some(dd_rect);
+        }
+
+        // 6. Compile Draw Commands
         self.command_list.clear();
         let mut options = TreeCompilerOptions::default();
         compile_tree_draw_commands_into(&self.tree, root, &mut options, &mut self.command_list);
 
-        // 4. Prepare GPU buffers
+        // 7. Prepare GPU buffers
         self.renderer.prepare_command_list(
             params.device,
             params.queue,
@@ -606,7 +635,7 @@ impl EngineUi {
             &self.command_list,
         );
 
-        // Lazy initialize text renderer
+        // 8. Lazy initialize text renderer and upload glyphs to GPU text atlas
         if self.text_renderer.is_none() {
             self.text_renderer = Some(TextRenderer::new(
                 params.device,
@@ -615,7 +644,19 @@ impl EngineUi {
             ));
         }
 
-        // 5. Execute Render Pass via ae_renderer helper
+        let text_sections = irisui::text::collect_text_sections(&self.tree);
+        if let Some(ref mut txt_renderer) = self.text_renderer {
+            txt_renderer.prepare(
+                params.device,
+                params.queue,
+                &mut self.text_system,
+                (win_size.width, win_size.height),
+                scale,
+                &text_sections,
+            );
+        }
+
+        // 9. Execute Render Pass via ae_renderer helper
         ae_renderer::render::iris_render_pass(ae_renderer::render::IrisRenderPassParams {
             device: params.device,
             queue: params.queue,
@@ -633,25 +674,6 @@ impl EngineUi {
             max_x: self.last_viewport_rect.right(),
             max_y: self.last_viewport_rect.bottom(),
         }
-    }
-}
-
-/// Maps an Iris UI semantic cursor into a Winit window cursor icon.
-pub fn map_widget_cursor_to_winit(cur: WidgetCursor) -> winit::window::CursorIcon {
-    match cur {
-        WidgetCursor::Default => winit::window::CursorIcon::Default,
-        WidgetCursor::Pointer => winit::window::CursorIcon::Pointer,
-        WidgetCursor::Text => winit::window::CursorIcon::Text,
-        WidgetCursor::Crosshair => winit::window::CursorIcon::Crosshair,
-        WidgetCursor::Grab => winit::window::CursorIcon::Grab,
-        WidgetCursor::Grabbing => winit::window::CursorIcon::Grabbing,
-        WidgetCursor::ColResize => winit::window::CursorIcon::ColResize,
-        WidgetCursor::RowResize => winit::window::CursorIcon::RowResize,
-        WidgetCursor::EwResize => winit::window::CursorIcon::EwResize,
-        WidgetCursor::NsResize => winit::window::CursorIcon::NsResize,
-        WidgetCursor::NeswResize => winit::window::CursorIcon::NeswResize,
-        WidgetCursor::NwseResize => winit::window::CursorIcon::NwseResize,
-        WidgetCursor::NotAllowed => winit::window::CursorIcon::NotAllowed,
     }
 }
 

@@ -124,3 +124,77 @@ pub struct ConsoleEntry {
 
 /// Canonical UI element type variants for spawning from the editor hierarchy.
 pub use ae_uidesign::UiElementType;
+
+/// Maps an Iris UI semantic cursor into a Winit window cursor icon.
+pub fn map_widget_cursor_to_winit(cur: irisui::prelude::WidgetCursor) -> winit::window::CursorIcon {
+    match cur {
+        irisui::prelude::WidgetCursor::Default => winit::window::CursorIcon::Default,
+        irisui::prelude::WidgetCursor::Pointer => winit::window::CursorIcon::Pointer,
+        irisui::prelude::WidgetCursor::Text => winit::window::CursorIcon::Text,
+        irisui::prelude::WidgetCursor::Crosshair => winit::window::CursorIcon::Crosshair,
+        irisui::prelude::WidgetCursor::Grab => winit::window::CursorIcon::Grab,
+        irisui::prelude::WidgetCursor::Grabbing => winit::window::CursorIcon::Grabbing,
+        irisui::prelude::WidgetCursor::ColResize => winit::window::CursorIcon::ColResize,
+        irisui::prelude::WidgetCursor::RowResize => winit::window::CursorIcon::RowResize,
+        irisui::prelude::WidgetCursor::EwResize => winit::window::CursorIcon::EwResize,
+        irisui::prelude::WidgetCursor::NsResize => winit::window::CursorIcon::NsResize,
+        irisui::prelude::WidgetCursor::NeswResize => winit::window::CursorIcon::NeswResize,
+        irisui::prelude::WidgetCursor::NwseResize => winit::window::CursorIcon::NwseResize,
+        irisui::prelude::WidgetCursor::NotAllowed => winit::window::CursorIcon::NotAllowed,
+    }
+}
+
+/// Action payload sent from async native file dialog threads to the main UI thread.
+#[derive(Debug, Clone)]
+pub enum SceneDialogAction {
+    /// Save active scene to the specified filesystem path.
+    SaveTo(std::path::PathBuf),
+    /// Load scene from the specified filesystem path.
+    LoadFrom(std::path::PathBuf),
+}
+
+/// Parameters for rendering the entire Editor UI frame.
+pub struct EditorUiRenderParams<'a> {
+    /// WGPU device handle.
+    pub device: &'a wgpu::Device,
+    /// WGPU queue handle.
+    pub queue: &'a wgpu::Queue,
+    /// Active frame command encoder.
+    pub encoder: &'a mut wgpu::CommandEncoder,
+    /// Winit window reference.
+    pub window: &'a winit::window::Window,
+    /// Target swapchain surface texture view.
+    pub window_surface_view: &'a wgpu::TextureView,
+    /// Viewport 3D rendered texture view, if present.
+    pub viewport_texture_view: Option<&'a wgpu::TextureView>,
+    /// Live frames per second.
+    pub fps: f32,
+    /// Active ECS world reference.
+    pub world: &'a hecs::World,
+    /// Active engine execution mode.
+    pub mode: &'a ae_core::modules::EngineMode,
+    /// Command history undo stack.
+    pub undo_stack: &'a [ae_editor::undo_redo::Command],
+    /// Command history redo stack.
+    pub redo_stack: &'a [ae_editor::undo_redo::Command],
+    /// Active graphics settings.
+    pub graphics_settings: &'a ae_renderer::graphics_settings::GraphicsSettings,
+    /// Viewport snapping configuration.
+    pub snapping: &'a ae_editor::snapping::SnapSettings,
+    /// Editor configuration state.
+    pub editor_state: &'a ae_editor::editor_state::EditorState,
+    /// Active viewport camera.
+    pub camera: &'a ae_renderer::camera::Camera,
+    /// 3D model asset storage.
+    pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
+    /// 2D texture asset storage.
+    pub textures: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::TextureAsset>,
+    /// Shader asset storage.
+    pub shaders: &'a ae_renderer::asset::AssetStorage<ae_renderer::asset::ShaderAsset>,
+    /// Active engine modules set.
+    pub enabled_modules: &'a std::collections::HashSet<ae_core::modules::EngineModule>,
+    /// Whether the editor is running in 2D dimension mode.
+    pub is_2d_mode: bool,
+    /// Outgoing UI action queue.
+    pub ui_actions: &'a mut Vec<EngineUiAction>,
+}

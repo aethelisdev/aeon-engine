@@ -212,6 +212,18 @@ impl PanelLayoutState {
         self.dock_state.tree.find_tab(&panel).is_some()
     }
 
+    /// Toggles the visibility of a panel: if currently visible, closes it; if closed, opens and focuses it.
+    ///
+    /// # Arguments
+    /// * `panel` - Identifier of the panel to toggle.
+    pub fn toggle_panel(&mut self, panel: PanelId) {
+        if let Some((leaf, tab_idx)) = self.dock_state.tree.find_tab(&panel) {
+            self.close_tab(leaf, tab_idx);
+        } else {
+            self.activate_or_open(panel);
+        }
+    }
+
     /// Closes a tab at the specified leaf and index, collapsing any emptied leaf containers.
     pub fn close_tab(&mut self, leaf: irisui::dock::DockNodeId, tab_idx: usize) {
         let _ = self.dock_state.tree.remove_tab(leaf, tab_idx);

@@ -219,7 +219,7 @@ mod tests {
         let mut menu_bar = MenuBarBuilder::new(&mut tree, 1920.0);
         menu_bar.add_menu_button(0, "File", false, false);
         menu_bar.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
-        let menu_id = menu_bar.build();
+        let menu_id = menu_bar.build(None);
         assert!(tree.get(menu_id).is_some());
 
         let mut status_bar = StatusBarBuilder::new(&mut tree, 1920.0, 22.0);

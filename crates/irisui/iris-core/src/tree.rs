@@ -95,6 +95,10 @@ impl UiTree {
             node.name = Some(name.to_string());
             node.computed_rect = bounds;
             node.interactive = false;
+            node.style = crate::style::Style::new()
+                .flex_col()
+                .width(bounds.width)
+                .height(bounds.height);
             node
         });
         self.root = Some(root_id);

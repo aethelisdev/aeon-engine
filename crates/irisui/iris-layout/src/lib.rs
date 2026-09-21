@@ -177,7 +177,23 @@ impl LayoutEngine {
 
         let abs_x = parent_x + layout.location.x;
         let abs_y = parent_y + layout.location.y;
-        let rect = Rect::new(abs_x, abs_y, layout.size.width, layout.size.height);
+        let (width, height) = if let Some(n) = tree.get(current_id) {
+            (
+                if layout.size.width > 0.0 {
+                    layout.size.width
+                } else {
+                    n.computed_rect.width
+                },
+                if layout.size.height > 0.0 {
+                    layout.size.height
+                } else {
+                    n.computed_rect.height
+                },
+            )
+        } else {
+            (layout.size.width, layout.size.height)
+        };
+        let rect = Rect::new(abs_x, abs_y, width, height);
 
         if let Some(node) = tree.get_mut(current_id) {
             node.computed_rect = rect;
@@ -198,8 +214,14 @@ impl LayoutEngine {
     /// Converts Iris `WidgetNode` styling and content dimensions to Taffy `Style`.
     fn convert_style(node: &iris_core::WidgetNode) -> tf::Style {
         let style = &node.style;
+        let is_overlay = node.layer > iris_core::UiLayer::Content;
         let mut tf_style = tf::Style {
             display: tf::Display::Flex,
+            position: if is_overlay {
+                tf::Position::Absolute
+            } else {
+                tf::Position::Relative
+            },
             flex_direction: match style.flex_direction {
                 FlexDirection::Row => tf::FlexDirection::Row,
                 FlexDirection::Column => tf::FlexDirection::Column,
@@ -231,6 +253,15 @@ impl LayoutEngine {
             ..Default::default()
         };
 
+        if is_overlay && (node.computed_rect.x != 0.0 || node.computed_rect.y != 0.0) {
+            tf_style.inset = tf::Rect {
+                left: tf::LengthPercentageAuto::length(node.computed_rect.x),
+                top: tf::LengthPercentageAuto::length(node.computed_rect.y),
+                right: tf::LengthPercentageAuto::auto(),
+                bottom: tf::LengthPercentageAuto::auto(),
+            };
+        }
+
         let pad_h = style.padding.left
             + style.padding.right
             + style.border.width.left
@@ -246,6 +277,8 @@ impl LayoutEngine {
             let total_w = node.content_size.width + pad_h;
             tf_style.min_size.width = tf::LengthPercentageAuto::length(total_w);
             tf_style.size.width = tf::Dimension::length(total_w);
+        } else if is_overlay && node.computed_rect.width > 0.0 {
+            tf_style.size.width = tf::Dimension::length(node.computed_rect.width);
         }
 
         if let Some(h) = style.height {
@@ -254,6 +287,8 @@ impl LayoutEngine {
             let total_h = node.content_size.height + pad_v;
             tf_style.min_size.height = tf::LengthPercentageAuto::length(total_h);
             tf_style.size.height = tf::Dimension::length(total_h);
+        } else if is_overlay && node.computed_rect.height > 0.0 {
+            tf_style.size.height = tf::Dimension::length(node.computed_rect.height);
         }
 
         if let Some(min_w) = style.min_width {
@@ -339,5 +374,54 @@ mod tests {
         assert_eq!(c2_rect.y, 55.0);
         assert_eq!(c2_rect.width, 100.0);
         assert_eq!(c2_rect.height, 60.0);
+    }
+
+    #[test]
+    fn test_overlay_layer_absolute_positioning_preserves_bounds() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let top_bar = tree.create_node();
+        let content_pane = tree.create_node();
+        let floating_overlay = tree.create_node();
+
+        if let Some(node) = tree.get_mut(root) {
+            node.set_style(Style::new().flex_col());
+        }
+        if let Some(node) = tree.get_mut(top_bar) {
+            node.set_style(Style::new().width(800.0).height(26.0).flex_shrink(0.0));
+        }
+        if let Some(node) = tree.get_mut(content_pane) {
+            node.set_style(Style::new().width(800.0).height(574.0).flex_grow(1.0));
+        }
+        if let Some(node) = tree.get_mut(floating_overlay) {
+            node.layer = iris_core::UiLayer::Floating;
+            node.computed_rect = iris_core::Rect::new(20.0, 40.0, 200.0, 100.0);
+        }
+
+        assert!(tree.add_child(root, top_bar).is_ok());
+        assert!(tree.add_child(root, content_pane).is_ok());
+        assert!(tree.add_child(root, floating_overlay).is_ok());
+
+        let mut engine = LayoutEngine::new();
+        let result = engine.compute_layout(&mut tree, Size::new(800.0, 600.0));
+        assert!(result.is_ok());
+
+        let top_rect = tree.get(top_bar).unwrap().computed_rect;
+        let pane_rect = tree.get(content_pane).unwrap().computed_rect;
+        let overlay_rect = tree.get(floating_overlay).unwrap().computed_rect;
+
+        // Top bar at top
+        assert_eq!(top_rect.y, 0.0);
+        assert_eq!(top_rect.height, 26.0);
+
+        // Content pane directly below top bar without being pushed by overlay
+        assert_eq!(pane_rect.y, 26.0);
+        assert_eq!(pane_rect.height, 574.0);
+
+        // Overlay is floating absolute and preserves bounds
+        assert_eq!(overlay_rect.x, 20.0);
+        assert_eq!(overlay_rect.y, 40.0);
+        assert_eq!(overlay_rect.width, 200.0);
+        assert_eq!(overlay_rect.height, 100.0);
     }
 }

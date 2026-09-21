@@ -129,7 +129,12 @@ impl<'a> ViewportCanvasBuilder<'a> {
             node.external_texture = self.external_texture;
             node.interactive = self.interactive;
 
-            let mut style = Style::new().background(self.background_color);
+            let mut style = Style::new()
+                .background(self.background_color)
+                .width(self.rect.width)
+                .height(self.rect.height)
+                .flex_grow(1.0)
+                .flex_shrink(1.0);
             if let Some(bc) = self.border_color {
                 style = style.border(self.border_width, bc);
             }
