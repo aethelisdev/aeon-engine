@@ -61,7 +61,10 @@ impl PanelId {
 
     /// Returns the optional texture array layer coordinates for panels with a dedicated GPU atlas icon.
     pub fn atlas_icon(&self) -> Option<[f32; 4]> {
-        None
+        match self {
+            Self::Assets => Some(crate::ui::iris_bridge::icons::ICON_FOLDER),
+            _ => None,
+        }
     }
 
     /// Returns the canonical alphanumeric string identifier for this panel used in registries.
@@ -210,18 +213,6 @@ impl PanelLayoutState {
     /// Checks if a panel currently exists anywhere in the docking tree.
     pub fn is_panel_visible(&self, panel: PanelId) -> bool {
         self.dock_state.tree.find_tab(&panel).is_some()
-    }
-
-    /// Toggles the visibility of a panel: if currently visible, closes it; if closed, opens and focuses it.
-    ///
-    /// # Arguments
-    /// * `panel` - Identifier of the panel to toggle.
-    pub fn toggle_panel(&mut self, panel: PanelId) {
-        if let Some((leaf, tab_idx)) = self.dock_state.tree.find_tab(&panel) {
-            self.close_tab(leaf, tab_idx);
-        } else {
-            self.activate_or_open(panel);
-        }
     }
 
     /// Closes a tab at the specified leaf and index, collapsing any emptied leaf containers.

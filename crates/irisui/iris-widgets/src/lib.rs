@@ -32,8 +32,6 @@ pub mod status_bar;
 pub mod timeline;
 pub mod tree_view;
 pub mod typography;
-pub mod viewport_canvas;
-pub mod viewport_hud;
 
 pub use asset_card::{
     AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
@@ -92,16 +90,6 @@ pub use timeline::{
 };
 pub use tree_view::{TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle};
 pub use typography::{LabelBuilder, SectionHeaderBuilder};
-pub use viewport_canvas::ViewportCanvasBuilder;
-pub use viewport_hud::{
-    VIEWPORT_HUD_TAG_CAMERA_PROJECTION, VIEWPORT_HUD_TAG_GIZMO_ROTATE,
-    VIEWPORT_HUD_TAG_GIZMO_SCALE, VIEWPORT_HUD_TAG_GIZMO_SELECT, VIEWPORT_HUD_TAG_GIZMO_SPACE,
-    VIEWPORT_HUD_TAG_GIZMO_TRANSLATE, VIEWPORT_HUD_TAG_GRID, VIEWPORT_HUD_TAG_PLAY_PAUSE,
-    VIEWPORT_HUD_TAG_SNAPPING, VIEWPORT_HUD_TAG_STOP, VIEWPORT_HUD_TAG_WIREFRAME,
-    ViewportCameraMode, ViewportEngineMode, ViewportGizmoMode, ViewportGizmoSpace,
-    ViewportHudAction, ViewportHudBuilder, ViewportHudFrame, ViewportHudStyle,
-    evaluate_viewport_hud_tag,
-};
 
 #[cfg(test)]
 mod tests {
@@ -219,7 +207,7 @@ mod tests {
         let mut menu_bar = MenuBarBuilder::new(&mut tree, 1920.0);
         menu_bar.add_menu_button(0, "File", false, false);
         menu_bar.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
-        let menu_id = menu_bar.build(None);
+        let menu_id = menu_bar.build();
         assert!(tree.get(menu_id).is_some());
 
         let mut status_bar = StatusBarBuilder::new(&mut tree, 1920.0, 22.0);

@@ -63,7 +63,7 @@ impl AeEngine {
             let window_size = (self.render_state.size.width, self.render_state.size.height);
             let scale_factor = self.ui.scale_factor();
             let ui_ref = &self.ui;
-            let is_point_over_ui = move |pos| ui_ref.is_point_over_ui(pos);
+            let is_point_over_ui = move |pos| ui_ref.is_point_over_ui_rects(pos);
 
             ae_editor::interactions::handle_mouse_click(
                 &mut self.editor,

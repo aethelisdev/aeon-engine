@@ -4,18 +4,17 @@
 //! # Editor UI Subsystem
 //!
 //! Root module orchestrating editor panels, docking layouts, Iris UI overlays,
-//! and the core `workbench` runtime.
+//! themes, modal dialogs, and the core `workbench` runtime.
 //!
 
-pub mod menubar;
+pub mod iris_bridge;
 pub mod panel_layout;
-pub mod statusbar;
 pub mod types;
 pub mod workbench;
 
-// Re-exports for engine consumption
-pub use menubar::{ActiveMenu, DropdownAction, MENUBAR_HEIGHT, MenuBarState};
+// Re-exports for  engine consumption
+pub use iris_bridge::IrisEditorOverlay;
+pub use iris_bridge::hierarchy::{HierarchyAction, HierarchyPanelParams, HierarchyRow};
 pub use panel_layout::{PanelId, PanelLayoutState};
-pub use statusbar::{STATUS_BAR_HEIGHT, StatusBarParams, build_bottom_status_bar};
 pub use types::{ConsoleEntry, EngineUiAction, UiElementType};
 pub use workbench::{EditorUiRenderParams, EngineUi, SceneDialogAction};

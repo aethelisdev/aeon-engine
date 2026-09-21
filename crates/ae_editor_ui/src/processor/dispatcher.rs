@@ -309,6 +309,11 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
         }
     }
 
-    // Actions mutated ECS World or Engine state.
-    let _ = had_actions;
+    // Since one or more actions mutated the ECS World or Engine state, mark the Iris UI
+    // overlay as dirty so the subsequent frame unconditionally rebuilds the retained tree
+    // with the freshly mutated data, even if the mouse cursor remains completely motionless.
+    if had_actions {
+        ctx.ui.iris_overlay.chrome.needs_layout_rebuild = true;
+        ctx.ui.iris_overlay.notifier.tag_all();
+    }
 }

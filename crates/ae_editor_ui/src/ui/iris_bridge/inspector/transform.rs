@@ -1,0 +1,224 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Transform Component Inspector Card Builder
+//!
+//! Renders the 3D Position, Rotation Euler, and Scale axes with precision
+//! drag/number input pill boxes and individual axis reset buttons.
+
+use super::registry::ComponentRenderContext;
+use super::types::{InspectorNumberInputId, TransformAxisType};
+use irisui::prelude::*;
+
+/// Builds the `📐 Transform` card in the `UiTree` and returns the computed height.
+pub fn build_transform_card(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    ctx: &mut ComponentRenderContext<'_>,
+) -> f32 {
+    let row_h = 22.0;
+    let card_padding = 8.0;
+    let card_h = 24.0 + 3.0 * (row_h + 4.0) + card_padding * 2.0;
+    let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+
+    let frame = CardBuilder::new(tree, parent_id)
+        .name("TransformCard")
+        .rect(card_rect)
+        .title("Transform")
+        .icon_text("📐")
+        .title_color(Color::rgba(0.886, 0.894, 0.918, 1.0))
+        .build();
+    let card_id = frame.card_id;
+
+    let mut cur_y = ctx.base_y + card_padding + 22.0;
+
+    // Fetch ECS Transform components
+    let pos = ctx
+        .world
+        .get::<&ae_core::ecs::Position>(ctx.entity)
+        .map(|p| [p.x, p.y, p.z])
+        .unwrap_or([0.0, 0.0, 0.0]);
+
+    let rot = ctx
+        .world
+        .get::<&ae_core::ecs::Rotation>(ctx.entity)
+        .map(|r| crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&r))
+        .unwrap_or([0.0, 0.0, 0.0]);
+
+    let scale = ctx
+        .world
+        .get::<&ae_core::ecs::Scale>(ctx.entity)
+        .map(|s| [s.x, s.y, s.z])
+        .unwrap_or([1.0, 1.0, 1.0]);
+
+    // 3. Position Row
+    build_axis_row(
+        tree,
+        card_id,
+        ctx,
+        AxisRowDescriptor {
+            label: "Position",
+            axis_type: TransformAxisType::Position,
+            values: [pos[0], pos[1], pos[2]],
+            ids: [
+                InspectorNumberInputId::PosX,
+                InspectorNumberInputId::PosY,
+                InspectorNumberInputId::PosZ,
+            ],
+            row_y: cur_y,
+            decimals: 3,
+        },
+    );
+    cur_y += row_h + 4.0;
+
+    // 4. Rotation Row
+    build_axis_row(
+        tree,
+        card_id,
+        ctx,
+        AxisRowDescriptor {
+            label: "Rotation",
+            axis_type: TransformAxisType::Rotation,
+            values: [rot[0], rot[1], rot[2]],
+            ids: [
+                InspectorNumberInputId::RotX,
+                InspectorNumberInputId::RotY,
+                InspectorNumberInputId::RotZ,
+            ],
+            row_y: cur_y,
+            decimals: 1,
+        },
+    );
+    cur_y += row_h + 4.0;
+
+    // 5. Scale Row
+    build_axis_row(
+        tree,
+        card_id,
+        ctx,
+        AxisRowDescriptor {
+            label: "Scale",
+            axis_type: TransformAxisType::Scale,
+            values: [scale[0], scale[1], scale[2]],
+            ids: [
+                InspectorNumberInputId::ScaleX,
+                InspectorNumberInputId::ScaleY,
+                InspectorNumberInputId::ScaleZ,
+            ],
+            row_y: cur_y,
+            decimals: 3,
+        },
+    );
+
+    card_h
+}
+
+/// Parameters descriptor for rendering a 3-axis transform row.
+struct AxisRowDescriptor {
+    label: &'static str,
+    axis_type: TransformAxisType,
+    values: [f32; 3],
+    ids: [InspectorNumberInputId; 3],
+    row_y: f32,
+    decimals: usize,
+}
+
+/// Helper function to build a 3-axis (X, Y, Z) row with reset button.
+fn build_axis_row(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    ctx: &mut ComponentRenderContext<'_>,
+    desc: AxisRowDescriptor,
+) {
+    let padding_x = 8.0;
+    let label_w = 52.0;
+    let box_w = 54.0; // Compact fixed width matching Image 2!
+    let box_h = 20.0;
+    let reset_btn_size = 18.0;
+
+    // Label
+    let lbl_id = tree.create_node();
+    if let Some(node) = tree.get_mut(lbl_id) {
+        node.set_name(format!("{}Label", desc.label));
+        node.set_text(desc.label);
+        node.font_size = 11.0;
+        node.line_height = box_h;
+        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
+        node.computed_rect = Rect::new(ctx.base_x + padding_x, desc.row_y, label_w, box_h);
+    }
+    let _ = tree.add_child(parent_id, lbl_id);
+
+    let prefixes = ["X: ", "Y: ", "Z: "];
+    let mut cur_box_x = ctx.base_x + padding_x + label_w + 2.0;
+
+    for (i, prefix) in prefixes.iter().enumerate() {
+        let input_id = desc.ids[i];
+        let val = desc.values[i];
+        let box_rect = Rect::new(cur_box_x, desc.row_y, box_w, box_h);
+
+        let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
+        let edit_state = ctx
+            .params
+            .active_number_input
+            .filter(|s| s.id == input_id)
+            .map(|s| s.to_edit_state(ctx.params.blink_caret));
+
+        NumericInputPillBuilder::new(box_rect)
+            .name(format!("NumBox_{:?}", input_id))
+            .prefix(prefix)
+            .value(val)
+            .decimals(desc.decimals)
+            .edit_state(edit_state)
+            .is_hovered(is_hovered)
+            .build(tree, parent_id);
+
+        let (min_val, max_val) = input_id.valid_range();
+        ctx.targets
+            .number_inputs
+            .push((input_id, box_rect, min_val, max_val, val));
+
+        cur_box_x += box_w + 3.0;
+    }
+
+    // Reset Button "🔄" placed right next to the Z box!
+    let reset_rect = Rect::new(
+        cur_box_x + 2.0,
+        desc.row_y + 1.0,
+        reset_btn_size,
+        reset_btn_size,
+    );
+    let is_reset_hovered = reset_rect.contains_point(ctx.params.cursor_pos);
+
+    let reset_id = tree.create_node();
+    if let Some(node) = tree.get_mut(reset_id) {
+        node.set_name(format!("ResetBtn_{:?}", desc.axis_type));
+        node.computed_rect = reset_rect;
+        let (bg, border_col, txt_col) = if is_reset_hovered {
+            (
+                Color::rgba(0.157, 0.169, 0.200, 1.0),
+                Color::rgba(0.235, 0.247, 0.286, 0.95),
+                Color::WHITE,
+            )
+        } else {
+            (
+                Color::rgba(0.125, 0.133, 0.153, 0.98),
+                Color::rgba(0.180, 0.192, 0.227, 0.85),
+                Color::rgba(0.70, 0.73, 0.80, 0.90),
+            )
+        };
+        node.style = Style::new()
+            .background(bg)
+            .border(1.0, border_col)
+            .border_radius(5.0);
+        node.set_text("🔄");
+        node.font_size = 9.5;
+        node.line_height = reset_btn_size;
+        node.text_align = TextAlign::Center;
+        node.text_color = txt_col;
+    }
+    let _ = tree.add_child(parent_id, reset_id);
+
+    ctx.targets
+        .transform_reset_btns
+        .push((desc.axis_type, reset_rect));
+}

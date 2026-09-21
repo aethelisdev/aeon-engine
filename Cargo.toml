@@ -27,7 +27,6 @@ members = [
     "crates/irisui/iris-widgets",
     "crates/irisui/irisui",
 ]
-exclude = ["crates/ae_editor_ui_old"]
 default-members = ["crates/ae_launcher"]
 resolver = "2"
 

@@ -247,29 +247,4 @@ impl TextSystem {
         self.shape_cache.insert(key, buffer.clone());
         buffer
     }
-
-    /// Recursively traverses a subtree starting at `root`, measures any nodes containing text,
-    /// and updates their `content_size` with the calculated dimensions.
-    ///
-    /// This intrinsic content size is subsequently utilized by `iris-layout` and Taffy
-    /// to determine natural flexbox item bounds without manual host measurement.
-    pub fn measure_tree(&mut self, tree: &mut iris_core::UiTree, root: iris_core::WidgetId) {
-        if let Some(node) = tree.get(root)
-            && let Some(ref text) = node.text
-        {
-            let font_size = node.font_size;
-            let line_height = node.line_height;
-            let measured = self.measure_text(text, font_size, line_height, None);
-            if let Some(node_mut) = tree.get_mut(root) {
-                node_mut.content_size = measured;
-            }
-        }
-
-        let child_count = tree.get(root).map_or(0, |n| n.children.len());
-        for i in 0..child_count {
-            if let Some(child) = tree.get(root).and_then(|n| n.children.get(i).copied()) {
-                self.measure_tree(tree, child);
-            }
-        }
-    }
 }

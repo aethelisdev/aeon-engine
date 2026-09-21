@@ -30,5 +30,5 @@ dist_export/
 *.ae2d
 *.ae3d
 *.aeprefab
-# Temporary reference legacy folder
-crates/ae_editor_ui_old/
+assets/scenes/
+

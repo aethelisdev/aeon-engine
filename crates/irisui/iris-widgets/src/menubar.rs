@@ -153,12 +153,9 @@ impl<'a> MenuBarBuilder<'a> {
         btn_id
     }
 
-    /// Consumes the builder, attaches to `parent_id` if provided, and returns the root `WidgetId` of the menu bar.
+    /// Consumes the builder and returns the root `WidgetId` of the menu bar.
     #[inline]
-    pub fn build(self, parent_id: Option<WidgetId>) -> WidgetId {
-        if let Some(parent) = parent_id {
-            let _ = self.tree.add_child(parent, self.node_id);
-        }
+    pub fn build(self) -> WidgetId {
         self.node_id
     }
 }
@@ -297,12 +294,6 @@ impl<'a> DropdownMenuBuilder<'a> {
             row_node.set_role(WidgetRole::DropdownItem);
             row_node.set_layer(iris_core::UiLayer::Popup);
             row_node.set_tag(tag);
-            row_node.interactive = enabled;
-            row_node.cursor = if enabled {
-                Some(iris_core::WidgetCursor::Pointer)
-            } else {
-                Some(iris_core::WidgetCursor::NotAllowed)
-            };
             row_node.computed_rect = row_rect;
             row_node.set_style(
                 Style::new()
@@ -346,10 +337,9 @@ impl<'a> DropdownMenuBuilder<'a> {
         sep_id
     }
 
-    /// Consumes the builder, updates the bounding box of the dropdown, attaches to `parent_id` if provided,
-    /// and returns the root `WidgetId` and bounding `Rect`.
+    /// Consumes the builder, updates the bounding box of the dropdown, and returns the root `WidgetId` and bounding `Rect`.
     #[inline]
-    pub fn build(self, parent_id: Option<WidgetId>) -> (WidgetId, iris_core::Rect) {
+    pub fn build(self) -> (WidgetId, iris_core::Rect) {
         let card_rect = iris_core::Rect::new(
             self.x,
             self.y,
@@ -358,9 +348,6 @@ impl<'a> DropdownMenuBuilder<'a> {
         );
         if let Some(node) = self.tree.get_mut(self.node_id) {
             node.computed_rect = card_rect;
-        }
-        if let Some(parent) = parent_id {
-            let _ = self.tree.add_child(parent, self.node_id);
         }
         (self.node_id, card_rect)
     }
@@ -378,7 +365,7 @@ mod tests {
         let btn_file = builder.add_menu_button(0, "File", false, false);
         let btn_edit = builder.add_menu_button(1, "Edit", true, false);
         let btn_play = builder.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
-        let root = builder.build(None);
+        let root = builder.build();
 
         assert_eq!(tree.get(btn_file).unwrap().tag, 0);
         assert_eq!(tree.get(btn_file).unwrap().role, WidgetRole::MenuBarItem);
@@ -398,22 +385,13 @@ mod tests {
         dd.add_item(10, "🗎", "New", Some("Ctrl N"), true, Point::ZERO);
         dd.add_separator();
         dd.add_item(11, "🖫", "Save", Some("Ctrl S"), true, Point::ZERO);
-        let disabled_id = dd.add_item(12, "↩", "Undo", Some("Ctrl Z"), false, Point::ZERO);
-        let (dd_id, dd_rect) = dd.build(Some(root));
+        let (dd_id, dd_rect) = dd.build();
+        let _ = tree.add_child(root, dd_id);
 
         assert_eq!(dd_rect.x, 100.0);
         assert_eq!(dd_rect.y, 26.0);
         assert_eq!(dd_rect.width, 200.0);
         assert!(tree.get(dd_id).is_some());
-        assert!(tree.get(root).unwrap().children.contains(&dd_id));
-
-        // Disabled item must have interactive = false and NotAllowed cursor
-        let disabled_node = tree.get(disabled_id).unwrap();
-        assert!(!disabled_node.interactive);
-        assert_eq!(
-            disabled_node.cursor,
-            Some(iris_core::WidgetCursor::NotAllowed)
-        );
 
         // Hit test first item (y = 26 + 4 + 10 = 40.0)
         let hit_item = tree.hit_test_target(Point::new(120.0, 40.0));

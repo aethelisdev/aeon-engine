@@ -29,7 +29,8 @@ impl<'a> StatusBarBuilder<'a> {
                     .align_items(AlignItems::Center)
                     .width(width)
                     .height(height)
-                    .padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0)),
+                    .padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0))
+                    .background(Color::rgba(0.071, 0.082, 0.122, 1.0)),
             );
         }
 
@@ -62,29 +63,6 @@ impl<'a> StatusBarBuilder<'a> {
             left_group,
             right_group,
         }
-    }
-
-    /// Sets a custom background color for the status bar container.
-    ///
-    /// # Arguments
-    /// * `color` - Color specification for the background surface.
-    pub fn with_background(self, color: Color) -> Self {
-        if let Some(node) = self.tree.get_mut(self.node_id) {
-            node.style.background_color = color;
-        }
-        self
-    }
-
-    /// Sets a custom border outline for the status bar container.
-    ///
-    /// # Arguments
-    /// * `width` - Border line width in pixels.
-    /// * `color` - Color of the outline border.
-    pub fn with_border(self, width: f32, color: Color) -> Self {
-        if let Some(node) = self.tree.get_mut(self.node_id) {
-            node.style = node.style.border(width, color);
-        }
-        self
     }
 
     /// Adds a status text message or indicator to the left side of the bar.
@@ -158,66 +136,5 @@ impl<'a> StatusBarBuilder<'a> {
     #[inline]
     pub fn build(self) -> WidgetId {
         self.node_id
-    }
-
-    /// Attaches the status bar container to an optional parent node and returns the status bar widget ID.
-    pub fn attach_to(self, parent_id: Option<WidgetId>) -> WidgetId {
-        if let Some(parent) = parent_id {
-            let _ = self.tree.add_child(parent, self.node_id);
-        }
-        self.node_id
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_status_bar_builder_hierarchy_and_properties() {
-        let mut tree = UiTree::new();
-        let root = tree.create_node();
-
-        let mut bar_builder = StatusBarBuilder::new(&mut tree, 1920.0, 22.0)
-            .with_background(Color::BLACK)
-            .with_border(1.0, Color::rgba(0.18, 0.21, 0.28, 0.85));
-        let indicator_id =
-            bar_builder.add_status_indicator("● Ready", Color::rgba(0.27, 0.75, 0.47, 1.0));
-        let pill_id = bar_builder.add_diagnostics_pill(
-            "60 FPS",
-            Color::WHITE,
-            Color::rgba(0.12, 0.14, 0.18, 1.0),
-        );
-        let label_id = bar_builder.add_right_label("Aeon Engine v0.9.0", Color::hex("#646470"));
-
-        let bar_id = bar_builder.attach_to(Some(root));
-
-        // Verify root attachment
-        let root_node = tree.get(root).expect("Root node must exist");
-        assert!(root_node.children.contains(&bar_id));
-
-        // Verify bar node
-        let bar_node = tree.get(bar_id).expect("Status bar node must exist");
-        assert_eq!(bar_node.name.as_deref(), Some("BottomStatusBar"));
-        assert_eq!(bar_node.style.background_color, Color::BLACK);
-        assert_eq!(
-            bar_node.style.border.color,
-            Color::rgba(0.18, 0.21, 0.28, 0.85)
-        );
-        assert_eq!(bar_node.children.len(), 2);
-
-        // Verify indicator node
-        let ind_node = tree.get(indicator_id).expect("Indicator node must exist");
-        assert_eq!(ind_node.name.as_deref(), Some("StatusBarIndicator"));
-        assert_eq!(ind_node.text.as_deref(), Some("● Ready"));
-
-        // Verify pill node
-        let pill_node = tree.get(pill_id).expect("Pill node must exist");
-        assert_eq!(pill_node.name.as_deref(), Some("DiagnosticsPill"));
-
-        // Verify label node
-        let lbl_node = tree.get(label_id).expect("Label node must exist");
-        assert_eq!(lbl_node.name.as_deref(), Some("StatusBarRightLabel"));
-        assert_eq!(lbl_node.text.as_deref(), Some("Aeon Engine v0.9.0"));
     }
 }
