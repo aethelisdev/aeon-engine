@@ -34,7 +34,7 @@ pub struct StatsPanelTargets {
 }
 
 /// Persistent widget node handles for the Stats & Profiler panel in retained mode.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StatsPanelNodes {
     /// Root node of the stats panel container.
     pub root_id: WidgetId,
