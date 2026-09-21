@@ -1,0 +1,6 @@
+# Disallow raw node manipulation or direct pixel assignment in editor UI panels
+disallowed-methods = [
+    { path = "iris_core::tree::UiTree::create_node", reason = "Manual raw node instantiation is forbidden in editor UI. Use declarative layout primitives (Row, Column, Box, Card, etc.)." },
+    { path = "iris_core::node::UiNode::set_computed_rect", reason = "Direct pixel coordinate assignment is forbidden. The declarative flexbox layout engine must compute node geometries." },
+]
+

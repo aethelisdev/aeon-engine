@@ -18,6 +18,7 @@ pub mod cascading_menu;
 pub mod color_picker;
 pub mod console;
 pub mod context_menu;
+pub mod declarative;
 pub mod dropdown;
 pub mod grid_view;
 pub mod input;
@@ -60,6 +61,7 @@ pub use console::{
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
+pub use declarative::UiScope;
 pub use dropdown::{
     ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,
     ComboboxPopupFrame, ComboboxPopupStyle, ComboboxRowBuilder, ComboboxRowFrame, ComboboxRowStyle,

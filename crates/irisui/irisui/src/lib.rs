@@ -105,7 +105,7 @@ pub mod prelude {
         StatusBarBuilder, TabBuilder, TabbedDialogBuilder, TabbedDialogFrame, TabbedDialogStyle,
         TabbedDialogTab, TextInputBuilder, TextInputState, TimelineKeyframeMarker,
         TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle, TreeRowBuilder, TreeRowFrame,
-        TreeRowIcon, TreeRowStyle, VirtualList, VirtualSlice, evaluate_color_picker_click,
+        TreeRowIcon, TreeRowStyle, UiScope, VirtualList, VirtualSlice, evaluate_color_picker_click,
         evaluate_color_picker_cursor, evaluate_color_picker_drag, evaluate_console_toolbar_click,
         evaluate_console_toolbar_cursor, hsv_to_rgb, rgb_to_hsv,
     };
