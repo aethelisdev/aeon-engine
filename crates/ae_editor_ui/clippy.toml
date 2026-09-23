@@ -1,6 +1,8 @@
 # Disallow raw node manipulation or direct pixel assignment in editor UI panels
 disallowed-methods = [
     { path = "iris_core::tree::UiTree::create_node", reason = "Manual raw node instantiation is forbidden in editor UI. Use declarative layout primitives (Row, Column, Box, Card, etc.)." },
-    { path = "iris_core::node::UiNode::set_computed_rect", reason = "Direct pixel coordinate assignment is forbidden. The declarative flexbox layout engine must compute node geometries." },
+    { path = "iris_core::tree::UiTree::get_mut", reason = "Direct mutable access to UiNodes bypasses declarative abstraction. Mutate properties via UiScope or widget state bindings." },
+    { path = "iris_core::geometry::Rect::contains_point", reason = "Manual hit-testing in editor panels is forbidden. Use declarative response handlers (e.g. response.clicked())." },
+    { path = "iris_core::tree::UiTree::add_child", reason = "Manual tree hierarchy construction is forbidden in editor UI. Use declarative scope nesting (scope.row, scope.column, scope.card)." },
+    { path = "iris_widgets::panel::PanelBuilder::rect", reason = "Manual pixel rect assignment via PanelBuilder is forbidden. Use UiScope declarative layout engine." },
 ]
-

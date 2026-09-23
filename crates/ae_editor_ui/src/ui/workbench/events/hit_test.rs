@@ -20,11 +20,11 @@ impl EngineUi {
 
         // 1. Top menubar & active modal dialogs / preferences / popups (always highest z-order)
         if pos[1] <= IrisEditorOverlay::MENUBAR_HEIGHT
-            || self.iris_overlay.modals.about_targets.is_some()
-            || self.iris_overlay.modals.delete_targets.is_some()
-            || self.iris_overlay.modals.new_folder_targets.is_some()
-            || self.iris_overlay.modals.rename_targets.is_some()
-            || self.iris_overlay.modals.loading_targets.is_some()
+            || self.iris_overlay.modals.is_about_active
+            || self.iris_overlay.modals.is_delete_active
+            || self.iris_overlay.modals.is_new_folder_active
+            || self.iris_overlay.modals.is_rename_active
+            || self.iris_overlay.modals.is_loading_active
             || self.iris_overlay.assets.preview_modal.is_some()
             || self.ui_rects.iter().any(|rect| rect.contains_point(point))
         {
@@ -49,16 +49,8 @@ impl EngineUi {
             if self.iris_overlay.is_point_over_popup(point) {
                 return true;
             }
-            if let Some(ref hud) = self.iris_overlay.viewport_hud.targets
-                && (hud.buttons.iter().any(|(_, r)| r.contains_point(point))
-                    || hud
-                        .dropdown_triggers
-                        .iter()
-                        .any(|(_, r)| r.contains_point(point))
-                    || hud
-                        .compass_knobs
-                        .iter()
-                        .any(|(_, r)| r.contains_point(point)))
+            if let Some(hit) = self.iris_overlay.tree.hit_test_target(point)
+                && (hit.role == irisui::prelude::WidgetRole::Button || hit.tag > 0)
             {
                 return true;
             }

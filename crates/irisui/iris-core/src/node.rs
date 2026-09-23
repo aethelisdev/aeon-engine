@@ -55,6 +55,8 @@ pub enum WidgetRole {
     DockSplitterHorizontal,
     /// Docking panel vertical splitter divider line.
     DockSplitterVertical,
+    /// Visual progress bar or activity indicator container.
+    ProgressBar,
 }
 
 /// Canonical hardware mouse cursor shapes supported across the Iris UI ecosystem.
@@ -147,7 +149,8 @@ impl WidgetRole {
             | WidgetRole::ColorSwatch
             | WidgetRole::DockTab
             | WidgetRole::DockSplitterHorizontal
-            | WidgetRole::DockSplitterVertical => UiLayer::Content,
+            | WidgetRole::DockSplitterVertical
+            | WidgetRole::ProgressBar => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
             WidgetRole::ModalWindow => UiLayer::Modal,
             WidgetRole::DropdownPopup

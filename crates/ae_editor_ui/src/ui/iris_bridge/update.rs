@@ -12,7 +12,7 @@ use super::modals::{
 use super::preferences::{self, build_preferences_dialog};
 use super::status_bar;
 use super::theme::*;
-use super::types::{ActiveMenu, IrisEditorOverlay, OverlayUpdateParams};
+use super::types::{IrisEditorOverlay, OverlayUpdateParams};
 use irisui::prelude::*;
 use irisui::text::TextSystem;
 
@@ -79,9 +79,61 @@ impl IrisEditorOverlay {
         let has_drag_payload = params.panel_data.asset_browser.drag_payload.is_some();
         let cursor_moved = (self.chrome.last_cursor_pos.x - self.cursor_pos().x).abs() > 0.001
             || (self.chrome.last_cursor_pos.y - self.cursor_pos().y).abs() > 0.001;
-        let is_over_ui = cursor_moved
-            && (self.is_point_over_overlay(self.cursor_pos())
-                || self.is_point_over_overlay(self.chrome.last_cursor_pos));
+        let hovered_target = self.tree.hit_test_target(self.cursor_pos()).map(|h| h.tag);
+        let last_hovered_target = self
+            .tree
+            .hit_test_target(self.chrome.last_cursor_pos)
+            .map(|h| h.tag);
+        let hover_target_changed = cursor_moved && hovered_target != last_hovered_target;
+
+        let mat_entity_changed = self.material.last_selected_entity != params.scene.selected_entity;
+        let mat_scroll_changed =
+            (self.material.last_scroll_y - self.material.scroll_y).abs() > 0.001;
+        let mat_dirty = mat_entity_changed || mat_scroll_changed;
+        if mat_dirty {
+            self.material.last_selected_entity = params.scene.selected_entity;
+            self.material.last_scroll_y = self.material.scroll_y;
+        }
+
+        let tl_entity_changed = self.timeline.last_selected_entity != params.scene.selected_entity;
+        let tl_drag_changed = self.timeline.last_is_dragging != self.timeline.is_dragging;
+        let tl_dirty = tl_entity_changed || tl_drag_changed;
+        if tl_dirty {
+            self.timeline.last_selected_entity = params.scene.selected_entity;
+            self.timeline.last_is_dragging = self.timeline.is_dragging;
+        }
+
+        let cam_p = params.viewport.camera.position;
+        let cam_pos_changed = (self.viewport_hud.last_camera_pos.0 - cam_p.x).abs() > 0.05
+            || (self.viewport_hud.last_camera_pos.1 - cam_p.y).abs() > 0.05
+            || (self.viewport_hud.last_camera_pos.2 - cam_p.z).abs() > 0.05;
+        let pitch_rad = params.viewport.camera.pitch.0;
+        let yaw_rad = params.viewport.camera.yaw.0;
+        let cam_rot_changed = (self.viewport_hud.last_camera_rot.0 - pitch_rad).abs() > 0.005
+            || (self.viewport_hud.last_camera_rot.1 - yaw_rad).abs() > 0.005;
+        let gizmo_changed = self.viewport_hud.last_gizmo_mode != Some(params.viewport.gizmo_mode)
+            || self.viewport_hud.last_gizmo_space != Some(params.viewport.gizmo_space);
+        let vp_rect = params.viewport.viewport_rect;
+        let hud_dirty = cam_pos_changed
+            || cam_rot_changed
+            || gizmo_changed
+            || self.viewport_hud.last_wireframe != params.viewport.wireframe_enabled
+            || self.viewport_hud.last_is_editing != params.context.is_editing
+            || self.viewport_hud.last_is_2d != params.context.is_2d_mode
+            || self.viewport_hud.last_selected_entity != params.scene.selected_entity
+            || self.viewport_hud.last_viewport_rect != vp_rect;
+
+        if hud_dirty {
+            self.viewport_hud.last_camera_pos = (cam_p.x, cam_p.y, cam_p.z);
+            self.viewport_hud.last_camera_rot = (pitch_rad, yaw_rad);
+            self.viewport_hud.last_gizmo_mode = Some(params.viewport.gizmo_mode);
+            self.viewport_hud.last_gizmo_space = Some(params.viewport.gizmo_space);
+            self.viewport_hud.last_wireframe = params.viewport.wireframe_enabled;
+            self.viewport_hud.last_is_editing = params.context.is_editing;
+            self.viewport_hud.last_is_2d = params.context.is_2d_mode;
+            self.viewport_hud.last_selected_entity = params.scene.selected_entity;
+            self.viewport_hud.last_viewport_rect = vp_rect;
+        }
 
         if self.chrome.last_dimensions != params.context.dimensions
             || (self.chrome.last_zoom_factor - params.context.zoom_factor).abs() > 1e-4
@@ -92,10 +144,14 @@ impl IrisEditorOverlay {
             || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
             || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
+            || self.viewport_hud.dropdown.is_some()
             || self.chrome.active_dock_overflow.is_some()
             || self.chrome.needs_layout_rebuild
             || has_drag_payload
-            || is_over_ui
+            || hover_target_changed
+            || hud_dirty
+            || mat_dirty
+            || tl_dirty
         {
             self.notifier.tag_all();
         }
@@ -138,21 +194,11 @@ impl IrisEditorOverlay {
 
         if !self.notifier.is_any_dirty() && !self.tree.is_empty() {
             // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
+            self.chrome.last_cursor_pos = self.cursor_pos();
             return;
         }
 
         let cursor = self.cursor_pos();
-        let (hovered_menu, is_play_hovered) = if let Some(hit) = self.tree.hit_test_target(cursor) {
-            let menu = if hit.role == WidgetRole::MenuBarItem {
-                ActiveMenu::from_tag(hit.tag)
-            } else {
-                None
-            };
-            let play = hit.role == WidgetRole::Button && hit.tag == menubar::TAG_ACTION_PLAY_PAUSE;
-            (menu, play)
-        } else {
-            (None, false)
-        };
 
         self.tree.clear();
         self.layout_engine.clear();
@@ -160,13 +206,13 @@ impl IrisEditorOverlay {
         self.menubar.actions.clear();
         self.chrome.floating_window_rects.clear();
         self.menubar.dropdown_rect = None;
-        self.modals.about_targets = None;
-        self.modals.delete_targets = None;
-        self.modals.new_folder_targets = None;
-        self.modals.rename_targets = None;
-        self.modals.loading_targets = None;
+        self.modals.is_about_active = false;
+        self.modals.is_delete_active = false;
+        self.modals.is_new_folder_active = false;
+        self.modals.is_rename_active = false;
+        self.modals.is_loading_active = false;
         self.preferences.targets = None;
-        self.viewport_hud.targets = None;
+        self.viewport_hud.is_active = false;
         self.stats.targets = None;
         self.inspector.targets = None;
         self.console.targets = None;
@@ -179,7 +225,10 @@ impl IrisEditorOverlay {
         }
         self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
         self.timeline.selected_entity = params.scene.selected_entity;
-        self.material.selected_entity = params.scene.selected_entity;
+        if self.material.selected_entity != params.scene.selected_entity {
+            self.material.selected_entity = params.scene.selected_entity;
+            self.material.scroll_y = 0.0;
+        }
 
         // Safely commit pending inspector edits on selection change
         if let Some(session) = self.inspector.active_number_input.take() {
@@ -237,6 +286,7 @@ impl IrisEditorOverlay {
         // Root container spans full viewport with column layout
         if let Some(node) = self.tree.get_mut(root) {
             node.set_name("IrisEditorRoot");
+            node.interactive = false;
             node.set_style(
                 Style::new()
                     .flex_col()
@@ -249,25 +299,24 @@ impl IrisEditorOverlay {
         // 1. Top MenuBar
         let menu_output = menubar::build_top_menu_bar(
             &mut self.tree,
+            root,
             screen_width,
             self.menubar.active_menu,
-            hovered_menu,
-            is_play_hovered,
             params.context.is_editing,
+            cursor,
         );
-        let _ = self.tree.add_child(root, menu_output.root_id);
         self.menubar.button_ids = menu_output.menu_button_ids.to_vec();
 
         // 2. Bottom Diagnostics & Status Bar
-        let status_bar_id = status_bar::build_bottom_status_bar(
+        let _status_bar_id = status_bar::build_bottom_status_bar(
             &mut self.tree,
-            status_bar::StatusBarParams {
+            root,
+            &status_bar::StatusBarParams {
                 screen_width,
                 screen_height,
                 status_spans: params.context.status_spans,
             },
         );
-        let _ = self.tree.add_child(root, status_bar_id);
 
         // Pre-measure all text nodes to populate intrinsic content_size
         self.measure_tree_text(root);
@@ -420,27 +469,29 @@ impl IrisEditorOverlay {
 
         // 6c. If About Aeon Engine modal dialogue is active, build its centered card
         if params.dialogs.show_about {
-            let (about_id, targets) =
-                build_about_dialog(&mut self.tree, screen_width, screen_height, cursor);
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, about_id);
-            }
-            self.modals.about_targets = Some(targets);
+            let pending_events = std::mem::take(&mut self.modals.pending_interaction_events);
+            let hovered_id = self.tree.hit_test_layered(cursor);
+            let _about_id = build_about_dialog(
+                &mut self.tree,
+                screen_width,
+                screen_height,
+                cursor,
+                &pending_events,
+                hovered_id,
+            );
+            self.modals.is_about_active = true;
         }
 
         // 6d. If Delete Confirmation modal is active, build its card
         if let Some(target_path) = params.dialogs.delete_target {
-            let (del_id, targets) = build_delete_modal(
+            let _del_id = build_delete_modal(
                 &mut self.tree,
                 target_path,
                 screen_width,
                 screen_height,
                 cursor,
             );
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, del_id);
-            }
-            self.modals.delete_targets = Some(targets);
+            self.modals.is_delete_active = true;
         }
 
         let elapsed_secs = self.start_time.elapsed().as_secs_f32();
@@ -453,7 +504,7 @@ impl IrisEditorOverlay {
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
                 .width;
-            let (folder_id, targets) = build_new_folder_modal(
+            let _folder_id = build_new_folder_modal(
                 &mut self.tree,
                 modals::FolderModalParams {
                     parent_path,
@@ -465,10 +516,7 @@ impl IrisEditorOverlay {
                     cursor_pos: cursor,
                 },
             );
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, folder_id);
-            }
-            self.modals.new_folder_targets = Some(targets);
+            self.modals.is_new_folder_active = true;
         }
 
         // 6f. If Rename modal is active, build its card
@@ -478,7 +526,7 @@ impl IrisEditorOverlay {
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
                 .width;
-            let (rename_id, targets) = build_rename_modal(
+            let _rename_id = build_rename_modal(
                 &mut self.tree,
                 modals::RenameModalParams {
                     target_path,
@@ -491,15 +539,12 @@ impl IrisEditorOverlay {
                     cursor_pos: cursor,
                 },
             );
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, rename_id);
-            }
-            self.modals.rename_targets = Some(targets);
+            self.modals.is_rename_active = true;
         }
 
         // 6g. If Asset Loading overlay is active, build its splash screen
         if params.dialogs.is_loading_assets {
-            let (loading_id, targets) = build_loading_overlay(
+            let _loading_id = build_loading_overlay(
                 &mut self.tree,
                 modals::LoadingOverlayParams {
                     screen_width,
@@ -507,10 +552,7 @@ impl IrisEditorOverlay {
                     time_secs: elapsed_secs,
                 },
             );
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, loading_id);
-            }
-            self.modals.loading_targets = Some(targets);
+            self.modals.is_loading_active = true;
         }
 
         // 6h. Hierarchy Add Menu and Context Menu (Rendered as topmost floating overlays)
@@ -578,19 +620,19 @@ impl IrisEditorOverlay {
                 .map(|n| n.computed_rect.x)
                 .unwrap_or(6.0);
 
-            let (dropdown_id, actions, dd_rect) = menubar::build_floating_dropdown(
+            let (_dropdown_id, actions, dd_rect) = menubar::build_floating_dropdown(
                 &mut self.tree,
-                active,
-                anchor_x,
-                cursor,
-                params.context.layout_state,
-                params.context.can_undo,
-                params.context.can_redo,
+                root,
+                menubar::DropdownMenuParams {
+                    active,
+                    anchor_x,
+                    layout_state: params.context.layout_state,
+                    can_undo: params.context.can_undo,
+                    can_redo: params.context.can_redo,
+                    cursor_pos: cursor,
+                },
             );
 
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, dropdown_id);
-            }
             self.menubar.actions = actions;
             self.menubar.dropdown_rect = Some(dd_rect);
         }

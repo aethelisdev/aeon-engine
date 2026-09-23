@@ -152,6 +152,11 @@ pub const ASSET_CTX_COPY_PATH: u64 = 5;
 /// Numerical tag for revealing an asset or folder in the OS file manager.
 pub const ASSET_CTX_REVEAL: u64 = 6;
 
+/// Semantic interaction tag for the asset preview modal "Reveal in Explorer" button.
+pub const ASSET_PREVIEW_TAG_REVEAL: u64 = 0xF010;
+/// Semantic interaction tag for the asset preview 3D model orbit canvas.
+pub const ASSET_PREVIEW_TAG_ORBIT: u64 = 0xF011;
+
 /// Hit-testing targets for an active Asset Browser right-click context menu.
 #[derive(Debug, Clone)]
 pub struct AssetsContextMenuTargets {
@@ -161,7 +166,7 @@ pub struct AssetsContextMenuTargets {
     pub target: AssetsContextMenuTarget,
 }
 
-/// State container for the interactive Asset Preview modal.
+/// Dynamic runtime state parameters for the 3D Quick Asset Preview orbital camera.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssetPreviewModalState {
     /// Inspected asset metadata.
@@ -202,18 +207,8 @@ impl Default for AssetPreviewModalState {
 }
 
 /// Hit-testing targets for the Quick Asset Preview modal window.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AssetPreviewModalTargets {
-    /// Bounding box of the complete modal dialog card.
-    pub dialog_rect: Rect,
-    /// Hit target of the '✖' top-right close button.
-    pub close_btn_rect: Rect,
-    /// Hit target of the central interactive 3D orbit preview canvas.
-    pub orbit_canvas_rect: Option<Rect>,
-    /// Hit target of the primary 'Spawn into Scene' / 'Spawn as Sprite' / 'Load Scene' button.
-    pub action_btn_rect: Option<Rect>,
-    /// Hit target of the 'Reveal in Explorer' button.
-    pub reveal_btn_rect: Rect,
     /// Inspected asset metadata.
     pub item: AssetItem,
 }

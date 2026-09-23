@@ -67,31 +67,32 @@ pub fn handle_assets_click(
     let current_folder = ctx.current_folder;
     let is_search_focused = ctx.is_search_focused;
 
-    // 0a. Quick Asset Preview Modal Interactions (Highest Z-Order)
+    // 0a. Quick Asset Preview Modal Interactions (Zero-Allocation O(1) Semantic Dispatch)
     if let Some(ref pm) = targets.preview_modal {
-        if pm.close_btn_rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::CloseInspectModal);
-            return true;
+        if let Some(ref hit) = ctx.hit_target {
+            if hit.tag == irisui::prelude::MODAL_TAG_CLOSE
+                || hit.tag == irisui::prelude::MODAL_TAG_SCRIM
+            {
+                out_actions.push(AssetsPanelAction::CloseInspectModal);
+                return true;
+            } else if hit.tag == irisui::prelude::MODAL_TAG_CONFIRM {
+                out_actions.push(AssetsPanelAction::SpawnAsset(
+                    pm.item.path.clone(),
+                    pm.item.category,
+                ));
+                out_actions.push(AssetsPanelAction::CloseInspectModal);
+                return true;
+            } else if hit.tag == super::types::ASSET_PREVIEW_TAG_REVEAL {
+                out_actions.push(AssetsPanelAction::RevealFolder(pm.item.path.clone()));
+                return true;
+            } else if hit.layer == UiLayer::Modal
+                || hit.tag == super::types::ASSET_PREVIEW_TAG_ORBIT
+            {
+                // Clicked inside modal card or on orbit canvas - consume click
+                return true;
+            }
         }
-        if let Some(act_rect) = pm.action_btn_rect
-            && act_rect.contains_point(cursor_pos)
-        {
-            out_actions.push(AssetsPanelAction::SpawnAsset(
-                pm.item.path.clone(),
-                pm.item.category,
-            ));
-            out_actions.push(AssetsPanelAction::CloseInspectModal);
-            return true;
-        }
-        if pm.reveal_btn_rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::RevealFolder(pm.item.path.clone()));
-            return true;
-        }
-        if pm.dialog_rect.contains_point(cursor_pos) {
-            // Click inside preview modal card
-            return true;
-        }
-        // Click on semi-transparent backdrop dismisses modal
+        // Outside click on scrim dismisses modal
         out_actions.push(AssetsPanelAction::CloseInspectModal);
         return true;
     }
@@ -433,15 +434,6 @@ pub fn handle_assets_scroll(
     targets: &AssetsPanelTargets,
     out_actions: &mut Vec<AssetsPanelAction>,
 ) -> bool {
-    // 0. Quick Asset Preview modal zoom scrolling
-    if let Some(ref pm) = targets.preview_modal
-        && pm.dialog_rect.contains_point(cursor_pos)
-    {
-        let zoom_delta = scroll_delta * 0.002;
-        out_actions.push(AssetsPanelAction::InspectZoomDelta(zoom_delta));
-        return true;
-    }
-
     if !targets.panel_rect.contains_point(cursor_pos) {
         return false;
     }
@@ -478,9 +470,8 @@ pub fn handle_assets_panel_event(
         match button {
             MouseButton::Left => {
                 // Check if user clicked inside 3D preview orbit canvas to initiate drag
-                if let Some(ref pm) = ctx.targets.preview_modal
-                    && let Some(orbit_rect) = pm.orbit_canvas_rect
-                    && orbit_rect.contains_point(ctx.cursor_pos)
+                if let Some(ref hit) = ctx.hit_target
+                    && hit.tag == super::types::ASSET_PREVIEW_TAG_ORBIT
                 {
                     tracker.is_orbit_dragging = true;
                     tracker.last_drag_pos = Some(ctx.cursor_pos);
@@ -556,6 +547,17 @@ pub fn handle_assets_panel_event(
             MouseScrollDelta::LineDelta(_, y) => *y * 28.0,
             MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
         };
+
+        // Quick Asset Preview modal zoom scrolling via semantic hit-target
+        if ctx.targets.preview_modal.is_some()
+            && let Some(ref hit) = ctx.hit_target
+            && (hit.layer == UiLayer::Modal || hit.tag == super::types::ASSET_PREVIEW_TAG_ORBIT)
+        {
+            let zoom_delta = scroll_delta * 0.002;
+            out_actions.push(AssetsPanelAction::InspectZoomDelta(zoom_delta));
+            return true;
+        }
+
         return handle_assets_scroll(ctx.cursor_pos, scroll_delta, ctx.targets, out_actions);
     }
 

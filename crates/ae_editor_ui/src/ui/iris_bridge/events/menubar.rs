@@ -78,8 +78,11 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
 
-                    // 3. Dropdown items inside open popup
-                    if hit.role == WidgetRole::DropdownItem && hit.layer == UiLayer::Popup {
+                    // 3. Dropdown items inside open popup (strictly when menubar has an active menu open)
+                    if self.menubar.active_menu.is_some()
+                        && hit.role == WidgetRole::DropdownItem
+                        && hit.layer == UiLayer::Popup
+                    {
                         result.consumed = true;
                         self.menubar.active_menu = None;
                         let action_idx = hit.tag as usize;

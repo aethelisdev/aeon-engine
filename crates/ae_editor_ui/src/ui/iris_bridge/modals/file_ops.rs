@@ -4,7 +4,9 @@
 //! # File Operations Modal Dialogues
 //!
 //! Renders hardware-accelerated GPU SDF modal cards for file system operations
-//! including permanent delete confirmations, new folder creation, and file renaming.
+//! including permanent delete confirmations, new folder creation, and file renaming
+//! purely via declarative [`UiScope`].
+//!
 
 use irisui::prelude::*;
 use std::path::Path;
@@ -19,107 +21,69 @@ pub const INPUT_MODAL_WIDTH: f32 = 390.0;
 /// Height of folder and rename modal cards in physical pixels.
 pub const INPUT_MODAL_HEIGHT: f32 = 170.0;
 
-/// Hit testing targets for the Delete Confirmation modal dialogue.
-#[derive(Debug, Clone)]
-pub struct DeleteModalTargets {
-    /// Full bounding box of the modal card.
-    pub dialog_rect: Rect,
-    /// Hit target of the top-right '✖' close icon.
-    pub header_close_rect: Rect,
-    /// Hit target of the '🗑 Delete Permanently' button.
-    pub confirm_btn_rect: Rect,
-    /// Hit target of the 'Cancel' push button.
-    pub cancel_btn_rect: Rect,
-}
-
-/// Hit testing targets for the New Folder creation modal dialogue.
-#[derive(Debug, Clone)]
-pub struct NewFolderModalTargets {
-    /// Full bounding box of the modal card.
-    pub dialog_rect: Rect,
-    /// Hit target of the top-right '✖' close icon.
-    pub header_close_rect: Rect,
-    /// Hit target of the folder name text input box.
-    pub input_rect: Rect,
-    /// Hit target of the 'Create Folder' button.
-    pub confirm_btn_rect: Rect,
-    /// Hit target of the 'Cancel' push button.
-    pub cancel_btn_rect: Rect,
-}
-
-/// Hit testing targets for the Rename asset/folder modal dialogue.
-#[derive(Debug, Clone)]
-pub struct RenameModalTargets {
-    /// Full bounding box of the modal card.
-    pub dialog_rect: Rect,
-    /// Hit target of the top-right '✖' close icon.
-    pub header_close_rect: Rect,
-    /// Hit target of the rename text input box.
-    pub input_rect: Rect,
-    /// Hit target of the 'Apply Rename' button.
-    pub confirm_btn_rect: Rect,
-    /// Hit target of the 'Cancel' push button.
-    pub cancel_btn_rect: Rect,
-}
-
-/// Constructs the centered 'Delete Confirmation' modal in the UI tree.
+/// Constructs the centered 'Delete Confirmation' modal in the UI tree using declarative [`UiScope`].
 pub fn build_delete_modal(
     tree: &mut UiTree,
     target_path: &Path,
     screen_width: f32,
     screen_height: f32,
     cursor_pos: Point,
-) -> (WidgetId, DeleteModalTargets) {
-    let frame = ModalDialogBuilder::new("⚠️  Confirm Deletion")
-        .size(DELETE_MODAL_WIDTH, DELETE_MODAL_HEIGHT)
-        .center_on_screen(screen_width, screen_height)
-        .cursor_pos(cursor_pos)
-        .scrim(true)
-        .close_button(true)
-        .cancel_button("Cancel")
-        .cancel_button_width(75.0)
-        .confirm_button(
-            "🗑 Delete Permanently",
-            Some(Color::rgba(0.63, 0.14, 0.14, 1.0)),
-        )
-        .confirm_button_width(150.0)
-        .build(tree);
+) -> WidgetId {
+    let parent = tree.root().unwrap_or_default();
+    let mut scope = UiScope::new(tree, parent);
 
-    let left = frame.dialog_rect.x;
-    let top = frame.dialog_rect.y;
+    scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.60), |scrim| {
+        scrim.modal_card(DELETE_MODAL_WIDTH, DELETE_MODAL_HEIGHT, |card| {
+            // 1. Header Bar: Title and '✕' close button
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::SpaceBetween),
+                |header| {
+                    header.label(
+                        "⚠️  Confirm Deletion",
+                        12.5,
+                        Color::rgba(0.95, 0.95, 0.98, 1.0),
+                        TextAlign::Left,
+                    );
+                    header.modal_close_button();
+                },
+            );
 
-    // Warning Question Label
-    let warn_label = tree.create_node();
-    if let Some(node) = tree.get_mut(warn_label) {
-        node.set_name("DeleteWarnLabel");
-        node.set_text("Are you sure you want to permanently delete this item?");
-        node.font_size = 12.0;
-        node.line_height = 16.0;
-        node.text_color = Color::rgba(1.0, 0.45, 0.45, 1.0);
-        node.computed_rect = Rect::new(left + 18.0, top + 46.0, DELETE_MODAL_WIDTH - 36.0, 18.0);
-    }
-    let _ = tree.add_child(frame.card_id, warn_label);
+            // 2. Body Column: Description warning and target file path
+            card.column(|col| {
+                col.label(
+                    "Are you sure you want to permanently delete this item?",
+                    12.0,
+                    Color::rgba(1.0, 0.45, 0.45, 1.0),
+                    TextAlign::Left,
+                );
+                col.label(
+                    target_path.display().to_string(),
+                    11.5,
+                    Color::rgba(0.70, 0.72, 0.78, 1.0),
+                    TextAlign::Left,
+                );
+            });
 
-    // Target File Path Label
-    let path_label = tree.create_node();
-    if let Some(node) = tree.get_mut(path_label) {
-        node.set_name("DeletePathLabel");
-        node.set_text(target_path.display().to_string());
-        node.font_size = 11.5;
-        node.line_height = 16.0;
-        node.text_color = Color::rgba(0.70, 0.72, 0.78, 1.0);
-        node.computed_rect = Rect::new(left + 18.0, top + 70.0, DELETE_MODAL_WIDTH - 36.0, 36.0);
-    }
-    let _ = tree.add_child(frame.card_id, path_label);
+            // 3. Footer Bar: Cancel and Danger Delete buttons
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::FlexEnd)
+                    .gap(12.0),
+                |footer| {
+                    footer.modal_cancel_button("Cancel", 75.0);
+                    footer.modal_danger_button("🗑 Delete Permanently", 150.0);
+                },
+            );
+        });
 
-    let targets = DeleteModalTargets {
-        dialog_rect: frame.dialog_rect,
-        header_close_rect: frame.header_close_rect.unwrap_or_default(),
-        confirm_btn_rect: frame.confirm_btn_rect.unwrap_or_default(),
-        cancel_btn_rect: frame.cancel_btn_rect.unwrap_or_default(),
-    };
-
-    (frame.scrim_id.unwrap_or(frame.card_id), targets)
+        scrim
+            .finish_layout_with_hover(Rect::new(0.0, 0.0, screen_width, screen_height), cursor_pos);
+    })
 }
 
 /// Parameters for constructing the 'Create New Folder' modal.
@@ -160,227 +124,143 @@ pub struct RenameModalParams<'a> {
     pub cursor_pos: Point,
 }
 
-/// Constructs the centered 'Create New Folder' modal in the UI tree.
-pub fn build_new_folder_modal(
-    tree: &mut UiTree,
-    params: FolderModalParams<'_>,
-) -> (WidgetId, NewFolderModalTargets) {
-    let parent_path = params.parent_path;
-    let input_text = params.input_text;
-    let text_width = params.text_width;
-    let cursor_blink_visible = params.cursor_blink_visible;
-    let screen_width = params.screen_width;
-    let screen_height = params.screen_height;
-    let cursor_pos = params.cursor_pos;
+/// Constructs the centered 'Create New Folder' modal in the UI tree using declarative [`UiScope`].
+pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) -> WidgetId {
+    let parent = tree.root().unwrap_or_default();
+    let mut scope = UiScope::new(tree, parent);
 
-    let frame = ModalDialogBuilder::new("Create New Folder")
-        .header_icon(
-            crate::ui::iris_bridge::icons::ICON_FOLDER,
-            Color::rgba(0.95, 0.76, 0.28, 1.0),
-        )
-        .size(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT)
-        .center_on_screen(screen_width, screen_height)
-        .cursor_pos(cursor_pos)
-        .scrim(true)
-        .close_button(true)
-        .cancel_button("Cancel")
-        .cancel_button_width(75.0)
-        .confirm_button("Create Folder", Some(Color::rgba(0.12, 0.16, 0.24, 1.0)))
-        .confirm_button_width(112.0)
-        .build(tree);
+    scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.60), |scrim| {
+        scrim.modal_card(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT, |card| {
+            // 1. Header Bar: Folder icon + Title on left, '✕' close button on right
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::SpaceBetween),
+                |header| {
+                    header.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .gap(8.0),
+                        |title_row| {
+                            title_row.icon(
+                                crate::ui::iris_bridge::icons::ICON_FOLDER,
+                                Color::rgba(0.95, 0.76, 0.28, 1.0),
+                                14.0,
+                            );
+                            title_row.label(
+                                "Create New Folder",
+                                12.5,
+                                Color::rgba(0.95, 0.95, 0.98, 1.0),
+                                TextAlign::Left,
+                            );
+                        },
+                    );
+                    header.modal_close_button();
+                },
+            );
 
-    let left = frame.dialog_rect.x;
-    let top = frame.dialog_rect.y;
+            // 2. Body Column: Parent directory path and text input box
+            card.column(|col| {
+                col.label(
+                    format!("Location: {}", params.parent_path.display()),
+                    11.0,
+                    Color::rgba(0.60, 0.62, 0.70, 1.0),
+                    TextAlign::Left,
+                );
+                col.input_box(
+                    params.input_text,
+                    "Enter folder name...",
+                    params.text_width,
+                    params.cursor_blink_visible,
+                );
+            });
 
-    // Location Subtitle
-    let loc_label = tree.create_node();
-    if let Some(node) = tree.get_mut(loc_label) {
-        node.set_name("NewFolderLocation");
-        node.set_text(format!("Location: {}", parent_path.display()));
-        node.font_size = 11.0;
-        node.line_height = 16.0;
-        node.text_color = Color::rgba(0.60, 0.62, 0.70, 1.0);
-        node.computed_rect = Rect::new(left + 18.0, top + 46.0, INPUT_MODAL_WIDTH - 36.0, 18.0);
-    }
-    let _ = tree.add_child(frame.card_id, loc_label);
+            // 3. Footer Bar: Cancel and Confirm action buttons
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::FlexEnd)
+                    .gap(12.0),
+                |footer| {
+                    footer.modal_cancel_button("Cancel", 75.0);
+                    footer.modal_confirm_button("Create Folder", 112.0);
+                },
+            );
+        });
 
-    // Input Field Box
-    let input_rect = Rect::new(left + 18.0, top + 74.0, INPUT_MODAL_WIDTH - 36.0, 28.0);
-    let input_box = tree.create_node();
-    if let Some(node) = tree.get_mut(input_box) {
-        node.set_name("NewFolderInputBox");
-        node.computed_rect = input_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.0, 0.85, 0.95, 0.80))
-            .background(Color::rgba(0.05, 0.05, 0.07, 1.0));
-    }
-    let _ = tree.add_child(frame.card_id, input_box);
-
-    // Input Text Content
-    let input_text_node = tree.create_node();
-    if let Some(node) = tree.get_mut(input_text_node) {
-        node.set_name("NewFolderInputText");
-        let display = if input_text.is_empty() {
-            "Enter folder name..."
-        } else {
-            input_text
-        };
-        node.set_text(display);
-        node.font_size = 12.0;
-        node.line_height = 28.0;
-        node.text_color = if input_text.is_empty() {
-            Color::rgba(0.45, 0.45, 0.52, 1.0)
-        } else {
-            Color::WHITE
-        };
-        node.computed_rect = Rect::new(
-            input_rect.x + 8.0,
-            input_rect.y,
-            input_rect.width - 16.0,
-            28.0,
+        scrim.finish_layout_with_hover(
+            Rect::new(0.0, 0.0, params.screen_width, params.screen_height),
+            params.cursor_pos,
         );
-    }
-    let _ = tree.add_child(input_box, input_text_node);
-
-    // Blinking Caret Cursor (530ms cycle)
-    if cursor_blink_visible {
-        let caret_x = if input_text.is_empty() {
-            input_rect.x + 8.0
-        } else {
-            (input_rect.x + 8.0 + text_width + 1.0).min(input_rect.x + input_rect.width - 12.0)
-        };
-        let caret_node = tree.create_node();
-        if let Some(node) = tree.get_mut(caret_node) {
-            node.set_name("NewFolderCaret");
-            node.computed_rect = Rect::new(caret_x, input_rect.y + 6.0, 1.5, 16.0);
-            node.style = Style::new()
-                .background(Color::rgba(0.0, 0.90, 1.0, 0.95))
-                .border_radius(0.75);
-        }
-        let _ = tree.add_child(input_box, caret_node);
-    }
-
-    let targets = NewFolderModalTargets {
-        dialog_rect: frame.dialog_rect,
-        header_close_rect: frame.header_close_rect.unwrap_or_default(),
-        input_rect,
-        confirm_btn_rect: frame.confirm_btn_rect.unwrap_or_default(),
-        cancel_btn_rect: frame.cancel_btn_rect.unwrap_or_default(),
-    };
-
-    (frame.scrim_id.unwrap_or(frame.card_id), targets)
+    })
 }
 
-/// Constructs the centered 'Rename Asset / Folder' modal in the UI tree.
-pub fn build_rename_modal(
-    tree: &mut UiTree,
-    params: RenameModalParams<'_>,
-) -> (WidgetId, RenameModalTargets) {
-    let target_path = params.target_path;
-    let input_text = params.input_text;
-    let text_width = params.text_width;
-    let is_folder = params.is_folder;
-    let cursor_blink_visible = params.cursor_blink_visible;
-    let screen_width = params.screen_width;
-    let screen_height = params.screen_height;
-    let cursor_pos = params.cursor_pos;
+/// Constructs the centered 'Rename Asset / Folder' modal in the UI tree using declarative [`UiScope`].
+pub fn build_rename_modal(tree: &mut UiTree, params: RenameModalParams<'_>) -> WidgetId {
+    let parent = tree.root().unwrap_or_default();
+    let mut scope = UiScope::new(tree, parent);
 
-    let frame = ModalDialogBuilder::new(if is_folder {
+    let title = if params.is_folder {
         "🔄  Rename Folder"
     } else {
         "🔄  Rename Asset"
-    })
-    .size(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT)
-    .center_on_screen(screen_width, screen_height)
-    .cursor_pos(cursor_pos)
-    .scrim(true)
-    .close_button(true)
-    .cancel_button("Cancel")
-    .cancel_button_width(75.0)
-    .confirm_button("Apply Rename", Some(Color::rgba(0.12, 0.16, 0.24, 1.0)))
-    .confirm_button_width(112.0)
-    .build(tree);
-
-    let left = frame.dialog_rect.x;
-    let top = frame.dialog_rect.y;
-
-    // Target Subtitle
-    let target_label = tree.create_node();
-    if let Some(node) = tree.get_mut(target_label) {
-        node.set_name("RenameTarget");
-        node.set_text(format!("Target: {}", target_path.display()));
-        node.font_size = 11.0;
-        node.line_height = 16.0;
-        node.text_color = Color::rgba(0.60, 0.62, 0.70, 1.0);
-        node.computed_rect = Rect::new(left + 18.0, top + 46.0, INPUT_MODAL_WIDTH - 36.0, 18.0);
-    }
-    let _ = tree.add_child(frame.card_id, target_label);
-
-    // Input Field Box
-    let input_rect = Rect::new(left + 18.0, top + 74.0, INPUT_MODAL_WIDTH - 36.0, 28.0);
-    let input_box = tree.create_node();
-    if let Some(node) = tree.get_mut(input_box) {
-        node.set_name("RenameInputBox");
-        node.computed_rect = input_rect;
-        node.style = Style::new()
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.0, 0.85, 0.95, 0.80))
-            .background(Color::rgba(0.05, 0.05, 0.07, 1.0));
-    }
-    let _ = tree.add_child(frame.card_id, input_box);
-
-    // Input Text Content
-    let input_text_node = tree.create_node();
-    if let Some(node) = tree.get_mut(input_text_node) {
-        node.set_name("RenameInputText");
-        let display = if input_text.is_empty() {
-            "Enter new name..."
-        } else {
-            input_text
-        };
-        node.set_text(display);
-        node.font_size = 12.0;
-        node.line_height = 28.0;
-        node.text_color = if input_text.is_empty() {
-            Color::rgba(0.45, 0.45, 0.52, 1.0)
-        } else {
-            Color::WHITE
-        };
-        node.computed_rect = Rect::new(
-            input_rect.x + 8.0,
-            input_rect.y,
-            input_rect.width - 16.0,
-            28.0,
-        );
-    }
-    let _ = tree.add_child(input_box, input_text_node);
-
-    // Blinking Caret Cursor (530ms cycle)
-    if cursor_blink_visible {
-        let caret_x = if input_text.is_empty() {
-            input_rect.x + 8.0
-        } else {
-            (input_rect.x + 8.0 + text_width + 1.0).min(input_rect.x + input_rect.width - 12.0)
-        };
-        let caret_node = tree.create_node();
-        if let Some(node) = tree.get_mut(caret_node) {
-            node.set_name("RenameCaret");
-            node.computed_rect = Rect::new(caret_x, input_rect.y + 6.0, 1.5, 16.0);
-            node.style = Style::new()
-                .background(Color::rgba(0.0, 0.90, 1.0, 0.95))
-                .border_radius(0.75);
-        }
-        let _ = tree.add_child(input_box, caret_node);
-    }
-
-    let targets = RenameModalTargets {
-        dialog_rect: frame.dialog_rect,
-        header_close_rect: frame.header_close_rect.unwrap_or_default(),
-        input_rect,
-        confirm_btn_rect: frame.confirm_btn_rect.unwrap_or_default(),
-        cancel_btn_rect: frame.cancel_btn_rect.unwrap_or_default(),
     };
 
-    (frame.scrim_id.unwrap_or(frame.card_id), targets)
+    scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.60), |scrim| {
+        scrim.modal_card(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT, |card| {
+            // 1. Header Bar: Title on left, '✕' close button on right
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::SpaceBetween),
+                |header| {
+                    header.label(
+                        title,
+                        12.5,
+                        Color::rgba(0.95, 0.95, 0.98, 1.0),
+                        TextAlign::Left,
+                    );
+                    header.modal_close_button();
+                },
+            );
+
+            // 2. Body Column: Target file path and text input box
+            card.column(|col| {
+                col.label(
+                    format!("Target: {}", params.target_path.display()),
+                    11.0,
+                    Color::rgba(0.60, 0.62, 0.70, 1.0),
+                    TextAlign::Left,
+                );
+                col.input_box(
+                    params.input_text,
+                    "Enter new name...",
+                    params.text_width,
+                    params.cursor_blink_visible,
+                );
+            });
+
+            // 3. Footer Bar: Cancel and Confirm action buttons
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::FlexEnd)
+                    .gap(12.0),
+                |footer| {
+                    footer.modal_cancel_button("Cancel", 75.0);
+                    footer.modal_confirm_button("Apply Rename", 112.0);
+                },
+            );
+        });
+
+        scrim.finish_layout_with_hover(
+            Rect::new(0.0, 0.0, params.screen_width, params.screen_height),
+            params.cursor_pos,
+        );
+    })
 }

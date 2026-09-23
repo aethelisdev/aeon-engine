@@ -168,12 +168,7 @@ impl EngineUi {
         }
 
         let consumed = iris_res.consumed || dock_consumed;
-        if consumed
-            || (matches!(event, WindowEvent::CursorMoved { .. })
-                && self
-                    .iris_overlay
-                    .is_point_over_overlay(self.iris_overlay.cursor_pos()))
-        {
+        if consumed {
             self.iris_overlay.notifier.tag_all();
             self.iris_overlay.chrome.needs_layout_rebuild = true;
         }

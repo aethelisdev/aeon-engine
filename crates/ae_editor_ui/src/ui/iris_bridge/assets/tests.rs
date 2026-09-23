@@ -273,25 +273,148 @@ fn test_preview_modal_build_and_actions() {
     assert!(targets.preview_modal.is_some());
     let pm = targets.preview_modal.as_ref().unwrap();
     assert_eq!(pm.item.name, "dragon.gltf");
-    assert!(pm.orbit_canvas_rect.is_some());
-    assert!(pm.action_btn_rect.is_some());
 
-    // Test clicking the close button on the preview modal
+    // Test clicking the close button on the preview modal via semantic hit target
+    let mut close_pos = Point::new(0.0, 0.0);
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
+            close_pos = Point::new(node.computed_rect.x + 2.0, node.computed_rect.y + 2.0);
+        }
+    });
+
     let mut tracker = AssetClickTracker::default();
     let mut actions = Vec::new();
     let ctx = AssetsEventContext {
-        cursor_pos: Point::new(pm.close_btn_rect.x + 5.0, pm.close_btn_rect.y + 5.0),
+        cursor_pos: close_pos,
         targets: &targets,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
-        hit_target: None,
+        hit_target: tree.hit_test_target(close_pos),
     };
 
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
     assert!(consumed);
     assert_eq!(actions, vec![AssetsPanelAction::CloseInspectModal]);
+}
+
+#[test]
+fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let mut targets = AssetsPanelTargets::default();
+
+    let scene_item = AssetItem {
+        name: "test_level.ae3d".to_string(),
+        path: PathBuf::from("assets/scenes/test_level.ae3d"),
+        relative_path: "scenes/test_level.ae3d".to_string(),
+        category: AssetCategory::Scenes,
+        source: AssetSource::Project,
+        file_size_bytes: 4096,
+        metadata_badge: "4.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: true,
+    };
+
+    let preview_state = AssetPreviewModalState {
+        item: scene_item,
+        orbit_yaw: 0.0,
+        orbit_pitch: 0.0,
+        zoom_distance: 1.0,
+        show_wireframe: false,
+    };
+
+    // 1. Build with cursor far away (idle state)
+    let params_idle = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &[],
+        filtered_items: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: Some(&preview_state),
+        thumbnail_layers: &HashMap::new(),
+    };
+
+    build_assets_panel(&mut tree, root_id, &params_idle, &mut targets);
+
+    let pm = targets
+        .preview_modal
+        .as_ref()
+        .expect("Preview modal must be built");
+    assert_eq!(pm.item.name, "test_level.ae3d");
+    let mut close_rect = Rect::ZERO;
+    let mut reveal_rect = Rect::ZERO;
+    let mut has_action_btn = false;
+
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
+            close_rect = node.computed_rect;
+        } else if node.tag == crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL {
+            reveal_rect = node.computed_rect;
+        } else if node.tag == irisui::prelude::MODAL_TAG_CONFIRM {
+            has_action_btn = true;
+        }
+    });
+
+    assert!(
+        has_action_btn,
+        "Scene preview must have Load Scene action button"
+    );
+    assert!(close_rect.width > 0.0 && close_rect.height > 0.0);
+    assert!(reveal_rect.width > 0.0 && reveal_rect.height > 0.0);
+
+    // Verify idle style of close button (transparent background)
+    let mut close_node_idle = None;
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.computed_rect == close_rect {
+            close_node_idle = Some((node.text.clone(), node.style.background_color));
+        }
+    });
+    let (idle_text, idle_bg) = close_node_idle.expect("Close node found");
+    assert_eq!(idle_text.as_deref(), Some("✕"));
+    assert_eq!(idle_bg, Color::TRANSPARENT);
+
+    // 2. Re-build with cursor hovered over close button
+    let mut tree_hover = UiTree::new();
+    let root_hover = tree_hover.create_root().expect("Root node creation failed");
+    let mut targets_hover = AssetsPanelTargets::default();
+
+    let mut params_hover = params_idle;
+    params_hover.cursor_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
+
+    build_assets_panel(
+        &mut tree_hover,
+        root_hover,
+        &params_hover,
+        &mut targets_hover,
+    );
+
+    let mut close_node_hover_bg = None;
+    tree_hover.traverse_depth_first(root_hover, &mut |_id, node| {
+        if node.computed_rect == close_rect {
+            close_node_hover_bg = Some(node.style.background_color);
+        }
+    });
+    let hover_bg = close_node_hover_bg.expect("Hovered close node found");
+    assert_eq!(hover_bg, Color::rgba(0.85, 0.22, 0.22, 0.28));
 }
 
 #[test]
@@ -850,13 +973,29 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     assert_eq!(hit_inspect.role, WidgetRole::DropdownItem);
     assert_eq!(hit_inspect.tag, super::types::ASSET_CTX_INSPECT);
 
+    // Hit test Rename (tag 3)
+    let hit_rename = tree
+        .hit_test_target(Point::new(220.0, 250.0))
+        .expect("Must hit rename item");
+    assert_eq!(hit_rename.layer, UiLayer::Popup);
+    assert_eq!(hit_rename.role, WidgetRole::DropdownItem);
+    assert_eq!(hit_rename.tag, super::types::ASSET_CTX_RENAME);
+
+    // Hit test Delete (tag 4)
+    let hit_delete = tree
+        .hit_test_target(Point::new(220.0, 275.0))
+        .expect("Must hit delete item");
+    assert_eq!(hit_delete.layer, UiLayer::Popup);
+    assert_eq!(hit_delete.role, WidgetRole::DropdownItem);
+    assert_eq!(hit_delete.tag, super::types::ASSET_CTX_DELETE);
+
     // Test event dispatch with hit target
     let mut tracker = AssetClickTracker::default();
     let mut actions = Vec::new();
     let ctx = AssetsEventContext {
         cursor_pos: Point::new(220.0, 195.0),
         targets: &AssetsPanelTargets {
-            context_menu: Some(cm),
+            context_menu: Some(cm.clone()),
             ..Default::default()
         },
         current_folder: Path::new("assets"),
@@ -874,4 +1013,69 @@ fn test_assets_context_menu_builder_and_hit_testing() {
             .iter()
             .any(|a| matches!(a, AssetsPanelAction::OpenInspectModal(_)))
     );
+
+    // Test Rename click dispatch
+    let mut rename_actions = Vec::new();
+    let rename_ctx = AssetsEventContext {
+        cursor_pos: Point::new(220.0, 250.0),
+        targets: &AssetsPanelTargets {
+            context_menu: Some(cm.clone()),
+            ..Default::default()
+        },
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+        hit_target: Some(hit_rename),
+    };
+    let consumed_rename =
+        events::handle_assets_click(&rename_ctx, &mut tracker, &mut rename_actions);
+    assert!(consumed_rename);
+    assert!(rename_actions.contains(&AssetsPanelAction::CloseContextMenu));
+    assert!(
+        rename_actions
+            .iter()
+            .any(|a| matches!(a, AssetsPanelAction::OpenRename(_, _, _)))
+    );
+
+    // Test Delete click dispatch
+    let mut delete_actions = Vec::new();
+    let delete_ctx = AssetsEventContext {
+        cursor_pos: Point::new(220.0, 275.0),
+        targets: &AssetsPanelTargets {
+            context_menu: Some(cm.clone()),
+            ..Default::default()
+        },
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+        hit_target: Some(hit_delete),
+    };
+    let consumed_delete =
+        events::handle_assets_click(&delete_ctx, &mut tracker, &mut delete_actions);
+    assert!(consumed_delete);
+    assert!(delete_actions.contains(&AssetsPanelAction::CloseContextMenu));
+    assert!(
+        delete_actions
+            .iter()
+            .any(|a| matches!(a, AssetsPanelAction::OpenDelete(_)))
+    );
+
+    // Test Outside click dismisses context menu
+    let mut outside_actions = Vec::new();
+    let outside_ctx = AssetsEventContext {
+        cursor_pos: Point::new(50.0, 50.0),
+        targets: &AssetsPanelTargets {
+            context_menu: Some(cm),
+            ..Default::default()
+        },
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+        hit_target: None,
+    };
+    let _ = events::handle_assets_click(&outside_ctx, &mut tracker, &mut outside_actions);
+    assert!(outside_actions.contains(&AssetsPanelAction::CloseContextMenu));
 }

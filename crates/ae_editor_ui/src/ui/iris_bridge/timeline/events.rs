@@ -10,71 +10,38 @@
 use super::types::{TimelineAction, TimelinePanelTargets};
 use irisui::prelude::Point;
 
-/// Evaluates a mouse click against timeline targets and returns the corresponding action.
+/// Evaluates a mouse click against timeline semantic tags and returns the corresponding action.
 ///
 /// Returns `Some((action, start_dragging))` where `start_dragging` is true when the
 /// user clicked on the scrubber track or playhead needle to initiate dragging.
 pub fn handle_timeline_click(
     targets: &TimelinePanelTargets,
+    hit_tag: u64,
     click_pos: Point,
-    entity: Option<hecs::Entity>,
+    _entity: Option<hecs::Entity>,
 ) -> Option<(TimelineAction, bool)> {
-    if let Some(r) = targets.play_pause_btn
-        && r.contains_point(click_pos)
+    if let Some(transport_action) =
+        irisui::prelude::evaluate_timeline_transport_tag(hit_tag, &super::transport::SPEED_PRESETS)
     {
-        return Some((TimelineAction::TogglePlayPause, false));
+        let action = match transport_action {
+            irisui::prelude::MediaTransportAction::TogglePlayPause => {
+                TimelineAction::TogglePlayPause
+            }
+            irisui::prelude::MediaTransportAction::Stop => TimelineAction::Stop,
+            irisui::prelude::MediaTransportAction::StepBack => TimelineAction::StepFrame(-1),
+            irisui::prelude::MediaTransportAction::StepForward => TimelineAction::StepFrame(1),
+            irisui::prelude::MediaTransportAction::ToggleLoop => TimelineAction::ToggleLoop,
+            irisui::prelude::MediaTransportAction::SetSpeed(speed) => {
+                TimelineAction::SetSpeed(speed)
+            }
+        };
+        return Some((action, false));
     }
 
-    if let Some(r) = targets.stop_btn
-        && r.contains_point(click_pos)
-    {
-        return Some((TimelineAction::Stop, false));
-    }
-
-    if let Some(r) = targets.step_back_btn
-        && r.contains_point(click_pos)
-    {
-        return Some((TimelineAction::StepFrame(-1), false));
-    }
-
-    if let Some(r) = targets.step_fwd_btn
-        && r.contains_point(click_pos)
-    {
-        return Some((TimelineAction::StepFrame(1), false));
-    }
-
-    if let Some(r) = targets.loop_toggle
-        && r.contains_point(click_pos)
-    {
-        return Some((TimelineAction::ToggleLoop, false));
-    }
-
-    for &(speed, rect) in &targets.speed_buttons {
-        if rect.contains_point(click_pos) {
-            return Some((TimelineAction::SetSpeed(speed), false));
-        }
-    }
-
-    if let Some(r) = targets.add_player_btn
-        && r.contains_point(click_pos)
-        && let Some(ent) = entity
-    {
-        return Some((TimelineAction::AddAnimationPlayer(ent), false));
-    }
-
-    // Playhead cap handle drag initiation
-    if let Some(cap) = targets.playhead_needle_rect
-        && cap.contains_point(click_pos)
+    // Playhead cap or scrubber track click and drag initiation
+    if (hit_tag == irisui::prelude::TIMELINE_TAG_PLAYHEAD_CAP
+        || hit_tag == irisui::prelude::TIMELINE_TAG_SCRUBBER_TRACK)
         && let Some(track) = targets.scrubber_track_rect
-    {
-        let frac = ((click_pos.x - track.x) / track.width).clamp(0.0, 1.0);
-        let scrub_t = frac * targets.clip_duration;
-        return Some((TimelineAction::ScrubTo(scrub_t), true));
-    }
-
-    // Scrubber track click and drag initiation
-    if let Some(track) = targets.scrubber_track_rect
-        && track.contains_point(click_pos)
     {
         let frac = ((click_pos.x - track.x) / track.width).clamp(0.0, 1.0);
         let scrub_t = frac * targets.clip_duration;

@@ -6,12 +6,9 @@
 //! Renders top-layer floating popup menus for Camera Projection Modes and Shading Modes
 //! using standardized [`ComboboxPopupBuilder`].
 
-use super::types::{
-    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets,
-};
+use super::types::{ViewportHudAction, ViewportHudDropdownId, ViewportHudParams};
 use ae_renderer::camera::{Camera, ProjectionMode};
 use irisui::prelude::*;
-use irisui::widgets::{ComboboxPopupBuilder, ComboboxPopupStyle};
 
 /// Renders active floating popup menus in the Viewport HUD.
 pub fn render_viewport_hud_dropdown_popup(
@@ -19,26 +16,29 @@ pub fn render_viewport_hud_dropdown_popup(
     parent_id: WidgetId,
     active_dd: ViewportHudDropdownId,
     params: &ViewportHudParams<'_>,
-    targets: &ViewportHudTargets,
 ) {
-    let Some(&(_, btn_rect)) = targets
-        .dropdown_triggers
-        .iter()
-        .find(|(id, _)| *id == active_dd)
-    else {
-        return;
+    let is_persp = params.camera.mode == ProjectionMode::Perspective;
+    let is_top = !is_persp && params.camera.pitch.0 < -1.5;
+    let is_front = !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0 > 1.5;
+    let is_right =
+        !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
+    let is_ortho = !is_persp && !is_top && !is_front && !is_right;
+
+    let cam_w = if params.is_2d {
+        44.0
+    } else if is_persp {
+        116.0
+    } else if is_top {
+        54.0
+    } else if is_front || is_right {
+        58.0
+    } else {
+        116.0
     };
 
-    let (labels, selected_index): (Vec<&str>, Option<usize>) = match active_dd {
+    let (popup_w, items, selected_index): (f32, Vec<(&str, &str)>, Option<usize>) = match active_dd
+    {
         ViewportHudDropdownId::CameraMode => {
-            let is_persp = params.camera.mode == ProjectionMode::Perspective;
-            let is_top = !is_persp && params.camera.pitch.0 < -1.5;
-            let is_front =
-                !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0 > 1.5;
-            let is_right =
-                !is_persp && params.camera.pitch.0.abs() < 0.1 && params.camera.yaw.0.abs() < 0.1;
-            let is_ortho = !is_persp && !is_top && !is_front && !is_right;
-
             let selected = if is_persp {
                 Some(0)
             } else if is_ortho {
@@ -53,12 +53,13 @@ pub fn render_viewport_hud_dropdown_popup(
                 None
             };
             (
+                150.0,
                 vec![
-                    "Perspective",
-                    "📐 Orthographic",
-                    "📐 Top",
-                    "📐 Front",
-                    "📐 Right",
+                    ("🎥", "Perspective"),
+                    ("📐", "Orthographic"),
+                    ("📐", "Top"),
+                    ("📐", "Front"),
+                    ("📐", "Right"),
                 ],
                 selected,
             )
@@ -69,37 +70,30 @@ pub fn render_viewport_hud_dropdown_popup(
             } else {
                 Some(0)
             };
-            (vec!["Lit", "Wireframe"], selected)
+            (124.0, vec![("💡", "Lit"), ("🕸", "Wireframe")], selected)
         }
     };
 
-    let style = ComboboxPopupStyle {
-        background: Color::rgba(0.07, 0.08, 0.11, 0.98),
-        border_width: 1.0,
-        border_color: Color::rgba(0.24, 0.28, 0.38, 0.70),
-        border_radius: 4.0,
-        shadow_y: 6.0,
-        shadow_blur: 16.0,
-        shadow_color: Color::rgba(0.0, 0.0, 0.0, 0.75),
-        item_idle_bg: Color::TRANSPARENT,
-        item_hover_bg: Color::rgba(0.20, 0.23, 0.32, 0.95),
-        item_selected_bg: Color::rgba(0.0, 0.35, 0.45, 0.85),
-        text_idle_color: Color::rgba(0.85, 0.88, 0.95, 1.0),
-        text_hover_color: Color::WHITE,
-        text_selected_color: Color::rgba(0.0, 0.90, 1.0, 1.0),
-        font_size: 11.0,
-        row_height: 22.0,
-        item_padding_x: 6.0,
-    };
+    let popup_x = params.viewport_rect.x
+        + match active_dd {
+            ViewportHudDropdownId::CameraMode => 8.0,
+            ViewportHudDropdownId::ShadingMode => 8.0 + cam_w + 1.0,
+        };
+    let popup_y = params.viewport_rect.y + 6.0 + 32.0 + 2.0;
 
-    ComboboxPopupBuilder::new(btn_rect)
-        .name("ViewportHudPopup")
-        .min_width(130.0)
-        .items(&labels)
-        .selected_index(selected_index)
-        .cursor_pos(params.cursor_pos)
-        .style(style)
-        .build(tree, parent_id);
+    let mut scope = UiScope::new(tree, parent_id);
+    let dropdown_id = scope.dropdown_menu_card(popup_x, popup_y, popup_w, |menu| {
+        for (idx, (icon, label)) in items.into_iter().enumerate() {
+            let is_selected = selected_index == Some(idx);
+            let indicator = if is_selected { Some("✓") } else { None };
+            menu.dropdown_item(idx as u64, icon, label, indicator, true);
+        }
+    });
+
+    let dd_h = irisui::prelude::measure_height(tree, dropdown_id);
+    let mut dd_scope = UiScope::new(tree, dropdown_id);
+    let dd_bounds = Rect::new(popup_x, popup_y, popup_w, dd_h);
+    dd_scope.finish_layout_with_hover(dd_bounds, params.cursor_pos);
 }
 
 /// Resolves a dispatched [`ViewportHudAction`] from a selected dropdown option index.
@@ -161,8 +155,7 @@ mod tests {
     #[test]
     fn test_camera_mode_dropdown_options_and_orthographic_mode() {
         let mut tree = UiTree::new();
-        let root = tree.create_node();
-        let _ = tree.set_root(root);
+        let root = tree.create_root().expect("Root node creation failed");
 
         let camera = Camera {
             position: cgmath::Point3::new(0.0, 5.0, 10.0),
@@ -194,18 +187,11 @@ mod tests {
             is_2d: false,
         };
 
-        let mut targets = ViewportHudTargets::default();
-        targets.dropdown_triggers.push((
-            ViewportHudDropdownId::CameraMode,
-            Rect::new(10.0, 10.0, 100.0, 30.0),
-        ));
-
         render_viewport_hud_dropdown_popup(
             &mut tree,
             root,
             ViewportHudDropdownId::CameraMode,
             &params,
-            &targets,
         );
 
         // Verify that hit_test_target finds the dropdown items
@@ -240,5 +226,87 @@ mod tests {
                 ),
             }
         }
+    }
+
+    #[test]
+    fn test_camera_mode_dropdown_docked_offset_positioning_and_text_collection() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node creation failed");
+        // Docked Viewport has an X offset (e.g. 260px from the left where Hierarchy panel sits)
+        let viewport_rect = Rect::new(260.0, 32.0, 800.0, 600.0);
+
+        let camera = Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+        let snapping = SnapSettings::default();
+        let world = World::new();
+
+        let params = ViewportHudParams {
+            viewport_rect,
+            camera: &camera,
+            wireframe_enabled: false,
+            gizmo_mode: GizmoMode::Select,
+            gizmo_space: GizmoSpace::World,
+            snapping: &snapping,
+            cursor_pos: Point::new(280.0, 50.0),
+            active_dropdown: Some(ViewportHudDropdownId::CameraMode),
+            selected_entity: None,
+            world: &world,
+            is_editing: true,
+            is_2d: false,
+        };
+
+        render_viewport_hud_dropdown_popup(
+            &mut tree,
+            root,
+            ViewportHudDropdownId::CameraMode,
+            &params,
+        );
+
+        // Verify popup is positioned at viewport_rect.x + 8.0 = 268.0, NOT at screen x = 8.0!
+        let popup_node = tree
+            .iter()
+            .find(|(_, n)| n.role == WidgetRole::DropdownPopup)
+            .map(|(_, n)| n)
+            .expect("DropdownPopup node must be in the UI tree");
+
+        assert_eq!(
+            popup_node.computed_rect.x, 268.0,
+            "Popup must be anchored at viewport_rect.x + 8.0, not screen x = 8.0"
+        );
+        assert_eq!(
+            popup_node.computed_rect.y,
+            viewport_rect.y + 40.0,
+            "Popup must be anchored below the toolbar"
+        );
+
+        // Verify that hit testing finds the Perspective item (tag 0) and Orthographic (tag 1)
+        let hit_item0 = tree
+            .hit_test_target(Point::new(280.0, popup_node.computed_rect.y + 12.0))
+            .expect("Perspective item must be hit");
+        assert_eq!(hit_item0.tag, 0);
+
+        // Verify that text sections are collected without being clipped by parent's clip_children
+        let sections = irisui::text::collect_text_sections(&tree);
+        let labels: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
+        assert!(
+            labels.contains(&"Perspective"),
+            "Perspective label must be collected and not culled: {:?}",
+            labels
+        );
+        assert!(
+            labels.contains(&"Orthographic"),
+            "Orthographic label must be collected: {:?}",
+            labels
+        );
     }
 }

@@ -4,76 +4,69 @@
 //! # 3D Model Interactive Wireframe Orbit Viewport Builder
 //!
 //! Renders an interactive 3D bounding box wireframe canvas with projected 3D coordinates,
-//! orbital yaw and pitch rotation, zoom distance scaling, and 3D coordinate axes.
+//! orbital yaw and pitch rotation, zoom distance scaling, and 3D coordinate axes
+//! using pure declarative [`UiScope`] and zero-allocation GPU command list quads.
 //!
 
 use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
 use irisui::prelude::*;
 
-/// Renders the 3D model inspection preview with interactive wireframe orbit canvas.
-pub(crate) fn render_model_preview_content(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    body_x: f32,
-    body_y: f32,
-    body_w: f32,
-    modal: &AssetPreviewModalState,
-    cursor_pos: Point,
-) -> (Rect, Rect) {
+/// Renders the 3D model inspection preview with interactive wireframe orbit canvas using declarative [`UiScope`].
+///
+/// TODO(architecture): Replace CPU 2D projection software-rendering with an
+/// offscreen WGPU render-to-texture preview pipeline from `ae_renderer`.
+pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, _modal: &AssetPreviewModalState) {
     // 1. Controls Bar: Instruction Hint + Spawn Action Button
-    let controls_h = 28.0;
-    let hint_rect = Rect::new(body_x, body_y, body_w - 160.0, controls_h);
-    let hint_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hint_id) {
-        node.set_name("ModelPreviewHint");
-        node.set_text("Left Drag: 3D Orbit | Wheel: Zoom Distance");
-        node.font_size = 11.0;
-        node.line_height = controls_h;
-        node.text_color = Color::rgba(0.55, 0.60, 0.72, 1.0);
-        node.computed_rect = hint_rect;
-    }
-    let _ = tree.add_child(parent_id, hint_id);
+    ui.container(
+        Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::SpaceBetween)
+            .height(28.0),
+        |row| {
+            row.label(
+                "Left Drag: 3D Orbit | Wheel: Zoom Distance",
+                11.0,
+                Color::rgba(0.55, 0.60, 0.72, 1.0),
+                TextAlign::Left,
+            );
+            row.modal_confirm_button("Spawn into Scene", 140.0);
+        },
+    );
 
-    let spawn_rect = Rect::new(body_x + body_w - 150.0, body_y, 150.0, controls_h);
-    let is_spawn_hovered = spawn_rect.contains_point(cursor_pos);
-    let spawn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(spawn_id) {
-        node.set_name("PreviewSpawnBtn");
-        node.set_text("Spawn into Scene");
-        node.font_size = 11.5;
-        node.line_height = controls_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = Color::WHITE;
-        node.computed_rect = spawn_rect;
-        node.style = Style::new()
-            .background(if is_spawn_hovered {
-                Color::rgba(0.0, 0.45, 0.60, 1.0)
-            } else {
-                Color::rgba(0.0, 0.35, 0.48, 0.90)
-            })
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.80));
-    }
-    let _ = tree.add_child(parent_id, spawn_id);
-
-    // 2. Interactive 3D Wireframe Viewport Canvas (Height: 280 px)
-    let canvas_y = body_y + controls_h + 6.0;
-    let canvas_h = 280.0;
-    let canvas_rect = Rect::new(body_x, canvas_y, body_w, canvas_h);
-
-    let canvas_id = tree.create_node();
-    if let Some(node) = tree.get_mut(canvas_id) {
-        node.set_name("ModelOrbitCanvas");
-        node.computed_rect = canvas_rect;
-        node.style = Style::new()
+    // 2. Interactive 3D Wireframe Viewport Canvas Container (Height: 280 px)
+    ui.canvas(
+        Style::new()
+            .flex_col()
+            .height(280.0)
             .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
             .border_radius(6.0)
             .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.60))
-            .clip_children(true);
-    }
-    let _ = tree.add_child(parent_id, canvas_id);
+            .clip_children(true),
+        WidgetRole::OscilloscopeCanvas,
+        crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_ORBIT,
+        Some(WidgetCursor::Grab),
+    );
 
-    // Render projected 3D bounding box corners and coordinate axes
+    // 3. Model Metrics Summary Row
+    ui.label(
+        "Format: 3D glTF / GLB • Mesh Pipeline: Indexed PBR • Bounding Box: Normalized [-1.0 .. 1.0]",
+        10.5,
+        Color::rgba(0.60, 0.65, 0.75, 1.0),
+        TextAlign::Left,
+    );
+}
+
+/// Directly appends the 12 wireframe bounding box edges and 3 coordinate axis quads to the draw command list.
+pub fn append_wireframe_quads(
+    command_list: &mut DrawCommandList,
+    canvas_rect: Rect,
+    modal: &AssetPreviewModalState,
+) {
+    if canvas_rect.width <= 0.0 || canvas_rect.height <= 0.0 {
+        return;
+    }
+
     let cx = canvas_rect.x + canvas_rect.width * 0.5;
     let cy = canvas_rect.y + canvas_rect.height * 0.5;
     let scale = (85.0 / modal.zoom_distance).clamp(25.0, 180.0);
@@ -91,11 +84,10 @@ pub(crate) fn render_model_preview_content(
     ];
 
     let center = [cx, cy];
-    let mut proj_points = Vec::with_capacity(8);
-    for &(x, y, z) in &corners_3d {
-        let (px, py) =
+    let mut proj_points = [(0.0_f32, 0.0_f32); 8];
+    for (i, &(x, y, z)) in corners_3d.iter().enumerate() {
+        proj_points[i] =
             project_3d_point([x, y, z], modal.orbit_yaw, modal.orbit_pitch, center, scale);
-        proj_points.push((px, py));
     }
 
     // 12 Wireframe Box Edges
@@ -114,25 +106,26 @@ pub(crate) fn render_model_preview_content(
         (3, 7), // Vertical pillars
     ];
 
-    for (i, &(p0_idx, p1_idx)) in edges.iter().enumerate() {
-        let (x0, y0) = proj_points[p0_idx];
-        let (x1, y1) = proj_points[p1_idx];
+    if modal.show_wireframe {
+        let edge_style = Style::new()
+            .background(Color::rgba(0.0, 0.85, 1.0, 0.45))
+            .border_radius(0.75);
 
-        let min_x = x0.min(x1);
-        let min_y = y0.min(y1);
-        let w = (x1 - x0).abs().max(1.5);
-        let h = (y1 - y0).abs().max(1.5);
+        for &(p0_idx, p1_idx) in &edges {
+            let (x0, y0) = proj_points[p0_idx];
+            let (x1, y1) = proj_points[p1_idx];
 
-        let edge_rect = Rect::new(min_x, min_y, w, h);
-        let edge_id = tree.create_node();
-        if let Some(node) = tree.get_mut(edge_id) {
-            node.set_name(format!("WireEdge_{}", i));
-            node.computed_rect = edge_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.0, 0.85, 1.0, 0.45))
-                .border_radius(0.75);
+            let min_x = x0.min(x1);
+            let min_y = y0.min(y1);
+            let w = (x1 - x0).abs().max(1.5);
+            let h = (y1 - y0).abs().max(1.5);
+
+            command_list.push_quad(QuadInstance::from_style(
+                Rect::new(min_x, min_y, w, h),
+                &edge_style,
+                Some(canvas_rect),
+            ));
         }
-        let _ = tree.add_child(canvas_id, edge_id);
     }
 
     // Center Coordinate Axes Indicator
@@ -166,67 +159,43 @@ pub(crate) fn render_model_preview_content(
     );
 
     // X Axis (Red)
-    let x_rect = Rect::new(
-        ox.min(xx),
-        oy.min(xy),
-        (xx - ox).abs().max(2.0),
-        (xy - oy).abs().max(2.0),
-    );
-    let x_id = tree.create_node();
-    if let Some(node) = tree.get_mut(x_id) {
-        node.set_name("AxisX");
-        node.computed_rect = x_rect;
-        node.style = Style::new().background(Color::rgba(1.0, 0.30, 0.30, 0.90));
-    }
-    let _ = tree.add_child(canvas_id, x_id);
+    let x_style = Style::new().background(Color::rgba(1.0, 0.30, 0.30, 0.90));
+    command_list.push_quad(QuadInstance::from_style(
+        Rect::new(
+            ox.min(xx),
+            oy.min(xy),
+            (xx - ox).abs().max(2.0),
+            (xy - oy).abs().max(2.0),
+        ),
+        &x_style,
+        Some(canvas_rect),
+    ));
 
     // Y Axis (Green)
-    let y_rect = Rect::new(
-        ox.min(yx),
-        oy.min(yy),
-        (yx - ox).abs().max(2.0),
-        (yy - oy).abs().max(2.0),
-    );
-    let y_id = tree.create_node();
-    if let Some(node) = tree.get_mut(y_id) {
-        node.set_name("AxisY");
-        node.computed_rect = y_rect;
-        node.style = Style::new().background(Color::rgba(0.30, 1.0, 0.30, 0.90));
-    }
-    let _ = tree.add_child(canvas_id, y_id);
+    let y_style = Style::new().background(Color::rgba(0.30, 1.0, 0.30, 0.90));
+    command_list.push_quad(QuadInstance::from_style(
+        Rect::new(
+            ox.min(yx),
+            oy.min(yy),
+            (yx - ox).abs().max(2.0),
+            (yy - oy).abs().max(2.0),
+        ),
+        &y_style,
+        Some(canvas_rect),
+    ));
 
     // Z Axis (Blue)
-    let z_rect = Rect::new(
-        ox.min(zx),
-        oy.min(zy),
-        (zx - ox).abs().max(2.0),
-        (zy - oy).abs().max(2.0),
-    );
-    let z_id = tree.create_node();
-    if let Some(node) = tree.get_mut(z_id) {
-        node.set_name("AxisZ");
-        node.computed_rect = z_rect;
-        node.style = Style::new().background(Color::rgba(0.30, 0.60, 1.0, 0.90));
-    }
-    let _ = tree.add_child(canvas_id, z_id);
-
-    // 3. Model Metrics Summary Row
-    let metrics_y = canvas_y + canvas_h + 6.0;
-    let met_rect = Rect::new(body_x, metrics_y, body_w, 20.0);
-    let met_id = tree.create_node();
-    if let Some(node) = tree.get_mut(met_id) {
-        node.set_name("ModelMetrics");
-        node.set_text(
-            "Format: 3D glTF / GLB • Mesh Pipeline: Indexed PBR • Bounding Box: Normalized [-1.0 .. 1.0]",
-        );
-        node.font_size = 10.5;
-        node.line_height = 20.0;
-        node.text_color = Color::rgba(0.60, 0.65, 0.75, 1.0);
-        node.computed_rect = met_rect;
-    }
-    let _ = tree.add_child(parent_id, met_id);
-
-    (canvas_rect, spawn_rect)
+    let z_style = Style::new().background(Color::rgba(0.30, 0.60, 1.0, 0.90));
+    command_list.push_quad(QuadInstance::from_style(
+        Rect::new(
+            ox.min(zx),
+            oy.min(zy),
+            (zx - ox).abs().max(2.0),
+            (zy - oy).abs().max(2.0),
+        ),
+        &z_style,
+        Some(canvas_rect),
+    ));
 }
 
 /// Helper for projecting 3D point through yaw and pitch angles into 2D viewport coordinates.
@@ -249,4 +218,73 @@ fn project_3d_point(
 
     let proj_factor = scale / (1.0 + z2 * 0.18).max(0.2);
     (center[0] + x1 * proj_factor, center[1] - y2 * proj_factor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_project_3d_point_invariants() {
+        let center = [200.0, 150.0];
+        let scale = 50.0;
+
+        // Origin projects exactly to center
+        let (ox, oy) = project_3d_point([0.0, 0.0, 0.0], 0.0, 0.0, center, scale);
+        assert!((ox - center[0]).abs() < f32::EPSILON);
+        assert!((oy - center[1]).abs() < f32::EPSILON);
+
+        // Symmetric X displacement
+        let (pos_x, _) = project_3d_point([1.0, 0.0, 0.0], 0.0, 0.0, center, scale);
+        let (neg_x, _) = project_3d_point([-1.0, 0.0, 0.0], 0.0, 0.0, center, scale);
+        assert!((pos_x - center[0] - (center[0] - neg_x)).abs() < 1e-4);
+
+        // No NaN or Inf on extreme values
+        let (ex, ey) = project_3d_point(
+            [10.0, -10.0, 50.0],
+            std::f32::consts::PI,
+            -1.5,
+            center,
+            100.0,
+        );
+        assert!(ex.is_finite());
+        assert!(ey.is_finite());
+    }
+
+    #[test]
+    fn test_append_wireframe_quads_direct_command_list() {
+        let canvas = Rect::new(50.0, 50.0, 300.0, 200.0);
+        let mut modal = AssetPreviewModalState::default();
+
+        // 1. With wireframe enabled: 12 edges + 3 axes = 15 quads
+        let mut list_with_wireframe = DrawCommandList::new();
+        append_wireframe_quads(&mut list_with_wireframe, canvas, &modal);
+        assert_eq!(list_with_wireframe.quads.len(), 15);
+
+        for quad in &list_with_wireframe.quads {
+            assert!(quad.rect[0].is_finite());
+            assert!(quad.rect[1].is_finite());
+            assert!(quad.rect[2] >= 1.5);
+            assert!(quad.rect[3] >= 1.5);
+            assert_eq!(
+                quad.clip_rect,
+                [canvas.x, canvas.y, canvas.right(), canvas.bottom()]
+            );
+        }
+
+        // 2. With wireframe disabled: only 3 coordinate axes quads
+        modal.show_wireframe = false;
+        let mut list_without_wireframe = DrawCommandList::new();
+        append_wireframe_quads(&mut list_without_wireframe, canvas, &modal);
+        assert_eq!(list_without_wireframe.quads.len(), 3);
+
+        for quad in &list_without_wireframe.quads {
+            assert!(quad.rect[0].is_finite());
+            assert!(quad.rect[1].is_finite());
+            assert_eq!(
+                quad.clip_rect,
+                [canvas.x, canvas.y, canvas.right(), canvas.bottom()]
+            );
+        }
+    }
 }

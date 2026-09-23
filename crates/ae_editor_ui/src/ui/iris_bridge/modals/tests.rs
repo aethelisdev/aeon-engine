@@ -15,10 +15,10 @@ use std::path::Path;
 #[test]
 fn test_new_folder_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = PanelBuilder::new(&mut tree).build();
     let _ = tree.set_root(root);
 
-    let (scrim_id, targets) = build_new_folder_modal(
+    let scrim_id = build_new_folder_modal(
         &mut tree,
         FolderModalParams {
             parent_path: Path::new("assets/models"),
@@ -33,7 +33,12 @@ fn test_new_folder_modal_text_sections_not_occluded() {
     let _ = tree.add_child(root, scrim_id);
 
     // Collect text sections with the modal card's dialog_rect registered as an active modal
-    let active_modals = [targets.dialog_rect];
+    let active_modals = [Rect::new(
+        (1920.0 - INPUT_MODAL_WIDTH) * 0.5,
+        (1080.0 - INPUT_MODAL_HEIGHT) * 0.5,
+        INPUT_MODAL_WIDTH,
+        INPUT_MODAL_HEIGHT,
+    )];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
@@ -59,10 +64,10 @@ fn test_new_folder_modal_text_sections_not_occluded() {
 #[test]
 fn test_rename_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = PanelBuilder::new(&mut tree).build();
     let _ = tree.set_root(root);
 
-    let (scrim_id, targets) = build_rename_modal(
+    let scrim_id = build_rename_modal(
         &mut tree,
         RenameModalParams {
             target_path: Path::new("assets/textures/diffuse.png"),
@@ -77,7 +82,12 @@ fn test_rename_modal_text_sections_not_occluded() {
     );
     let _ = tree.add_child(root, scrim_id);
 
-    let active_modals = [targets.dialog_rect];
+    let active_modals = [Rect::new(
+        (1920.0 - INPUT_MODAL_WIDTH) * 0.5,
+        (1080.0 - INPUT_MODAL_HEIGHT) * 0.5,
+        INPUT_MODAL_WIDTH,
+        INPUT_MODAL_HEIGHT,
+    )];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
@@ -99,10 +109,10 @@ fn test_rename_modal_text_sections_not_occluded() {
 #[test]
 fn test_delete_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = PanelBuilder::new(&mut tree).build();
     let _ = tree.set_root(root);
 
-    let (scrim_id, targets) = build_delete_modal(
+    let scrim_id = build_delete_modal(
         &mut tree,
         Path::new("assets/temp.obj"),
         1920.0,
@@ -111,7 +121,12 @@ fn test_delete_modal_text_sections_not_occluded() {
     );
     let _ = tree.add_child(root, scrim_id);
 
-    let active_modals = [targets.dialog_rect];
+    let active_modals = [Rect::new(
+        (1920.0 - DELETE_MODAL_WIDTH) * 0.5,
+        (1080.0 - DELETE_MODAL_HEIGHT) * 0.5,
+        DELETE_MODAL_WIDTH,
+        DELETE_MODAL_HEIGHT,
+    )];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
@@ -133,10 +148,10 @@ fn test_delete_modal_text_sections_not_occluded() {
 #[test]
 fn test_loading_overlay_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = PanelBuilder::new(&mut tree).build();
     let _ = tree.set_root(root);
 
-    let (scrim_id, targets) = build_loading_overlay(
+    let scrim_id = build_loading_overlay(
         &mut tree,
         LoadingOverlayParams {
             screen_width: 1920.0,
@@ -146,7 +161,12 @@ fn test_loading_overlay_text_sections_not_occluded() {
     );
     let _ = tree.add_child(root, scrim_id);
 
-    let active_modals = [targets.card_rect];
+    let active_modals = [Rect::new(
+        (1920.0 - 420.0) * 0.5,
+        (1080.0 - 180.0) * 0.5,
+        420.0,
+        180.0,
+    )];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
@@ -160,7 +180,7 @@ fn test_loading_overlay_text_sections_not_occluded() {
 #[test]
 fn test_about_dialog_occludes_underlying_preferences_text() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = PanelBuilder::new(&mut tree).build();
     let _ = tree.set_root(root);
 
     let screen_width = 1920.0;
@@ -207,16 +227,25 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
     let _ = tree.add_child(root, pref_id);
 
     // 2. Build About dialog centered on top of Preferences
-    let (about_id, about_targets) = crate::ui::iris_bridge::about::build_about_dialog(
+    let about_id = crate::ui::iris_bridge::about::build_about_dialog(
         &mut tree,
         screen_width,
         screen_height,
         Point::new(0.0, 0.0),
+        &[],
+        None,
     );
     let _ = tree.add_child(root, about_id);
 
+    let about_dialog_rect = Rect::new(
+        (screen_width - crate::ui::iris_bridge::about::ABOUT_DIALOG_WIDTH) * 0.5,
+        (screen_height - crate::ui::iris_bridge::about::ABOUT_DIALOG_HEIGHT) * 0.5,
+        crate::ui::iris_bridge::about::ABOUT_DIALOG_WIDTH,
+        crate::ui::iris_bridge::about::ABOUT_DIALOG_HEIGHT,
+    );
+
     // Register modals in Z-order: Preferences (Layer 0), About (Layer 1)
-    let active_modals = [pref_targets.card_rect, about_targets.dialog_rect];
+    let active_modals = [pref_targets.card_rect, about_dialog_rect];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();
@@ -245,9 +274,10 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         let visible_center_y = visible_bounds.y + visible_bounds.height * 0.5;
         let visible_inside_about = visible_bounds.width > 0.0
             && visible_bounds.height > 0.0
-            && about_targets
-                .dialog_rect
-                .contains_point(Point::new(visible_center_x, visible_center_y));
+            && visible_center_x >= about_dialog_rect.x
+            && visible_center_x <= about_dialog_rect.x + about_dialog_rect.width
+            && visible_center_y >= about_dialog_rect.y
+            && visible_center_y <= about_dialog_rect.y + about_dialog_rect.height;
 
         if visible_inside_about {
             let is_about_text = section.text.contains("About")
@@ -258,7 +288,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
                 || section.text.contains("MPL")
                 || section.text.contains("WARRANTY")
                 || section.text.contains("Close")
-                || section.text == "✖";
+                || section.text == "✕";
             assert!(
                 is_about_text,
                 "Visible text '{}' inside About dialog bounds must belong to About, not bleed from Preferences",
@@ -266,4 +296,49 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
             );
         }
     }
+}
+
+#[test]
+fn test_declarative_modals_buttons_hover_reactivity() {
+    let mut tree = UiTree::new();
+    let root = PanelBuilder::new(&mut tree).build();
+    let _ = tree.set_root(root);
+
+    let screen_w = 1920.0;
+    let screen_h = 1080.0;
+
+    // 1. Build delete modal with cursor hovering the close button
+    let del_id = build_delete_modal(
+        &mut tree,
+        Path::new("assets/test.mesh"),
+        screen_w,
+        screen_h,
+        Point::new(
+            (screen_w + DELETE_MODAL_WIDTH) * 0.5 - 20.0,
+            (screen_h - DELETE_MODAL_HEIGHT) * 0.5 + 20.0,
+        ),
+    );
+    assert!(tree.get(del_id).is_some());
+
+    // Search for close button and danger button
+    let mut close_btn_hovered = false;
+    let mut danger_btn_found = false;
+    tree.traverse_depth_first(del_id, &mut |_id, node| {
+        if node.tag == irisui::prelude::MODAL_TAG_CLOSE
+            && node.text.as_deref() == Some("✕")
+            && node.style.background_color == Color::rgba(0.85, 0.22, 0.22, 0.28)
+        {
+            close_btn_hovered = true;
+        }
+        if node.tag == irisui::prelude::MODAL_TAG_DANGER
+            && node.text.as_deref() == Some("🗑 Delete Permanently")
+        {
+            danger_btn_found = true;
+        }
+    });
+    assert!(close_btn_hovered, "Modal close button must react to hover");
+    assert!(
+        danger_btn_found,
+        "Danger confirm button must be tagged with MODAL_TAG_DANGER"
+    );
 }

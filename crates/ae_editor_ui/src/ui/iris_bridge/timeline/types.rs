@@ -7,7 +7,7 @@
 //! action variants for the Iris UI Animation Timeline Studio panel.
 //!
 
-use irisui::prelude::{Point, Rect};
+use irisui::prelude::{InteractionEvent, Point, Rect};
 
 /// Runtime parameters passed to the Animation Timeline Studio builder each frame.
 pub struct TimelinePanelParams<'a> {
@@ -21,6 +21,10 @@ pub struct TimelinePanelParams<'a> {
     pub cursor_pos: Point,
     /// Whether the user is actively dragging the scrubber playhead needle.
     pub is_dragging_scrubber: bool,
+    /// Tagged interaction events emitted during this frame for declarative widgets.
+    pub events: &'a [(u64, InteractionEvent)],
+    /// Currently hovered widget persistent tag, if any.
+    pub hovered_tag: Option<u64>,
 }
 
 /// Hit-testing targets and interactive bounding boxes for timeline controls.
@@ -28,24 +32,10 @@ pub struct TimelinePanelParams<'a> {
 pub struct TimelinePanelTargets {
     /// Total panel bounding rectangle for clipping and overlay hit-testing.
     pub panel_rect: Rect,
-    /// Play/Pause toggle button bounding box.
-    pub play_pause_btn: Option<Rect>,
-    /// Stop button bounding box.
-    pub stop_btn: Option<Rect>,
-    /// Step back one frame button bounding box.
-    pub step_back_btn: Option<Rect>,
-    /// Step forward one frame button bounding box.
-    pub step_fwd_btn: Option<Rect>,
-    /// Loop playback toggle pill bounding box.
-    pub loop_toggle: Option<Rect>,
-    /// Playback speed selector button bounding boxes: `(speed_value, rect)`.
-    pub speed_buttons: Vec<(f32, Rect)>,
     /// Interactive scrubber track bounding box.
     pub scrubber_track_rect: Option<Rect>,
     /// Current playhead needle draggable position and handle.
     pub playhead_needle_rect: Option<Rect>,
-    /// "Add AnimationPlayer" button bounding box for entities missing the component.
-    pub add_player_btn: Option<Rect>,
     /// Duration of the currently active animation clip in seconds.
     pub clip_duration: f32,
 }
@@ -57,19 +47,19 @@ pub enum TimelineAction {
     TogglePlayPause,
     /// Stops playback and resets the current timestamp to zero.
     Stop,
-    /// Steps playback forward or backward by the specified frame count.
+    /// Steps playback by a signed frame increment (`+1` or `-1`).
     StepFrame(i32),
-    /// Toggles the looping flag of the active animation player.
+    /// Toggles loop playback flag on the active player.
     ToggleLoop,
-    /// Sets the playback speed multiplier.
+    /// Updates playback speed multiplier preset (`0.25x`, `0.5x`, `1.0x`, `2.0x`).
     SetSpeed(f32),
-    /// Scrubs the animation player timestamp to the target time in seconds.
+    /// Scrubs the current playhead position to an absolute timestamp in seconds.
     ScrubTo(f32),
-    /// Adds an AnimationPlayer component to the currently selected entity.
+    /// Dispatches an action requesting an `AnimationPlayer` component to be attached to the target entity.
     AddAnimationPlayer(hecs::Entity),
 }
 
-/// Persistent interactive state for the Animation Timeline Studio panel overlay.
+/// Runtime persistent state for the Animation Timeline Studio panel.
 #[derive(Debug, Default, Clone)]
 pub struct TimelinePanelState {
     /// Common panel interaction state (targets, scroll_y, search, actions).
@@ -77,8 +67,14 @@ pub struct TimelinePanelState {
         crate::ui::iris_bridge::types::PanelInteractionState<TimelinePanelTargets, TimelineAction>,
     /// Whether user is actively dragging the timeline scrubber playhead needle.
     pub is_dragging: bool,
+    /// Previously cached scrubber dragging state used for retained dirty-checking.
+    pub last_is_dragging: bool,
     /// Selected entity handle cached for timeline interactions.
     pub selected_entity: Option<hecs::Entity>,
+    /// Previously baked selected entity handle used for retained dirty-checking.
+    pub last_selected_entity: Option<hecs::Entity>,
+    /// Pending tagged interaction events collected during window event routing.
+    pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
 }
 
 impl std::ops::Deref for TimelinePanelState {

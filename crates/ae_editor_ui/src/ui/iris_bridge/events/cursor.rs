@@ -142,29 +142,14 @@ impl IrisEditorOverlay {
         }
 
         // 4. Viewport HUD interactive items
-        if let Some(ref hud) = self.viewport_hud.targets
-            && (hud.buttons.iter().any(|(_, r)| r.contains_point(p))
-                || hud
-                    .dropdown_triggers
-                    .iter()
-                    .any(|(_, r)| r.contains_point(p)))
+        if let Some(hit) = self.tree.hit_test_target(p)
+            && hit.cursor == Some(WidgetCursor::Pointer)
         {
             return CursorIcon::Pointer;
         }
 
         // 5. Assets panel interactive items
         if let Some(ref targets) = self.assets.targets {
-            if let Some(ref pm) = targets.preview_modal {
-                if pm.close_btn_rect.contains_point(p)
-                    || pm.reveal_btn_rect.contains_point(p)
-                    || pm.action_btn_rect.is_some_and(|r| r.contains_point(p))
-                {
-                    return CursorIcon::Pointer;
-                }
-                if pm.orbit_canvas_rect.is_some_and(|r| r.contains_point(p)) {
-                    return CursorIcon::Grab;
-                }
-            }
             if let Some(ref cm) = targets.context_menu
                 && cm.card_rect.contains_point(p)
             {
@@ -201,29 +186,7 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 6. Material & Surface Studio interactive items
-        if let Some(ref targets) = self.material.targets
-            && (targets
-                .btn_change_texture
-                .is_some_and(|r| r.contains_point(p))
-                || targets
-                    .btn_remove_texture
-                    .is_some_and(|r| r.contains_point(p))
-                || targets.btn_add_texture.is_some_and(|r| r.contains_point(p))
-                || targets.btn_add_color.is_some_and(|r| r.contains_point(p))
-                || targets
-                    .submesh_alpha_buttons
-                    .iter()
-                    .any(|(_, _, _, r)| r.contains_point(p))
-                || targets
-                    .submesh_texture_buttons
-                    .iter()
-                    .any(|(_, _, r)| r.contains_point(p)))
-        {
-            return CursorIcon::Pointer;
-        }
-
-        // 7. 2D Visual UI Designer interactive items
+        // 6. 2D Visual UI Designer interactive items
         if let Some(ref targets) = self.ui_designer.targets
             && (targets.btn_aspect.is_some_and(|r| r.contains_point(p))
                 || targets.btn_zoom_out.is_some_and(|r| r.contains_point(p))

@@ -4,42 +4,41 @@
 //! # Animation Timeline Studio Root Panel Builder
 //!
 //! Orchestrates panel container instantiation, hardware-accelerated clipping,
-//! empty-state placeholder cards, and child transport and ruler subsystems.
+//! empty-state placeholder cards, and child transport and ruler subsystems
+//! using the declarative [`PanelBuilder`] and [`UiScope`] architecture.
 //!
 
 use super::ruler::build_ruler_and_scrubber;
 use super::transport::{TRANSPORT_TOOLBAR_HEIGHT, build_transport_toolbar};
-use super::types::{TimelinePanelParams, TimelinePanelTargets};
+use super::types::{TimelineAction, TimelinePanelParams, TimelinePanelTargets};
 use irisui::prelude::*;
 
 /// Builds the complete Animation Timeline Studio docked panel.
+///
+/// Dispatches to declarative placeholder cards when no valid entity or
+/// `AnimationPlayer` is active, or instantiates the playback transport toolbar
+/// and time ruler scrubber controls.
 pub fn build_timeline_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &TimelinePanelParams<'_>,
     targets: &mut TimelinePanelTargets,
+    actions: &mut Vec<TimelineAction>,
 ) {
     targets.panel_rect = params.panel_rect;
-    targets.play_pause_btn = None;
-    targets.stop_btn = None;
-    targets.step_back_btn = None;
-    targets.step_fwd_btn = None;
-    targets.loop_toggle = None;
-    targets.speed_buttons.clear();
     targets.scrubber_track_rect = None;
     targets.playhead_needle_rect = None;
-    targets.add_player_btn = None;
     targets.clip_duration = 0.0;
 
-    let root_id = tree.create_node();
-    if let Some(node) = tree.get_mut(root_id) {
-        node.set_name("AnimationTimelinePanelRoot");
-        node.computed_rect = params.panel_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
-            .clip_children(true);
-    }
+    let root_id = PanelBuilder::new(tree)
+        .name("AnimationTimelinePanelRoot")
+        .rect(params.panel_rect)
+        .style(|s| {
+            s.background(Color::rgba(0.06, 0.07, 0.09, 0.98))
+                .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
+                .clip_children(true)
+        })
+        .build();
     let _ = tree.add_child(parent_id, root_id);
 
     // ── Case A: No Entity Selected ──
@@ -57,14 +56,7 @@ pub fn build_timeline_panel(
 
     // ── Case B: Selected Entity Missing AnimationPlayer Component ──
     let Some(player) = params.animation_player else {
-        render_missing_player_card(
-            tree,
-            root_id,
-            params.panel_rect,
-            params.cursor_pos,
-            targets,
-            entity,
-        );
+        render_missing_player_card(tree, root_id, params.panel_rect, params, actions, entity);
         return;
     };
 
@@ -87,6 +79,9 @@ pub fn build_timeline_panel(
 }
 
 /// Renders a centered empty-state information card when no animated entity is selected.
+///
+/// Uses [`PanelBuilder`] for card container styling and [`UiScope`] for declarative
+/// centered text hierarchy.
 fn render_empty_placeholder(
     tree: &mut UiTree,
     parent_id: WidgetId,
@@ -101,52 +96,48 @@ fn render_empty_placeholder(
     let card_y = panel_rect.y + (panel_rect.height - card_h) * 0.5;
     let card_rect = Rect::new(card_x, card_y, card_w, card_h);
 
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("TimelineEmptyCard");
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.11, 0.15, 0.85))
-            .border_radius(6.0)
-            .border(1.0, Color::rgba(0.20, 0.24, 0.32, 0.50));
-    }
+    let card_id = PanelBuilder::new(tree)
+        .name("TimelineEmptyCard")
+        .rect(card_rect)
+        .style(|s| {
+            s.background(Color::rgba(0.09, 0.11, 0.15, 0.85))
+                .border_radius(6.0)
+                .border(1.0, Color::rgba(0.20, 0.24, 0.32, 0.50))
+                .flex_col()
+                .align_items(AlignItems::Center)
+                .padding_insets(Insets::new(12.0, 10.0, 10.0, 10.0))
+                .gap(4.0)
+        })
+        .build();
     let _ = tree.add_child(parent_id, card_id);
 
-    // Title line with icon
-    let title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(title_id) {
-        node.set_name("TimelineEmptyTitle");
-        node.set_text(format!("{}  {}", icon, title));
-        node.font_size = 13.0;
-        node.line_height = 20.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = Color::rgba(0.70, 0.75, 0.85, 1.0);
-        node.computed_rect = Rect::new(card_x + 10.0, card_y + 12.0, card_w - 20.0, 20.0);
-    }
-    let _ = tree.add_child(card_id, title_id);
-
-    // Subtitle description line
-    let sub_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sub_id) {
-        node.set_name("TimelineEmptySubtitle");
-        node.set_text(subtitle);
-        node.font_size = 10.5;
-        node.line_height = 16.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = Color::rgba(0.48, 0.52, 0.62, 1.0);
-        node.computed_rect = Rect::new(card_x + 10.0, card_y + 36.0, card_w - 20.0, 18.0);
-    }
-    let _ = tree.add_child(card_id, sub_id);
+    let mut scope = UiScope::new(tree, card_id);
+    scope.label(
+        format!("{}  {}", icon, title),
+        13.0,
+        Color::rgba(0.70, 0.75, 0.85, 1.0),
+        TextAlign::Center,
+    );
+    scope.label(
+        subtitle,
+        10.5,
+        Color::rgba(0.48, 0.52, 0.62, 1.0),
+        TextAlign::Center,
+    );
+    scope.finish_layout(card_rect);
 }
 
 /// Renders an informational card with an action button when an entity is selected without AnimationPlayer.
+///
+/// Emits declarative title and action button via [`UiScope`], immediately reacting to button
+/// activation via the declarative `.clicked()` pattern.
 fn render_missing_player_card(
     tree: &mut UiTree,
     parent_id: WidgetId,
     panel_rect: Rect,
-    cursor_pos: Point,
-    targets: &mut TimelinePanelTargets,
-    _entity: hecs::Entity,
+    params: &TimelinePanelParams<'_>,
+    actions: &mut Vec<TimelineAction>,
+    entity: hecs::Entity,
 ) {
     let card_w = 480.0_f32.min(panel_rect.width - 40.0).max(280.0);
     let card_h = 80.0;
@@ -154,67 +145,33 @@ fn render_missing_player_card(
     let card_y = panel_rect.y + (panel_rect.height - card_h) * 0.5;
     let card_rect = Rect::new(card_x, card_y, card_w, card_h);
 
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("TimelineMissingPlayerCard");
-        node.computed_rect = card_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.09, 0.11, 0.15, 0.85))
-            .border_radius(6.0)
-            .border(1.0, Color::rgba(0.25, 0.28, 0.38, 0.60));
-    }
+    let card_id = PanelBuilder::new(tree)
+        .name("TimelineMissingPlayerCard")
+        .rect(card_rect)
+        .style(|s| {
+            s.background(Color::rgba(0.09, 0.11, 0.15, 0.85))
+                .border_radius(6.0)
+                .border(1.0, Color::rgba(0.25, 0.28, 0.38, 0.60))
+                .flex_col()
+                .align_items(AlignItems::Center)
+                .padding_insets(Insets::new(10.0, 10.0, 10.0, 10.0))
+                .gap(8.0)
+        })
+        .build();
     let _ = tree.add_child(parent_id, card_id);
 
-    // Title label
-    let title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(title_id) {
-        node.set_name("TimelineMissingPlayerTitle");
-        node.set_text("Selected entity does not have an AnimationPlayer component.");
-        node.font_size = 11.5;
-        node.line_height = 18.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = Color::rgba(0.72, 0.76, 0.86, 1.0);
-        node.computed_rect = Rect::new(card_x + 10.0, card_y + 12.0, card_w - 20.0, 18.0);
-    }
-    let _ = tree.add_child(card_id, title_id);
+    let mut scope =
+        UiScope::with_tagged_interactions(tree, card_id, params.events, params.hovered_tag);
+    scope.label(
+        "Selected entity does not have an AnimationPlayer component.",
+        11.5,
+        Color::rgba(0.72, 0.76, 0.86, 1.0),
+        TextAlign::Center,
+    );
 
-    // Add AnimationPlayer action button
-    let btn_w = 170.0;
-    let btn_h = 24.0;
-    let btn_x = card_x + (card_w - btn_w) * 0.5;
-    let btn_y = card_y + 40.0;
-    let btn_rect = Rect::new(btn_x, btn_y, btn_w, btn_h);
-    let is_btn_hovered = btn_rect.contains_point(cursor_pos);
-    targets.add_player_btn = Some(btn_rect);
-
-    let btn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(btn_id) {
-        node.set_name("TimelineAddPlayerBtn");
-        node.set_text("➕ Add AnimationPlayer");
-        node.font_size = 11.0;
-        node.line_height = btn_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_btn_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.0, 0.88, 1.0, 1.0)
-        };
-        node.computed_rect = btn_rect;
-        node.style = Style::new()
-            .background(if is_btn_hovered {
-                Color::rgba(0.0, 0.45, 0.60, 0.80)
-            } else {
-                Color::rgba(0.0, 0.30, 0.42, 0.60)
-            })
-            .border_radius(4.0)
-            .border(
-                1.0,
-                if is_btn_hovered {
-                    Color::rgba(0.0, 0.90, 1.0, 0.90)
-                } else {
-                    Color::rgba(0.0, 0.75, 0.95, 0.60)
-                },
-            );
+    if scope.button("➕ Add AnimationPlayer").clicked() {
+        actions.push(TimelineAction::AddAnimationPlayer(entity));
     }
-    let _ = tree.add_child(card_id, btn_id);
+
+    scope.finish_layout(card_rect);
 }

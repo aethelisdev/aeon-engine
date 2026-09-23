@@ -4,12 +4,15 @@
 //! Viewport image, game UI, and editor HUD composition within native Iris panel layers.
 
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
-use super::viewport_hud::{self, ViewportHudParams, ViewportHudTargets};
+use super::viewport_hud::{self, ViewportHudParams};
 use super::viewport_texture::VIEWPORT_TEXTURE_ID;
 use irisui::prelude::*;
 
 impl IrisEditorOverlay {
     /// Builds viewport content (3D scene texture quad and interactive HUD) under the owning panel.
+    ///
+    /// Constructs the viewport layout tree declaratively via [`UiScope`]: root container,
+    /// hardware 3D RTT texture quad, and the complete interactive HUD overlay.
     pub(crate) fn build_viewport_content(
         &mut self,
         parent: WidgetId,
@@ -20,41 +23,46 @@ impl IrisEditorOverlay {
             return;
         }
 
-        // 1. Root container for the viewport canvas with clipping
-        let root = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(root) {
-            node.set_name("IrisViewportRoot");
-            node.computed_rect = viewport_rect;
-            let mut style = Style::new().background(Color::TRANSPARENT);
-            style.clip_children = true;
-            node.set_style(style);
-        }
-        let _ = self.tree.add_child(parent, root);
+        let root_style = Style::new()
+            .position_absolute()
+            .left(viewport_rect.x)
+            .top(viewport_rect.y)
+            .width(viewport_rect.width)
+            .height(viewport_rect.height)
+            .background(Color::TRANSPARENT)
+            .clip_children(true);
 
-        // 2. Viewport 3D RTT Texture Quad or Placeholder
-        if params.viewport.has_viewport_texture {
-            let image_node = self.tree.create_node();
-            if let Some(node) = self.tree.get_mut(image_node) {
-                node.set_name("IrisViewportImage");
-                node.computed_rect = viewport_rect;
-                node.external_texture = Some(VIEWPORT_TEXTURE_ID);
+        let mut scope = UiScope::new(&mut self.tree, parent);
+        let root = scope.container_passive(root_style, |vp_scope| {
+            if params.viewport.has_viewport_texture {
+                vp_scope.external_texture(
+                    VIEWPORT_TEXTURE_ID,
+                    viewport_rect.width,
+                    viewport_rect.height,
+                );
+            } else {
+                let ph_style = Style::new()
+                    .position_absolute()
+                    .left(0.0)
+                    .top(0.0)
+                    .width(viewport_rect.width)
+                    .height(viewport_rect.height)
+                    .justify_content(JustifyContent::Center)
+                    .align_items(AlignItems::Center);
+                vp_scope.container_passive(ph_style, |ph| {
+                    ph.label(
+                        "Rendering viewport...",
+                        14.0,
+                        Color::hex("#888888"),
+                        TextAlign::Center,
+                    );
+                });
             }
-            let _ = self.tree.add_child(root, image_node);
-        } else {
-            let placeholder_node = self.tree.create_node();
-            if let Some(node) = self.tree.get_mut(placeholder_node) {
-                node.set_name("IrisViewportPlaceholder");
-                node.computed_rect = viewport_rect;
-                node.set_text("Rendering viewport...");
-                node.set_text_properties(14.0, 18.0, Color::hex("#888888"), TextAlign::Center);
-            }
-            let _ = self.tree.add_child(root, placeholder_node);
-        }
+        });
 
         // 3. Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
-        let mut hud_targets = ViewportHudTargets::default();
         viewport_hud::build_viewport_hud(
             &mut self.tree,
             root,
@@ -72,8 +80,9 @@ impl IrisEditorOverlay {
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
             },
-            &mut hud_targets,
         );
-        self.viewport_hud.targets = Some(hud_targets);
+        self.viewport_hud.camera_angles =
+            (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
+        self.viewport_hud.is_active = true;
     }
 }

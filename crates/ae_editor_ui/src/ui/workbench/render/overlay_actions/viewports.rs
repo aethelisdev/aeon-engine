@@ -70,6 +70,15 @@ impl EngineUi {
                         mode,
                     });
                 }
+                iris_bridge::ViewportHudAction::SnapCamera(snap) => {
+                    let (pitch, yaw, position) = snap.compute_transform(camera.target, 12.0);
+                    ui_actions.push(EngineUiAction::SetCameraTransform {
+                        pitch,
+                        yaw,
+                        position,
+                        mode: None,
+                    });
+                }
                 iris_bridge::ViewportHudAction::ToggleWireframe => {
                     self.wireframe_enabled = !self.wireframe_enabled;
                 }

@@ -72,6 +72,8 @@ impl EngineUi {
             return;
         }
 
+        self.expire_status_message();
+
         let zoom = self.scale_factor();
         let logical_w = win_size.width as f32 / zoom;
         let logical_h = win_size.height as f32 / zoom;

@@ -10,15 +10,59 @@
 
 use super::style::MediaTransportStyle;
 use super::types::MediaTransportAction;
-use iris_core::WidgetRole;
 use iris_core::color::Color;
 use iris_core::geometry::{Point, Rect};
 use iris_core::id::WidgetId;
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
+use iris_core::{WidgetCursor, WidgetRole};
 
 /// Standard playback speed multipliers.
 pub const DEFAULT_SPEED_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
+
+/// Semantic tag for the timeline step back button.
+pub const TIMELINE_TAG_STEP_BACK: u64 = 0xAA01;
+/// Semantic tag for the timeline play/pause toggle button.
+pub const TIMELINE_TAG_PLAY_PAUSE: u64 = 0xAA02;
+/// Semantic tag for the timeline stop playback button.
+pub const TIMELINE_TAG_STOP: u64 = 0xAA03;
+/// Semantic tag for the timeline step forward button.
+pub const TIMELINE_TAG_STEP_FWD: u64 = 0xAA04;
+/// Semantic tag for the timeline loop toggle pill.
+pub const TIMELINE_TAG_LOOP: u64 = 0xAA05;
+/// Base semantic tag for playback speed multiplier pills (offset by preset index).
+pub const TIMELINE_TAG_SPEED_BASE: u64 = 0xAA10;
+/// Semantic tag for the timeline scrubber track interactive region.
+pub const TIMELINE_TAG_SCRUBBER_TRACK: u64 = 0xAA20;
+/// Semantic tag for the timeline playhead draggable needle cap handle.
+pub const TIMELINE_TAG_PLAYHEAD_CAP: u64 = 0xAA21;
+
+/// Evaluates a semantic numeric tag against timeline transport controls.
+///
+/// Returns the matching [`MediaTransportAction`] if the tag corresponds to a transport button.
+#[must_use]
+pub fn evaluate_timeline_transport_tag(
+    tag: u64,
+    speed_presets: &[f32],
+) -> Option<MediaTransportAction> {
+    match tag {
+        TIMELINE_TAG_STEP_BACK => Some(MediaTransportAction::StepBack),
+        TIMELINE_TAG_PLAY_PAUSE => Some(MediaTransportAction::TogglePlayPause),
+        TIMELINE_TAG_STOP => Some(MediaTransportAction::Stop),
+        TIMELINE_TAG_STEP_FWD => Some(MediaTransportAction::StepForward),
+        TIMELINE_TAG_LOOP => Some(MediaTransportAction::ToggleLoop),
+        t if (TIMELINE_TAG_SPEED_BASE..TIMELINE_TAG_SPEED_BASE + speed_presets.len() as u64)
+            .contains(&t) =>
+        {
+            let idx = (t - TIMELINE_TAG_SPEED_BASE) as usize;
+            speed_presets
+                .get(idx)
+                .copied()
+                .map(MediaTransportAction::SetSpeed)
+        }
+        _ => None,
+    }
+}
 
 /// Output layout frame returned after constructing a media transport bar.
 ///
@@ -222,6 +266,10 @@ impl<'a> MediaTransportBarBuilder<'a> {
         let step_back_id = tree.create_node();
         if let Some(node) = tree.get_mut(step_back_id) {
             node.set_name("TimelineStepBackBtn");
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.interactive = true;
+            node.tag = TIMELINE_TAG_STEP_BACK;
             node.set_text("⏮");
             node.font_size = 11.0;
             node.line_height = btn_h;
@@ -254,6 +302,10 @@ impl<'a> MediaTransportBarBuilder<'a> {
         let play_pause_id = tree.create_node();
         if let Some(node) = tree.get_mut(play_pause_id) {
             node.set_name("TimelinePlayPauseBtn");
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.interactive = true;
+            node.tag = TIMELINE_TAG_PLAY_PAUSE;
             node.set_text(if self.is_playing { "⏸" } else { "▶" });
             node.font_size = 12.0;
             node.line_height = btn_h;
@@ -299,6 +351,10 @@ impl<'a> MediaTransportBarBuilder<'a> {
         let stop_id = tree.create_node();
         if let Some(node) = tree.get_mut(stop_id) {
             node.set_name("TimelineStopBtn");
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.interactive = true;
+            node.tag = TIMELINE_TAG_STOP;
             node.set_text("⏹");
             node.font_size = 11.0;
             node.line_height = btn_h;
@@ -331,6 +387,10 @@ impl<'a> MediaTransportBarBuilder<'a> {
         let step_fwd_id = tree.create_node();
         if let Some(node) = tree.get_mut(step_fwd_id) {
             node.set_name("TimelineStepFwdBtn");
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.interactive = true;
+            node.tag = TIMELINE_TAG_STEP_FWD;
             node.set_text("⏭");
             node.font_size = 11.0;
             node.line_height = btn_h;
@@ -375,6 +435,10 @@ impl<'a> MediaTransportBarBuilder<'a> {
             let loop_id = tree.create_node();
             if let Some(node) = tree.get_mut(loop_id) {
                 node.set_name("TimelineLoopToggle");
+                node.role = WidgetRole::Button;
+                node.cursor = Some(WidgetCursor::Pointer);
+                node.interactive = true;
+                node.tag = TIMELINE_TAG_LOOP;
                 node.set_text("🔁 Loop");
                 node.font_size = 11.0;
                 node.line_height = btn_h;
@@ -413,7 +477,7 @@ impl<'a> MediaTransportBarBuilder<'a> {
         // ── 6. Speed Buttons ──
         let mut speed_button_rects = Vec::new();
         if self.show_speed {
-            for &speed in self.speed_presets {
+            for (idx, &speed) in self.speed_presets.iter().enumerate() {
                 let spd_w = 38.0;
                 let spd_rect = Rect::new(cur_x, btn_y, spd_w, btn_h);
                 let is_spd_active = (self.current_speed - speed).abs() < 0.05;
@@ -425,6 +489,10 @@ impl<'a> MediaTransportBarBuilder<'a> {
                 let spd_id = tree.create_node();
                 if let Some(node) = tree.get_mut(spd_id) {
                     node.set_name("TimelineSpeedBtn");
+                    node.role = WidgetRole::Button;
+                    node.cursor = Some(WidgetCursor::Pointer);
+                    node.interactive = true;
+                    node.tag = TIMELINE_TAG_SPEED_BASE + idx as u64;
                     node.set_text(match speed {
                         0.25 => ".25x",
                         0.5 => ".5x",
@@ -607,5 +675,43 @@ mod tests {
             frame.evaluate_click(spd_center),
             Some(MediaTransportAction::SetSpeed(0.5))
         );
+    }
+
+    #[test]
+    fn test_evaluate_timeline_transport_tag() {
+        let presets = [0.25, 0.5, 1.0, 2.0];
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_STEP_BACK, &presets),
+            Some(MediaTransportAction::StepBack)
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_PLAY_PAUSE, &presets),
+            Some(MediaTransportAction::TogglePlayPause)
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_STOP, &presets),
+            Some(MediaTransportAction::Stop)
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_STEP_FWD, &presets),
+            Some(MediaTransportAction::StepForward)
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_LOOP, &presets),
+            Some(MediaTransportAction::ToggleLoop)
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_SPEED_BASE, &presets),
+            Some(MediaTransportAction::SetSpeed(0.25))
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_SPEED_BASE + 3, &presets),
+            Some(MediaTransportAction::SetSpeed(2.0))
+        );
+        assert_eq!(
+            evaluate_timeline_transport_tag(TIMELINE_TAG_SPEED_BASE + 99, &presets),
+            None
+        );
+        assert_eq!(evaluate_timeline_transport_tag(0x1234, &presets), None);
     }
 }

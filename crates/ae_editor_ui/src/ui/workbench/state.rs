@@ -240,8 +240,25 @@ impl EngineUi {
     }
 
     /// Sets a temporary status message displayed at the bottom status bar.
+    ///
+    /// Triggers an immediate reactive overlay redraw so that the status message
+    /// is instantly reflected in the bottom status bar.
     pub fn set_status_message(&mut self, text: impl Into<String>, color: Color) {
         self.status_message = Some((vec![(text.into(), color)], std::time::Instant::now()));
+        self.iris_overlay.notifier.tag_all();
+    }
+
+    /// Checks status message expiration and clears it if 2.5 seconds have elapsed.
+    ///
+    /// If expired, clears the message and flags the overlay notifier dirty to
+    /// revert the status bar back to "● Ready".
+    pub fn expire_status_message(&mut self) {
+        if let Some((_, timestamp)) = self.status_message
+            && is_status_message_expired(timestamp)
+        {
+            self.status_message = None;
+            self.iris_overlay.notifier.tag_all();
+        }
     }
 
     /// Returns whether any modal dialog, search input, or inspector field currently captures keyboard events.
@@ -309,5 +326,25 @@ impl EngineUi {
             self.console_entries.clear();
             self.console_last_count = 0;
         }
+    }
+}
+
+/// Returns whether a status message has expired based on the standard 2.5s duration.
+pub fn is_status_message_expired(timestamp: std::time::Instant) -> bool {
+    const STATUS_MESSAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(2500);
+    timestamp.elapsed() >= STATUS_MESSAGE_TIMEOUT
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_message_expiration_timing() {
+        let now = std::time::Instant::now();
+        assert!(!is_status_message_expired(now));
+
+        let expired = now - std::time::Duration::from_millis(2600);
+        assert!(is_status_message_expired(expired));
     }
 }

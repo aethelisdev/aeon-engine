@@ -3,50 +3,37 @@
 
 //! # Iris UI (`irisui`)
 //!
-//! GPU-accelerated Retained-Mode user interface framework for games, engines,
-//! and interactive desktop tools.
+//! Umbrella facade crate uniting the modular Iris UI framework crates:
+//! - `iris-core`: Generational arena, nodes, styles, dirty tracking, and geometry primitives.
+//! - `iris-layout`: Pure, high-performance flexbox and absolute layout solver.
+//! - `iris-text`: Glyphon-based GPU subpixel font rendering and text measurement engine.
+//! - `iris-wgpu`: High-performance batched instanced quad renderer and custom external texture pipelines.
+//! - `iris-widgets`: Industrial, hardware-accelerated game engine UI widget kit.
+//! - `iris-dock`: Generational binary split-tree docking and floating window multi-viewport engine.
 //!
-//! ## Architecture Overview
-//! - [`core`]: Generational arena-based UI tree, geometry primitives, dirty flags, and styling.
-//! - [`dock`]: Generational binary split-tree panel docking, tab state, and layout persistence.
-//! - [`layout`]: Flexbox and Grid layout resolution powered by Taffy.
-//! - [`text`]: Sub-pixel glyph layout, font shaping, and text caching via `cosmic-text` and `glyphon`.
-//! - [`wgpu_backend`]: Instanced GPU SDF fragment shader pipeline for rounded rects, borders, and shadows.
-//! - [`widgets`]: Standard UI widget builders and game engine editor controls.
-//! - [`prelude`]: Commonly used types and builder helpers.
+//! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-/// Core arena data structures, geometric primitives, dirty-state flags, and base styling types.
 pub use iris_core as core;
-/// Hierarchical binary split-tree docking system, tab management, and dock layout persistence.
 pub use iris_dock as dock;
-/// Flexbox and CSS Grid layout computation adapter powered by Taffy.
 pub use iris_layout as layout;
-/// Hardware-accelerated typography, font shaping, and glyph caching engine.
 pub use iris_text as text;
-/// GPU SDF rendering pipeline and shader backend for 2D UI elements.
 pub use iris_wgpu as wgpu_backend;
-/// Reusable UI widget primitives, control builders, and property inspectors.
 pub use iris_widgets as widgets;
 
-/// Convenient common imports for Iris UI applications.
+/// Fluent, comprehensive umbrella prelude re-exporting all standard Iris UI primitives.
+///
+/// Designed to be imported as `use irisui::prelude::*;` for , idiomatic engine UI development.
 pub mod prelude {
-    pub use iris_core::color::Color;
-    pub use iris_core::dirty::DirtyFlags;
-    pub use iris_core::event::{
-        EventDispatcher, FocusManager, HitTestResult, ImeEvent, InteractionEvent, KeyCode,
-        MouseButton, UiEvent, WidgetState,
+    pub use iris_core::{
+        AlignItems, Border, BoxShadow, Color, CornerRadii, DirtyFlags, EventDispatcher,
+        ExternalTextureId, FlexDirection, FocusManager, HitTargetInfo, HitTestResult, ImeEvent,
+        Insets, InteractionEvent, IrisCoreError, JustifyContent, KeyCode, MouseButton, Point,
+        Position, Rect, Size, Style, TextAlign, TextWrap, UiEvent, UiLayer, UiTree, WidgetCursor,
+        WidgetId, WidgetNode, WidgetRole, WidgetState,
     };
-    pub use iris_core::geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
-    pub use iris_core::id::WidgetId;
-    pub use iris_core::node::{ExternalTextureId, UiLayer, WidgetCursor, WidgetNode, WidgetRole};
-    pub use iris_core::style::{
-        AlignItems, FlexDirection, JustifyContent, Style, TextAlign, TextWrap,
-    };
-    pub use iris_core::tree::{HitTargetInfo, UiTree};
-
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DEFAULT_RESIZE_MARGIN,
         DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
@@ -61,6 +48,7 @@ pub mod prelude {
         TabContextMenuAction, TabContextMenuState, TabLayoutInfo, TabViewer, UiNotifier,
         build_dock_chrome, build_dock_navigator_nodes, build_dock_overflow_menu,
         build_drop_preview_node, build_floating_tab_badge, build_floating_windows_layer,
+        calculate_drop_preview_rect, calculate_drop_zone, calculate_leaf_half_drop_zone,
         calculate_screen_drop_zone, calculate_tab_reorder_index, clamp_floating_windows,
         compute_dock_layout, compute_dock_layout_advanced, compute_dock_layout_with_options,
         compute_dock_layout_with_viewer, compute_floating_layouts, compute_tab_bar_layout,
@@ -80,33 +68,35 @@ pub mod prelude {
     };
     pub use iris_widgets::{
         AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
-        ButtonBuilder, CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL,
+        CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL,
         CONSOLE_TAG_FILTER_DEBUG, CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO,
         CONSOLE_TAG_FILTER_WARN, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CanvasBuilder,
         CardBuilder, CardFrame, CardIcon, CardStyle, CascadingMenuBuilder, CascadingMenuFrame,
         CascadingMenuIcon, CascadingMenuItem, CascadingMenuStyle, ChartDrawer, ChartStyle,
-        ChartThreshold, CheckboxBuilder, ColorPickerBuilder, ColorPickerClickAction,
-        ColorPickerCursor, ColorPickerDragMode, ComboboxButtonBuilder, ComboboxButtonFrame,
-        ComboboxButtonStyle, ComboboxPopupBuilder, ComboboxPopupFrame, ComboboxPopupStyle,
-        ComboboxRowBuilder, ComboboxRowFrame, ComboboxRowStyle, ConsoleEmptyNoticeBuilder,
-        ConsoleFilterLevel, ConsoleLogCounts, ConsoleLogLevel, ConsoleRowBuilder, ConsoleRowFrame,
-        ConsoleRowStyle, ConsoleToolbarAction, ConsoleToolbarBuilder, ConsoleToolbarCursor,
-        ConsoleToolbarFrame, ConsoleToolbarStyle, ContextMenuBuilder, ContextMenuHeader,
-        ContextMenuIcon, ContextMenuItem, ContextMenuStyle, DEFAULT_RULER_HEIGHT,
-        DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, DragValueBuilder, DropdownBuilder,
-        DropdownMenuBuilder, HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets,
-        LabelBuilder, MediaTransportAction, MediaTransportBarBuilder, MediaTransportBarFrame,
-        MediaTransportStyle, MenuBarBuilder, ModalDialogBuilder, ModalDialogFrame,
-        ModalDialogStyle, NumericInputEditState, NumericInputPillBuilder, NumericInputStyle,
-        PanelBuilder, PropertyRowBuilder, ResponsiveGrid, ScrollAreaBuilder, ScrollAreaFrame,
-        ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit, ScrollBarVisibility, ScrollDirection,
-        SectionHeaderBuilder, SettingRowBuilder, SettingRowFrame, SettingRowStyle,
-        SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, SliderBuilder,
-        StatusBarBuilder, TabBuilder, TabbedDialogBuilder, TabbedDialogFrame, TabbedDialogStyle,
-        TabbedDialogTab, TextInputBuilder, TextInputState, TimelineKeyframeMarker,
-        TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle, TreeRowBuilder, TreeRowFrame,
-        TreeRowIcon, TreeRowStyle, UiScope, VirtualList, VirtualSlice, evaluate_color_picker_click,
-        evaluate_color_picker_cursor, evaluate_color_picker_drag, evaluate_console_toolbar_click,
-        evaluate_console_toolbar_cursor, hsv_to_rgb, rgb_to_hsv,
+        ChartThreshold, ColorPickerClickAction, ColorPickerCursor, ColorPickerDragMode,
+        ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,
+        ComboboxPopupFrame, ComboboxPopupStyle, ComboboxRowBuilder, ComboboxRowFrame,
+        ComboboxRowStyle, ConsoleEmptyNoticeBuilder, ConsoleFilterLevel, ConsoleLogCounts,
+        ConsoleLogLevel, ConsoleRowBuilder, ConsoleRowFrame, ConsoleRowStyle, ConsoleToolbarAction,
+        ConsoleToolbarBuilder, ConsoleToolbarCursor, ConsoleToolbarFrame, ConsoleToolbarStyle,
+        ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
+        DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, DropdownMenuBuilder,
+        HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, MODAL_TAG_CANCEL,
+        MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
+        MediaTransportAction, MediaTransportBarBuilder, MediaTransportBarFrame,
+        MediaTransportStyle, MenuBarBuilder, ModalDialogAction, ModalDialogStyle,
+        NumericInputEditState, NumericInputPillBuilder, NumericInputStyle, PanelBuilder,
+        ResponsiveGrid, ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry,
+        ScrollBarHit, ScrollBarVisibility, ScrollDirection, SettingSectionBuilder,
+        SettingSectionFrame, SettingSectionStyle, TIMELINE_TAG_LOOP, TIMELINE_TAG_PLAY_PAUSE,
+        TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE,
+        TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TabbedDialogBuilder,
+        TabbedDialogFrame, TabbedDialogStyle, TabbedDialogTab, TextInputState,
+        TimelineKeyframeMarker, TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle,
+        TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle, UiScope, VirtualList,
+        VirtualSlice, WidgetResponse, evaluate_color_picker_click, evaluate_color_picker_cursor,
+        evaluate_color_picker_drag, evaluate_console_toolbar_click,
+        evaluate_console_toolbar_cursor, evaluate_modal_tag, evaluate_timeline_transport_tag,
+        hash_label, hsv_to_rgb, layout_subtree, measure_height, rgb_to_hsv,
     };
 }

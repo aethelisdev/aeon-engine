@@ -71,7 +71,7 @@ impl IrisEditorOverlay {
         }
 
         // 4. Loading Splash Screen (blocks all underlying interactions)
-        if self.modals.loading_targets.is_some() {
+        if self.modals.is_loading_active {
             result.consumed = true;
             return result;
         }
@@ -84,9 +84,15 @@ impl IrisEditorOverlay {
             return mb_res;
         }
 
-        // 5b. Active Floating Popups (Hierarchy, Inspector, UI Designer, Dock Overflow)
+        // 5b. Active Floating Popups (Viewport HUD, Assets, Hierarchy, Inspector, UI Designer, Dock Overflow)
         // These belong to UiLayer::Popup; events inside them MUST be handled before modal dialogs!
         if self.is_point_over_popup(self.cursor_pos()) {
+            if let Some(hud_res) = self.handle_viewport_hud_window_event(event) {
+                return hud_res;
+            }
+            if let Some(assets_res) = self.handle_assets_window_event(event) {
+                return assets_res;
+            }
             if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
                 return hier_res;
             }
@@ -99,6 +105,36 @@ impl IrisEditorOverlay {
             if let Some(dock_res) = self.handle_dock_overflow_event(event) {
                 return dock_res;
             }
+        } else if let WindowEvent::MouseInput {
+            state: winit::event::ElementState::Pressed,
+            ..
+        } = event
+            && self.assets.context_menu.is_some()
+        {
+            self.assets.context_menu = None;
+            self.chrome.needs_layout_rebuild = true;
+            self.notifier.tag_all();
+        }
+
+        // 5c. Context Menu Cancellation via Escape key
+        if let WindowEvent::KeyboardInput {
+            event:
+                winit::event::KeyEvent {
+                    logical_key: winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape),
+                    state: winit::event::ElementState::Pressed,
+                    ..
+                },
+            ..
+        } = event
+            && self.assets.context_menu.is_some()
+        {
+            self.assets.context_menu = None;
+            self.chrome.needs_layout_rebuild = true;
+            self.notifier.tag_all();
+            return IrisOverlayEventResult {
+                consumed: true,
+                ..Default::default()
+            };
         }
 
         // 6. Generic Modal Dialogs (About, Delete, New Folder, Rename, Asset Preview)

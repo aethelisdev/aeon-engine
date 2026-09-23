@@ -24,7 +24,7 @@ pub fn build_transport_toolbar(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &TimelinePanelParams<'_>,
-    targets: &mut TimelinePanelTargets,
+    _targets: &mut TimelinePanelTargets,
     duration: f32,
 ) {
     let tb_rect = Rect::new(
@@ -43,7 +43,7 @@ pub fn build_transport_toolbar(
         .and_then(|p| p.current_clip.as_ref())
         .map(|c| c.name.as_str());
 
-    let frame = MediaTransportBarBuilder::new(tb_rect, duration, current_time)
+    let _frame = MediaTransportBarBuilder::new(tb_rect, duration, current_time)
         .is_playing(is_playing)
         .is_looping(is_looping)
         .current_speed(current_speed)
@@ -51,11 +51,4 @@ pub fn build_transport_toolbar(
         .clip_name(clip_name)
         .cursor_pos(Some(params.cursor_pos))
         .build(tree, parent_id);
-
-    targets.step_back_btn = Some(frame.step_back_rect);
-    targets.play_pause_btn = Some(frame.play_pause_rect);
-    targets.stop_btn = Some(frame.stop_rect);
-    targets.step_fwd_btn = Some(frame.step_forward_rect);
-    targets.loop_toggle = frame.loop_toggle_rect;
-    targets.speed_buttons = frame.speed_button_rects;
 }

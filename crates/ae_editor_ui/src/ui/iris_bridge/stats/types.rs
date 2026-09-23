@@ -34,11 +34,11 @@ pub struct StatsPanelTargets {
 }
 
 /// Persistent widget node handles for the Stats & Profiler panel in retained mode.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct StatsPanelNodes {
     /// Root node of the stats panel container.
     pub root_id: WidgetId,
-    /// 2x2 Metric pills value node IDs (`[FPS, 1% Low, 0.1% Low, Jitter]`).
+    /// 2x2 Metric pills value node IDs (`[Avg FPS, 1% Low, 0.1% Low, Jitter]`).
     pub metric_pill_val_ids: [WidgetId; 4],
     /// Pacing summary footer text node ID.
     pub pacing_footer_id: WidgetId,
@@ -107,7 +107,7 @@ pub struct StatsPanelParams<'a> {
     pub wireframe_enabled: bool,
     /// Whether the viewport coordinate grid is enabled.
     pub grid_enabled: bool,
-    /// Real-time frames per second.
+    /// Smoothed frames per second.
     pub fps: f32,
     /// Historical frame pacing ring buffer (240 samples).
     pub frame_pacing: &'a FrameRingBuffer<240>,

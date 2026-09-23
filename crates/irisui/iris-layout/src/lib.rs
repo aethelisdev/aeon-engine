@@ -200,6 +200,28 @@ impl LayoutEngine {
         let style = &node.style;
         let mut tf_style = tf::Style {
             display: tf::Display::Flex,
+            position: match style.position {
+                iris_core::Position::Relative => tf::Position::Relative,
+                iris_core::Position::Absolute => tf::Position::Absolute,
+            },
+            inset: tf::Rect {
+                top: style.inset_top.map_or_else(
+                    tf::LengthPercentageAuto::auto,
+                    tf::LengthPercentageAuto::length,
+                ),
+                right: style.inset_right.map_or_else(
+                    tf::LengthPercentageAuto::auto,
+                    tf::LengthPercentageAuto::length,
+                ),
+                bottom: style.inset_bottom.map_or_else(
+                    tf::LengthPercentageAuto::auto,
+                    tf::LengthPercentageAuto::length,
+                ),
+                left: style.inset_left.map_or_else(
+                    tf::LengthPercentageAuto::auto,
+                    tf::LengthPercentageAuto::length,
+                ),
+            },
             flex_direction: match style.flex_direction {
                 FlexDirection::Row => tf::FlexDirection::Row,
                 FlexDirection::Column => tf::FlexDirection::Column,

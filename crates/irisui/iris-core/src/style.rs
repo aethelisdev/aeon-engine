@@ -77,6 +77,16 @@ pub enum TextWrap {
     Word,
 }
 
+/// Layout positioning method determining how a widget is placed within its container.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Position {
+    /// Positioned according to the normal flex flow of the parent.
+    #[default]
+    Relative,
+    /// Positioned relative to containing bounds via inset offsets (`top`, `right`, `bottom`, `left`).
+    Absolute,
+}
+
 /// Complete styling specification for a widget node.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Style {
@@ -120,6 +130,16 @@ pub struct Style {
     pub opacity: f32,
     /// Whether children exceeding this widget's bounds should be clipped.
     pub clip_children: bool,
+    /// Layout positioning method (relative or absolute).
+    pub position: Position,
+    /// Top inset offset in logical points when absolutely positioned.
+    pub inset_top: Option<f32>,
+    /// Right inset offset in logical points when absolutely positioned.
+    pub inset_right: Option<f32>,
+    /// Bottom inset offset in logical points when absolutely positioned.
+    pub inset_bottom: Option<f32>,
+    /// Left inset offset in logical points when absolutely positioned.
+    pub inset_left: Option<f32>,
 }
 
 impl Default for Style {
@@ -145,6 +165,11 @@ impl Default for Style {
             flex_shrink: 1.0,
             opacity: 1.0,
             clip_children: false,
+            position: Position::Relative,
+            inset_top: None,
+            inset_right: None,
+            inset_bottom: None,
+            inset_left: None,
         }
     }
 }
@@ -301,6 +326,41 @@ impl Style {
     #[inline]
     pub fn opacity(mut self, opacity: f32) -> Self {
         self.opacity = opacity.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Sets positioning mode to absolute.
+    #[inline]
+    pub fn position_absolute(mut self) -> Self {
+        self.position = Position::Absolute;
+        self
+    }
+
+    /// Sets top offset in pixels for absolute positioning.
+    #[inline]
+    pub fn top(mut self, top: f32) -> Self {
+        self.inset_top = Some(top);
+        self
+    }
+
+    /// Sets right offset in pixels for absolute positioning.
+    #[inline]
+    pub fn right(mut self, right: f32) -> Self {
+        self.inset_right = Some(right);
+        self
+    }
+
+    /// Sets bottom offset in pixels for absolute positioning.
+    #[inline]
+    pub fn bottom(mut self, bottom: f32) -> Self {
+        self.inset_bottom = Some(bottom);
+        self
+    }
+
+    /// Sets left offset in pixels for absolute positioning.
+    #[inline]
+    pub fn left(mut self, left: f32) -> Self {
+        self.inset_left = Some(left);
         self
     }
 }

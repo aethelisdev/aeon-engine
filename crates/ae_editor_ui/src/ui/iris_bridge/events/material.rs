@@ -18,7 +18,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.material.targets.as_ref()?;
+        let targets = self.material.targets.clone()?;
         let mut result = IrisOverlayEventResult::default();
 
         // 1. Mouse Click handling
@@ -29,10 +29,22 @@ impl IrisEditorOverlay {
         } = event
         {
             let click_point = self.cursor_pos();
+            let hit = self.tree.hit_test_target(click_point);
+            let hit_tag = hit.as_ref().map_or(0, |h| h.tag);
+
+            if let Some(ref h) = hit {
+                self.material.pending_interaction_events.push((
+                    h.tag,
+                    irisui::prelude::InteractionEvent::Click {
+                        button: irisui::prelude::MouseButton::Left,
+                    },
+                ));
+            }
+
             if let Some(action) = super::super::material::handle_material_click(
-                click_point,
+                hit_tag,
                 self.material.selected_entity,
-                targets,
+                targets.active_model,
             ) {
                 self.material.actions.push(action);
                 result.consumed = true;
@@ -57,7 +69,7 @@ impl IrisEditorOverlay {
             self.material.scroll_y = super::super::material::handle_material_scroll(
                 delta_y,
                 self.material.scroll_y,
-                targets,
+                &targets,
             );
             result.consumed = true;
             return Some(result);

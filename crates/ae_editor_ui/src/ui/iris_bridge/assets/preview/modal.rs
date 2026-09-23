@@ -24,6 +24,10 @@ pub const PREVIEW_MODAL_WIDTH: f32 = 620.0;
 pub const PREVIEW_MODAL_HEIGHT: f32 = 470.0;
 
 /// Builds the interactive quick asset preview modal into the `UiTree` if currently open.
+///
+/// Constructed using pure declarative [`UiScope`] architecture, presenting category badges,
+/// formatted file metadata, modern close glyphs ('✕') with soft danger hover tinting,
+/// interactive inspection bodies, and elevated action controls.
 pub fn build_asset_preview_modal(
     tree: &mut UiTree,
     parent_id: WidgetId,
@@ -38,255 +42,135 @@ pub fn build_asset_preview_modal(
 
     let (screen_w, screen_h) = params.screen_size;
 
-    // 1. Semi-transparent Backdrop Overlay across the full editor window
-    let backdrop_rect = Rect::new(0.0, 0.0, screen_w, screen_h);
-    let backdrop_id = tree.create_node();
-    if let Some(node) = tree.get_mut(backdrop_id) {
-        node.set_name("PreviewModalBackdrop");
-        node.computed_rect = backdrop_rect;
-        node.style = Style::new().background(Color::rgba(0.0, 0.0, 0.0, 0.65));
-    }
-    let _ = tree.add_child(parent_id, backdrop_id);
-
-    // 2. Centered Modal Window Card on the whole editor window
     let modal_w = PREVIEW_MODAL_WIDTH.min(screen_w - 40.0).max(360.0);
     let modal_h = PREVIEW_MODAL_HEIGHT.min(screen_h - 40.0).max(320.0);
-    let modal_x = (screen_w - modal_w) * 0.5;
-    let modal_y = (screen_h - modal_h) * 0.5;
-    let dialog_rect = Rect::new(modal_x, modal_y, modal_w, modal_h);
 
-    let card_id = tree.create_node();
-    if let Some(node) = tree.get_mut(card_id) {
-        node.set_name("PreviewModalCard");
-        node.set_role(WidgetRole::ModalWindow);
-        node.computed_rect = dialog_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.99))
-            .border(1.0, Color::rgba(0.173, 0.180, 0.208, 0.90))
-            .border_radius(8.0)
-            .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.80))
-            .clip_children(true);
-    }
-    let _ = tree.add_child(backdrop_id, card_id);
-
-    // 3. Header Bar (Height: 34 px)
-    let header_h = 34.0;
-    let header_rect = Rect::new(modal_x + 1.0, modal_y + 1.0, modal_w - 2.0, header_h - 1.0);
-    let header_id = tree.create_node();
-    if let Some(node) = tree.get_mut(header_id) {
-        node.set_name("PreviewModalHeader");
-        node.computed_rect = header_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.05, 0.06, 0.08, 0.98))
-            .corner_radii(CornerRadii::new(7.0, 7.0, 0.0, 0.0));
-    }
-    let _ = tree.add_child(card_id, header_id);
-
-    // Header Bottom Separator Divider
-    let divider_rect = Rect::new(modal_x + 1.0, modal_y + header_h, modal_w - 2.0, 1.0);
-    let divider_id = tree.create_node();
-    if let Some(node) = tree.get_mut(divider_id) {
-        node.set_name("PreviewHeaderDivider");
-        node.computed_rect = divider_rect;
-        node.style = Style::new().background(Color::rgba(0.15, 0.16, 0.19, 0.80));
-    }
-    let _ = tree.add_child(card_id, divider_id);
-
-    let mut cur_hx = modal_x + 12.0;
-
-    // Category Badge
     let cat_col = resolve_category_color(modal.item.category);
-    let cat_badge_w = 46.0;
-    let cat_badge_rect = Rect::new(cur_hx, modal_y + 8.0, cat_badge_w, 18.0);
-    let cat_id = tree.create_node();
-    if let Some(node) = tree.get_mut(cat_id) {
-        node.set_name("PreviewCatBadge");
-        node.set_text(modal.item.category.badge());
-        node.font_size = 9.5;
-        node.line_height = 18.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = cat_col;
-        node.computed_rect = cat_badge_rect;
-        node.style = Style::new()
-            .background(Color::rgba(cat_col.r, cat_col.g, cat_col.b, 0.18))
-            .border_radius(3.0);
-    }
-    let _ = tree.add_child(header_id, cat_id);
-    cur_hx += cat_badge_w + 10.0;
-
-    // Close "✖" Button (Top Right)
-    let close_btn_rect = Rect::new(dialog_rect.right() - 28.0, modal_y + 6.0, 22.0, 22.0);
-    let is_close_hovered = close_btn_rect.contains_point(params.cursor_pos);
-    let close_id = tree.create_node();
-    if let Some(node) = tree.get_mut(close_id) {
-        node.set_name("PreviewCloseButton");
-        node.set_text("✖");
-        node.font_size = 11.0;
-        node.line_height = 22.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_close_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.65, 0.70, 0.80, 1.0)
-        };
-        node.computed_rect = close_btn_rect;
-        node.style = Style::new()
-            .background(if is_close_hovered {
-                Color::rgba(0.85, 0.20, 0.20, 0.90)
-            } else {
-                Color::TRANSPARENT
-            })
-            .border_radius(4.0);
-    }
-    let _ = tree.add_child(header_id, close_id);
-
-    // File Size Label (Right-aligned immediately adjacent to the close button)
-    let size_w = 80.0;
-    let size_x = close_btn_rect.x - size_w - 8.0;
     let size_text = AssetBrowserState::format_file_size(modal.item.file_size_bytes);
-    let size_rect = Rect::new(size_x, modal_y, size_w, header_h);
-    let size_id = tree.create_node();
-    if let Some(node) = tree.get_mut(size_id) {
-        node.set_name("PreviewSizeLabel");
-        node.set_text(&size_text);
-        node.font_size = 10.5;
-        node.line_height = header_h;
-        node.text_align = TextAlign::Right;
-        node.text_color = Color::rgba(0.65, 0.70, 0.80, 1.0);
-        node.computed_rect = size_rect;
-    }
-    let _ = tree.add_child(header_id, size_id);
 
-    // Asset Name (Flexibly occupies the space between the category badge and the size label)
-    let name_w = (size_x - 10.0 - cur_hx).max(40.0);
-    let name_rect = Rect::new(cur_hx, modal_y, name_w, header_h);
-    let name_id = tree.create_node();
-    if let Some(node) = tree.get_mut(name_id) {
-        node.set_name("PreviewAssetName");
-        node.set_text(&modal.item.name);
-        node.font_size = 12.5;
-        node.line_height = header_h;
-        node.text_color = Color::WHITE;
-        node.computed_rect = name_rect;
-    }
-    let _ = tree.add_child(header_id, name_id);
+    let mut scope = UiScope::new(tree, parent_id);
 
-    // 4. Content Body
-    let body_y = modal_y + header_h + 8.0;
-    let body_w = modal_w - 24.0;
-    let body_x = modal_x + 12.0;
+    scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.65), |scrim| {
+        let _card_id = scrim.modal_card(modal_w, modal_h, |card| {
+            // 1. Unified Header Section (Height: 36px = 34px row + 1px divider + 1px spacing)
+            card.container(Style::new().flex_col().height(36.0), |header_group| {
+                header_group.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween)
+                        .height(34.0)
+                        .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0)),
+                    |header| {
+                        // Left group: Category badge and asset name
+                        header.container(
+                            Style::new()
+                                .flex_row()
+                                .align_items(AlignItems::Center)
+                                .gap(8.0)
+                                .width(380.0),
+                            |left| {
+                                left.container(
+                                    Style::new()
+                                        .width(52.0)
+                                        .height(18.0)
+                                        .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
+                                        .background(Color::rgba(
+                                            cat_col.r, cat_col.g, cat_col.b, 0.18,
+                                        ))
+                                        .border_radius(3.0)
+                                        .align_items(AlignItems::Center)
+                                        .justify_content(JustifyContent::Center),
+                                    |badge| {
+                                        badge.label(
+                                            modal.item.category.badge(),
+                                            9.5,
+                                            cat_col,
+                                            TextAlign::Center,
+                                        );
+                                    },
+                                );
+                                left.label(&modal.item.name, 12.5, Color::WHITE, TextAlign::Left);
+                            },
+                        );
 
-    let mut orbit_canvas_rect = None;
-    let mut action_btn_rect = None;
+                        // Right group: File size label and modern '✕' close button
+                        header.container(
+                            Style::new()
+                                .flex_row()
+                                .align_items(AlignItems::Center)
+                                .justify_content(JustifyContent::FlexEnd)
+                                .gap(10.0)
+                                .width(130.0),
+                            |right| {
+                                right.label(
+                                    &size_text,
+                                    10.5,
+                                    Color::rgba(0.65, 0.70, 0.80, 1.0),
+                                    TextAlign::Right,
+                                );
+                                let _close_resp = right.modal_close_button();
+                            },
+                        );
+                    },
+                );
 
-    match modal.item.category {
-        AssetCategory::Models3D => {
-            let (orb_rect, act_rect) = model::render_model_preview_content(
-                tree,
-                card_id,
-                body_x,
-                body_y,
-                body_w,
-                modal,
-                params.cursor_pos,
+                // Header Bottom Separator Divider (flush beneath header row)
+                header_group.divider(Color::rgba(0.15, 0.16, 0.19, 0.80));
+            });
+
+            // 2. Dedicated Content Body Container (Height: 350px) - completely fills the inspection area
+            card.container(
+                Style::new().flex_col().height(350.0).gap(8.0),
+                |body| match modal.item.category {
+                    AssetCategory::Models3D => model::render_model_preview_content(body, modal),
+                    AssetCategory::Textures2D => {
+                        details::render_texture_preview_content(body, modal);
+                    }
+                    AssetCategory::Shaders => {
+                        details::render_shader_preview_content(body, modal);
+                    }
+                    AssetCategory::Scenes => {
+                        details::render_scene_preview_content(body, modal);
+                    }
+                    AssetCategory::Audio => {
+                        details::render_audio_preview_content(body, modal);
+                    }
+                    AssetCategory::Materials | AssetCategory::All => {
+                        details::render_generic_preview_content(body, modal);
+                    }
+                },
             );
-            orbit_canvas_rect = Some(orb_rect);
-            action_btn_rect = Some(act_rect);
-        }
-        AssetCategory::Textures2D => {
-            let act_rect = details::render_texture_preview_content(
-                tree,
-                card_id,
-                body_x,
-                body_y,
-                body_w,
-                modal,
-                params.cursor_pos,
-            );
-            action_btn_rect = Some(act_rect);
-        }
-        AssetCategory::Shaders => {
-            details::render_shader_preview_content(tree, card_id, body_x, body_y, body_w, modal);
-        }
-        AssetCategory::Scenes => {
-            let act_rect = details::render_scene_preview_content(
-                tree,
-                card_id,
-                body_x,
-                body_y,
-                body_w,
-                modal,
-                params.cursor_pos,
-            );
-            action_btn_rect = Some(act_rect);
-        }
-        AssetCategory::Audio => {
-            let act_rect = details::render_audio_preview_content(
-                tree,
-                card_id,
-                body_x,
-                body_y,
-                body_w,
-                modal,
-                params.cursor_pos,
-            );
-            action_btn_rect = Some(act_rect);
-        }
-        AssetCategory::Materials | AssetCategory::All => {
-            details::render_generic_preview_content(tree, card_id, body_x, body_y, body_w, modal);
-        }
-    }
 
-    // 5. Footer Bar (Height: 34 px)
-    let footer_h = 32.0;
-    let footer_y = dialog_rect.bottom() - footer_h - 4.0;
+            // 3. Footer Bar: Reveal in Explorer and Escape Key Hint
+            card.container(
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::SpaceBetween)
+                    .height(32.0)
+                    .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0)),
+                |footer| {
+                    footer.modal_cancel_button_tagged(
+                        "Reveal in Explorer",
+                        140.0,
+                        crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL,
+                    );
 
-    let reveal_rect = Rect::new(body_x, footer_y, 140.0, 26.0);
-    let is_rev_hovered = reveal_rect.contains_point(params.cursor_pos);
-    let rev_id = tree.create_node();
-    if let Some(node) = tree.get_mut(rev_id) {
-        node.set_name("PreviewRevealBtn");
-        node.set_text("Reveal in Explorer");
-        node.font_size = 11.0;
-        node.line_height = 26.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_rev_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.75, 0.80, 0.90, 1.0)
-        };
-        node.computed_rect = reveal_rect;
-        node.style = Style::new()
-            .background(if is_rev_hovered {
-                Color::rgba(0.20, 0.24, 0.32, 1.0)
-            } else {
-                Color::rgba(0.12, 0.14, 0.18, 0.80)
-            })
-            .border_radius(4.0)
-            .border(1.0, Color::rgba(0.22, 0.25, 0.32, 0.60));
-    }
-    let _ = tree.add_child(card_id, rev_id);
+                    footer.label(
+                        "Press Esc to Close",
+                        10.5,
+                        Color::rgba(0.50, 0.54, 0.64, 1.0),
+                        TextAlign::Right,
+                    );
+                },
+            );
+        });
 
-    // Escape Key Hint Label (Right aligned)
-    let esc_rect = Rect::new(dialog_rect.right() - 150.0, footer_y, 138.0, 26.0);
-    let esc_id = tree.create_node();
-    if let Some(node) = tree.get_mut(esc_id) {
-        node.set_name("PreviewEscHint");
-        node.set_text("Press Esc to Close");
-        node.font_size = 10.5;
-        node.line_height = 26.0;
-        node.text_align = TextAlign::Right;
-        node.text_color = Color::rgba(0.50, 0.54, 0.64, 1.0);
-        node.computed_rect = esc_rect;
-    }
-    let _ = tree.add_child(card_id, esc_id);
+        scrim.finish_layout_with_hover(Rect::new(0.0, 0.0, screen_w, screen_h), params.cursor_pos);
+    });
 
     targets.preview_modal = Some(AssetPreviewModalTargets {
-        dialog_rect,
-        close_btn_rect,
-        orbit_canvas_rect,
-        action_btn_rect,
-        reveal_btn_rect: reveal_rect,
         item: modal.item.clone(),
     });
 }

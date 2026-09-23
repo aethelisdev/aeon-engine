@@ -7,64 +7,54 @@
 //! MaterialPanelTargets to produce high-level MaterialAction commands.
 //!
 
-use super::types::{MaterialAction, MaterialPanelTargets};
-use irisui::prelude::*;
+use super::header::MATERIAL_HEADER_HEIGHT;
+use super::types::{
+    MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_ADD_TEXTURE, MATERIAL_TAG_SPRITE_CHANGE,
+    MATERIAL_TAG_SPRITE_REMOVE, MaterialAction, MaterialPanelTargets, decode_submesh_alpha_tag,
+    decode_submesh_texture_tag,
+};
 
-/// Hit-tests cursor clicks against interactive targets in the Material Studio.
+/// Hit-tests semantic tags against interactive buttons in the Material Studio.
 pub fn handle_material_click(
-    click_point: Point,
+    hit_tag: u64,
     selected_entity: Option<hecs::Entity>,
-    targets: &MaterialPanelTargets,
+    active_model: Option<ae_renderer::asset::AssetHandle>,
 ) -> Option<MaterialAction> {
-    if let Some(ent) = selected_entity {
-        // 1. Change 2D Sprite Texture Button
-        if let Some(btn_rect) = targets.btn_change_texture
-            && btn_rect.contains_point(click_point)
-        {
+    let ent = selected_entity?;
+
+    match hit_tag {
+        MATERIAL_TAG_SPRITE_CHANGE => {
             return Some(MaterialAction::PickAndAssignEntityTexture(ent));
         }
-
-        // 2. Remove 2D Sprite Texture Button
-        if let Some(btn_rect) = targets.btn_remove_texture
-            && btn_rect.contains_point(click_point)
-        {
+        MATERIAL_TAG_SPRITE_REMOVE => {
             return Some(MaterialAction::RemoveTextureFromEntity(ent));
         }
-
-        // 3. Add Texture / Sprite when no geometry is present
-        if let Some(btn_rect) = targets.btn_add_texture
-            && btn_rect.contains_point(click_point)
-        {
+        MATERIAL_TAG_ADD_TEXTURE => {
             return Some(MaterialAction::PickAndAssignEntityTexture(ent));
         }
-
-        // 4. Add Color Tint Component Button
-        if let Some(btn_rect) = targets.btn_add_color
-            && btn_rect.contains_point(click_point)
-        {
+        MATERIAL_TAG_ADD_COLOR => {
             return Some(MaterialAction::AddColorComponent(ent));
         }
+        _ => {}
     }
 
-    // 5. Submesh Alpha Mode Pill Buttons
-    for &(model_handle, submesh_idx, mode, btn_rect) in &targets.submesh_alpha_buttons {
-        if btn_rect.contains_point(click_point) {
-            return Some(MaterialAction::SetModelSubmeshAlphaMode(
-                model_handle,
-                submesh_idx,
-                mode,
-            ));
-        }
+    // Submesh alpha mode pill buttons
+    if let Some((submesh_idx, mode)) = decode_submesh_alpha_tag(hit_tag) {
+        let model_handle = active_model?;
+        return Some(MaterialAction::SetModelSubmeshAlphaMode(
+            model_handle,
+            submesh_idx,
+            mode,
+        ));
     }
 
-    // 6. Submesh Change Texture Buttons
-    for &(model_handle, submesh_idx, btn_rect) in &targets.submesh_texture_buttons {
-        if btn_rect.contains_point(click_point) {
-            return Some(MaterialAction::PickAndSetSubmeshTexture(
-                model_handle,
-                submesh_idx,
-            ));
-        }
+    // Submesh change texture buttons
+    if let Some(submesh_idx) = decode_submesh_texture_tag(hit_tag) {
+        let model_handle = active_model?;
+        return Some(MaterialAction::PickAndSetSubmeshTexture(
+            model_handle,
+            submesh_idx,
+        ));
     }
 
     None
@@ -77,6 +67,7 @@ pub fn handle_material_scroll(
     targets: &MaterialPanelTargets,
 ) -> f32 {
     let scroll_step = 24.0;
-    let max_scroll = (targets.content_height - (targets.panel_rect.height - 36.0)).max(0.0);
+    let max_scroll =
+        (targets.content_height - (targets.panel_rect.height - MATERIAL_HEADER_HEIGHT)).max(0.0);
     (cur_scroll_y - delta_y * scroll_step).clamp(0.0, max_scroll)
 }

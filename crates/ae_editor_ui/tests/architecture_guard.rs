@@ -31,7 +31,7 @@ fn collect_rs_files(dir: &Path) -> Vec<PathBuf> {
 #[test]
 fn test_architecture_guard_active() {
     // Verifies that architecture guard test runner is operational
-    assert!(MAX_PANEL_LINE_LIMIT > 0);
+    const { assert!(MAX_PANEL_LINE_LIMIT > 0) };
 }
 
 #[test]

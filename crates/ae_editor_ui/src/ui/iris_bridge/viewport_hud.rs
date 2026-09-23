@@ -17,6 +17,9 @@ pub mod types;
 
 pub use builder::build_viewport_hud;
 pub use types::{
-    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
-    ViewportHudTargets,
+    TAG_COMPASS_CANVAS, TAG_COMPASS_NEG_X, TAG_COMPASS_NEG_Y, TAG_COMPASS_NEG_Z, TAG_COMPASS_POS_X,
+    TAG_COMPASS_POS_Y, TAG_COMPASS_POS_Z, TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT,
+    TAG_GIZMO_SPACE_TOGGLE, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
+    TAG_VIEWPORT_CAMERA_MODE, TAG_VIEWPORT_SHADING_MODE, ViewportHudAction, ViewportHudDropdownId,
+    ViewportHudParams, ViewportHudState,
 };

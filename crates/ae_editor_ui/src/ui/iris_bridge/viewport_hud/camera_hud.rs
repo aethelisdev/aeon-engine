@@ -3,12 +3,17 @@
 
 //! # Viewport Camera Info HUD Builder
 //!
-//! Renders the bottom-right camera position and orientation angles overlay badge.
+//! Renders the bottom-right camera position and orientation angles overlay badge using
+//! declarative [`UiScope`] and Taffy absolute layout positioning.
+//!
 
 use super::types::ViewportHudParams;
 use irisui::prelude::*;
 
 /// Builds the camera position & rotation angles HUD badge at the bottom-right of the viewport.
+///
+/// Configured using [`Style::position_absolute`], [`Style::right`], and [`Style::bottom`]
+/// without manual coordinate calculations.
 pub fn build_camera_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportHudParams<'_>) {
     let p = params.camera.position;
     let pos_text = format!("Pos: {:.1}, {:.1}, {:.1}", p.x, p.y, p.z);
@@ -19,31 +24,27 @@ pub fn build_camera_hud(tree: &mut UiTree, parent_id: WidgetId, params: &Viewpor
 
     let hud_w = 210.0;
     let hud_h = 22.0;
-    let hud_x = params.viewport_rect.x + params.viewport_rect.width - hud_w - 8.0;
-    let hud_y = params.viewport_rect.y + params.viewport_rect.height - hud_h - 8.0;
 
-    let hud_rect = Rect::new(hud_x, hud_y, hud_w, hud_h);
+    let pill_style = Style::new()
+        .position_absolute()
+        .right(8.0)
+        .bottom(8.0)
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::Center)
+        .width(hud_w)
+        .height(hud_h)
+        .background(Color::rgba(0.07, 0.08, 0.11, 0.75))
+        .border(1.0, Color::rgba(0.24, 0.28, 0.38, 0.50))
+        .border_radius(4.0);
 
-    let hud_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hud_id) {
-        node.set_name("CameraHudPill");
-        node.computed_rect = hud_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.07, 0.08, 0.11, 0.75))
-            .border(1.0, Color::rgba(0.24, 0.28, 0.38, 0.50))
-            .border_radius(4.0);
-    }
-    let _ = tree.add_child(parent_id, hud_id);
-
-    let txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(txt_id) {
-        node.set_name("CameraHudText");
-        node.set_text(full_text);
-        node.font_size = 10.0;
-        node.line_height = hud_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = Color::rgba(0.80, 0.83, 0.90, 0.90);
-        node.computed_rect = hud_rect;
-    }
-    let _ = tree.add_child(hud_id, txt_id);
+    let mut scope = UiScope::new(tree, parent_id);
+    scope.container_named("CameraHudPill", pill_style, |pill| {
+        pill.label(
+            full_text,
+            10.0,
+            Color::rgba(0.80, 0.83, 0.90, 0.90),
+            TextAlign::Center,
+        );
+    });
 }

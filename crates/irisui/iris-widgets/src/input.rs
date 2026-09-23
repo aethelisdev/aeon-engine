@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Input fields, draggable numeric inputs, sliders, and toggle checkboxes.
-
-use iris_core::{AlignItems, Color, JustifyContent, Style, TextAlign, UiTree, WidgetId};
+//! Text input editing buffer, IME composition state, and UTF-8 cursor safety.
 
 /// Encapsulated state and UTF-8 safe editing buffer for interactive text input widgets.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -128,211 +126,32 @@ impl TextInputState {
     }
 }
 
-/// Helper builder for editable text input fields with placeholder and focus styling.
-pub struct TextInputBuilder {
-    node_id: WidgetId,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl TextInputBuilder {
-    /// Creates an input box with specified text or placeholder.
-    pub fn new(
-        tree: &mut UiTree,
-        text: impl Into<String>,
-        placeholder: &'static str,
-        is_focused: bool,
-    ) -> Self {
-        let node_id = tree.create_node();
-        let text_str = text.into();
-        let display_text = if text_str.is_empty() {
-            placeholder.to_string()
-        } else {
-            text_str
-        };
+    #[test]
+    fn test_text_input_state_utf8_safety() {
+        let mut state = TextInputState::new("Ağaç");
+        assert_eq!(state.cursor_byte_idx, 6); // 1 + 2 + 1 + 2 = 6 bytes
 
-        if let Some(node) = tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = iris_core::WidgetRole::TextInput;
-            node.set_text(display_text);
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_color = if is_focused {
-                Color::WHITE
-            } else {
-                Color::hex("#94a3b8")
-            };
+        state.backspace();
+        assert_eq!(state.buffer, "Ağa");
+        assert_eq!(state.cursor_byte_idx, 4);
 
-            let border_color = if is_focused {
-                Color::hex("#38bdf8")
-            } else {
-                Color::hex("#20202e")
-            };
-
-            node.set_style(
-                Style::new()
-                    .padding(4.0)
-                    .background(Color::hex("#101016"))
-                    .border(1.0, border_color)
-                    .border_radius(3.0)
-                    .align_items(AlignItems::Center),
-            );
-        }
-        Self { node_id }
+        state.move_left();
+        state.insert_str("k");
+        assert_eq!(state.buffer, "Ağka");
     }
 
-    /// Consumes the builder and returns the configured `WidgetId`.
-    #[inline]
-    pub fn build(self) -> WidgetId {
-        self.node_id
-    }
-}
+    #[test]
+    fn test_text_input_state_ime() {
+        let mut state = TextInputState::new("Hello ");
+        state.set_ime_preedit("世界", Some((0, 2)));
+        assert_eq!(state.display_text(), "Hello [世界]");
 
-/// Helper builder for interactive numeric drag values with axis indicators.
-pub struct DragValueBuilder {
-    node_id: WidgetId,
-}
-
-impl DragValueBuilder {
-    /// Creates a numeric drag widget showing an axis label (e.g. "X") and formatted value.
-    pub fn new(
-        tree: &mut UiTree,
-        axis: &'static str,
-        value: f32,
-        axis_color: Color,
-        is_active: bool,
-    ) -> Self {
-        let node_id = tree.create_node();
-        if let Some(node) = tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = iris_core::WidgetRole::NumericInput;
-            node.set_text(format!("{}: {:.2}", axis, value));
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_color = Color::WHITE;
-            node.text_align = TextAlign::Center;
-
-            let border_color = if is_active { Color::WHITE } else { axis_color };
-
-            node.set_style(
-                Style::new()
-                    .padding(3.0)
-                    .margin(1.0)
-                    .background(Color::hex("#161622"))
-                    .border(1.0, border_color)
-                    .border_radius(3.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .flex_grow(1.0),
-            );
-        }
-        Self { node_id }
-    }
-
-    /// Consumes the builder and returns the configured `WidgetId`.
-    #[inline]
-    pub fn build(self) -> WidgetId {
-        self.node_id
-    }
-}
-
-/// Helper builder for boolean checkboxes with interactive checkmark indicator.
-pub struct CheckboxBuilder {
-    node_id: WidgetId,
-}
-
-impl CheckboxBuilder {
-    /// Creates a checkbox widget with an optional text label and checked state.
-    pub fn new(tree: &mut UiTree, label: impl Into<String>, checked: bool) -> Self {
-        let node_id = tree.create_node();
-        let label_str = label.into();
-        let mark = if checked { "✓" } else { " " };
-        let display = format!("[{}] {}", mark, label_str);
-
-        if let Some(node) = tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = iris_core::WidgetRole::Checkbox;
-            node.set_text(display);
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_color = if checked {
-                Color::WHITE
-            } else {
-                Color::hex("#94a3b8")
-            };
-
-            let bg = if checked {
-                Color::hex("#0369a1")
-            } else {
-                Color::hex("#12121a")
-            };
-            let border_color = if checked {
-                Color::hex("#38bdf8")
-            } else {
-                Color::hex("#252536")
-            };
-
-            node.set_style(
-                Style::new()
-                    .padding(3.0)
-                    .margin(1.0)
-                    .background(bg)
-                    .border(1.0, border_color)
-                    .border_radius(3.0)
-                    .align_items(AlignItems::Center),
-            );
-        }
-        Self { node_id }
-    }
-
-    /// Consumes the builder and returns the configured `WidgetId`.
-    #[inline]
-    pub fn build(self) -> WidgetId {
-        self.node_id
-    }
-}
-
-/// Helper builder for continuous numeric sliders with percentage fill indicators.
-pub struct SliderBuilder {
-    node_id: WidgetId,
-}
-
-impl SliderBuilder {
-    /// Creates a slider widget displaying a label, current value, and normalized progress.
-    pub fn new(
-        tree: &mut UiTree,
-        label: impl Into<String>,
-        value: f32,
-        min: f32,
-        max: f32,
-    ) -> Self {
-        let node_id = tree.create_node();
-        let range = (max - min).max(0.001);
-        let pct = ((value - min) / range).clamp(0.0, 1.0) * 100.0;
-        let display = format!("{}: {:.2} ({:.0}%)", label.into(), value, pct);
-
-        if let Some(node) = tree.get_mut(node_id) {
-            node.set_text(display);
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_color = Color::WHITE;
-            node.text_align = TextAlign::Center;
-
-            node.set_style(
-                Style::new()
-                    .padding(3.0)
-                    .margin(1.0)
-                    .background(Color::hex("#181824"))
-                    .border(1.0, Color::hex("#2a2a3e"))
-                    .border_radius(3.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-            );
-        }
-        Self { node_id }
-    }
-
-    /// Consumes the builder and returns the configured `WidgetId`.
-    #[inline]
-    pub fn build(self) -> WidgetId {
-        self.node_id
+        state.commit_ime("世界");
+        assert_eq!(state.display_text(), "Hello 世界");
+        assert_eq!(state.buffer, "Hello 世界");
     }
 }

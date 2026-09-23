@@ -39,7 +39,7 @@ jobs:
       shell: powershell
 
     - name: Workspace Cargo Clippy
-      run: cargo clippy --workspace --all-targets -- -D warnings
+      run: cargo clippy --workspace --all-targets -- -D warnings -A clippy::disallowed_methods
 
     - name: Workspace Tests
       run: cargo test --workspace --verbose

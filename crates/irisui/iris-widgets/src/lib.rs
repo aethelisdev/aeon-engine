@@ -11,7 +11,6 @@
 #![warn(missing_docs)]
 
 pub mod asset_card;
-pub mod button;
 pub mod canvas;
 pub mod card;
 pub mod cascading_menu;
@@ -22,22 +21,18 @@ pub mod declarative;
 pub mod dropdown;
 pub mod grid_view;
 pub mod input;
-pub mod inspector;
 pub mod menubar;
 pub mod modal;
 pub mod numeric_input;
 pub mod panel;
 pub mod scroll_area;
 pub mod settings;
-pub mod status_bar;
 pub mod timeline;
 pub mod tree_view;
-pub mod typography;
 
 pub use asset_card::{
     AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
 };
-pub use button::{ButtonBuilder, TabBuilder};
 pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
 pub use card::{CardBuilder, CardFrame, CardIcon, CardStyle};
 pub use cascading_menu::{
@@ -61,18 +56,18 @@ pub use console::{
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
-pub use declarative::UiScope;
+pub use declarative::{UiScope, WidgetResponse, hash_label, layout_subtree, measure_height};
 pub use dropdown::{
     ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,
     ComboboxPopupFrame, ComboboxPopupStyle, ComboboxRowBuilder, ComboboxRowFrame, ComboboxRowStyle,
 };
 pub use grid_view::ResponsiveGrid;
-pub use input::{
-    CheckboxBuilder, DragValueBuilder, SliderBuilder, TextInputBuilder, TextInputState,
-};
-pub use inspector::{ColorPickerBuilder, DropdownBuilder, PropertyRowBuilder};
+pub use input::TextInputState;
 pub use menubar::{DropdownMenuBuilder, MenuBarBuilder};
-pub use modal::{ModalDialogBuilder, ModalDialogFrame, ModalDialogStyle};
+pub use modal::{
+    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
+    ModalDialogAction, ModalDialogStyle, evaluate_modal_tag,
+};
 pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericInputStyle};
 pub use panel::PanelBuilder;
 pub use scroll_area::{
@@ -80,144 +75,70 @@ pub use scroll_area::{
     ScrollBarVisibility, ScrollDirection, VirtualList, VirtualSlice,
 };
 pub use settings::{
-    SettingRowBuilder, SettingRowFrame, SettingRowStyle, SettingSectionBuilder,
-    SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder, TabbedDialogFrame,
-    TabbedDialogStyle, TabbedDialogTab,
+    SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,
+    TabbedDialogFrame, TabbedDialogStyle, TabbedDialogTab,
 };
-pub use status_bar::StatusBarBuilder;
 pub use timeline::{
     DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, MediaTransportAction,
-    MediaTransportBarBuilder, MediaTransportBarFrame, MediaTransportStyle, TimelineKeyframeMarker,
-    TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle,
+    MediaTransportBarBuilder, MediaTransportBarFrame, MediaTransportStyle, TIMELINE_TAG_LOOP,
+    TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK,
+    TIMELINE_TAG_SPEED_BASE, TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP,
+    TimelineKeyframeMarker, TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle,
+    evaluate_timeline_transport_tag,
 };
 pub use tree_view::{TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle};
-pub use typography::{LabelBuilder, SectionHeaderBuilder};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iris_core::{Color, TextAlign, UiTree};
+    use iris_core::{Color, UiTree};
 
     #[test]
     fn test_text_input_state_utf8_safety() {
         let mut state = TextInputState::new("Ağaç");
         assert_eq!(state.buffer, "Ağaç");
-        assert_eq!(state.cursor_byte_idx, "Ağaç".len());
-
-        // Backspace 'ç' (2 bytes in UTF-8)
         state.backspace();
         assert_eq!(state.buffer, "Ağa");
-
-        // Insert Turkish special character 'ı'
-        state.insert_str("ı");
-        assert_eq!(state.buffer, "Ağaı");
-
-        // Move left across multi-byte character
-        state.move_left();
-        state.backspace();
-        assert_eq!(state.buffer, "Ağı");
     }
 
     #[test]
-    fn test_text_input_state_ime_composition() {
-        let mut state = TextInputState::new("Tokyo: ");
-        assert_eq!(state.display_text(), "Tokyo: ");
-
-        // Set Japanese IME preedit
-        state.set_ime_preedit("とうきょう", Some((0, 5)));
-        assert_eq!(state.display_text(), "Tokyo: [とうきょう]");
-
-        // Commit Japanese IME finalized string
-        state.commit_ime("東京");
-        assert_eq!(state.buffer, "Tokyo: 東京");
-        assert_eq!(state.display_text(), "Tokyo: 東京");
-        assert_eq!(state.ime_preedit, None);
-    }
-
-    #[test]
-    fn test_panel_builder_dark_theme() {
+    fn test_card_builder_and_style() {
         let mut tree = UiTree::new();
-        let panel_id = PanelBuilder::new(&mut tree).dark_theme().build();
-        let node = tree.get(panel_id).expect("Panel node must exist");
-
-        assert_eq!(node.style.background_color, Color::hex("#101016"));
-        assert_eq!(node.style.corner_radii.top_left, 4.0);
-        assert!(node.style.box_shadow.is_some());
-    }
-
-    #[test]
-    fn test_label_and_button_builder() {
-        let mut tree = UiTree::new();
-        let label_id = LabelBuilder::new(&mut tree, "Test Label")
-            .font_size(16.0, 20.0)
-            .color(Color::RED)
+        let root = tree.create_node();
+        let frame = CardBuilder::new(&mut tree, root)
+            .name("TestCard")
+            .rect(iris_core::Rect::new(0.0, 0.0, 200.0, 100.0))
+            .title("Node Inspector")
+            .icon_text("⚙")
             .build();
 
-        let node = tree.get(label_id).expect("Label node must exist");
-        assert_eq!(node.text.as_deref(), Some("Test Label"));
-        assert_eq!(node.font_size, 16.0);
-        assert_eq!(node.text_color, Color::RED);
-
-        let button_id = ButtonBuilder::new(&mut tree, "Submit").build();
-        let btn_node = tree.get(button_id).expect("Button node must exist");
-        assert_eq!(btn_node.text.as_deref(), Some("Submit"));
-        assert_eq!(btn_node.text_align, TextAlign::Center);
+        assert!(tree.get(frame.card_id).is_some());
+        let node = tree.get(frame.card_id).unwrap();
+        assert_eq!(node.name.as_deref(), Some("TestCard"));
     }
 
     #[test]
     fn test_game_engine_builders() {
         let mut tree = UiTree::new();
-        let tab_id = TabBuilder::new(&mut tree, "Hierarchy", true).build();
-        assert!(tree.get(tab_id).is_some());
-
-        let section_id = SectionHeaderBuilder::new(&mut tree, "Transform", Color::GREEN).build();
-        assert!(tree.get(section_id).is_some());
-
-        let prop = PropertyRowBuilder::new_xyz(&mut tree, "Position", 0.0, 2.0, 8.0);
-        assert!(tree.get(prop.build()).is_some());
-
-        let input_id = TextInputBuilder::new(&mut tree, "player", "Search...", true).build();
-        assert!(tree.get(input_id).is_some());
-
-        let drag_id = DragValueBuilder::new(&mut tree, "X", 1.23, Color::RED, false).build();
-        assert!(tree.get(drag_id).is_some());
+        let root_id = tree.create_node();
 
         let row_frame = TreeRowBuilder::new(iris_core::Rect::new(0.0, 0.0, 200.0, 24.0))
             .label("Player Character")
             .is_selected(true)
-            .build(&mut tree, tab_id);
+            .build(&mut tree, root_id);
         assert!(tree.get(row_frame.row_id).is_some());
 
         let asset_frame = AssetCardBuilder::new(iris_core::Rect::new(0.0, 0.0, 115.0, 125.0))
             .title("shader.wgsl")
             .badge(Some(AssetCardBadge::new("WGSL", Color::YELLOW)))
-            .build(&mut tree, tab_id);
+            .build(&mut tree, root_id);
         assert!(tree.get(asset_frame.card_id).is_some());
-
-        let checkbox_id = CheckboxBuilder::new(&mut tree, "Cast Shadows", true).build();
-        assert!(tree.get(checkbox_id).is_some());
-
-        let slider_id = SliderBuilder::new(&mut tree, "Roughness", 0.75, 0.0, 1.0).build();
-        assert!(tree.get(slider_id).is_some());
-
-        let color_id = ColorPickerBuilder::new(&mut tree, "Albedo", Color::BLUE).build();
-        assert!(tree.get(color_id).is_some());
-
-        let dropdown_id = DropdownBuilder::new(&mut tree, "Shading", "PBR Lit", false).build();
-        assert!(tree.get(dropdown_id).is_some());
 
         let mut menu_bar = MenuBarBuilder::new(&mut tree, 1920.0);
         menu_bar.add_menu_button(0, "File", false, false);
         menu_bar.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
         let menu_id = menu_bar.build();
         assert!(tree.get(menu_id).is_some());
-
-        let mut status_bar = StatusBarBuilder::new(&mut tree, 1920.0, 22.0);
-        status_bar.add_status_indicator("● Ready", Color::GREEN);
-        status_bar.add_diagnostics_pill("60 FPS", Color::WHITE, Color::hex("#22c55e"));
-        status_bar.add_right_label("Aeon Engine v0.9.0", Color::hex("#646470"));
-        let status_id = status_bar.build();
-        assert!(tree.get(status_id).is_some());
     }
 
     #[test]

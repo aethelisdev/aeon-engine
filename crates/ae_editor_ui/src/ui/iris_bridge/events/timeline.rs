@@ -18,7 +18,7 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.timeline.targets.as_ref()?;
+        let targets = self.timeline.targets.clone()?;
         let mut result = IrisOverlayEventResult::default();
 
         // 1. Mouse Click handling
@@ -29,8 +29,21 @@ impl IrisEditorOverlay {
         } = event
         {
             let click_point = self.cursor_pos();
+            let hit = self.tree.hit_test_target(click_point);
+            let hit_tag = hit.as_ref().map_or(0, |h| h.tag);
+
+            if let Some(ref h) = hit {
+                self.timeline.pending_interaction_events.push((
+                    h.tag,
+                    irisui::prelude::InteractionEvent::Click {
+                        button: irisui::prelude::MouseButton::Left,
+                    },
+                ));
+            }
+
             if let Some((action, start_dragging)) = super::super::timeline::handle_timeline_click(
-                targets,
+                &targets,
+                hit_tag,
                 click_point,
                 self.timeline.selected_entity,
             ) {
@@ -65,7 +78,7 @@ impl IrisEditorOverlay {
         if let WindowEvent::CursorMoved { .. } = event
             && self.timeline.is_dragging
             && let Some(action) =
-                super::super::timeline::handle_timeline_drag(targets, self.cursor_pos())
+                super::super::timeline::handle_timeline_drag(&targets, self.cursor_pos())
         {
             self.timeline.actions.push(action);
             result.consumed = true;

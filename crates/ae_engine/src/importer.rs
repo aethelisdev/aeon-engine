@@ -53,22 +53,19 @@ impl AssetLoader for GltfAssetLoader {
 
     fn load(&self, engine: &mut AeEngine, path: &Path, final_name: String) {
         engine.ui.is_loading_assets = true;
-        if let Some(path_str) = path.to_str() {
-            engine.ui.set_status_message(
-                format!("Loading {} in background...", final_name),
-                Color::rgb(0.0, 0.898, 1.0),
-            );
-            let (tx, rx) = std::sync::mpsc::channel();
-            engine.model_receivers.push(rx);
+        let path_str_clone = path.to_string_lossy().to_string();
+        engine.ui.set_status_message(
+            format!("Loading {} in background...", final_name),
+            Color::rgb(0.0, 0.898, 1.0),
+        );
+        let (tx, rx) = std::sync::mpsc::channel();
+        engine.model_receivers.push(rx);
 
-            let path_str_clone = path_str.to_string();
-
-            rayon::spawn(move || {
-                let result =
-                    ae_renderer::render::resources::parse_gltf_file(&path_str_clone, final_name);
-                let _ = tx.send(result);
-            });
-        }
+        rayon::spawn(move || {
+            let result =
+                ae_renderer::render::resources::parse_gltf_file(&path_str_clone, final_name);
+            let _ = tx.send(result);
+        });
     }
 }
 
@@ -82,65 +79,98 @@ impl AssetLoader for FbxAssetLoader {
 
     fn load(&self, engine: &mut AeEngine, path: &Path, _final_name: String) {
         engine.ui.is_loading_assets = true;
-        if let Some(path_str) = path.to_str() {
-            engine.ui.set_status_message(
-                "Converting FBX file... Please wait.",
-                Color::rgb(0.0, 0.898, 1.0),
-            );
+        let path_clone = path.to_path_buf();
+        let path_str_clone = path.to_string_lossy().to_string();
 
-            let (tx, rx) = std::sync::mpsc::channel();
-            engine.asset_receivers.push(rx);
+        engine.ui.set_status_message(
+            "Converting FBX file... Please wait.",
+            Color::rgb(0.0, 0.898, 1.0),
+        );
 
-            let path_clone = path.to_path_buf();
-            let path_str_clone = path_str.to_string();
+        let (tx, rx) = std::sync::mpsc::channel();
+        engine.asset_receivers.push(rx);
 
-            rayon::spawn(move || {
-                let tool_path = if cfg!(target_os = "windows") {
-                    "tools/windows/FBX2glTF.exe"
-                } else if cfg!(target_os = "macos") {
-                    "tools/macos/FBX2glTF_macos"
-                } else {
-                    "tools/linux/FBX2glTF_linux"
-                };
+        rayon::spawn(move || {
+            let tool_path = if cfg!(target_os = "windows") {
+                "tools/windows/FBX2glTF.exe"
+            } else if cfg!(target_os = "macos") {
+                "tools/macos/FBX2glTF_macos"
+            } else {
+                "tools/linux/FBX2glTF_linux"
+            };
 
-                let p = std::path::Path::new(tool_path);
-                if !p.exists() {
-                    let _ = tx.send(Err(format!(
-                        "FBX2glTF tool not found at '{}'. Please make sure the tools/ folder is intact.",
-                        tool_path
-                    )));
-                    return;
+            let p = std::path::Path::new(tool_path);
+            if !p.exists() {
+                let _ = tx.send(Err(format!(
+                    "FBX2glTF tool not found at '{}'. Please make sure the tools/ folder is intact.",
+                    tool_path
+                )));
+                return;
+            }
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(metadata) = std::fs::metadata(tool_path) {
+                    let mut perms = metadata.permissions();
+                    let mode = perms.mode();
+                    if mode & 0o111 == 0 {
+                        perms.set_mode(mode | 0o755);
+                        let _ = std::fs::set_permissions(tool_path, perms);
+                    }
                 }
+            }
 
-                let output_path = path_clone.with_extension("glb");
-                let output_stem = path_clone.with_extension("");
-                let output_stem_str = output_stem.to_string_lossy().to_string();
+            let file_stem = path_clone
+                .file_stem()
+                .unwrap_or(std::ffi::OsStr::new("model"))
+                .to_string_lossy();
 
-                let output = std::process::Command::new(tool_path)
-                    .arg("-i")
-                    .arg(&path_str_clone)
-                    .arg("-o")
-                    .arg(&output_stem_str)
-                    .arg("-b")
-                    .arg("--pbr-metallic-roughness")
-                    .arg("--normalize-weights")
-                    .arg("1")
-                    .output();
-
-                match output {
-                    Ok(out) if out.status.success() && output_path.exists() => {
-                        let _ = tx.send(Ok(output_path));
-                    }
-                    Ok(out) => {
-                        let stderr = String::from_utf8_lossy(&out.stderr);
-                        let _ = tx.send(Err(format!("FBX conversion failed: {}", stderr)));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(Err(format!("Failed to execute FBX2glTF tool: {}", e)));
-                    }
+            let parent_writable = path_clone.parent().is_some_and(|dir| {
+                let probe = dir.join(format!(".ae_probe_{}", std::process::id()));
+                if std::fs::write(&probe, b"").is_ok() {
+                    let _ = std::fs::remove_file(&probe);
+                    true
+                } else {
+                    false
                 }
             });
-        }
+
+            let (output_stem_str, output_path) = if parent_writable {
+                let stem = path_clone.with_extension("");
+                let glb = path_clone.with_extension("glb");
+                (stem.to_string_lossy().to_string(), glb)
+            } else {
+                let temp_dir = std::env::temp_dir();
+                let temp_stem = temp_dir.join(format!("ae_{}", file_stem));
+                let glb = temp_stem.with_extension("glb");
+                (temp_stem.to_string_lossy().to_string(), glb)
+            };
+
+            let output = std::process::Command::new(tool_path)
+                .arg("-i")
+                .arg(&path_str_clone)
+                .arg("-o")
+                .arg(&output_stem_str)
+                .arg("-b")
+                .arg("--pbr-metallic-roughness")
+                .arg("--normalize-weights")
+                .arg("1")
+                .output();
+
+            match output {
+                Ok(out) if out.status.success() && output_path.exists() => {
+                    let _ = tx.send(Ok(output_path));
+                }
+                Ok(out) => {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    let _ = tx.send(Err(format!("FBX conversion failed: {}", stderr)));
+                }
+                Err(e) => {
+                    let _ = tx.send(Err(format!("Failed to execute FBX2glTF tool: {}", e)));
+                }
+            }
+        });
     }
 }
 
@@ -310,16 +340,14 @@ impl AssetLoaderRegistry {
 pub fn process_async_imports(engine: &mut AeEngine) {
     // 1. Drain asynchronously picked paths from native file dialogs
     let mut dialog_paths = Vec::new();
-    for rx in &engine.dialog_receivers {
-        while let Ok(path) = rx.try_recv() {
-            dialog_paths.push(path);
-        }
-    }
     engine.dialog_receivers.retain(|rx| {
-        !matches!(
-            rx.try_recv(),
-            Err(std::sync::mpsc::TryRecvError::Disconnected)
-        )
+        loop {
+            match rx.try_recv() {
+                Ok(path) => dialog_paths.push(path),
+                Err(std::sync::mpsc::TryRecvError::Empty) => return true,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => return false,
+            }
+        }
     });
     for path in dialog_paths {
         handle_dropped_file(engine, path);
@@ -327,16 +355,14 @@ pub fn process_async_imports(engine: &mut AeEngine) {
 
     // 2. Drain FBX converter results
     let mut messages = Vec::new();
-    for rx in &engine.asset_receivers {
-        while let Ok(result) = rx.try_recv() {
-            messages.push(result);
-        }
-    }
     engine.asset_receivers.retain(|rx| {
-        !matches!(
-            rx.try_recv(),
-            Err(std::sync::mpsc::TryRecvError::Disconnected)
-        )
+        loop {
+            match rx.try_recv() {
+                Ok(result) => messages.push(result),
+                Err(std::sync::mpsc::TryRecvError::Empty) => return true,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => return false,
+            }
+        }
     });
 
     for result in messages {
@@ -353,12 +379,11 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                         "Python installed successfully! You may need to restart the engine for changes to take effect.",
                         Color::rgb(0.0, 0.898, 1.0),
                     );
-                } else if glb_path.exists()
-                    && let Some(path_str) = glb_path.to_str()
-                {
+                } else if glb_path.exists() {
+                    let path_str = glb_path.to_string_lossy().to_string();
                     let (model_id, min, max) = engine
                         .render_state
-                        .load_model(&mut engine.asset_manager, path_str);
+                        .load_model(&mut engine.asset_manager, &path_str);
                     let base_name = glb_path
                         .file_name()
                         .unwrap_or(std::ffi::OsStr::new("Model"))
@@ -366,7 +391,8 @@ pub fn process_async_imports(engine: &mut AeEngine) {
                         .into_owned();
 
                     log::info!("Asset loaded and spawned entity: {:?}", base_name);
-                    spawn_model(engine, base_name, model_id, min, max, path_str);
+                    // Pass virtual fbx path so spawn_model applies proper FBX axis orientation
+                    spawn_model(engine, base_name, model_id, min, max, "model.fbx");
                     engine.ui.set_status_message(
                         "Asset loaded successfully!",
                         Color::rgb(0.0, 0.898, 1.0),
@@ -386,16 +412,14 @@ pub fn process_async_imports(engine: &mut AeEngine) {
 
     // 3. Drain async model parsing receivers
     let mut model_messages = Vec::new();
-    for rx in &engine.model_receivers {
-        while let Ok(result) = rx.try_recv() {
-            model_messages.push(result);
-        }
-    }
     engine.model_receivers.retain(|rx| {
-        !matches!(
-            rx.try_recv(),
-            Err(std::sync::mpsc::TryRecvError::Disconnected)
-        )
+        loop {
+            match rx.try_recv() {
+                Ok(result) => model_messages.push(result),
+                Err(std::sync::mpsc::TryRecvError::Empty) => return true,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => return false,
+            }
+        }
     });
 
     for result in model_messages {

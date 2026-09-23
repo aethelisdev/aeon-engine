@@ -14,3 +14,4 @@ pub(crate) mod modal;
 pub(crate) mod model;
 
 pub use modal::{PREVIEW_MODAL_HEIGHT, PREVIEW_MODAL_WIDTH, build_asset_preview_modal};
+pub use model::append_wireframe_quads;

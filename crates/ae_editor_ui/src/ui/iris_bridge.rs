@@ -36,7 +36,7 @@ pub mod viewport_texture;
 
 pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
-pub use about::{AboutDialogTargets, build_about_dialog};
+pub use about::build_about_dialog;
 pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelParams, AssetsPanelTargets,
     build_assets_panel, handle_assets_panel_event,
@@ -79,6 +79,5 @@ pub use ui_designer::{
     handle_ui_designer_drag, handle_ui_designer_scroll,
 };
 pub use viewport_hud::{
-    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudTargets,
-    build_viewport_hud,
+    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, build_viewport_hud,
 };

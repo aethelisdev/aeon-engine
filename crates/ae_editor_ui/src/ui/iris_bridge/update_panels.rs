@@ -321,12 +321,17 @@ impl IrisEditorOverlay {
                     .ok()
             });
 
+            let hovered_tag = self.tree.hit_test_target(self.cursor_pos()).map(|h| h.tag);
+            let events = std::mem::take(&mut self.timeline.pending_interaction_events);
+
             let timeline_params = super::timeline::TimelinePanelParams {
                 panel_rect: timeline_rect,
                 entity: params.scene.selected_entity,
                 animation_player: anim_player.as_deref(),
                 cursor_pos: self.cursor_pos(),
                 is_dragging_scrubber: self.timeline.is_dragging,
+                events: &events,
+                hovered_tag,
             };
 
             let mut timeline_targets = super::timeline::TimelinePanelTargets::default();
@@ -335,6 +340,7 @@ impl IrisEditorOverlay {
                 root,
                 &timeline_params,
                 &mut timeline_targets,
+                &mut self.timeline.actions,
             );
             self.timeline.targets = Some(timeline_targets);
         } else {
@@ -350,6 +356,9 @@ impl IrisEditorOverlay {
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(material_rect) = params.panel_rects.material {
+            let hovered_tag = self.tree.hit_test_target(self.cursor_pos()).map(|h| h.tag);
+            let events = std::mem::take(&mut self.material.pending_interaction_events);
+
             let material_params = super::material::MaterialPanelParams {
                 panel_rect: material_rect,
                 entity: params.scene.selected_entity,
@@ -358,6 +367,8 @@ impl IrisEditorOverlay {
                 models: params.panel_data.models,
                 cursor_pos: self.cursor_pos(),
                 scroll_y: self.material.scroll_y,
+                hovered_tag,
+                events: &events,
             };
 
             let mut material_targets = super::material::MaterialPanelTargets::default();

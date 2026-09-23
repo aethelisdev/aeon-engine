@@ -18,14 +18,36 @@ impl IrisEditorOverlay {
         clip_rect: Option<Rect>,
         frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
     ) {
+        let preview_modal = self.assets.preview_modal.as_ref();
+        let compass_angles = self.viewport_hud.camera_angles;
         let mut custom_drawer = |target_list: &mut DrawCommandList,
                                  _id: WidgetId,
                                  node: &WidgetNode,
                                  _clip: Option<Rect>| {
-            if node.role == WidgetRole::OscilloscopeCanvas
-                && let Some(ring) = frame_pacing
-            {
-                super::stats::append_oscilloscope_quads(target_list, node.computed_rect, ring);
+            if node.role == WidgetRole::OscilloscopeCanvas {
+                if node.tag == super::viewport_hud::types::TAG_PLAY_CROSSHAIR {
+                    super::viewport_hud::play_hud::append_crosshair_quads(
+                        target_list,
+                        node.computed_rect,
+                    );
+                } else if node.tag == super::viewport_hud::types::TAG_COMPASS_CANVAS {
+                    super::viewport_hud::compass::append_compass_quads(
+                        target_list,
+                        node.computed_rect,
+                        compass_angles.0,
+                        compass_angles.1,
+                    );
+                } else if node.tag == super::assets::types::ASSET_PREVIEW_TAG_ORBIT {
+                    if let Some(modal) = preview_modal {
+                        super::assets::preview::append_wireframe_quads(
+                            target_list,
+                            node.computed_rect,
+                            modal,
+                        );
+                    }
+                } else if let Some(ring) = frame_pacing {
+                    super::stats::append_oscilloscope_quads(target_list, node.computed_rect, ring);
+                }
             }
         };
 

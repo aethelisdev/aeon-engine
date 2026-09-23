@@ -154,14 +154,22 @@ fn collect_node_text<'a>(
         ctx.inherited_layer
     };
 
+    // Decouple scissor clip when transitioning into an elevated overlay layer (e.g. Popup or Modal)
+    // so that child popups or modal cards are not clipped by parent panel boundaries.
+    let incoming_clip = if effective_layer > ctx.inherited_layer {
+        None
+    } else {
+        ctx.clip_rect
+    };
+
     // Calculate hierarchical scissor clipping
     let child_clip = if node.style.clip_children {
-        match ctx.clip_rect {
+        match incoming_clip {
             Some(existing) => Some(existing.intersect(node.computed_rect)),
             None => Some(node.computed_rect),
         }
     } else {
-        ctx.clip_rect
+        incoming_clip
     };
 
     // If node has text and valid dimensions, test occlusion and collect

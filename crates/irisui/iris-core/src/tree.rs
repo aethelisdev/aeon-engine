@@ -57,6 +57,12 @@ impl UiTree {
         self.nodes.is_empty()
     }
 
+    /// Returns an iterator over all allocated `(WidgetId, &WidgetNode)` pairs in the arena.
+    #[inline]
+    pub fn iter(&self) -> slotmap::basic::Iter<'_, WidgetId, WidgetNode> {
+        self.nodes.iter()
+    }
+
     /// Allocates a new node in the arena and returns its unique generational key.
     pub fn create_node(&mut self) -> WidgetId {
         self.nodes.insert_with_key(WidgetNode::new)

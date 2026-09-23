@@ -311,8 +311,8 @@ impl IrisEditorOverlay {
             || self.inspector.active_text_input.is_some()
             || self.inspector.rename_buffer.is_some()
             || self.inspector.hex_buffer.is_some()
-            || self.modals.new_folder_targets.is_some()
-            || self.modals.rename_targets.is_some()
+            || self.modals.is_new_folder_active
+            || self.modals.is_rename_active
     }
 }
 

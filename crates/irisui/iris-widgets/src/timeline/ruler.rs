@@ -8,12 +8,13 @@
 //!
 
 use super::style::TimelineRulerStyle;
+use super::transport::{TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK};
 use super::types::TimelineKeyframeMarker;
-use iris_core::WidgetRole;
 use iris_core::geometry::{Point, Rect};
 use iris_core::id::WidgetId;
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
+use iris_core::{WidgetCursor, WidgetRole};
 
 /// Default height in physical pixels allocated for the top ruler ticks section.
 pub const DEFAULT_RULER_HEIGHT: f32 = 18.0;
@@ -221,6 +222,10 @@ impl<'a> TimelineRulerBuilder<'a> {
         let track_id = tree.create_node();
         if let Some(node) = tree.get_mut(track_id) {
             node.set_name("TimelineScrubberTrack");
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::ColResize);
+            node.interactive = true;
+            node.tag = TIMELINE_TAG_SCRUBBER_TRACK;
             node.computed_rect = track_rect;
             node.style = Style::new()
                 .background(self.style.track_bg)
@@ -282,6 +287,10 @@ impl<'a> TimelineRulerBuilder<'a> {
         let cap_id = tree.create_node();
         if let Some(node) = tree.get_mut(cap_id) {
             node.set_name("TimelinePlayheadCap");
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::ColResize);
+            node.interactive = true;
+            node.tag = TIMELINE_TAG_PLAYHEAD_CAP;
             node.set_text("▼");
             node.font_size = 9.0;
             node.line_height = cap_h;
