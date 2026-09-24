@@ -16,5 +16,8 @@ pub mod virtual_list;
 pub use area::{ScrollAreaBuilder, ScrollAreaFrame};
 pub use scroll_bar::ScrollBarGeometry;
 pub use style::ScrollAreaStyle;
-pub use types::{ScrollBarHit, ScrollBarVisibility, ScrollDirection, VirtualSlice};
+pub use types::{
+    ScrollBarHit, ScrollBarVisibility, ScrollDirection, VirtualItemHeight, VirtualScrollConfig,
+    VirtualSlice,
+};
 pub use virtual_list::VirtualList;

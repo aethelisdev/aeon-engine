@@ -16,13 +16,11 @@ pub const CONSOLE_ROW_HEIGHT: f32 = 26.0;
 /// Standard line height for text elements within a log row.
 pub const CONSOLE_ROW_LINE_HEIGHT: f32 = 18.0;
 
-/// Renders the virtualized slice of filtered log rows into the widget tree.
-pub fn build_console_rows(
-    tree: &mut UiTree,
-    viewport_node_id: WidgetId,
-    params: &ConsolePanelParams<'_>,
-    viewport_rect: Rect,
-) -> (f32, f32) {
+/// Renders the virtualized slice of filtered log rows into the widget tree via declarative [`UiScope::virtual_scroll_area`].
+///
+/// Automatically manages frustum culling, overscan buffer margins, and sub-pixel scroll offset.
+/// Returns the computed maximum scroll limit `max_scroll_y` in physical pixels.
+pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelParams<'_>) -> f32 {
     let query_lower = params.search_query.to_lowercase();
     let has_query = !query_lower.is_empty();
 
@@ -43,68 +41,57 @@ pub fn build_console_rows(
     }
 
     let total_filtered = matching_indices.len();
-    let vlist = VirtualList::new(total_filtered, CONSOLE_ROW_HEIGHT);
-    let total_content_height = vlist.total_content_height().max(viewport_rect.height);
-    let max_scroll_y = vlist.max_scroll_y(viewport_rect.height);
+    let vp_height = (params.panel_rect.height - super::panel::CONSOLE_TOOLBAR_HEIGHT).max(10.0);
 
     if total_filtered == 0 {
-        let msg = if has_query {
-            "No logs matching the search filter."
-        } else {
-            "Console log is empty."
-        };
-        let notice_rect = Rect::new(
-            viewport_rect.x + 24.0,
-            viewport_rect.y + 24.0,
-            viewport_rect.width - 48.0,
-            24.0,
+        panel_scope.scroll_area_tagged(
+            "ConsoleViewport",
+            CONSOLE_TAG_VIEWPORT,
+            Color::rgba(0.05, 0.06, 0.08, 0.98),
+            |vp| {
+                let msg = if has_query {
+                    "No logs matching the search filter."
+                } else {
+                    "Console log is empty."
+                };
+                vp.console_empty_notice(msg);
+            },
         );
-        ConsoleEmptyNoticeBuilder::new(notice_rect, msg).build(tree, viewport_node_id);
-        return (total_content_height, max_scroll_y);
+        return 0.0;
     }
 
-    // 2. Compute virtualized row slice via iris-widgets VirtualList
+    // 2. Delegate windowing, overscan, and sub-pixel scrolling to pure declarative virtual_scroll_area
     let effective_scroll_y = if params.auto_scroll {
-        max_scroll_y
+        f32::MAX
     } else {
-        params.scroll_y.clamp(0.0, max_scroll_y)
+        params.scroll_y
     };
 
-    let slice = vlist.compute_slice(viewport_rect.height, effective_scroll_y);
+    let config = VirtualScrollConfig::fixed(total_filtered, CONSOLE_ROW_HEIGHT)
+        .with_overscan(2)
+        .with_bg(Color::rgba(0.05, 0.06, 0.08, 0.98));
 
-    // 3. Render visible rows via iris-widgets ConsoleRowBuilder
-    for (offset, &entry_idx) in matching_indices[slice.start_idx..slice.end_idx]
-        .iter()
-        .enumerate()
-    {
-        let filtered_idx = slice.start_idx + offset;
-        let entry = &params.entries[entry_idx];
+    panel_scope.virtual_scroll_area(
+        "ConsoleViewport",
+        CONSOLE_TAG_VIEWPORT,
+        vp_height,
+        effective_scroll_y,
+        config,
+        |row_scope, filtered_idx| {
+            let entry_idx = matching_indices[filtered_idx];
+            let entry = &params.entries[entry_idx];
+            let is_striped = !filtered_idx.is_multiple_of(2);
 
-        let row_y = vlist.item_y(filtered_idx, viewport_rect.y, effective_scroll_y);
-        if row_y + CONSOLE_ROW_HEIGHT <= viewport_rect.y || row_y >= viewport_rect.bottom() {
-            continue;
-        }
-
-        let row_rect = Rect::new(
-            viewport_rect.x,
-            row_y,
-            viewport_rect.width,
-            CONSOLE_ROW_HEIGHT,
-        );
-        let is_hovered = row_rect.contains_point(params.cursor_pos);
-        let is_striped = !filtered_idx.is_multiple_of(2);
-
-        ConsoleRowBuilder::new(row_rect)
-            .level(convert_log_level(entry.level))
-            .timestamp(&entry.timestamp)
-            .target(&entry.target)
-            .message(&entry.msg)
-            .is_hovered(is_hovered)
-            .is_striped(is_striped)
-            .build(tree, viewport_node_id);
-    }
-
-    (total_content_height, max_scroll_y)
+            row_scope.console_row(
+                convert_log_level(entry.level),
+                &entry.timestamp,
+                &entry.target,
+                &entry.msg,
+                false,
+                is_striped,
+            );
+        },
+    )
 }
 
 /// Converts a standard `log::Level` to the engine-independent `ConsoleLogLevel`.

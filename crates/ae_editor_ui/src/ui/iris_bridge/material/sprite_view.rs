@@ -9,7 +9,6 @@
 
 use super::types::{
     MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_SPRITE_CHANGE, MATERIAL_TAG_SPRITE_REMOVE,
-    MaterialPanelTargets,
 };
 use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
 use irisui::prelude::*;
@@ -25,11 +24,7 @@ pub struct SpriteViewParams<'a> {
 }
 
 /// Builds the 2D Sprite material, texture inspector, and sampler setting cards directly on [`UiScope`].
-pub fn build_sprite_view(
-    scope: &mut UiScope<'_>,
-    params: &SpriteViewParams<'_>,
-    _targets: &mut MaterialPanelTargets,
-) -> f32 {
+pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>) {
     let sprite_handle = params
         .world
         .get::<&ae_core::ecs::SpriteId>(params.entity)
@@ -133,6 +128,4 @@ pub fn build_sprite_view(
             );
         }
     });
-
-    300.0
 }

@@ -4,14 +4,14 @@
 //! # 2D Visual UI Designer Dropdown Popups
 //!
 //! Renders the Aspect Ratio selector dropdown and the `➕ Add Element` palette popup
-//! using standardized [`ComboboxPopupBuilder`].
+//! using 100% declarative [`UiScope`] dropdown menu primitives and 64-bit hardware semantic tags.
 //!
 
 use super::types::{
-    CanvasAspectRatio, UiDesignerPanelParams, UiDesignerPanelTargets, UiElementType,
+    CanvasAspectRatio, UiDesignerPanelParams, UiElementType, make_add_item_tag,
+    make_aspect_item_tag,
 };
 use irisui::prelude::*;
-use irisui::widgets::{ComboboxPopupBuilder, ComboboxPopupStyle};
 
 /// Standard canvas aspect ratio presets available in the UI Designer.
 pub const ASPECT_RATIO_PRESETS: [CanvasAspectRatio; 4] = [
@@ -36,102 +36,89 @@ pub const UI_ELEMENT_TYPES: [UiElementType; 10] = [
 ];
 
 /// Builds the Aspect Ratio dropdown menu popup if open.
-pub fn build_aspect_ratio_popup(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &UiDesignerPanelParams<'_>,
-    targets: &UiDesignerPanelTargets,
-) {
+pub fn build_aspect_ratio_popup(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
     if !params.is_aspect_dropdown_open {
         return;
     }
 
-    let anchor = match targets.btn_aspect {
-        Some(r) => r,
-        None => return,
-    };
-
-    let selected_index = ASPECT_RATIO_PRESETS
+    let anchor = scope
+        .tree()
         .iter()
-        .position(|&r| r == params.state.aspect_ratio);
+        .find(|(_, n)| n.tag == super::types::UI_DESIGNER_TAG_ASPECT_BTN)
+        .map(|(_, n)| n.computed_rect)
+        .unwrap_or_else(|| {
+            Rect::new(
+                params.panel_rect.x + 8.0,
+                params.panel_rect.y + 5.0,
+                142.0,
+                24.0,
+            )
+        });
 
-    let labels: Vec<&str> = ASPECT_RATIO_PRESETS.iter().map(|r| r.label()).collect();
+    let popup_x = anchor.x;
+    let popup_y = anchor.y + anchor.height + 2.0;
+    let popup_w = 160.0;
 
-    let style = ComboboxPopupStyle {
-        background: Color::rgba(0.090, 0.095, 0.110, 0.98),
-        border_width: 1.0,
-        border_color: Color::rgba(0.0, 0.70, 0.90, 0.95),
-        border_radius: 6.0,
-        shadow_y: 6.0,
-        shadow_blur: 16.0,
-        shadow_color: Color::rgba(0.0, 0.0, 0.0, 0.75),
-        item_idle_bg: Color::TRANSPARENT,
-        item_hover_bg: Color::rgba(0.16, 0.18, 0.22, 0.95),
-        item_selected_bg: Color::rgba(0.0, 0.35, 0.48, 0.95),
-        text_idle_color: Color::rgba(0.75, 0.78, 0.85, 1.0),
-        text_hover_color: Color::rgba(0.90, 0.92, 0.96, 1.0),
-        text_selected_color: Color::rgba(1.0, 1.0, 1.0, 1.0),
-        font_size: 10.5,
-        row_height: 24.0,
-        item_padding_x: 8.0,
-    };
-
-    ComboboxPopupBuilder::new(anchor)
-        .name("AspectRatioPopup")
-        .width(160.0)
-        .items(&labels)
-        .selected_index(selected_index)
-        .cursor_pos(params.cursor_pos)
-        .style(style)
-        .build(tree, parent_id);
+    scope.dropdown_menu_card_named(
+        "AspectRatioPopup",
+        popup_x,
+        popup_y,
+        popup_w,
+        |popup_scope| {
+            for (idx, preset) in ASPECT_RATIO_PRESETS.iter().enumerate() {
+                let is_selected = *preset == params.state.aspect_ratio;
+                let shortcut = if is_selected { Some("✓") } else { None };
+                popup_scope.dropdown_item(
+                    make_aspect_item_tag(idx),
+                    "",
+                    preset.label(),
+                    shortcut,
+                    true,
+                );
+            }
+        },
+    );
 }
 
 /// Builds the `➕ Add Element` palette popup if open.
-pub fn build_add_element_popup(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &UiDesignerPanelParams<'_>,
-    targets: &UiDesignerPanelTargets,
-) {
+pub fn build_add_element_popup(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
     if !params.is_add_menu_open {
         return;
     }
 
-    let anchor = match targets.btn_add_element {
-        Some(r) => r,
-        None => return,
-    };
-
-    let items_with_icons: Vec<(&str, Option<&str>)> = UI_ELEMENT_TYPES
+    let anchor = scope
+        .tree()
         .iter()
-        .map(|e| (e.label(), Some(e.icon())))
-        .collect();
+        .find(|(_, n)| n.tag == super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN)
+        .map(|(_, n)| n.computed_rect)
+        .unwrap_or_else(|| {
+            Rect::new(
+                params.panel_rect.x + 8.0,
+                params.panel_rect.y + 5.0,
+                118.0,
+                24.0,
+            )
+        });
 
-    let style = ComboboxPopupStyle {
-        background: Color::rgba(0.090, 0.095, 0.110, 0.98),
-        border_width: 1.0,
-        border_color: Color::rgba(0.0, 0.70, 0.90, 0.95),
-        border_radius: 6.0,
-        shadow_y: 6.0,
-        shadow_blur: 16.0,
-        shadow_color: Color::rgba(0.0, 0.0, 0.0, 0.75),
-        item_idle_bg: Color::TRANSPARENT,
-        item_hover_bg: Color::rgba(0.0, 0.32, 0.44, 0.95),
-        item_selected_bg: Color::rgba(0.0, 0.35, 0.48, 0.95),
-        text_idle_color: Color::rgba(0.80, 0.83, 0.89, 1.0),
-        text_hover_color: Color::WHITE,
-        text_selected_color: Color::WHITE,
-        font_size: 10.5,
-        row_height: 24.0,
-        item_padding_x: 6.0,
-    };
+    let popup_x = anchor.x;
+    let popup_y = anchor.y + anchor.height + 2.0;
+    let popup_w = 200.0;
 
-    ComboboxPopupBuilder::new(anchor)
-        .name("AddElementPopup")
-        .width(200.0)
-        .align_right(true)
-        .items_with_icons(&items_with_icons)
-        .cursor_pos(params.cursor_pos)
-        .style(style)
-        .build(tree, parent_id);
+    scope.dropdown_menu_card_named(
+        "AddElementPopup",
+        popup_x,
+        popup_y,
+        popup_w,
+        |popup_scope| {
+            for (idx, elem_type) in UI_ELEMENT_TYPES.iter().enumerate() {
+                popup_scope.dropdown_item(
+                    make_add_item_tag(idx),
+                    elem_type.icon(),
+                    elem_type.label(),
+                    None,
+                    true,
+                );
+            }
+        },
+    );
 }

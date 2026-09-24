@@ -476,21 +476,49 @@ impl UiTree {
         false
     }
 
+    /// Walks up the ancestor hierarchy starting from `start_id` to locate the nearest non-zero semantic tag.
+    ///
+    /// This enables interactive child widgets (such as text labels, vector icons, or inner padding wrappers)
+    /// to transparently delegate their interaction events and hit-testing targets to their enclosing tagged container.
+    ///
+    /// Returns the resolved semantic tag, or `0` if no ancestor defines a non-zero tag.
+    pub fn resolve_ancestor_tag(&self, start_id: WidgetId) -> u64 {
+        let mut curr = Some(start_id);
+        while let Some(id) = curr {
+            if let Some(node) = self.nodes.get(id) {
+                if node.tag != 0 {
+                    return node.tag;
+                }
+                curr = node.parent;
+            } else {
+                break;
+            }
+        }
+        0
+    }
+
     /// Performs layered hit-testing and returns detailed metadata for the hit widget.
     ///
     /// Evaluates the highest priority [`UiLayer`] under `point` via [`UiTree::hit_test_layered`],
     /// then extracts the node's properties, role, effective layer, and tag with zero heap allocations for numeric queries.
+    /// If the hit leaf node does not define a tag (`tag == 0`), resolves the tag from the nearest enclosing
+    /// ancestor via [`UiTree::resolve_ancestor_tag`].
     pub fn hit_test_target(&self, point: Point) -> Option<HitTargetInfo> {
         let hit_id = self.hit_test_layered(point)?;
         let node = self.nodes.get(hit_id)?;
         let layer = self.effective_layer(hit_id);
         let cursor = node.cursor.or_else(|| node.role.default_cursor());
+        let effective_tag = if node.tag != 0 {
+            node.tag
+        } else {
+            self.resolve_ancestor_tag(hit_id)
+        };
         Some(HitTargetInfo {
             id: hit_id,
             layer,
             role: node.role,
             cursor,
-            tag: node.tag,
+            tag: effective_tag,
             rect: node.computed_rect,
             name: node.name.clone(),
         })
@@ -710,5 +738,43 @@ mod tests {
             tree.cursor_at(Point::new(10.0, 10.0)),
             WidgetCursor::Default
         );
+    }
+
+    #[test]
+    fn test_hit_test_target_resolves_ancestor_tag_for_untagged_children() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        }
+
+        // Tagged container (e.g. Button or Row)
+        let parent_box = tree.create_node();
+        if let Some(node) = tree.get_mut(parent_box) {
+            node.computed_rect = Rect::new(100.0, 100.0, 200.0, 40.0);
+            node.role = WidgetRole::Button;
+            node.layer = UiLayer::Content;
+            node.tag = 0x4849_4552_0000_0003; // Semantic tag
+            node.interactive = true;
+        }
+        tree.add_child(root, parent_box).unwrap();
+
+        // Untagged child (e.g. label or icon inside the button)
+        let child_label = tree.create_node();
+        if let Some(node) = tree.get_mut(child_label) {
+            node.computed_rect = Rect::new(110.0, 110.0, 80.0, 20.0);
+            node.role = WidgetRole::Default;
+            node.layer = UiLayer::Content;
+            node.tag = 0; // Untagged
+            node.interactive = true;
+        }
+        tree.add_child(parent_box, child_label).unwrap();
+
+        // Hit testing directly on the untagged child label must resolve the parent's semantic tag
+        let hit = tree
+            .hit_test_target(Point::new(120.0, 120.0))
+            .expect("Child label must be hit");
+        assert_eq!(hit.id, child_label);
+        assert_eq!(hit.tag, 0x4849_4552_0000_0003);
     }
 }

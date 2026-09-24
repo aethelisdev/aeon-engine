@@ -3,15 +3,16 @@
 
 //! # Scene Hierarchy Footer Status Bar Builder
 //!
-//! Renders the bottom object count and selection state telemetry line.
+//! Renders the bottom object count and selection state telemetry line purely
+//! using declarative [`UiScope`].
+//!
 
 use super::types::HierarchyPanelParams;
 use irisui::prelude::*;
 
-/// Builds the static Scene Hierarchy footer status line in the `UiTree`.
+/// Builds the declarative Scene Hierarchy footer status line directly in the active [`UiScope`].
 pub fn build_hierarchy_footer(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     total_objects: usize,
     params: &HierarchyPanelParams<'_>,
 ) {
@@ -27,7 +28,20 @@ pub fn build_hierarchy_footer(
         sel_str
     );
 
-    let mut scope = UiScope::new(tree, parent_id);
     scope.separator();
-    scope.text_colored(footer_text, Color::rgba(0.55, 0.58, 0.68, 1.0));
+
+    let footer_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(20.0)
+        .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0));
+
+    scope.container_named("HierarchyFooterBar", footer_style, |f| {
+        f.label(
+            footer_text,
+            10.5,
+            Color::rgba(0.55, 0.58, 0.68, 1.0),
+            TextAlign::Left,
+        );
+    });
 }

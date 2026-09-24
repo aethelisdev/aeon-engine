@@ -79,12 +79,12 @@ impl IrisEditorOverlay {
         let has_drag_payload = params.panel_data.asset_browser.drag_payload.is_some();
         let cursor_moved = (self.chrome.last_cursor_pos.x - self.cursor_pos().x).abs() > 0.001
             || (self.chrome.last_cursor_pos.y - self.cursor_pos().y).abs() > 0.001;
-        let hovered_target = self.tree.hit_test_target(self.cursor_pos()).map(|h| h.tag);
-        let last_hovered_target = self
+        let hovered_target = self
             .tree
-            .hit_test_target(self.chrome.last_cursor_pos)
-            .map(|h| h.tag);
-        let hover_target_changed = cursor_moved && hovered_target != last_hovered_target;
+            .hit_test_target(self.cursor_pos())
+            .and_then(|h| if h.tag != 0 { Some(h.tag) } else { None });
+        let hover_target_changed = cursor_moved && hovered_target != self.chrome.last_hovered_tag;
+        self.chrome.hovered_tag = hovered_target;
 
         let mat_entity_changed = self.material.last_selected_entity != params.scene.selected_entity;
         let mat_scroll_changed =
@@ -152,6 +152,10 @@ impl IrisEditorOverlay {
             || hud_dirty
             || mat_dirty
             || tl_dirty
+            || self.ui_designer.is_aspect_open
+            || self.ui_designer.is_add_menu_open
+            || self.ui_designer.is_panning
+            || self.ui_designer.drag_state.is_some()
         {
             self.notifier.tag_all();
         }
@@ -195,6 +199,7 @@ impl IrisEditorOverlay {
         if !self.notifier.is_any_dirty() && !self.tree.is_empty() {
             // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
             self.chrome.last_cursor_pos = self.cursor_pos();
+            self.chrome.last_hovered_tag = self.chrome.hovered_tag;
             return;
         }
 
@@ -213,7 +218,6 @@ impl IrisEditorOverlay {
         self.modals.is_loading_active = false;
         self.preferences.targets = None;
         self.viewport_hud.is_active = false;
-        self.stats.targets = None;
         self.inspector.targets = None;
         self.console.targets = None;
         self.assets.targets = None;
@@ -556,33 +560,26 @@ impl IrisEditorOverlay {
         }
 
         // 6h. Hierarchy Add Menu and Context Menu (Rendered as topmost floating overlays)
-        if let Some(hier_rect) = params.panel_rects.hierarchy
-            && self.hierarchy.interactions.targets.is_some()
-        {
+        if let Some(hier_rect) = params.panel_rects.hierarchy {
             let hier_params = hierarchy::HierarchyPanelParams {
                 panel_rect: hier_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: &self.hierarchy.interactions.search_query,
+                search_query: &self.hierarchy.search_query,
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
-                scroll_y: self.hierarchy.interactions.scroll_y,
+                scroll_y: self.hierarchy.scroll_y,
                 active_submenu: self.hierarchy.active_submenu,
                 active_sub_submenu: self.hierarchy.active_sub_submenu,
                 is_add_menu_open: self.hierarchy.is_add_menu_open,
                 active_context_menu: self.hierarchy.active_context_menu,
                 cursor_pos: cursor,
-                is_search_focused: self.hierarchy.interactions.is_search_focused,
+                is_search_focused: self.hierarchy.is_search_focused,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+                collapsed_entities: &self.hierarchy.collapsed_entities,
+                hovered_tag: self.chrome.hovered_tag,
             };
-            if let Some(ref mut hier_targets) = self.hierarchy.interactions.targets {
-                hierarchy::build_hierarchy_overlays(
-                    &mut self.tree,
-                    root,
-                    &hier_params,
-                    hier_targets,
-                );
-            }
+            hierarchy::build_hierarchy_overlays(&mut self.tree, root, &hier_params);
         }
 
         // 6i. Native Dock Drag Overlays (5-way compass navigator, drop zone preview, floating tab badge)
@@ -668,6 +665,7 @@ impl IrisEditorOverlay {
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
         self.chrome.last_has_drag_payload = has_drag_payload;
         self.chrome.last_cursor_pos = self.cursor_pos();
+        self.chrome.last_hovered_tag = self.chrome.hovered_tag;
         self.chrome.needs_layout_rebuild = false;
         self.notifier.clear_all();
     }

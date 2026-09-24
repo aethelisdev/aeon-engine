@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Scene Hierarchy panel building, overlay rendering, and interaction dispatch.
+//! # Scene Hierarchy Panel Orchestrator & Viewport Lifecycle
+//!
+//! Assembles the Scene Hierarchy root container, header toolbar, scrollable DFS
+//! entity rows, and footer status bar purely using [`UiScope`] and declarative flexbox primitives.
 //!
 
 use super::add_menu::build_add_menu;
@@ -9,158 +12,68 @@ use super::context_menu::build_context_menu;
 use super::footer::build_hierarchy_footer;
 use super::header::build_hierarchy_header;
 use super::rows::{build_hierarchy_rows, sync_hierarchy_rows};
-use super::types::{HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow};
+use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyPanelParams, HierarchyRow};
 use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
-/// Output node handles created during layout initialization of the Scene Hierarchy panel.
-pub struct HierarchyPanelNodes {
-    /// Root node of the hierarchy panel container.
-    pub root_id: WidgetId,
-}
-
-/// Builds the complete Scene Hierarchy panel tree in the `UiTree`.
+/// Builds the complete Scene Hierarchy panel tree purely using [`UiScope`].
+///
+/// Returns the computed maximum vertical scroll extent in physical pixels.
 pub fn build_hierarchy_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
-    targets: &mut HierarchyPanelTargets,
     rows_cache: &mut Vec<HierarchyRow>,
-) -> HierarchyPanelNodes {
-    targets.panel_rect = params.panel_rect;
+) -> f32 {
+    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
 
-    // Panel Base Container
-    let root_id = tree.create_node();
-    if let Some(node) = tree.get_mut(root_id) {
-        node.set_name("HierarchyPanelRoot");
-        node.computed_rect = params.panel_rect;
-        node.style = Style::new()
-            .background(ELEVATION_1_PANEL)
-            .clip_children(true);
-    }
-    let _ = tree.add_child(parent_id, root_id);
+    let root_style = Style::new()
+        .flex_col()
+        .background(ELEVATION_1_PANEL)
+        .border(1.0, Color::rgba(0.12, 0.13, 0.16, 0.90))
+        .clip_children(true);
 
-    // 1. Search Bar & Top Buttons Header
-    let _header_nodes = build_hierarchy_header(tree, root_id, params, targets);
+    let mut max_scroll = 0.0;
 
-    // 2. Sync and Flatten ECS Hierarchy Tree Rows into persistent cache
-    sync_hierarchy_rows(params.world, rows_cache);
-    let total_objects = rows_cache.len();
+    scope.container_tagged(
+        "HierarchyPanelRoot",
+        root_style,
+        WidgetRole::Default,
+        HIERARCHY_TAG_PANEL_ROOT,
+        |panel_scope| {
+            // 1. Header Toolbar (Search Box, Add Button, Delete Button)
+            build_hierarchy_header(panel_scope, params);
 
-    // 3. Scrollable Entity Rows with O(1) Viewport Culling
-    build_hierarchy_rows(tree, root_id, rows_cache, params, targets);
+            // 2. Sync and Flatten ECS Hierarchy Tree Rows into persistent cache
+            sync_hierarchy_rows(params.world, params.collapsed_entities, rows_cache);
+            let total_objects = rows_cache.len();
 
-    // 4. Footer Status Line
-    build_hierarchy_footer(tree, root_id, total_objects, params);
+            // 3. Virtualized & Frustum-Culled Entity Rows Viewport
+            max_scroll = build_hierarchy_rows(panel_scope, rows_cache, params);
 
-    HierarchyPanelNodes { root_id }
+            // 4. Footer Status Line (Object Count & Selection Telemetry)
+            build_hierarchy_footer(panel_scope, total_objects, params);
+
+            // 5. Finalize flexbox layout to prevent dock leaf collapse
+            panel_scope.finish_layout(params.panel_rect);
+        },
+    );
+
+    max_scroll
 }
 
 /// Builds floating overlays for the Scene Hierarchy panel (Context Menu and Add Menu).
 ///
-/// Ensures menus are attached to the root layer on top of all docked panels,
+/// Ensures menus are attached to the root overlay layer on top of all docked panels,
 /// preventing any bleed-through or clipping by neighboring dock tabs.
 pub fn build_hierarchy_overlays(
     tree: &mut UiTree,
     overlay_root: WidgetId,
     params: &HierarchyPanelParams<'_>,
-    targets: &mut HierarchyPanelTargets,
 ) {
     // 1. Right-Click Entity Context Menu (if open)
-    build_context_menu(tree, overlay_root, params, targets);
+    let _ = build_context_menu(tree, overlay_root, params);
 
     // 2. Cascading `➕` Add Entity Dropdown Menu (if open)
-    build_add_menu(tree, overlay_root, params, targets);
-}
-
-/// Handles interactive mouse clicks on the Scene Hierarchy panel.
-pub fn handle_hierarchy_click(
-    point: Point,
-    button: MouseButton,
-    targets: &HierarchyPanelTargets,
-    out_actions: &mut Vec<HierarchyAction>,
-) -> bool {
-    // 1. Right-Click Context Menu Outside-Click Check
-    // (Actual item click dispatch is resolved via zero-allocation UiTree hit-testing)
-    if let Some((_target_ent, menu_rect)) = targets.active_context_menu {
-        if !menu_rect.contains_point(point) {
-            out_actions.push(HierarchyAction::CloseContextMenu);
-        } else {
-            return true;
-        }
-    }
-
-    // 2. Cascading Add Menu Outside-Click Check
-    // (Actual item click dispatch is resolved via zero-allocation UiTree hit-testing)
-    if !targets.active_add_menu_rects.is_empty() {
-        let inside_menu = targets
-            .active_add_menu_rects
-            .iter()
-            .any(|r| r.contains_point(point));
-        if !inside_menu && !targets.add_btn_rect.contains_point(point) {
-            out_actions.push(HierarchyAction::CloseAddMenu);
-            out_actions.push(HierarchyAction::CloseSubmenu);
-            out_actions.push(HierarchyAction::CloseSubSubmenu);
-        } else if inside_menu {
-            return true;
-        }
-    }
-
-    // 4. Header `➕` Add Menu Button
-    if targets.add_btn_rect.contains_point(point) {
-        out_actions.push(HierarchyAction::OpenAddMenu(Some(point)));
-        return true;
-    }
-
-    // 5. Header `🗑` Delete Selected Button
-    if let Some(del_rect) = targets.delete_btn_rect
-        && del_rect.contains_point(point)
-    {
-        out_actions.push(HierarchyAction::DeleteSelected);
-        return true;
-    }
-
-    // 6. Search Bar Clear `✖` Button
-    if let Some(clr_rect) = targets.search_clear_btn_rect
-        && clr_rect.contains_point(point)
-    {
-        out_actions.push(HierarchyAction::ClearSearchQuery);
-        return true;
-    }
-
-    // 7. Right-Click on Entity Row (Open Context Menu)
-    if button == MouseButton::Right {
-        for (ent, row_rect, _, _) in &targets.entity_rows {
-            if row_rect.contains_point(point) {
-                out_actions.push(HierarchyAction::SelectEntity(Some(*ent)));
-                out_actions.push(HierarchyAction::OpenContextMenu(*ent, point));
-                return true;
-            }
-        }
-    }
-
-    // 8. Left-Click on Entity Row / Eye Toggle Button
-    if button == MouseButton::Left {
-        for (ent, row_rect, eye_rect, _) in &targets.entity_rows {
-            if eye_rect.contains_point(point) {
-                out_actions.push(HierarchyAction::ToggleVisibility(*ent));
-                return true;
-            }
-            if row_rect.contains_point(point) {
-                out_actions.push(HierarchyAction::SelectEntity(Some(*ent)));
-                return true;
-            }
-        }
-    }
-
-    targets.panel_rect.contains_point(point)
-}
-
-/// Handles interactive hover events on the Scene Hierarchy panel.
-pub fn handle_hierarchy_hover(
-    _point: Point,
-    _targets: &HierarchyPanelTargets,
-    _out_actions: &mut Vec<HierarchyAction>,
-) -> bool {
-    false
+    let _ = build_add_menu(tree, overlay_root, params);
 }

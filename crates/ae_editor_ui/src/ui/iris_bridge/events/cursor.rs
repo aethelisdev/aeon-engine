@@ -126,21 +126,6 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 3. Hierarchy interactive items
-        if let Some(ref targets) = self.hierarchy.targets
-            && (targets.add_btn_rect.contains_point(p)
-                || targets.delete_btn_rect.is_some_and(|r| r.contains_point(p))
-                || targets
-                    .search_clear_btn_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets
-                    .entity_rows
-                    .iter()
-                    .any(|(_, row_r, _, _)| row_r.contains_point(p)))
-        {
-            return CursorIcon::Pointer;
-        }
-
         // 4. Viewport HUD interactive items
         if let Some(hit) = self.tree.hit_test_target(p)
             && hit.cursor == Some(WidgetCursor::Pointer)
@@ -184,24 +169,6 @@ impl IrisEditorOverlay {
             if targets.search_input_rect.contains_point(p) {
                 return CursorIcon::Text;
             }
-        }
-
-        // 6. 2D Visual UI Designer interactive items
-        if let Some(ref targets) = self.ui_designer.targets
-            && (targets.btn_aspect.is_some_and(|r| r.contains_point(p))
-                || targets.btn_zoom_out.is_some_and(|r| r.contains_point(p))
-                || targets.btn_zoom_reset.is_some_and(|r| r.contains_point(p))
-                || targets.btn_zoom_in.is_some_and(|r| r.contains_point(p))
-                || targets.btn_snap.is_some_and(|r| r.contains_point(p))
-                || targets.btn_anchors.is_some_and(|r| r.contains_point(p))
-                || targets.btn_grid.is_some_and(|r| r.contains_point(p))
-                || targets.btn_add_element.is_some_and(|r| r.contains_point(p))
-                || targets
-                    .element_rects
-                    .iter()
-                    .any(|(_, r)| r.contains_point(p)))
-        {
-            return CursorIcon::Pointer;
         }
 
         CursorIcon::Default

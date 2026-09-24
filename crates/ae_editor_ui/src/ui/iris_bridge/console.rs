@@ -17,6 +17,4 @@ pub mod types;
 pub use events::{handle_console_click, handle_console_scroll};
 pub use panel::{CONSOLE_TOOLBAR_HEIGHT, build_console_panel};
 pub use rows::{CONSOLE_ROW_HEIGHT, build_console_rows};
-pub use types::{
-    ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelState, ConsolePanelTargets,
-};
+pub use types::{ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelState};

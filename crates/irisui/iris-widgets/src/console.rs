@@ -10,16 +10,14 @@
 //! - Empty state notice placeholder builder.
 //!
 
-pub mod rows;
-pub mod toolbar;
 pub mod types;
 
-pub use rows::{ConsoleEmptyNoticeBuilder, ConsoleRowBuilder, ConsoleRowFrame, ConsoleRowStyle};
-pub use toolbar::{ConsoleToolbarBuilder, ConsoleToolbarFrame, ConsoleToolbarStyle};
 pub use types::{
     CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
-    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, ConsoleFilterLevel, ConsoleLogCounts,
+    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_ROW, CONSOLE_TAG_SCROLLBAR_THUMB,
+    CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
+    CONSOLE_TAG_TOOLBAR, CONSOLE_TAG_VIEWPORT, ConsoleFilterLevel, ConsoleLogCounts,
     ConsoleLogLevel, ConsoleToolbarAction, ConsoleToolbarCursor, evaluate_console_toolbar_click,
-    evaluate_console_toolbar_cursor,
+    evaluate_console_toolbar_cursor, is_console_tag,
 };

@@ -16,6 +16,6 @@ mod tests;
 pub mod transport;
 pub mod types;
 
-pub use events::{handle_timeline_click, handle_timeline_drag};
+pub use events::{compute_scrub_timestamp, handle_timeline_click};
 pub use panel::build_timeline_panel;
-pub use types::{TimelineAction, TimelinePanelParams, TimelinePanelState, TimelinePanelTargets};
+pub use types::{TimelineAction, TimelinePanelParams, TimelinePanelState};

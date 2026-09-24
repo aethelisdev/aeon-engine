@@ -12,23 +12,39 @@ use super::types::VirtualSlice;
 /// High-performance $O(1)$ virtualized windowing calculator for uniform-height items.
 ///
 /// Translates total item counts, row strides, and viewport bounds into visible index slices
-/// without allocating heap memory or traversing full collections.
+/// with bi-directional overscan buffer margins, without allocating heap memory or traversing full collections.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VirtualList {
     total_items: usize,
     item_stride: f32,
+    overscan: usize,
 }
 
 impl VirtualList {
     /// Creates a new virtualized list calculator for the specified item count and stride.
     ///
     /// The `item_stride` represents the physical height of an individual item plus any spacing gap.
+    /// Sets a default overscan buffer margin of 2 items above and below the visible viewport.
     #[must_use]
     pub fn new(total_items: usize, item_stride: f32) -> Self {
         Self {
             total_items,
             item_stride: item_stride.max(1.0),
+            overscan: 2,
         }
+    }
+
+    /// Sets the number of overscan buffer items to render above and below the visible viewport.
+    #[must_use]
+    pub const fn with_overscan(mut self, overscan: usize) -> Self {
+        self.overscan = overscan;
+        self
+    }
+
+    /// Returns the number of overscan buffer items rendered beyond the viewport boundaries.
+    #[must_use]
+    pub const fn overscan(&self) -> usize {
+        self.overscan
     }
 
     /// Returns the total number of items in the underlying collection.
@@ -55,9 +71,10 @@ impl VirtualList {
         (self.total_content_height() - viewport_height).max(0.0)
     }
 
-    /// Calculates the visible window of item indices intersecting the given viewport.
+    /// Calculates the visible window of item indices intersecting the given viewport with overscan margin.
     ///
-    /// Includes a 1-item lead and trailing buffer to prevent pop-in artifacts during rapid scrolling.
+    /// Applies overscan buffer rows both above `start_idx` and below `end_idx` to eliminate white flash
+    /// and pop-in artifacts during rapid trackpad/mousewheel scrolling.
     #[must_use]
     pub fn compute_slice(&self, viewport_height: f32, scroll_y: f32) -> VirtualSlice {
         if self.total_items == 0 || viewport_height <= 0.0 {
@@ -67,11 +84,20 @@ impl VirtualList {
         let max_scroll = self.max_scroll_y(viewport_height);
         let safe_scroll = scroll_y.clamp(0.0, max_scroll);
 
-        let start_idx = (safe_scroll / self.item_stride).floor() as usize;
-        let visible_count = (viewport_height / self.item_stride).ceil() as usize + 2;
-        let end_idx = (start_idx + visible_count).min(self.total_items);
+        let raw_start = (safe_scroll / self.item_stride).floor() as usize;
+        let start_idx = raw_start.saturating_sub(self.overscan);
+        let raw_visible = (viewport_height / self.item_stride).ceil() as usize;
+        let end_idx = (raw_start + raw_visible + self.overscan).min(self.total_items);
 
         VirtualSlice::new(start_idx, end_idx)
+    }
+
+    /// Computes the relative sub-pixel vertical scroll offset applied to the container
+    /// given the current global scroll offset and the window slice `start_idx`.
+    #[must_use]
+    pub fn compute_scroll_offset(&self, scroll_y: f32, start_idx: usize) -> f32 {
+        let first_item_y = start_idx as f32 * self.item_stride;
+        (scroll_y - first_item_y).max(0.0)
     }
 
     /// Computes the physical screen Y coordinate for the item at the specified index.
@@ -112,22 +138,41 @@ mod tests {
         assert_eq!(vlist.total_content_height(), 2000.0);
         assert_eq!(vlist.max_scroll_y(200.0), 1800.0);
 
-        // At scroll_y = 0: viewport of 200px fits 10 items + 2 buffer = 12 items [0..12)
+        // At scroll_y = 0: viewport of 200px fits 10 items + 2 bottom overscan = [0..12)
         let slice_0 = vlist.compute_slice(200.0, 0.0);
         assert_eq!(slice_0.start_idx, 0);
         assert_eq!(slice_0.end_idx, 12);
         assert_eq!(slice_0.visible_count, 12);
 
-        // At scroll_y = 100px: 5 items scrolled off -> start_idx = 5, end_idx = 17
+        // At scroll_y = 100px: raw_start = 5 -> with 2 overscan, start_idx = 3, end_idx = 17
         let slice_100 = vlist.compute_slice(200.0, 100.0);
-        assert_eq!(slice_100.start_idx, 5);
+        assert_eq!(slice_100.start_idx, 3);
         assert_eq!(slice_100.end_idx, 17);
+        assert_eq!(slice_100.visible_count, 14);
 
-        // At maximum scroll (1800px): start_idx = 90, end_idx clamped to 100
+        // At maximum scroll (1800px): raw_start = 90 -> start_idx = 88, end_idx clamped to 100
         let slice_max = vlist.compute_slice(200.0, 1800.0);
-        assert_eq!(slice_max.start_idx, 90);
+        assert_eq!(slice_max.start_idx, 88);
         assert_eq!(slice_max.end_idx, 100);
-        assert_eq!(slice_max.visible_count, 10);
+        assert_eq!(slice_max.visible_count, 12);
+
+        // Explicit overscan override (e.g. 0 overscan)
+        let vlist_no_overscan = vlist.with_overscan(0);
+        let slice_exact = vlist_no_overscan.compute_slice(200.0, 100.0);
+        assert_eq!(slice_exact.start_idx, 5);
+        assert_eq!(slice_exact.end_idx, 15);
+    }
+
+    #[test]
+    fn test_compute_scroll_offset() {
+        let vlist = VirtualList::new(100, 26.0).with_overscan(2);
+        // scroll_y = 78.0 (item 3 is at top), overscan = 2 -> start_idx = 1
+        // first rendered item is item 1 at 26.0px -> sub-pixel offset = 78.0 - 26.0 = 52.0px
+        let offset = vlist.compute_scroll_offset(78.0, 1);
+        assert_eq!(offset, 52.0);
+
+        // At scroll_y = 0.0 and start_idx = 0 -> 0.0px
+        assert_eq!(vlist.compute_scroll_offset(0.0, 0), 0.0);
     }
 
     #[test]

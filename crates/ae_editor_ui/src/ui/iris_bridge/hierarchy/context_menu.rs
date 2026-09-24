@@ -4,25 +4,21 @@
 //! # Scene Hierarchy Right-Click Entity Context Menu Builder
 //!
 //! Renders the floating context menu for deleting entities or toggling visibility
-//! using the unified `ContextMenuBuilder` widget.
+//! using the unified `ContextMenuBuilder` widget without mutable target bags.
+//!
 
-use super::types::{
-    HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HierarchyPanelParams, HierarchyPanelTargets,
-};
+use super::types::{HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HierarchyPanelParams};
 use irisui::prelude::*;
 
 /// Builds the right-click entity context menu in the `UiTree` if active.
+///
+/// Returns the computed bounding [`Rect`] of the active context menu card if rendered.
 pub fn build_context_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
-    targets: &mut HierarchyPanelTargets,
-) {
-    targets.active_context_menu = None;
-
-    let Some((target_entity, click_pos)) = params.active_context_menu else {
-        return;
-    };
+) -> Option<Rect> {
+    let (_target_entity, click_pos) = params.active_context_menu?;
 
     let card_rect = ContextMenuBuilder::new(click_pos)
         .cursor_pos(params.cursor_pos)
@@ -39,5 +35,5 @@ pub fn build_context_menu(
         )
         .build(tree, parent_id);
 
-    targets.active_context_menu = Some((target_entity, card_rect));
+    Some(card_rect)
 }

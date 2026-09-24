@@ -85,6 +85,91 @@ pub enum ScrollBarHit {
     Thumb,
 }
 
+/// Sizing strategy for elements inside a virtualized scroll container.
+///
+/// Supports fixed-height uniform elements as well as estimated heights prepared
+/// for dynamic/variable-height content such as multi-line log entries and stack traces.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum VirtualItemHeight {
+    /// Uniform static row height across all items in physical pixels.
+    Fixed(f32),
+    /// Estimated row height for variable-height items (prepared for future multi-line stack traces).
+    Estimated(f32),
+}
+
+impl Default for VirtualItemHeight {
+    fn default() -> Self {
+        Self::Fixed(26.0)
+    }
+}
+
+use iris_core::color::Color;
+
+/// Sizing and overscan configuration descriptor for virtualized scroll viewports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VirtualScrollConfig {
+    /// Total count of elements in the collection.
+    pub total_items: usize,
+    /// Sizing mode (fixed uniform height or estimated for dynamic items).
+    pub item_height: VirtualItemHeight,
+    /// Number of buffer rows rendered above and below the visible viewport boundaries.
+    pub overscan: usize,
+    /// Background color applied to the scroll viewport container.
+    pub bg: Color,
+}
+
+impl VirtualScrollConfig {
+    /// Creates a virtual scroll configuration with fixed uniform item height.
+    ///
+    /// Defaults to an overscan buffer of 2 rows above and below the visible window
+    /// and a transparent viewport background.
+    #[must_use]
+    pub const fn fixed(total_items: usize, row_height: f32) -> Self {
+        Self {
+            total_items,
+            item_height: VirtualItemHeight::Fixed(row_height),
+            overscan: 2,
+            bg: Color::TRANSPARENT,
+        }
+    }
+
+    /// Creates a virtual scroll configuration with estimated height prepared for dynamic multi-line traces.
+    ///
+    /// Defaults to an overscan buffer of 2 rows above and below the visible window
+    /// and a transparent viewport background.
+    #[must_use]
+    pub const fn estimated(total_items: usize, estimated_row_height: f32) -> Self {
+        Self {
+            total_items,
+            item_height: VirtualItemHeight::Estimated(estimated_row_height),
+            overscan: 2,
+            bg: Color::TRANSPARENT,
+        }
+    }
+
+    /// Configures an explicit overscan buffer margin count.
+    #[must_use]
+    pub const fn with_overscan(mut self, overscan: usize) -> Self {
+        self.overscan = overscan;
+        self
+    }
+
+    /// Sets a custom background color for the scroll viewport container.
+    #[must_use]
+    pub const fn with_bg(mut self, bg: Color) -> Self {
+        self.bg = bg;
+        self
+    }
+
+    /// Returns the effective item stride height in physical pixels.
+    #[must_use]
+    pub const fn stride(&self) -> f32 {
+        match self.item_height {
+            VirtualItemHeight::Fixed(h) | VirtualItemHeight::Estimated(h) => h,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

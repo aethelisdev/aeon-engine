@@ -21,6 +21,15 @@ pub const MATERIAL_TAG_ADD_TEXTURE: u64 = 0xBB03;
 /// Semantic tag for adding a Color tint component to an entity.
 pub const MATERIAL_TAG_ADD_COLOR: u64 = 0xBB04;
 
+/// Semantic tag for the scrollable viewport container of the Material Studio.
+pub const MATERIAL_TAG_VIEWPORT: u64 = 0xBB05;
+
+/// Semantic tag for the vertical scrollbar track in the Material Studio.
+pub const MATERIAL_TAG_SCROLLBAR_TRACK: u64 = 0xBB06;
+
+/// Semantic tag for the vertical scrollbar thumb draggable pill in the Material Studio.
+pub const MATERIAL_TAG_SCROLLBAR_THUMB: u64 = 0xBB07;
+
 /// Base semantic tag for submesh alpha mode buttons: `MATERIAL_TAG_SUBMESH_ALPHA_BASE + (submesh_idx * 4) + mode_idx`.
 pub const MATERIAL_TAG_SUBMESH_ALPHA_BASE: u64 = 0xBB10_0000;
 
@@ -99,6 +108,8 @@ pub struct MaterialPanelParams<'a> {
     pub events: &'a [(u64, InteractionEvent)],
     /// Currently hovered widget tag, if any.
     pub hovered_tag: Option<u64>,
+    /// Whether the scrollbar thumb is currently being dragged by the mouse.
+    pub is_scrollbar_dragging: bool,
 }
 
 /// Hit-testing bounding box cache for interactive elements in the Material Studio.
@@ -138,11 +149,10 @@ pub enum MaterialAction {
 }
 
 /// Persistent interactive state for the Material & Surface Studio panel overlay.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct MaterialPanelState {
-    /// Common panel interaction state (targets, scroll_y, search, actions).
-    pub interactions:
-        crate::ui::iris_bridge::types::PanelInteractionState<MaterialPanelTargets, MaterialAction>,
+    /// Common panel interaction state (scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), MaterialAction>,
     /// Selected entity handle cached for material panel interactions.
     pub selected_entity: Option<hecs::Entity>,
     /// Previously baked selected entity handle used for retained dirty-checking.
@@ -151,11 +161,34 @@ pub struct MaterialPanelState {
     pub last_scroll_y: f32,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
+    /// Maximum vertical scroll limit computed during layout.
+    pub max_scroll_y: f32,
+    /// Active scrollbar dragging state: `(start_cursor_y, start_scroll_y)`.
+    pub active_scrollbar_drag: Option<(f32, f32)>,
+    /// Active screen bounding rectangle of the Material Studio panel.
+    pub panel_rect: Option<Rect>,
+    /// Active model asset handle inspected, if any.
+    pub active_model: Option<ae_renderer::asset::AssetHandle>,
+}
+
+impl Default for MaterialPanelState {
+    fn default() -> Self {
+        Self {
+            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            selected_entity: None,
+            last_selected_entity: None,
+            last_scroll_y: 0.0,
+            pending_interaction_events: Vec::new(),
+            max_scroll_y: 0.0,
+            active_scrollbar_drag: None,
+            panel_rect: None,
+            active_model: None,
+        }
+    }
 }
 
 impl std::ops::Deref for MaterialPanelState {
-    type Target =
-        crate::ui::iris_bridge::types::PanelInteractionState<MaterialPanelTargets, MaterialAction>;
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), MaterialAction>;
     fn deref(&self) -> &Self::Target {
         &self.interactions
     }

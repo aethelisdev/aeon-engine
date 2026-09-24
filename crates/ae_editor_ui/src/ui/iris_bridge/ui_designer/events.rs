@@ -4,11 +4,17 @@
 //! # 2D Visual UI Designer Event Handler & Hit-Testing
 //!
 //! Evaluates mouse clicks, canvas dragging, viewport panning, and zoom scrolling
-//! against the UI Designer targets.
+//! purely via 64-bit hardware semantic tags and [`UiDesignerCanvasMetrics`].
 //!
 
 use super::popups::{ASPECT_RATIO_PRESETS, UI_ELEMENT_TYPES};
-use super::types::{UiDesignerAction, UiDesignerPanelTargets, UiDragState};
+use super::types::{
+    UI_DESIGNER_TAG_ADD_ELEMENT_BTN, UI_DESIGNER_TAG_ANCHORS_BTN, UI_DESIGNER_TAG_ASPECT_BTN,
+    UI_DESIGNER_TAG_GRID_BTN, UI_DESIGNER_TAG_SNAP_BTN, UI_DESIGNER_TAG_ZOOM_IN,
+    UI_DESIGNER_TAG_ZOOM_OUT, UI_DESIGNER_TAG_ZOOM_RESET, UiDesignerAction,
+    UiDesignerCanvasMetrics, UiDragState, UiElementDragContext, parse_add_item_tag,
+    parse_aspect_item_tag, parse_element_tag,
+};
 use irisui::prelude::*;
 
 /// Result returned from evaluating a mouse click on the UI Designer panel.
@@ -22,11 +28,12 @@ pub struct UiDesignerClickResult {
     pub start_canvas_pan: bool,
 }
 
-/// Evaluates a mouse click against active UI Designer targets.
+/// Evaluates a mouse click against active UI Designer tags and metrics.
 pub fn handle_ui_designer_click(
     click_pos: Point,
     hit_target: Option<&HitTargetInfo>,
-    targets: &UiDesignerPanelTargets,
+    metrics: &UiDesignerCanvasMetrics,
+    drag_contexts: &[UiElementDragContext],
     is_aspect_dropdown_open: bool,
     is_add_menu_open: bool,
 ) -> UiDesignerClickResult {
@@ -37,7 +44,8 @@ pub fn handle_ui_designer_click(
         if let Some(hit) = hit_target
             && hit.layer == UiLayer::Popup
             && hit.role == WidgetRole::DropdownItem
-            && let Some(&preset) = ASPECT_RATIO_PRESETS.get(hit.tag as usize)
+            && let Some(idx) = parse_aspect_item_tag(hit.tag)
+            && let Some(&preset) = ASPECT_RATIO_PRESETS.get(idx)
         {
             result.action = Some(UiDesignerAction::SetAspectRatio(preset));
             return result;
@@ -52,7 +60,8 @@ pub fn handle_ui_designer_click(
         if let Some(hit) = hit_target
             && hit.layer == UiLayer::Popup
             && hit.role == WidgetRole::DropdownItem
-            && let Some(&elem_type) = UI_ELEMENT_TYPES.get(hit.tag as usize)
+            && let Some(idx) = parse_add_item_tag(hit.tag)
+            && let Some(&elem_type) = UI_ELEMENT_TYPES.get(idx)
         {
             result.action = Some(UiDesignerAction::SpawnElement(elem_type));
             return result;
@@ -62,84 +71,64 @@ pub fn handle_ui_designer_click(
         return result;
     }
 
-    // ── 3. Toolbar Buttons ────────────────────────────────────────────────────
-    if let Some(rect) = targets.btn_aspect
-        && rect.contains_point(click_pos)
-    {
-        result.action = Some(UiDesignerAction::ToggleAspectDropdown);
-        return result;
-    }
-    if let Some(rect) = targets.btn_zoom_out
-        && rect.contains_point(click_pos)
-    {
-        let new_zoom = (targets.current_zoom - 0.1).max(0.25);
-        result.action = Some(UiDesignerAction::SetZoom(new_zoom));
-        return result;
-    }
-    if let Some(rect) = targets.btn_zoom_reset
-        && rect.contains_point(click_pos)
-    {
-        result.action = Some(UiDesignerAction::ResetView);
-        return result;
-    }
-    if let Some(rect) = targets.btn_zoom_in
-        && rect.contains_point(click_pos)
-    {
-        let new_zoom = (targets.current_zoom + 0.1).min(3.0);
-        result.action = Some(UiDesignerAction::SetZoom(new_zoom));
-        return result;
-    }
-    if let Some(rect) = targets.btn_snap
-        && rect.contains_point(click_pos)
-    {
-        result.action = Some(UiDesignerAction::CycleGridSnap);
-        return result;
-    }
-    if let Some(rect) = targets.btn_anchors
-        && rect.contains_point(click_pos)
-    {
-        result.action = Some(UiDesignerAction::ToggleAnchorGuides);
-        return result;
-    }
-    if let Some(rect) = targets.btn_grid
-        && rect.contains_point(click_pos)
-    {
-        result.action = Some(UiDesignerAction::ToggleGrid);
-        return result;
-    }
-    if let Some(rect) = targets.btn_add_element
-        && rect.contains_point(click_pos)
-    {
-        result.action = Some(UiDesignerAction::ToggleAddMenu);
-        return result;
-    }
+    // ── 3. Tag-Based Hardware Hit-Testing ─────────────────────────────────────
+    if let Some(hit) = hit_target {
+        // Priority 1: Check if an on-canvas UI element was clicked
+        if let Some(elem_idx) = parse_element_tag(hit.tag)
+            && let Some(drag_ctx) = drag_contexts.get(elem_idx)
+        {
+            result.action = Some(UiDesignerAction::SelectEntity(Some(drag_ctx.entity)));
+            let mouse_canvas = metrics.screen_to_canvas(click_pos);
+            result.start_element_drag = Some(UiDragState {
+                entity: drag_ctx.entity,
+                anchor_origin: drag_ctx.anchor_origin,
+                drag_start_mouse_canvas: mouse_canvas,
+                initial_offset: drag_ctx.initial_offset,
+            });
+            return result;
+        }
 
-    // ── 4. Virtual Canvas Elements Hit-Testing (Reverse z-order) ──────────────
-    if targets.canvas_rect.width > 0.0 && targets.canvas_rect.height > 0.0 {
-        for target in targets.element_targets.iter().rev() {
-            if target.rect.contains_point(click_pos) {
-                result.action = Some(UiDesignerAction::SelectEntity(Some(target.entity)));
-
-                let screen_w = targets.resolution[0];
-                let screen_h = targets.resolution[1];
-
-                let rel_x = (click_pos.x - targets.canvas_rect.x) / targets.canvas_rect.width;
-                let rel_y = (click_pos.y - targets.canvas_rect.y) / targets.canvas_rect.height;
-                let mouse_canvas = [rel_x * screen_w, rel_y * screen_h];
-
-                result.start_element_drag = Some(UiDragState {
-                    entity: target.entity,
-                    anchor_origin: target.anchor_origin,
-                    drag_start_mouse_canvas: mouse_canvas,
-                    initial_offset: target.initial_offset,
-                });
+        match hit.tag {
+            UI_DESIGNER_TAG_ASPECT_BTN => {
+                result.action = Some(UiDesignerAction::ToggleAspectDropdown);
                 return result;
             }
+            UI_DESIGNER_TAG_ZOOM_OUT => {
+                let new_zoom = (metrics.current_zoom - 0.1).max(0.25);
+                result.action = Some(UiDesignerAction::SetZoom(new_zoom));
+                return result;
+            }
+            UI_DESIGNER_TAG_ZOOM_RESET => {
+                result.action = Some(UiDesignerAction::ResetView);
+                return result;
+            }
+            UI_DESIGNER_TAG_ZOOM_IN => {
+                let new_zoom = (metrics.current_zoom + 0.1).min(3.0);
+                result.action = Some(UiDesignerAction::SetZoom(new_zoom));
+                return result;
+            }
+            UI_DESIGNER_TAG_SNAP_BTN => {
+                result.action = Some(UiDesignerAction::CycleGridSnap);
+                return result;
+            }
+            UI_DESIGNER_TAG_ANCHORS_BTN => {
+                result.action = Some(UiDesignerAction::ToggleAnchorGuides);
+                return result;
+            }
+            UI_DESIGNER_TAG_GRID_BTN => {
+                result.action = Some(UiDesignerAction::ToggleGrid);
+                return result;
+            }
+            UI_DESIGNER_TAG_ADD_ELEMENT_BTN => {
+                result.action = Some(UiDesignerAction::ToggleAddMenu);
+                return result;
+            }
+            _ => {}
         }
     }
 
-    // ── 5. Empty Canvas Click (Deselect or Pan) ────────────────────────────────
-    if targets.panel_rect.contains_point(click_pos) {
+    // ── 4. Empty Canvas Click (Deselect or Pan) ────────────────────────────────
+    if metrics.panel_rect.contains_point(click_pos) {
         result.action = Some(UiDesignerAction::SelectEntity(None));
         result.start_canvas_pan = true;
     }
@@ -153,17 +142,13 @@ pub fn handle_ui_designer_drag(
     delta: [f32; 2],
     drag_state: Option<&UiDragState>,
     is_panning: bool,
-    targets: &UiDesignerPanelTargets,
+    metrics: &UiDesignerCanvasMetrics,
 ) -> Option<UiDesignerAction> {
     if let Some(drag) = drag_state
-        && targets.canvas_rect.width > 0.0
-        && targets.canvas_rect.height > 0.0
+        && metrics.canvas_rect.width > 0.0
+        && metrics.canvas_rect.height > 0.0
     {
-        let screen_w = targets.resolution[0];
-        let screen_h = targets.resolution[1];
-        let rel_x = (cursor_pos.x - targets.canvas_rect.x) / targets.canvas_rect.width;
-        let rel_y = (cursor_pos.y - targets.canvas_rect.y) / targets.canvas_rect.height;
-        let current_mouse_canvas = [rel_x * screen_w, rel_y * screen_h];
+        let current_mouse_canvas = metrics.screen_to_canvas(cursor_pos);
 
         let delta_x = current_mouse_canvas[0] - drag.drag_start_mouse_canvas[0];
         let delta_y = current_mouse_canvas[1] - drag.drag_start_mouse_canvas[1];
@@ -171,7 +156,7 @@ pub fn handle_ui_designer_drag(
         let mut new_offset_x = drag.initial_offset[0] + delta_x;
         let mut new_offset_y = drag.initial_offset[1] + delta_y;
 
-        if let Some(snap) = targets.snap_grid
+        if let Some(snap) = metrics.snap_grid
             && snap > 0.0
         {
             new_offset_x = (new_offset_x / snap).round() * snap;
@@ -195,11 +180,11 @@ pub fn handle_ui_designer_drag(
 pub fn handle_ui_designer_scroll(
     cursor_pos: Point,
     scroll_delta_y: f32,
-    targets: &UiDesignerPanelTargets,
+    metrics: &UiDesignerCanvasMetrics,
 ) -> Option<UiDesignerAction> {
-    if targets.panel_rect.contains_point(cursor_pos) && scroll_delta_y.abs() > 0.001 {
+    if metrics.panel_rect.contains_point(cursor_pos) && scroll_delta_y.abs() > 0.001 {
         let zoom_change = scroll_delta_y * 0.05;
-        let new_zoom = (targets.current_zoom + zoom_change).clamp(0.25, 3.0);
+        let new_zoom = (metrics.current_zoom + zoom_change).clamp(0.25, 3.0);
         return Some(UiDesignerAction::SetZoom(new_zoom));
     }
     None

@@ -36,49 +36,7 @@ impl<'a> UiScope<'a> {
     /// * `label` - Button caption text.
     /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
     pub fn button_tagged(&mut self, label: impl Into<String>, tag: u64) -> WidgetResponse {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.tag = tag;
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        let (clicked, hovered, _) = self.check_interaction(node_id);
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(label);
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_align = TextAlign::Center;
-            node.text_color = if hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.0, 0.88, 1.0, 1.0)
-            };
-            node.set_style(
-                Style::new()
-                    .padding_insets(Insets::new(5.0, 14.0, 5.0, 14.0))
-                    .background(if hovered {
-                        Color::rgba(0.0, 0.45, 0.60, 0.80)
-                    } else {
-                        Color::rgba(0.0, 0.30, 0.42, 0.60)
-                    })
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(0.0, 0.90, 1.0, 0.90)
-                        } else {
-                            Color::rgba(0.0, 0.75, 0.95, 0.60)
-                        },
-                    )
-                    .border_radius(4.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-            );
-            node.style.width = Some(180.0);
-            node.style.height = Some(26.0);
-        }
-        WidgetResponse::new(node_id, clicked, hovered, false)
+        self.button_named_tagged("Button", label, tag)
     }
 
     /// Emits an interactive push button with a descriptive node name and a custom semantic tag.
@@ -190,9 +148,11 @@ impl<'a> UiScope<'a> {
                 )
                 .border_radius(4.0)
                 .height(24.0);
-            if let Some(w) = width {
-                style.width = Some(w);
-            }
+            let btn_w = width.unwrap_or_else(|| {
+                let text_w = (label_str.chars().count() as f32 * 6.5).ceil().max(20.0);
+                36.0 + text_w
+            });
+            style.width = Some(btn_w);
             node.set_style(style);
         }
 
@@ -266,6 +226,33 @@ impl<'a> UiScope<'a> {
     /// * `is_active` - Whether this option is currently selected.
     /// * `tag` - Semantic tag for tracking interactions.
     pub fn toggle_pill_tagged(&mut self, label: &str, is_active: bool, tag: u64) -> WidgetResponse {
+        self.emit_toggle_pill(label, is_active, tag, false)
+    }
+
+    /// Emits an interactive toggle pill button that expands to fill available flex space (`flex_grow: 1.0`).
+    ///
+    /// Ideal for segmented mode selector button groups where items evenly divide the row width.
+    ///
+    /// # Arguments
+    /// * `label` - Button caption text.
+    /// * `is_active` - Whether this option is currently selected.
+    /// * `tag` - Semantic tag for tracking interactions.
+    pub fn toggle_pill_flex_tagged(
+        &mut self,
+        label: &str,
+        is_active: bool,
+        tag: u64,
+    ) -> WidgetResponse {
+        self.emit_toggle_pill(label, is_active, tag, true)
+    }
+
+    fn emit_toggle_pill(
+        &mut self,
+        label: &str,
+        is_active: bool,
+        tag: u64,
+        is_flex: bool,
+    ) -> WidgetResponse {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.tag = tag;
@@ -277,38 +264,194 @@ impl<'a> UiScope<'a> {
             node.role = WidgetRole::Button;
             node.cursor = Some(WidgetCursor::Pointer);
             node.set_text(label);
-            node.font_size = 9.5;
-            node.line_height = 12.0;
+            node.font_size = 11.0;
+            node.line_height = 24.0;
             node.text_align = TextAlign::Center;
             let (bg, border, text_color) = if is_active {
                 (
-                    Color::rgba(0.0, 0.38, 0.50, 0.95),
-                    Color::rgba(0.0, 0.85, 1.0, 0.95),
+                    Color::rgba(0.06, 0.22, 0.32, 0.75),
+                    Color::rgba(0.14, 0.65, 0.95, 0.65),
+                    Color::rgba(0.25, 0.85, 1.0, 1.0),
+                )
+            } else if hovered {
+                (
+                    Color::rgba(0.18, 0.21, 0.28, 0.85),
+                    Color::rgba(0.35, 0.40, 0.50, 0.65),
+                    Color::WHITE,
+                )
+            } else {
+                (
+                    Color::rgba(0.11, 0.13, 0.17, 0.70),
+                    Color::rgba(0.22, 0.25, 0.32, 0.50),
+                    Color::rgba(0.65, 0.70, 0.78, 1.0),
+                )
+            };
+            node.text_color = text_color;
+            let mut style = Style::new()
+                .height(24.0)
+                .background(bg)
+                .border(1.0, border)
+                .border_radius(4.0)
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center);
+            if is_flex {
+                style = style
+                    .flex_grow(1.0)
+                    .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0));
+            } else {
+                style = style.padding_insets(Insets::new(2.0, 10.0, 2.0, 10.0));
+            }
+            node.set_style(style);
+        }
+        WidgetResponse::new(node_id, clicked, hovered, false)
+    }
+
+    /// Emits a severity-colored filter pill tab for toolbar strips.
+    ///
+    /// Unlike solid toggle pills, uses an elevated dark slate background (`rgba(0.12, 0.16, 0.24, 0.95)`)
+    /// and a severity-specific accent outline border (`accent_color`) when active, preventing visual overload.
+    ///
+    /// # Arguments
+    /// * `label` - Filter caption text (e.g. `"Errors (1)"`).
+    /// * `is_active` - Whether this filter level is currently selected.
+    /// * `accent_color` - Severity accent color applied to the outline border when active.
+    /// * `width` - Explicit button width in physical pixels.
+    /// * `tag` - Semantic identifier inspected during interaction event dispatching.
+    pub fn filter_pill_tagged(
+        &mut self,
+        label: &str,
+        is_active: bool,
+        accent_color: Color,
+        width: f32,
+        tag: u64,
+    ) -> WidgetResponse {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.tag = tag;
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        let (clicked, hovered, _) = self.check_interaction(node_id);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.set_text(label);
+            node.font_size = 11.0;
+            node.line_height = 24.0;
+            node.text_align = TextAlign::Center;
+
+            let (bg, border_c, border_w, text_color) = if is_active {
+                (
+                    Color::rgba(
+                        (accent_color.r * 0.45).clamp(0.08, 0.50),
+                        (accent_color.g * 0.45).clamp(0.08, 0.50),
+                        (accent_color.b * 0.45).clamp(0.08, 0.50),
+                        0.52,
+                    ),
+                    accent_color,
+                    1.5,
                     Color::WHITE,
                 )
             } else if hovered {
                 (
-                    Color::rgba(0.16, 0.18, 0.22, 0.95),
-                    Color::rgba(0.35, 0.40, 0.50, 0.90),
-                    Color::rgba(0.85, 0.88, 0.92, 1.0),
+                    Color::rgba(
+                        (accent_color.r * 0.28).clamp(0.05, 0.35),
+                        (accent_color.g * 0.28).clamp(0.05, 0.35),
+                        (accent_color.b * 0.28).clamp(0.05, 0.35),
+                        0.32,
+                    ),
+                    Color::rgba(accent_color.r, accent_color.g, accent_color.b, 0.75),
+                    1.0,
+                    Color::WHITE,
                 )
             } else {
                 (
-                    Color::rgba(0.11, 0.12, 0.15, 0.95),
-                    Color::rgba(0.18, 0.20, 0.24, 0.85),
-                    Color::rgba(0.65, 0.68, 0.74, 1.0),
+                    Color::rgba(
+                        (accent_color.r * 0.18).clamp(0.03, 0.22),
+                        (accent_color.g * 0.18).clamp(0.03, 0.22),
+                        (accent_color.b * 0.18).clamp(0.03, 0.22),
+                        0.22,
+                    ),
+                    Color::rgba(accent_color.r, accent_color.g, accent_color.b, 0.42),
+                    1.0,
+                    Color::rgba(
+                        (0.70 + accent_color.r * 0.30).min(1.0),
+                        (0.70 + accent_color.g * 0.30).min(1.0),
+                        (0.70 + accent_color.b * 0.30).min(1.0),
+                        1.0,
+                    ),
                 )
             };
+
             node.text_color = text_color;
             node.set_style(
                 Style::new()
-                    .padding_insets(Insets::new(3.0, 6.0, 3.0, 6.0))
+                    .width(width)
+                    .height(24.0)
+                    .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
                     .background(bg)
-                    .border(1.0, border)
-                    .border_radius(3.0)
+                    .border(border_w, border_c)
+                    .border_radius(4.0)
                     .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .height(22.0),
+                    .justify_content(JustifyContent::Center),
+            );
+        }
+        WidgetResponse::new(node_id, clicked, hovered, false)
+    }
+
+    /// Emits an interactive compact button designed for toolbar header strips.
+    ///
+    /// # Arguments
+    /// * `label` - Button caption text.
+    /// * `width` - Explicit button width in physical pixels.
+    /// * `tag` - Semantic identifier inspected during interaction event dispatching.
+    pub fn toolbar_button_tagged(
+        &mut self,
+        label: impl Into<String>,
+        width: f32,
+        tag: u64,
+    ) -> WidgetResponse {
+        let label_str = label.into();
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.tag = tag;
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        let (clicked, hovered, _) = self.check_interaction(node_id);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.interactive = true;
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.set_text(label_str);
+            node.font_size = 11.0;
+            node.line_height = 24.0;
+            node.text_align = TextAlign::Center;
+            node.text_color = if hovered {
+                Color::WHITE
+            } else {
+                Color::rgba(0.90, 0.93, 0.98, 1.0)
+            };
+            node.set_style(
+                Style::new()
+                    .width(width)
+                    .height(24.0)
+                    .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
+                    .background(if hovered {
+                        Color::rgba(0.24, 0.29, 0.39, 1.0)
+                    } else {
+                        Color::rgba(0.15, 0.18, 0.25, 0.95)
+                    })
+                    .border(
+                        1.0,
+                        if hovered {
+                            Color::rgba(0.0, 0.85, 1.0, 0.85)
+                        } else {
+                            Color::rgba(0.30, 0.36, 0.48, 0.75)
+                        },
+                    )
+                    .border_radius(4.0)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center),
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)

@@ -220,7 +220,165 @@ impl<'a> UiScope<'a> {
             };
             let caret_id = self.tree.create_node();
             if let Some(node) = self.tree.get_mut(caret_id) {
-                node.role = WidgetRole::Default;
+                node.role = WidgetRole::TextInputCaret;
+                node.tag = caret_offset.to_bits() as u64;
+                node.set_style(
+                    Style::new()
+                        .background(Color::rgba(0.0, 0.90, 1.0, 0.95))
+                        .border_radius(0.75),
+                );
+            }
+            let _ = self.tree.add_child(box_id, caret_id);
+        }
+
+        box_id
+    }
+}
+
+/// Configuration parameters for emitting a text input box in [`UiScope`].
+///
+/// Encapsulates textual content, sizing constraints, focus state, optional leading icon,
+/// and caret animation to prevent excessive argument counts and keep call sites readable and clean.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InputBoxProps<'a> {
+    /// Current textual content within the input box.
+    pub text: &'a str,
+    /// Grayed-out hint text displayed when [`Self::text`] is empty.
+    pub placeholder: &'a str,
+    /// Optional prefix icon glyph (e.g. `"🔍"`) displayed inside the left edge of the input.
+    pub icon: Option<&'a str>,
+    /// Approximate visual layout width of [`Self::text`] in pixels for caret positioning.
+    pub text_width: f32,
+    /// Explicit physical width constraint for the input box widget.
+    pub width: f32,
+    /// Indicates whether this input box currently possesses active keyboard focus.
+    pub is_focused: bool,
+    /// Controls whether the text caret indicator is rendered visible on the current frame.
+    pub cursor_blink_visible: bool,
+}
+
+impl<'a> InputBoxProps<'a> {
+    /// Creates a new [`InputBoxProps`] descriptor with default horizontal layout metrics.
+    ///
+    /// # Arguments
+    /// * `text` - Current text value.
+    /// * `placeholder` - Grayed-out hint text.
+    /// * `width` - Total width constraint of the input box in physical pixels.
+    /// * `is_focused` - Focus flag.
+    /// * `cursor_blink_visible` - Caret visibility flag.
+    pub fn new(
+        text: &'a str,
+        placeholder: &'a str,
+        width: f32,
+        is_focused: bool,
+        cursor_blink_visible: bool,
+    ) -> Self {
+        let text_width = text.len() as f32 * 6.6;
+        Self {
+            text,
+            placeholder,
+            icon: None,
+            text_width,
+            width,
+            is_focused,
+            cursor_blink_visible,
+        }
+    }
+
+    /// Attaches an optional prefix icon glyph (e.g. `"🔍"`) to this input box.
+    pub fn with_icon(mut self, icon: &'a str) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+}
+
+impl<'a> UiScope<'a> {
+    /// Emits a text input box with placeholder, explicit width, and caret blink indicator, tagged with a semantic tag.
+    ///
+    /// # Arguments
+    /// * `props` - Text, sizing, focus, and caret visual properties.
+    /// * `tag` - Semantic hit-testing tag for focus and typing events.
+    pub fn input_box_tagged(&mut self, props: &InputBoxProps<'_>, tag: u64) -> WidgetId {
+        let box_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(box_id) {
+            node.tag = tag;
+        }
+        let _ = self.tree.add_child(self.parent, box_id);
+        let (_, hovered, _) = self.check_interaction(box_id);
+
+        let border_color = if props.is_focused {
+            Color::rgba(0.0, 0.90, 1.0, 0.95)
+        } else if hovered {
+            Color::rgba(0.35, 0.40, 0.52, 0.95)
+        } else {
+            Color::rgba(0.20, 0.23, 0.30, 0.60)
+        };
+        let bg_color = if hovered {
+            Color::rgba(0.08, 0.09, 0.12, 0.98)
+        } else {
+            Color::rgba(0.06, 0.07, 0.09, 0.95)
+        };
+        if let Some(node) = self.tree.get_mut(box_id) {
+            node.role = WidgetRole::TextInput;
+            node.interactive = true;
+            node.cursor = Some(WidgetCursor::Text);
+            node.set_style(
+                Style::new()
+                    .width(props.width)
+                    .height(24.0)
+                    .border_radius(4.0)
+                    .border(1.0, border_color)
+                    .background(bg_color),
+            );
+        }
+
+        if let Some(icon_str) = props.icon {
+            let icon_id = self.tree.create_node();
+            if let Some(node) = self.tree.get_mut(icon_id) {
+                node.set_name("SearchIcon");
+                node.interactive = false;
+                node.role = WidgetRole::TextInputIcon;
+                node.set_text(icon_str);
+                node.font_size = 11.0;
+                node.line_height = 24.0;
+                node.text_align = TextAlign::Center;
+                node.text_color = Color::rgba(0.50, 0.54, 0.64, 1.0);
+            }
+            let _ = self.tree.add_child(box_id, icon_id);
+        }
+
+        let text_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(text_id) {
+            node.role = WidgetRole::Default;
+            node.tag = tag;
+            let display = if props.text.is_empty() {
+                props.placeholder
+            } else {
+                props.text
+            };
+            node.set_text(display);
+            node.font_size = 11.0;
+            node.line_height = 24.0;
+            node.text_align = TextAlign::Left;
+            node.text_color = if props.text.is_empty() {
+                Color::rgba(0.40, 0.44, 0.54, 1.0)
+            } else {
+                Color::rgba(0.95, 0.96, 0.98, 1.0)
+            };
+        }
+        let _ = self.tree.add_child(box_id, text_id);
+
+        if props.is_focused && props.cursor_blink_visible {
+            let caret_offset = if props.text.is_empty() {
+                0.0_f32
+            } else {
+                props.text_width + 1.0
+            };
+            let caret_id = self.tree.create_node();
+            if let Some(node) = self.tree.get_mut(caret_id) {
+                node.set_name("TextInputCaret");
+                node.role = WidgetRole::TextInputCaret;
+                node.interactive = false;
                 node.tag = caret_offset.to_bits() as u64;
                 node.set_style(
                     Style::new()

@@ -4,7 +4,8 @@
 //! # 2D Visual UI Designer Window Event Routing
 //!
 //! Routes window mouse input, canvas dragging, viewport panning, and zoom scrolling
-//! to the Iris UI 2D Visual UI Designer panel.
+//! to the Iris UI 2D Visual UI Designer panel using 64-bit hardware semantic tags
+//! and canvas metrics.
 //!
 
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
@@ -32,17 +33,27 @@ impl IrisEditorOverlay {
         {
             let click_point = self.cursor_pos();
             let hit_target = self.tree.hit_test_target(click_point);
-            let (click_res, panel_rect) = {
-                let targets = self.ui_designer.interactions.targets.as_ref()?;
-                let res = handle_ui_designer_click(
-                    click_point,
-                    hit_target.as_ref(),
-                    targets,
-                    self.ui_designer.is_aspect_open,
-                    self.ui_designer.is_add_menu_open,
-                );
-                (res, targets.panel_rect)
-            };
+            let panel_rect = self.ui_designer.canvas_metrics.panel_rect;
+            if panel_rect.width <= 0.0 || panel_rect.height <= 0.0 {
+                return None;
+            }
+
+            // If popups are closed and click is outside panel, ignore
+            if !self.ui_designer.is_aspect_open
+                && !self.ui_designer.is_add_menu_open
+                && !panel_rect.contains_point(click_point)
+            {
+                return None;
+            }
+
+            let click_res = handle_ui_designer_click(
+                click_point,
+                hit_target.as_ref(),
+                &self.ui_designer.canvas_metrics,
+                &self.ui_designer.drag_contexts,
+                self.ui_designer.is_aspect_open,
+                self.ui_designer.is_add_menu_open,
+            );
 
             if let Some(action) = click_res.action {
                 match action {
@@ -91,7 +102,7 @@ impl IrisEditorOverlay {
                 result.consumed = true;
             }
 
-            if panel_rect.contains_point(click_point) {
+            if result.consumed || panel_rect.contains_point(click_point) {
                 result.consumed = true;
                 return Some(result);
             }
@@ -108,16 +119,13 @@ impl IrisEditorOverlay {
             ];
             self.ui_designer.last_cursor = cursor;
 
-            let drag_action = {
-                let targets = self.ui_designer.interactions.targets.as_ref()?;
-                handle_ui_designer_drag(
-                    cursor,
-                    delta,
-                    self.ui_designer.drag_state.as_ref(),
-                    self.ui_designer.is_panning,
-                    targets,
-                )
-            };
+            let drag_action = handle_ui_designer_drag(
+                cursor,
+                delta,
+                self.ui_designer.drag_state.as_ref(),
+                self.ui_designer.is_panning,
+                &self.ui_designer.canvas_metrics,
+            );
 
             if let Some(action) = drag_action {
                 self.ui_designer.interactions.actions.push(action);
@@ -149,13 +157,8 @@ impl IrisEditorOverlay {
                 MouseScrollDelta::PixelDelta(pos) => (pos.y as f32) / 20.0,
             };
 
-            let scroll_action = {
-                let targets = self.ui_designer.interactions.targets.as_ref()?;
-                if !targets.panel_rect.contains_point(cursor) {
-                    return None;
-                }
-                handle_ui_designer_scroll(cursor, delta_y, targets)
-            };
+            let scroll_action =
+                handle_ui_designer_scroll(cursor, delta_y, &self.ui_designer.canvas_metrics);
 
             if let Some(action) = scroll_action {
                 self.ui_designer.interactions.actions.push(action);

@@ -3,23 +3,17 @@
 
 //! # Animation Timeline Studio Event Hit-Testing Subsystem
 //!
-//! Evaluates mouse clicks, playback button activations, playhead dragging,
-//! and timeline scrubbing timestamp projections.
+//! Evaluates playback button activations, playhead dragging,
+//! and timeline scrubbing timestamp projections via semantic tags.
 //!
 
-use super::types::{TimelineAction, TimelinePanelTargets};
-use irisui::prelude::Point;
+use super::types::TimelineAction;
 
 /// Evaluates a mouse click against timeline semantic tags and returns the corresponding action.
-///
-/// Returns `Some((action, start_dragging))` where `start_dragging` is true when the
-/// user clicked on the scrubber track or playhead needle to initiate dragging.
 pub fn handle_timeline_click(
-    targets: &TimelinePanelTargets,
     hit_tag: u64,
-    click_pos: Point,
     _entity: Option<hecs::Entity>,
-) -> Option<(TimelineAction, bool)> {
+) -> Option<TimelineAction> {
     if let Some(transport_action) =
         irisui::prelude::evaluate_timeline_transport_tag(hit_tag, &super::transport::SPEED_PRESETS)
     {
@@ -35,29 +29,21 @@ pub fn handle_timeline_click(
                 TimelineAction::SetSpeed(speed)
             }
         };
-        return Some((action, false));
-    }
-
-    // Playhead cap or scrubber track click and drag initiation
-    if (hit_tag == irisui::prelude::TIMELINE_TAG_PLAYHEAD_CAP
-        || hit_tag == irisui::prelude::TIMELINE_TAG_SCRUBBER_TRACK)
-        && let Some(track) = targets.scrubber_track_rect
-    {
-        let frac = ((click_pos.x - track.x) / track.width).clamp(0.0, 1.0);
-        let scrub_t = frac * targets.clip_duration;
-        return Some((TimelineAction::ScrubTo(scrub_t), true));
+        return Some(action);
     }
 
     None
 }
 
-/// Evaluates mouse dragging movement across the scrubber track and returns the scrub timestamp.
-pub fn handle_timeline_drag(
-    targets: &TimelinePanelTargets,
-    cursor_pos: Point,
-) -> Option<TimelineAction> {
-    let track = targets.scrubber_track_rect?;
-    let frac = ((cursor_pos.x - track.x) / track.width).clamp(0.0, 1.0);
-    let scrub_t = frac * targets.clip_duration;
-    Some(TimelineAction::ScrubTo(scrub_t))
+/// Computes an absolute scrub timestamp from a physical cursor position and track bounding metrics.
+#[inline]
+pub fn compute_scrub_timestamp(
+    cursor_x: f32,
+    track_x: f32,
+    track_width: f32,
+    clip_duration: f32,
+) -> f32 {
+    let safe_width = track_width.max(1.0);
+    let frac = ((cursor_x - track_x) / safe_width).clamp(0.0, 1.0);
+    frac * clip_duration.max(0.0)
 }

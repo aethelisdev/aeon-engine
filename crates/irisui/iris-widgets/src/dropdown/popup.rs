@@ -94,7 +94,6 @@ pub struct ComboboxPopupFrame {
 pub struct ComboboxPopupBuilder<'a> {
     trigger_rect: Rect,
     items: Vec<&'a str>,
-    item_icons: Vec<Option<&'a str>>,
     selected_index: Option<usize>,
     cursor_pos: Point,
     style: ComboboxPopupStyle,
@@ -111,7 +110,6 @@ impl<'a> ComboboxPopupBuilder<'a> {
         Self {
             trigger_rect,
             items: Vec::new(),
-            item_icons: Vec::new(),
             selected_index: None,
             cursor_pos: Point::new(-1000.0, -1000.0),
             style: ComboboxPopupStyle::default(),
@@ -126,18 +124,6 @@ impl<'a> ComboboxPopupBuilder<'a> {
     #[inline]
     pub fn items(mut self, items: &[&'a str]) -> Self {
         self.items = items.to_vec();
-        self.item_icons = Vec::new();
-        self
-    }
-
-    /// Sets the list of text option labels paired with optional icon strings.
-    ///
-    /// When an icon string is provided, a dedicated icon node is generated to the left
-    /// of the text label.
-    #[inline]
-    pub fn items_with_icons(mut self, items: &[(&'a str, Option<&'a str>)]) -> Self {
-        self.items = items.iter().map(|(l, _)| *l).collect();
-        self.item_icons = items.iter().map(|(_, i)| *i).collect();
         self
     }
 
@@ -270,41 +256,7 @@ impl<'a> ComboboxPopupBuilder<'a> {
             }
             let _ = tree.add_child(popup_id, item_id);
 
-            let icon_opt = self.item_icons.get(idx).copied().flatten();
-            if let Some(icon_str) = icon_opt {
-                let icon_id = tree.create_node();
-                if let Some(node) = tree.get_mut(icon_id) {
-                    node.set_name("DropdownItemIcon");
-                    node.set_role(WidgetRole::Default);
-                    node.set_layer(UiLayer::Popup);
-                    node.set_tag(idx as u64);
-                    node.interactive = false;
-                    node.set_text(icon_str);
-                    node.font_size = 11.0;
-                    node.line_height = self.style.row_height - 2.0;
-                    node.text_align = TextAlign::Left;
-                    node.text_color = if is_selected {
-                        self.style.text_selected_color
-                    } else if is_hovered {
-                        self.style.text_hover_color
-                    } else {
-                        self.style.text_idle_color
-                    };
-                    node.computed_rect = Rect::new(
-                        item_rect.x + self.style.item_padding_x,
-                        item_rect.y,
-                        18.0,
-                        self.style.row_height - 2.0,
-                    );
-                }
-                let _ = tree.add_child(item_id, icon_id);
-            }
-
-            let text_x = if icon_opt.is_some() {
-                item_rect.x + self.style.item_padding_x + 22.0
-            } else {
-                item_rect.x + self.style.item_padding_x
-            };
+            let text_x = item_rect.x + self.style.item_padding_x;
             let text_w = (item_rect.right() - self.style.item_padding_x - text_x).max(0.0);
 
             let lbl_id = tree.create_node();

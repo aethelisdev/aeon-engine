@@ -15,6 +15,6 @@ pub mod scope;
 mod tests;
 pub mod types;
 
-pub use layout::{layout_subtree, measure_height};
-pub use scope::UiScope;
+pub use layout::{layout_subtree, measure_content_height, measure_height};
+pub use scope::{InputBoxProps, UiScope};
 pub use types::{WidgetResponse, hash_label};

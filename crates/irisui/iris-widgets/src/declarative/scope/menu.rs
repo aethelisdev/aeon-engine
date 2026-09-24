@@ -11,8 +11,8 @@
 use super::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, UiLayer, WidgetCursor, WidgetId,
-    WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiLayer, WidgetCursor,
+    WidgetId, WidgetRole,
 };
 
 impl<'a> UiScope<'a> {
@@ -168,6 +168,75 @@ impl<'a> UiScope<'a> {
             hovered_tag: self.hovered_tag,
         };
         f(&mut child_scope);
+        let height = crate::declarative::layout::measure_height(self.tree, node_id);
+        let bounds = Rect::new(x, y, width, height);
+        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.computed_rect = bounds;
+            node.style.height = Some(height);
+        }
+        node_id
+    }
+
+    /// Emits an elevated floating dropdown popup container with an explicit debug name at `(x, y)` on [`UiLayer::Popup`].
+    ///
+    /// # Arguments
+    /// * `name` - Static debug name assigned to the dropdown container.
+    /// * `x` - Left horizontal screen offset in physical pixels.
+    /// * `y` - Top vertical screen offset in physical pixels.
+    /// * `width` - Fixed card width constraint in physical pixels.
+    /// * `f` - Closure emitting dropdown items inside this popup scope.
+    pub fn dropdown_menu_card_named<F>(
+        &mut self,
+        name: &'static str,
+        x: f32,
+        y: f32,
+        width: f32,
+        f: F,
+    ) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.set_role(WidgetRole::DropdownPopup);
+            node.set_layer(UiLayer::Popup);
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(x)
+                    .top(y)
+                    .flex_col()
+                    .width(width)
+                    .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
+                    .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+                    .border(1.0, Color::rgba(0.20, 0.23, 0.30, 0.90))
+                    .border_radius(6.0)
+                    .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75)),
+            );
+            node.computed_rect.x = x;
+            node.computed_rect.y = y;
+            node.computed_rect.width = width;
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = UiScope {
+            tree: self.tree,
+            parent: node_id,
+            events: self.events,
+            hovered_id: self.hovered_id,
+            tagged_events: self.tagged_events,
+            hovered_tag: self.hovered_tag,
+        };
+        f(&mut child_scope);
+        let height = crate::declarative::layout::measure_height(self.tree, node_id);
+        let bounds = Rect::new(x, y, width, height);
+        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.computed_rect = bounds;
+            node.style.height = Some(height);
+        }
         node_id
     }
 
@@ -258,7 +327,7 @@ impl<'a> UiScope<'a> {
             n.line_height = 14.0;
             n.text_align = TextAlign::Left;
             n.text_color = text_color;
-            n.set_style(Style::new().height(14.0));
+            n.set_style(Style::new().flex_grow(1.0).height(14.0));
         }
         let _ = self.tree.add_child(node_id, label_id);
 

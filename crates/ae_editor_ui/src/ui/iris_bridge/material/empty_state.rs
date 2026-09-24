@@ -7,7 +7,7 @@
 //! studio aesthetics using [`UiScope`].
 //!
 
-use super::types::{MATERIAL_TAG_ADD_TEXTURE, MaterialPanelTargets};
+use super::types::MATERIAL_TAG_ADD_TEXTURE;
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_PLUS, ICON_WORLD};
 use irisui::prelude::*;
 
@@ -51,7 +51,7 @@ pub fn build_no_entity_selected(scope: &mut UiScope<'_>) {
 }
 
 /// Builds an empty-state placeholder card when the selected entity has no ModelId or SpriteId.
-pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>, _targets: &mut MaterialPanelTargets) {
+pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>) {
     let card_style = Style::new()
         .flex_col()
         .background(Color::rgba(0.09, 0.10, 0.12, 0.95))

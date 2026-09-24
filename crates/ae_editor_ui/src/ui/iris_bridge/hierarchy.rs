@@ -17,11 +17,12 @@ pub mod rows;
 pub mod tests;
 pub mod types;
 
-pub use panel::{
-    HierarchyPanelNodes, build_hierarchy_overlays, build_hierarchy_panel, handle_hierarchy_click,
-    handle_hierarchy_hover,
-};
+pub use panel::{build_hierarchy_overlays, build_hierarchy_panel};
 pub use types::{
-    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelState,
-    HierarchyPanelTargets, HierarchyRow,
+    AddSubmenuId, HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HIERARCHY_TAG_ADD_BUTTON,
+    HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_PREFIX, HIERARCHY_TAG_FOLDOUT_PREFIX,
+    HIERARCHY_TAG_INDEX_MASK, HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_PREFIX,
+    HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HierarchyAction, HierarchyPanelParams,
+    HierarchyPanelState, HierarchyRow, is_hierarchy_tag, make_eye_tag, make_foldout_tag,
+    make_row_tag, parse_eye_tag, parse_foldout_tag, parse_row_tag,
 };

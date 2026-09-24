@@ -26,60 +26,172 @@ pub struct UiDesignerPanelParams<'a> {
     pub is_aspect_dropdown_open: bool,
     /// Whether the `➕ Add Element` palette popup is currently open.
     pub is_add_menu_open: bool,
+    /// Currently hovered 64-bit semantic tag resolved in the active frame.
+    pub hovered_tag: Option<u64>,
 }
 
-/// Interactive hit target for an on-canvas UI element.
-#[derive(Debug, Clone, Copy)]
-pub struct UiElementHitTarget {
+// ── 64-Bit Hardware Semantic Tags ────────────────────────────────────────────
+
+/// Tag for the UI Designer root panel container.
+pub const UI_DESIGNER_TAG_PANEL_ROOT: u64 = 0x0070_0000_0000_0001;
+/// Tag for the letterbox outer container.
+pub const UI_DESIGNER_TAG_LETTERBOX: u64 = 0x0070_0000_0000_0002;
+/// Tag for the virtual canvas board.
+pub const UI_DESIGNER_TAG_CANVAS_BOARD: u64 = 0x0070_0000_0000_0003;
+/// Tag for the 34px elevated top toolbar container.
+pub const UI_DESIGNER_TAG_TOOLBAR: u64 = 0x0070_0000_0000_0004;
+
+// Toolbar Button Tags
+/// Tag for Aspect Ratio dropdown trigger button.
+pub const UI_DESIGNER_TAG_ASPECT_BTN: u64 = 0x0070_0000_0000_0010;
+/// Tag for Zoom Out button.
+pub const UI_DESIGNER_TAG_ZOOM_OUT: u64 = 0x0070_0000_0000_0011;
+/// Tag for Zoom Reset button.
+pub const UI_DESIGNER_TAG_ZOOM_RESET: u64 = 0x0070_0000_0000_0012;
+/// Tag for Zoom In button.
+pub const UI_DESIGNER_TAG_ZOOM_IN: u64 = 0x0070_0000_0000_0013;
+/// Tag for Grid Snap cycle button.
+pub const UI_DESIGNER_TAG_SNAP_BTN: u64 = 0x0070_0000_0000_0014;
+/// Tag for Anchor Guide lines toggle button.
+pub const UI_DESIGNER_TAG_ANCHORS_BTN: u64 = 0x0070_0000_0000_0015;
+/// Tag for visual Grid toggle button.
+pub const UI_DESIGNER_TAG_GRID_BTN: u64 = 0x0070_0000_0000_0016;
+/// Tag for Add Element palette button.
+pub const UI_DESIGNER_TAG_ADD_ELEMENT_BTN: u64 = 0x0070_0000_0000_0017;
+
+// Aspect Ratio Popup Item Tags
+/// Tag base for Aspect Ratio dropdown menu items: `0x0070_0000_0000_0100`.
+pub const UI_DESIGNER_TAG_ASPECT_ITEM_BASE: u64 = 0x0070_0000_0000_0100;
+/// Tag mask for Aspect Ratio dropdown menu items.
+pub const UI_DESIGNER_TAG_ASPECT_ITEM_MASK: u64 = 0xFFFF_FFFF_FFFF_FFF0;
+
+/// Constructs a semantic tag for an aspect ratio preset item.
+#[inline]
+pub const fn make_aspect_item_tag(idx: usize) -> u64 {
+    UI_DESIGNER_TAG_ASPECT_ITEM_BASE | (idx as u64)
+}
+
+/// Parses an aspect ratio preset index from a semantic tag.
+#[inline]
+pub const fn parse_aspect_item_tag(tag: u64) -> Option<usize> {
+    if (tag & UI_DESIGNER_TAG_ASPECT_ITEM_MASK) == UI_DESIGNER_TAG_ASPECT_ITEM_BASE {
+        Some((tag & 0xF) as usize)
+    } else {
+        None
+    }
+}
+
+// Add Element Palette Item Tags
+/// Tag base for Add Element palette dropdown menu items: `0x0070_0000_0000_0200`.
+pub const UI_DESIGNER_TAG_ADD_ITEM_BASE: u64 = 0x0070_0000_0000_0200;
+/// Tag mask for Add Element palette dropdown menu items.
+pub const UI_DESIGNER_TAG_ADD_ITEM_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
+
+/// Constructs a semantic tag for an add element palette item.
+#[inline]
+pub const fn make_add_item_tag(idx: usize) -> u64 {
+    UI_DESIGNER_TAG_ADD_ITEM_BASE | (idx as u64)
+}
+
+/// Parses an add element palette item index from a semantic tag.
+#[inline]
+pub const fn parse_add_item_tag(tag: u64) -> Option<usize> {
+    if (tag & UI_DESIGNER_TAG_ADD_ITEM_MASK) == UI_DESIGNER_TAG_ADD_ITEM_BASE {
+        Some((tag & 0xFF) as usize)
+    } else {
+        None
+    }
+}
+
+// On-Canvas UI Element Tags
+/// Base tag prefix for on-canvas UI elements: `0x0070_1000_0000_0000`.
+pub const UI_DESIGNER_TAG_ELEMENT_BASE: u64 = 0x0070_1000_0000_0000;
+/// Mask to isolate the element tag prefix.
+pub const UI_DESIGNER_TAG_ELEMENT_MASK: u64 = 0xFFFF_F000_0000_0000;
+/// Mask to isolate the element index payload.
+pub const UI_DESIGNER_TAG_ELEMENT_PAYLOAD_MASK: u64 = 0x0000_0FFF_FFFF_FFFF;
+
+/// Encodes an element cache index into a 64-bit hardware tag.
+#[inline]
+pub const fn encode_element_tag(idx: usize) -> u64 {
+    UI_DESIGNER_TAG_ELEMENT_BASE | (idx as u64 & UI_DESIGNER_TAG_ELEMENT_PAYLOAD_MASK)
+}
+
+/// Decodes an element cache index from a 64-bit hardware tag.
+#[inline]
+pub const fn parse_element_tag(tag: u64) -> Option<usize> {
+    if (tag & UI_DESIGNER_TAG_ELEMENT_MASK) == UI_DESIGNER_TAG_ELEMENT_BASE {
+        Some((tag & UI_DESIGNER_TAG_ELEMENT_PAYLOAD_MASK) as usize)
+    } else {
+        None
+    }
+}
+
+// Tag domain constants
+/// Tag family domain prefix for all 2D Visual UI Designer widgets: `0x0070_0000_0000_0000`.
+pub const UI_DESIGNER_TAG_DOMAIN: u64 = 0x0070_0000_0000_0000;
+/// Tag domain mask to isolate subsystem ownership: `0xFFFF_0000_0000_0000`.
+pub const UI_DESIGNER_TAG_DOMAIN_MASK: u64 = 0xFFFF_0000_0000_0000;
+
+/// Returns true if the given 64-bit hardware tag belongs to the 2D Visual UI Designer subsystem.
+///
+/// Evaluates whether the upper 16 bits match the domain prefix `0x0070`.
+#[inline]
+pub const fn is_ui_designer_tag(tag: u64) -> bool {
+    (tag & UI_DESIGNER_TAG_DOMAIN_MASK) == UI_DESIGNER_TAG_DOMAIN
+}
+
+/// Initial drag context captured for an on-canvas UI element when rendered.
+///
+/// Contains pure state data required to initiate smooth drag operations in virtual canvas space.
+/// Does NOT contain screen pixel rectangles; hit detection is 100% delegated to UiTree GPU SDF tags.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct UiElementDragContext {
     /// Entity handle of the UI element in the ECS world.
     pub entity: hecs::Entity,
-    /// Bounding box of the UI element in screen coordinates.
-    pub rect: Rect,
     /// Anchor origin in virtual canvas coordinates: `[x, y]`.
     pub anchor_origin: [f32; 2],
-    /// Current element offset: `[x, y]`.
+    /// Current element offset relative to anchor: `[x, y]`.
     pub initial_offset: [f32; 2],
 }
 
-/// Hit-testing bounding boxes recorded during panel layout for mouse interactions.
-#[derive(Debug, Clone, Default)]
-pub struct UiDesignerPanelTargets {
-    /// Total bounding box of the UI Designer panel.
+/// Calculated virtual canvas metrics and coordinates for the 2D UI Designer.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct UiDesignerCanvasMetrics {
+    /// Screen-space bounding rectangle allocated for the total UI Designer panel.
     pub panel_rect: Rect,
-    /// Virtual canvas bounding box in screen pixels.
+    /// Screen-space bounding rectangle of the virtual canvas board.
     pub canvas_rect: Rect,
-    /// Computed base scale factor converting virtual canvas pixels to screen pixels.
-    pub base_scale: f32,
-    /// Virtual canvas reference resolution `[width, height]`.
+    /// Reference resolution of the virtual canvas in virtual pixels: `[width, height]`.
     pub resolution: [f32; 2],
-    /// Current canvas zoom factor cached for toolbar and scrolling adjustments.
+    /// Current display scale factor from virtual coordinates to screen pixels.
+    pub base_scale: f32,
+    /// Current canvas zoom factor.
     pub current_zoom: f32,
     /// Active grid snap spacing in pixels, if enabled.
     pub snap_grid: Option<f32>,
+}
 
-    // ── Toolbar Targets ───────────────────────────────────────────────────────
-    /// Hit target for the Aspect Ratio selector button.
-    pub btn_aspect: Option<Rect>,
-    /// Hit target for Zoom Out `-` button.
-    pub btn_zoom_out: Option<Rect>,
-    /// Hit target for Zoom Reset `100%` button.
-    pub btn_zoom_reset: Option<Rect>,
-    /// Hit target for Zoom In `+` button.
-    pub btn_zoom_in: Option<Rect>,
-    /// Hit target for Grid Snap cycle button (`Snap: 8px`).
-    pub btn_snap: Option<Rect>,
-    /// Hit target for visual Anchor Guide lines toggle.
-    pub btn_anchors: Option<Rect>,
-    /// Hit target for visual background Grid toggle.
-    pub btn_grid: Option<Rect>,
-    /// Hit target for `➕ Add Element` palette button.
-    pub btn_add_element: Option<Rect>,
+impl UiDesignerCanvasMetrics {
+    /// Converts a screen-space coordinate point into virtual canvas space.
+    #[inline]
+    pub fn screen_to_canvas(&self, screen_pt: Point) -> [f32; 2] {
+        if self.canvas_rect.width <= 0.0 || self.canvas_rect.height <= 0.0 {
+            return [0.0, 0.0];
+        }
+        let rel_x = (screen_pt.x - self.canvas_rect.x) / self.canvas_rect.width;
+        let rel_y = (screen_pt.y - self.canvas_rect.y) / self.canvas_rect.height;
+        [rel_x * self.resolution[0], rel_y * self.resolution[1]]
+    }
 
-    // ── Canvas Element Hit Targets ────────────────────────────────────────────
-    /// Hit targets for on-canvas UI elements: `(entity, screen_rect)`.
-    pub element_rects: Vec<(hecs::Entity, Rect)>,
-    /// Detailed hit targets with anchor and offset data for drag operations.
-    pub element_targets: Vec<UiElementHitTarget>,
+    /// Converts a virtual canvas coordinate into screen-space pixel position.
+    #[inline]
+    pub fn canvas_to_screen(&self, canvas_pt: [f32; 2]) -> Point {
+        Point::new(
+            self.canvas_rect.x + (canvas_pt[0] / self.resolution[0]) * self.canvas_rect.width,
+            self.canvas_rect.y + (canvas_pt[1] / self.resolution[1]) * self.canvas_rect.height,
+        )
+    }
 }
 
 /// Dispatched user interaction actions emitted by the UI Designer panel.
@@ -121,11 +233,12 @@ pub enum UiDesignerAction {
 /// Persistent interactive state for the 2D Visual UI Designer panel overlay.
 #[derive(Debug, Default, Clone)]
 pub struct UiDesignerPanelState {
-    /// Common panel interaction state (targets, scroll_y, search, actions).
-    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<
-        UiDesignerPanelTargets,
-        UiDesignerAction,
-    >,
+    /// Common panel interaction state (actions, events).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), UiDesignerAction>,
+    /// Calculated virtual canvas metrics and coordinates from the last render pass.
+    pub canvas_metrics: UiDesignerCanvasMetrics,
+    /// Cached on-canvas UI element drag contexts for O(1) drag initialization.
+    pub drag_contexts: Vec<UiElementDragContext>,
     /// Whether the Aspect Ratio dropdown popup is open in the UI Designer.
     pub is_aspect_open: bool,
     /// Whether the Add Element palette popup is open in the UI Designer.
@@ -139,10 +252,7 @@ pub struct UiDesignerPanelState {
 }
 
 impl std::ops::Deref for UiDesignerPanelState {
-    type Target = crate::ui::iris_bridge::types::PanelInteractionState<
-        UiDesignerPanelTargets,
-        UiDesignerAction,
-    >;
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), UiDesignerAction>;
     fn deref(&self) -> &Self::Target {
         &self.interactions
     }

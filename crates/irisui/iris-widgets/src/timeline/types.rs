@@ -9,6 +9,12 @@
 
 use iris_core::color::Color;
 
+/// Default height in physical pixels allocated for the top ruler ticks section.
+pub const DEFAULT_RULER_HEIGHT: f32 = 18.0;
+
+/// Default height in physical pixels allocated for the interactive scrubber track.
+pub const DEFAULT_SCRUBBER_HEIGHT: f32 = 36.0;
+
 /// A keyframe indicator marker positioned along a timeline scrubber track.
 ///
 /// Contains the timestamp of the keyframe and an optional custom tint color.

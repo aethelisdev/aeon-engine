@@ -11,6 +11,9 @@ use iris_core::WidgetRole;
 use iris_core::geometry::Point;
 use iris_core::tree::UiTree;
 
+/// Semantic hit-testing tag for the Developer Console root panel container.
+pub const CONSOLE_TAG_PANEL_ROOT: u64 = 0x5000;
+
 /// Semantic hit-testing tag for the "Clear Logs" toolbar button.
 pub const CONSOLE_TAG_CLEAR: u64 = 0x5001;
 
@@ -37,6 +40,30 @@ pub const CONSOLE_TAG_SEARCH_CLEAR: u64 = 0x5008;
 
 /// Semantic hit-testing tag for the search text input field.
 pub const CONSOLE_TAG_SEARCH_INPUT: u64 = 0x5009;
+
+/// Semantic hit-testing tag for the Developer Console toolbar container.
+pub const CONSOLE_TAG_TOOLBAR: u64 = 0x500a;
+
+/// Semantic hit-testing tag for the Developer Console scrollable logs viewport.
+pub const CONSOLE_TAG_VIEWPORT: u64 = 0x500b;
+
+/// Semantic hit-testing tag for individual Developer Console log entry rows.
+pub const CONSOLE_TAG_ROW: u64 = 0x500c;
+
+/// Semantic hit-testing tag for the Developer Console scrollbar track.
+pub const CONSOLE_TAG_SCROLLBAR_TRACK: u64 = 0x500d;
+
+/// Semantic hit-testing tag for the Developer Console scrollbar thumb.
+pub const CONSOLE_TAG_SCROLLBAR_THUMB: u64 = 0x500e;
+
+/// Determines whether the given semantic hit-testing tag belongs to the Developer Console subsystem.
+///
+/// Returns `true` if `tag` falls within the Developer Console tag range (`0x5000..=0x50ff`).
+#[inline]
+#[must_use]
+pub const fn is_console_tag(tag: u64) -> bool {
+    tag >= 0x5000 && tag <= 0x50ff
+}
 
 /// Log severity filter levels supported by the Developer Console.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -180,7 +207,9 @@ pub fn evaluate_console_toolbar_cursor(
         | CONSOLE_TAG_FILTER_INFO
         | CONSOLE_TAG_FILTER_DEBUG
         | CONSOLE_TAG_AUTOSCROLL
-        | CONSOLE_TAG_SEARCH_CLEAR => Some(ConsoleToolbarCursor::Pointer),
+        | CONSOLE_TAG_SEARCH_CLEAR
+        | CONSOLE_TAG_SCROLLBAR_TRACK
+        | CONSOLE_TAG_SCROLLBAR_THUMB => Some(ConsoleToolbarCursor::Pointer),
         CONSOLE_TAG_SEARCH_INPUT => Some(ConsoleToolbarCursor::Text),
         _ => {
             if hit.role == WidgetRole::Button {

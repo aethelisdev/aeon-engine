@@ -3,13 +3,34 @@
 
 //! # Performance Stats & Telemetry Panel Types
 //!
-//! Exposes parameter structures, persistent widget node handles, interactive hit targets,
-//! and action enums for the retained-mode Stats & Profiler panel.
+//! Exposes parameter structures, interaction actions, semantic 64-bit tags,
+//! and panel state for the pure declarative [`UiScope`] Stats & Profiler panel.
+//!
 
 use ae_core::telemetry::{
     CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer, GpuPassTimings, VramStats,
 };
 use irisui::prelude::*;
+
+// ── Semantic 64-bit Tags ──────────────────────────────────────────────────
+
+/// Semantic tag assigned to the Wireframe Mode toggle checkbox container.
+pub const STATS_TAG_TOGGLE_WIREFRAME: u64 = 0x5354_4154_0000_0001;
+
+/// Semantic tag assigned to the Viewport Coordinate Grid toggle checkbox container.
+pub const STATS_TAG_TOGGLE_GRID: u64 = 0x5354_4154_0000_0002;
+
+/// Semantic tag assigned to the Stats Panel root viewport container.
+pub const STATS_TAG_PANEL_ROOT: u64 = 0x5354_4154_0000_0003;
+
+/// Semantic tag assigned to the Oscilloscope frametime canvas container.
+pub const STATS_TAG_CANVAS: u64 = 0x5354_4154_0000_0004;
+
+/// Returns `true` if the given 64-bit widget tag belongs to the Stats & Telemetry panel subsystem.
+#[inline]
+pub fn is_stats_tag(tag: u64) -> bool {
+    (tag & 0xFFFF_FFFF_0000_0000) == 0x5354_4154_0000_0000
+}
 
 /// Actions emitted by the Stats & Profiler panel interactions.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,80 +43,7 @@ pub enum StatsPanelAction {
     Scroll(f32),
 }
 
-/// Hit-testing targets for interactive elements in the Stats & Profiler panel.
-#[derive(Debug, Default, Clone)]
-pub struct StatsPanelTargets {
-    /// Bounding rectangle of the entire stats panel.
-    pub panel_rect: Rect,
-    /// Checkbox target for wireframe rendering.
-    pub wireframe_checkbox_rect: Option<Rect>,
-    /// Checkbox target for grid rendering.
-    pub grid_checkbox_rect: Option<Rect>,
-}
-
-/// Persistent widget node handles for the Stats & Profiler panel in retained mode.
-#[derive(Debug, Clone)]
-pub struct StatsPanelNodes {
-    /// Root node of the stats panel container.
-    pub root_id: WidgetId,
-    /// 2x2 Metric pills value node IDs (`[Avg FPS, 1% Low, 0.1% Low, Jitter]`).
-    pub metric_pill_val_ids: [WidgetId; 4],
-    /// Pacing summary footer text node ID.
-    pub pacing_footer_id: WidgetId,
-
-    /// CPU Thread Balance value node ID.
-    pub cpu_tb_val_id: WidgetId,
-    /// CPU multi-segmented bar track node ID and fill segment node IDs.
-    pub cpu_bar_seg_ids: [WidgetId; 5],
-    /// CPU 5 subsystem timing row value node IDs.
-    pub cpu_timing_val_ids: [WidgetId; 5],
-    /// CPU total frame value node ID.
-    pub cpu_total_val_id: WidgetId,
-
-    /// GPU device name text node ID.
-    pub gpu_dev_id: WidgetId,
-    /// GPU multi-segmented bar track fill segment node IDs.
-    pub gpu_bar_seg_ids: [WidgetId; 4],
-    /// GPU 4 pass timing row value node IDs.
-    pub gpu_pass_val_ids: [WidgetId; 4],
-    /// GPU total workload value node ID.
-    pub gpu_total_val_id: WidgetId,
-
-    /// Scene geometry: Draw Calls value node ID.
-    pub dc_val_id: WidgetId,
-    /// Scene geometry: Instanced ratio value node ID.
-    pub inst_pct_id: WidgetId,
-    /// Scene geometry: 4 subrow value node IDs (Batched, Instanced, Compute, Culled).
-    pub dc_subrow_val_ids: [WidgetId; 4],
-    /// Scene geometry: Triangles value node ID.
-    pub triangles_val_id: WidgetId,
-    /// Scene geometry: Vertices value node ID.
-    pub vertices_val_id: WidgetId,
-    /// Scene geometry: Entities value node ID.
-    pub entities_val_id: WidgetId,
-
-    /// VRAM multi-segmented bar track fill segment node IDs.
-    pub vram_bar_seg_ids: [WidgetId; 3],
-    /// VRAM 3 row value node IDs.
-    pub vram_row_val_ids: [WidgetId; 3],
-    /// VRAM total allocated value node ID.
-    pub vram_total_val_id: WidgetId,
-
-    /// Wireframe checkbox box node ID and checkmark text node ID.
-    pub wireframe_box_id: WidgetId,
-    pub wireframe_check_id: WidgetId,
-    /// Grid checkbox box node ID and checkmark text node ID.
-    pub grid_box_id: WidgetId,
-    pub grid_check_id: WidgetId,
-
-    /// Cached bounding rects for bar layouts.
-    pub canvas_rect: Rect,
-    pub cpu_bar_rect: Rect,
-    pub gpu_bar_rect: Rect,
-    pub vram_bar_rect: Rect,
-}
-
-/// Parameter context bundle passed into the Stats & Profiler builder.
+/// Parameter context bundle passed into the declarative Stats & Profiler builder.
 pub struct StatsPanelParams<'a> {
     /// Bounding rectangle allocated for the stats panel inside docking.
     pub panel_rect: Rect,
@@ -138,11 +86,12 @@ pub struct StatsPanelParams<'a> {
 /// Persistent interactive state for the Performance Stats & Telemetry panel overlay.
 #[derive(Debug, Clone)]
 pub struct StatsPanelState {
-    /// Common panel interaction state (targets, scroll_y, search, actions).
-    pub interactions:
-        crate::ui::iris_bridge::types::PanelInteractionState<StatsPanelTargets, StatsPanelAction>,
-    /// Persistent node handles for the Stats & Profiler panel in retained mode.
-    pub nodes: Option<StatsPanelNodes>,
+    /// Pending user interaction actions emitted during events.
+    pub actions: Vec<StatsPanelAction>,
+    /// Vertical scrolling offset in physical pixels.
+    pub scroll_y: f32,
+    /// Maximum computed vertical scrollable overflow extent.
+    pub max_scroll: f32,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
     pub last_rect: Option<Rect>,
     /// Accumulated frame count within the current 250ms telemetry rolling average window.
@@ -156,8 +105,9 @@ pub struct StatsPanelState {
 impl Default for StatsPanelState {
     fn default() -> Self {
         Self {
-            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
-            nodes: None,
+            actions: Vec::new(),
+            scroll_y: 0.0,
+            max_scroll: 0.0,
             last_rect: None,
             frame_counter: 0,
             last_fps_refresh: std::time::Instant::now(),
@@ -166,16 +116,9 @@ impl Default for StatsPanelState {
     }
 }
 
-impl std::ops::Deref for StatsPanelState {
-    type Target =
-        crate::ui::iris_bridge::types::PanelInteractionState<StatsPanelTargets, StatsPanelAction>;
-    fn deref(&self) -> &Self::Target {
-        &self.interactions
-    }
-}
-
-impl std::ops::DerefMut for StatsPanelState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.interactions
+impl StatsPanelState {
+    /// Consumes and returns all pending user interaction actions.
+    pub fn take_actions(&mut self) -> Vec<StatsPanelAction> {
+        std::mem::take(&mut self.actions)
     }
 }

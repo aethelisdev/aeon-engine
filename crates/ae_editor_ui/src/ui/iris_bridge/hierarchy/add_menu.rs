@@ -8,7 +8,7 @@
 //!
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
-use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets};
+use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
 use irisui::prelude::*;
 
@@ -244,16 +244,15 @@ pub fn get_hierarchy_add_menu_items(is_2d: bool) -> Vec<CascadingMenuItem> {
 }
 
 /// Builds the cascading `➕` Add Menu in the [`UiTree`] using [`CascadingMenuBuilder`].
+///
+/// Returns the list of bounding [`Rect`]s for all open cascading menu levels.
 pub fn build_add_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
-    targets: &mut HierarchyPanelTargets,
-) {
-    targets.active_add_menu_rects.clear();
-
+) -> Vec<Rect> {
     if !params.is_add_menu_open {
-        return;
+        return Vec::new();
     }
 
     let menu_items = get_hierarchy_add_menu_items(params.is_2d);
@@ -266,11 +265,20 @@ pub fn build_add_menu(
         }
     }
 
-    if let Some(frame) = CascadingMenuBuilder::new(targets.add_btn_rect, &menu_items, &active_path)
+    let add_btn_anchor = Rect::new(
+        (params.panel_rect.x + params.panel_rect.width - 56.0).max(params.panel_rect.x + 60.0),
+        params.panel_rect.y + 4.0,
+        24.0,
+        24.0,
+    );
+
+    if let Some(frame) = CascadingMenuBuilder::new(add_btn_anchor, &menu_items, &active_path)
         .cursor_pos(params.cursor_pos)
         .name("HierarchyAddMenu")
         .build(tree, parent_id)
     {
-        targets.active_add_menu_rects = frame.rendered_popup_rects;
+        frame.rendered_popup_rects
+    } else {
+        Vec::new()
     }
 }

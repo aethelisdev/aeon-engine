@@ -3,11 +3,11 @@
 
 //! # Animation Timeline Studio Ruler and Interactive Scrubber Bridge
 //!
-//! Connects engine animation clip keyframe data and playback timestamp to the generic
-//! [`TimelineRulerBuilder`] widget in Iris UI.
+//! Connects engine animation clip keyframe data and playback timestamp to pure declarative
+//! [`UiScope`] ruler and scrubber primitives in Iris UI.
 //!
 
-use super::types::{TimelinePanelParams, TimelinePanelTargets};
+use super::types::TimelinePanelParams;
 use irisui::prelude::*;
 
 /// Height of the time ruler section above the track in physical pixels.
@@ -19,22 +19,12 @@ pub const SCRUBBER_TRACK_HEIGHT: f32 = 36.0;
 /// Total height occupied by the ruler and scrubber subsystem.
 pub const RULER_TOTAL_HEIGHT: f32 = RULER_HEIGHT + SCRUBBER_TRACK_HEIGHT + 6.0;
 
-/// Builds the time ruler, keyframe markers, and interactive playhead scrubber into the UI tree.
-///
-/// Delegates all node hierarchy generation, dynamic tick calculations, and playhead rendering
-/// directly to Iris UI's [`TimelineRulerBuilder`].
+/// Builds the time ruler, keyframe markers, and interactive playhead scrubber via [`UiScope`].
 pub fn build_ruler_and_scrubber(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &TimelinePanelParams<'_>,
-    targets: &mut TimelinePanelTargets,
-    start_y: f32,
     duration: f32,
 ) {
-    let padding_x = 10.0;
-    let available_w = (params.panel_rect.width - padding_x * 2.0).max(100.0);
-    let ruler_y = start_y + 4.0;
-
     let player = params.animation_player;
     let current_time = player.map_or(0.0, |p| p.current_time).clamp(0.0, duration);
 
@@ -64,21 +54,22 @@ pub fn build_ruler_and_scrubber(
         });
     }
 
-    let ruler_rect = Rect::new(
-        params.panel_rect.x + padding_x,
-        ruler_y,
-        available_w,
-        RULER_HEIGHT + SCRUBBER_TRACK_HEIGHT + 4.0,
-    );
+    let ruler_style = TimelineRulerStyle::dark_default();
 
-    let frame = TimelineRulerBuilder::new(ruler_rect, duration, current_time)
-        .keyframes(&keyframes)
-        .is_dragging(params.is_dragging_scrubber)
-        .cursor_pos(Some(params.cursor_pos))
-        .heights(RULER_HEIGHT, SCRUBBER_TRACK_HEIGHT)
-        .build(tree, parent_id);
+    let section_style = Style::new()
+        .flex_col()
+        .gap(2.0)
+        .padding_insets(Insets::new(4.0, 10.0, 4.0, 10.0));
 
-    targets.scrubber_track_rect = Some(frame.track_rect);
-    targets.playhead_needle_rect = Some(frame.playhead_handle_rect);
-    targets.clip_duration = duration;
+    scope.container_named("TimelineRulerAndScrubberSection", section_style, |col| {
+        let _ = col.timeline_ruler_bar(duration, RULER_HEIGHT, &ruler_style);
+        let _ = col.timeline_scrubber_track(
+            duration,
+            current_time,
+            params.is_dragging_scrubber,
+            &keyframes,
+            SCRUBBER_TRACK_HEIGHT,
+            &ruler_style,
+        );
+    });
 }

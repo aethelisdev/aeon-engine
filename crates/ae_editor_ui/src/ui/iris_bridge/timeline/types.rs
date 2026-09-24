@@ -3,7 +3,7 @@
 
 //! # Animation Timeline Studio Type Definitions
 //!
-//! Exposes parameter bundles, hit-testing target descriptors, and user interaction
+//! Exposes parameter bundles, panel runtime state, and user interaction
 //! action variants for the Iris UI Animation Timeline Studio panel.
 //!
 
@@ -27,19 +27,6 @@ pub struct TimelinePanelParams<'a> {
     pub hovered_tag: Option<u64>,
 }
 
-/// Hit-testing targets and interactive bounding boxes for timeline controls.
-#[derive(Debug, Clone, Default)]
-pub struct TimelinePanelTargets {
-    /// Total panel bounding rectangle for clipping and overlay hit-testing.
-    pub panel_rect: Rect,
-    /// Interactive scrubber track bounding box.
-    pub scrubber_track_rect: Option<Rect>,
-    /// Current playhead needle draggable position and handle.
-    pub playhead_needle_rect: Option<Rect>,
-    /// Duration of the currently active animation clip in seconds.
-    pub clip_duration: f32,
-}
-
 /// User interaction actions dispatched by the Animation Timeline Studio panel.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TimelineAction {
@@ -60,26 +47,33 @@ pub enum TimelineAction {
 }
 
 /// Runtime persistent state for the Animation Timeline Studio panel.
+///
+/// Maintains active panel bounds, hardware hit-test scrubber dragging track geometry,
+/// and queued user interactions without retaining external node identifier tables.
 #[derive(Debug, Default, Clone)]
 pub struct TimelinePanelState {
-    /// Common panel interaction state (targets, scroll_y, search, actions).
-    pub interactions:
-        crate::ui::iris_bridge::types::PanelInteractionState<TimelinePanelTargets, TimelineAction>,
+    /// Common panel interaction state (actions queue).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), TimelineAction>,
     /// Whether user is actively dragging the timeline scrubber playhead needle.
     pub is_dragging: bool,
     /// Previously cached scrubber dragging state used for retained dirty-checking.
     pub last_is_dragging: bool,
+    /// Cached hardware hit-test track bounds during active scrubber drag: `(track_x, track_width)`.
+    pub active_scrubber_track: Option<(f32, f32)>,
     /// Selected entity handle cached for timeline interactions.
     pub selected_entity: Option<hecs::Entity>,
     /// Previously baked selected entity handle used for retained dirty-checking.
     pub last_selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
+    /// Active docked bounding rectangle of the Animation Timeline panel.
+    pub panel_rect: Option<Rect>,
+    /// Duration of the currently active animation clip in seconds.
+    pub clip_duration: f32,
 }
 
 impl std::ops::Deref for TimelinePanelState {
-    type Target =
-        crate::ui::iris_bridge::types::PanelInteractionState<TimelinePanelTargets, TimelineAction>;
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), TimelineAction>;
     fn deref(&self) -> &Self::Target {
         &self.interactions
     }

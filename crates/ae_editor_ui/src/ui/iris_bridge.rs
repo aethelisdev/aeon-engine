@@ -41,13 +41,10 @@ pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelParams, AssetsPanelTargets,
     build_assets_panel, handle_assets_panel_event,
 };
-pub use console::{
-    ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, ConsolePanelTargets, build_console_panel,
-};
+pub use console::{ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, build_console_panel};
 pub use hierarchy::{
-    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyPanelTargets, HierarchyRow,
-    build_hierarchy_overlays, build_hierarchy_panel, handle_hierarchy_click,
-    handle_hierarchy_hover,
+    AddSubmenuId, HierarchyAction, HierarchyPanelParams, HierarchyRow, build_hierarchy_overlays,
+    build_hierarchy_panel,
 };
 pub use icons::*;
 pub use material::{
@@ -59,13 +56,11 @@ pub use preferences::{
     PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesSliderId,
     PreferencesTargets, PreferencesToggleId, build_preferences_dialog,
 };
-pub use stats::{
-    StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelTargets, build_stats_panel,
-};
+pub use stats::{StatsPanelAction, StatsPanelParams, StatsPanelState, build_stats_panel};
 pub use theme::*;
 pub use timeline::{
-    TimelineAction, TimelinePanelParams, TimelinePanelTargets, build_timeline_panel,
-    handle_timeline_click, handle_timeline_drag,
+    TimelineAction, TimelinePanelParams, build_timeline_panel, compute_scrub_timestamp,
+    handle_timeline_click,
 };
 pub use types::{
     ActiveMenu, DialogParams, DropdownAction, EditorContextParams, IrisChromeState,
@@ -74,9 +69,10 @@ pub use types::{
     SceneParams, TelemetryParams, ViewportParams,
 };
 pub use ui_designer::{
-    CanvasAspectRatio, UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelTargets,
-    UiDesignerState, UiDragState, UiElementType, build_ui_designer_panel, handle_ui_designer_click,
-    handle_ui_designer_drag, handle_ui_designer_scroll,
+    CanvasAspectRatio, UiDesignerAction, UiDesignerCanvasMetrics, UiDesignerPanelParams,
+    UiDesignerState, UiDragState, UiElementDragContext, UiElementType, build_ui_designer_panel,
+    handle_ui_designer_click, handle_ui_designer_drag, handle_ui_designer_scroll,
+    is_ui_designer_tag,
 };
 pub use viewport_hud::{
     ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, build_viewport_hud,

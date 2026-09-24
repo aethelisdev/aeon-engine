@@ -140,6 +140,8 @@ pub struct Style {
     pub inset_bottom: Option<f32>,
     /// Left inset offset in logical points when absolutely positioned.
     pub inset_left: Option<f32>,
+    /// Vertical scroll offset in pixels applied to children during layout.
+    pub scroll_offset_y: f32,
 }
 
 impl Default for Style {
@@ -170,6 +172,7 @@ impl Default for Style {
             inset_right: None,
             inset_bottom: None,
             inset_left: None,
+            scroll_offset_y: 0.0,
         }
     }
 }
@@ -361,6 +364,14 @@ impl Style {
     #[inline]
     pub fn left(mut self, left: f32) -> Self {
         self.inset_left = Some(left);
+        self
+    }
+
+    /// Sets vertical scroll offset in pixels applied to inner children.
+    #[must_use]
+    #[inline]
+    pub fn scroll_offset_y(mut self, offset: f32) -> Self {
+        self.scroll_offset_y = offset;
         self
     }
 }

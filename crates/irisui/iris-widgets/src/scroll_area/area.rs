@@ -10,6 +10,7 @@ use super::scroll_bar::ScrollBarGeometry;
 use super::style::ScrollAreaStyle;
 use super::types::ScrollBarVisibility;
 use iris_core::WidgetRole;
+use iris_core::color::Color;
 use iris_core::geometry::{Point, Rect};
 use iris_core::id::WidgetId;
 use iris_core::style::Style;
@@ -57,6 +58,7 @@ pub struct ScrollAreaBuilder<'a> {
     visibility: ScrollBarVisibility,
     cursor_pos: Option<Point>,
     is_dragging: bool,
+    background: Option<Color>,
 }
 
 impl<'a> ScrollAreaBuilder<'a> {
@@ -72,6 +74,7 @@ impl<'a> ScrollAreaBuilder<'a> {
             visibility: ScrollBarVisibility::Auto,
             cursor_pos: None,
             is_dragging: false,
+            background: None,
         }
     }
 
@@ -117,6 +120,16 @@ impl<'a> ScrollAreaBuilder<'a> {
         self
     }
 
+    /// Sets an explicit background color on the viewport container node.
+    ///
+    /// When specified, applies the color to the viewport container style, enabling
+    /// opaque or semi-transparent background rendering under scrolled content.
+    #[must_use]
+    pub fn background(mut self, bg: Color) -> Self {
+        self.background = Some(bg);
+        self
+    }
+
     /// Builds the clipped viewport container and conditional scrollbar into the UI tree.
     pub fn build(self, tree: &mut UiTree, parent_id: WidgetId) -> ScrollAreaFrame {
         let max_scroll_y = (self.content_height - self.viewport_rect.height).max(0.0);
@@ -128,7 +141,11 @@ impl<'a> ScrollAreaBuilder<'a> {
             node.set_name(self.name);
             node.computed_rect = self.viewport_rect;
             node.role = WidgetRole::Default;
-            node.style = Style::new().clip_children(true);
+            let mut style = Style::new().clip_children(true);
+            if let Some(bg) = self.background {
+                style = style.background(bg);
+            }
+            node.style = style;
         }
         let _ = tree.add_child(parent_id, container_id);
 

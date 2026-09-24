@@ -8,9 +8,246 @@
 //!
 
 use super::core::UiScope;
-use iris_core::{Color, Insets, Style, WidgetCursor, WidgetId, WidgetRole};
+use iris_core::{Color, Insets, Rect, Style, WidgetCursor, WidgetId, WidgetRole};
 
 impl<'a> UiScope<'a> {
+    /// Emits a top-level panel container with an explicit bounding rectangle and debug name.
+    ///
+    /// Sets both style (absolute positioning, width, height, background, clip_children)
+    /// and initializes `computed_rect = rect` so that child clipping and hit-testing immediately
+    /// function across the panel bounds without requiring an external layout resolution pass.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug name assigned to the panel node.
+    /// * `rect` - Bounding rectangle defining the position and physical dimensions of the panel.
+    /// * `bg` - Background fill color for the panel.
+    /// * `f` - Closure executing within the newly formed child scope.
+    pub fn panel<F>(&mut self, name: &'static str, rect: Rect, bg: Color, f: F) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.computed_rect = rect;
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(rect.x)
+                    .top(rect.y)
+                    .width(rect.width)
+                    .height(rect.height)
+                    .flex_col()
+                    .background(bg)
+                    .clip_children(true),
+            );
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = UiScope {
+            tree: self.tree,
+            parent: node_id,
+            events: self.events,
+            hovered_id: self.hovered_id,
+            tagged_events: self.tagged_events,
+            hovered_tag: self.hovered_tag,
+        };
+        f(&mut child_scope);
+        crate::declarative::layout_subtree(self.tree, node_id, rect);
+        node_id
+    }
+
+    /// Emits a tagged dockable panel root container with absolute bounding geometry and vertical flex flow.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier assigned to the panel root node.
+    /// * `rect` - Bounding rectangle in physical pixels allocated for the panel.
+    /// * `tag` - Semantic tag for tracking interactions and event routing.
+    /// * `bg` - Background fill color.
+    /// * `f` - Closure executing within the panel root scope.
+    pub fn panel_tagged<F>(
+        &mut self,
+        name: &'static str,
+        rect: Rect,
+        tag: u64,
+        bg: Color,
+        f: F,
+    ) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.tag = tag;
+            node.computed_rect = rect;
+            node.interactive = true;
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(rect.x)
+                    .top(rect.y)
+                    .width(rect.width)
+                    .height(rect.height)
+                    .flex_col()
+                    .background(bg)
+                    .clip_children(true),
+            );
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = UiScope {
+            tree: self.tree,
+            parent: node_id,
+            events: self.events,
+            hovered_id: self.hovered_id,
+            tagged_events: self.tagged_events,
+            hovered_tag: self.hovered_tag,
+        };
+        f(&mut child_scope);
+        crate::declarative::layout_subtree(self.tree, node_id, rect);
+        node_id
+    }
+
+    /// Emits a horizontal toolbar container with a fixed height and centered flex alignment.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug name for the toolbar node.
+    /// * `height` - Fixed toolbar height in physical pixels.
+    /// * `bg` - Background fill color.
+    /// * `f` - Closure executing within the toolbar scope.
+    pub fn toolbar<F>(&mut self, name: &'static str, height: f32, bg: Color, f: F) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let style = Style::new()
+            .flex_row()
+            .align_items(iris_core::AlignItems::Center)
+            .height(height)
+            .background(bg)
+            .gap(6.0)
+            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+            .border(1.0, Color::rgba(1.0, 1.0, 1.0, 0.08));
+        self.container_named(name, style, f)
+    }
+
+    /// Emits a tagged horizontal toolbar container with a fixed height and centered flex alignment.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug name for the toolbar node.
+    /// * `height` - Fixed toolbar height in physical pixels.
+    /// * `tag` - Semantic tag for tracking interactions and event routing.
+    /// * `bg` - Background fill color.
+    /// * `f` - Closure executing within the toolbar scope.
+    pub fn toolbar_tagged<F>(
+        &mut self,
+        name: &'static str,
+        height: f32,
+        tag: u64,
+        bg: Color,
+        f: F,
+    ) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let style = Style::new()
+            .flex_row()
+            .align_items(iris_core::AlignItems::Center)
+            .height(height)
+            .background(bg)
+            .gap(6.0)
+            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+            .border(1.0, Color::rgba(1.0, 1.0, 1.0, 0.08));
+        self.container_tagged(name, style, WidgetRole::Default, tag, f)
+    }
+
+    /// Emits a scrollable container with flex-grow expansion and hardware child clipping.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive identifier assigned to the scroll viewport node.
+    /// * `bg` - Background fill color.
+    /// * `f` - Closure executing within the scroll viewport scope.
+    pub fn scroll_area<F>(&mut self, name: &'static str, bg: Color, f: F) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let style = Style::new()
+            .flex_col()
+            .flex_grow(1.0)
+            .clip_children(true)
+            .background(bg);
+        self.container_named(name, style, f)
+    }
+
+    /// Emits a tagged scrollable container with flex-grow expansion and hardware child clipping.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive identifier assigned to the scroll viewport node.
+    /// * `tag` - Semantic tag for tracking interactions and event routing.
+    /// * `bg` - Background fill color.
+    /// * `f` - Closure executing within the scroll viewport scope.
+    pub fn scroll_area_tagged<F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        bg: Color,
+        f: F,
+    ) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let style = Style::new()
+            .flex_col()
+            .flex_grow(1.0)
+            .clip_children(true)
+            .background(bg);
+        self.container_tagged(name, style, WidgetRole::Default, tag, f)
+    }
+
+    /// Emits a high-performance virtualized scrollable container that renders only the visible slice of items.
+    ///
+    /// Automatically manages [`VirtualList`](crate::scroll_area::VirtualList) windowing, overscan buffer padding,
+    /// sub-pixel scroll offset application, and child iteration via declarative closures.
+    ///
+    /// Returns the computed maximum vertical scroll limit in physical pixels.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive identifier assigned to the scroll viewport node.
+    /// * `tag` - Semantic tag for tracking interactions and event routing.
+    /// * `viewport_height` - Available visible height in physical pixels.
+    /// * `scroll_y` - Current vertical scroll offset in physical pixels.
+    /// * `config` - Sizing, overscan, and container styling configuration descriptor.
+    /// * `item_renderer` - Closure called for each visible index: `(scope, index)`.
+    pub fn virtual_scroll_area<F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        viewport_height: f32,
+        scroll_y: f32,
+        config: crate::scroll_area::VirtualScrollConfig,
+        mut item_renderer: F,
+    ) -> f32
+    where
+        F: FnMut(&mut UiScope<'_>, usize),
+    {
+        let stride = config.stride();
+        let vlist = crate::scroll_area::VirtualList::new(config.total_items, stride)
+            .with_overscan(config.overscan);
+        let max_scroll = vlist.max_scroll_y(viewport_height);
+        let safe_scroll = scroll_y.clamp(0.0, max_scroll);
+        let slice = vlist.compute_slice(viewport_height, safe_scroll);
+        let scroll_offset = vlist.compute_scroll_offset(safe_scroll, slice.start_idx);
+
+        self.scroll_area_tagged(name, tag, config.bg, |vp| {
+            vp.set_scroll_offset_y(scroll_offset);
+            for idx in slice.start_idx..slice.end_idx {
+                item_renderer(vp, idx);
+            }
+        });
+
+        max_scroll
+    }
+
     /// Emits a generic styled container and executes a nested child builder closure.
     ///
     /// # Arguments
@@ -267,6 +504,68 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
+    /// Emits a styled leaf element with `interactive = false` so it does not intercept hit-testing.
+    ///
+    /// Used for background grids, visual outlines, guide lines, and purely decorative graphics.
+    ///
+    /// # Arguments
+    /// * `style` - Visual bounds and styling properties applied to the passive leaf node.
+    pub fn empty_box_passive(&mut self, style: Style) -> WidgetId {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.interactive = false;
+            node.set_style(style);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        node_id
+    }
+
+    /// Emits a named, non-interactive leaf box node with custom styling.
+    ///
+    /// Ideal for decorative lines, pins, markers, and visual outlines that should not block
+    /// mouse events or register in hit-testing.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive name of the widget node for tree debugging.
+    /// * `style` - Visual bounds and styling properties applied to the leaf node.
+    pub fn empty_box_passive_named(&mut self, name: &'static str, style: Style) -> WidgetId {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.interactive = false;
+            node.set_style(style);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        node_id
+    }
+
+    /// Emits a non-container leaf node with custom styling, widget role, and 64-bit semantic tag.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive name of the widget node for tree debugging.
+    /// * `style` - Visual bounds and styling properties applied to the leaf node.
+    /// * `role` - Accessibility and interaction role for the widget.
+    /// * `tag` - 64-bit semantic identifier for hardware hit-testing and event routing.
+    pub fn empty_box_tagged(
+        &mut self,
+        name: &'static str,
+        style: Style,
+        role: WidgetRole,
+        tag: u64,
+    ) -> WidgetId {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.tag = tag;
+            node.role = role;
+            node.interactive = true;
+            node.cursor = role.default_cursor();
+            node.set_style(style);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        node_id
+    }
+
     /// Emits a 1-pixel horizontal rule divider container with a custom color.
     ///
     /// # Arguments
@@ -284,6 +583,11 @@ impl<'a> UiScope<'a> {
     pub fn vertical_divider(&mut self, height: f32, color: Color) -> WidgetId {
         let div_style = Style::new().background(color).width(1.0).height(height);
         self.empty_box(div_style)
+    }
+
+    /// Emits an empty flex-grow spacer node to expand and push subsequent items.
+    pub fn spacer(&mut self) -> WidgetId {
+        self.empty_box(Style::new().flex_grow(1.0))
     }
 
     /// Emits an interactive or custom-rendered canvas container node with specified role, tag, and cursor.

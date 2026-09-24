@@ -21,7 +21,6 @@ pub mod declarative;
 pub mod dropdown;
 pub mod grid_view;
 pub mod input;
-pub mod menubar;
 pub mod modal;
 pub mod numeric_input;
 pub mod panel;
@@ -33,7 +32,7 @@ pub mod tree_view;
 pub use asset_card::{
     AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
 };
-pub use canvas::{CanvasBuilder, ChartDrawer, ChartStyle, ChartThreshold};
+pub use canvas::ChartDrawer;
 pub use card::{CardBuilder, CardFrame, CardIcon, CardStyle};
 pub use cascading_menu::{
     CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
@@ -47,23 +46,26 @@ pub use color_picker::{
 pub use console::{
     CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
-    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, ConsoleEmptyNoticeBuilder,
-    ConsoleFilterLevel, ConsoleLogCounts, ConsoleLogLevel, ConsoleRowBuilder, ConsoleRowFrame,
-    ConsoleRowStyle, ConsoleToolbarAction, ConsoleToolbarBuilder, ConsoleToolbarCursor,
-    ConsoleToolbarFrame, ConsoleToolbarStyle, evaluate_console_toolbar_click,
-    evaluate_console_toolbar_cursor,
+    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_ROW, CONSOLE_TAG_SCROLLBAR_THUMB,
+    CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
+    CONSOLE_TAG_TOOLBAR, CONSOLE_TAG_VIEWPORT, ConsoleFilterLevel, ConsoleLogCounts,
+    ConsoleLogLevel, ConsoleToolbarAction, ConsoleToolbarCursor, evaluate_console_toolbar_click,
+    evaluate_console_toolbar_cursor, is_console_tag,
 };
+
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
-pub use declarative::{UiScope, WidgetResponse, hash_label, layout_subtree, measure_height};
+pub use declarative::{
+    InputBoxProps, UiScope, WidgetResponse, hash_label, layout_subtree, measure_content_height,
+    measure_height,
+};
 pub use dropdown::{
     ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,
     ComboboxPopupFrame, ComboboxPopupStyle, ComboboxRowBuilder, ComboboxRowFrame, ComboboxRowStyle,
 };
 pub use grid_view::ResponsiveGrid;
 pub use input::TextInputState;
-pub use menubar::{DropdownMenuBuilder, MenuBarBuilder};
 pub use modal::{
     MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
     ModalDialogAction, ModalDialogStyle, evaluate_modal_tag,
@@ -72,7 +74,8 @@ pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericI
 pub use panel::PanelBuilder;
 pub use scroll_area::{
     ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit,
-    ScrollBarVisibility, ScrollDirection, VirtualList, VirtualSlice,
+    ScrollBarVisibility, ScrollDirection, VirtualItemHeight, VirtualList, VirtualScrollConfig,
+    VirtualSlice,
 };
 pub use settings::{
     SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,
@@ -80,11 +83,10 @@ pub use settings::{
 };
 pub use timeline::{
     DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, MediaTransportAction,
-    MediaTransportBarBuilder, MediaTransportBarFrame, MediaTransportStyle, TIMELINE_TAG_LOOP,
-    TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK,
-    TIMELINE_TAG_SPEED_BASE, TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP,
-    TimelineKeyframeMarker, TimelineRulerBuilder, TimelineRulerFrame, TimelineRulerStyle,
-    evaluate_timeline_transport_tag,
+    MediaTransportStyle, TIMELINE_TAG_LOOP, TIMELINE_TAG_PANEL_ROOT, TIMELINE_TAG_PLAY_PAUSE,
+    TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE,
+    TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TimelineKeyframeMarker,
+    TimelineRulerStyle, evaluate_timeline_transport_tag, is_timeline_tag,
 };
 pub use tree_view::{TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle};
 
@@ -133,27 +135,10 @@ mod tests {
             .badge(Some(AssetCardBadge::new("WGSL", Color::YELLOW)))
             .build(&mut tree, root_id);
         assert!(tree.get(asset_frame.card_id).is_some());
-
-        let mut menu_bar = MenuBarBuilder::new(&mut tree, 1920.0);
-        menu_bar.add_menu_button(0, "File", false, false);
-        menu_bar.add_action_button(100, "▶ Play", Color::GREEN, Color::WHITE, false);
-        let menu_id = menu_bar.build();
-        assert!(tree.get(menu_id).is_some());
     }
 
     #[test]
-    fn test_canvas_and_chart_drawer() {
-        let mut tree = UiTree::new();
-        let canvas_id = CanvasBuilder::new(&mut tree)
-            .name("TestOscilloscope")
-            .rect(iris_core::Rect::new(0.0, 0.0, 300.0, 100.0))
-            .add_threshold(ChartThreshold::new(16.67, "60 FPS", Color::YELLOW))
-            .build();
-
-        assert!(tree.get(canvas_id).is_some());
-        let node = tree.get(canvas_id).unwrap();
-        assert_eq!(node.children.len(), 2); // 1 line + 1 label
-
+    fn test_chart_drawer_polyline() {
         let mut cmd_list = iris_wgpu::DrawCommandList::new();
         let dummy_samples = [8.33f32, 16.67, 12.0, 24.0, 8.0, 16.0];
         ChartDrawer::draw_polyline(

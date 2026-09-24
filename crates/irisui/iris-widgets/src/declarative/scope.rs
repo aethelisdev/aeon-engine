@@ -16,6 +16,8 @@ pub mod input;
 pub mod menu;
 pub mod modal;
 pub mod progress;
+pub mod timeline;
 
 pub use super::types::{WidgetResponse, hash_label};
 pub use core::UiScope;
+pub use input::InputBoxProps;

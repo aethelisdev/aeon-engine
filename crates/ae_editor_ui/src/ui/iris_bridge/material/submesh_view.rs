@@ -7,7 +7,7 @@
 //! material parameters, and texture slot bindings using [`UiScope`].
 //!
 
-use super::types::{MaterialPanelTargets, make_submesh_alpha_tag, make_submesh_texture_tag};
+use super::types::{make_submesh_alpha_tag, make_submesh_texture_tag};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_WORLD};
 use ae_renderer::render::types::SubmeshAlphaMode;
 use irisui::prelude::*;
@@ -25,21 +25,16 @@ pub struct SubmeshViewParams<'a> {
 }
 
 /// Builds the 3D Model overview card and submesh material slot cards directly on [`UiScope`].
-pub fn build_submesh_view(
-    scope: &mut UiScope<'_>,
-    params: &SubmeshViewParams<'_>,
-    targets: &mut MaterialPanelTargets,
-) -> f32 {
+pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_>) {
     let model_handle = match params.world.get::<&ae_core::ecs::ModelId>(params.entity) {
         Ok(m) => m.0,
-        Err(_) => return 0.0,
+        Err(_) => return,
     };
 
     let model = match params.models.get(model_handle) {
         Some(m) => m,
-        None => return 0.0,
+        None => return,
     };
-    targets.active_model = Some(model_handle);
 
     let file_name = std::path::Path::new(&model.source_path)
         .file_name()
@@ -123,34 +118,34 @@ pub fn build_submesh_view(
                 header.color_swatch(swatch_color, 20.0, 16.0);
             },
             |card| {
-                // Row 1: Alpha Mode Selector Pills
+                // Alpha Mode: Dedicated label and responsive flex-grow pills dividing width equally
+                card.label(
+                    "Alpha Mode:",
+                    10.5,
+                    Color::rgba(0.65, 0.68, 0.75, 1.0),
+                    TextAlign::Left,
+                );
                 card.row(|row| {
-                    row.label_fixed(
-                        "Alpha Mode:",
-                        10.5,
-                        Color::rgba(0.65, 0.68, 0.75, 1.0),
-                        75.0,
-                        TextAlign::Left,
-                    );
                     for (mode, label) in &alpha_modes {
                         let pill_tag = make_submesh_alpha_tag(idx, *mode);
                         let is_active = submesh.alpha_mode == *mode;
-                        row.toggle_pill_tagged(label, is_active, pill_tag);
+                        row.toggle_pill_flex_tagged(label, is_active, pill_tag);
                     }
                 });
 
-                // Row 2: Texture Assignment (Name badge + Change Texture button)
+                // Texture Assignment: Label, flex-expanding name badge, and content-sized button
                 card.row(|row| {
-                    row.label_fixed(
+                    row.label(
                         "Texture:",
                         10.5,
                         Color::rgba(0.65, 0.68, 0.75, 1.0),
-                        55.0,
                         TextAlign::Left,
                     );
 
                     let badge_style = Style::new()
                         .flex_row()
+                        .flex_grow(1.0)
+                        .clip_children(true)
                         .align_items(AlignItems::Center)
                         .gap(5.0)
                         .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
@@ -174,13 +169,11 @@ pub fn build_submesh_view(
                         ICON_FOLDER,
                         Color::rgba(0.95, 0.80, 0.25, 0.95),
                         "Change",
-                        Some(76.0),
+                        None,
                         chg_tag,
                     );
                 });
             },
         );
     }
-
-    80.0 + (model.submeshes.len() as f32) * 110.0
 }

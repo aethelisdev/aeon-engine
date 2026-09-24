@@ -4,257 +4,205 @@
 //! # Scene Hierarchy Header and Search Bar Builder
 //!
 //! Renders the top search bar input box, clear button, `➕` Add Menu button,
-//! and `🗑` Delete Selected entity button with clean visual alignment.
+//! and `🗑` Delete Selected entity button with clean visual alignment and
+//! pure declarative [`UiScope`] semantics.
+//!
 
-use super::types::{HierarchyPanelParams, HierarchyPanelTargets};
+use super::types::{
+    HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_SEARCH_CLEAR,
+    HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams,
+};
 use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
 
-/// Output node handles created during header initialization.
-pub struct HeaderNodes {
-    /// Search input container node ID.
-    pub search_box_id: WidgetId,
-    /// Search text/placeholder node ID.
-    pub search_text_id: WidgetId,
-    /// Search clear `✖` button node ID (if created).
-    pub clear_btn_id: Option<WidgetId>,
-    /// `➕` Add Menu button node ID.
-    pub add_btn_id: WidgetId,
-    /// `🗑` Delete Selected button node ID.
-    pub delete_btn_id: Option<WidgetId>,
-}
+/// Builds the declarative Scene Hierarchy header toolbar containing search bar,
+/// Add entity menu button, and Delete selected entity button.
+///
+/// Attaches declarative widgets directly into the active [`UiScope`] flexbox flow.
+pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelParams<'_>) {
+    let header_bar_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .gap(4.0)
+        .height(31.0)
+        .padding_insets(Insets::new(4.0, 6.0, 3.0, 6.0));
 
-/// Builds the static Scene Hierarchy header layout.
-pub fn build_hierarchy_header(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &HierarchyPanelParams<'_>,
-    targets: &mut HierarchyPanelTargets,
-) -> HeaderNodes {
-    let padding_x = 6.0;
-    let header_y = params.panel_rect.y + 4.0;
-    let header_h = 24.0;
-    let header_w = params.panel_rect.width - padding_x * 2.0;
-
-    let btn_size = 24.0;
-    let btn_gap = 4.0;
-
-    // Both `+` and `🗑` buttons are permanently visible in the header bar
-    let right_btns_w = btn_size * 2.0 + btn_gap;
-
-    let search_w = (header_w - right_btns_w - 4.0).max(60.0);
-    let search_x = params.panel_rect.x + padding_x;
-    let search_rect = Rect::new(search_x, header_y, search_w, header_h);
-    targets.search_input_rect = search_rect;
-
-    // 1. Search Bar Container
-    let search_box_id = tree.create_node();
-    if let Some(node) = tree.get_mut(search_box_id) {
-        node.set_name("HierarchySearchBox");
-        node.computed_rect = search_rect;
+    scope.container_named("HierarchyHeaderBar", header_bar_style, |bar| {
+        // 1. Search Bar Container (Tagged with HIERARCHY_TAG_SEARCH_INPUT)
+        let is_search_hovered = params.hovered_tag == Some(HIERARCHY_TAG_SEARCH_INPUT);
         let border_color = if params.is_search_focused {
             Color::rgba(0.0, 0.90, 1.0, 0.90) // Active Cyan ring
+        } else if is_search_hovered {
+            Color::rgba(0.35, 0.40, 0.52, 0.95)
         } else {
             Color::rgba(0.18, 0.20, 0.26, 0.80)
         };
-        node.style = Style::new()
-            .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
+        let search_bg = if is_search_hovered {
+            Color::rgba(0.06, 0.08, 0.11, 0.98)
+        } else {
+            Color::rgba(0.04, 0.05, 0.07, 0.95)
+        };
+
+        let search_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .flex_grow(1.0)
+            .height(24.0)
+            .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
+            .gap(6.0)
+            .background(search_bg)
             .border(1.0, border_color)
             .border_radius(4.0);
-    }
-    let _ = tree.add_child(parent_id, search_box_id);
 
-    // Search Icon "🔍"
-    let icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(icon_id) {
-        node.set_name("SearchIcon");
-        node.set_text("🔍");
-        node.font_size = 11.0;
-        node.line_height = header_h;
-        node.text_color = Color::rgba(0.55, 0.58, 0.68, 1.0);
-        node.computed_rect = Rect::new(search_x + 6.0, header_y, 14.0, header_h);
-    }
-    let _ = tree.add_child(search_box_id, icon_id);
+        bar.container_tagged(
+            "HierarchySearchBox",
+            search_style,
+            WidgetRole::Default,
+            HIERARCHY_TAG_SEARCH_INPUT,
+            |s| {
+                // Search Icon "🔍"
+                let icon_col = if is_search_hovered {
+                    Color::rgba(0.85, 0.88, 0.98, 1.0)
+                } else {
+                    Color::rgba(0.55, 0.58, 0.68, 1.0)
+                };
+                s.label_with_width("🔍", 14.0, 11.0, icon_col, TextAlign::Center);
 
-    // Search Query or Hint Text
-    let search_text_id = tree.create_node();
-    let display_text = if params.search_query.is_empty() {
-        "Search..."
-    } else {
-        params.search_query
-    };
-    let text_color = if params.search_query.is_empty() {
-        Color::rgba(0.42, 0.45, 0.55, 1.0)
-    } else {
-        Color::rgba(0.92, 0.94, 0.98, 1.0)
-    };
+                // Search Query or Hint Text
+                let (display_text, text_color) = if params.search_query.is_empty() {
+                    let hint_col = if is_search_hovered {
+                        Color::rgba(0.55, 0.58, 0.68, 1.0)
+                    } else {
+                        Color::rgba(0.42, 0.45, 0.55, 1.0)
+                    };
+                    ("Search...", hint_col)
+                } else {
+                    (params.search_query, Color::rgba(0.92, 0.94, 0.98, 1.0))
+                };
 
-    let text_w = (search_w
-        - 24.0
-        - if params.search_query.is_empty() {
-            0.0
-        } else {
-            18.0
-        })
-    .max(20.0);
-    let text_start_x = if params.is_search_focused && params.search_query.is_empty() {
-        search_x + 24.5
-    } else {
-        search_x + 22.0
-    };
-    if let Some(node) = tree.get_mut(search_text_id) {
-        node.set_name("SearchQueryText");
-        node.set_text(display_text);
-        node.font_size = 11.5;
-        node.line_height = header_h;
-        node.text_color = text_color;
-        node.computed_rect = Rect::new(text_start_x, header_y, text_w, header_h);
-    }
-    let _ = tree.add_child(search_box_id, search_text_id);
+                s.label_flex(display_text, 11.5, text_color, TextAlign::Left);
 
-    // Blinking Caret Cursor (500ms cycle)
-    if params.is_search_focused && params.blink_caret {
-        let caret_x = if params.search_query.is_empty() {
-            search_x + 22.0
-        } else {
-            (search_x + 22.0 + (params.search_query.len() as f32 * 6.8))
-                .min(search_x + search_w - 24.0)
-        };
-        let caret_id = tree.create_node();
-        if let Some(node) = tree.get_mut(caret_id) {
-            node.set_name("HierarchySearchCaret");
-            node.computed_rect = Rect::new(caret_x, header_y + 4.0, 1.5, header_h - 8.0);
-            node.style = Style::new()
-                .background(Color::rgba(0.0, 0.90, 1.0, 1.0))
-                .border_radius(0.75);
-        }
-        let _ = tree.add_child(search_box_id, caret_id);
-    }
+                // Blinking Caret Cursor (500ms cycle)
+                if params.is_search_focused && params.blink_caret {
+                    s.label_with_width(
+                        "|",
+                        6.0,
+                        11.5,
+                        Color::rgba(0.0, 0.90, 1.0, 1.0),
+                        TextAlign::Left,
+                    );
+                }
 
-    // Clear Search "✖" Button
-    let mut clear_btn_id = None;
-    if !params.search_query.is_empty() {
-        let clear_rect = Rect::new(search_x + search_w - 18.0, header_y + 3.0, 16.0, 18.0);
-        targets.search_clear_btn_rect = Some(clear_rect);
+                // Clear Search "✖" Button
+                if !params.search_query.is_empty() {
+                    let is_clear_hovered = params.hovered_tag == Some(HIERARCHY_TAG_SEARCH_CLEAR);
+                    let clear_btn_style = Style::new()
+                        .flex_row()
+                        .width(16.0)
+                        .height(18.0)
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center);
 
-        let clr_id = tree.create_node();
-        if let Some(node) = tree.get_mut(clr_id) {
-            node.set_name("SearchClearButton");
-            node.set_text("✖");
-            node.font_size = 9.5;
-            node.line_height = 18.0;
-            node.text_align = TextAlign::Center;
-            node.text_color = Color::rgba(0.60, 0.63, 0.72, 1.0);
-            node.computed_rect = clear_rect;
-        }
-        let _ = tree.add_child(search_box_id, clr_id);
-        clear_btn_id = Some(clr_id);
-    } else {
-        targets.search_clear_btn_rect = None;
-    }
+                    s.container_tagged(
+                        "SearchClearButton",
+                        clear_btn_style,
+                        WidgetRole::Button,
+                        HIERARCHY_TAG_SEARCH_CLEAR,
+                        |clr| {
+                            let clear_col = if is_clear_hovered {
+                                Color::WHITE
+                            } else {
+                                Color::rgba(0.60, 0.63, 0.72, 1.0)
+                            };
+                            clr.label_with_width("✖", 16.0, 9.5, clear_col, TextAlign::Center);
+                        },
+                    );
+                }
+            },
+        );
 
-    // 2. "➕" Add Entity Button (Elevated Slate `#383d4a`)
-    let add_x = search_x + search_w + 4.0;
-    let add_rect = Rect::new(add_x, header_y, btn_size, header_h);
-    targets.add_btn_rect = add_rect;
-
-    let is_add_hovered = add_rect.contains_point(params.cursor_pos);
-    let (bg, border, icon_col) = if params.is_add_menu_open {
-        (
-            Color::rgba(0.0, 0.38, 0.50, 0.95),
-            Color::rgba(0.0, 0.90, 1.0, 0.90),
-            Color::rgba(0.0, 0.95, 1.0, 1.0),
-        )
-    } else if is_add_hovered {
-        (
-            Color::rgba(0.30, 0.34, 0.42, 0.95),
-            Color::rgba(0.45, 0.50, 0.60, 0.85),
-            Color::WHITE,
-        )
-    } else {
-        (
-            Color::rgba(0.24, 0.27, 0.34, 0.95), // Elevated slate
-            Color::rgba(0.35, 0.39, 0.48, 0.70),
-            Color::rgba(0.85, 0.88, 0.95, 1.0),
-        )
-    };
-
-    let add_btn_id = tree.create_node();
-    if let Some(node) = tree.get_mut(add_btn_id) {
-        node.set_name("AddEntityButton");
-        node.computed_rect = add_rect;
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(4.0);
-    }
-    let _ = tree.add_child(parent_id, add_btn_id);
-
-    let plus_size = 14.0;
-    let plus_x = add_rect.x + (btn_size - plus_size) * 0.5;
-    let plus_y = add_rect.y + (header_h - plus_size) * 0.5;
-    let plus_id = tree.create_node();
-    if let Some(node) = tree.get_mut(plus_id) {
-        node.set_name("AddEntityPlusIcon");
-        node.computed_rect = Rect::new(plus_x, plus_y, plus_size, plus_size);
-        node.set_texture_uv(ICON_PLUS);
-        node.set_texture_tint(icon_col);
-    }
-    let _ = tree.add_child(add_btn_id, plus_id);
-
-    // 3. "🗑" Delete Entity Button (Elevated Slate `#383d4a`, permanently visible)
-    let del_x = add_x + btn_size + btn_gap;
-    let del_rect = Rect::new(del_x, header_y, btn_size, header_h);
-    targets.delete_btn_rect = Some(del_rect);
-
-    let has_selection = params.selected_entity.is_some();
-    let is_del_hovered = del_rect.contains_point(params.cursor_pos);
-    let del_id = tree.create_node();
-    if let Some(node) = tree.get_mut(del_id) {
-        node.set_name("DeleteSelectedButton");
-        node.computed_rect = del_rect;
-        let (bg, border, text_col) = if has_selection && is_del_hovered {
+        // 2. "➕" Add Entity Button
+        let is_add_hovered = params.hovered_tag == Some(HIERARCHY_TAG_ADD_BUTTON);
+        let (add_bg, add_border, add_icon_col) = if params.is_add_menu_open {
             (
-                Color::rgba(0.42, 0.12, 0.12, 0.95),
-                Color::rgba(0.92, 0.28, 0.28, 0.90),
-                Color::rgba(1.0, 0.40, 0.40, 1.0),
+                Color::rgba(0.0, 0.38, 0.50, 0.95),
+                Color::rgba(0.0, 0.90, 1.0, 0.90),
+                Color::rgba(0.0, 0.95, 1.0, 1.0),
             )
-        } else if is_del_hovered {
+        } else if is_add_hovered {
             (
-                Color::rgba(0.30, 0.34, 0.42, 0.95),
-                Color::rgba(0.45, 0.50, 0.60, 0.85),
+                Color::rgba(0.30, 0.35, 0.45, 0.98), // Brightened hover
+                Color::rgba(0.0, 0.85, 1.0, 0.85),   // Cyan hover ring
                 Color::WHITE,
             )
-        } else if has_selection {
+        } else {
             (
-                Color::rgba(0.24, 0.27, 0.34, 0.95),
+                Color::rgba(0.24, 0.27, 0.34, 0.95), // Elevated slate
                 Color::rgba(0.35, 0.39, 0.48, 0.70),
                 Color::rgba(0.85, 0.88, 0.95, 1.0),
             )
-        } else {
+        };
+
+        let add_btn_style = Style::new()
+            .width(24.0)
+            .height(24.0)
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center)
+            .background(add_bg)
+            .border(1.0, add_border)
+            .border_radius(4.0);
+
+        bar.container_tagged(
+            "AddEntityButton",
+            add_btn_style,
+            WidgetRole::Button,
+            HIERARCHY_TAG_ADD_BUTTON,
+            |add_btn| {
+                add_btn.icon(ICON_PLUS, add_icon_col, 14.0);
+            },
+        );
+
+        // 3. "🗑" Delete Entity Button (Permanently visible)
+        let is_del_hovered = params.hovered_tag == Some(HIERARCHY_TAG_DELETE_BUTTON);
+        let has_selection = params.selected_entity.is_some();
+        let (del_bg, del_border, del_text_col) = if !has_selection {
             (
                 Color::rgba(0.20, 0.22, 0.28, 0.80),
                 Color::rgba(0.28, 0.31, 0.38, 0.50),
                 Color::rgba(0.55, 0.58, 0.66, 0.70),
             )
+        } else if is_del_hovered {
+            (
+                Color::rgba(0.55, 0.18, 0.22, 0.95), // Red danger hover
+                Color::rgba(0.95, 0.35, 0.40, 0.90),
+                Color::WHITE,
+            )
+        } else {
+            (
+                Color::rgba(0.24, 0.27, 0.34, 0.95),
+                Color::rgba(0.35, 0.39, 0.48, 0.70),
+                Color::rgba(0.85, 0.88, 0.95, 1.0),
+            )
         };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(4.0);
-        node.set_text("🗑");
-        node.font_size = 12.0;
-        node.line_height = header_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = text_col;
-    }
-    let _ = tree.add_child(parent_id, del_id);
 
-    HeaderNodes {
-        search_box_id,
-        search_text_id,
-        clear_btn_id,
-        add_btn_id,
-        delete_btn_id: Some(del_id),
-    }
+        let del_btn_style = Style::new()
+            .flex_row()
+            .width(24.0)
+            .height(24.0)
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center)
+            .background(del_bg)
+            .border(1.0, del_border)
+            .border_radius(4.0);
+
+        bar.container_tagged(
+            "DeleteSelectedButton",
+            del_btn_style,
+            WidgetRole::Button,
+            HIERARCHY_TAG_DELETE_BUTTON,
+            |del_btn| {
+                del_btn.label_with_width("🗑", 24.0, 11.0, del_text_col, TextAlign::Center);
+            },
+        );
+    });
 }

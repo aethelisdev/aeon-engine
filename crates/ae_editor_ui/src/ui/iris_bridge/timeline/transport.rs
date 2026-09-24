@@ -4,10 +4,10 @@
 //! # Animation Timeline Studio Transport Toolbar Bridge
 //!
 //! Connects engine animation playback state (Play/Pause, Stop, Step, Loop, Speed, Clip Name)
-//! to the generic [`MediaTransportBarBuilder`] widget in Iris UI.
+//! to pure declarative [`UiScope`] timeline primitives in Iris UI.
 //!
 
-use super::types::{TimelinePanelParams, TimelinePanelTargets};
+use super::types::TimelinePanelParams;
 use irisui::prelude::*;
 
 /// Height of the transport controls bar in physical pixels.
@@ -18,22 +18,12 @@ pub const SPEED_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
 
 /// Builds the transport controls toolbar at the top of the animation timeline panel.
 ///
-/// Delegates all node hierarchy generation, button styling, badges, and readouts
-/// directly to Iris UI's [`MediaTransportBarBuilder`].
+/// Emits pure declarative buttons, pills, dividers, and badges directly via [`UiScope`].
 pub fn build_transport_toolbar(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &TimelinePanelParams<'_>,
-    _targets: &mut TimelinePanelTargets,
     duration: f32,
 ) {
-    let tb_rect = Rect::new(
-        params.panel_rect.x,
-        params.panel_rect.y,
-        params.panel_rect.width,
-        TRANSPORT_TOOLBAR_HEIGHT,
-    );
-
     let player = params.animation_player;
     let is_playing = player.is_some_and(|p| p.state == ae_animation::AnimationState::Playing);
     let is_looping = player.is_some_and(|p| p.looping);
@@ -43,12 +33,81 @@ pub fn build_transport_toolbar(
         .and_then(|p| p.current_clip.as_ref())
         .map(|c| c.name.as_str());
 
-    let _frame = MediaTransportBarBuilder::new(tb_rect, duration, current_time)
-        .is_playing(is_playing)
-        .is_looping(is_looping)
-        .current_speed(current_speed)
-        .speed_presets(&SPEED_PRESETS)
-        .clip_name(clip_name)
-        .cursor_pos(Some(params.cursor_pos))
-        .build(tree, parent_id);
+    let style = MediaTransportStyle::dark_default();
+
+    let toolbar_style = Style::new()
+        .height(TRANSPORT_TOOLBAR_HEIGHT)
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .gap(6.0)
+        .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+        .background(style.bg)
+        .border(style.border_width, style.border_color);
+
+    scope.container_named("TimelineTransportToolbar", toolbar_style, |row| {
+        // 1. Step Back Button
+        let _ = row.timeline_transport_button(
+            "TimelineStepBackBtn",
+            "⏮",
+            TIMELINE_TAG_STEP_BACK,
+            false,
+            false,
+            &style,
+        );
+
+        // 2. Play / Pause Button
+        let _ = row.timeline_transport_button(
+            "TimelinePlayPauseBtn",
+            if is_playing { "⏸" } else { "▶" },
+            TIMELINE_TAG_PLAY_PAUSE,
+            is_playing,
+            true,
+            &style,
+        );
+
+        // 3. Stop Button
+        let _ = row.timeline_transport_button(
+            "TimelineStopBtn",
+            "⏹",
+            TIMELINE_TAG_STOP,
+            false,
+            false,
+            &style,
+        );
+
+        // 4. Step Forward Button
+        let _ = row.timeline_transport_button(
+            "TimelineStepFwdBtn",
+            "⏭",
+            TIMELINE_TAG_STEP_FWD,
+            false,
+            false,
+            &style,
+        );
+
+        // 5. Divider
+        row.vertical_divider(18.0, style.divider_color);
+
+        // 6. Loop Toggle Pill
+        let _ = row.timeline_loop_pill(is_looping, TIMELINE_TAG_LOOP, &style);
+
+        // 7. Divider
+        row.vertical_divider(18.0, style.divider_color);
+
+        // 8. Speed Presets Pills
+        for (idx, &preset) in SPEED_PRESETS.iter().enumerate() {
+            let tag = TIMELINE_TAG_SPEED_BASE + idx as u64;
+            let is_selected = (preset - current_speed).abs() < 0.05;
+            let _ = row.timeline_speed_pill(preset, is_selected, tag, &style);
+        }
+
+        // 9. Spacer
+        row.spacer();
+
+        // 10. Clip Title Badge
+        row.timeline_clip_badge(clip_name, &style);
+
+        // 11. Time & Frame Readout Display
+        row.timeline_time_readout(current_time, duration, 30.0, &style);
+    });
 }

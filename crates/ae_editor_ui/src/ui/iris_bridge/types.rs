@@ -211,6 +211,10 @@ pub struct IrisChromeState {
     pub needs_layout_rebuild: bool,
     /// Currently open dock tab overflow dropdown menu, storing the parent leaf node ID and anchor button rectangle.
     pub active_dock_overflow: Option<(irisui::dock::DockNodeId, Rect)>,
+    /// Currently hovered 64-bit semantic tag resolved from hit testing in the active frame.
+    pub hovered_tag: Option<u64>,
+    /// Last hovered 64-bit semantic tag used for reactive hover state invalidation.
+    pub last_hovered_tag: Option<u64>,
 }
 
 impl Default for IrisChromeState {
@@ -230,6 +234,8 @@ impl Default for IrisChromeState {
             last_has_drag_payload: false,
             needs_layout_rebuild: false,
             active_dock_overflow: None,
+            hovered_tag: None,
+            last_hovered_tag: None,
         }
     }
 }

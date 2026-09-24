@@ -4,8 +4,8 @@
 //! Subsystem for constructing individual panel nodes (Stats, Hierarchy, Inspector, Console, Assets, Material, Timeline, UI Designer).
 //!
 
-use super::hierarchy::{self, HierarchyPanelParams, HierarchyPanelTargets};
-use super::stats::{self, StatsPanelParams, StatsPanelTargets};
+use super::hierarchy::{self, HierarchyPanelParams};
+use super::stats::{self, StatsPanelParams};
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
 use irisui::prelude::*;
 
@@ -41,17 +41,11 @@ impl IrisEditorOverlay {
                 selected_entity: params.scene.selected_entity,
             };
 
-            let mut stats_targets = StatsPanelTargets::default();
-            let nodes =
-                stats::build_stats_panel(&mut self.tree, root, &stats_params, &mut stats_targets);
-            stats::update_stats_panel_values(&mut self.tree, &nodes, &stats_params, &stats_targets);
-            self.stats.targets = Some(stats_targets);
-            self.stats.nodes = Some(nodes);
+            let max_scroll = stats::build_stats_panel(&mut self.tree, root, &stats_params);
+            self.stats.max_scroll = max_scroll;
             self.stats.last_rect = Some(stats_rect);
             self.chrome.last_zoom_factor = params.context.zoom_factor;
         } else {
-            self.stats.nodes = None;
-            self.stats.targets = None;
             self.stats.last_rect = None;
         }
     }
@@ -70,7 +64,7 @@ impl IrisEditorOverlay {
                 panel_rect: hierarchy_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: &self.hierarchy.interactions.search_query,
+                search_query: &self.hierarchy.search_query,
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
                 scroll_y: self.hierarchy.scroll_y,
@@ -81,19 +75,20 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 is_search_focused: self.hierarchy.is_search_focused,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+                collapsed_entities: &self.hierarchy.collapsed_entities,
+                hovered_tag: self.chrome.hovered_tag,
             };
 
-            let mut hier_targets = HierarchyPanelTargets::default();
-            let _nodes = hierarchy::build_hierarchy_panel(
+            let max_scroll = hierarchy::build_hierarchy_panel(
                 &mut self.tree,
                 root,
                 &hier_params,
-                &mut hier_targets,
                 &mut self.hierarchy.rows_cache,
             );
-            self.hierarchy.targets = Some(hier_targets);
+            self.hierarchy.max_scroll = max_scroll;
+            self.hierarchy.last_rect = Some(hierarchy_rect);
         } else {
-            self.hierarchy.targets = None;
+            self.hierarchy.last_rect = None;
         }
     }
 
@@ -181,6 +176,7 @@ impl IrisEditorOverlay {
             && console_rect.width > 20.0
             && console_rect.height > 20.0
         {
+            self.console.panel_rect = Some(console_rect);
             let console_params = super::console::ConsolePanelParams {
                 panel_rect: console_rect,
                 entries: params.panel_data.console_entries,
@@ -191,18 +187,15 @@ impl IrisEditorOverlay {
                 auto_scroll: self.console.auto_scroll,
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+                is_scrollbar_dragging: self.console.active_scrollbar_drag.is_some(),
+                hovered_tag: self.chrome.hovered_tag,
             };
 
-            let mut console_targets = super::console::ConsolePanelTargets::default();
-            super::console::build_console_panel(
-                &mut self.tree,
-                root,
-                &console_params,
-                &mut console_targets,
-            );
-            self.console.targets = Some(console_targets);
+            let max_scroll =
+                super::console::build_console_panel(&mut self.tree, root, &console_params);
+            self.console.max_scroll_y = max_scroll;
         } else {
-            self.console.targets = None;
+            self.console.panel_rect = None;
         }
     }
 
@@ -321,7 +314,7 @@ impl IrisEditorOverlay {
                     .ok()
             });
 
-            let hovered_tag = self.tree.hit_test_target(self.cursor_pos()).map(|h| h.tag);
+            let hovered_tag = self.chrome.hovered_tag;
             let events = std::mem::take(&mut self.timeline.pending_interaction_events);
 
             let timeline_params = super::timeline::TimelinePanelParams {
@@ -334,18 +327,18 @@ impl IrisEditorOverlay {
                 hovered_tag,
             };
 
-            let mut timeline_targets = super::timeline::TimelinePanelTargets::default();
-            super::timeline::build_timeline_panel(
+            let duration = super::timeline::build_timeline_panel(
                 &mut self.tree,
                 root,
                 &timeline_params,
-                &mut timeline_targets,
                 &mut self.timeline.actions,
             );
-            self.timeline.targets = Some(timeline_targets);
+            self.timeline.panel_rect = Some(timeline_rect);
+            self.timeline.clip_duration = duration;
         } else {
-            self.timeline.targets = None;
+            self.timeline.panel_rect = None;
             self.timeline.is_dragging = false;
+            self.timeline.active_scrubber_track = None;
         }
     }
 
@@ -356,8 +349,9 @@ impl IrisEditorOverlay {
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(material_rect) = params.panel_rects.material {
-            let hovered_tag = self.tree.hit_test_target(self.cursor_pos()).map(|h| h.tag);
+            let hovered_tag = self.chrome.hovered_tag;
             let events = std::mem::take(&mut self.material.pending_interaction_events);
+            let is_scrollbar_dragging = self.material.active_scrollbar_drag.is_some();
 
             let material_params = super::material::MaterialPanelParams {
                 panel_rect: material_rect,
@@ -369,18 +363,21 @@ impl IrisEditorOverlay {
                 scroll_y: self.material.scroll_y,
                 hovered_tag,
                 events: &events,
+                is_scrollbar_dragging,
             };
 
-            let mut material_targets = super::material::MaterialPanelTargets::default();
-            super::material::build_material_panel(
-                &mut self.tree,
-                root,
-                &material_params,
-                &mut material_targets,
-            );
-            self.material.targets = Some(material_targets);
+            let max_scroll =
+                super::material::build_material_panel(&mut self.tree, root, &material_params);
+            self.material.max_scroll_y = max_scroll;
+            self.material.panel_rect = Some(material_rect);
+            self.material.active_model = params
+                .scene
+                .selected_entity
+                .and_then(|e| params.scene.world.get::<&ae_core::ecs::ModelId>(e).ok())
+                .map(|m| m.0);
         } else {
-            self.material.targets = None;
+            self.material.panel_rect = None;
+            self.material.active_model = None;
         }
     }
 
@@ -399,13 +396,19 @@ impl IrisEditorOverlay {
                 state: params.panel_data.ui_designer_state,
                 is_aspect_dropdown_open: self.ui_designer.is_aspect_open,
                 is_add_menu_open: self.ui_designer.is_add_menu_open,
+                hovered_tag: self.chrome.hovered_tag,
             };
 
-            let targets =
-                super::ui_designer::build_ui_designer_panel(&mut self.tree, root, &designer_params);
-            self.ui_designer.targets = Some(targets);
+            let metrics = super::ui_designer::build_ui_designer_panel(
+                &mut self.tree,
+                root,
+                &designer_params,
+                &mut self.ui_designer.drag_contexts,
+            );
+            self.ui_designer.canvas_metrics = metrics;
         } else {
-            self.ui_designer.targets = None;
+            self.ui_designer.drag_contexts.clear();
+            self.ui_designer.canvas_metrics = Default::default();
         }
     }
 

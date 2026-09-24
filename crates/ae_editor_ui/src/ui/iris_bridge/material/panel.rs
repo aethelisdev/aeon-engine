@@ -3,26 +3,28 @@
 
 //! # Material & Surface Studio Panel Orchestrator
 //!
-//! Assembles the root panel container, header bar, and delegates to specialized
-//! submesh or sprite material views purely using [`UiScope`].
+//! Assembles the root panel container, header bar, scrollable viewport, and
+//! vertical scrollbar for specialized submesh or sprite material views purely using [`UiScope`].
 //!
 
 use super::empty_state::{build_no_entity_selected, build_no_renderable_geometry};
 use super::header::{MATERIAL_HEADER_HEIGHT, build_material_header};
 use super::sprite_view::{SpriteViewParams, build_sprite_view};
 use super::submesh_view::{SubmeshViewParams, build_submesh_view};
-use super::types::{MaterialPanelParams, MaterialPanelTargets};
+use super::types::{
+    MATERIAL_TAG_SCROLLBAR_THUMB, MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_VIEWPORT,
+    MaterialPanelParams,
+};
 use irisui::prelude::*;
 
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
+///
+/// Returns the computed maximum vertical scroll limit in physical pixels.
 pub fn build_material_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &MaterialPanelParams<'_>,
-    targets: &mut MaterialPanelTargets,
-) {
-    targets.panel_rect = params.panel_rect;
-
+) -> f32 {
     let mut scope =
         UiScope::with_tagged_interactions(tree, parent_id, params.events, params.hovered_tag);
 
@@ -32,24 +34,26 @@ pub fn build_material_panel(
         .border(1.0, Color::rgba(0.12, 0.13, 0.16, 0.90))
         .clip_children(true);
 
+    let mut max_scroll = 0.0;
+
     scope.container(root_style, |panel_scope| {
         // 1. Top Header Bar
         build_material_header(panel_scope, params.entity, params.world);
 
         // 2. Main Body Content Area
+        let vp_h = (params.panel_rect.height - MATERIAL_HEADER_HEIGHT).max(10.0);
+
         match params.entity {
             None => {
-                let body_h = (params.panel_rect.height - MATERIAL_HEADER_HEIGHT).max(120.0);
                 let center_style = Style::new()
                     .flex_col()
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
-                    .height(body_h)
+                    .height(vp_h)
                     .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
                 panel_scope.container(center_style, |center_scope| {
                     build_no_entity_selected(center_scope);
                 });
-                targets.content_height = 160.0;
             }
             Some(entity) => {
                 let model_handle = params
@@ -57,61 +61,106 @@ pub fn build_material_panel(
                     .get::<&ae_core::ecs::ModelId>(entity)
                     .ok()
                     .map(|m| m.0);
-                targets.active_model = model_handle;
                 let has_model = model_handle.is_some();
                 let has_sprite = params.world.get::<&ae_core::ecs::SpriteId>(entity).is_ok();
 
                 if has_model {
-                    let vp_h = (params.panel_rect.height - MATERIAL_HEADER_HEIGHT).max(10.0);
-                    let vp_style = Style::new()
+                    let mut vp_style = Style::new()
                         .clip_children(true)
                         .flex_col()
                         .height(vp_h)
                         .gap(6.0)
-                        .padding_insets(Insets::new(6.0 - params.scroll_y, 6.0, 6.0, 6.0));
-                    panel_scope.container(vp_style, |vp_scope| {
-                        let submesh_params = SubmeshViewParams {
-                            entity,
-                            world: params.world,
-                            models: params.models,
-                            textures: params.textures,
-                        };
-                        let added_h = build_submesh_view(vp_scope, &submesh_params, targets);
-                        targets.content_height = added_h + 16.0;
-                    });
+                        .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
+                    vp_style.scroll_offset_y = params.scroll_y;
+
+                    let vp_id = panel_scope.container_tagged(
+                        "MaterialViewport",
+                        vp_style,
+                        WidgetRole::Default,
+                        MATERIAL_TAG_VIEWPORT,
+                        |vp_scope| {
+                            let submesh_params = SubmeshViewParams {
+                                entity,
+                                world: params.world,
+                                models: params.models,
+                                textures: params.textures,
+                            };
+                            build_submesh_view(vp_scope, &submesh_params);
+                        },
+                    );
+
+                    let content_h = measure_content_height(panel_scope.tree(), vp_id);
+                    max_scroll = (content_h - vp_h).max(0.0);
                 } else if has_sprite {
-                    let vp_h = (params.panel_rect.height - MATERIAL_HEADER_HEIGHT).max(10.0);
-                    let vp_style = Style::new()
+                    let mut vp_style = Style::new()
                         .clip_children(true)
                         .flex_col()
                         .height(vp_h)
                         .gap(6.0)
-                        .padding_insets(Insets::new(6.0 - params.scroll_y, 6.0, 6.0, 6.0));
-                    panel_scope.container(vp_style, |vp_scope| {
-                        let sprite_params = SpriteViewParams {
-                            entity,
-                            world: params.world,
-                            textures: params.textures,
-                        };
-                        let added_h = build_sprite_view(vp_scope, &sprite_params, targets);
-                        targets.content_height = added_h + 16.0;
-                    });
+                        .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
+                    vp_style.scroll_offset_y = params.scroll_y;
+
+                    let vp_id = panel_scope.container_tagged(
+                        "MaterialViewport",
+                        vp_style,
+                        WidgetRole::Default,
+                        MATERIAL_TAG_VIEWPORT,
+                        |vp_scope| {
+                            let sprite_params = SpriteViewParams {
+                                entity,
+                                world: params.world,
+                                textures: params.textures,
+                            };
+                            build_sprite_view(vp_scope, &sprite_params);
+                        },
+                    );
+
+                    let content_h = measure_content_height(panel_scope.tree(), vp_id);
+                    max_scroll = (content_h - vp_h).max(0.0);
                 } else {
-                    let body_h = (params.panel_rect.height - MATERIAL_HEADER_HEIGHT).max(120.0);
                     let center_style = Style::new()
                         .flex_col()
                         .align_items(AlignItems::Center)
                         .justify_content(JustifyContent::Center)
-                        .height(body_h)
+                        .height(vp_h)
                         .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
                     panel_scope.container(center_style, |center_scope| {
-                        build_no_renderable_geometry(center_scope, targets);
+                        build_no_renderable_geometry(center_scope);
                     });
-                    targets.content_height = 200.0;
                 }
+            }
+        }
+
+        // 3. Vertical Scrollbar
+        if max_scroll > 0.0 {
+            let content_h = vp_h + max_scroll;
+            let effective_scroll_y = params.scroll_y.clamp(0.0, max_scroll);
+            let vp_rect = Rect::new(
+                params.panel_rect.x,
+                params.panel_rect.y + MATERIAL_HEADER_HEIGHT,
+                params.panel_rect.width,
+                vp_h,
+            );
+            let scroll_style = ScrollAreaStyle::dark_default();
+            if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                vp_rect,
+                content_h,
+                effective_scroll_y,
+                &scroll_style,
+            ) {
+                panel_scope.scrollbar_vertical(
+                    geom,
+                    params.panel_rect,
+                    params.is_scrollbar_dragging,
+                    Some(params.cursor_pos),
+                    MATERIAL_TAG_SCROLLBAR_TRACK,
+                    MATERIAL_TAG_SCROLLBAR_THUMB,
+                );
             }
         }
 
         panel_scope.finish_layout(params.panel_rect);
     });
+
+    max_scroll
 }

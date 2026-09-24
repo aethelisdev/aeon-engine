@@ -3,7 +3,7 @@
 
 //! # Performance Stats & Telemetry Profiler Iris UI Module
 //!
-//! Orchestrates the retained-mode frame pacing oscillograph, CPU/GPU pass breakdowns,
+//! Orchestrates the declarative frame pacing oscillograph, CPU/GPU pass breakdowns,
 //! draw call distribution, granular VRAM memory cards, and viewport overlay toggles.
 //!
 
@@ -13,10 +13,13 @@ pub mod graph;
 pub mod metrics;
 pub mod overlays;
 pub mod panel;
+#[cfg(test)]
+pub mod tests;
 pub mod types;
 
 pub use graph::append_oscilloscope_quads;
-pub use panel::{build_stats_panel, update_stats_panel_values};
+pub use panel::build_stats_panel;
 pub use types::{
-    StatsPanelAction, StatsPanelNodes, StatsPanelParams, StatsPanelState, StatsPanelTargets,
+    STATS_TAG_CANVAS, STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME,
+    StatsPanelAction, StatsPanelParams, StatsPanelState, is_stats_tag,
 };

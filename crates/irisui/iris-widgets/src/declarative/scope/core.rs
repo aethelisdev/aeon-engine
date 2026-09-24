@@ -96,6 +96,12 @@ impl<'a> UiScope<'a> {
         self.parent
     }
 
+    /// Returns an immutable reference to the underlying [`UiTree`] arena.
+    #[inline]
+    pub fn tree(&self) -> &UiTree {
+        self.tree
+    }
+
     /// Returns a mutable reference to the underlying [`UiTree`] arena.
     #[inline]
     pub fn tree_mut(&mut self) -> &mut UiTree {
@@ -158,6 +164,14 @@ impl<'a> UiScope<'a> {
     pub fn finish_layout_with_hover(&mut self, bounds: Rect, cursor_pos: Point) {
         layout_subtree(self.tree, self.parent, bounds);
         update_hover_styles_recursive(self.tree, self.parent, cursor_pos);
+    }
+
+    /// Sets the vertical scroll offset in pixels on the active parent container node.
+    #[inline]
+    pub fn set_scroll_offset_y(&mut self, offset_y: f32) {
+        if let Some(node) = self.tree.get_mut(self.parent) {
+            node.style.scroll_offset_y = offset_y;
+        }
     }
 }
 

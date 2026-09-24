@@ -45,14 +45,13 @@ fn test_material_panel_build_empty_state() {
         scroll_y: 0.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
 
-    let mut targets = MaterialPanelTargets::default();
-    build_material_panel(&mut tree, root, &params, &mut targets);
+    let max_scroll = build_material_panel(&mut tree, root, &params);
 
-    assert_eq!(targets.panel_rect, panel_rect);
-    assert!(targets.active_model.is_none());
-    assert!(targets.content_height > 0.0);
+    assert_eq!(params.panel_rect, panel_rect);
+    assert!(max_scroll >= 0.0);
 }
 
 #[test]
@@ -75,10 +74,10 @@ fn test_material_panel_build_no_geometry() {
         scroll_y: 0.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
 
-    let mut targets = MaterialPanelTargets::default();
-    build_material_panel(&mut tree, root, &params, &mut targets);
+    let _max_scroll = build_material_panel(&mut tree, root, &params);
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_ADD_TEXTURE));
 }
@@ -107,10 +106,10 @@ fn test_material_panel_build_sprite_view() {
         scroll_y: 0.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
 
-    let mut targets = MaterialPanelTargets::default();
-    build_material_panel(&mut tree, root, &params, &mut targets);
+    let _max_scroll = build_material_panel(&mut tree, root, &params);
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_CHANGE));
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_REMOVE));
@@ -200,10 +199,10 @@ fn test_material_panel_does_not_mutate_parent_rect() {
         scroll_y: 0.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
 
-    let mut targets = MaterialPanelTargets::default();
-    build_material_panel(&mut tree, root, &params, &mut targets);
+    let _max_scroll = build_material_panel(&mut tree, root, &params);
 
     let root_rect = tree.get(root).unwrap().computed_rect;
     let menubar_rect = tree.get(menubar).unwrap().computed_rect;
@@ -236,9 +235,9 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         scroll_y: 0.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
-    let mut targets_0 = MaterialPanelTargets::default();
-    build_material_panel(&mut tree, root, &params_0, &mut targets_0);
+    let _max_scroll = build_material_panel(&mut tree, root, &params_0);
 
     // Find the sprite change button's Y position at scroll 0
     let change_btn_0 =
@@ -258,9 +257,9 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         scroll_y: 50.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
-    let mut targets_50 = MaterialPanelTargets::default();
-    build_material_panel(&mut tree_scroll, root_scroll, &params_50, &mut targets_50);
+    let _max_scroll = build_material_panel(&mut tree_scroll, root_scroll, &params_50);
 
     let change_btn_50 = find_node_by_tag(&tree_scroll, root_scroll, MATERIAL_TAG_SPRITE_CHANGE)
         .expect("Button must exist");
@@ -283,14 +282,9 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         scroll_y: 0.0,
         hovered_tag: None,
         events: &[],
+        is_scrollbar_dragging: false,
     };
-    let mut targets_empty = MaterialPanelTargets::default();
-    build_material_panel(
-        &mut tree_empty,
-        root_empty,
-        &params_empty,
-        &mut targets_empty,
-    );
+    let _max_scroll = build_material_panel(&mut tree_empty, root_empty, &params_empty);
 
     let add_btn = find_node_by_tag(&tree_empty, root_empty, MATERIAL_TAG_ADD_TEXTURE)
         .expect("Add texture button must exist in empty state");
