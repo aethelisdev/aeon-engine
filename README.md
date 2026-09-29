@@ -8,7 +8,7 @@
 [![Instagram](https://img.shields.io/badge/AeonEngine-E4405F?style=flat\&logo=instagram\&logoColor=white)](https://instagram.com/aeonengine)
 [![X / Twitter](https://img.shields.io/badge/AeonEngine-000000?style=flat\&logo=x\&logoColor=white)](https://x.com/aeonengine)
 
-[English](../README.md) | **Türkçe** | [日本語](README_ja.md) | [简体中文](README_zh.md)
+**English** | [Türkçe](docs/README_tr.md) | [日本語](docs/README_ja.md) | [简体中文](docs/README_zh.md)
 
 ![Aeon Engine Play Mode](./assets/screenshots/aeonengineplaymode.png)
 
