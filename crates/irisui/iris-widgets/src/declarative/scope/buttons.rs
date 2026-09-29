@@ -39,20 +39,39 @@ impl<'a> UiScope<'a> {
         self.button_named_tagged("Button", label, tag)
     }
 
-    /// Emits an interactive push button with a descriptive node name and a custom semantic tag.
+    /// Emits an interactive push button with a custom [`Style`] and semantic tag.
     ///
-    /// Automatically applies hover highlighting, pointer cursor, and layout styling internally.
+    /// Automatically applies subtle hover brightening to the background and border
+    /// while fully respecting custom sizing, padding, and layout properties from `style`.
+    ///
+    /// # Arguments
+    /// * `label` - Button caption text.
+    /// * `style` - Custom layout and visual appearance style.
+    /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
+    pub fn button_styled_tagged(
+        &mut self,
+        label: impl Into<String>,
+        style: Style,
+        tag: u64,
+    ) -> WidgetResponse {
+        self.button_named_styled_tagged("Button", label, style, tag)
+    }
+
+    /// Emits an interactive push button with a descriptive node name, custom [`Style`], and semantic tag.
     ///
     /// # Arguments
     /// * `name` - Descriptive identifier assigned to the UI node for debugging and tree inspection.
     /// * `label` - Button caption text.
+    /// * `style` - Custom layout and visual appearance style.
     /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
-    pub fn button_named_tagged(
+    pub fn button_named_styled_tagged(
         &mut self,
         name: &'static str,
         label: impl Into<String>,
+        style: Style,
         tag: u64,
     ) -> WidgetResponse {
+        let label_str = label.into();
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name(name);
@@ -64,7 +83,7 @@ impl<'a> UiScope<'a> {
             node.interactive = true;
             node.role = WidgetRole::Button;
             node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(label);
+            node.set_text(label_str);
             node.font_size = 11.0;
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
@@ -73,30 +92,80 @@ impl<'a> UiScope<'a> {
             } else {
                 Color::rgba(0.0, 0.88, 1.0, 1.0)
             };
-            node.set_style(
-                Style::new()
-                    .padding_insets(Insets::new(5.0, 14.0, 5.0, 14.0))
-                    .background(if hovered {
-                        Color::rgba(0.0, 0.45, 0.60, 0.80)
-                    } else {
-                        Color::rgba(0.0, 0.30, 0.42, 0.60)
-                    })
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(0.0, 0.90, 1.0, 0.90)
-                        } else {
-                            Color::rgba(0.0, 0.75, 0.95, 0.60)
-                        },
-                    )
-                    .border_radius(4.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-            );
-            node.style.width = Some(180.0);
-            node.style.height = Some(26.0);
+            let mut resolved_style = style;
+            if hovered {
+                let bg = resolved_style.background_color;
+                if bg.a > 0.01 {
+                    resolved_style.background_color = Color::rgba(
+                        (bg.r * 1.30).min(1.0),
+                        (bg.g * 1.30).min(1.0),
+                        (bg.b * 1.30).min(1.0),
+                        bg.a,
+                    );
+                }
+                let bc = resolved_style.border.color;
+                if bc.a > 0.01 {
+                    resolved_style.border.color = Color::rgba(
+                        (bc.r * 1.35).min(1.0),
+                        (bc.g * 1.35).min(1.0),
+                        (bc.b * 1.35).min(1.0),
+                        bc.a,
+                    );
+                }
+            }
+            node.set_style(resolved_style);
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
+    }
+
+    /// Emits an interactive push button with a descriptive node name and a custom semantic tag.
+    ///
+    /// Automatically applies hover highlighting, pointer cursor, and layout styling internally.
+    /// Uses content-based snug width by default.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive identifier assigned to the UI node for debugging and tree inspection.
+    /// * `label` - Button caption text.
+    /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
+    pub fn button_named_tagged(
+        &mut self,
+        name: &'static str,
+        label: impl Into<String>,
+        tag: u64,
+    ) -> WidgetResponse {
+        let default_style = Style::new()
+            .height(26.0)
+            .padding_insets(Insets::new(5.0, 14.0, 5.0, 14.0))
+            .background(Color::rgba(0.0, 0.30, 0.42, 0.60))
+            .border(1.0, Color::rgba(0.0, 0.75, 0.95, 0.60))
+            .border_radius(4.0)
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center);
+        self.button_named_styled_tagged(name, label, default_style, tag)
+    }
+
+    /// Emits an interactive push button with an explicit width constraint and semantic tag.
+    ///
+    /// # Arguments
+    /// * `label` - Button caption text.
+    /// * `width` - Explicit button width in logical points.
+    /// * `tag` - Semantic tag for tracking interactions.
+    pub fn button_with_width_tagged(
+        &mut self,
+        label: impl Into<String>,
+        width: f32,
+        tag: u64,
+    ) -> WidgetResponse {
+        let mut style = Style::new()
+            .height(26.0)
+            .padding_insets(Insets::new(5.0, 14.0, 5.0, 14.0))
+            .background(Color::rgba(0.0, 0.30, 0.42, 0.60))
+            .border(1.0, Color::rgba(0.0, 0.75, 0.95, 0.60))
+            .border_radius(4.0)
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center);
+        style.width = Some(width);
+        self.button_named_styled_tagged("Button", label, style, tag)
     }
 
     /// Emits an interactive push button with explicit width, custom icon tint, and semantic tag.
@@ -341,45 +410,44 @@ impl<'a> UiScope<'a> {
             node.text_align = TextAlign::Center;
 
             let (bg, border_c, border_w, text_color) = if is_active {
-                (
-                    Color::rgba(
-                        (accent_color.r * 0.45).clamp(0.08, 0.50),
-                        (accent_color.g * 0.45).clamp(0.08, 0.50),
-                        (accent_color.b * 0.45).clamp(0.08, 0.50),
-                        0.52,
-                    ),
-                    accent_color,
-                    1.5,
-                    Color::WHITE,
-                )
+                let bg_c = Color::rgba(
+                    (accent_color.r * 0.45).clamp(0.08, 0.50),
+                    (accent_color.g * 0.45).clamp(0.08, 0.50),
+                    (accent_color.b * 0.45).clamp(0.08, 0.50),
+                    0.52,
+                );
+                (bg_c, accent_color, 1.5, Color::WHITE)
             } else if hovered {
+                let bg_c = Color::rgba(
+                    (accent_color.r * 0.28).clamp(0.05, 0.35),
+                    (accent_color.g * 0.28).clamp(0.05, 0.35),
+                    (accent_color.b * 0.28).clamp(0.05, 0.35),
+                    0.32,
+                );
                 (
-                    Color::rgba(
-                        (accent_color.r * 0.28).clamp(0.05, 0.35),
-                        (accent_color.g * 0.28).clamp(0.05, 0.35),
-                        (accent_color.b * 0.28).clamp(0.05, 0.35),
-                        0.32,
-                    ),
+                    bg_c,
                     Color::rgba(accent_color.r, accent_color.g, accent_color.b, 0.75),
                     1.0,
                     Color::WHITE,
                 )
             } else {
+                let bg_c = Color::rgba(
+                    (accent_color.r * 0.18).clamp(0.03, 0.22),
+                    (accent_color.g * 0.18).clamp(0.03, 0.22),
+                    (accent_color.b * 0.18).clamp(0.03, 0.22),
+                    0.22,
+                );
+                let txt_c = Color::rgba(
+                    (0.70 + accent_color.r * 0.30).min(1.0),
+                    (0.70 + accent_color.g * 0.30).min(1.0),
+                    (0.70 + accent_color.b * 0.30).min(1.0),
+                    1.0,
+                );
                 (
-                    Color::rgba(
-                        (accent_color.r * 0.18).clamp(0.03, 0.22),
-                        (accent_color.g * 0.18).clamp(0.03, 0.22),
-                        (accent_color.b * 0.18).clamp(0.03, 0.22),
-                        0.22,
-                    ),
+                    bg_c,
                     Color::rgba(accent_color.r, accent_color.g, accent_color.b, 0.42),
                     1.0,
-                    Color::rgba(
-                        (0.70 + accent_color.r * 0.30).min(1.0),
-                        (0.70 + accent_color.g * 0.30).min(1.0),
-                        (0.70 + accent_color.b * 0.30).min(1.0),
-                        1.0,
-                    ),
+                    txt_c,
                 )
             };
 
@@ -617,121 +685,5 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(btn_id, txt_id);
 
         WidgetResponse::new(btn_id, clicked, hovered, false)
-    }
-
-    /// Emits a circular interactive compass knob button for 3D orientation gizmos.
-    ///
-    /// Positioned absolutely within its parent compass canvas container. Applies circular
-    /// geometry, pointer cursor, interactive event response, and automatically binds an embedded
-    /// non-interactive text label centered within the knob geometry.
-    ///
-    /// # Arguments
-    /// * `label` - Single-character axis indicator caption (e.g. "X", "Y", "Z").
-    /// * `tag` - Unique 64-bit semantic tag for hit-testing and action dispatching.
-    /// * `x` - Left coordinate offset relative to parent compass canvas in logical points.
-    /// * `y` - Top coordinate offset relative to parent compass canvas in logical points.
-    /// * `size` - Diameter of the circular knob button in logical points.
-    /// * `color` - Idle background fill color representing the target axis.
-    pub fn compass_knob(
-        &mut self,
-        label: impl Into<String>,
-        tag: u64,
-        x: f32,
-        y: f32,
-        size: f32,
-        color: Color,
-    ) -> WidgetResponse {
-        let label_str = label.into();
-        let knob_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(knob_id) {
-            node.tag = tag;
-        }
-        let _ = self.tree.add_child(self.parent, knob_id);
-        let (clicked, hovered, _) = self.check_interaction(knob_id);
-
-        if let Some(node) = self.tree.get_mut(knob_id) {
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
-            node.set_name("CompassKnob");
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(x)
-                    .top(y)
-                    .width(size)
-                    .height(size)
-                    .background(if hovered { Color::WHITE } else { color })
-                    .border_radius(size * 0.5),
-            );
-        }
-
-        let txt_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(txt_id) {
-            node.interactive = false;
-            node.set_name("CompassKnobText");
-            node.set_text(label_str);
-            node.font_size = 8.5;
-            node.line_height = size;
-            node.text_align = TextAlign::Center;
-            node.text_color = if hovered { Color::BLACK } else { Color::WHITE };
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(0.0)
-                    .top(0.0)
-                    .width(size)
-                    .height(size),
-            );
-        }
-        let _ = self.tree.add_child(knob_id, txt_id);
-
-        WidgetResponse::new(knob_id, clicked, hovered, false)
-    }
-
-    /// Emits a small circular interactive compass dot representing a negative axis endpoint.
-    ///
-    /// Positioned absolutely within its parent compass canvas container. Applies circular
-    /// geometry, pointer cursor, and interactive event response for clicking and hover highlighting.
-    ///
-    /// # Arguments
-    /// * `tag` - Unique 64-bit semantic tag for hit-testing and action dispatching.
-    /// * `x` - Left coordinate offset relative to parent compass canvas in logical points.
-    /// * `y` - Top coordinate offset relative to parent compass canvas in logical points.
-    /// * `size` - Diameter of the circular dot in logical points.
-    /// * `color` - Idle background fill color representing the negative axis.
-    pub fn compass_dot(
-        &mut self,
-        tag: u64,
-        x: f32,
-        y: f32,
-        size: f32,
-        color: Color,
-    ) -> WidgetResponse {
-        let dot_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(dot_id) {
-            node.tag = tag;
-        }
-        let _ = self.tree.add_child(self.parent, dot_id);
-        let (clicked, hovered, _) = self.check_interaction(dot_id);
-
-        if let Some(node) = self.tree.get_mut(dot_id) {
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
-            node.set_name("CompassDot");
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(x)
-                    .top(y)
-                    .width(size)
-                    .height(size)
-                    .background(if hovered { Color::WHITE } else { color })
-                    .border_radius(size * 0.5),
-            );
-        }
-
-        WidgetResponse::new(dot_id, clicked, hovered, false)
     }
 }

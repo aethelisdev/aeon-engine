@@ -237,10 +237,10 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
     let mut found_track = false;
     let mut found_thumb = false;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.tag == irisui::prelude::CONSOLE_TAG_SCROLLBAR_TRACK {
+        if node.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
             found_track = true;
             assert!(node.computed_rect.height > 0.0);
-        } else if node.tag == irisui::prelude::CONSOLE_TAG_SCROLLBAR_THUMB {
+        } else if node.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
             found_thumb = true;
             assert!(node.computed_rect.height > 0.0);
         }
@@ -273,14 +273,14 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: Some(irisui::prelude::CONSOLE_TAG_CLEAR),
+        hovered_tag: Some(CONSOLE_TAG_CLEAR),
     };
 
     build_console_panel(&mut tree, root, &params_clear_hover);
 
     let (_, clear_node) = tree
         .iter()
-        .find(|(_, n)| n.tag == irisui::prelude::CONSOLE_TAG_CLEAR)
+        .find(|(_, n)| n.tag == CONSOLE_TAG_CLEAR)
         .expect("Clear button must exist in tree");
 
     assert_eq!(
@@ -310,16 +310,14 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: Some(irisui::prelude::CONSOLE_TAG_SEARCH_INPUT),
+        hovered_tag: Some(CONSOLE_TAG_SEARCH_INPUT),
     };
 
     build_console_panel(&mut tree2, root2, &params_search_hover);
 
     let (_, search_node) = tree2
         .iter()
-        .find(|(_, n)| {
-            n.tag == irisui::prelude::CONSOLE_TAG_SEARCH_INPUT && n.role == WidgetRole::TextInput
-        })
+        .find(|(_, n)| n.tag == CONSOLE_TAG_SEARCH_INPUT && n.role == WidgetRole::TextInput)
         .expect("Search input node must exist in tree");
 
     assert_eq!(

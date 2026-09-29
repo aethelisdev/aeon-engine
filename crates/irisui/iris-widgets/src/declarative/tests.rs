@@ -443,7 +443,12 @@ fn test_panel_tagged_declarative_layout_and_flex_grow() {
                 0x500b,
                 iris_core::Color::BLACK,
                 |vp| {
-                    vp.console_empty_notice("No entries");
+                    vp.label(
+                        "No entries",
+                        12.0,
+                        iris_core::Color::WHITE,
+                        iris_core::TextAlign::Center,
+                    );
                 },
             );
             vp_id_opt = Some(vp_id);
@@ -524,42 +529,6 @@ fn test_input_box_tagged_with_icon_and_caret_layout() {
     assert_eq!(caret_node.computed_rect.width, 1.5);
     assert_eq!(caret_node.computed_rect.height, 14.0); // (24.0 - 10.0)
     assert!(caret_node.computed_rect.x < text_node.computed_rect.x);
-}
-
-#[test]
-fn test_declarative_console_row_and_notice_composition() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root should be created");
-
-    let (notice_id, row_id) = {
-        let mut scope = UiScope::new(&mut tree, root);
-        let notice = scope.console_empty_notice("No logs detected");
-        let row = scope.console_row(
-            crate::console::types::ConsoleLogLevel::Error,
-            "12:34:56.789",
-            "ae_core",
-            "Null pointer avoided safely",
-            true,
-            false,
-        );
-        (notice, row)
-    };
-
-    assert!(tree.get(notice_id).is_some());
-    let notice_node = tree.get(notice_id).expect("Notice node");
-    assert_eq!(notice_node.name.as_deref(), Some("ConsoleEmptyNotice"));
-
-    assert!(tree.get(row_id).is_some());
-    let row_node = tree.get(row_id).expect("Row node");
-    assert_eq!(row_node.name.as_deref(), Some("ConsoleRow"));
-    assert_eq!(row_node.tag, crate::console::types::CONSOLE_TAG_ROW);
-
-    // Layout resolution test
-    let bounds = Rect::new(0.0, 0.0, 600.0, 300.0);
-    layout_subtree(&mut tree, root, bounds);
-
-    let row_node_after = tree.get(row_id).expect("Row node after layout");
-    assert_eq!(row_node_after.computed_rect.height, 26.0);
 }
 
 #[test]
@@ -651,74 +620,4 @@ fn test_declarative_row_flex_badge_and_button_fits_bounds() {
 
     // Button must fit inside row bounds without being pushed off
     assert!(btn_node.computed_rect.right() <= bounds.right());
-}
-
-#[test]
-fn test_declarative_timeline_primitives_layout_and_interaction() {
-    use crate::timeline::{
-        MediaTransportStyle, TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_SCRUBBER_TRACK,
-        TimelineKeyframeMarker, TimelineRulerStyle,
-    };
-
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root exists");
-    if let Some(node) = tree.get_mut(root) {
-        node.style = iris_core::Style::new().flex_col();
-    }
-
-    let click_events = [(
-        TIMELINE_TAG_PLAY_PAUSE,
-        iris_core::InteractionEvent::Click {
-            button: iris_core::MouseButton::Left,
-        },
-    )];
-
-    let tp_style = MediaTransportStyle::dark_default();
-    let ruler_style = TimelineRulerStyle::dark_default();
-
-    let (track_id, cap_id);
-
-    {
-        let mut scope = UiScope::with_tagged_interactions(&mut tree, root, &click_events, None);
-
-        // 1. Transport Button
-        let (_, play_resp) = scope.timeline_transport_button(
-            "TimelinePlayBtn",
-            "▶",
-            TIMELINE_TAG_PLAY_PAUSE,
-            false,
-            true,
-            &tp_style,
-        );
-        assert!(play_resp.clicked());
-
-        // 2. Timeline Ruler
-        let _ = scope.timeline_ruler_bar(5.0, 18.0, &ruler_style);
-
-        // 3. Scrubber Track
-        let keyframes = [
-            TimelineKeyframeMarker::new(1.0),
-            TimelineKeyframeMarker::new(2.5),
-        ];
-        let (t_id, c_id) =
-            scope.timeline_scrubber_track(5.0, 2.5, false, &keyframes, 36.0, &ruler_style);
-        track_id = t_id;
-        cap_id = c_id;
-    }
-
-    let bounds = Rect::new(0.0, 0.0, 800.0, 120.0);
-    layout_subtree(&mut tree, root, bounds);
-
-    let track_node = tree.get(track_id).expect("Track exists");
-    assert_eq!(track_node.role, WidgetRole::TimelineTrack);
-    assert_eq!(track_node.tag, TIMELINE_TAG_SCRUBBER_TRACK);
-    assert!(track_node.computed_rect.width > 700.0);
-    assert_eq!(track_node.computed_rect.height, 36.0);
-
-    // Verify playhead needle/cap positioned at 50% (2.5s / 5.0s)
-    let cap_node = tree.get(cap_id).expect("Playhead cap exists");
-    assert_eq!(cap_node.role, WidgetRole::TimelinePlayhead);
-    let center_x = track_node.computed_rect.x + track_node.computed_rect.width * 0.5;
-    let cap_center_x = cap_node.computed_rect.x + cap_node.computed_rect.width * 0.5;
-    assert!((cap_center_x - center_x).abs() < 2.0);
 }

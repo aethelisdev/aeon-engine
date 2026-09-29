@@ -161,20 +161,22 @@ fn test_timeline_scrubber_projection_math() {
 
 #[test]
 fn test_timeline_click_hit_testing() {
+    use super::types::{
+        TIMELINE_TAG_LOOP, TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_SPEED_BASE, TIMELINE_TAG_STOP,
+    };
     // Click Play button
-    let act_play = handle_timeline_click(irisui::prelude::TIMELINE_TAG_PLAY_PAUSE, None).unwrap();
+    let act_play = handle_timeline_click(TIMELINE_TAG_PLAY_PAUSE, None).unwrap();
     assert_eq!(act_play, TimelineAction::TogglePlayPause);
 
     // Click Stop button
-    let act_stop = handle_timeline_click(irisui::prelude::TIMELINE_TAG_STOP, None).unwrap();
+    let act_stop = handle_timeline_click(TIMELINE_TAG_STOP, None).unwrap();
     assert_eq!(act_stop, TimelineAction::Stop);
 
     // Click Loop toggle
-    let act_loop = handle_timeline_click(irisui::prelude::TIMELINE_TAG_LOOP, None).unwrap();
+    let act_loop = handle_timeline_click(TIMELINE_TAG_LOOP, None).unwrap();
     assert_eq!(act_loop, TimelineAction::ToggleLoop);
 
     // Click Speed 2x button (index 3)
-    let act_spd =
-        handle_timeline_click(irisui::prelude::TIMELINE_TAG_SPEED_BASE + 3, None).unwrap();
+    let act_spd = handle_timeline_click(TIMELINE_TAG_SPEED_BASE + 3, None).unwrap();
     assert_eq!(act_spd, TimelineAction::SetSpeed(2.0));
 }

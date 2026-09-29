@@ -100,10 +100,11 @@ impl IrisEditorOverlay {
         }
 
         // 3. Preferences Dialog Scrolling
-        if let Some(ref targets) = self.preferences.targets
-            && targets.card_rect.contains_point(cursor)
+        if let Some(card_rect) = self.preferences.card_rect
+            && card_rect.contains_point(cursor)
         {
-            self.preferences.scroll_y = (self.preferences.scroll_y - delta_y).max(0.0);
+            self.preferences.scroll_y =
+                (self.preferences.scroll_y - delta_y).clamp(0.0, self.preferences.max_scroll_y);
             result.consumed = true;
             return Some(result);
         }

@@ -7,7 +7,7 @@
 //! and timeline scrubbing timestamp projections via semantic tags.
 //!
 
-use super::types::TimelineAction;
+use super::types::{MediaTransportAction, TimelineAction, evaluate_timeline_transport_tag};
 
 /// Evaluates a mouse click against timeline semantic tags and returns the corresponding action.
 pub fn handle_timeline_click(
@@ -15,19 +15,15 @@ pub fn handle_timeline_click(
     _entity: Option<hecs::Entity>,
 ) -> Option<TimelineAction> {
     if let Some(transport_action) =
-        irisui::prelude::evaluate_timeline_transport_tag(hit_tag, &super::transport::SPEED_PRESETS)
+        evaluate_timeline_transport_tag(hit_tag, &super::transport::SPEED_PRESETS)
     {
         let action = match transport_action {
-            irisui::prelude::MediaTransportAction::TogglePlayPause => {
-                TimelineAction::TogglePlayPause
-            }
-            irisui::prelude::MediaTransportAction::Stop => TimelineAction::Stop,
-            irisui::prelude::MediaTransportAction::StepBack => TimelineAction::StepFrame(-1),
-            irisui::prelude::MediaTransportAction::StepForward => TimelineAction::StepFrame(1),
-            irisui::prelude::MediaTransportAction::ToggleLoop => TimelineAction::ToggleLoop,
-            irisui::prelude::MediaTransportAction::SetSpeed(speed) => {
-                TimelineAction::SetSpeed(speed)
-            }
+            MediaTransportAction::TogglePlayPause => TimelineAction::TogglePlayPause,
+            MediaTransportAction::Stop => TimelineAction::Stop,
+            MediaTransportAction::StepBack => TimelineAction::StepFrame(-1),
+            MediaTransportAction::StepForward => TimelineAction::StepFrame(1),
+            MediaTransportAction::ToggleLoop => TimelineAction::ToggleLoop,
+            MediaTransportAction::SetSpeed(speed) => TimelineAction::SetSpeed(speed),
         };
         return Some(action);
     }

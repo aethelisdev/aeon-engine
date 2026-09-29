@@ -215,6 +215,11 @@ pub struct IrisChromeState {
     pub hovered_tag: Option<u64>,
     /// Last hovered 64-bit semantic tag used for reactive hover state invalidation.
     pub last_hovered_tag: Option<u64>,
+    /// When set to `true`, disables retained diffing/sleeping cache and forces a full UI tree reconstruction
+    /// every frame (pure immediate / always-rebuild mode).
+    ///
+    /// Useful for smooth animation playback and responsive UI iteration prior to modular sub-tree adoption.
+    pub always_rebuild: bool,
 }
 
 impl Default for IrisChromeState {
@@ -236,6 +241,7 @@ impl Default for IrisChromeState {
             active_dock_overflow: None,
             hovered_tag: None,
             last_hovered_tag: None,
+            always_rebuild: true,
         }
     }
 }
@@ -319,6 +325,16 @@ impl IrisEditorOverlay {
             || self.inspector.hex_buffer.is_some()
             || self.modals.is_new_folder_active
             || self.modals.is_rename_active
+    }
+
+    /// Configures whether the editor UI overlay reconstructs the tree on every frame (immediate mode)
+    /// or uses dirty invalidation caching (retained mode).
+    ///
+    /// When set to `true`, the layout tree and command buffer are rebuilt each frame, ensuring that
+    /// live animations, timelines, and inputs update smoothly without requiring mouse movement.
+    #[inline]
+    pub fn set_always_rebuild(&mut self, enabled: bool) {
+        self.chrome.always_rebuild = enabled;
     }
 }
 

@@ -7,6 +7,9 @@
 //! transport controls via semantic tags for the Iris UI Animation Timeline Studio panel.
 //!
 
+use crate::ui::iris_bridge::timeline::types::{
+    TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK, is_timeline_tag,
+};
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
@@ -36,8 +39,9 @@ impl IrisEditorOverlay {
             if let Some(hit) = self.tree.hit_test_target(click_point) {
                 // A. Scrubber Track or Playhead Cap hit -> initiate scrubbing drag
                 if hit.tag == TIMELINE_TAG_SCRUBBER_TRACK || hit.tag == TIMELINE_TAG_PLAYHEAD_CAP {
-                    let track_x = hit.rect.x;
-                    let track_w = hit.rect.width.max(1.0);
+                    let track_x = hit.rect.x + super::super::timeline::TIMELINE_SIDEBAR_WIDTH;
+                    let track_w =
+                        (hit.rect.width - super::super::timeline::TIMELINE_SIDEBAR_WIDTH).max(1.0);
                     self.timeline.active_scrubber_track = Some((track_x, track_w));
                     self.timeline.is_dragging = true;
 
@@ -73,7 +77,7 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
 
-                if irisui::prelude::is_timeline_tag(hit.tag) {
+                if is_timeline_tag(hit.tag) {
                     result.consumed = true;
                     return Some(result);
                 }

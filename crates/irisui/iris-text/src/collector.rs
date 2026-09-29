@@ -178,135 +178,152 @@ fn collect_node_text<'a>(
         && node.computed_rect.width > 0.0
         && node.computed_rect.height > 0.0
     {
-        let mut effective_clip = child_clip;
-
-        // Approximate visual horizontal footprint of the text
-        let text_char_count = text.chars().count() as f32;
-        let approx_text_width = text_char_count * (node.font_size * 0.62);
-        let (text_min_x, text_max_x) = match node.text_align {
-            TextAlign::Left => (
-                node.computed_rect.x,
-                (node.computed_rect.x + approx_text_width).min(node.computed_rect.right()),
-            ),
-            TextAlign::Right => (
-                (node.computed_rect.right() - approx_text_width).max(node.computed_rect.x),
-                node.computed_rect.right(),
-            ),
-            TextAlign::Center => {
-                let cx = node.computed_rect.x + node.computed_rect.width * 0.5;
-                (
-                    (cx - approx_text_width * 0.5).max(node.computed_rect.x),
-                    (cx + approx_text_width * 0.5).min(node.computed_rect.right()),
-                )
-            }
+        // Hierarchical scissor culling: If this text node lies entirely outside the active
+        // scissor clipping boundary (e.g. from parent panel with clip_children: true),
+        // skip collection immediately to prevent bleeding into adjacent UI panels or status bar.
+        let is_clipped_out = if let Some(clip) = child_clip {
+            node.computed_rect.bottom() <= clip.y
+                || node.computed_rect.y >= clip.bottom()
+                || node.computed_rect.right() <= clip.x
+                || node.computed_rect.x >= clip.right()
+        } else {
+            false
         };
 
-        let text_center_y = node.computed_rect.y + node.computed_rect.height * 0.5;
-        let mut is_fully_occluded = false;
+        if !is_clipped_out {
+            let mut effective_clip = child_clip;
 
-        // Test against occluders that are on a higher layer OR drawn after this node on the same layer
-        for occluder in ctx.occluders {
-            // A container never occludes its own subtree descendants
-            if node_order >= occluder.order && node_order <= occluder.subtree_max_order {
-                continue;
-            }
-
-            let is_higher_z = occluder.layer > effective_layer
-                || (occluder.layer == effective_layer && occluder.order > node_order);
-
-            if !is_higher_z {
-                continue;
-            }
-
-            let vert_overlap = node.computed_rect.bottom() > occluder.rect.y
-                && node.computed_rect.y < occluder.rect.bottom();
-            if !vert_overlap {
-                continue;
-            }
-            let horiz_overlap = text_max_x > occluder.rect.x && text_min_x < occluder.rect.right();
-            if !horiz_overlap {
-                continue;
-            }
-
-            // If the entire text bounding footprint falls within the opaque occluder, cull it completely
-            if text_min_x >= occluder.rect.x
-                && text_max_x <= occluder.rect.right()
-                && text_center_y >= occluder.rect.y
-                && text_center_y <= occluder.rect.bottom()
-            {
-                is_fully_occluded = true;
-                break;
-            }
-
-            // If text is vertically within the occluder and partially covered horizontally, scissor-clip it
-            let text_vertically_covered = node.computed_rect.y >= occluder.rect.y
-                && node.computed_rect.bottom() <= occluder.rect.bottom();
-            if text_vertically_covered {
-                if text_min_x < occluder.rect.x && text_max_x > occluder.rect.x {
-                    let clip_sub = Rect::new(
-                        0.0,
-                        node.computed_rect.y,
-                        occluder.rect.x,
-                        node.computed_rect.height,
-                    );
-                    effective_clip = match effective_clip {
-                        Some(c) => Some(c.intersect(clip_sub)),
-                        None => Some(clip_sub),
-                    };
-                } else if text_min_x < occluder.rect.right() && text_max_x > occluder.rect.right() {
-                    let clip_sub = Rect::new(
-                        occluder.rect.right(),
-                        node.computed_rect.y,
-                        100_000.0,
-                        node.computed_rect.height,
-                    );
-                    effective_clip = match effective_clip {
-                        Some(c) => Some(c.intersect(clip_sub)),
-                        None => Some(clip_sub),
-                    };
+            // Approximate visual horizontal footprint of the text
+            let text_char_count = text.chars().count() as f32;
+            let approx_text_width = text_char_count * (node.font_size * 0.62);
+            let (text_min_x, text_max_x) = match node.text_align {
+                TextAlign::Left => (
+                    node.computed_rect.x,
+                    (node.computed_rect.x + approx_text_width).min(node.computed_rect.right()),
+                ),
+                TextAlign::Right => (
+                    (node.computed_rect.right() - approx_text_width).max(node.computed_rect.x),
+                    node.computed_rect.right(),
+                ),
+                TextAlign::Center => {
+                    let cx = node.computed_rect.x + node.computed_rect.width * 0.5;
+                    (
+                        (cx - approx_text_width * 0.5).max(node.computed_rect.x),
+                        (cx + approx_text_width * 0.5).min(node.computed_rect.right()),
+                    )
                 }
-            }
-        }
+            };
 
-        // Also test against any extra occluders provided by host application (only for content/background layers)
-        if effective_layer <= UiLayer::Content {
-            for occluder in ctx.extra_occluders {
-                if is_fully_occluded {
-                    break;
+            let text_center_y = node.computed_rect.y + node.computed_rect.height * 0.5;
+            let mut is_fully_occluded = false;
+
+            // Test against occluders that are on a higher layer OR drawn after this node on the same layer
+            for occluder in ctx.occluders {
+                // A container never occludes its own subtree descendants
+                if node_order >= occluder.order && node_order <= occluder.subtree_max_order {
+                    continue;
                 }
-                let vert_overlap = node.computed_rect.bottom() > occluder.y
-                    && node.computed_rect.y < occluder.bottom();
+
+                let is_higher_z = occluder.layer > effective_layer
+                    || (occluder.layer == effective_layer && occluder.order > node_order);
+
+                if !is_higher_z {
+                    continue;
+                }
+
+                let vert_overlap = node.computed_rect.bottom() > occluder.rect.y
+                    && node.computed_rect.y < occluder.rect.bottom();
                 if !vert_overlap {
                     continue;
                 }
-                let horiz_overlap = text_max_x > occluder.x && text_min_x < occluder.right();
+                let horiz_overlap =
+                    text_max_x > occluder.rect.x && text_min_x < occluder.rect.right();
                 if !horiz_overlap {
                     continue;
                 }
 
-                if text_min_x >= occluder.x
-                    && text_max_x <= occluder.right()
-                    && text_center_y >= occluder.y
-                    && text_center_y <= occluder.bottom()
+                // If the entire text bounding footprint falls within the opaque occluder, cull it completely
+                if text_min_x >= occluder.rect.x
+                    && text_max_x <= occluder.rect.right()
+                    && text_center_y >= occluder.rect.y
+                    && text_center_y <= occluder.rect.bottom()
                 {
                     is_fully_occluded = true;
                     break;
                 }
-            }
-        }
 
-        if !is_fully_occluded {
-            let section = TextSection {
-                text: Cow::Borrowed(text.as_str()),
-                font_size: node.font_size,
-                line_height: node.line_height,
-                color: node.text_color,
-                align: node.text_align,
-                wrap: node.text_wrap,
-                bounds: node.computed_rect,
-                clip_bounds: effective_clip,
-            };
-            sections.push(section);
+                // If text is vertically within the occluder and partially covered horizontally, scissor-clip it
+                let text_vertically_covered = node.computed_rect.y >= occluder.rect.y
+                    && node.computed_rect.bottom() <= occluder.rect.bottom();
+                if text_vertically_covered {
+                    if text_min_x < occluder.rect.x && text_max_x > occluder.rect.x {
+                        let clip_sub = Rect::new(
+                            0.0,
+                            node.computed_rect.y,
+                            occluder.rect.x,
+                            node.computed_rect.height,
+                        );
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    } else if text_min_x < occluder.rect.right()
+                        && text_max_x > occluder.rect.right()
+                    {
+                        let clip_sub = Rect::new(
+                            occluder.rect.right(),
+                            node.computed_rect.y,
+                            100_000.0,
+                            node.computed_rect.height,
+                        );
+                        effective_clip = match effective_clip {
+                            Some(c) => Some(c.intersect(clip_sub)),
+                            None => Some(clip_sub),
+                        };
+                    }
+                }
+            }
+
+            // Also test against any extra occluders provided by host application (only for content/background layers)
+            if effective_layer <= UiLayer::Content {
+                for occluder in ctx.extra_occluders {
+                    if is_fully_occluded {
+                        break;
+                    }
+                    let vert_overlap = node.computed_rect.bottom() > occluder.y
+                        && node.computed_rect.y < occluder.bottom();
+                    if !vert_overlap {
+                        continue;
+                    }
+                    let horiz_overlap = text_max_x > occluder.x && text_min_x < occluder.right();
+                    if !horiz_overlap {
+                        continue;
+                    }
+
+                    if text_min_x >= occluder.x
+                        && text_max_x <= occluder.right()
+                        && text_center_y >= occluder.y
+                        && text_center_y <= occluder.bottom()
+                    {
+                        is_fully_occluded = true;
+                        break;
+                    }
+                }
+            }
+
+            if !is_fully_occluded {
+                let section = TextSection {
+                    text: Cow::Borrowed(text.as_str()),
+                    font_size: node.font_size,
+                    line_height: node.line_height,
+                    color: node.text_color,
+                    align: node.text_align,
+                    wrap: node.text_wrap,
+                    bounds: node.computed_rect,
+                    clip_bounds: effective_clip,
+                };
+                sections.push(section);
+            }
         }
     }
 
@@ -386,5 +403,46 @@ mod tests {
         // The background label MUST be culled completely, only popup_label should survive!
         assert_eq!(sections.len(), 1);
         assert_eq!(sections[0].text, "Popup Text");
+    }
+
+    #[test]
+    fn test_collect_text_scissor_clipping_culling() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.layer = UiLayer::Background;
+        }
+
+        // Panel with clip_children: true, bounded at (0, 0, 400, 200)
+        let panel = tree.create_node();
+        if let Some(node) = tree.get_mut(panel) {
+            node.computed_rect = Rect::new(0.0, 0.0, 400.0, 200.0);
+            node.style.clip_children = true;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, panel).unwrap();
+
+        // Label 1 inside panel (y = 50)
+        let label_inside = tree.create_node();
+        if let Some(node) = tree.get_mut(label_inside) {
+            node.computed_rect = Rect::new(10.0, 50.0, 100.0, 20.0);
+            node.text = Some("Inside Panel".to_string());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(panel, label_inside).unwrap();
+
+        // Label 2 overflowing below panel (y = 250, outside panel height 200)
+        let label_overflow = tree.create_node();
+        if let Some(node) = tree.get_mut(label_overflow) {
+            node.computed_rect = Rect::new(10.0, 250.0, 100.0, 20.0);
+            node.text = Some("Bleeding Text Outside".to_string());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(panel, label_overflow).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].text, "Inside Panel");
     }
 }

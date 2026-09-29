@@ -48,13 +48,13 @@ pub use hierarchy::{
 };
 pub use icons::*;
 pub use material::{
-    MaterialAction, MaterialPanelParams, MaterialPanelTargets, build_material_panel,
-    handle_material_click, handle_material_scroll,
+    MaterialAction, MaterialPanelParams, build_material_panel, handle_material_click,
+    handle_material_scroll,
 };
 pub use modals::*;
 pub use preferences::{
     PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesSliderId,
-    PreferencesTargets, PreferencesToggleId, build_preferences_dialog,
+    PreferencesToggleId, build_preferences_dialog,
 };
 pub use stats::{StatsPanelAction, StatsPanelParams, StatsPanelState, build_stats_panel};
 pub use theme::*;

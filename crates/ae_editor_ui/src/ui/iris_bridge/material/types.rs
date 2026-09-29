@@ -112,17 +112,6 @@ pub struct MaterialPanelParams<'a> {
     pub is_scrollbar_dragging: bool,
 }
 
-/// Hit-testing bounding box cache for interactive elements in the Material Studio.
-#[derive(Debug, Clone, Default)]
-pub struct MaterialPanelTargets {
-    /// Total bounding rectangle of the docked panel.
-    pub panel_rect: Rect,
-    /// Model asset handle currently inspected in the material panel, if any.
-    pub active_model: Option<ae_renderer::asset::AssetHandle>,
-    /// Total computed height of all items in the scrollable content container.
-    pub content_height: f32,
-}
-
 /// Interactive user actions dispatched from the Material & Surface Studio panel.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MaterialAction {

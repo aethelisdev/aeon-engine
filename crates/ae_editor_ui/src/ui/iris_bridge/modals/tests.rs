@@ -208,10 +208,12 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         scroll_offset_y: 0.0,
         is_scrollbar_dragging: false,
         active_dropdown: None,
+        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         active_number_input: None,
         blink_caret: false,
         cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
         zoom_factor: 1.0,
         graphics_settings: &graphics_settings,
         snapping_settings: &snapping_settings,
@@ -219,7 +221,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
     };
-    let (pref_id, pref_targets) =
+    let (pref_id, pref_card_rect, _, _) =
         crate::ui::iris_bridge::preferences::builder::build_preferences_dialog(
             &mut tree,
             pref_params,
@@ -245,7 +247,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
     );
 
     // Register modals in Z-order: Preferences (Layer 0), About (Layer 1)
-    let active_modals = [pref_targets.card_rect, about_dialog_rect];
+    let active_modals = [pref_card_rect, about_dialog_rect];
     let sections =
         IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &active_modals, &[]);
     let rendered_texts: Vec<&str> = sections.iter().map(|s| s.text.as_ref()).collect();

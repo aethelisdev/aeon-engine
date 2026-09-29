@@ -3,14 +3,13 @@
 
 //! # Material & Surface Studio Event Dispatcher
 //!
-//! Evaluates mouse click coordinates and mouse wheel scroll deltas against the cached
-//! MaterialPanelTargets to produce high-level MaterialAction commands.
+//! Evaluates semantic widget tags and mouse wheel scroll deltas to produce
+//! high-level MaterialAction commands.
 //!
 
-use super::header::MATERIAL_HEADER_HEIGHT;
 use super::types::{
     MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_ADD_TEXTURE, MATERIAL_TAG_SPRITE_CHANGE,
-    MATERIAL_TAG_SPRITE_REMOVE, MaterialAction, MaterialPanelTargets, decode_submesh_alpha_tag,
+    MATERIAL_TAG_SPRITE_REMOVE, MaterialAction, decode_submesh_alpha_tag,
     decode_submesh_texture_tag,
 };
 
@@ -60,14 +59,13 @@ pub fn handle_material_click(
     None
 }
 
-/// Calculates updated vertical scroll offset given a mouse wheel delta and viewport height.
-pub fn handle_material_scroll(
-    delta_y: f32,
-    cur_scroll_y: f32,
-    targets: &MaterialPanelTargets,
-) -> f32 {
+/// Calculates updated vertical scroll offset given a mouse wheel delta and maximum scroll limit.
+///
+/// # Arguments
+/// * `delta_y` - Vertical mouse wheel scroll delta.
+/// * `cur_scroll_y` - Current vertical scroll offset in physical pixels.
+/// * `max_scroll` - Maximum permitted vertical scroll offset in physical pixels.
+pub fn handle_material_scroll(delta_y: f32, cur_scroll_y: f32, max_scroll: f32) -> f32 {
     let scroll_step = 24.0;
-    let max_scroll =
-        (targets.content_height - (targets.panel_rect.height - MATERIAL_HEADER_HEIGHT)).max(0.0);
     (cur_scroll_y - delta_y * scroll_step).clamp(0.0, max_scroll)
 }

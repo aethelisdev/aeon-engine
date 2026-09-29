@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Event routing logic for the floating Preferences configuration dialog.
+//! Event routing logic for the floating Preferences configuration dialog
+//! using 100% declarative semantic tags and O(1) hit testing.
 
-use super::super::preferences::{self, PreferencesAction, PreferencesSliderId};
+use super::super::preferences::{
+    self, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLLBAR_THUMB,
+    PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesAction, PreferencesSliderId,
+    is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag, parse_number_tag,
+    parse_section_tag, parse_slider_tag, parse_tab_tag, parse_toggle_tag,
+};
 use super::super::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
@@ -25,12 +31,13 @@ impl IrisEditorOverlay {
             return None;
         }
 
-        let targets = self.preferences.targets.as_ref()?;
         let mut result = IrisOverlayEventResult::default();
 
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
+
+                // 1. Titlebar Dragging
                 if let Some(drag_offset) = self.preferences.drag_offset {
                     self.preferences.pos = Some(calculate_preferences_drag_pos(
                         self.cursor_pos(),
@@ -42,6 +49,8 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     return Some(result);
                 }
+
+                // 2. Slider Continuous Dragging
                 if let Some((slider_id, track_rect, min_val, max_val)) =
                     self.preferences.active_slider_drag
                 {
@@ -60,24 +69,39 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     return Some(result);
                 }
+
+                // 3. Scrollbar Thumb Dragging
                 if let Some((start_cursor_y, start_scroll_y)) =
                     self.preferences.active_scrollbar_drag
-                    && let Some(geom) = targets.scrollbar
                 {
                     let delta_y = self.cursor_pos().y - start_cursor_y;
-                    let max_scroll =
-                        (targets.total_content_height - targets.content_rect.height).max(0.0);
-                    let scroll_delta = ScrollBarGeometry::scroll_from_thumb_drag(
-                        delta_y,
-                        geom.track_rect.height,
-                        geom.thumb_rect.height,
-                        max_scroll,
-                    );
-                    self.preferences.scroll_y =
-                        (start_scroll_y + scroll_delta).clamp(0.0, max_scroll);
-                    self.notifier.tag_all();
-                    result.consumed = true;
-                    return Some(result);
+                    let max_scroll = self.preferences.max_scroll_y;
+                    let content_h = preferences::PREF_CARD_HEIGHT - preferences::TITLEBAR_HEIGHT;
+                    let total_h = content_h + max_scroll;
+                    let content_rect = self.preferences.content_rect.unwrap_or_default();
+                    let style = ScrollAreaStyle {
+                        thickness: 6.0,
+                        inset: 3.0,
+                        ..ScrollAreaStyle::dark_default()
+                    };
+                    if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                        content_rect,
+                        total_h,
+                        self.preferences.scroll_y,
+                        &style,
+                    ) {
+                        let scroll_delta = ScrollBarGeometry::scroll_from_thumb_drag(
+                            delta_y,
+                            geom.track_rect.height,
+                            geom.thumb_rect.height,
+                            max_scroll,
+                        );
+                        self.preferences.scroll_y =
+                            (start_scroll_y + scroll_delta).clamp(0.0, max_scroll);
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
+                    }
                 }
             }
             WindowEvent::MouseInput {
@@ -118,7 +142,7 @@ impl IrisEditorOverlay {
             return Some(drag_res);
         }
 
-        let targets = self.preferences.targets.as_ref()?;
+        let card_rect = self.preferences.card_rect?;
         let mut result = IrisOverlayEventResult::default();
 
         match event {
@@ -140,13 +164,8 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some(&(_, _, min_val, max_val, _)) = targets
-                                .number_inputs
-                                .iter()
-                                .find(|(id, _, _, _, _)| *id == slider_id)
-                                && let Ok(mut val) = buffer.trim().parse::<f32>()
-                            {
-                                val = val.clamp(min_val, max_val);
+                            if let Ok(mut val) = buffer.trim().parse::<f32>() {
+                                val = val.clamp(slider_id.min_val(), slider_id.max_val());
                                 if slider_id == PreferencesSliderId::PhysicsFrequency {
                                     val = preferences::PHYSICS_HZ_PRESETS
                                         .iter()
@@ -186,6 +205,7 @@ impl IrisEditorOverlay {
                 if *key == winit::keyboard::KeyCode::Escape {
                     if self.preferences.dropdown.is_some() {
                         self.preferences.dropdown = None;
+                        self.preferences.dropdown_trigger_rect = None;
                     } else {
                         result.close_preferences = true;
                         self.preferences.drag_offset = None;
@@ -199,17 +219,14 @@ impl IrisEditorOverlay {
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 if !self.is_point_over_popup(self.cursor_pos())
-                    && (targets.content_rect.contains_point(self.cursor_pos())
-                        || targets.card_rect.contains_point(self.cursor_pos()))
+                    && card_rect.contains_point(self.cursor_pos())
                 {
                     let scroll_y = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 28.0,
                         winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
                     };
-                    let max_scroll =
-                        (targets.total_content_height - targets.content_rect.height).max(0.0);
-                    self.preferences.scroll_y =
-                        (self.preferences.scroll_y - scroll_y).clamp(0.0, max_scroll);
+                    self.preferences.scroll_y = (self.preferences.scroll_y - scroll_y)
+                        .clamp(0.0, self.preferences.max_scroll_y);
                     self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
@@ -231,67 +248,44 @@ impl IrisEditorOverlay {
                 let click_point = self.cursor_pos();
                 let hit_target = self.tree.hit_test_target(click_point);
 
-                // 1. If Preferences' own active dropdown popup is open, query the hit widget directly
+                // 1. If Preferences' active dropdown popup is open
                 if let Some(dd_id) = self.preferences.dropdown {
                     if let Some(ref hit) = hit_target
-                        && hit.layer == UiLayer::Popup
-                        && hit.role == WidgetRole::DropdownItem
+                        && let Some(selected_idx) = parse_dropdown_item_tag(hit.tag)
                     {
-                        let selected_idx = hit.tag as usize;
                         result.preferences_action =
                             Some(PreferencesAction::SelectDropdownItem(dd_id, selected_idx));
                         self.preferences.dropdown = None;
+                        self.preferences.dropdown_trigger_rect = None;
                         result.consumed = true;
                         return Some(result);
                     } else {
-                        // Clicked outside dropdown items; dismiss the active dropdown
+                        // Dismiss active dropdown on clicking outside
                         self.preferences.dropdown = None;
+                        self.preferences.dropdown_trigger_rect = None;
                     }
                 }
 
-                // Occlusion: If cursor is over an external active foreground popup, Preferences must NOT intercept the click
+                // If cursor is over an external active foreground popup, do not intercept
                 if hit_target
                     .as_ref()
-                    .is_some_and(|h| h.layer == UiLayer::Popup)
+                    .is_some_and(|h| h.layer == UiLayer::Popup && !is_preferences_tag(h.tag))
                 {
                     return None;
                 }
 
-                // Legitimate click on Preferences: dismiss any open floating menus
+                // Legitimate click: dismiss floating menus
                 self.hierarchy.is_add_menu_open = false;
                 self.hierarchy.active_submenu = None;
                 self.hierarchy.active_sub_submenu = None;
                 self.inspector.active_dropdown = None;
                 self.inspector.is_add_menu_open = false;
 
-                // 2. Direct numeric input box clicks
-                for &(slider_id, box_rect, _, _, cur_val) in &targets.number_inputs {
-                    if box_rect.contains_point(click_point) {
-                        let initial_str = match slider_id {
-                            PreferencesSliderId::PhysicsFrequency
-                            | PreferencesSliderId::UndoHistoryLimit
-                            | PreferencesSliderId::CloudAltitude
-                            | PreferencesSliderId::FogDistance => format!("{:.0}", cur_val),
-                            PreferencesSliderId::ShadowBias => format!("{:.4}", cur_val),
-                            _ => format!("{:.2}", cur_val),
-                        };
-                        self.preferences.active_number_input = Some((slider_id, initial_str));
-                        self.preferences.active_slider_drag = None;
-                        self.preferences.dropdown = None;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-                }
-
-                // If clicked outside active number box, commit and close it
+                // If clicked outside the active number input box, commit and close it
                 if let Some((slider_id, buffer)) = self.preferences.active_number_input.take()
-                    && let Some(&(_, _, min_val, max_val, _)) = targets
-                        .number_inputs
-                        .iter()
-                        .find(|(id, _, _, _, _)| *id == slider_id)
                     && let Ok(mut val) = buffer.trim().parse::<f32>()
                 {
-                    val = val.clamp(min_val, max_val);
+                    val = val.clamp(slider_id.min_val(), slider_id.max_val());
                     if slider_id == PreferencesSliderId::PhysicsFrequency {
                         val = preferences::PHYSICS_HZ_PRESETS
                             .iter()
@@ -303,32 +297,39 @@ impl IrisEditorOverlay {
                         Some(PreferencesAction::SetSliderValue(slider_id, val));
                 }
 
-                // 3. Close button
-                if targets.close_button.contains_point(click_point) {
-                    result.close_preferences = true;
-                    self.preferences.drag_offset = None;
-                    self.preferences.active_slider_drag = None;
-                    self.preferences.dropdown = None;
-                    self.preferences.active_number_input = None;
-                    result.consumed = true;
-                    return Some(result);
-                }
+                // Semantic Tag Hit Routing
+                if let Some(ref hit) = hit_target
+                    && is_preferences_tag(hit.tag)
+                {
+                    let tag = hit.tag;
 
-                // 4. Titlebar dragging
-                if targets.title_bar_rect.contains_point(click_point) {
-                    let card_x = targets.card_rect.x;
-                    let card_y = targets.card_rect.y;
-                    self.preferences.drag_offset =
-                        Some(Point::new(click_point.x - card_x, click_point.y - card_y));
-                    result.consumed = true;
-                    return Some(result);
-                }
+                    // Close button
+                    if tag == PREF_TAG_CLOSE {
+                        result.close_preferences = true;
+                        self.preferences.drag_offset = None;
+                        self.preferences.active_slider_drag = None;
+                        self.preferences.dropdown = None;
+                        self.preferences.dropdown_trigger_rect = None;
+                        self.preferences.active_number_input = None;
+                        result.consumed = true;
+                        return Some(result);
+                    }
 
-                // 5. Tab clicks
-                for &(tab_idx, tab_rect) in &targets.tabs {
-                    if tab_rect.contains_point(click_point) {
+                    // Titlebar drag start
+                    if tag == PREF_TAG_TITLEBAR {
+                        self.preferences.drag_offset = Some(Point::new(
+                            click_point.x - card_rect.x,
+                            click_point.y - card_rect.y,
+                        ));
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    // Sidebar Tab Selection
+                    if let Some(tab_idx) = parse_tab_tag(tag) {
                         self.preferences.tab = tab_idx;
                         self.preferences.dropdown = None;
+                        self.preferences.dropdown_trigger_rect = None;
                         self.preferences.active_number_input = None;
                         self.preferences.scroll_y = 0.0;
                         self.preferences.active_scrollbar_drag = None;
@@ -337,108 +338,122 @@ impl IrisEditorOverlay {
                         result.consumed = true;
                         return Some(result);
                     }
-                }
 
-                // 5b. Scrollbar thumb drag or track click
-                if let Some(geom) = targets.scrollbar {
-                    let thumb_hit_rect = Rect::new(
-                        geom.thumb_rect.x - 6.0,
-                        geom.thumb_rect.y,
-                        geom.thumb_rect.width + 12.0,
-                        geom.thumb_rect.height,
-                    );
-                    let track_hit_rect = Rect::new(
-                        geom.track_rect.x - 6.0,
-                        geom.track_rect.y,
-                        geom.track_rect.width + 12.0,
-                        geom.track_rect.height,
-                    );
-
-                    if thumb_hit_rect.contains_point(click_point) {
-                        self.preferences.active_scrollbar_drag =
-                            Some((click_point.y, self.preferences.scroll_y));
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    } else if track_hit_rect.contains_point(click_point) {
-                        let max_scroll =
-                            (targets.total_content_height - targets.content_rect.height).max(0.0);
-                        let new_scroll = ScrollBarGeometry::scroll_from_track_click(
-                            click_point.y,
-                            geom.track_rect.y,
-                            geom.track_rect.height,
-                            geom.thumb_rect.height,
-                            max_scroll,
-                        );
-                        self.preferences.scroll_y = new_scroll.clamp(0.0, max_scroll);
+                    // Scrollbar Thumb Drag
+                    if tag == PREF_TAG_SCROLLBAR_THUMB {
                         self.preferences.active_scrollbar_drag =
                             Some((click_point.y, self.preferences.scroll_y));
                         self.notifier.tag_all();
                         result.consumed = true;
                         return Some(result);
                     }
+
+                    // Scrollbar Track Click
+                    if tag == PREF_TAG_SCROLLBAR_TRACK {
+                        let content_rect = self.preferences.content_rect.unwrap_or_default();
+                        let total_h = content_rect.height + self.preferences.max_scroll_y;
+                        let style = ScrollAreaStyle {
+                            thickness: 6.0,
+                            inset: 3.0,
+                            ..ScrollAreaStyle::dark_default()
+                        };
+                        if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                            content_rect,
+                            total_h,
+                            self.preferences.scroll_y,
+                            &style,
+                        ) {
+                            let new_scroll = ScrollBarGeometry::scroll_from_track_click(
+                                click_point.y,
+                                geom.track_rect.y,
+                                geom.track_rect.height,
+                                geom.thumb_rect.height,
+                                self.preferences.max_scroll_y,
+                            );
+                            self.preferences.scroll_y =
+                                new_scroll.clamp(0.0, self.preferences.max_scroll_y);
+                            self.preferences.active_scrollbar_drag =
+                                Some((click_point.y, self.preferences.scroll_y));
+                            self.notifier.tag_all();
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                    }
+
+                    // Collapsible Section Toggle
+                    if let Some(sec_id) = parse_section_tag(tag) {
+                        if self.preferences.collapsed_sections.contains(sec_id) {
+                            self.preferences.collapsed_sections.remove(sec_id);
+                        } else {
+                            self.preferences.collapsed_sections.insert(sec_id);
+                        }
+                        result.preferences_action = Some(PreferencesAction::ToggleSection(sec_id));
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    // ComboBox Trigger
+                    if let Some(dd_id) = parse_dropdown_tag(tag) {
+                        if self.preferences.dropdown == Some(dd_id) {
+                            self.preferences.dropdown = None;
+                            self.preferences.dropdown_trigger_rect = None;
+                        } else {
+                            self.preferences.dropdown = Some(dd_id);
+                            self.preferences.dropdown_trigger_rect = Some(hit.rect);
+                        }
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    // Toggle Switch / Checkbox
+                    if let Some(toggle_id) = parse_toggle_tag(tag) {
+                        result.preferences_action = Some(PreferencesAction::Toggle(toggle_id));
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    // Continuous Slider Track Click & Drag
+                    if let Some(slider_id) = parse_slider_tag(tag) {
+                        let min_val = slider_id.min_val();
+                        let max_val = slider_id.max_val();
+                        self.preferences.active_slider_drag =
+                            Some((slider_id, hit.rect, min_val, max_val));
+                        let norm = ((click_point.x - hit.rect.x) / hit.rect.width).clamp(0.0, 1.0);
+                        let mut val = min_val + norm * (max_val - min_val);
+                        if slider_id == PreferencesSliderId::PhysicsFrequency {
+                            val = preferences::PHYSICS_HZ_PRESETS
+                                .iter()
+                                .copied()
+                                .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
+                                .unwrap_or(val);
+                        }
+                        result.preferences_action =
+                            Some(PreferencesAction::SetSliderValue(slider_id, val));
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    // Direct Numeric Input Box
+                    if let Some(slider_id) = parse_number_tag(tag) {
+                        let cur_val = slider_id.min_val(); // fallback or active
+                        let initial_str = slider_id.format_val(cur_val);
+                        self.preferences.active_number_input = Some((slider_id, initial_str));
+                        self.preferences.active_slider_drag = None;
+                        self.preferences.dropdown = None;
+                        self.preferences.dropdown_trigger_rect = None;
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    // Background card / content view click absorption
+                    if tag == PREF_TAG_CARD || tag == PREF_TAG_CONTENT_VIEW {
+                        result.consumed = true;
+                        return Some(result);
+                    }
                 }
 
-                // 6. Content Area Interactive Elements (Dropdowns, Toggles, Sliders, Section Toggles)
-                if targets.content_rect.contains_point(click_point) {
-                    for &(sec_id, sec_rect) in &targets.section_toggles {
-                        if sec_rect.contains_point(click_point) {
-                            if self.preferences.collapsed_sections.contains(sec_id) {
-                                self.preferences.collapsed_sections.remove(sec_id);
-                            } else {
-                                self.preferences.collapsed_sections.insert(sec_id);
-                            }
-                            result.preferences_action =
-                                Some(PreferencesAction::ToggleSection(sec_id));
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                    }
-
-                    for &(dd_id, dd_rect) in &targets.dropdowns {
-                        if dd_rect.contains_point(click_point) {
-                            if self.preferences.dropdown == Some(dd_id) {
-                                self.preferences.dropdown = None;
-                            } else {
-                                self.preferences.dropdown = Some(dd_id);
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                    }
-
-                    for &(toggle_id, toggle_rect) in &targets.toggles {
-                        if toggle_rect.contains_point(click_point) {
-                            result.preferences_action = Some(PreferencesAction::Toggle(toggle_id));
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                    }
-
-                    for &(slider_id, track_rect, min_val, max_val, _) in &targets.sliders {
-                        if track_rect.contains_point(click_point) {
-                            self.preferences.active_slider_drag =
-                                Some((slider_id, track_rect, min_val, max_val));
-                            let norm =
-                                ((click_point.x - track_rect.x) / track_rect.width).clamp(0.0, 1.0);
-                            let mut val = min_val + norm * (max_val - min_val);
-                            if slider_id == PreferencesSliderId::PhysicsFrequency {
-                                val = preferences::PHYSICS_HZ_PRESETS
-                                    .iter()
-                                    .copied()
-                                    .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
-                                    .unwrap_or(val);
-                            }
-                            result.preferences_action =
-                                Some(PreferencesAction::SetSliderValue(slider_id, val));
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                    }
-                }
-
-                // 7. If click is inside card, consume it so it doesn't click through to underlying canvas
-                if targets.card_rect.contains_point(click_point) {
+                // If click is inside card rect, consume it so it doesn't pass through to canvas
+                if card_rect.contains_point(click_point) {
                     result.consumed = true;
                     return Some(result);
                 }

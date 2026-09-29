@@ -8,16 +8,17 @@
 //! with zero external node identifier retention or post-layout tree inspections.
 //!
 
+use super::lanes::build_dope_sheet_lanes;
 use super::ruler::build_ruler_and_scrubber;
 use super::transport::build_transport_toolbar;
-use super::types::{TimelineAction, TimelinePanelParams};
+use super::types::{TIMELINE_TAG_PANEL_ROOT, TimelineAction, TimelinePanelParams};
 use irisui::prelude::*;
 
 /// Builds the complete Animation Timeline Studio docked panel via pure declarative [`UiScope`].
 ///
 /// Dispatches to declarative placeholder cards when no valid entity or
-/// `AnimationPlayer` is active, or instantiates the playback transport toolbar
-/// and time ruler scrubber controls.
+/// `AnimationPlayer` is active, or instantiates the playback transport toolbar,
+/// time ruler scrubber controls, and dope sheet channel track lanes.
 ///
 /// Returns the resolved clip duration in seconds.
 pub fn build_timeline_panel(
@@ -32,6 +33,11 @@ pub fn build_timeline_panel(
         UiScope::with_tagged_interactions(tree, parent_id, params.events, params.hovered_tag);
 
     let root_style = Style::new()
+        .position_absolute()
+        .left(params.panel_rect.x)
+        .top(params.panel_rect.y)
+        .width(params.panel_rect.width)
+        .height(params.panel_rect.height)
         .flex_col()
         .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
         .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
@@ -72,6 +78,7 @@ pub fn build_timeline_panel(
 
             build_transport_toolbar(panel_scope, params, duration);
             build_ruler_and_scrubber(panel_scope, params, duration);
+            build_dope_sheet_lanes(panel_scope, params, duration);
 
             panel_scope.finish_layout(params.panel_rect);
         },

@@ -255,8 +255,28 @@ fn build_pause_card(scope: &mut UiScope, card_rect: Rect) {
             .width(230.0);
 
         card.container(btn_group_style, |btns| {
-            btns.button_named_tagged("InGamePauseResumeButton", "▶  Resume Game", TAG_PLAY_RESUME);
-            btns.button_named_tagged("InGamePauseExitButton", "⏹  Exit to Editor", TAG_PLAY_EXIT);
+            let btn_style = Style::new()
+                .width(180.0)
+                .height(26.0)
+                .padding_insets(Insets::new(5.0, 14.0, 5.0, 14.0))
+                .background(Color::rgba(0.0, 0.30, 0.42, 0.60))
+                .border(1.0, Color::rgba(0.0, 0.75, 0.95, 0.60))
+                .border_radius(4.0)
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center);
+
+            btns.button_named_styled_tagged(
+                "InGamePauseResumeButton",
+                "▶  Resume Game",
+                btn_style,
+                TAG_PLAY_RESUME,
+            );
+            btns.button_named_styled_tagged(
+                "InGamePauseExitButton",
+                "⏹  Exit to Editor",
+                btn_style,
+                TAG_PLAY_EXIT,
+            );
         });
     });
 }

@@ -162,12 +162,7 @@ fn test_material_panel_click_hit_testing() {
     assert_eq!(act7, None);
 
     // Scroll test
-    let targets = MaterialPanelTargets {
-        panel_rect: Rect::new(0.0, 0.0, 400.0, 500.0),
-        active_model: Some(handle),
-        content_height: 800.0,
-    };
-    let new_scroll = handle_material_scroll(1.0, 50.0, &targets);
+    let new_scroll = handle_material_scroll(1.0, 50.0, 332.0);
     assert_eq!(new_scroll, 26.0);
 }
 

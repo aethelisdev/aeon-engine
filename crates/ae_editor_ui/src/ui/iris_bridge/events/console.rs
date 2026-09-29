@@ -7,6 +7,10 @@
 //! for the Iris UI Developer Console panel.
 //!
 
+use crate::ui::iris_bridge::console::types::{
+    CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_INPUT,
+    is_console_tag,
+};
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
@@ -63,9 +67,9 @@ impl IrisEditorOverlay {
             }
 
             if let Some(hit) = self.tree.hit_test_target(click_point)
-                && irisui::prelude::is_console_tag(hit.tag)
+                && is_console_tag(hit.tag)
             {
-                if hit.tag == irisui::prelude::CONSOLE_TAG_SCROLLBAR_THUMB {
+                if hit.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
                     self.console.active_scrollbar_drag =
                         Some((click_point.y, self.console.interactions.scroll_y));
                     self.console.auto_scroll = false;
@@ -73,7 +77,7 @@ impl IrisEditorOverlay {
                     self.chrome.needs_layout_rebuild = true;
                     result.consumed = true;
                     return Some(result);
-                } else if hit.tag == irisui::prelude::CONSOLE_TAG_SCROLLBAR_TRACK {
+                } else if hit.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
                     let track_y = hit.rect.y;
                     let track_h = hit.rect.height.max(10.0);
                     let thumb_h = ((track_h / (self.console.max_scroll_y + track_h)) * track_h)
@@ -96,7 +100,7 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
 
-                if hit.tag != irisui::prelude::CONSOLE_TAG_SEARCH_INPUT {
+                if hit.tag != CONSOLE_TAG_SEARCH_INPUT {
                     self.console.interactions.is_search_focused = false;
                 }
                 self.notifier.tag_all();
@@ -131,9 +135,9 @@ impl IrisEditorOverlay {
             let mut thumb_h = 30.0_f32;
             if let Some(root_id) = self.tree.root() {
                 self.tree.traverse_depth_first(root_id, &mut |_id, node| {
-                    if node.tag == irisui::prelude::CONSOLE_TAG_SCROLLBAR_TRACK {
+                    if node.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
                         track_h = node.computed_rect.height;
-                    } else if node.tag == irisui::prelude::CONSOLE_TAG_SCROLLBAR_THUMB {
+                    } else if node.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
                         thumb_h = node.computed_rect.height;
                     }
                 });
@@ -161,7 +165,7 @@ impl IrisEditorOverlay {
             || self
                 .tree
                 .hit_test_target(cursor)
-                .map_or(false, |hit| irisui::prelude::is_console_tag(hit.tag));
+                .map_or(false, |hit| is_console_tag(hit.tag));
 
         if let WindowEvent::MouseWheel { delta, .. } = event
             && is_over_console

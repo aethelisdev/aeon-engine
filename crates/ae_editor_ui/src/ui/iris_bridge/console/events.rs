@@ -7,8 +7,8 @@
 //! scrolling within the Developer Console panel.
 //!
 
-use super::types::ConsoleAction;
-use irisui::prelude::{ConsoleToolbarAction, Point, UiTree, evaluate_console_toolbar_click};
+use super::types::{ConsoleAction, ConsoleToolbarAction, evaluate_console_toolbar_click};
+use irisui::prelude::{Point, UiTree};
 
 /// Handles mouse click events over the console panel using semantic tags.
 ///

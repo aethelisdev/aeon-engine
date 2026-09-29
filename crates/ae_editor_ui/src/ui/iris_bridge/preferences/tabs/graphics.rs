@@ -7,13 +7,10 @@
 //! Environment & Sky, and Procedural Clouds preference cards.
 
 pub mod environment;
-pub mod helpers;
 pub mod panel;
 pub mod performance;
-pub mod popup;
 pub mod shadows;
 pub mod types;
 
 pub use panel::build_graphics_tab;
-pub use popup::render_graphics_dropdown_popup;
 pub use types::*;

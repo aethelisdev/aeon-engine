@@ -4,25 +4,15 @@
 //! # Information Preferences Tabs
 //!
 //! Renders hardware-accelerated configuration and information views for
-//! Navigation (Tab 3), Keymap (Tab 4), System (Tab 5), Add-ons (Tab 6), Input (Tab 7), and Experimental (Tab 8).
+//! Navigation (Tab 3), Keymap (Tab 4), System (Tab 5), Add-ons (Tab 6), Input (Tab 7),
+//! and Experimental (Tab 8) declaratively using [`UiScope`].
 
-use super::super::types::{PreferencesParams, PreferencesTargets};
+use super::super::components::pref_heading;
+use super::super::types::PreferencesParams;
 use irisui::prelude::*;
 
 /// Builds a generic information preferences tab with heading, separator, and informative cards.
-pub fn build_info_tab(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    content_rect: Rect,
-    tab_index: u8,
-    params: &PreferencesParams<'_>,
-    _targets: &mut PreferencesTargets,
-) -> f32 {
-    let mut virtual_y = 16.0;
-    let scroll_y = params.scroll_offset_y;
-    let content_w = content_rect.width - 32.0;
-    let base_x = content_rect.x + 16.0;
-
+pub fn build_info_tab(scope: &mut UiScope<'_>, tab_index: u8, _params: &PreferencesParams<'_>) {
     let (heading, subtitle, cards): (&str, &str, Vec<(&str, &str, &str)>) = match tab_index {
         3 => (
             "Navigation",
@@ -97,185 +87,89 @@ pub fn build_info_tab(
                     "Full support for PBR materials, skinning, and embedded buffers.",
                 ),
                 (
-                    "🎨 Iris UI Extension Engine",
-                    "Native SDF Typography & Layout Pipeline",
-                    "Modern game UI designer and runtime rendering system.",
+                    "🎨 Iris UI Framework",
+                    "Hardware SDF GPU Retained UI (100% Declarative UiScope)",
+                    "Zero CPU overhead dynamic vector rendering pipeline.",
                 ),
                 (
-                    "🔌 C API Plugin Host",
-                    "Ready (Dynamic Library Loader)",
-                    "Extensible native modules with zero rebuild requirement.",
+                    "🔊 Kira Audio Engine",
+                    "Procedural Dynamic Audio Synthesizer",
+                    "Spatial 3D audio, streaming soundscapes, and low-latency DSP.",
                 ),
             ],
         ),
         7 => (
             "Input",
-            "Gamepad, keyboard, and mouse binding preferences.",
+            "Mouse, keyboard, and controller configuration.",
             vec![
                 (
-                    "🖱 Mouse Smoothing",
-                    "Raw Sub-Pixel Delta Input",
-                    "Hardware mouse polling without artificial acceleration or lag.",
+                    "🖱 Mouse Sensitivity",
+                    "Look Sensitivity: 1.0 | Orbit Sensitivity: 1.0",
+                    "Controls linear mouse cursor translation multiplier in 3D viewport.",
                 ),
                 (
-                    "🎮 Gamepad Support",
-                    "XInput / DualSense Standard",
-                    "Automatic controller detection and hot-plugging.",
-                ),
-                (
-                    "⌨ IME Composition",
-                    "Native Operating System IME Pipeline",
-                    "Full support for multi-byte international text input.",
+                    "🔄 Invert Y-Axis",
+                    "Disabled (Standard Pitch)",
+                    "Camera pitch tilts naturally with mouse motion.",
                 ),
             ],
         ),
-        8 => (
+        _ => (
             "Experimental",
-            "Preview upcoming engine and rendering features.",
+            "Preview  engine features under active development.",
             vec![
                 (
-                    "⚡ Meshlet GPU Culling",
-                    "Experimental (Compute Shader Driven)",
-                    "Nanite-style virtualized geometry and sub-mesh occlusion culling.",
+                    "⚡ GPU Occlusion Culling",
+                    "Active (Hardware Hi-Z Query)",
+                    "Discards hidden meshes before rasterization pass.",
                 ),
                 (
-                    "🌊 Real-Time Water Simulation",
-                    "In Development (Gerstner Waves & FFT)",
-                    "Dynamic buoyancy, foam generation, and underwater caustics.",
-                ),
-                (
-                    "🌐 Multi-User Live Sync",
-                    "Prototype (CRDT Networking)",
-                    "Real-time collaborative level editing over local network.",
+                    "🌟 Compute Shader Skinning",
+                    "Active (Compute Dispatch)",
+                    "Transforms skinned skeletal vertices directly in GPU memory.",
                 ),
             ],
         ),
-        _ => ("Settings", "Additional preferences.", Vec::new()),
     };
 
-    // 1. Heading
-    let heading_id = tree.create_node();
-    if let Some(node) = tree.get_mut(heading_id) {
-        node.set_name("InfoHeading");
-        node.set_text(heading);
-        node.font_size = 17.0;
-        node.line_height = 22.0;
-        node.text_color = Color::rgba(1.0, 1.0, 1.0, 1.0);
-        node.computed_rect = Rect::new(
-            base_x,
-            content_rect.y + virtual_y - scroll_y,
-            content_w,
-            22.0,
-        );
-    }
-    let _ = tree.add_child(parent_id, heading_id);
-    virtual_y += 24.0;
+    pref_heading(scope, heading, subtitle);
 
-    // 2. Subtitle
-    let sub_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sub_id) {
-        node.set_name("InfoSubtitle");
-        node.set_text(subtitle);
-        node.font_size = 11.5;
-        node.line_height = 16.0;
-        node.text_color = Color::rgba(0.65, 0.68, 0.76, 1.0);
-        node.computed_rect = Rect::new(
-            base_x,
-            content_rect.y + virtual_y - scroll_y,
-            content_w,
-            16.0,
-        );
-    }
-    let _ = tree.add_child(parent_id, sub_id);
-    virtual_y += 24.0;
-
-    // 3. Separator
-    let sep_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sep_id) {
-        node.set_name("InfoSep");
-        node.style = Style::new().background(Color::rgba(0.20, 0.22, 0.30, 0.70));
-        node.computed_rect = Rect::new(
-            base_x,
-            content_rect.y + virtual_y - scroll_y,
-            content_w,
-            1.0,
-        );
-    }
-    let _ = tree.add_child(parent_id, sep_id);
-    virtual_y += 16.0;
-
-    // 4. Cards
-    for (card_title, primary_val, card_desc) in cards {
-        let card_h = 76.0;
-        let card_rect = Rect::new(
-            base_x,
-            content_rect.y + virtual_y - scroll_y,
-            content_w,
-            card_h,
-        );
-
-        let card_node = tree.create_node();
-        if let Some(node) = tree.get_mut(card_node) {
-            node.set_name("InfoCard");
-            node.computed_rect = card_rect;
-            node.style = Style::new()
+    for (card_title, primary_text, desc_text) in cards {
+        scope.container_named(
+            "InfoCard",
+            Style::new()
+                .flex_col()
                 .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
                 .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
-                .border_radius(6.0);
-        }
-        let _ = tree.add_child(parent_id, card_node);
-
-        let t_node = tree.create_node();
-        if let Some(node) = tree.get_mut(t_node) {
-            node.set_name("InfoCardTitle");
-            node.set_text(card_title);
-            node.font_size = 13.0;
-            node.line_height = 18.0;
-            node.text_color = Color::rgba(0.0, 0.90, 1.0, 1.0);
-            node.computed_rect = Rect::new(
-                base_x + 14.0,
-                content_rect.y + virtual_y - scroll_y + 10.0,
-                content_w - 28.0,
-                18.0,
-            );
-        }
-        let _ = tree.add_child(card_node, t_node);
-
-        let val_node = tree.create_node();
-        if let Some(node) = tree.get_mut(val_node) {
-            node.set_name("InfoCardVal");
-            node.set_text(primary_val);
-            node.font_size = 11.5;
-            node.line_height = 16.0;
-            node.text_color = Color::rgba(0.92, 0.94, 0.98, 1.0);
-            node.computed_rect = Rect::new(
-                base_x + 14.0,
-                content_rect.y + virtual_y - scroll_y + 30.0,
-                content_w - 28.0,
-                16.0,
-            );
-        }
-        let _ = tree.add_child(card_node, val_node);
-
-        let d_node = tree.create_node();
-        if let Some(node) = tree.get_mut(d_node) {
-            node.set_name("InfoCardDesc");
-            node.set_text(card_desc);
-            node.font_size = 10.5;
-            node.line_height = 14.0;
-            node.text_color = Color::rgba(0.55, 0.58, 0.68, 1.0);
-            node.computed_rect = Rect::new(
-                base_x + 14.0,
-                content_rect.y + virtual_y - scroll_y + 50.0,
-                content_w - 28.0,
-                14.0,
-            );
-        }
-        let _ = tree.add_child(card_node, d_node);
-
-        virtual_y += card_h + 12.0;
+                .border_radius(6.0)
+                .padding_insets(Insets::new(10.0, 14.0, 10.0, 14.0))
+                .margin_insets(Insets::new(0.0, 0.0, 12.0, 0.0)),
+            |card| {
+                card.label_styled_passive(
+                    "InfoTitle",
+                    card_title,
+                    12.5,
+                    Color::rgba(1.0, 1.0, 1.0, 1.0),
+                    TextAlign::Left,
+                    Style::new().margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
+                );
+                card.label_styled_passive(
+                    "InfoPrimary",
+                    primary_text,
+                    11.5,
+                    Color::rgba(0.0, 0.85, 1.0, 1.0),
+                    TextAlign::Left,
+                    Style::new().margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
+                );
+                card.label_styled_passive(
+                    "InfoDesc",
+                    desc_text,
+                    11.0,
+                    Color::rgba(0.65, 0.68, 0.76, 1.0),
+                    TextAlign::Left,
+                    Style::new(),
+                );
+            },
+        );
     }
-
-    virtual_y += 10.0;
-    virtual_y
 }

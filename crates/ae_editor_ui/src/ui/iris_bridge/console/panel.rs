@@ -8,7 +8,13 @@
 //!
 
 use super::rows::build_console_rows;
-use super::types::ConsolePanelParams;
+use super::types::{
+    CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
+    CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
+    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK,
+    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_TOOLBAR, ConsoleFilterLevel,
+    ConsoleLogCounts, ConsolePanelParams,
+};
 use irisui::prelude::*;
 
 /// Height of the console header toolbar in physical pixels.
@@ -101,9 +107,9 @@ pub fn build_console_panel(
                             CONSOLE_TAG_FILTER_DEBUG,
                         ),
                     ];
-                    for (filter_lvl, label, width, color, tag) in filters {
-                        let is_active = params.filter == filter_lvl;
-                        tb.filter_pill_tagged(&label, is_active, color, width, tag);
+                    for (filter_lvl, label, width, color, tag) in &filters {
+                        let is_active = params.filter == *filter_lvl;
+                        tb.filter_pill_tagged(label, is_active, *color, *width, *tag);
                     }
 
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));

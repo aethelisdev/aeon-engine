@@ -3,145 +3,79 @@
 
 //! # Shadows Settings Card Builder
 //!
-//! Renders directional cascaded shadow configuration (resolution, cascades, PCF, bias).
+//! Renders directional cascaded shadow configuration (resolution, cascades, PCF, bias)
+//! declaratively using [`UiScope`].
 
-use super::super::super::types::{
-    PreferencesDropdownId, PreferencesParams, PreferencesSliderId, PreferencesTargets,
-    PreferencesToggleId,
+use crate::ui::iris_bridge::preferences::components::{
+    pref_dropdown_row, pref_section_card, pref_slider_row, pref_toggle_row,
 };
-use super::helpers::{build_checkbox, build_dropdown_row, build_slider_row};
-use super::types::{CardLayoutContext, CheckboxParams, DropdownRowParams, SliderRowParams};
+use crate::ui::iris_bridge::preferences::types::{
+    PreferencesDropdownId, PreferencesParams, PreferencesSliderId, PreferencesToggleId,
+};
 use irisui::prelude::*;
 
-/// Renders the collapsible Shadows settings section card.
-pub fn build_shadows_card(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    ctx: CardLayoutContext,
-    params: &PreferencesParams<'_>,
-    targets: &mut PreferencesTargets,
-) -> f32 {
+/// Renders the collapsible Shadows settings section card declaratively using [`UiScope`].
+pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_shadows");
     let gs = params.graphics_settings;
-    let sh_h = if is_collapsed {
-        36.0
-    } else if gs.shadow_enabled {
-        174.0
-    } else {
-        64.0
-    };
-    let card_rect = Rect::new(
-        ctx.base_x,
-        ctx.content_rect_y + ctx.y_offset,
-        ctx.content_w,
-        sh_h,
-    );
-    let section = SettingSectionBuilder::new(card_rect, "🌓  Shadows")
-        .collapsed(is_collapsed)
-        .cursor_pos(Some(params.cursor_pos))
-        .build(tree, parent_id);
-    let sh_card_id = section.card_id;
-    targets
-        .section_toggles
-        .push(("graphics_shadows", section.header_rect));
 
-    if is_collapsed {
-        return sh_h;
-    }
+    pref_section_card(
+        scope,
+        "graphics_shadows",
+        "🌓  Shadows",
+        is_collapsed,
+        params.hovered_tag,
+        |body| {
+            pref_toggle_row(
+                body,
+                PreferencesToggleId::ShadowsEnabled,
+                "Enable Directional Shadows",
+                gs.shadow_enabled,
+                params.hovered_tag,
+            );
 
-    build_checkbox(
-        tree,
-        sh_card_id,
-        CheckboxParams {
-            rect: Rect::new(
-                ctx.base_x + 14.0,
-                ctx.content_rect_y + ctx.y_offset + 36.0,
-                ctx.content_w - 28.0,
-                20.0,
-            ),
-            label: "Enable Shadows",
-            is_checked: gs.shadow_enabled,
-            toggle_id: PreferencesToggleId::ShadowsEnabled,
-            cursor_pos: params.cursor_pos,
+            if gs.shadow_enabled {
+                pref_dropdown_row(
+                    body,
+                    PreferencesDropdownId::ShadowResolution,
+                    "Resolution",
+                    gs.shadow_resolution.label(),
+                    params.active_dropdown == Some(PreferencesDropdownId::ShadowResolution),
+                    params.hovered_tag,
+                );
+
+                let cascade_str = match gs.shadow_cascades {
+                    3 => "3 Cascades (Default)",
+                    _ => "4 Cascades (High Fidelity)",
+                };
+                pref_dropdown_row(
+                    body,
+                    PreferencesDropdownId::ShadowCascades,
+                    "Cascade Count",
+                    cascade_str,
+                    params.active_dropdown == Some(PreferencesDropdownId::ShadowCascades),
+                    params.hovered_tag,
+                );
+
+                pref_dropdown_row(
+                    body,
+                    PreferencesDropdownId::ShadowPcf,
+                    "Filtering (PCF)",
+                    gs.shadow_pcf.label(),
+                    params.active_dropdown == Some(PreferencesDropdownId::ShadowPcf),
+                    params.hovered_tag,
+                );
+
+                pref_slider_row(
+                    body,
+                    PreferencesSliderId::ShadowBias,
+                    "Depth Bias",
+                    gs.shadow_bias,
+                    params.active_number_input,
+                    params.blink_caret,
+                    params.hovered_tag,
+                );
+            }
         },
-        targets,
     );
-
-    if gs.shadow_enabled {
-        let mut row_y = ctx.content_rect_y + ctx.y_offset + 64.0;
-        build_dropdown_row(
-            tree,
-            sh_card_id,
-            DropdownRowParams {
-                base_x: ctx.base_x + 14.0,
-                y: row_y,
-                width: ctx.content_w - 28.0,
-                label: "Resolution",
-                selected_text: gs.shadow_resolution.label(),
-                dropdown_id: PreferencesDropdownId::ShadowResolution,
-                cursor_pos: params.cursor_pos,
-                is_open: params.active_dropdown == Some(PreferencesDropdownId::ShadowResolution),
-            },
-            targets,
-        );
-        row_y += 28.0;
-        build_dropdown_row(
-            tree,
-            sh_card_id,
-            DropdownRowParams {
-                base_x: ctx.base_x + 14.0,
-                y: row_y,
-                width: ctx.content_w - 28.0,
-                label: "Cascade Count",
-                selected_text: &format!("{} Cascades", gs.shadow_cascades),
-                dropdown_id: PreferencesDropdownId::ShadowCascades,
-                cursor_pos: params.cursor_pos,
-                is_open: params.active_dropdown == Some(PreferencesDropdownId::ShadowCascades),
-            },
-            targets,
-        );
-        row_y += 28.0;
-        build_dropdown_row(
-            tree,
-            sh_card_id,
-            DropdownRowParams {
-                base_x: ctx.base_x + 14.0,
-                y: row_y,
-                width: ctx.content_w - 28.0,
-                label: "PCF Quality",
-                selected_text: gs.shadow_pcf.label(),
-                dropdown_id: PreferencesDropdownId::ShadowPcf,
-                cursor_pos: params.cursor_pos,
-                is_open: params.active_dropdown == Some(PreferencesDropdownId::ShadowPcf),
-            },
-            targets,
-        );
-        row_y += 28.0;
-        let (is_editing, editing_buf) = match params.active_number_input {
-            Some((PreferencesSliderId::ShadowBias, buf)) => (true, buf),
-            _ => (false, ""),
-        };
-        build_slider_row(
-            tree,
-            sh_card_id,
-            SliderRowParams {
-                base_x: ctx.base_x + 14.0,
-                y: row_y,
-                width: ctx.content_w - 28.0,
-                label: "Bias",
-                val_text: &format!("{:.4}", gs.shadow_bias),
-                current_val: gs.shadow_bias,
-                min_val: 0.0001,
-                max_val: 0.05,
-                slider_id: PreferencesSliderId::ShadowBias,
-                cursor_pos: params.cursor_pos,
-                is_editing,
-                editing_buffer: editing_buf,
-                blink_caret: params.blink_caret,
-            },
-            targets,
-        );
-    }
-
-    sh_h
 }

@@ -78,74 +78,6 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         return;
     }
 
-    if role == WidgetRole::TimelineRuler {
-        for &cid in &children {
-            let (inset, is_tick, height) = tree
-                .get(cid)
-                .map(|n| {
-                    let inset = n.style.inset_left.unwrap_or(0.0).clamp(0.0, 1.0);
-                    let is_tick = n.name.as_deref() == Some("TimelineRulerTick");
-                    let h = n.style.height.unwrap_or(if is_tick { 6.0 } else { 12.0 });
-                    (inset, is_tick, h)
-                })
-                .unwrap_or((0.0, false, 6.0));
-            let x = inner.x + inner.width * inset;
-            if let Some(node) = tree.get_mut(cid) {
-                if is_tick {
-                    node.computed_rect = Rect::new(x, inner.y + inner.height - height, 1.0, height);
-                } else {
-                    node.computed_rect = Rect::new(x + 2.0, inner.y, 32.0, 12.0);
-                }
-            }
-        }
-        return;
-    }
-
-    if role == WidgetRole::TimelineTrack {
-        for &cid in &children {
-            let (inset, role, name) = tree
-                .get(cid)
-                .map(|n| {
-                    (
-                        n.style.inset_left.unwrap_or(0.0).clamp(0.0, 1.0),
-                        n.role,
-                        n.name.as_deref().unwrap_or(""),
-                    )
-                })
-                .unwrap_or((0.0, WidgetRole::Default, ""));
-
-            if name == "TimelineProgressFill" {
-                let fill_w = inner.width * inset;
-                if let Some(node) = tree.get_mut(cid) {
-                    node.computed_rect = Rect::new(inner.x, inner.y, fill_w, inner.height);
-                }
-            } else if role == WidgetRole::TimelineKeyframe {
-                let kf_x = inner.x + inner.width * inset - 6.0;
-                let kf_y = inner.y + (inner.height - 12.0) * 0.5;
-                if let Some(node) = tree.get_mut(cid) {
-                    node.computed_rect = Rect::new(kf_x, kf_y, 12.0, 12.0);
-                }
-            } else if role == WidgetRole::TimelinePlayhead {
-                if name == "TimelinePlayheadCap" {
-                    let cap_w = 12.0;
-                    let cap_h = 10.0;
-                    let cap_x = (inner.x + inner.width * inset - cap_w * 0.5)
-                        .clamp(inner.x, (inner.x + inner.width - cap_w).max(inner.x));
-                    if let Some(node) = tree.get_mut(cid) {
-                        node.computed_rect = Rect::new(cap_x, inner.y - 2.0, cap_w, cap_h);
-                    }
-                } else {
-                    let needle_x = (inner.x + inner.width * inset - 1.0)
-                        .clamp(inner.x, (inner.x + inner.width - 2.0).max(inner.x));
-                    if let Some(node) = tree.get_mut(cid) {
-                        node.computed_rect = Rect::new(needle_x, inner.y, 2.0, inner.height);
-                    }
-                }
-            }
-        }
-        return;
-    }
-
     if role == WidgetRole::TextInput {
         let mut text_start = inner.x + 8.0;
         let mut has_icon = false;
@@ -259,13 +191,14 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         let mut fixed_h = 0.0_f32;
         let mut flex_grow_sum = 0.0_f32;
         for cid in &children {
+            let margin = tree.get(*cid).map_or(Insets::ZERO, |n| n.style.margin);
             let flex_grow = tree.get(*cid).map_or(0.0, |n| n.style.flex_grow);
             if flex_grow > 0.0 {
                 flex_grow_sum += flex_grow;
             } else if let Some(h) = tree.get(*cid).and_then(|n| n.style.height) {
-                fixed_h += h;
+                fixed_h += h + margin.top + margin.bottom;
             } else {
-                fixed_h += measure_height(tree, *cid);
+                fixed_h += measure_height(tree, *cid) + margin.top + margin.bottom;
             }
         }
         let total_children_h = fixed_h + total_gaps;
@@ -290,6 +223,8 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         };
 
         for child_id in &children {
+            let margin = tree.get(*child_id).map_or(Insets::ZERO, |n| n.style.margin);
+            y += margin.top;
             let flex_grow = tree.get(*child_id).map_or(0.0, |n| n.style.flex_grow);
             let h = if flex_grow > 0.0 {
                 flex_unit * flex_grow
@@ -300,19 +235,22 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
             };
             let (child_w, child_x) =
                 if let Some(w) = tree.get(*child_id).and_then(|n| n.style.width) {
-                    let clamped_w = w.min(inner.width);
+                    let clamped_w = (w - margin.left - margin.right).min(inner.width).max(0.0);
                     let x = match align {
                         AlignItems::Center => inner.x + (inner.width - clamped_w) * 0.5,
                         AlignItems::FlexEnd => inner.x + inner.width - clamped_w,
-                        _ => inner.x,
+                        _ => inner.x + margin.left,
                     };
                     (clamped_w, x)
                 } else {
-                    (inner.width, inner.x)
+                    (
+                        (inner.width - margin.left - margin.right).max(0.0),
+                        inner.x + margin.left,
+                    )
                 };
             let child_rect = Rect::new(child_x, y, child_w, h);
             layout_subtree(tree, *child_id, child_rect);
-            y += h + gap + space_between_gap;
+            y += h + margin.bottom + gap + space_between_gap;
         }
     } else {
         // Row: calculate widths honoring explicit style.width where set, and flexing the rest
@@ -332,6 +270,23 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
                 fixed_w += w;
             } else {
                 unconstrained_count += 1;
+            }
+        }
+        if flex_grow_sum > 0.0 && unconstrained_count > 0 {
+            unconstrained_count = 0;
+            for cid in &children {
+                let flex_grow = tree.get(*cid).map_or(0.0, |n| n.style.flex_grow);
+                if flex_grow == 0.0
+                    && tree.get(*cid).and_then(|n| n.style.width).is_none()
+                    && tree.get(*cid).and_then(|n| n.text.as_ref()).is_none()
+                {
+                    let measured = measure_width(tree, *cid);
+                    if measured > 0.0 {
+                        fixed_w += measured;
+                    } else {
+                        unconstrained_count += 1;
+                    }
+                }
             }
         }
         let total_children_w = fixed_w + total_gaps;
@@ -368,6 +323,15 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
             } else if let Some(text) = tree.get(*child_id).and_then(|n| n.text.as_ref()) {
                 let fs = tree.get(*child_id).map_or(11.0, |n| n.font_size);
                 (text.len() as f32 * fs * 0.65).ceil().max(20.0)
+            } else if flex_grow_sum > 0.0 {
+                let measured = measure_width(tree, *child_id);
+                if measured > 0.0 {
+                    measured
+                } else if unconstrained_count > 0 {
+                    flex_unit
+                } else {
+                    0.0
+                }
             } else {
                 flex_unit
             };
@@ -421,7 +385,8 @@ pub fn measure_height(tree: &UiTree, node_id: WidgetId) -> f32 {
     if is_col {
         let mut total = pad.top + pad.bottom;
         for (i, cid) in child_ids.iter().enumerate() {
-            total += measure_height(tree, *cid);
+            let margin = tree.get(*cid).map_or(Insets::ZERO, |n| n.style.margin);
+            total += measure_height(tree, *cid) + margin.top + margin.bottom;
             if i + 1 < child_ids.len() {
                 total += gap;
             }
@@ -430,7 +395,10 @@ pub fn measure_height(tree: &UiTree, node_id: WidgetId) -> f32 {
     } else {
         let max_child = child_ids
             .iter()
-            .map(|cid| measure_height(tree, *cid))
+            .map(|cid| {
+                let margin = tree.get(*cid).map_or(Insets::ZERO, |n| n.style.margin);
+                measure_height(tree, *cid) + margin.top + margin.bottom
+            })
             .fold(0.0_f32, f32::max);
         pad.top + pad.bottom + max_child
     }
@@ -471,7 +439,8 @@ pub fn measure_content_height(tree: &UiTree, node_id: WidgetId) -> f32 {
     if is_col {
         let mut total = pad.top + pad.bottom;
         for (i, &cid) in child_ids.iter().enumerate() {
-            total += measure_height(tree, cid);
+            let margin = tree.get(cid).map_or(Insets::ZERO, |n| n.style.margin);
+            total += measure_height(tree, cid) + margin.top + margin.bottom;
             if i + 1 < child_ids.len() {
                 total += gap;
             }
@@ -480,8 +449,66 @@ pub fn measure_content_height(tree: &UiTree, node_id: WidgetId) -> f32 {
     } else {
         let max_child = child_ids
             .iter()
-            .map(|&cid| measure_height(tree, cid))
+            .map(|&cid| {
+                let margin = tree.get(cid).map_or(Insets::ZERO, |n| n.style.margin);
+                measure_height(tree, cid) + margin.top + margin.bottom
+            })
             .fold(0.0_f32, f32::max);
         pad.top + pad.bottom + max_child
+    }
+}
+
+/// Bottom-up pass: computes the desired content width of a node from its children and styles.
+///
+/// Recursively measures explicit widths, text widths, paddings, and child gaps.
+///
+/// # Arguments
+/// * `tree` - Reference to the active [`UiTree`] containing node descriptors.
+/// * `node_id` - Identifier of the container node whose intrinsic content width is measured.
+///
+/// # Returns
+/// Total accumulated horizontal content width in physical pixels. Returns `0.0` if the node
+/// does not exist.
+pub fn measure_width(tree: &UiTree, node_id: WidgetId) -> f32 {
+    let Some(node) = tree.get(node_id) else {
+        return 0.0;
+    };
+
+    // Explicit width takes priority
+    if let Some(w) = node.style.width {
+        return w;
+    }
+
+    // Leaf node: use font_size and text length if it has text, otherwise style width or 0.0
+    if node.children.is_empty() {
+        return if let Some(text) = &node.text {
+            let fs = node.font_size;
+            (text.len() as f32 * fs * 0.65).ceil().max(20.0)
+        } else {
+            node.style.width.unwrap_or(0.0)
+        };
+    }
+
+    let pad = node.style.padding;
+    let gap = node.style.gap;
+    let dir = node.style.flex_direction;
+    let is_col = matches!(dir, FlexDirection::Column | FlexDirection::ColumnReverse);
+    let child_ids: Vec<WidgetId> = node.children.clone();
+
+    if is_col {
+        let max_child = child_ids
+            .iter()
+            .map(|cid| measure_width(tree, *cid))
+            .fold(0.0_f32, f32::max);
+        pad.left + pad.right + max_child
+    } else {
+        let mut total = pad.left + pad.right;
+        for (i, cid) in child_ids.iter().enumerate() {
+            total += measure_width(tree, *cid);
+            if i + 1 < child_ids.len() {
+                total += gap;
+            }
+        }
+        total
     }
 }

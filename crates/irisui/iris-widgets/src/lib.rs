@@ -10,12 +10,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-pub mod asset_card;
 pub mod canvas;
 pub mod card;
 pub mod cascading_menu;
 pub mod color_picker;
-pub mod console;
 pub mod context_menu;
 pub mod declarative;
 pub mod dropdown;
@@ -26,13 +24,10 @@ pub mod numeric_input;
 pub mod panel;
 pub mod scroll_area;
 pub mod settings;
-pub mod timeline;
 pub mod tree_view;
 
-pub use asset_card::{
-    AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
-};
 pub use canvas::ChartDrawer;
+
 pub use card::{CardBuilder, CardFrame, CardIcon, CardStyle};
 pub use cascading_menu::{
     CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
@@ -43,22 +38,12 @@ pub use color_picker::{
     HsvColorPickerState, HsvColorPickerTargets, evaluate_color_picker_click,
     evaluate_color_picker_cursor, evaluate_color_picker_drag, hsv_to_rgb, rgb_to_hsv,
 };
-pub use console::{
-    CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
-    CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
-    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_ROW, CONSOLE_TAG_SCROLLBAR_THUMB,
-    CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
-    CONSOLE_TAG_TOOLBAR, CONSOLE_TAG_VIEWPORT, ConsoleFilterLevel, ConsoleLogCounts,
-    ConsoleLogLevel, ConsoleToolbarAction, ConsoleToolbarCursor, evaluate_console_toolbar_click,
-    evaluate_console_toolbar_cursor, is_console_tag,
-};
-
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
 pub use declarative::{
     InputBoxProps, UiScope, WidgetResponse, hash_label, layout_subtree, measure_content_height,
-    measure_height,
+    measure_height, measure_width,
 };
 pub use dropdown::{
     ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,
@@ -80,13 +65,6 @@ pub use scroll_area::{
 pub use settings::{
     SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,
     TabbedDialogFrame, TabbedDialogStyle, TabbedDialogTab,
-};
-pub use timeline::{
-    DEFAULT_RULER_HEIGHT, DEFAULT_SCRUBBER_HEIGHT, DEFAULT_SPEED_PRESETS, MediaTransportAction,
-    MediaTransportStyle, TIMELINE_TAG_LOOP, TIMELINE_TAG_PANEL_ROOT, TIMELINE_TAG_PLAY_PAUSE,
-    TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE,
-    TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TimelineKeyframeMarker,
-    TimelineRulerStyle, evaluate_timeline_transport_tag, is_timeline_tag,
 };
 pub use tree_view::{TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle};
 
@@ -129,12 +107,6 @@ mod tests {
             .is_selected(true)
             .build(&mut tree, root_id);
         assert!(tree.get(row_frame.row_id).is_some());
-
-        let asset_frame = AssetCardBuilder::new(iris_core::Rect::new(0.0, 0.0, 115.0, 125.0))
-            .title("shader.wgsl")
-            .badge(Some(AssetCardBadge::new("WGSL", Color::YELLOW)))
-            .build(&mut tree, root_id);
-        assert!(tree.get(asset_frame.card_id).is_some());
     }
 
     #[test]

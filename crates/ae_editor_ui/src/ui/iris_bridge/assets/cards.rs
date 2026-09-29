@@ -7,6 +7,7 @@
 //! canonical vector icons, truncated names, and file size metadata.
 //!
 
+use super::card_builder::{AssetCardBadge, AssetCardBuilder, AssetCardPreview};
 use super::types::{AssetCardTarget, AssetsPanelParams, AssetsPanelTargets, truncate_display_name};
 use crate::assets::types::AssetCategory;
 use crate::ui::iris_bridge::icons::{

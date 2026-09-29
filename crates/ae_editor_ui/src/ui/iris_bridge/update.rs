@@ -196,7 +196,7 @@ impl IrisEditorOverlay {
             return;
         }
 
-        if !self.notifier.is_any_dirty() && !self.tree.is_empty() {
+        if !self.chrome.always_rebuild && !self.notifier.is_any_dirty() && !self.tree.is_empty() {
             // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
             self.chrome.last_cursor_pos = self.cursor_pos();
             self.chrome.last_hovered_tag = self.chrome.hovered_tag;
@@ -216,7 +216,8 @@ impl IrisEditorOverlay {
         self.modals.is_new_folder_active = false;
         self.modals.is_rename_active = false;
         self.modals.is_loading_active = false;
-        self.preferences.targets = None;
+        self.preferences.card_rect = None;
+        self.preferences.content_rect = None;
         self.viewport_hud.is_active = false;
         self.inspector.targets = None;
         self.console.targets = None;
@@ -331,26 +332,29 @@ impl IrisEditorOverlay {
             .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
 
         // 2b. Baseline dividers under MenuBar and above StatusBar (added after Taffy layout to not alter SpaceBetween)
-        let top_bar_divider = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(top_bar_divider) {
-            node.set_name("IrisTopMenuBarDivider");
-            node.computed_rect = Rect::new(0.0, Self::MENUBAR_HEIGHT - 1.0, screen_width, 1.0);
-            node.style = Style::new().background(BORDER_MICRON);
-        }
-        let _ = self.tree.add_child(root, top_bar_divider);
+        let top_rect = Rect::new(0.0, Self::MENUBAR_HEIGHT - 1.0, screen_width, 1.0);
+        let bottom_rect = Rect::new(
+            0.0,
+            screen_height - Self::STATUS_BAR_HEIGHT,
+            screen_width,
+            1.0,
+        );
 
-        let bottom_bar_divider = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(bottom_bar_divider) {
-            node.set_name("IrisBottomStatusBarDivider");
-            node.computed_rect = Rect::new(
-                0.0,
-                screen_height - Self::STATUS_BAR_HEIGHT,
-                screen_width,
-                1.0,
-            );
-            node.style = Style::new().background(BORDER_MICRON);
+        let mut scope = UiScope::new(&mut self.tree, root);
+        let top_bar_divider = scope.empty_box_passive_named(
+            "IrisTopMenuBarDivider",
+            Style::new().background(BORDER_MICRON),
+        );
+        let bottom_bar_divider = scope.empty_box_passive_named(
+            "IrisBottomStatusBarDivider",
+            Style::new().background(BORDER_MICRON),
+        );
+        if let Some(node) = scope.tree_mut().get_mut(top_bar_divider) {
+            node.computed_rect = top_rect;
         }
-        let _ = self.tree.add_child(root, bottom_bar_divider);
+        if let Some(node) = scope.tree_mut().get_mut(bottom_bar_divider) {
+            node.computed_rect = bottom_rect;
+        }
 
         // 3. Build Native Iris UI Docking Frame (Splitters, Tab Strips, Compact Snug Tabs, Active Indicators)
         let workspace_rect = Rect::new(
@@ -439,7 +443,8 @@ impl IrisEditorOverlay {
         // 6b. If Preferences dialogue is active, build its floating card
         if params.dialogs.show_preferences {
             let blink_caret = (self.start_time.elapsed().as_millis() % 1060) < 530;
-            let (pref_id, targets) = build_preferences_dialog(
+            let hovered_tag = self.tree.hit_test_target(cursor).map(|h| h.tag);
+            let (_pref_id, card_rect, content_rect, max_scroll_y) = build_preferences_dialog(
                 &mut self.tree,
                 preferences::PreferencesParams {
                     screen_width,
@@ -449,6 +454,7 @@ impl IrisEditorOverlay {
                     scroll_offset_y: self.preferences.scroll_y,
                     is_scrollbar_dragging: self.preferences.active_scrollbar_drag.is_some(),
                     active_dropdown: self.preferences.dropdown,
+                    dropdown_trigger_rect: self.preferences.dropdown_trigger_rect,
                     collapsed_sections: &self.preferences.collapsed_sections,
                     active_number_input: self
                         .preferences
@@ -457,6 +463,7 @@ impl IrisEditorOverlay {
                         .map(|(id, s)| (*id, s.as_str())),
                     blink_caret,
                     cursor_pos: cursor,
+                    hovered_tag,
                     zoom_factor: params.context.zoom_factor,
                     graphics_settings: params.preferences.graphics_settings,
                     snapping_settings: params.preferences.snapping_settings,
@@ -465,10 +472,9 @@ impl IrisEditorOverlay {
                     enabled_modules: params.preferences.enabled_modules,
                 },
             );
-            if let Some(root_id) = self.tree.root() {
-                let _ = self.tree.add_child(root_id, pref_id);
-            }
-            self.preferences.targets = Some(targets);
+            self.preferences.card_rect = Some(card_rect);
+            self.preferences.content_rect = Some(content_rect);
+            self.preferences.max_scroll_y = max_scroll_y;
         }
 
         // 6c. If About Aeon Engine modal dialogue is active, build its centered card
@@ -699,5 +705,21 @@ impl IrisEditorOverlay {
                 self.measure_tree_text(child);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ui::iris_bridge::types::IrisChromeState;
+
+    #[test]
+    fn test_always_rebuild_default_and_setter() {
+        let mut chrome = IrisChromeState::default();
+        assert!(
+            chrome.always_rebuild,
+            "always_rebuild must default to true for immediate-mode frame updates"
+        );
+        chrome.always_rebuild = false;
+        assert!(!chrome.always_rebuild);
     }
 }

@@ -218,3 +218,66 @@ fn test_no_empty_closure_hacks() {
         violations
     );
 }
+
+#[test]
+fn test_irisui_crates_io_purity_guard() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let irisui_dir = Path::new(manifest_dir)
+        .parent()
+        .unwrap_or_else(|| Path::new(manifest_dir))
+        .join("irisui");
+
+    if !irisui_dir.exists() {
+        return;
+    }
+
+    let files = collect_rs_files(&irisui_dir);
+    let mut violations = Vec::new();
+
+    let forbidden_domain_tokens = [
+        "CONSOLE_TAG_",
+        "TIMELINE_TAG_",
+        "ConsoleFilterLevel",
+        "ConsoleFilterExt",
+        "ConsoleLogCounts",
+        "MediaTransportAction",
+        "MediaTransportStyle",
+        "TimelineKeyframeMarker",
+        "TimelineRulerStyle",
+        "TimelineRuler",
+        "TimelineTrack",
+        "TimelinePlayhead",
+        "TimelineKeyframe",
+        "AssetCardBuilder",
+        "AssetCardPreview",
+        "AssetCardBadge",
+        "AssetCardStyle",
+        "AssetCardFrame",
+    ];
+
+    for file in files {
+        if let Ok(content) = fs::read_to_string(&file) {
+            for (line_idx, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("//") {
+                    continue;
+                }
+                for &token in &forbidden_domain_tokens {
+                    if line.contains(token) {
+                        violations.push((
+                            file.display().to_string(),
+                            line_idx + 1,
+                            format!("Domain contamination detected in crates.io pure library: contains '{}'", token),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Architecture Guard Failure: Domain-specific concepts leaked into pure irisui library:\n{:#?}",
+        violations
+    );
+}

@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Hardware-Accelerated Asset Card Widget & Styles
+//! # Hardware-Accelerated Asset Card Widget & Builder
 //!
 //! Provides standardized, GPU SDF-rendered asset thumbnail cards for content browsers,
-//! project drawers, and media libraries.
+//! project drawers, and media libraries within the Aeon Engine editor UI.
 //!
 //! Handles category pill badges, VRAM/memory status indicators, texture thumbnails,
 //! canonical vector icons, truncated titles, metadata labels, and selection/hover states.
+//!
 
-use iris_core::color::Color;
-use iris_core::geometry::Rect;
-use iris_core::id::WidgetId;
-use iris_core::node::{WidgetCursor, WidgetRole};
-use iris_core::style::{Style, TextAlign};
-use iris_core::tree::UiTree;
+use irisui::prelude::{Color, Rect, Style, TextAlign, UiTree, WidgetCursor, WidgetId, WidgetRole};
 
 /// Visual styling configuration for an asset browser grid card.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -142,6 +138,7 @@ pub struct AssetCardBadge<'a> {
 impl<'a> AssetCardBadge<'a> {
     /// Creates a new asset category badge with the specified label and theme color.
     #[inline]
+    #[must_use]
     pub fn new(text: &'a str, color: Color) -> Self {
         Self { text, color }
     }
@@ -176,6 +173,7 @@ pub struct AssetCardBuilder<'a> {
 impl<'a> AssetCardBuilder<'a> {
     /// Initializes a new asset card builder with the target bounding box.
     #[inline]
+    #[must_use]
     pub fn new(rect: Rect) -> Self {
         Self {
             rect,
@@ -194,6 +192,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Sets the semantic/debug name of the card container node.
     #[inline]
+    #[must_use]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
@@ -201,6 +200,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Assigns an optional category pill badge in the top-left corner.
     #[inline]
+    #[must_use]
     pub fn badge(mut self, badge: Option<AssetCardBadge<'a>>) -> Self {
         self.badge = badge;
         self
@@ -208,6 +208,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Configures whether to display a status dot (e.g. VRAM resident indicator) in the top-right corner.
     #[inline]
+    #[must_use]
     pub fn status_dot(mut self, color: Option<Color>) -> Self {
         self.status_dot = color;
         self
@@ -215,6 +216,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Assigns the central preview content (texture thumbnail, vector icon, or text glyph).
     #[inline]
+    #[must_use]
     pub fn preview(mut self, preview: Option<AssetCardPreview<'a>>) -> Self {
         self.preview = preview;
         self
@@ -222,6 +224,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Sets the primary title text of the card (e.g. filename or asset name).
     #[inline]
+    #[must_use]
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
@@ -229,6 +232,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Sets the bottom metadata label text (e.g. file size "2.4 MB").
     #[inline]
+    #[must_use]
     pub fn metadata(mut self, metadata: impl Into<String>) -> Self {
         self.metadata = Some(metadata.into());
         self
@@ -236,6 +240,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Sets whether the card is currently selected.
     #[inline]
+    #[must_use]
     pub fn is_selected(mut self, is_selected: bool) -> Self {
         self.is_selected = is_selected;
         self
@@ -243,6 +248,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Sets whether the card is currently hovered by the pointer.
     #[inline]
+    #[must_use]
     pub fn is_hovered(mut self, is_hovered: bool) -> Self {
         self.is_hovered = is_hovered;
         self
@@ -250,6 +256,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Overrides the border color when hovered (e.g. to match category accent color).
     #[inline]
+    #[must_use]
     pub fn hover_border_color(mut self, color: Option<Color>) -> Self {
         self.hover_border_color = color;
         self
@@ -257,6 +264,7 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Applies a custom visual styling configuration.
     #[inline]
+    #[must_use]
     pub fn style(mut self, style: AssetCardStyle) -> Self {
         self.style = style;
         self

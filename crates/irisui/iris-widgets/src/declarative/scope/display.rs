@@ -336,164 +336,6 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
-    /// Emits a centralized empty state placeholder notice within the developer console viewport.
-    ///
-    /// # Arguments
-    /// * `message` - Explanation text displayed to the developer.
-    pub fn console_empty_notice(&mut self, message: &str) -> WidgetId {
-        let style = Style::new()
-            .padding_insets(Insets::new(24.0, 16.0, 24.0, 16.0))
-            .background(Color::rgba(0.0, 0.0, 0.0, 0.0));
-        self.container_named("ConsoleEmptyNotice", style, |scope| {
-            scope.label(
-                message,
-                12.0,
-                Color::rgba(0.50, 0.53, 0.60, 1.0),
-                TextAlign::Center,
-            );
-        })
-    }
-
-    /// Emits a single hardware-accelerated log entry row within the developer console viewport.
-    ///
-    /// Configures flex-row layout, zebra striping, severity badge, timestamp, target tag, and message
-    /// via 100% pure declarative [`UiScope`] container and label compositions.
-    ///
-    /// # Arguments
-    /// * `level` - Severity level determining badge coloring and styling.
-    /// * `timestamp` - Formatted time string (e.g. `12:00:00.000`).
-    /// * `target` - Subsystem or module identifier generating the message.
-    /// * `message` - Log description content.
-    /// * `is_hovered` - Whether the row is hovered by the mouse pointer.
-    /// * `is_striped` - Whether zebra striping background is active for this index.
-    pub fn console_row(
-        &mut self,
-        level: crate::console::types::ConsoleLogLevel,
-        timestamp: &str,
-        target: &str,
-        message: &str,
-        is_hovered: bool,
-        is_striped: bool,
-    ) -> WidgetId {
-        let bg_color = if is_hovered {
-            Color::rgba(0.10, 0.13, 0.18, 1.0)
-        } else if is_striped {
-            Color::rgba(0.04, 0.048, 0.065, 0.98)
-        } else {
-            Color::rgba(0.05, 0.06, 0.08, 0.98)
-        };
-
-        let row_style = Style::new()
-            .flex_row()
-            .align_items(iris_core::AlignItems::Center)
-            .height(26.0)
-            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-            .background(bg_color);
-
-        self.container_tagged(
-            "ConsoleRow",
-            row_style,
-            WidgetRole::Default,
-            crate::console::types::CONSOLE_TAG_ROW,
-            |row_scope| {
-                if is_hovered {
-                    let accent_style = Style::new()
-                        .width(3.0)
-                        .height(26.0)
-                        .background(Color::rgba(0.0, 0.85, 1.0, 0.95));
-                    let accent_id = row_scope.empty_box(accent_style);
-                    if let Some(node) = row_scope.tree.get_mut(accent_id) {
-                        node.interactive = false;
-                    }
-                }
-
-                let (badge_text, badge_color, badge_bg) = match level {
-                    crate::console::types::ConsoleLogLevel::Error => (
-                        "ERR",
-                        Color::rgba(0.98, 0.45, 0.45, 1.0),
-                        Color::rgba(0.38, 0.08, 0.08, 0.90),
-                    ),
-                    crate::console::types::ConsoleLogLevel::Warn => (
-                        "WRN",
-                        Color::rgba(0.98, 0.78, 0.20, 1.0),
-                        Color::rgba(0.35, 0.20, 0.02, 0.90),
-                    ),
-                    crate::console::types::ConsoleLogLevel::Info => (
-                        "INF",
-                        Color::rgba(0.25, 0.78, 0.98, 1.0),
-                        Color::rgba(0.05, 0.20, 0.32, 0.90),
-                    ),
-                    crate::console::types::ConsoleLogLevel::Debug => (
-                        "DBG",
-                        Color::rgba(0.75, 0.60, 0.98, 1.0),
-                        Color::rgba(0.18, 0.10, 0.32, 0.90),
-                    ),
-                    crate::console::types::ConsoleLogLevel::Trace => (
-                        "TRC",
-                        Color::rgba(0.60, 0.66, 0.75, 1.0),
-                        Color::rgba(0.12, 0.15, 0.20, 0.90),
-                    ),
-                };
-
-                let badge_style = Style::new()
-                    .width(38.0)
-                    .height(18.0)
-                    .background(badge_bg)
-                    .border_radius(3.5);
-                let badge_id =
-                    row_scope.container_named("LevelBadge", badge_style, |badge_scope| {
-                        let badge_lbl = badge_scope.label_with_width(
-                            badge_text,
-                            38.0,
-                            9.5,
-                            badge_color,
-                            TextAlign::Center,
-                        );
-                        if let Some(node) = badge_scope.tree.get_mut(badge_lbl) {
-                            node.interactive = false;
-                        }
-                    });
-                if let Some(node) = row_scope.tree.get_mut(badge_id) {
-                    node.interactive = false;
-                }
-
-                let time_id = row_scope.label_with_width(
-                    timestamp,
-                    66.0,
-                    10.0,
-                    Color::rgba(0.50, 0.55, 0.65, 1.0),
-                    TextAlign::Left,
-                );
-                if let Some(node) = row_scope.tree.get_mut(time_id) {
-                    node.interactive = false;
-                }
-
-                let target_text = format!("[{}]", target);
-                let target_w = (target_text.len() as f32 * 6.6 + 6.0).clamp(44.0, 220.0);
-                let target_id = row_scope.label_with_width(
-                    target_text,
-                    target_w,
-                    10.5,
-                    Color::rgba(0.0, 0.85, 1.0, 0.85),
-                    TextAlign::Left,
-                );
-                if let Some(node) = row_scope.tree.get_mut(target_id) {
-                    node.interactive = false;
-                }
-
-                let msg_color = if level == crate::console::types::ConsoleLogLevel::Error {
-                    Color::rgba(1.0, 0.85, 0.85, 1.0)
-                } else {
-                    Color::rgba(0.92, 0.94, 0.98, 1.0)
-                };
-                let msg_id = row_scope.label_flex(message, 11.0, msg_color, TextAlign::Left);
-                if let Some(node) = row_scope.tree.get_mut(msg_id) {
-                    node.interactive = false;
-                }
-            },
-        )
-    }
-
     /// Emits a vertical scrollbar overlay (track and thumb) for a scrollable container.
     ///
     /// The track and thumb nodes are positioned absolutely relative to `container_rect`.
@@ -520,6 +362,12 @@ impl<'a> UiScope<'a> {
         let track_rel_x = geom.track_rect.x - container_rect.x;
         let track_rel_y = geom.track_rect.y - container_rect.y;
 
+        let parent_layer = self
+            .tree
+            .get(self.parent)
+            .map(|p| p.layer)
+            .unwrap_or_default();
+
         let track_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(track_id) {
             node.set_name("ScrollBarTrack");
@@ -527,6 +375,8 @@ impl<'a> UiScope<'a> {
             node.interactive = true;
             node.role = WidgetRole::Button;
             node.cursor = Some(WidgetCursor::Pointer);
+            node.computed_rect = geom.track_rect;
+            node.layer = parent_layer;
             node.set_style(
                 Style::new()
                     .position_absolute()
@@ -535,9 +385,9 @@ impl<'a> UiScope<'a> {
                     .width(geom.track_rect.width)
                     .height(geom.track_rect.height)
                     .background(if is_track_hovered {
-                        Color::rgba(0.08, 0.10, 0.14, 0.50)
+                        Color::rgba(0.12, 0.14, 0.20, 0.60)
                     } else {
-                        Color::rgba(0.03, 0.04, 0.06, 0.35)
+                        Color::rgba(0.05, 0.06, 0.09, 0.40)
                     })
                     .border_radius(3.0),
             );
@@ -552,7 +402,7 @@ impl<'a> UiScope<'a> {
         } else if is_thumb_hovered {
             Color::rgba(0.55, 0.65, 0.85, 0.90)
         } else {
-            Color::rgba(0.35, 0.40, 0.50, 0.65)
+            Color::rgba(0.40, 0.45, 0.58, 0.75)
         };
 
         let thumb_id = self.tree.create_node();
@@ -562,6 +412,8 @@ impl<'a> UiScope<'a> {
             node.interactive = true;
             node.role = WidgetRole::Button;
             node.cursor = Some(WidgetCursor::Pointer);
+            node.computed_rect = geom.thumb_rect;
+            node.layer = parent_layer;
             node.set_style(
                 Style::new()
                     .position_absolute()

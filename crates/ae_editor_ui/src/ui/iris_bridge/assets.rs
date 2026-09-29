@@ -9,6 +9,7 @@
 //! interactive quick asset preview modal, and responsive grid/table views.
 //!
 
+pub mod card_builder;
 pub mod cards;
 pub mod chips;
 pub mod context_menu;
@@ -22,6 +23,9 @@ mod tests;
 pub mod tree;
 pub mod types;
 
+pub use card_builder::{
+    AssetCardBadge, AssetCardBuilder, AssetCardFrame, AssetCardPreview, AssetCardStyle,
+};
 pub use chips::build_category_chips;
 pub use drag_overlay::build_asset_drag_overlays;
 pub use events::{

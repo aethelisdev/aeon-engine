@@ -61,14 +61,6 @@ pub enum WidgetRole {
     TextInputIcon,
     /// Animated blinking vertical caret cursor indicator inside an active text input field.
     TextInputCaret,
-    /// Visual time ruler container containing dynamic division ticks and timestamp labels.
-    TimelineRuler,
-    /// Interactive timeline scrubber track container hosting progress fills and keyframes.
-    TimelineTrack,
-    /// Draggable timeline playhead needle and cap handle.
-    TimelinePlayhead,
-    /// Keyframe marker diamond indicator positioned along a timeline scrubber track.
-    TimelineKeyframe,
 }
 
 /// Canonical hardware mouse cursor shapes supported across the Iris UI ecosystem.
@@ -164,11 +156,7 @@ impl WidgetRole {
             | WidgetRole::DockSplitterVertical
             | WidgetRole::ProgressBar
             | WidgetRole::TextInputIcon
-            | WidgetRole::TextInputCaret
-            | WidgetRole::TimelineRuler
-            | WidgetRole::TimelineTrack
-            | WidgetRole::TimelinePlayhead
-            | WidgetRole::TimelineKeyframe => UiLayer::Content,
+            | WidgetRole::TextInputCaret => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
             WidgetRole::ModalWindow => UiLayer::Modal,
             WidgetRole::DropdownPopup
@@ -191,9 +179,7 @@ impl WidgetRole {
             | WidgetRole::DockTab => Some(WidgetCursor::Pointer),
             WidgetRole::TextInput => Some(WidgetCursor::Text),
             WidgetRole::NumericInput => Some(WidgetCursor::EwResize),
-            WidgetRole::DockSplitterHorizontal
-            | WidgetRole::TimelineTrack
-            | WidgetRole::TimelinePlayhead => Some(WidgetCursor::ColResize),
+            WidgetRole::DockSplitterHorizontal => Some(WidgetCursor::ColResize),
             WidgetRole::DockSplitterVertical => Some(WidgetCursor::RowResize),
             _ => None,
         }

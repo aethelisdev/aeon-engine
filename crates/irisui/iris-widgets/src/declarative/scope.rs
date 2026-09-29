@@ -9,6 +9,7 @@
 //!
 
 pub mod buttons;
+pub mod compass;
 pub mod containers;
 pub mod core;
 pub mod display;
@@ -16,7 +17,6 @@ pub mod input;
 pub mod menu;
 pub mod modal;
 pub mod progress;
-pub mod timeline;
 
 pub use super::types::{WidgetResponse, hash_label};
 pub use core::UiScope;

@@ -31,9 +31,8 @@ impl EngineUi {
             return true;
         }
 
-        if let Some(ref targets) = self.iris_overlay.preferences.targets
-            && (targets.card_rect.contains_point(point)
-                || self.iris_overlay.preferences.dropdown.is_some())
+        if let Some(card_rect) = self.iris_overlay.preferences.card_rect
+            && (card_rect.contains_point(point) || self.iris_overlay.preferences.dropdown.is_some())
         {
             return true;
         }
