@@ -11,52 +11,6 @@ use super::core::UiScope;
 use iris_core::{Color, Insets, Rect, Style, WidgetCursor, WidgetId, WidgetRole};
 
 impl<'a> UiScope<'a> {
-    /// Emits a top-level panel container with an explicit bounding rectangle and debug name.
-    ///
-    /// Sets both style (absolute positioning, width, height, background, clip_children)
-    /// and initializes `computed_rect = rect` so that child clipping and hit-testing immediately
-    /// function across the panel bounds without requiring an external layout resolution pass.
-    ///
-    /// # Arguments
-    /// * `name` - Static debug name assigned to the panel node.
-    /// * `rect` - Bounding rectangle defining the position and physical dimensions of the panel.
-    /// * `bg` - Background fill color for the panel.
-    /// * `f` - Closure executing within the newly formed child scope.
-    pub fn panel<F>(&mut self, name: &'static str, rect: Rect, bg: Color, f: F) -> WidgetId
-    where
-        F: FnOnce(&mut UiScope<'_>),
-    {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
-            node.computed_rect = rect;
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(rect.x)
-                    .top(rect.y)
-                    .width(rect.width)
-                    .height(rect.height)
-                    .flex_col()
-                    .background(bg)
-                    .clip_children(true),
-            );
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
-        f(&mut child_scope);
-        crate::declarative::layout_subtree(self.tree, node_id, rect);
-        node_id
-    }
-
     /// Emits a tagged dockable panel root container with absolute bounding geometry and vertical flex flow.
     ///
     /// # Arguments
@@ -96,14 +50,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         crate::declarative::layout_subtree(self.tree, node_id, rect);
         node_id
@@ -263,14 +210,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         node_id
     }
@@ -281,7 +221,7 @@ impl<'a> UiScope<'a> {
     /// * `name` - Descriptive identifier assigned to the created UI node.
     /// * `style` - Flexbox and visual styling properties applied to the container.
     /// * `f` - Closure executing within the newly formed child scope.
-    pub fn container_named<F>(&mut self, name: &'static str, style: Style, f: F) -> WidgetId
+    pub fn container_named<F>(&mut self, name: impl Into<String>, style: Style, f: F) -> WidgetId
     where
         F: FnOnce(&mut UiScope<'_>),
     {
@@ -292,14 +232,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         node_id
     }
@@ -323,14 +256,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         node_id
     }
@@ -348,7 +274,7 @@ impl<'a> UiScope<'a> {
     /// * `f` - Closure executing within the newly formed child scope.
     pub fn container_tagged<F>(
         &mut self,
-        name: &'static str,
+        name: impl Into<String>,
         style: Style,
         role: WidgetRole,
         tag: u64,
@@ -367,14 +293,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         node_id
     }
@@ -412,34 +331,64 @@ impl<'a> UiScope<'a> {
     /// Emits an elevated, bordered card container featuring a prominent heading and divider.
     ///
     /// # Arguments
+    /// Emits a named elevated, bordered card container conforming to flexbox layout.
+    ///
+    /// The card expands according to its parent container's layout constraints without requiring
+    /// hardcoded physical coordinates or triggering premature layout subtree evaluations.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier assigned to the card container node.
+    /// * `title` - Card heading string rendered in a styled header row.
+    /// * `f` - Child scope closure emitting the body content.
+    pub fn card_named<F>(&mut self, name: impl Into<String>, title: &str, f: F) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
+
+        self.container_named(name, card_style, |card_scope| {
+            // Header bar
+            let header_style = Style::new()
+                .flex_row()
+                .align_items(iris_core::AlignItems::Center)
+                .height(20.0)
+                .gap(6.0);
+
+            card_scope.container_named("CardHeader", header_style, |header_scope| {
+                header_scope.label_styled_passive(
+                    "CardHeaderTitle",
+                    title,
+                    11.5,
+                    Color::rgba(0.886, 0.894, 0.918, 1.0),
+                    iris_core::TextAlign::Left,
+                    Style::new().height(20.0),
+                );
+            });
+
+            // Card body column
+            card_scope.column(f);
+        })
+    }
+
+    /// Emits an elevated, bordered card container conforming to flexbox layout.
+    ///
+    /// Automatically applies standard dark styling, header label, and places body contents into
+    /// a vertical flex column.
+    ///
+    /// # Arguments
     /// * `title` - Card heading string.
     /// * `f` - Child scope closure emitting the body content.
     pub fn card<F>(&mut self, title: &str, f: F) -> WidgetId
     where
         F: FnOnce(&mut UiScope<'_>),
     {
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.12, 0.12, 0.15, 0.95))
-            .border(1.0, Color::rgba(0.22, 0.22, 0.28, 0.8))
-            .border_radius(4.0)
-            .padding(6.0)
-            .gap(4.0);
-
-        self.container(card_style, |card_scope| {
-            // Header bar
-            let header_style = Style::new()
-                .flex_row()
-                .align_items(iris_core::AlignItems::Center)
-                .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0));
-
-            card_scope.container(header_style, |header_scope| {
-                header_scope.text_colored(title, Color::rgba(0.9, 0.92, 0.96, 1.0));
-            });
-
-            // Card body column
-            card_scope.column(f);
-        })
+        self.card_named("Card", title, f)
     }
 
     /// Emits an elevated, bordered card container allowing custom header and body closures.
@@ -487,10 +436,6 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
-    /// Emits a 1-pixel horizontal rule divider container with a custom color.
-    ///
-    /// # Arguments
-    /// * `color` - RGBA color of the divider line.
     /// Emits a styled leaf element (empty container node without child scopes, e.g. solid box or backdrop).
     ///
     /// # Arguments
@@ -528,7 +473,7 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `name` - Descriptive name of the widget node for tree debugging.
     /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    pub fn empty_box_passive_named(&mut self, name: &'static str, style: Style) -> WidgetId {
+    pub fn empty_box_passive_named(&mut self, name: impl Into<String>, style: Style) -> WidgetId {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name(name);
@@ -548,14 +493,14 @@ impl<'a> UiScope<'a> {
     /// * `tag` - 64-bit semantic identifier for hardware hit-testing and event routing.
     pub fn empty_box_tagged(
         &mut self,
-        name: &'static str,
+        name: impl Into<String>,
         style: Style,
         role: WidgetRole,
         tag: u64,
     ) -> WidgetId {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
+            node.set_name(name.into());
             node.tag = tag;
             node.role = role;
             node.interactive = true;

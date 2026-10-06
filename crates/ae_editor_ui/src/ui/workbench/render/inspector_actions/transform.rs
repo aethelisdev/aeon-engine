@@ -68,6 +68,11 @@ impl EngineUi {
                 ui_actions.push(EngineUiAction::ModifyScale(entity, old_scale, new_scale));
             }
         }
+        if let Ok(mut v) = world.get::<&mut ae_core::ecs::Velocity>(entity) {
+            v.x = 0.0;
+            v.y = 0.0;
+            v.z = 0.0;
+        }
     }
 
     /// Updates object color and synchronizes UI hex string and HSV pickers.

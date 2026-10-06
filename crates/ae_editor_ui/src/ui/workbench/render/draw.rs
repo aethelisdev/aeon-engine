@@ -206,9 +206,9 @@ impl EngineUi {
             is_editing: *params.mode == ae_core::modules::EngineMode::Edit,
             undo_stack: params.undo_stack,
             redo_stack: params.redo_stack,
-            graphics_settings: &cur_gs,
-            snapping_settings: &cur_snap,
-            editor_config: &cur_cfg,
+            graphics_settings: &mut cur_gs,
+            snapping_settings: &mut cur_snap,
+            editor_config: &mut cur_cfg,
             enable_live_updates: cur_live,
             enabled_modules: params.enabled_modules,
             camera: params.camera,
@@ -225,6 +225,23 @@ impl EngineUi {
             models: params.models,
             is_2d_mode: params.is_2d_mode,
         });
+
+        // 3b. Dispatch any settings modifications mutated in-place by declarative two-way bindings
+        if !gs_changed && cur_gs != *params.graphics_settings {
+            params
+                .ui_actions
+                .push(EngineUiAction::UpdateGraphicsSettings(cur_gs.clone()));
+        }
+        if !snap_changed && cur_snap != *params.snapping {
+            params
+                .ui_actions
+                .push(EngineUiAction::UpdateSnapSettings(cur_snap));
+        }
+        if !cfg_changed && cur_cfg != params.editor_state.config {
+            params
+                .ui_actions
+                .push(EngineUiAction::UpdateEditorConfig(cur_cfg.clone()));
+        }
 
         // 4. Viewport Texture Re-registration Check
         let mut new_rect = viewport_rect;

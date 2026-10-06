@@ -9,8 +9,12 @@ use winit::event::WindowEvent;
 
 impl IrisEditorOverlay {
     /// Intercepts and processes window mouse input and cursor movement events across all active Iris UI subsystems.
-    pub fn handle_event(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
-        let result = self.dispatch_window_event_internal(event);
+    pub fn handle_event(
+        &mut self,
+        event: &WindowEvent,
+        world: Option<&hecs::World>,
+    ) -> IrisOverlayEventResult {
+        let result = self.dispatch_window_event_internal(event, world);
         // Reactive Event Invalidation: If any UI element consumed this event or produced
         // an action/state change, immediately flag the UI tree as dirty so the next frame
         // reflects the change instantly, even if the mouse cursor does not move a single pixel.
@@ -35,7 +39,11 @@ impl IrisEditorOverlay {
     }
 
     /// Internal routing pipeline that tests UI layers in strict Z-order.
-    fn dispatch_window_event_internal(&mut self, event: &WindowEvent) -> IrisOverlayEventResult {
+    fn dispatch_window_event_internal(
+        &mut self,
+        event: &WindowEvent,
+        world: Option<&hecs::World>,
+    ) -> IrisOverlayEventResult {
         let mut result = IrisOverlayEventResult::default();
 
         // 1. Track modifier keys for accelerated / fine-tune dragging
@@ -96,7 +104,7 @@ impl IrisEditorOverlay {
             if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
                 return hier_res;
             }
-            if let Some(insp_res) = self.handle_inspector_window_event(event) {
+            if let Some(insp_res) = self.handle_inspector_window_event(event, world) {
                 return insp_res;
             }
             if let Some(ui_res) = self.handle_ui_designer_window_event(event) {
@@ -161,11 +169,10 @@ impl IrisEditorOverlay {
 
         // 9. Floating Window Occlusion Check:
         // If cursor is over an active floating window, docked panels must NOT claim the event!
-        let is_cursor_over_floating = self
-            .chrome
-            .floating_window_rects
-            .iter()
-            .any(|r| r.contains_point(self.cursor_pos()));
+        let cursor = self.cursor_pos();
+        let is_cursor_over_floating = self.chrome.floating_window_rects.iter().any(|r| {
+            cursor.x >= r.x && cursor.x <= r.right() && cursor.y >= r.y && cursor.y <= r.bottom()
+        });
 
         if !is_cursor_over_floating {
             // 10. Docked Panels Event Dispatch
@@ -201,7 +208,7 @@ impl IrisEditorOverlay {
                 return scroll_res;
             }
 
-            if let Some(insp_res) = self.handle_inspector_window_event(event) {
+            if let Some(insp_res) = self.handle_inspector_window_event(event, world) {
                 return insp_res;
             }
         }

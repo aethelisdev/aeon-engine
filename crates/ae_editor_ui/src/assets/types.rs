@@ -25,6 +25,17 @@ pub enum AssetCategory {
 }
 
 impl AssetCategory {
+    /// All asset categories in canonical display order for zero-allocation indexed access.
+    pub const ALL: [AssetCategory; 7] = [
+        AssetCategory::All,
+        AssetCategory::Models3D,
+        AssetCategory::Textures2D,
+        AssetCategory::Shaders,
+        AssetCategory::Scenes,
+        AssetCategory::Materials,
+        AssetCategory::Audio,
+    ];
+
     /// Human-readable label with category icon.
     pub fn label(self) -> &'static str {
         match self {

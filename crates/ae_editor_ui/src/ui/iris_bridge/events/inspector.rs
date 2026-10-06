@@ -3,11 +3,13 @@
 
 //! Interaction, numeric dragging, color picking, and text editing subsystem for the Scene Inspector panel overlay.
 
+use crate::ui::iris_bridge::inspector::tags::TAG_INSPECTOR_DROPDOWN_ITEM_BASE;
 use crate::ui::iris_bridge::inspector::{self, ComponentCategory, InspectorAction};
 use crate::ui::iris_bridge::types::{
     InspectorColorDragMode, InspectorNumberDragState, InspectorNumberInputSession,
     IrisEditorOverlay, IrisOverlayEventResult,
 };
+use crate::ui::workbench::render::inspector_actions::read_inspector_number_value;
 use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
@@ -34,6 +36,7 @@ impl IrisEditorOverlay {
     pub(crate) fn handle_inspector_window_event(
         &mut self,
         event: &WindowEvent,
+        world: Option<&hecs::World>,
     ) -> Option<IrisOverlayEventResult> {
         // 1. Add Component Menu Hover & Submenu Cascade
         self.handle_inspector_menu_hover(event);
@@ -44,7 +47,7 @@ impl IrisEditorOverlay {
         }
 
         // 3. Mouse Click Interactions (Dropdowns, Color Picker, Number/Text focus, Buttons)
-        self.handle_inspector_click_event(event)
+        self.handle_inspector_click_event(event, world)
     }
 
     /// Handles continuous horizontal mouse dragging for numeric scrubbers and 2D HSV color canvas.
@@ -90,12 +93,7 @@ impl IrisEditorOverlay {
 
         // Continuous mouse drag for Inspector 2D HSV Color Picker
         if let Some(mode) = self.inspector.color_drag_mode
-            && let Some((picker, entity)) = self
-                .inspector
-                .interactions
-                .targets
-                .as_ref()
-                .and_then(|t| t.color_picker.as_ref().zip(t.inspected_entity))
+            && let Some(entity) = self.inspector.inspected_entity
         {
             let cursor = self.cursor_pos();
             let mut state = HsvColorPickerState {
@@ -104,8 +102,30 @@ impl IrisEditorOverlay {
                 value: self.inspector.hsv[2],
                 alpha: 1.0,
             };
-            let col = irisui::prelude::evaluate_color_picker_drag(picker, &mut state, mode, cursor);
+
+            match mode {
+                InspectorColorDragMode::SaturationValue => {
+                    let sv_rect = self
+                        .tree
+                        .iter()
+                        .find(|(_, n)| n.tag == inspector::tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+                        .map(|(_, n)| n.computed_rect)
+                        .unwrap_or(Rect::new(cursor.x - 80.0, cursor.y - 65.0, 160.0, 130.0));
+                    state.update_from_sv_point(cursor, sv_rect);
+                }
+                InspectorColorDragMode::Hue => {
+                    let hue_rect = self
+                        .tree
+                        .iter()
+                        .find(|(_, n)| n.tag == inspector::tags::TAG_INSPECTOR_COLOR_PICKER_HUE_BAR)
+                        .map(|(_, n)| n.computed_rect)
+                        .unwrap_or(Rect::new(cursor.x - 9.0, cursor.y - 65.0, 18.0, 130.0));
+                    state.update_from_hue_point(cursor, hue_rect);
+                }
+            }
+
             self.inspector.hsv = [state.hue, state.saturation, state.value];
+            let col = state.to_color();
             self.inspector
                 .actions
                 .push(InspectorAction::LiveSetObjectColor(entity, col));
@@ -132,13 +152,7 @@ impl IrisEditorOverlay {
 
         let mut result = IrisOverlayEventResult::default();
         if self.inspector.color_drag_mode.take().is_some() {
-            if let Some(entity) = self
-                .inspector
-                .interactions
-                .targets
-                .as_ref()
-                .and_then(|t| t.inspected_entity)
-            {
+            if let Some(entity) = self.inspector.inspected_entity {
                 self.inspector
                     .actions
                     .push(InspectorAction::CommitColorEdit(entity));
@@ -196,8 +210,8 @@ impl IrisEditorOverlay {
     fn handle_inspector_click_event(
         &mut self,
         event: &WindowEvent,
+        world: Option<&hecs::World>,
     ) -> Option<IrisOverlayEventResult> {
-        let insp_targets = self.inspector.interactions.targets.as_ref()?;
         let WindowEvent::MouseInput {
             state: ElementState::Pressed,
             button,
@@ -216,13 +230,13 @@ impl IrisEditorOverlay {
             _ => MouseButton::Left,
         };
 
-        let entity_opt = insp_targets.inspected_entity;
+        let entity_opt = self.inspector.inspected_entity;
 
         // 1. Check if an active dropdown popup is open and clicked
         if let Some(active_dd) = self.inspector.active_dropdown {
             if let Some(hit) = self.tree.hit_test_target(click_point) {
                 if hit.layer == UiLayer::Popup && hit.role == WidgetRole::DropdownItem {
-                    let opt_idx = hit.tag as usize;
+                    let opt_idx = (hit.tag - TAG_INSPECTOR_DROPDOWN_ITEM_BASE) as usize;
                     if let Some(entity) = entity_opt {
                         self.inspector
                             .interactions
@@ -276,93 +290,150 @@ impl IrisEditorOverlay {
 
         // 1b. Check if 2D HSV Color Picker is open and clicked
         if self.inspector.is_color_picker_open
-            && let Some(ref picker) = insp_targets.color_picker
+            && let Some(hit) = self.tree.hit_test_target(click_point)
+            && hit.layer == UiLayer::Popup
         {
-            let mut state = HsvColorPickerState {
-                hue: self.inspector.hsv[0],
-                saturation: self.inspector.hsv[1],
-                value: self.inspector.hsv[2],
-                alpha: 1.0,
-            };
-            let action =
-                irisui::prelude::evaluate_color_picker_click(picker, &mut state, click_point);
-            match action {
-                irisui::prelude::ColorPickerClickAction::Close => {
-                    self.inspector.is_color_picker_open = false;
-                    if let Some(entity) = entity_opt {
-                        self.inspector
-                            .interactions
-                            .actions
-                            .push(InspectorAction::CommitColorEdit(entity));
-                    }
-                    result.consumed = true;
-                    return Some(result);
-                }
-                irisui::prelude::ColorPickerClickAction::StartSvDrag { color } => {
-                    self.inspector.hsv = [state.hue, state.saturation, state.value];
-                    if let Some(entity) = entity_opt {
-                        self.inspector
-                            .interactions
-                            .actions
-                            .push(InspectorAction::StartColorEdit(entity));
-                        self.inspector
-                            .interactions
-                            .actions
-                            .push(InspectorAction::LiveSetObjectColor(entity, color));
-                    }
-                    self.inspector.color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
-                    result.consumed = true;
-                    return Some(result);
-                }
-                irisui::prelude::ColorPickerClickAction::StartHueDrag { color } => {
-                    self.inspector.hsv = [state.hue, state.saturation, state.value];
-                    if let Some(entity) = entity_opt {
-                        self.inspector
-                            .interactions
-                            .actions
-                            .push(InspectorAction::StartColorEdit(entity));
-                        self.inspector
-                            .interactions
-                            .actions
-                            .push(InspectorAction::LiveSetObjectColor(entity, color));
-                    }
-                    self.inspector.color_drag_mode = Some(InspectorColorDragMode::Hue);
-                    result.consumed = true;
-                    return Some(result);
-                }
-                irisui::prelude::ColorPickerClickAction::CardConsumed => {
-                    result.consumed = true;
-                    return Some(result);
-                }
-                irisui::prelude::ColorPickerClickAction::Miss => {}
-            }
-        }
-
-        // 2. Check if a string text input box is clicked
-        for &(text_id, box_rect, ref cur_val) in &insp_targets.text_inputs {
-            if box_rect.contains_point(click_point) {
-                if let Some((prev_ent, prev_id, prev_buf)) = self.inspector.active_text_input.take()
-                    && prev_id != text_id
-                {
+            if inspector::tags::resolve_color_picker_close_tag(hit.tag) {
+                self.inspector.is_color_picker_open = false;
+                if let Some(entity) = entity_opt {
                     self.inspector
                         .interactions
                         .actions
-                        .push(InspectorAction::SetTextValue(prev_ent, prev_id, prev_buf));
+                        .push(InspectorAction::CommitColorEdit(entity));
                 }
+                result.consumed = true;
+                return Some(result);
+            }
+            if inspector::tags::resolve_color_picker_sv_box_tag(hit.tag) {
+                let mut state = HsvColorPickerState {
+                    hue: self.inspector.hsv[0],
+                    saturation: self.inspector.hsv[1],
+                    value: self.inspector.hsv[2],
+                    alpha: 1.0,
+                };
+                state.update_from_sv_point(click_point, hit.rect);
+                self.inspector.hsv = [state.hue, state.saturation, state.value];
+                let color = state.to_color();
                 if let Some(entity) = entity_opt {
-                    self.inspector.active_text_input = Some((entity, text_id, cur_val.clone()));
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::StartColorEdit(entity));
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::LiveSetObjectColor(entity, color));
                 }
-                self.inspector.active_number_input = None;
-                self.inspector.rename_buffer = None;
-                self.inspector.hex_buffer = None;
+                self.inspector.color_drag_mode = Some(InspectorColorDragMode::SaturationValue);
+                result.consumed = true;
+                return Some(result);
+            }
+            if inspector::tags::resolve_color_picker_hue_bar_tag(hit.tag) {
+                let mut state = HsvColorPickerState {
+                    hue: self.inspector.hsv[0],
+                    saturation: self.inspector.hsv[1],
+                    value: self.inspector.hsv[2],
+                    alpha: 1.0,
+                };
+                state.update_from_hue_point(click_point, hit.rect);
+                self.inspector.hsv = [state.hue, state.saturation, state.value];
+                let color = state.to_color();
+                if let Some(entity) = entity_opt {
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::StartColorEdit(entity));
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::LiveSetObjectColor(entity, color));
+                }
+                self.inspector.color_drag_mode = Some(InspectorColorDragMode::Hue);
+                result.consumed = true;
+                return Some(result);
+            }
+            if inspector::tags::resolve_color_picker_card_tag(hit.tag) {
                 result.consumed = true;
                 return Some(result);
             }
         }
 
-        // 2b. Check if a number input box is clicked
-        for &(num_id, box_rect, min_val, max_val, cur_val) in &insp_targets.number_inputs {
-            if box_rect.contains_point(click_point) {
+        // Close color picker or add menu if clicked outside
+        if self.inspector.is_color_picker_open {
+            let hit = self.tree.hit_test_target(click_point);
+            let inside_picker = hit.is_some_and(|h| {
+                h.layer == UiLayer::Popup
+                    && (inspector::tags::resolve_color_picker_card_tag(h.tag)
+                        || inspector::tags::resolve_color_picker_sv_box_tag(h.tag)
+                        || inspector::tags::resolve_color_picker_hue_bar_tag(h.tag)
+                        || inspector::tags::resolve_color_picker_close_tag(h.tag))
+            });
+            if !inside_picker {
+                self.inspector.is_color_picker_open = false;
+                if let Some(entity) = entity_opt {
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::CommitColorEdit(entity));
+                }
+            }
+        }
+        if self.inspector.is_add_menu_open {
+            self.inspector.is_add_menu_open = false;
+            self.inspector.active_submenu = None;
+        }
+
+        // 2. Resolve interactive UiTree node hit (O(1) semantic tag)
+        if let Some(hit) = self.tree.hit_test_target(click_point) {
+            // 2a. Entity Name Input
+            if inspector::resolve_entity_name_input_tag(hit.tag) {
+                if let Some(entity) = entity_opt {
+                    if let Some((cur_ent, _)) = self.inspector.rename_buffer {
+                        if cur_ent == entity && self.inspector.rename_is_all_selected {
+                            self.inspector.rename_is_all_selected = false;
+                        } else if cur_ent != entity {
+                            let current_name = self.inspector.inspected_entity_name.clone();
+                            self.inspector.rename_buffer = Some((entity, current_name));
+                            self.inspector.rename_is_all_selected = true;
+                        }
+                    } else {
+                        let current_name = self.inspector.inspected_entity_name.clone();
+                        self.inspector.rename_buffer = Some((entity, current_name));
+                        self.inspector.rename_is_all_selected = true;
+                    }
+                }
+                self.inspector.active_number_input = None;
+                self.inspector.active_text_input = None;
+                self.inspector.hex_buffer = None;
+                result.consumed = true;
+                return Some(result);
+            }
+
+            // 2b. Transform Reset Buttons
+            if let Some(axis_type) = inspector::resolve_transform_reset_tag(hit.tag) {
+                if let Some(entity) = entity_opt {
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::ResetTransform(entity, axis_type));
+                }
+                result.consumed = true;
+                return Some(result);
+            }
+
+            // 2c. Number Inputs (Transform & Components, zero rectangular loops)
+            if let Some((num_id, min_val, max_val, sensitivity)) =
+                inspector::resolve_inspector_number_input_tag(hit.tag)
+            {
+                if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
+                    if !buf.trim().is_empty() {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::RenameEntity(ent, buf));
+                    }
+                    self.inspector.rename_is_all_selected = false;
+                }
                 if let Some(prev) = self.inspector.active_number_input.take()
                     && prev.id != num_id
                 {
@@ -386,42 +457,12 @@ impl IrisEditorOverlay {
                         self.inspector.edit_start_snapshot = None;
                     }
                 }
-                let sensitivity = match num_id {
-                    inspector::InspectorNumberInputId::UiOffsetX
-                    | inspector::InspectorNumberInputId::UiOffsetY
-                    | inspector::InspectorNumberInputId::UiSizeW
-                    | inspector::InspectorNumberInputId::UiSizeH => 1.0,
-                    inspector::InspectorNumberInputId::UiFontSize
-                    | inspector::InspectorNumberInputId::UiBorderWidth
-                    | inspector::InspectorNumberInputId::UiCornerRadius
-                    | inspector::InspectorNumberInputId::UiProgressVal
-                    | inspector::InspectorNumberInputId::UiProgressMin
-                    | inspector::InspectorNumberInputId::UiProgressMax
-                    | inspector::InspectorNumberInputId::UiZIndex => 0.5,
-                    inspector::InspectorNumberInputId::UiAlpha
-                    | inspector::InspectorNumberInputId::UiPivotX
-                    | inspector::InspectorNumberInputId::UiPivotY => 0.01,
-                    inspector::InspectorNumberInputId::RotX
-                    | inspector::InspectorNumberInputId::RotY
-                    | inspector::InspectorNumberInputId::RotZ
-                    | inspector::InspectorNumberInputId::CharacterMaxSlope => 0.5,
-                    inspector::InspectorNumberInputId::ScaleX
-                    | inspector::InspectorNumberInputId::ScaleY
-                    | inspector::InspectorNumberInputId::ScaleZ => 0.01,
-                    inspector::InspectorNumberInputId::PosX
-                    | inspector::InspectorNumberInputId::PosY
-                    | inspector::InspectorNumberInputId::PosZ => 0.1,
-                    inspector::InspectorNumberInputId::RigidBodyMass
-                    | inspector::InspectorNumberInputId::RigidBodyGravity
-                    | inspector::InspectorNumberInputId::ColliderBoxX
-                    | inspector::InspectorNumberInputId::ColliderBoxY
-                    | inspector::InspectorNumberInputId::ColliderBoxZ
-                    | inspector::InspectorNumberInputId::ColliderHalfHeight
-                    | inspector::InspectorNumberInputId::ColliderRadius
-                    | inspector::InspectorNumberInputId::ColliderCenterY => 0.05,
-                    _ => 0.05,
-                };
+
                 if let Some(entity) = entity_opt {
+                    let cur_val = world
+                        .map(|w| read_inspector_number_value(w, entity, num_id))
+                        .unwrap_or(0.0);
+
                     self.inspector
                         .interactions
                         .actions
@@ -436,6 +477,110 @@ impl IrisEditorOverlay {
                         sensitivity,
                         has_dragged: false,
                     });
+                }
+                result.consumed = true;
+                return Some(result);
+            }
+
+            // 2e. Component Text Inputs
+            if let Some(text_id) = inspector::resolve_inspector_text_input_tag(hit.tag) {
+                if let Some((prev_ent, prev_id, prev_buf)) = self.inspector.active_text_input.take()
+                    && prev_id != text_id
+                {
+                    self.inspector
+                        .interactions
+                        .actions
+                        .push(InspectorAction::SetTextValue(prev_ent, prev_id, prev_buf));
+                }
+                let cur_val = self
+                    .tree
+                    .get(hit.id)
+                    .and_then(|node| {
+                        if let Some(ref t) = node.text {
+                            Some(t.clone())
+                        } else {
+                            node.children
+                                .first()
+                                .and_then(|&cid| self.tree.get(cid).and_then(|c| c.text.clone()))
+                        }
+                    })
+                    .unwrap_or_default();
+
+                if let Some(entity) = entity_opt {
+                    self.inspector.active_text_input = Some((entity, text_id, cur_val));
+                }
+                self.inspector.active_number_input = None;
+                if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
+                    if !buf.trim().is_empty() {
+                        self.inspector
+                            .interactions
+                            .actions
+                            .push(InspectorAction::RenameEntity(ent, buf));
+                    }
+                    self.inspector.rename_is_all_selected = false;
+                }
+                self.inspector.hex_buffer = None;
+                result.consumed = true;
+                return Some(result);
+            }
+
+            // 2f. All other semantic tags (Delete button, Checkbox, Dropdown pill, Color swatch, Hex input, Swatches, etc.)
+            let mut actions = Vec::new();
+            if inspector::resolve_inspector_tag_click(
+                hit.tag,
+                entity_opt,
+                &self.inspector.saved_swatches,
+                &mut actions,
+            ) {
+                for action in actions {
+                    match action {
+                        InspectorAction::OpenAddComponentMenu(_) => {
+                            if self.inspector.is_add_menu_open {
+                                self.inspector.is_add_menu_open = false;
+                                self.inspector.active_submenu = None;
+                            } else {
+                                self.inspector.is_add_menu_open = true;
+                                self.inspector.active_submenu = None;
+                                self.menubar.active_menu = None;
+                                self.hierarchy.is_add_menu_open = false;
+                                self.hierarchy.active_context_menu = None;
+                            }
+                        }
+                        InspectorAction::SelectDropdown(_ent, dd_id, _) => {
+                            if self.inspector.active_dropdown == Some(dd_id) {
+                                self.inspector.active_dropdown = None;
+                            } else {
+                                self.inspector.active_dropdown = Some(dd_id);
+                            }
+                        }
+                        InspectorAction::FocusRename => {
+                            if let Some(entity) = entity_opt {
+                                let current_name = self.inspector.inspected_entity_name.clone();
+                                self.inspector.rename_buffer = Some((entity, current_name));
+                                self.inspector.rename_is_all_selected = true;
+                            }
+                            self.inspector.active_number_input = None;
+                            self.inspector.active_text_input = None;
+                            self.inspector.hex_buffer = None;
+                        }
+                        InspectorAction::FocusHexInput => {
+                            if let Some(entity) = entity_opt {
+                                self.inspector.hex_buffer = Some((entity, String::from("#")));
+                            }
+                            self.inspector.active_number_input = None;
+                            self.inspector.active_text_input = None;
+                        }
+                        InspectorAction::ToggleColorPicker => {
+                            self.inspector.is_color_picker_open =
+                                !self.inspector.is_color_picker_open;
+                            self.inspector.active_number_input = None;
+                            self.inspector.active_text_input = None;
+                            self.inspector.hex_buffer = None;
+                        }
+                        other => {
+                            self.inspector.interactions.actions.push(other);
+                        }
+                    }
                 }
                 result.consumed = true;
                 return Some(result);
@@ -477,11 +622,19 @@ impl IrisEditorOverlay {
                 .push(InspectorAction::SetTextValue(ent, id, buf));
         }
 
+        // Commit active rename input if clicked outside
+        if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
+            if !buf.trim().is_empty() {
+                self.inspector
+                    .interactions
+                    .actions
+                    .push(InspectorAction::RenameEntity(ent, buf));
+            }
+            self.inspector.rename_is_all_selected = false;
+        }
+
         // Commit active hex input if clicked outside
-        if let Some(ref hex_rect) = insp_targets.hex_input_rect
-            && !hex_rect.contains_point(click_point)
-            && let Some((ent, buf)) = self.inspector.hex_buffer.take()
-        {
+        if let Some((ent, buf)) = self.inspector.hex_buffer.take() {
             let clean_hex = buf.trim_start_matches('#');
             if (clean_hex.len() == 6 || clean_hex.len() == 3)
                 && let Ok(rgb) = u32::from_str_radix(clean_hex, 16)
@@ -507,80 +660,6 @@ impl IrisEditorOverlay {
                         Color::rgba(r, g, b, 1.0),
                     ));
             }
-        }
-
-        // Close color picker if clicked outside
-        if self.inspector.is_color_picker_open {
-            let inside_picker = insp_targets
-                .color_picker
-                .as_ref()
-                .is_some_and(|p| p.card_rect.contains_point(click_point));
-            let inside_swatch = insp_targets
-                .color_swatch_rect
-                .is_some_and(|r| r.contains_point(click_point));
-            if !inside_picker && !inside_swatch {
-                self.inspector.is_color_picker_open = false;
-                if let Some(entity) = entity_opt {
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::CommitColorEdit(entity));
-                }
-            }
-        }
-
-        let mut actions = Vec::new();
-        let consumed =
-            inspector::handle_inspector_click(click_point, ui_button, insp_targets, &mut actions);
-
-        for action in actions {
-            match action {
-                InspectorAction::OpenAddComponentMenu(_) => {
-                    self.inspector.is_add_menu_open = true;
-                    self.inspector.active_submenu = None;
-                    self.menubar.active_menu = None;
-                    self.hierarchy.is_add_menu_open = false;
-                    self.hierarchy.active_context_menu = None;
-                }
-                InspectorAction::CloseAddComponentMenu => {
-                    self.inspector.is_add_menu_open = false;
-                    self.inspector.active_submenu = None;
-                }
-                InspectorAction::OpenAddSubmenu(cat) => {
-                    self.inspector.active_submenu = Some(cat);
-                }
-                InspectorAction::CloseAddSubmenu => {
-                    self.inspector.active_submenu = None;
-                }
-                InspectorAction::SelectDropdown(_ent, dd_id, _) => {
-                    if self.inspector.active_dropdown == Some(dd_id) {
-                        self.inspector.active_dropdown = None;
-                    } else {
-                        self.inspector.active_dropdown = Some(dd_id);
-                    }
-                }
-                InspectorAction::FocusRename => {
-                    if let Some(entity) = entity_opt {
-                        self.inspector.rename_buffer = Some((entity, String::new()));
-                    }
-                }
-                InspectorAction::FocusHexInput => {
-                    if let Some(entity) = entity_opt {
-                        self.inspector.hex_buffer = Some((entity, String::from("#")));
-                    }
-                }
-                InspectorAction::ToggleColorPicker => {
-                    self.inspector.is_color_picker_open = !self.inspector.is_color_picker_open;
-                }
-                other => {
-                    self.inspector.interactions.actions.push(other);
-                }
-            }
-        }
-
-        if consumed {
-            result.consumed = true;
-            return Some(result);
         }
 
         None

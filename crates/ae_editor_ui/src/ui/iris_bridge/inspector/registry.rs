@@ -6,7 +6,7 @@
 //! Replaces monolithic `if-else` cascades with an extensible, type-safe,
 //! plugin-friendly component inspection and editing registry.
 
-use super::types::{ComponentCategory, InspectorPanelParams, InspectorPanelTargets};
+use super::types::{ComponentCategory, InspectorPanelParams};
 use irisui::prelude::*;
 use std::sync::OnceLock;
 
@@ -18,14 +18,33 @@ pub struct ComponentRenderContext<'a> {
     pub world: &'a hecs::World,
     /// Global parameters from the parent Inspector panel.
     pub params: &'a InspectorPanelParams<'a>,
-    /// Global hit-test target buffers to record interactive widgets.
-    pub targets: &'a mut InspectorPanelTargets,
     /// Absolute X start coordinate of the card.
     pub base_x: f32,
     /// Absolute Y start coordinate of the card.
     pub base_y: f32,
     /// Card width in pixels.
     pub card_w: f32,
+}
+
+impl<'a> ComponentRenderContext<'a> {
+    /// Constructs a new [`ComponentRenderContext`].
+    pub fn new(
+        entity: hecs::Entity,
+        world: &'a hecs::World,
+        params: &'a InspectorPanelParams<'a>,
+        base_x: f32,
+        base_y: f32,
+        card_w: f32,
+    ) -> Self {
+        Self {
+            entity,
+            world,
+            params,
+            base_x,
+            base_y,
+            card_w,
+        }
+    }
 }
 
 /// Common trait implemented by all component inspection cards.
@@ -61,13 +80,8 @@ pub trait ComponentInspectorHandler: Send + Sync {
         true
     }
 
-    /// Renders the component card into the `UiTree` and returns the total computed card height.
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32;
+    /// Renders the component card into the declarative [`UiScope`].
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>);
 
     /// Instantiates and attaches this default component to the target entity in the ECS world.
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity);

@@ -7,7 +7,7 @@
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::types::ComponentCategory;
-
+use super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 use irisui::prelude::*;
 
 /// Inspector handler for `📊 LodGroup` component.
@@ -38,12 +38,7 @@ impl ComponentInspectorHandler for LodGroupHandler {
         world.get::<&ae_core::ecs::LodGroup>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (t1, t2, lod1_set, lod2_set) =
             if let Ok(lod) = ctx.world.get::<&ae_core::ecs::LodGroup>(ctx.entity) {
                 (
@@ -56,87 +51,60 @@ impl ComponentInspectorHandler for LodGroupHandler {
                 (15.0, 35.0, false, false)
             };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let spacing = 4.0;
-        let card_h = 24.0 + 3.0 * (row_h + spacing) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
+        let l1_str = if lod1_set { "Set" } else { "None" };
+        let l2_str = if lod2_set { "Set" } else { "None" };
 
-        let mut cur_y = ctx.base_y + padding + 24.0 + 4.0;
-
-        // Row 1: Slots summary
-        let lbl1_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl1_id) {
-            node.set_name("LodSlotsInfo");
-            let l1_str = if lod1_set { "Set" } else { "None" };
-            let l2_str = if lod2_set { "Set" } else { "None" };
-            node.set_text(format!(
-                "Slots: LOD0 (Active) | LOD1: {} | LOD2: {}",
-                l1_str, l2_str
-            ));
-            node.font_size = 10.5;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+        scope.container_named("LodGroupCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, lbl1_id);
-        cur_y += row_h + spacing;
 
-        // Row 2: LOD 0 -> 1 Threshold
-        let lbl2_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl2_id) {
-            node.set_name("LodThresh1Lbl");
-            node.set_text(format!("LOD 0 ➔ 1 Distance: {:.1} m", t1));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+            // Row 1: Slots summary
+            card.label_styled_passive(
+                "LodSlotsInfo",
+                format!("Slots: LOD0 (Active) | LOD1: {} | LOD2: {}", l1_str, l2_str),
+                10.5,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
             );
-        }
-        let _ = tree.add_child(card_id, lbl2_id);
-        cur_y += row_h + spacing;
 
-        // Row 3: LOD 1 -> 2 Threshold
-        let lbl3_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl3_id) {
-            node.set_name("LodThresh2Lbl");
-            node.set_text(format!("LOD 1 ➔ 2 Distance: {:.1} m", t2));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+            // Row 2: LOD 0 -> 1 Threshold
+            card.label_styled_passive(
+                "LodThresh1Lbl",
+                format!("LOD 0 ➔ 1 Distance: {:.1} m", t1),
+                11.0,
+                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
             );
-        }
-        let _ = tree.add_child(card_id, lbl3_id);
 
-        card_h
+            // Row 3: LOD 1 -> 2 Threshold
+            card.label_styled_passive(
+                "LodThresh2Lbl",
+                format!("LOD 1 ➔ 2 Distance: {:.1} m", t2),
+                11.0,
+                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {

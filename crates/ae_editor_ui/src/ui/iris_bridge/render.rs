@@ -310,37 +310,41 @@ mod tests {
     #[test]
     fn test_quad_layer_ordering_and_clipping_decoupling() {
         let mut tree = UiTree::new();
-        let root = tree.create_node();
-        let _ = tree.set_root(root);
+        let root = tree.create_root().expect("root node");
+
+        let mut scope = UiScope::new(&mut tree, root);
 
         // Content layer panel with clip_children enabled
-        let panel = tree.create_node();
-        if let Some(node) = tree.get_mut(panel) {
-            node.computed_rect = Rect::new(0.0, 0.0, 400.0, 400.0);
-            node.style = Style::new()
+        scope.container(
+            Style::new()
+                .position_absolute()
+                .left(0.0)
+                .top(0.0)
+                .width(400.0)
+                .height(400.0)
                 .background(Color::rgba(0.1, 0.1, 0.1, 1.0))
-                .clip_children(true);
-            node.layer = UiLayer::Content;
-        }
-        let _ = tree.add_child(root, panel);
-
-        // Popup layer dropdown inside the panel (breaks out of parent scissor clip)
-        let popup = tree.create_node();
-        if let Some(node) = tree.get_mut(popup) {
-            node.computed_rect = Rect::new(100.0, 350.0, 200.0, 200.0);
-            node.style = Style::new().background(Color::rgba(0.2, 0.2, 0.2, 1.0));
-            node.layer = UiLayer::Popup;
-        }
-        let _ = tree.add_child(panel, popup);
+                .clip_children(true),
+            |panel_scope| {
+                // Popup layer dropdown inside the panel (breaks out of parent scissor clip)
+                panel_scope.dropdown_menu_card_named("Dropdown", 100.0, 350.0, 200.0, |dd| {
+                    dd.dropdown_item(0, "", "Item", None, true);
+                });
+            },
+        );
 
         // Modal dialog (Preferences) added to root
-        let modal = tree.create_node();
-        if let Some(node) = tree.get_mut(modal) {
-            node.computed_rect = Rect::new(50.0, 50.0, 500.0, 500.0);
-            node.style = Style::new().background(Color::rgba(0.3, 0.3, 0.3, 1.0));
-            node.layer = UiLayer::Modal;
-        }
-        let _ = tree.add_child(root, modal);
+        scope.modal_card(500.0, 500.0, |modal_scope| {
+            modal_scope.label_styled_passive(
+                "ModalTitle",
+                "Preferences",
+                14.0,
+                Color::WHITE,
+                TextAlign::Left,
+                Style::new().height(24.0),
+            );
+        });
+
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
         let mut options = TreeCompilerOptions::new();
         let final_list = compile_tree_draw_commands(&tree, root, &mut options);

@@ -5,7 +5,7 @@
 //!
 //! Provides context data structures and option mappings for the Editor preferences submodules.
 
-use crate::ui::iris_bridge::preferences::types::{PreferencesDropdownId, PreferencesSliderId};
+use crate::ui::iris_bridge::preferences::types::PreferencesDropdownId;
 use ae_editor::snapping::SnapMode;
 use irisui::prelude::*;
 use std::collections::HashSet;
@@ -36,8 +36,6 @@ pub struct EditorCardContext<'a> {
     pub cursor_pos: Point,
     /// Set of currently collapsed card identifiers.
     pub collapsed_sections: &'a HashSet<&'static str>,
-    /// Active number input editing state: `(slider_id, editing_buffer)`.
-    pub active_number_input: Option<(PreferencesSliderId, &'a str)>,
     /// Caret blink toggle state for text cursor.
     pub blink_caret: bool,
     /// Active dropdown menu currently open.

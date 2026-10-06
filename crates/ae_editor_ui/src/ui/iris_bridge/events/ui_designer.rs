@@ -38,10 +38,15 @@ impl IrisEditorOverlay {
                 return None;
             }
 
+            let is_over_panel = click_point.x >= panel_rect.x
+                && click_point.x <= panel_rect.right()
+                && click_point.y >= panel_rect.y
+                && click_point.y <= panel_rect.bottom();
+
             // If popups are closed and click is outside panel, ignore
             if !self.ui_designer.is_aspect_open
                 && !self.ui_designer.is_add_menu_open
-                && !panel_rect.contains_point(click_point)
+                && !is_over_panel
             {
                 return None;
             }
@@ -102,7 +107,7 @@ impl IrisEditorOverlay {
                 result.consumed = true;
             }
 
-            if result.consumed || panel_rect.contains_point(click_point) {
+            if result.consumed || is_over_panel {
                 result.consumed = true;
                 return Some(result);
             }

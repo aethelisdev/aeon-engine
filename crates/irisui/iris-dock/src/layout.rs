@@ -6,7 +6,7 @@
 use crate::tab_bar::{TabBarLayoutInfo, compute_tab_bar_layout};
 use crate::tab_viewer::TabViewer;
 use crate::tree::{DockNode, DockNodeId, DockTree, SplitDirection};
-use iris_core::Rect;
+use iris_core::{Point, Rect};
 
 /// Geometric layout info computed for a terminal leaf hosting tabbed panels.
 #[derive(Debug, Clone)]
@@ -29,6 +29,14 @@ pub struct LeafLayoutInfo<T> {
     pub is_maximized: bool,
 }
 
+impl<T> LeafLayoutInfo<T> {
+    /// Checks whether the specified coordinate point falls inside this leaf pane's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
+}
+
 /// Geometric layout info computed for a draggable splitter divider between two panes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SplitterLayoutInfo {
@@ -40,6 +48,14 @@ pub struct SplitterLayoutInfo {
     pub rect: Rect,
     /// Current division ratio.
     pub ratio: f32,
+}
+
+impl SplitterLayoutInfo {
+    /// Checks whether the specified coordinate point falls inside this splitter's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
 }
 
 /// Configuration options controlling docking layout calculations.

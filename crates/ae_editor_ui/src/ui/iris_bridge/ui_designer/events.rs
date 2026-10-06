@@ -128,7 +128,7 @@ pub fn handle_ui_designer_click(
     }
 
     // ── 4. Empty Canvas Click (Deselect or Pan) ────────────────────────────────
-    if metrics.panel_rect.contains_point(click_pos) {
+    if metrics.is_point_over_panel(click_pos) {
         result.action = Some(UiDesignerAction::SelectEntity(None));
         result.start_canvas_pan = true;
     }
@@ -182,7 +182,7 @@ pub fn handle_ui_designer_scroll(
     scroll_delta_y: f32,
     metrics: &UiDesignerCanvasMetrics,
 ) -> Option<UiDesignerAction> {
-    if metrics.panel_rect.contains_point(cursor_pos) && scroll_delta_y.abs() > 0.001 {
+    if metrics.is_point_over_panel(cursor_pos) && scroll_delta_y.abs() > 0.001 {
         let zoom_change = scroll_delta_y * 0.05;
         let new_zoom = (metrics.current_zoom + zoom_change).clamp(0.25, 3.0);
         return Some(UiDesignerAction::SetZoom(new_zoom));

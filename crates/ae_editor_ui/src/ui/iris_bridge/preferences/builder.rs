@@ -42,9 +42,15 @@ pub const SIDEBAR_TABS: [(&str, u8); 10] = [
 #[inline]
 pub fn tab_virtual_height(tab_idx: u8) -> f32 {
     match tab_idx {
-        0 => 400.0,
+        0 => 500.0,
         1 => 1800.0, // Graphics tab: complete Shadows, Performance, AA, Bloom, Atmosphere, Clouds & Fog
         2 => 1100.0,
+        3 => 650.0,
+        4 => 1100.0,
+        5 => 650.0,
+        6 => 700.0,
+        7 => 600.0,
+        8 => 650.0,
         9 => 850.0,
         _ => 600.0,
     }
@@ -55,7 +61,7 @@ pub fn tab_virtual_height(tab_idx: u8) -> f32 {
 /// Returns `(card_id, card_rect, content_rect, max_scroll_y)`.
 pub fn build_preferences_dialog(
     tree: &mut UiTree,
-    params: PreferencesParams<'_>,
+    mut params: PreferencesParams<'_>,
 ) -> (WidgetId, Rect, Rect, f32) {
     let screen_width = params.screen_width;
     let screen_height = params.screen_height;
@@ -84,11 +90,15 @@ pub fn build_preferences_dialog(
         content_h,
     );
 
-    let total_h = tab_virtual_height(params.active_tab);
-    let max_scroll_y = (total_h - content_h).max(0.0);
+    let root_id = tree
+        .root()
+        .or_else(|| tree.create_root().ok())
+        .unwrap_or_default();
+    let mut root_scope =
+        UiScope::with_tagged_interactions(tree, root_id, params.events, params.hovered_tag)
+            .with_active_text_input(params.active_number_input);
 
-    let root_id = tree.root().unwrap_or_else(|| tree.create_node());
-    let mut root_scope = UiScope::new(tree, root_id);
+    let mut scroll_container_id: Option<WidgetId> = None;
 
     // 1. Floating Preferences Dialog Card
     let card_id = root_scope.container_tagged(
@@ -276,20 +286,33 @@ pub fn build_preferences_dialog(
                         PREF_TAG_CONTENT_VIEW,
                         |content| {
                             // Virtual Scrolling Container
-                            content.container_named(
+                            let sc_id = content.container_named(
                                 "PreferencesScrollContainer",
                                 Style::new()
                                     .flex_col()
                                     .gap(14.0)
                                     .scroll_offset_y(params.scroll_offset_y),
-                                |scroll_col| match params.active_tab {
-                                    0 => build_general_tab(scroll_col, &params),
-                                    1 => build_graphics_tab(scroll_col, &params),
-                                    2 => build_editor_tab(scroll_col, &params),
-                                    9 => build_modules_tab(scroll_col, &params),
-                                    other => build_info_tab(scroll_col, other, &params),
+                                |scroll_col| {
+                                    match params.active_tab {
+                                        0 => build_general_tab(scroll_col, &mut params),
+                                        1 => build_graphics_tab(scroll_col, &mut params),
+                                        2 => build_editor_tab(scroll_col, &mut params),
+                                        3 => build_navigation_tab(scroll_col, &mut params),
+                                        4 => build_keymap_tab(scroll_col, &params),
+                                        5 => build_system_tab(scroll_col, &params),
+                                        6 => build_addons_tab(scroll_col, &params),
+                                        7 => build_input_tab(scroll_col, &mut params),
+                                        8 => build_experimental_tab(scroll_col, &params),
+                                        9 => build_modules_tab(scroll_col, &params),
+                                        _ => {}
+                                    }
+                                    scroll_col.empty_box_passive_named(
+                                        "PrefScrollBottomSpacer",
+                                        Style::new().height(24.0),
+                                    );
                                 },
                             );
+                            scroll_container_id = Some(sc_id);
                         },
                     );
                 },
@@ -299,6 +322,23 @@ pub fn build_preferences_dialog(
             card.finish_layout_with_hover(card_rect, params.cursor_pos);
         },
     );
+
+    // Measure dynamic accumulated height of all tab content sections from layout pass
+    let measured_total_h = scroll_container_id
+        .and_then(|id| root_scope.tree().get(id))
+        .map(|node| {
+            node.children
+                .iter()
+                .filter_map(|&cid| root_scope.tree().get(cid))
+                .map(|child| child.computed_rect.bottom() + params.scroll_offset_y - content_rect.y)
+                .fold(0.0_f32, f32::max)
+        })
+        .unwrap_or(0.0);
+
+    let total_h = measured_total_h
+        .max(tab_virtual_height(params.active_tab))
+        .max(content_h);
+    let max_scroll_y = (total_h - content_h).max(0.0);
 
     // 4. Custom Scrollbar Indicator if virtual height exceeds content height
     if total_h > content_h {

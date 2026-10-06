@@ -192,6 +192,15 @@ impl UiDesignerCanvasMetrics {
             self.canvas_rect.y + (canvas_pt[1] / self.resolution[1]) * self.canvas_rect.height,
         )
     }
+
+    /// Checks whether the point is contained within the total panel bounding box.
+    #[inline]
+    pub fn is_point_over_panel(&self, point: Point) -> bool {
+        point.x >= self.panel_rect.x
+            && point.x <= self.panel_rect.right()
+            && point.y >= self.panel_rect.y
+            && point.y <= self.panel_rect.bottom()
+    }
 }
 
 /// Dispatched user interaction actions emitted by the UI Designer panel.

@@ -110,7 +110,11 @@ pub fn build_designer_canvas(
                     }
 
                     // ── 5. Resolve and Render In-Game UI Elements from ECS ─────
-                    let mouse_canvas_pos = if canvas_screen_rect.contains_point(params.cursor_pos) {
+                    let is_mouse_over_canvas = params.cursor_pos.x >= canvas_screen_rect.x
+                        && params.cursor_pos.x <= canvas_screen_rect.right()
+                        && params.cursor_pos.y >= canvas_screen_rect.y
+                        && params.cursor_pos.y <= canvas_screen_rect.bottom();
+                    let mouse_canvas_pos = if is_mouse_over_canvas {
                         Some(to_canvas_pos(params.cursor_pos))
                     } else {
                         None
@@ -251,9 +255,10 @@ pub fn build_designer_canvas(
                         // Element screen-space hitbox for hover detection
                         let screen_elem_x = canvas_screen_rect.x + local_min.x;
                         let screen_elem_y = canvas_screen_rect.y + local_min.y;
-                        let screen_elem_rect =
-                            Rect::new(screen_elem_x, screen_elem_y, local_w, local_h);
-                        let is_hovered = screen_elem_rect.contains_point(params.cursor_pos);
+                        let is_hovered = params.cursor_pos.x >= screen_elem_x
+                            && params.cursor_pos.x <= screen_elem_x + local_w
+                            && params.cursor_pos.y >= screen_elem_y
+                            && params.cursor_pos.y <= screen_elem_y + local_h;
 
                         let elem_style = Style::new()
                             .position_absolute()

@@ -6,8 +6,9 @@
 //! Provides inspection and management for entity parent-child relationships.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
+use super::super::tags::TAG_INSPECTOR_UNPARENT;
 use super::super::types::ComponentCategory;
-
+use super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 use irisui::prelude::*;
 
 /// Inspector handler for entity hierarchy and parenting relationships.
@@ -43,116 +44,95 @@ impl ComponentInspectorHandler for ParentHandler {
         false
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let parent_entity = ctx
             .world
             .get::<&ae_core::ecs::Parent>(ctx.entity)
             .ok()
             .map(|p| p.0);
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + row_h + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 24.0 + 4.0;
-
-        if let Some(parent) = parent_entity {
-            let parent_name = ctx
-                .world
-                .get::<&ae_core::ecs::Name>(parent)
-                .map(|n| n.0.clone())
-                .unwrap_or_else(|_| format!("Entity {:?}", parent));
-
-            let btn_w = 80.0;
-            let lbl_w = ctx.card_w - padding * 2.0 - btn_w - 6.0;
-
-            let lbl_id = tree.create_node();
-            if let Some(node) = tree.get_mut(lbl_id) {
-                node.set_name("ParentLbl");
-                node.set_text(format!("Parent: {}", parent_name));
-                node.font_size = 11.0;
-                node.line_height = row_h;
-                node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-                node.computed_rect = Rect::new(ctx.base_x + padding, cur_y, lbl_w, row_h);
-            }
-            let _ = tree.add_child(card_id, lbl_id);
-
-            // Unparent Button
-            let btn_rect = Rect::new(
-                ctx.base_x + ctx.card_w - padding - btn_w,
-                cur_y,
-                btn_w,
-                row_h,
+        scope.container_named("ParentingCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                true, // can_remove is false, so disable/hide delete button
             );
-            let is_btn_hovered = btn_rect.contains_point(ctx.params.cursor_pos);
-            let btn_id = tree.create_node();
-            if let Some(node) = tree.get_mut(btn_id) {
-                node.set_name("UnparentBtn");
-                node.computed_rect = btn_rect;
-                let (bg, border, txt_col) = if is_btn_hovered {
-                    (
-                        Color::rgba(0.35, 0.10, 0.10, 0.95),
-                        Color::rgba(0.70, 0.18, 0.18, 0.85),
-                        Color::rgba(1.0, 0.40, 0.40, 1.0),
-                    )
-                } else {
-                    (
-                        Color::rgba(0.157, 0.165, 0.188, 0.98),
-                        Color::rgba(0.212, 0.220, 0.259, 0.85),
-                        Color::rgba(0.82, 0.84, 0.88, 1.0),
-                    )
-                };
-                node.style = Style::new()
-                    .background(bg)
-                    .border(1.0, border)
-                    .border_radius(4.0);
-                node.set_text("❌ Unparent");
-                node.font_size = 10.0;
-                node.line_height = row_h;
-                node.text_align = TextAlign::Center;
-                node.text_color = txt_col;
-            }
-            let _ = tree.add_child(card_id, btn_id);
-            ctx.targets.unparent_btn_rect = Some(btn_rect);
-        } else {
-            let lbl_id = tree.create_node();
-            if let Some(node) = tree.get_mut(lbl_id) {
-                node.set_name("ParentRootLbl");
-                node.set_text("Parent: None (Root Entity)");
-                node.font_size = 11.0;
-                node.line_height = row_h;
-                node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-                node.computed_rect = Rect::new(
-                    ctx.base_x + padding,
-                    cur_y,
-                    ctx.card_w - padding * 2.0,
-                    row_h,
+
+            if let Some(parent) = parent_entity {
+                let parent_name = ctx
+                    .world
+                    .get::<&ae_core::ecs::Name>(parent)
+                    .map(|n| n.0.clone())
+                    .unwrap_or_else(|_| format!("Entity {:?}", parent));
+
+                let row_style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::SpaceBetween)
+                    .height(22.0);
+
+                card.container_named("ParentRow", row_style, |row| {
+                    row.label_styled_passive(
+                        "ParentLbl",
+                        format!("Parent: {}", parent_name),
+                        11.0,
+                        Color::rgba(0.886, 0.894, 0.918, 1.0),
+                        TextAlign::Left,
+                        Style::new().flex_grow(1.0).height(20.0),
+                    );
+
+                    let unparent_style = Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center)
+                        .width(80.0)
+                        .height(20.0)
+                        .background(Color::rgba(0.157, 0.165, 0.188, 0.98))
+                        .border(1.0, Color::rgba(0.212, 0.220, 0.259, 0.85))
+                        .border_radius(4.0);
+
+                    row.container_tagged(
+                        "UnparentBtn",
+                        unparent_style,
+                        WidgetRole::Button,
+                        TAG_INSPECTOR_UNPARENT,
+                        |btn| {
+                            btn.label_styled_passive(
+                                "UnparentTxt",
+                                "❌ Unparent",
+                                10.0,
+                                Color::rgba(0.82, 0.84, 0.88, 1.0),
+                                TextAlign::Center,
+                                Style::new().width(80.0).height(20.0),
+                            );
+                        },
+                    );
+                });
+            } else {
+                card.label_styled_passive(
+                    "ParentRootLbl",
+                    "Parent: None (Root Entity)",
+                    11.0,
+                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    TextAlign::Left,
+                    Style::new().height(20.0),
                 );
             }
-            let _ = tree.add_child(card_id, lbl_id);
-        }
-
-        card_h
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {

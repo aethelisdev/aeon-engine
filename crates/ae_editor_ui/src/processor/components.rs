@@ -223,6 +223,11 @@ pub fn handle_modify_position(
         *existing = pos;
     }
     let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+    if let Ok(mut vel) = ctx.world.get::<&mut ae_core::ecs::Velocity>(entity) {
+        vel.x = 0.0;
+        vel.y = 0.0;
+        vel.z = 0.0;
+    }
 }
 
 /// Handles modifying rotation component of an entity.
@@ -235,6 +240,11 @@ pub fn handle_modify_rotation(
         *existing = rot;
     }
     let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+    if let Ok(mut vel) = ctx.world.get::<&mut ae_core::ecs::Velocity>(entity) {
+        vel.x = 0.0;
+        vel.y = 0.0;
+        vel.z = 0.0;
+    }
 }
 
 /// Handles modifying scale component of an entity.
@@ -258,6 +268,11 @@ pub fn handle_modify_scale(
         *existing = scale;
     }
     let _ = ctx.world.insert_one(entity, ae_core::ecs::TransformDirty);
+    if let Ok(mut vel) = ctx.world.get::<&mut ae_core::ecs::Velocity>(entity) {
+        vel.x = 0.0;
+        vel.y = 0.0;
+        vel.z = 0.0;
+    }
 }
 
 /// Handles modifying name component of an entity.

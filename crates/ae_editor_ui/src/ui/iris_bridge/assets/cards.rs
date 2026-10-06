@@ -4,25 +4,32 @@
 //! Asset Browser Interactive Card Grid View.
 //!
 //! Renders responsive wrapping grid cards with category badges, memory status indicators,
-//! canonical vector icons, truncated names, and file size metadata.
+//! canonical vector icons, truncated names, and file size metadata via 100% declarative
+//! [`UiScope`] widgets.
+//!
+//! Zero per-frame heap allocations: card items and paths are referenced directly without
+//! copying metadata into parallel target collections.
 //!
 
-use super::card_builder::{AssetCardBadge, AssetCardBuilder, AssetCardPreview};
-use super::types::{AssetCardTarget, AssetsPanelParams, AssetsPanelTargets, truncate_display_name};
-use crate::assets::types::AssetCategory;
-use crate::ui::iris_bridge::icons::{
-    ICON_AUDIO, ICON_CAMERA, ICON_CUBE, ICON_FOLDER, ICON_LIGHT, ICON_SPHERE, ICON_WORLD,
+use super::components::{
+    ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, asset_empty_notice, asset_grid_card,
 };
+use super::types::AssetsPanelParams;
 use irisui::prelude::*;
 
 /// Standard width of an asset grid card in logical pixels.
-pub const CARD_WIDTH: f32 = 115.0;
+pub const CARD_WIDTH: f32 = ASSET_CARD_WIDTH;
 
 /// Standard height of an asset grid card in logical pixels.
-pub const CARD_HEIGHT: f32 = 125.0;
+pub const CARD_HEIGHT: f32 = ASSET_CARD_HEIGHT;
 
 /// Horizontal and vertical spacing between adjacent grid cards.
-pub const CARD_SPACING: f32 = 10.0;
+pub const CARD_SPACING: f32 = ASSET_CARD_GAP;
+
+/// Re-export canonical category color resolver for module consumers.
+pub use super::components::resolve_category_color;
+/// Re-export canonical category icon resolver for module consumers.
+pub use super::components::resolve_category_icon;
 
 /// Constructs the responsive grid cards into the Iris `UiTree`.
 pub fn build_asset_grid_cards(
@@ -30,10 +37,21 @@ pub fn build_asset_grid_cards(
     parent_id: WidgetId,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
+) {
+    let mut scope = UiScope::new(tree, parent_id);
+    build_asset_grid_cards_scope(&mut scope, vp_rect, params);
+}
+
+/// Constructs the responsive grid cards directly via a declarative [`UiScope`].
+///
+/// Uses 100% declarative UI scope widgets with zero imperative node allocations.
+pub fn build_asset_grid_cards_scope(
+    scope: &mut UiScope<'_>,
+    vp_rect: Rect,
+    params: &AssetsPanelParams<'_>,
 ) {
     if params.filtered_items.is_empty() {
-        build_empty_assets_notice(tree, parent_id, vp_rect, params.search_query);
+        asset_empty_notice(scope, vp_rect, params.search_query);
         return;
     }
 
@@ -44,149 +62,148 @@ pub fn build_asset_grid_cards(
 
     let visible_cells = grid.compute_visible_cells(vp_rect, items.len(), params.scroll_y);
 
-    for (item_idx, card_rect) in visible_cells {
-        let item = &items[item_idx];
-        let is_selected = params.selected_asset == Some(&item.path);
-        let is_hovered = card_rect.contains_point(params.cursor_pos);
-        let cat_color = resolve_category_color(item.category);
+    scope.container_named(
+        "AssetGridContainer",
+        Style::new()
+            .flex_col()
+            .width(vp_rect.width)
+            .height(vp_rect.height)
+            .clip_children(true),
+        |grid_scope| {
+            for (item_idx, card_rect) in visible_cells {
+                let item = &items[item_idx];
+                let layer = params.thumbnail_layers.get(&item.path).copied();
+                let is_selected = params.selected_asset == Some(&item.path);
+                let rel_pos = Point::new(card_rect.x - vp_rect.x, card_rect.y - vp_rect.y);
 
-        let preview = if let Some(&layer) = params.thumbnail_layers.get(&item.path) {
-            AssetCardPreview::Texture {
-                uv: [0.0, 0.0, 1.0, layer as f32],
-                tint: Color::WHITE,
+                asset_grid_card(
+                    grid_scope,
+                    item_idx as u32,
+                    item,
+                    layer,
+                    is_selected,
+                    params.hovered_tag,
+                    rel_pos,
+                );
             }
-        } else {
-            let (uv_coords, tint_color) = resolve_category_icon(item.category);
-            AssetCardPreview::VectorIcon {
-                uv: uv_coords,
-                tint: tint_color,
-                size: 28.0,
-            }
+        },
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_cards_grid_and_empty_notice_declarative_build() {
+        let mut tree = UiTree::new();
+        let root_id = tree.create_root().expect("Root node creation failed");
+        let current_folder = PathBuf::from("assets");
+        let subfolders = Vec::new();
+
+        // 1. Empty items case -> triggers asset_empty_notice
+        let empty_items: Vec<AssetItem> = Vec::new();
+        let params_empty = AssetsPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
+            screen_size: (1280.0, 720.0),
+            current_folder: &current_folder,
+            search_query: "nonexistent",
+            is_search_focused: false,
+            active_category: AssetCategory::All,
+            view_mode: AssetViewMode::Grid,
+            selected_asset: None,
+            cached_items: &empty_items,
+            filtered_items: &empty_items,
+            is_2d_mode: false,
+            show_engine_content: false,
+            sidebar_width: 180.0,
+            sidebar_collapsed: false,
+            scroll_y: 0.0,
+            tree_scroll_y: 0.0,
+            cursor_pos: Point::new(0.0, 0.0),
+            blink_caret: false,
+            active_context_menu: None,
+            active_preview_modal: None,
+            subfolders: &subfolders,
+            hovered_tag: None,
+            thumbnail_layers: &HashMap::new(),
         };
 
-        let display_name = truncate_display_name(&item.name, 14, 11);
-
-        let frame = AssetCardBuilder::new(card_rect)
-            .name("AssetCard")
-            .badge(Some(AssetCardBadge::new(item.category.badge(), cat_color)))
-            .status_dot(if item.is_loaded_in_memory {
-                Some(Color::rgba(0.0, 0.90, 1.0, 1.0))
-            } else {
-                None
-            })
-            .preview(Some(preview))
-            .title(display_name)
-            .metadata(&item.metadata_badge)
-            .is_selected(is_selected)
-            .is_hovered(is_hovered)
-            .hover_border_color(Some(cat_color))
-            .build(tree, parent_id);
-
-        targets.grid_cards.push(AssetCardTarget {
-            rect: frame.card_rect,
-            path: item.path.clone(),
-            category: item.category,
-            item: item.clone(),
-        });
-    }
-}
-
-/// Constructs the empty state notice when no assets are found.
-fn build_empty_assets_notice(tree: &mut UiTree, parent_id: WidgetId, vp_rect: Rect, query: &str) {
-    let notice_w = 420.0;
-    let notice_h = 130.0;
-    let notice_x = vp_rect.x + (vp_rect.width - notice_w) * 0.5;
-    let notice_y = vp_rect.y + (vp_rect.height - notice_h) * 0.4;
-    let notice_rect = Rect::new(notice_x, notice_y, notice_w, notice_h);
-
-    let box_id = tree.create_node();
-    if let Some(node) = tree.get_mut(box_id) {
-        node.set_name("EmptyAssetsBox");
-        node.computed_rect = notice_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
-            .border_radius(6.0)
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70))
-            .clip_children(true);
-    }
-    let _ = tree.add_child(parent_id, box_id);
-
-    // Large Vector Folder Logo (`ICON_FOLDER`, Layer 6)
-    let logo_size = 32.0;
-    let logo_rect = Rect::new(
-        notice_x + (notice_w - logo_size) * 0.5,
-        notice_y + 14.0,
-        logo_size,
-        logo_size,
-    );
-    let logo_id = tree.create_node();
-    if let Some(node) = tree.get_mut(logo_id) {
-        node.set_name("EmptyNoticeFolderLogo");
-        node.computed_rect = logo_rect;
-        node.set_texture_uv(ICON_FOLDER);
-        node.set_texture_tint(Color::rgba(0.95, 0.76, 0.28, 0.85));
-    }
-    let _ = tree.add_child(box_id, logo_id);
-
-    // Title text
-    let title_text = if query.is_empty() {
-        "No Assets Found in Active Directory"
-    } else {
-        "No Assets Matching Search Query"
-    };
-    let title_rect = Rect::new(notice_x + 10.0, notice_y + 52.0, notice_w - 20.0, 20.0);
-    let title_id = tree.create_node();
-    if let Some(node) = tree.get_mut(title_id) {
-        node.set_name("EmptyNoticeTitle");
-        node.set_text(title_text);
-        node.font_size = 13.0;
-        node.line_height = 20.0;
-        node.text_align = TextAlign::Center;
-        node.text_color = Color::WHITE;
-        node.computed_rect = title_rect;
-    }
-    let _ = tree.add_child(box_id, title_id);
-
-    // Subtitle text
-    let sub_rect = Rect::new(notice_x + 14.0, notice_y + 74.0, notice_w - 28.0, 42.0);
-    let sub_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sub_id) {
-        node.set_name("EmptyNoticeSub");
-        node.set_text(
-            "Place 3D models (.gltf, .glb, .fbx), textures (.png), shaders (.wgsl), or scenes (.ae3d, .ae2d) into this folder.",
+        build_asset_grid_cards(
+            &mut tree,
+            root_id,
+            Rect::new(0.0, 0.0, 600.0, 400.0),
+            &params_empty,
         );
-        node.font_size = 11.0;
-        node.line_height = 18.0;
-        node.text_align = TextAlign::Center;
-        node.text_wrap = TextWrap::Word;
-        node.text_color = Color::rgba(0.58, 0.62, 0.72, 1.0);
-        node.computed_rect = sub_rect;
-    }
-    let _ = tree.add_child(box_id, sub_id);
-}
 
-/// Resolves the canonical RGBA badge color for an asset category.
-pub fn resolve_category_color(category: AssetCategory) -> Color {
-    match category {
-        AssetCategory::Models3D => Color::rgba(0.0, 0.90, 1.0, 1.0), // Aeon Cyan
-        AssetCategory::Textures2D => Color::rgba(0.39, 0.86, 0.47, 1.0), // Emerald Green
-        AssetCategory::Shaders => Color::rgba(1.0, 0.75, 0.24, 1.0), // Amber / Yellow
-        AssetCategory::Materials => Color::rgba(0.86, 0.39, 0.86, 1.0), // Magenta
-        AssetCategory::Scenes => Color::rgba(0.31, 0.63, 1.0, 1.0),  // Sky Blue
-        AssetCategory::Audio => Color::rgba(1.0, 0.47, 0.39, 1.0),   // Coral
-        AssetCategory::All => Color::rgba(0.70, 0.72, 0.78, 1.0),
-    }
-}
+        let found_empty_notice = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("EmptyAssetsNotice"));
+        assert!(
+            found_empty_notice,
+            "Empty notice container should be emitted when items are empty"
+        );
 
-/// Resolves the canonical vector icon texture UV coordinates and color tint.
-fn resolve_category_icon(category: AssetCategory) -> ([f32; 4], Color) {
-    match category {
-        AssetCategory::Models3D => (ICON_CUBE, Color::rgba(0.0, 0.90, 1.0, 1.0)),
-        AssetCategory::Textures2D => (ICON_WORLD, Color::rgba(0.39, 0.86, 0.47, 1.0)),
-        AssetCategory::Shaders => (ICON_LIGHT, Color::rgba(1.0, 0.75, 0.24, 1.0)),
-        AssetCategory::Scenes => (ICON_CAMERA, Color::rgba(0.31, 0.63, 1.0, 1.0)),
-        AssetCategory::Materials => (ICON_SPHERE, Color::rgba(0.86, 0.39, 0.86, 1.0)),
-        AssetCategory::Audio => (ICON_AUDIO, Color::rgba(1.0, 0.47, 0.39, 1.0)),
-        AssetCategory::All => (ICON_FOLDER, Color::WHITE),
+        // 2. Populated items case -> triggers asset_grid_card placed side-by-side
+        let item1 = AssetItem {
+            name: "hero.gltf".to_string(),
+            path: PathBuf::from("assets/models/hero.gltf"),
+            relative_path: "models/hero.gltf".to_string(),
+            category: AssetCategory::Models3D,
+            source: AssetSource::Project,
+            file_size_bytes: 4096,
+            metadata_badge: "4.0 KB".to_string(),
+            is_loaded_in_memory: true,
+            model_handle: None,
+            texture_handle: None,
+            shader_handle: None,
+            is_3d: true,
+        };
+        let item2 = AssetItem {
+            name: "sword.gltf".to_string(),
+            path: PathBuf::from("assets/models/sword.gltf"),
+            relative_path: "models/sword.gltf".to_string(),
+            category: AssetCategory::Models3D,
+            source: AssetSource::Project,
+            file_size_bytes: 2048,
+            metadata_badge: "2.0 KB".to_string(),
+            is_loaded_in_memory: false,
+            model_handle: None,
+            texture_handle: None,
+            shader_handle: None,
+            is_3d: true,
+        };
+        let items = vec![item1, item2];
+        let params_populated = AssetsPanelParams {
+            filtered_items: &items,
+            cached_items: &items,
+            ..params_empty
+        };
+
+        build_asset_grid_cards(
+            &mut tree,
+            root_id,
+            Rect::new(0.0, 0.0, 600.0, 400.0),
+            &params_populated,
+        );
+
+        let grid_cards: Vec<_> = tree
+            .iter()
+            .filter(|(_, n)| n.name.as_deref() == Some("AssetGridCard"))
+            .collect();
+        assert_eq!(grid_cards.len(), 2, "Both cards must be emitted");
+
+        // Verify side-by-side placement (card 1 is to the right of card 0)
+        let left0 = grid_cards[0].1.style.inset_left;
+        let left1 = grid_cards[1].1.style.inset_left;
+        assert!(
+            left1 > left0,
+            "Second grid card must be placed to the right of first card (side-by-side): left0={:?}, left1={:?}",
+            left0,
+            left1
+        );
     }
 }

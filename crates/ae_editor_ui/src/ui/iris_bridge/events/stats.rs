@@ -97,23 +97,23 @@ impl IrisEditorOverlay {
                 result.consumed = true;
                 return Some(result);
             }
+            if crate::ui::iris_bridge::inspector::is_inspector_tag(effective_tag) {
+                self.inspector.scroll_y = (self.inspector.scroll_y - delta_y).max(0.0);
+                self.chrome.needs_layout_rebuild = true;
+                result.consumed = true;
+                return Some(result);
+            }
         }
 
         // 3. Preferences Dialog Scrolling
         if let Some(card_rect) = self.preferences.card_rect
-            && card_rect.contains_point(cursor)
+            && (cursor.x >= card_rect.x
+                && cursor.x <= card_rect.right()
+                && cursor.y >= card_rect.y
+                && cursor.y <= card_rect.bottom())
         {
             self.preferences.scroll_y =
                 (self.preferences.scroll_y - delta_y).clamp(0.0, self.preferences.max_scroll_y);
-            result.consumed = true;
-            return Some(result);
-        }
-
-        // 4. Inspector Panel Scrolling
-        if let Some(ref targets) = self.inspector.targets
-            && targets.scroll_container_rect.contains_point(cursor)
-        {
-            self.inspector.scroll_y = (self.inspector.scroll_y - delta_y).max(0.0);
             result.consumed = true;
             return Some(result);
         }

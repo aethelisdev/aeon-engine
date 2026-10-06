@@ -141,10 +141,14 @@ impl ApplicationHandler for AeApp {
         let consumed = if engine.mode == EngineMode::Play && engine.is_cursor_grabbed {
             match &event {
                 WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } => false,
-                _ => engine.ui.handle_event(window, &event),
+                _ => engine
+                    .ui
+                    .handle_event(window, &event, Some(&engine.ecs.world)),
             }
         } else {
-            engine.ui.handle_event(window, &event)
+            engine
+                .ui
+                .handle_event(window, &event, Some(&engine.ecs.world))
         };
 
         match &event {

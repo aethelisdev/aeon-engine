@@ -6,10 +6,12 @@
 //! Provides reusable helper routines for drawing headers, numeric input pills,
 //! dropdown comboboxes, and checkboxes inside Iris UI Inspector component cards.
 
-use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
+use crate::ui::iris_bridge::inspector::tags::{
+    encode_component_checkbox_tag, encode_component_delete_tag, encode_inspector_dropdown_tag,
+    encode_inspector_number_input_tag,
+};
 use crate::ui::iris_bridge::inspector::types::{
-    ComboboxRowParams, ComboboxWithButtonParams, CompactNumericRowParams, ComponentCheckboxId,
-    InspectorNumberInputId,
+    ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
 };
 use irisui::prelude::*;
 
@@ -28,244 +30,408 @@ pub struct ComponentHeaderProps {
     pub component_name: &'static str,
 }
 
-/// Helper function constructing the standardized component card using Iris UI's [`CardBuilder`].
-pub fn build_component_card(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
+/// Renders a standardized component inspector card header in a declarative [`UiScope`].
+///
+/// Features hardware texture atlas quad icon rendering, title typography,
+/// and a top-right deletion action button tagged with [`encode_component_delete_tag`]
+/// for zero-search direct hit-testing.
+///
+/// # Arguments
+/// * `scope` - Active declarative UI scope for the card container.
+/// * `props` - Title, icon coordinates, and visual accent styling configuration.
+/// * `is_delete_hovered` - Whether the cursor is currently hovering over the delete action button.
+///
+/// Returns the allocated [`WidgetId`] of the component deletion button container.
+pub fn build_declarative_card_header(
+    scope: &mut UiScope<'_>,
     props: ComponentHeaderProps,
-    card_rect: Rect,
+    is_delete_hovered: bool,
 ) -> WidgetId {
-    let mut builder = CardBuilder::new(tree, parent_id)
-        .name(format!("{}Card", props.component_name))
-        .rect(card_rect)
-        .title(props.display_title)
-        .title_color(props.header_color)
-        .with_delete_action(true)
-        .cursor_pos(ctx.params.cursor_pos);
+    let header_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::SpaceBetween)
+        .height(20.0)
+        .padding_insets(Insets::new(0.0, 2.0, 2.0, 2.0));
 
-    if let Some(uv) = props.atlas_icon {
-        builder = builder.icon_atlas(uv, props.header_color);
-    } else {
-        builder = builder.icon_text(props.icon);
-    }
+    let mut del_btn_id = WidgetId::default();
 
-    let frame = builder.build();
+    scope.container_named("CardHeader", header_style, |header| {
+        let title_group_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .gap(5.0);
 
-    if let Some(del_rect) = frame.delete_btn_rect {
-        ctx.targets
-            .component_delete_btns
-            .push((props.component_name, del_rect));
-    }
+        header.container_named("TitleGroup", title_group_style, |group| {
+            if let Some(uv) = props.atlas_icon {
+                group.icon_named("CardAtlasIcon", uv, props.header_color, 14.0);
+            } else {
+                group.label_styled_passive(
+                    "CardTextIcon",
+                    props.icon,
+                    12.0,
+                    props.header_color,
+                    TextAlign::Left,
+                    Style::new().width(15.0).height(20.0),
+                );
+            }
 
-    frame.card_id
+            group.label_styled_passive(
+                "CardTitle",
+                props.display_title,
+                11.5,
+                props.header_color,
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
+
+        let del_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center)
+            .width(16.0)
+            .height(16.0)
+            .border_radius(3.0)
+            .background(if is_delete_hovered {
+                Color::rgba(0.35, 0.12, 0.15, 0.85)
+            } else {
+                Color::rgba(0.12, 0.13, 0.16, 0.5)
+            });
+
+        let del_tag = encode_component_delete_tag(props.component_name);
+        del_btn_id = header.container_tagged(
+            "ComponentDeleteBtn",
+            del_style,
+            WidgetRole::Button,
+            del_tag,
+            |btn| {
+                btn.label_styled_passive(
+                    "DeleteGlyph",
+                    "×",
+                    12.0,
+                    if is_delete_hovered {
+                        Color::WHITE
+                    } else {
+                        Color::rgba(0.70, 0.72, 0.78, 1.0)
+                    },
+                    TextAlign::Center,
+                    Style::new().width(16.0).height(16.0),
+                );
+            },
+        );
+    });
+
+    del_btn_id
 }
 
-/// Helper function rendering a compact numeric input row with optional unit suffix.
-pub fn render_numeric_row_compact(
-    tree: &mut UiTree,
-    card_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-    params: CompactNumericRowParams,
-) {
-    let padding = 8.0;
-    let row_h = 22.0;
+/// Parameter descriptor for rendering a declarative combobox property row.
+#[derive(Debug, Clone, Copy)]
+pub struct DeclarativeComboboxRowParams {
+    /// Associated inspector dropdown identifier for semantic tag hit-testing.
+    pub dropdown_id: InspectorDropdownId,
+    /// Optional property description label (e.g. `Some("Shape:")`).
+    pub label: Option<&'static str>,
+    /// Width allocated for the description label in physical pixels.
+    pub label_w: f32,
+    /// Currently selected option string displayed on the combobox pill.
+    pub selected_text: &'static str,
+    /// Whether the associated dropdown popup menu is currently active.
+    pub is_open: bool,
+    /// Whether the mouse cursor is currently over the combobox button.
+    pub is_hovered: bool,
+    /// Width of the combobox trigger button in physical pixels.
+    pub combo_w: f32,
+}
 
-    // Label
-    let lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name(format!("NumLbl_{:?}", params.input_id));
-        node.set_text(params.label);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(ctx.base_x + padding, params.row_y, params.label_w, row_h);
-    }
-    let _ = tree.add_child(card_id, lbl_id);
+/// Renders a compact property combobox row with a label and dropdown trigger button in [`UiScope`].
+///
+/// Automatically uses the hardware texture atlas chevron icons (`ICON_CHEVRON_UP` when open,
+/// `ICON_CHEVRON_DOWN` when closed) and tags the button with [`encode_inspector_dropdown_tag`]
+/// for O(1) semantic hit-testing.
+///
+/// # Arguments
+/// * `scope` - Active declarative UI scope for the parent row or card.
+/// * `params` - Configuration descriptor for label, option text, state, and dimensions.
+///
+/// Returns the allocated [`WidgetId`] of the combobox button container.
+pub fn render_declarative_combobox_row(
+    scope: &mut UiScope<'_>,
+    params: DeclarativeComboboxRowParams,
+) -> WidgetId {
+    let row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(22.0)
+        .gap(6.0);
 
-    // Pill Box
-    let box_rect = Rect::new(
-        ctx.base_x + padding + params.label_w + 4.0,
-        params.row_y,
-        params.box_w,
-        row_h,
-    );
-    let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
-    let edit_state = ctx
-        .params
-        .active_number_input
-        .filter(|s| s.id == params.input_id)
-        .map(|s| s.to_edit_state(ctx.params.blink_caret));
+    let mut combo_id = WidgetId::default();
 
-    let custom_text = if params.input_id == InspectorNumberInputId::CharacterMaxSlope {
-        Some(format!("{:.0}°", params.val))
-    } else if params.input_id == InspectorNumberInputId::ActionSpeedRange {
-        Some(format!("{:.0}", params.val))
-    } else {
-        None
-    };
-
-    let mut builder = NumericInputPillBuilder::new(box_rect)
-        .name(format!("NumPill_{:?}", params.input_id))
-        .value(params.val)
-        .decimals(2)
-        .edit_state(edit_state)
-        .is_hovered(is_hovered);
-
-    if let Some(txt) = custom_text {
-        builder = builder.custom_text(txt);
-    }
-    builder.build(tree, card_id);
-
-    let (min_val, max_val) = params.input_id.valid_range();
-
-    ctx.targets
-        .number_inputs
-        .push((params.input_id, box_rect, min_val, max_val, params.val));
-
-    // Optional Suffix Unit (e.g. `m/s`, `s`, `°`)
-    if let Some(unit_str) = params.unit {
-        let unit_x = box_rect.right() + 4.0;
-        let unit_rect = Rect::new(unit_x, params.row_y, 35.0, row_h);
-        let unit_id = tree.create_node();
-        if let Some(node) = tree.get_mut(unit_id) {
-            node.set_name(format!("NumUnit_{:?}", params.input_id));
-            node.set_text(unit_str);
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = unit_rect;
+    scope.container_named("ComboboxRow", row_style, |row| {
+        if let Some(lbl) = params.label {
+            row.label_styled_passive(
+                "ComboLabel",
+                lbl,
+                11.0,
+                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                TextAlign::Left,
+                Style::new().width(params.label_w).height(22.0),
+            );
         }
-        let _ = tree.add_child(card_id, unit_id);
-    }
+
+        let (bg, border) = if params.is_open {
+            (
+                Color::rgba(0.118, 0.125, 0.145, 1.0),
+                Color::rgba(0.353, 0.376, 0.439, 0.95),
+            )
+        } else if params.is_hovered {
+            (
+                Color::rgba(0.200, 0.208, 0.235, 1.0),
+                Color::rgba(0.271, 0.282, 0.329, 0.95),
+            )
+        } else {
+            (
+                Color::rgba(0.157, 0.165, 0.188, 0.98),
+                Color::rgba(0.212, 0.220, 0.259, 0.85),
+            )
+        };
+
+        let pill_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::SpaceBetween)
+            .width(params.combo_w)
+            .height(22.0)
+            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+            .background(bg)
+            .border(1.0, border)
+            .border_radius(5.0);
+
+        let combo_tag = encode_inspector_dropdown_tag(params.dropdown_id);
+        combo_id = row.container_tagged(
+            "ComboPill",
+            pill_style,
+            WidgetRole::Button,
+            combo_tag,
+            |pill| {
+                pill.label_styled_passive(
+                    "ComboText",
+                    params.selected_text,
+                    10.5,
+                    if params.is_open {
+                        Color::WHITE
+                    } else {
+                        Color::rgba(0.886, 0.894, 0.918, 1.0)
+                    },
+                    TextAlign::Left,
+                    Style::new().flex_grow(1.0),
+                );
+
+                let chevron_uv = if params.is_open {
+                    crate::ui::iris_bridge::icons::ICON_CHEVRON_UP
+                } else {
+                    crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN
+                };
+                let chevron_color = if params.is_open {
+                    Color::WHITE
+                } else {
+                    Color::rgba(0.70, 0.72, 0.78, 0.9)
+                };
+                pill.icon_named("ComboChevron", chevron_uv, chevron_color, 9.0);
+            },
+        );
+    });
+
+    combo_id
 }
 
-/// Helper function rendering a single-line numeric input row.
-pub fn render_numeric_row(
-    tree: &mut UiTree,
-    card_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-    label: &'static str,
-    input_id: InspectorNumberInputId,
-    val: f32,
-    row_y: f32,
-) {
-    let padding = 8.0;
-    let row_h = 24.0;
-    let label_w = (ctx.card_w * 0.45).clamp(80.0, 140.0);
-    let box_w = (ctx.card_w - padding * 2.0 - label_w - 6.0).max(40.0);
-
-    // Label
-    let lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name(format!("NumLbl_{:?}", input_id));
-        node.set_text(label);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(ctx.base_x + padding, row_y, label_w, row_h);
-    }
-    let _ = tree.add_child(card_id, lbl_id);
-
-    // Box
-    let box_rect = Rect::new(ctx.base_x + padding + label_w + 6.0, row_y, box_w, row_h);
-    let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
-    let edit_state = ctx
-        .params
-        .active_number_input
-        .filter(|s| s.id == input_id)
-        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-
-    NumericInputPillBuilder::new(box_rect)
-        .name(format!("NumBox_{:?}", input_id))
-        .value(val)
-        .decimals(2)
-        .edit_state(edit_state)
-        .is_hovered(is_hovered)
-        .build(tree, card_id);
-
-    let (min_val, max_val) = input_id.valid_range();
-
-    ctx.targets
-        .number_inputs
-        .push((input_id, box_rect, min_val, max_val, val));
+/// Parameter descriptor for rendering a declarative numeric property row.
+#[derive(Debug, Clone, Copy)]
+pub struct DeclarativeNumericRowParams<'a> {
+    /// Associated inspector number input identifier for semantic tag hit-testing.
+    pub input_id: InspectorNumberInputId,
+    /// Human-readable property title displayed on the left.
+    pub label: &'static str,
+    /// Floating-point scalar value to display when not actively editing.
+    pub val: f32,
+    /// Width of the left title label column.
+    pub label_w: f32,
+    /// Width of the numeric pill container.
+    pub box_w: f32,
+    /// Optional physical unit suffix string.
+    pub unit: Option<&'static str>,
+    /// Active keyboard editing buffer and caret state, if currently focused.
+    pub edit_state: Option<NumericInputEditState<'a>>,
+    /// Whether the mouse cursor is currently hovering over the input pill.
+    pub is_hovered: bool,
 }
 
-/// Helper function rendering a standard compact dropdown combobox (e.g. `Shape: [ Capsule ▼ ]`).
-pub fn render_combobox_row(
-    tree: &mut UiTree,
-    card_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-    params: ComboboxRowParams,
-) {
-    let padding = 8.0;
-    let row_h = 22.0;
-    let combo_w = 88.0;
-    let is_open = ctx.params.active_dropdown == Some(params.dropdown_id);
+/// Renders a compact numeric property input row in a declarative [`UiScope`] with optional custom display text.
+///
+/// Supports interactive inline keyboard editing state with text buffer selection
+/// and blinking cursor caret, as well as an optional physical unit suffix (e.g. `m/s`).
+/// Tags the container box with [`encode_inspector_number_input_tag`] for zero-search direct hit-testing.
+///
+/// # Arguments
+/// * `scope` - Active declarative UI scope.
+/// * `params` - Numerical property parameters descriptor.
+/// * `custom_text` - Optional custom formatted string to override default scalar display (e.g. `"45°"`, `"50"`).
+///
+/// Returns the allocated [`WidgetId`] of the numeric input pill container.
+pub fn render_declarative_numeric_row_custom(
+    scope: &mut UiScope<'_>,
+    params: DeclarativeNumericRowParams<'_>,
+    custom_text: Option<&str>,
+) -> WidgetId {
+    let row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(22.0)
+        .gap(4.0);
 
-    let frame = ComboboxRowBuilder::new(ctx.base_x + padding, params.row_y, row_h)
-        .name(format!("ComboRow_{:?}", params.dropdown_id))
-        .label(params.label, params.label_w)
-        .combo(combo_w, params.selected_text)
-        .is_open(is_open)
-        .cursor_pos(ctx.params.cursor_pos)
-        .build(tree, card_id);
+    let mut box_id = WidgetId::default();
 
-    ctx.targets
-        .dropdowns
-        .push((params.dropdown_id, frame.combo_frame.button_rect, 0));
+    scope.container_named("NumericRow", row_style, |row| {
+        row.label_styled_passive(
+            "NumLbl",
+            params.label,
+            11.0,
+            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            TextAlign::Left,
+            Style::new().width(params.label_w).height(22.0),
+        );
+
+        let is_editing = params.edit_state.is_some();
+        let (bg, border_col) = if is_editing {
+            (
+                Color::rgba(0.180, 0.190, 0.220, 1.0),
+                Color::rgba(0.85, 0.88, 0.98, 0.95),
+            )
+        } else if params.is_hovered {
+            (
+                Color::rgba(0.200, 0.208, 0.235, 1.0),
+                Color::rgba(0.271, 0.282, 0.329, 0.95),
+            )
+        } else {
+            (
+                Color::rgba(0.157, 0.165, 0.188, 0.98),
+                Color::rgba(0.212, 0.220, 0.259, 0.85),
+            )
+        };
+
+        let pill_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center)
+            .width(params.box_w)
+            .height(22.0)
+            .background(bg)
+            .border(1.0, border_col)
+            .border_radius(4.0);
+
+        let display_str = if let Some(s) = params.edit_state {
+            let buf = s.buffer;
+            let cursor = s.cursor_idx.min(buf.len());
+            let (left, right) = buf.split_at(cursor);
+            if s.is_all_selected {
+                buf.to_string()
+            } else if s.blink_caret {
+                format!("{}|{}", left, right)
+            } else {
+                buf.to_string()
+            }
+        } else if let Some(txt) = custom_text {
+            txt.to_string()
+        } else {
+            format!("{:.2}", params.val)
+        };
+
+        let input_tag = encode_inspector_number_input_tag(params.input_id);
+        box_id = row.container_tagged(
+            "NumPillBox",
+            pill_style,
+            WidgetRole::TextInput,
+            input_tag,
+            |pill| {
+                pill.label_styled_passive(
+                    "NumVal",
+                    display_str,
+                    10.5,
+                    if is_editing {
+                        Color::WHITE
+                    } else if params.is_hovered {
+                        Color::rgba(0.95, 0.96, 0.98, 1.0)
+                    } else {
+                        Color::rgba(0.886, 0.894, 0.918, 1.0)
+                    },
+                    TextAlign::Center,
+                    Style::new().width(params.box_w).height(22.0),
+                );
+            },
+        );
+
+        if let Some(unit_str) = params.unit {
+            row.label_styled_passive(
+                "NumUnit",
+                unit_str,
+                11.0,
+                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                TextAlign::Left,
+                Style::new().width(35.0).height(22.0),
+            );
+        }
+    });
+
+    box_id
 }
 
-/// Helper function rendering a dropdown combobox with a side action button (e.g. `[ ↺ Preset ]`).
-pub fn render_combobox_row_with_btn(
-    tree: &mut UiTree,
-    card_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-    params: ComboboxWithButtonParams,
-) {
-    let padding = 8.0;
-    let row_h = 22.0;
-    let label_w = 85.0;
-    let combo_w = 80.0;
-    let btn_w = 58.0;
-    let is_open = ctx.params.active_dropdown == Some(params.dropdown_id);
-
-    let frame = ComboboxRowBuilder::new(ctx.base_x + padding, params.row_y, row_h)
-        .name(format!("ComboWithBtnRow_{:?}", params.dropdown_id))
-        .label(params.label, label_w)
-        .combo(combo_w, params.selected_text)
-        .action_button(params.btn_label, btn_w)
-        .is_open(is_open)
-        .cursor_pos(ctx.params.cursor_pos)
-        .build(tree, card_id);
-
-    ctx.targets
-        .dropdowns
-        .push((params.dropdown_id, frame.combo_frame.button_rect, 0));
-
-    ctx.targets.preset_btn_rect = frame.action_btn_rect;
+/// Renders a compact numeric property input row in a declarative [`UiScope`].
+///
+/// Supports interactive inline keyboard editing state with text buffer selection
+/// and blinking cursor caret, as well as an optional physical unit suffix (e.g. `m/s`).
+///
+/// # Arguments
+/// * `scope` - Active declarative UI scope.
+/// * `params` - Numerical property parameters descriptor.
+///
+/// Returns the allocated [`WidgetId`] of the numeric input pill container.
+pub fn render_declarative_numeric_row(
+    scope: &mut UiScope<'_>,
+    params: DeclarativeNumericRowParams<'_>,
+) -> WidgetId {
+    render_declarative_numeric_row_custom(scope, params, None)
 }
 
-/// Helper function rendering a boolean checkbox row.
-pub fn render_checkbox_row(
-    tree: &mut UiTree,
-    card_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-    label: &'static str,
+/// Renders a standardized boolean toggle checkbox row in a declarative [`UiScope`].
+///
+/// Displays a 14x14 pixel checkbox box with an accent border, checkmark glyph (`✓`),
+/// and a companion descriptive label. Tags the checkbox box with [`encode_component_checkbox_tag`]
+/// for direct O(1) hit-testing.
+///
+/// # Arguments
+/// * `scope` - Active declarative UI scope.
+/// * `cb_id` - Semantic component checkbox identifier.
+/// * `label` - Human-readable label displayed next to the checkbox.
+/// * `is_checked` - Current boolean state of the property.
+/// * `is_hovered` - Whether the mouse cursor is currently hovering over the checkbox.
+///
+/// Returns the allocated [`WidgetId`] of the checkbox container box.
+pub fn render_declarative_checkbox_row(
+    scope: &mut UiScope<'_>,
     cb_id: ComponentCheckboxId,
+    label: &'static str,
     is_checked: bool,
-    row_y: f32,
-) {
-    let padding = 8.0;
-    let row_h = 20.0;
-    let box_size = 14.0;
-    let cb_rect = Rect::new(ctx.base_x + padding, row_y + 3.0, box_size, box_size);
-    let is_hovered = cb_rect.contains_point(ctx.params.cursor_pos);
+    is_hovered: bool,
+) -> WidgetId {
+    let row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(20.0)
+        .gap(8.0);
 
-    let cb_node_id = tree.create_node();
-    if let Some(node) = tree.get_mut(cb_node_id) {
-        node.set_name(format!("CheckboxPill_{:?}", cb_id));
-        node.computed_rect = cb_rect;
+    let mut box_id = WidgetId::default();
+
+    scope.container_named("CheckboxRow", row_style, |row| {
         let (bg, border) = if is_checked {
             (
                 Color::rgba(0.20, 0.28, 0.38, 1.0),
@@ -282,36 +448,46 @@ pub fn render_checkbox_row(
                 Color::rgba(0.212, 0.220, 0.259, 0.85),
             )
         };
-        node.style = Style::new()
+
+        let box_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center)
+            .width(14.0)
+            .height(14.0)
             .background(bg)
             .border(1.0, border)
             .border_radius(3.0);
-        if is_checked {
-            node.set_text("✓");
-            node.font_size = 10.0;
-            node.line_height = box_size;
-            node.text_align = TextAlign::Center;
-            node.text_color = Color::WHITE;
-        }
-    }
-    let _ = tree.add_child(card_id, cb_node_id);
 
-    // Label
-    let lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name(format!("CheckboxLbl_{:?}", cb_id));
-        node.set_text(label);
-        node.font_size = 11.0;
-        node.line_height = row_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(
-            cb_rect.right() + 8.0,
-            row_y,
-            ctx.card_w - padding * 2.0 - box_size - 10.0,
-            row_h,
+        let cb_tag = encode_component_checkbox_tag(cb_id);
+        box_id = row.container_tagged(
+            "CheckboxBox",
+            box_style,
+            WidgetRole::Checkbox,
+            cb_tag,
+            |box_scope| {
+                if is_checked {
+                    box_scope.label_styled_passive(
+                        "Checkmark",
+                        "✓",
+                        10.0,
+                        Color::WHITE,
+                        TextAlign::Center,
+                        Style::new().width(14.0).height(14.0),
+                    );
+                }
+            },
         );
-    }
-    let _ = tree.add_child(card_id, lbl_id);
 
-    ctx.targets.checkboxes.push((cb_id, cb_rect, is_checked));
+        row.label_styled_passive(
+            "CheckboxLabel",
+            label,
+            11.0,
+            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            TextAlign::Left,
+            Style::new().flex_grow(1.0),
+        );
+    });
+
+    box_id
 }

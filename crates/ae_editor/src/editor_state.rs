@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 /// Controls camera movement speeds, mouse sensitivity, undo history depth,
 /// and the physics fixed update frequency (physics_hz).
 /// These values can be modified at runtime.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EditorConfig {
     pub camera_base_speed: f32,
     pub camera_shift_multiplier: f32,

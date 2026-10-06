@@ -21,8 +21,8 @@ pub use events::{compute_scrub_timestamp, handle_timeline_click};
 pub use lanes::{CHANNEL_LANE_HEIGHT, MAX_VISIBLE_LANES, build_dope_sheet_lanes};
 pub use panel::build_timeline_panel;
 pub use ruler::{
-    RULER_HEIGHT, RULER_TOTAL_HEIGHT, SCRUBBER_TRACK_HEIGHT, build_ruler_and_scrubber,
-    render_ruler_bar, render_scrubber_track,
+    RULER_HEIGHT, RULER_TOTAL_HEIGHT, SCRUBBER_TRACK_HEIGHT, ScrubberTrackParams,
+    build_ruler_and_scrubber, render_ruler_bar, render_scrubber_track,
 };
 pub use transport::{
     SPEED_PRESETS, TRANSPORT_TOOLBAR_HEIGHT, build_transport_toolbar, render_clip_badge,

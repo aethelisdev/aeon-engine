@@ -50,14 +50,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         node_id
     }
@@ -97,14 +90,7 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = UiScope {
-            tree: self.tree,
-            parent: node_id,
-            events: self.events,
-            hovered_id: self.hovered_id,
-            tagged_events: self.tagged_events,
-            hovered_tag: self.hovered_tag,
-        };
+        let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
         node_id
     }

@@ -79,7 +79,11 @@ impl IrisEditorOverlay {
                 }
             }
 
-            if panel_rect.contains_point(click_point) {
+            let is_over_panel = click_point.x >= panel_rect.x
+                && click_point.x <= panel_rect.right()
+                && click_point.y >= panel_rect.y
+                && click_point.y <= panel_rect.bottom();
+            if is_over_panel {
                 result.consumed = true;
                 return Some(result);
             }
@@ -134,8 +138,13 @@ impl IrisEditorOverlay {
         }
 
         // 2. Mouse Wheel Scroll handling
+        let cursor = self.cursor_pos();
+        let is_over_panel = cursor.x >= panel_rect.x
+            && cursor.x <= panel_rect.right()
+            && cursor.y >= panel_rect.y
+            && cursor.y <= panel_rect.bottom();
         if let WindowEvent::MouseWheel { delta, .. } = event
-            && panel_rect.contains_point(self.cursor_pos())
+            && is_over_panel
         {
             let delta_y = match delta {
                 MouseScrollDelta::LineDelta(_, y) => *y,

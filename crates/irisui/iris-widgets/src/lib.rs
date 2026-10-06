@@ -42,8 +42,11 @@ pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
 pub use declarative::{
-    InputBoxProps, UiScope, WidgetResponse, hash_label, layout_subtree, measure_content_height,
-    measure_height, measure_width,
+    InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
+    PropertyVec3Options, PropertyVec3Response, ScopeId, UiScope, WidgetResponse,
+    WrappedLabelDescriptor, combine_seeds, hash_label, hash_label_with_seed, layout_subtree,
+    measure_content_height, measure_height, measure_height_constrained, measure_width,
+    split_label_id,
 };
 pub use dropdown::{
     ComboboxButtonBuilder, ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder,

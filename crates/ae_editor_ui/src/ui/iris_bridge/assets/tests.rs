@@ -7,8 +7,9 @@
 use super::events::{self, AssetClickTracker, AssetsEventContext};
 use super::panel::build_assets_panel;
 use super::types::{
-    AssetCardTarget, AssetPreviewModalState, AssetsContextMenuTarget, AssetsPanelAction,
-    AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
+    ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetPreviewModalState,
+    AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelParams, encode_breadcrumb_tag,
+    encode_item_tag, truncate_display_name,
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
@@ -19,7 +20,6 @@ use std::path::{Path, PathBuf};
 fn test_assets_panel_structure_and_no_emojis() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
-    let mut targets = AssetsPanelTargets::default();
 
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
     let current_folder = PathBuf::from("assets");
@@ -50,6 +50,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         selected_asset: None,
         cached_items: &items,
         filtered_items: &items,
+        subfolders: &[],
         is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
@@ -58,19 +59,30 @@ fn test_assets_panel_structure_and_no_emojis() {
         tree_scroll_y: 0.0,
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
+        hovered_tag: None,
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
     };
 
-    build_assets_panel(&mut tree, root_id, &params, &mut targets);
+    let metrics = build_assets_panel(&mut tree, root_id, &params);
 
-    assert_eq!(targets.panel_rect, panel_rect);
-    assert!(!targets.breadcrumbs.is_empty());
-    assert_eq!(targets.grid_cards.len(), 1);
+    assert_eq!(metrics.panel_rect, panel_rect);
+    assert!(has_tag_recursive(&tree, root_id, encode_breadcrumb_tag(0)));
+    assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 
     // Verify that NO emojis exist in node text strings across the entire panel
     assert_no_emojis_recursive(&tree, root_id);
+}
+
+fn has_tag_recursive(tree: &UiTree, current: WidgetId, target_tag: u64) -> bool {
+    let mut found = false;
+    tree.traverse_depth_first(current, &mut |_id, node| {
+        if node.tag == target_tag {
+            found = true;
+        }
+    });
+    found
 }
 
 fn assert_no_emojis_recursive(tree: &UiTree, current: WidgetId) {
@@ -132,20 +144,31 @@ fn assert_no_emojis_recursive(tree: &UiTree, current: WidgetId) {
 fn test_assets_actions_dispatch() {
     let mut tracker = AssetClickTracker::default();
     let mut actions = Vec::new();
-    let targets = AssetsPanelTargets {
-        panel_rect: Rect::new(0.0, 0.0, 800.0, 400.0),
-        grid_toggle_rect: Rect::new(500.0, 5.0, 46.0, 24.0),
-        ..Default::default()
-    };
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
 
     let ctx = AssetsEventContext {
         cursor_pos: Point::new(510.0, 10.0),
-        targets: &targets,
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: None,
+        context_menu_card_rect: None,
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
-        hit_target: None,
+        hit_target: Some(HitTargetInfo {
+            id: WidgetId::default(),
+            layer: UiLayer::Content,
+            role: WidgetRole::Button,
+            cursor: Some(WidgetCursor::Pointer),
+            tag: super::types::ASSETS_TAG_VIEW_GRID,
+            rect: Rect::new(500.0, 5.0, 46.0, 24.0),
+            name: Some("GridToggleBtn".to_string()),
+        }),
+        filtered_items: &[],
+        subfolders: &[],
     };
 
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
@@ -175,27 +198,34 @@ fn test_assets_right_click_context_menu_dispatch() {
         is_3d: false,
     };
 
-    let card_target = AssetCardTarget {
-        rect: Rect::new(200.0, 50.0, 116.0, 134.0),
-        path: PathBuf::from("assets/test.png"),
-        category: AssetCategory::Textures2D,
-        item: item.clone(),
-    };
-
-    let targets = AssetsPanelTargets {
-        panel_rect: Rect::new(0.0, 0.0, 800.0, 400.0),
-        grid_cards: vec![card_target],
-        ..Default::default()
-    };
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+    let items = vec![item.clone()];
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
 
     let ctx = AssetsEventContext {
         cursor_pos: Point::new(220.0, 70.0),
-        targets: &targets,
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: None,
+        context_menu_card_rect: None,
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
-        hit_target: None,
+        hit_target: Some(HitTargetInfo {
+            id: root_id,
+            layer: UiLayer::Content,
+            role: WidgetRole::Button,
+            cursor: None,
+            rect: Rect::new(200.0, 50.0, 116.0, 134.0),
+            tag: encode_item_tag(0),
+            name: None,
+        }),
+        filtered_items: &items,
+        subfolders: &[],
     };
 
     let consumed = events::handle_assets_right_click(&ctx, &mut actions);
@@ -219,7 +249,6 @@ fn test_assets_right_click_context_menu_dispatch() {
 fn test_preview_modal_build_and_actions() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
-    let mut targets = AssetsPanelTargets::default();
 
     let item = AssetItem {
         name: "dragon.gltf".to_string(),
@@ -255,6 +284,7 @@ fn test_preview_modal_build_and_actions() {
         selected_asset: None,
         cached_items: &[],
         filtered_items: &[],
+        subfolders: &[],
         is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
@@ -263,16 +293,13 @@ fn test_preview_modal_build_and_actions() {
         tree_scroll_y: 0.0,
         cursor_pos: Point::new(500.0, 300.0),
         blink_caret: true,
+        hovered_tag: None,
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
     };
 
-    build_assets_panel(&mut tree, root_id, &params, &mut targets);
-
-    assert!(targets.preview_modal.is_some());
-    let pm = targets.preview_modal.as_ref().unwrap();
-    assert_eq!(pm.item.name, "dragon.gltf");
+    let metrics = build_assets_panel(&mut tree, root_id, &params);
 
     // Test clicking the close button on the preview modal via semantic hit target
     let mut close_pos = Point::new(0.0, 0.0);
@@ -286,12 +313,19 @@ fn test_preview_modal_build_and_actions() {
     let mut actions = Vec::new();
     let ctx = AssetsEventContext {
         cursor_pos: close_pos,
-        targets: &targets,
+        panel_rect: metrics.panel_rect,
+        sidebar_rect: metrics.sidebar_rect,
+        content_viewport_rect: metrics.content_viewport_rect,
+        context_menu: None,
+        context_menu_card_rect: None,
+        preview_modal: Some(&preview_state),
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
         hit_target: tree.hit_test_target(close_pos),
+        filtered_items: &[],
+        subfolders: &[],
     };
 
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
@@ -303,7 +337,6 @@ fn test_preview_modal_build_and_actions() {
 fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
-    let mut targets = AssetsPanelTargets::default();
 
     let scene_item = AssetItem {
         name: "test_level.ae3d".to_string(),
@@ -340,6 +373,7 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         selected_asset: None,
         cached_items: &[],
         filtered_items: &[],
+        subfolders: &[],
         is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
@@ -348,24 +382,23 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         tree_scroll_y: 0.0,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
+        hovered_tag: None,
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
     };
 
-    build_assets_panel(&mut tree, root_id, &params_idle, &mut targets);
+    build_assets_panel(&mut tree, root_id, &params_idle);
 
-    let pm = targets
-        .preview_modal
-        .as_ref()
-        .expect("Preview modal must be built");
-    assert_eq!(pm.item.name, "test_level.ae3d");
+    let mut has_test_level_title = false;
     let mut close_rect = Rect::ZERO;
     let mut reveal_rect = Rect::ZERO;
     let mut has_action_btn = false;
 
     tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
+        if node.text.as_deref() == Some("test_level.ae3d") {
+            has_test_level_title = true;
+        } else if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
             close_rect = node.computed_rect;
         } else if node.tag == crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL {
             reveal_rect = node.computed_rect;
@@ -373,6 +406,11 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
             has_action_btn = true;
         }
     });
+
+    assert!(
+        has_test_level_title,
+        "Modal title test_level.ae3d must exist in tree"
+    );
 
     assert!(
         has_action_btn,
@@ -395,17 +433,11 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     // 2. Re-build with cursor hovered over close button
     let mut tree_hover = UiTree::new();
     let root_hover = tree_hover.create_root().expect("Root node creation failed");
-    let mut targets_hover = AssetsPanelTargets::default();
 
     let mut params_hover = params_idle;
     params_hover.cursor_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
 
-    build_assets_panel(
-        &mut tree_hover,
-        root_hover,
-        &params_hover,
-        &mut targets_hover,
-    );
+    build_assets_panel(&mut tree_hover, root_hover, &params_hover);
 
     let mut close_node_hover_bg = None;
     tree_hover.traverse_depth_first(root_hover, &mut |_id, node| {
@@ -445,7 +477,6 @@ fn test_truncate_display_name_utf8_boundary_safety() {
 fn test_assets_card_rendering_with_unicode_filenames() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
-    let mut targets = AssetsPanelTargets::default();
 
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
     let current_folder = PathBuf::from("assets");
@@ -476,6 +507,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         selected_asset: None,
         cached_items: &items,
         filtered_items: &items,
+        subfolders: &[],
         is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 180.0,
@@ -484,16 +516,19 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         tree_scroll_y: 0.0,
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
+        hovered_tag: None,
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
     };
 
     // Should build cards with Turkish/Unicode filenames without any panic
-    build_assets_panel(&mut tree, root_id, &params, &mut targets);
-    assert_eq!(targets.grid_cards.len(), 1);
+    build_assets_panel(&mut tree, root_id, &params);
+    assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 }
 
+/// Verifies that constructing drag overlay nodes creates non-zero layout rectangles
+/// for the viewport landing ring, center target dot, and floating tooltip capsule labels.
 #[test]
 fn test_asset_drag_overlay_construction() {
     use crate::assets::types::{AssetCategory, AssetDragPayload};
@@ -530,8 +565,29 @@ fn test_asset_drag_overlay_construction() {
         &mut tree, root_id, &payload, cursor, vp_rect, &camera, false,
     );
 
-    let root_node = tree.get(root_id).expect("Root node exists");
-    assert!(root_node.children.len() >= 2);
+    let child_ids = tree
+        .get(root_id)
+        .expect("Root node exists")
+        .children
+        .clone();
+    assert!(child_ids.len() >= 2);
+
+    // Verify declarative layout_subtree resolved valid non-zero computed_rects for overlay children
+    let ring_node = tree.get(child_ids[0]).expect("Ring node exists");
+    assert!(ring_node.computed_rect.width > 0.0);
+    assert!(ring_node.computed_rect.height > 0.0);
+
+    let capsule_node = tree
+        .get(child_ids[child_ids.len() - 1])
+        .expect("Capsule node exists");
+    assert!(capsule_node.computed_rect.width > 0.0);
+    assert!(capsule_node.computed_rect.height > 0.0);
+
+    for &label_id in &capsule_node.children {
+        let label_node = tree.get(label_id).expect("Label node exists");
+        assert!(label_node.computed_rect.width > 0.0);
+        assert!(label_node.computed_rect.height > 0.0);
+    }
 }
 
 #[test]
@@ -579,22 +635,28 @@ fn test_asset_drag_tracker_lifecycle_and_cancellation() {
 #[test]
 fn test_asset_drag_viewport_boundary_check() {
     let viewport_rect = Rect::new(200.0, 100.0, 800.0, 600.0);
+    let is_in = |p: Point| {
+        p.x >= viewport_rect.x
+            && p.x <= viewport_rect.right()
+            && p.y >= viewport_rect.y
+            && p.y <= viewport_rect.bottom()
+    };
 
     // Inside viewport
     let inside_pos = Point::new(300.0, 200.0);
-    assert!(viewport_rect.contains_point(inside_pos));
+    assert!(is_in(inside_pos));
 
     // Over Asset panel (outside viewport)
     let asset_panel_pos = Point::new(300.0, 800.0);
-    assert!(!viewport_rect.contains_point(asset_panel_pos));
+    assert!(!is_in(asset_panel_pos));
 
     // Over Hierarchy panel (outside viewport)
     let hierarchy_pos = Point::new(50.0, 200.0);
-    assert!(!viewport_rect.contains_point(hierarchy_pos));
+    assert!(!is_in(hierarchy_pos));
 
     // Over Menubar (outside viewport)
     let menubar_pos = Point::new(400.0, 15.0);
-    assert!(!viewport_rect.contains_point(menubar_pos));
+    assert!(!is_in(menubar_pos));
 }
 
 #[test]
@@ -683,21 +745,31 @@ fn test_engine_content_visibility_filtering() {
 #[test]
 fn test_engine_toggle_action_dispatch() {
     let mut actions = Vec::new();
-    let engine_rect = Rect::new(500.0, 5.0, 76.0, 24.0);
-    let targets = AssetsPanelTargets {
-        panel_rect: Rect::new(0.0, 0.0, 800.0, 400.0),
-        engine_toggle_btn_rect: Some(engine_rect),
-        ..Default::default()
-    };
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
 
     let ctx = AssetsEventContext {
         cursor_pos: Point::new(510.0, 15.0),
-        targets: &targets,
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: None,
+        context_menu_card_rect: None,
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
-        hit_target: None,
+        hit_target: Some(HitTargetInfo {
+            id: WidgetId::default(),
+            layer: UiLayer::Content,
+            role: WidgetRole::Button,
+            cursor: Some(WidgetCursor::Pointer),
+            tag: super::types::ASSETS_TAG_ENGINE_CONTENT,
+            rect: Rect::new(510.0, 15.0, 74.0, 24.0),
+            name: Some("EngineToggleBtn".to_string()),
+        }),
+        filtered_items: &[],
+        subfolders: &[],
     };
 
     let mut tracker = AssetClickTracker::default();
@@ -720,9 +792,8 @@ fn test_engine_and_sidebar_vector_icons() {
     assert_eq!(FIRST_THUMBNAIL_LAYER, 32);
 
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
+    let root_id = tree.create_root().expect("Root node must be created");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-    let mut targets = AssetsPanelTargets::default();
 
     let current_folder = PathBuf::from("assets");
     let params = AssetsPanelParams {
@@ -736,6 +807,7 @@ fn test_engine_and_sidebar_vector_icons() {
         show_engine_content: true,
         cached_items: &[],
         filtered_items: &[],
+        subfolders: &[],
         is_2d_mode: false,
         selected_asset: None,
         sidebar_width: 180.0,
@@ -744,12 +816,13 @@ fn test_engine_and_sidebar_vector_icons() {
         tree_scroll_y: 0.0,
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
+        hovered_tag: None,
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
     };
 
-    build_assets_panel(&mut tree, root_id, &params, &mut targets);
+    build_assets_panel(&mut tree, root_id, &params);
 
     fn find_node_by_name<'a>(
         tree: &'a UiTree,
@@ -906,11 +979,8 @@ fn test_is_scene_json_3d_detection() {
 #[test]
 fn test_assets_context_menu_builder_and_hit_testing() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    if let Some(node) = tree.get_mut(root_id) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    }
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
+    UiScope::new(&mut tree, root_id).finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
     let item = AssetItem {
         name: "character.glb".to_string(),
@@ -933,8 +1003,9 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     );
     let thumbnail_layers = std::collections::HashMap::new();
 
+    let panel_rect = Rect::new(0.0, 0.0, 1000.0, 600.0);
     let params = AssetsPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        panel_rect,
         screen_size: (1920.0, 1080.0),
         current_folder: Path::new("assets"),
         search_query: "",
@@ -944,6 +1015,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         selected_asset: None,
         cached_items: &[],
         filtered_items: &[],
+        subfolders: &[],
         is_2d_mode: false,
         show_engine_content: false,
         sidebar_width: 200.0,
@@ -952,18 +1024,16 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         tree_scroll_y: 0.0,
         cursor_pos: Point::new(210.0, 160.0),
         blink_caret: false,
+        hovered_tag: None,
         active_context_menu: Some(&ctx_menu_data),
         active_preview_modal: None,
         thumbnail_layers: &thumbnail_layers,
     };
 
-    let mut targets = AssetsPanelTargets::default();
-    super::context_menu::build_assets_context_menu(&mut tree, root_id, &params, &mut targets);
-
-    assert!(targets.context_menu.is_some());
-    let cm = targets.context_menu.unwrap();
-    assert_eq!(cm.card_rect.x, 200.0);
-    assert_eq!(cm.card_rect.y, 150.0);
+    let card_rect = super::context_menu::build_assets_context_menu(&mut tree, root_id, &params)
+        .expect("Context menu card rect must be returned");
+    assert_eq!(card_rect.x, 200.0);
+    assert_eq!(card_rect.y, 150.0);
 
     // Hit test Quick Inspect (tag 0)
     let hit_inspect = tree
@@ -994,15 +1064,19 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     let mut actions = Vec::new();
     let ctx = AssetsEventContext {
         cursor_pos: Point::new(220.0, 195.0),
-        targets: &AssetsPanelTargets {
-            context_menu: Some(cm.clone()),
-            ..Default::default()
-        },
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: Some(&ctx_menu_data),
+        context_menu_card_rect: Some(card_rect),
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
         hit_target: Some(hit_inspect),
+        filtered_items: &[],
+        subfolders: &[],
     };
 
     let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
@@ -1018,15 +1092,19 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     let mut rename_actions = Vec::new();
     let rename_ctx = AssetsEventContext {
         cursor_pos: Point::new(220.0, 250.0),
-        targets: &AssetsPanelTargets {
-            context_menu: Some(cm.clone()),
-            ..Default::default()
-        },
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: Some(&ctx_menu_data),
+        context_menu_card_rect: Some(card_rect),
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
         hit_target: Some(hit_rename),
+        filtered_items: &[],
+        subfolders: &[],
     };
     let consumed_rename =
         events::handle_assets_click(&rename_ctx, &mut tracker, &mut rename_actions);
@@ -1042,15 +1120,19 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     let mut delete_actions = Vec::new();
     let delete_ctx = AssetsEventContext {
         cursor_pos: Point::new(220.0, 275.0),
-        targets: &AssetsPanelTargets {
-            context_menu: Some(cm.clone()),
-            ..Default::default()
-        },
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: Some(&ctx_menu_data),
+        context_menu_card_rect: Some(card_rect),
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
         hit_target: Some(hit_delete),
+        filtered_items: &[],
+        subfolders: &[],
     };
     let consumed_delete =
         events::handle_assets_click(&delete_ctx, &mut tracker, &mut delete_actions);
@@ -1066,16 +1148,111 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     let mut outside_actions = Vec::new();
     let outside_ctx = AssetsEventContext {
         cursor_pos: Point::new(50.0, 50.0),
-        targets: &AssetsPanelTargets {
-            context_menu: Some(cm),
-            ..Default::default()
-        },
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: Some(&ctx_menu_data),
+        context_menu_card_rect: Some(card_rect),
+        preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
         is_search_focused: false,
         selected_asset: None,
         hit_target: None,
+        filtered_items: &[],
+        subfolders: &[],
     };
     let _ = events::handle_assets_click(&outside_ctx, &mut tracker, &mut outside_actions);
     assert!(outside_actions.contains(&AssetsPanelAction::CloseContextMenu));
+}
+
+#[test]
+fn test_assets_toolbar_width_and_search_ux() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let panel_rect = Rect::new(0.0, 0.0, 960.0, 480.0);
+    let current_folder = PathBuf::from("assets");
+    let params = AssetsPanelParams {
+        panel_rect,
+        screen_size: (1920.0, 1080.0),
+        current_folder: &current_folder,
+        search_query: "test_query",
+        is_search_focused: true,
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &[],
+        filtered_items: &[],
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(100.0, 100.0),
+        blink_caret: true,
+        hovered_tag: None,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+    };
+
+    build_assets_panel(&mut tree, root_id, &params);
+
+    // Verify search input container is registered with ASSETS_TAG_SEARCH_INPUT
+    assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_INPUT));
+
+    // Verify search clear button is present when query is non-empty
+    assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_CLEAR));
+
+    // Verify AssetsTopToolbar has explicit width equal to panel_rect.width
+    let mut toolbar_found = false;
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.name.as_deref() == Some("AssetsTopToolbar") {
+            toolbar_found = true;
+            assert_eq!(node.style.width, Some(960.0));
+        }
+    });
+    assert!(toolbar_found, "AssetsTopToolbar node must exist in UiTree");
+}
+
+#[test]
+fn test_assets_click_outside_panel_rect_does_not_consume_even_with_hit_target() {
+    let mut tracker = AssetClickTracker::default();
+    let mut actions = Vec::new();
+    let panel_rect = Rect::new(0.0, 500.0, 800.0, 300.0);
+
+    let ctx = AssetsEventContext {
+        cursor_pos: Point::new(900.0, 100.0), // outside panel_rect, in inspector area
+        panel_rect,
+        sidebar_rect: None,
+        content_viewport_rect: panel_rect,
+        context_menu: None,
+        context_menu_card_rect: None,
+        preview_modal: None,
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+        hit_target: Some(HitTargetInfo {
+            id: WidgetId::default(),
+            layer: UiLayer::Content,
+            role: WidgetRole::Button,
+            cursor: Some(WidgetCursor::Pointer),
+            tag: 9999, // some non-asset tag, e.g. inspector tag
+            rect: Rect::new(900.0, 90.0, 100.0, 30.0),
+            name: Some("InspectorButton".to_string()),
+        }),
+        filtered_items: &[],
+        subfolders: &[],
+    };
+
+    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
+    assert!(
+        !consumed,
+        "Click outside assets panel rect must NEVER be consumed by assets panel!"
+    );
+    assert!(actions.is_empty());
 }

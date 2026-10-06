@@ -221,7 +221,6 @@ impl IrisEditorOverlay {
         self.viewport_hud.is_active = false;
         self.inspector.targets = None;
         self.console.targets = None;
-        self.assets.targets = None;
         self.material.targets = None;
         self.ui_designer.targets = None;
 
@@ -288,18 +287,17 @@ impl IrisEditorOverlay {
             return;
         };
 
-        // Root container spans full viewport with column layout
-        if let Some(node) = self.tree.get_mut(root) {
-            node.set_name("IrisEditorRoot");
-            node.interactive = false;
-            node.set_style(
-                Style::new()
-                    .flex_col()
-                    .justify_content(JustifyContent::SpaceBetween)
-                    .width(screen_width)
-                    .height(screen_height),
-            );
-        }
+        // Declarative configuration of root container spanning full viewport
+        let mut root_scope = UiScope::new(&mut self.tree, root);
+        root_scope.configure_container(
+            "IrisEditorRoot",
+            Style::new()
+                .flex_col()
+                .justify_content(JustifyContent::SpaceBetween)
+                .width(screen_width)
+                .height(screen_height),
+            false,
+        );
 
         // 1. Top MenuBar
         let menu_output = menubar::build_top_menu_bar(
@@ -324,37 +322,36 @@ impl IrisEditorOverlay {
         );
 
         // Pre-measure all text nodes to populate intrinsic content_size
-        self.measure_tree_text(root);
+        self.text_system.measure_subtree_text(&mut self.tree, root);
 
         // Compute Taffy layout for top menu bar and status bar (only 2 children for clean SpaceBetween pinning)
         let _ = self
             .layout_engine
             .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
 
-        // 2b. Baseline dividers under MenuBar and above StatusBar (added after Taffy layout to not alter SpaceBetween)
-        let top_rect = Rect::new(0.0, Self::MENUBAR_HEIGHT - 1.0, screen_width, 1.0);
-        let bottom_rect = Rect::new(
-            0.0,
-            screen_height - Self::STATUS_BAR_HEIGHT,
-            screen_width,
-            1.0,
-        );
-
+        // 2b. Baseline dividers under MenuBar and above StatusBar (positioned absolutely with explicit styles)
         let mut scope = UiScope::new(&mut self.tree, root);
-        let top_bar_divider = scope.empty_box_passive_named(
+        scope.empty_box_passive_named(
             "IrisTopMenuBarDivider",
-            Style::new().background(BORDER_MICRON),
+            Style::new()
+                .position_absolute()
+                .left(0.0)
+                .top(Self::MENUBAR_HEIGHT - 1.0)
+                .width(screen_width)
+                .height(1.0)
+                .background(BORDER_MICRON),
         );
-        let bottom_bar_divider = scope.empty_box_passive_named(
+        scope.empty_box_passive_named(
             "IrisBottomStatusBarDivider",
-            Style::new().background(BORDER_MICRON),
+            Style::new()
+                .position_absolute()
+                .left(0.0)
+                .top(screen_height - Self::STATUS_BAR_HEIGHT)
+                .width(screen_width)
+                .height(1.0)
+                .background(BORDER_MICRON),
         );
-        if let Some(node) = scope.tree_mut().get_mut(top_bar_divider) {
-            node.computed_rect = top_rect;
-        }
-        if let Some(node) = scope.tree_mut().get_mut(bottom_bar_divider) {
-            node.computed_rect = bottom_rect;
-        }
+        scope.finish_layout(Rect::new(0.0, 0.0, screen_width, screen_height));
 
         // 3. Build Native Iris UI Docking Frame (Splitters, Tab Strips, Compact Snug Tabs, Active Indicators)
         let workspace_rect = Rect::new(
@@ -383,17 +380,17 @@ impl IrisEditorOverlay {
         };
 
         let is_cursor_occluded = self.is_point_over_modal_or_dropdown(cursor)
-            || pref_rect.is_some_and(|r| r.contains_point(cursor))
+            || pref_rect.is_some_and(|r| {
+                cursor.x >= r.x
+                    && cursor.x <= r.right()
+                    && cursor.y >= r.y
+                    && cursor.y <= r.bottom()
+            })
             || params
                 .context
                 .layout_state
                 .dock_state
-                .floating_windows
-                .iter()
-                .any(|w| {
-                    Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
-                        .contains_point(cursor)
-                });
+                .is_point_over_floating_window(cursor);
 
         // 3. Native Iris Docking Framework: construct full dock tree (splitters, container tabs, content rects)
         let dock_frame = super::native_dock::build_native_dock(
@@ -444,6 +441,19 @@ impl IrisEditorOverlay {
         if params.dialogs.show_preferences {
             let blink_caret = (self.start_time.elapsed().as_millis() % 1060) < 530;
             let hovered_tag = self.tree.hit_test_target(cursor).map(|h| h.tag);
+            let caret_buf;
+            let active_number_input =
+                if let Some((t, ref s, is_all_selected)) = self.preferences.active_number_input {
+                    let text_with_caret = if !is_all_selected && blink_caret {
+                        caret_buf = format!("{}|", s);
+                        caret_buf.as_str()
+                    } else {
+                        s.as_str()
+                    };
+                    Some((t, text_with_caret, is_all_selected))
+                } else {
+                    None
+                };
             let (_pref_id, card_rect, content_rect, max_scroll_y) = build_preferences_dialog(
                 &mut self.tree,
                 preferences::PreferencesParams {
@@ -456,11 +466,7 @@ impl IrisEditorOverlay {
                     active_dropdown: self.preferences.dropdown,
                     dropdown_trigger_rect: self.preferences.dropdown_trigger_rect,
                     collapsed_sections: &self.preferences.collapsed_sections,
-                    active_number_input: self
-                        .preferences
-                        .active_number_input
-                        .as_ref()
-                        .map(|(id, s)| (*id, s.as_str())),
+                    active_number_input,
                     blink_caret,
                     cursor_pos: cursor,
                     hovered_tag,
@@ -470,8 +476,10 @@ impl IrisEditorOverlay {
                     editor_config: params.preferences.editor_config,
                     enable_live_updates: params.context.enable_live_updates,
                     enabled_modules: params.preferences.enabled_modules,
+                    events: &self.preferences.pending_interaction_events,
                 },
             );
+            self.preferences.pending_interaction_events.clear();
             self.preferences.card_rect = Some(card_rect);
             self.preferences.content_rect = Some(content_rect);
             self.preferences.max_scroll_y = max_scroll_y;
@@ -674,37 +682,6 @@ impl IrisEditorOverlay {
         self.chrome.last_hovered_tag = self.chrome.hovered_tag;
         self.chrome.needs_layout_rebuild = false;
         self.notifier.clear_all();
-    }
-
-    /// Measures intrinsic text dimensions for all nodes with text content in the subtree.
-    pub(crate) fn measure_tree_text(&mut self, current: WidgetId) {
-        let (font_size, line_height, child_count) = {
-            let Some(node) = self.tree.get(current) else {
-                return;
-            };
-            (node.font_size, node.line_height, node.children.len())
-        };
-
-        if let Some(node) = self.tree.get(current)
-            && let Some(ref text) = node.text
-        {
-            let measured = self
-                .text_system
-                .measure_text(text, font_size, line_height, None);
-            if let Some(node_mut) = self.tree.get_mut(current) {
-                node_mut.content_size = measured;
-            }
-        }
-
-        for i in 0..child_count {
-            if let Some(child) = self
-                .tree
-                .get(current)
-                .and_then(|n| n.children.get(i).copied())
-            {
-                self.measure_tree_text(child);
-            }
-        }
     }
 }
 

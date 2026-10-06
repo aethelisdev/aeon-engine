@@ -16,7 +16,7 @@ pub enum SnapMode {
 }
 
 /// Grid-based snapping configuration for transform operations.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SnapSettings {
     /// Current snap activation mode.
     pub mode: SnapMode,

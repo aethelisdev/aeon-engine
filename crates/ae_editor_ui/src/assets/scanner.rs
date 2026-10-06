@@ -183,6 +183,7 @@ pub fn rescan_assets_if_needed(
         }
     }
 
+    discovered_subfolders.sort();
     state.cached_items = discovered_items;
     state.subfolders = discovered_subfolders;
 }

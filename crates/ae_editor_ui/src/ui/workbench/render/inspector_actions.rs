@@ -17,6 +17,7 @@ use crate::ui::workbench::state::EngineUi;
 
 pub(crate) use dropdowns::handle_select_dropdown;
 pub(crate) use numbers::handle_set_number_value;
+pub use numbers::read_inspector_number_value;
 
 impl EngineUi {
     /// Dispatches all pending Inspector panel actions to ECS entities and UI state.
@@ -83,9 +84,24 @@ impl EngineUi {
                     ui_actions.push(EngineUiAction::AddComponent(entity, comp_name));
                 }
                 InspectorAction::SaveAsPrefab(entity) => {
+                    let raw_name = world
+                        .get::<&ae_core::ecs::Name>(entity)
+                        .map(|n| n.0.clone())
+                        .unwrap_or_else(|_| "prefab".to_string());
+                    let clean_name = raw_name
+                        .trim()
+                        .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_");
+                    let safe_name = if clean_name.is_empty() {
+                        "prefab".to_string()
+                    } else {
+                        clean_name
+                    };
                     ui_actions.push(EngineUiAction::SaveEntityAsPrefab(
                         entity,
-                        std::path::PathBuf::from("assets/prefabs/prefab.json"),
+                        std::path::PathBuf::from(format!(
+                            "assets/prefabs/{}.prefab.json",
+                            safe_name
+                        )),
                     ));
                 }
                 InspectorAction::StartNumberEdit(entity, num_id) => {
@@ -96,6 +112,12 @@ impl EngineUi {
                     {
                         self.iris_overlay.inspector.edit_start_snapshot =
                             Some((entity, comp_name, old_bytes));
+                    }
+                    if let Some(ref mut drag) = self.iris_overlay.inspector.drag_number
+                        && drag.entity == entity
+                        && drag.id == num_id
+                    {
+                        drag.start_val = read_inspector_number_value(world, entity, num_id);
                     }
                 }
                 InspectorAction::SetNumberValue(entity, num_id, val) => {
@@ -110,6 +132,35 @@ impl EngineUi {
                         }
                     }
                     handle_set_number_value(world, entity, num_id, val, &mut self.inspector_euler);
+                    match num_id {
+                        crate::ui::iris_bridge::inspector::InspectorNumberInputId::PosX
+                        | crate::ui::iris_bridge::inspector::InspectorNumberInputId::PosY
+                        | crate::ui::iris_bridge::inspector::InspectorNumberInputId::PosZ => {
+                            if let Ok(pos) =
+                                world.get::<&ae_core::ecs::Position>(entity).map(|p| *p)
+                            {
+                                ui_actions.push(EngineUiAction::LiveUpdatePosition(entity, pos));
+                            }
+                        }
+                        crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotX
+                        | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotY
+                        | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotZ => {
+                            if let Ok(rot) =
+                                world.get::<&ae_core::ecs::Rotation>(entity).map(|r| *r)
+                            {
+                                ui_actions.push(EngineUiAction::LiveUpdateRotation(entity, rot));
+                            }
+                        }
+                        crate::ui::iris_bridge::inspector::InspectorNumberInputId::ScaleX
+                        | crate::ui::iris_bridge::inspector::InspectorNumberInputId::ScaleY
+                        | crate::ui::iris_bridge::inspector::InspectorNumberInputId::ScaleZ => {
+                            if let Ok(scale) = world.get::<&ae_core::ecs::Scale>(entity).map(|s| *s)
+                            {
+                                ui_actions.push(EngineUiAction::LiveUpdateScale(entity, scale));
+                            }
+                        }
+                        _ => {}
+                    }
                 }
                 InspectorAction::CommitNumberEdit(entity, num_id) => {
                     let comp_name = num_id.component_name();

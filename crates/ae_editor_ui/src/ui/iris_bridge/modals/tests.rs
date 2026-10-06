@@ -15,10 +15,9 @@ use std::path::Path;
 #[test]
 fn test_new_folder_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
-    let _ = tree.set_root(root);
+    let _root = tree.create_root().expect("Root node must be created");
 
-    let scrim_id = build_new_folder_modal(
+    let _scrim_id = build_new_folder_modal(
         &mut tree,
         FolderModalParams {
             parent_path: Path::new("assets/models"),
@@ -30,7 +29,6 @@ fn test_new_folder_modal_text_sections_not_occluded() {
             cursor_pos: Point::new(0.0, 0.0),
         },
     );
-    let _ = tree.add_child(root, scrim_id);
 
     // Collect text sections with the modal card's dialog_rect registered as an active modal
     let active_modals = [Rect::new(
@@ -64,10 +62,9 @@ fn test_new_folder_modal_text_sections_not_occluded() {
 #[test]
 fn test_rename_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
-    let _ = tree.set_root(root);
+    let _root = tree.create_root().expect("Root node must be created");
 
-    let scrim_id = build_rename_modal(
+    let _scrim_id = build_rename_modal(
         &mut tree,
         RenameModalParams {
             target_path: Path::new("assets/textures/diffuse.png"),
@@ -80,7 +77,6 @@ fn test_rename_modal_text_sections_not_occluded() {
             cursor_pos: Point::new(0.0, 0.0),
         },
     );
-    let _ = tree.add_child(root, scrim_id);
 
     let active_modals = [Rect::new(
         (1920.0 - INPUT_MODAL_WIDTH) * 0.5,
@@ -109,17 +105,15 @@ fn test_rename_modal_text_sections_not_occluded() {
 #[test]
 fn test_delete_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
-    let _ = tree.set_root(root);
+    let _root = tree.create_root().expect("Root node must be created");
 
-    let scrim_id = build_delete_modal(
+    let _scrim_id = build_delete_modal(
         &mut tree,
         Path::new("assets/temp.obj"),
         1920.0,
         1080.0,
         Point::new(0.0, 0.0),
     );
-    let _ = tree.add_child(root, scrim_id);
 
     let active_modals = [Rect::new(
         (1920.0 - DELETE_MODAL_WIDTH) * 0.5,
@@ -148,10 +142,9 @@ fn test_delete_modal_text_sections_not_occluded() {
 #[test]
 fn test_loading_overlay_text_sections_not_occluded() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
-    let _ = tree.set_root(root);
+    let _root = tree.create_root().expect("Root node must be created");
 
-    let scrim_id = build_loading_overlay(
+    let _scrim_id = build_loading_overlay(
         &mut tree,
         LoadingOverlayParams {
             screen_width: 1920.0,
@@ -159,7 +152,6 @@ fn test_loading_overlay_text_sections_not_occluded() {
             time_secs: 1.0,
         },
     );
-    let _ = tree.add_child(root, scrim_id);
 
     let active_modals = [Rect::new(
         (1920.0 - 420.0) * 0.5,
@@ -180,8 +172,7 @@ fn test_loading_overlay_text_sections_not_occluded() {
 #[test]
 fn test_about_dialog_occludes_underlying_preferences_text() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
-    let _ = tree.set_root(root);
+    let _root = tree.create_root().expect("Root node must be created");
 
     let screen_width = 1920.0;
     let screen_height = 1080.0;
@@ -189,9 +180,9 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
     // 1. Build Preferences dialog in center
     let collapsed = std::collections::HashSet::new();
     let enabled_modules = std::collections::HashSet::new();
-    let graphics_settings = ae_renderer::graphics_settings::GraphicsSettings::default();
-    let snapping_settings = ae_editor::snapping::SnapSettings::default();
-    let editor_config = ae_editor::editor_state::EditorConfig::default();
+    let mut graphics_settings = ae_renderer::graphics_settings::GraphicsSettings::default();
+    let mut snapping_settings = ae_editor::snapping::SnapSettings::default();
+    let mut editor_config = ae_editor::editor_state::EditorConfig::default();
 
     let pref_left =
         ((screen_width - crate::ui::iris_bridge::preferences::builder::PREF_CARD_WIDTH) * 0.5)
@@ -210,26 +201,26 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
-        active_number_input: None,
         blink_caret: false,
+        active_number_input: None,
         cursor_pos: Point::new(0.0, 0.0),
         hovered_tag: None,
         zoom_factor: 1.0,
-        graphics_settings: &graphics_settings,
-        snapping_settings: &snapping_settings,
-        editor_config: &editor_config,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
+        events: &[],
     };
-    let (pref_id, pref_card_rect, _, _) =
+    let (_pref_id, pref_card_rect, _, _) =
         crate::ui::iris_bridge::preferences::builder::build_preferences_dialog(
             &mut tree,
             pref_params,
         );
-    let _ = tree.add_child(root, pref_id);
 
     // 2. Build About dialog centered on top of Preferences
-    let about_id = crate::ui::iris_bridge::about::build_about_dialog(
+    let _about_id = crate::ui::iris_bridge::about::build_about_dialog(
         &mut tree,
         screen_width,
         screen_height,
@@ -237,7 +228,6 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         &[],
         None,
     );
-    let _ = tree.add_child(root, about_id);
 
     let about_dialog_rect = Rect::new(
         (screen_width - crate::ui::iris_bridge::about::ABOUT_DIALOG_WIDTH) * 0.5,
@@ -303,8 +293,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
 #[test]
 fn test_declarative_modals_buttons_hover_reactivity() {
     let mut tree = UiTree::new();
-    let root = PanelBuilder::new(&mut tree).build();
-    let _ = tree.set_root(root);
+    let _root = tree.create_root().expect("Root node must be created");
 
     let screen_w = 1920.0;
     let screen_h = 1080.0;

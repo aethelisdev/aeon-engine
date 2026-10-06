@@ -5,10 +5,10 @@
 //! using 100% declarative semantic tags and O(1) hit testing.
 
 use super::super::preferences::{
-    self, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLLBAR_THUMB,
-    PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesAction, PreferencesSliderId,
-    is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag, parse_number_tag,
-    parse_section_tag, parse_slider_tag, parse_tab_tag, parse_toggle_tag,
+    PREF_CARD_HEIGHT, PREF_CARD_WIDTH, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW,
+    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesAction,
+    TITLEBAR_HEIGHT, is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag,
+    parse_section_tag, parse_tab_tag, parse_toggle_tag,
 };
 use super::super::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
@@ -18,15 +18,15 @@ impl IrisEditorOverlay {
     /// Handles active continuous mouse dragging and release interactions for the Preferences dialog.
     ///
     /// Must be invoked at high priority in event dispatch (Step 3b), before the menubar
-    /// or docked panels, so that window dragging and slider dragging continue smoothly across
+    /// or docked panels, so that window dragging and scrollbar dragging continue smoothly across
     /// any panel boundary or menubar, and mouse release is reliably captured anywhere on screen.
     pub(crate) fn handle_preferences_drag_events(
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
         if self.preferences.drag_offset.is_none()
-            && self.preferences.active_slider_drag.is_none()
             && self.preferences.active_scrollbar_drag.is_none()
+            && self.preferences.active_drag_tag.is_none()
         {
             return None;
         }
@@ -37,7 +37,23 @@ impl IrisEditorOverlay {
             WindowEvent::CursorMoved { position, .. } => {
                 self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
 
-                // 1. Titlebar Dragging
+                // 1. Generic Declarative Slider / Float Dragging
+                if let Some(active_tag) = self.preferences.active_drag_tag {
+                    let delta_x = self.cursor_pos().x - self.chrome.last_cursor_pos.x;
+                    let delta_y = self.cursor_pos().y - self.chrome.last_cursor_pos.y;
+                    self.preferences.pending_interaction_events.push((
+                        active_tag,
+                        InteractionEvent::Drag {
+                            delta: Point::new(delta_x, delta_y),
+                        },
+                    ));
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                    result.consumed = true;
+                    return Some(result);
+                }
+
+                // 2. Titlebar Dragging
                 if let Some(drag_offset) = self.preferences.drag_offset {
                     self.preferences.pos = Some(calculate_preferences_drag_pos(
                         self.cursor_pos(),
@@ -50,33 +66,13 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
 
-                // 2. Slider Continuous Dragging
-                if let Some((slider_id, track_rect, min_val, max_val)) =
-                    self.preferences.active_slider_drag
-                {
-                    let norm =
-                        ((self.cursor_pos().x - track_rect.x) / track_rect.width).clamp(0.0, 1.0);
-                    let mut val = min_val + norm * (max_val - min_val);
-                    if slider_id == PreferencesSliderId::PhysicsFrequency {
-                        val = preferences::PHYSICS_HZ_PRESETS
-                            .iter()
-                            .copied()
-                            .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
-                            .unwrap_or(val);
-                    }
-                    result.preferences_action =
-                        Some(PreferencesAction::SetSliderValue(slider_id, val));
-                    result.consumed = true;
-                    return Some(result);
-                }
-
                 // 3. Scrollbar Thumb Dragging
                 if let Some((start_cursor_y, start_scroll_y)) =
                     self.preferences.active_scrollbar_drag
                 {
                     let delta_y = self.cursor_pos().y - start_cursor_y;
                     let max_scroll = self.preferences.max_scroll_y;
-                    let content_h = preferences::PREF_CARD_HEIGHT - preferences::TITLEBAR_HEIGHT;
+                    let content_h = PREF_CARD_HEIGHT - TITLEBAR_HEIGHT;
                     let total_h = content_h + max_scroll;
                     let content_rect = self.preferences.content_rect.unwrap_or_default();
                     let style = ScrollAreaStyle {
@@ -114,8 +110,9 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     return Some(result);
                 }
-                if self.preferences.active_slider_drag.is_some() {
-                    self.preferences.active_slider_drag = None;
+                if self.preferences.active_drag_tag.is_some() {
+                    self.preferences.active_drag_tag = None;
+                    self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
                 }
@@ -156,49 +153,57 @@ impl IrisEditorOverlay {
                     },
                 ..
             } => {
-                if let Some((slider_id, ref mut buffer)) = self.preferences.active_number_input {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.preferences.active_number_input = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Ok(mut val) = buffer.trim().parse::<f32>() {
-                                val = val.clamp(slider_id.min_val(), slider_id.max_val());
-                                if slider_id == PreferencesSliderId::PhysicsFrequency {
-                                    val = preferences::PHYSICS_HZ_PRESETS
-                                        .iter()
-                                        .copied()
-                                        .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
-                                        .unwrap_or(val);
-                                }
-                                result.preferences_action =
-                                    Some(PreferencesAction::SetSliderValue(slider_id, val));
-                            }
-                            self.preferences.active_number_input = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
+                // If active inline numeric input is editing
+                if let Some((tag, ref mut buffer, ref mut is_all_selected)) =
+                    self.preferences.active_number_input
+                {
+                    if *key == winit::keyboard::KeyCode::Enter
+                        || *key == winit::keyboard::KeyCode::NumpadEnter
+                    {
+                        let committed_tag = tag;
+                        let committed_text = buffer.clone();
+                        self.preferences.active_number_input = None;
+                        self.preferences.pending_interaction_events.push((
+                            committed_tag,
+                            InteractionEvent::TextInput {
+                                text: committed_text,
+                            },
+                        ));
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
+                        result.consumed = true;
+                        return Some(result);
+                    } else if *key == winit::keyboard::KeyCode::Escape {
+                        self.preferences.active_number_input = None;
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
+                        result.consumed = true;
+                        return Some(result);
+                    } else if *key == winit::keyboard::KeyCode::Backspace {
+                        if *is_all_selected {
+                            buffer.clear();
+                            *is_all_selected = false;
+                        } else {
                             buffer.pop();
-                            result.consumed = true;
-                            return Some(result);
                         }
-                        _ => {
-                            if let Some(t) = text {
-                                for c in t.chars() {
-                                    if c.is_ascii_digit()
-                                        || (c == '.' && !buffer.contains('.'))
-                                        || (c == '-' && buffer.is_empty())
-                                    {
-                                        buffer.push(c);
-                                    }
-                                }
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
+                        result.consumed = true;
+                        return Some(result);
+                    } else if let Some(input_chars) = text {
+                        if *is_all_selected {
+                            buffer.clear();
+                            *is_all_selected = false;
+                        }
+                        for ch in input_chars.chars() {
+                            if ch.is_ascii_digit() || ch == '.' || ch == '-' {
+                                buffer.push(ch);
                             }
-                            result.consumed = true;
-                            return Some(result);
                         }
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
+                        result.consumed = true;
+                        return Some(result);
                     }
                 }
 
@@ -209,18 +214,19 @@ impl IrisEditorOverlay {
                     } else {
                         result.close_preferences = true;
                         self.preferences.drag_offset = None;
-                        self.preferences.active_slider_drag = None;
                         self.preferences.active_scrollbar_drag = None;
-                        self.preferences.active_number_input = None;
                     }
                     result.consumed = true;
                     return Some(result);
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                if !self.is_point_over_popup(self.cursor_pos())
-                    && card_rect.contains_point(self.cursor_pos())
-                {
+                let cursor = self.cursor_pos();
+                let is_over_card = cursor.x >= card_rect.x
+                    && cursor.x <= card_rect.right()
+                    && cursor.y >= card_rect.y
+                    && cursor.y <= card_rect.bottom();
+                if !self.is_point_over_popup(cursor) && is_over_card {
                     let scroll_y = match delta {
                         winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 28.0,
                         winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
@@ -281,20 +287,53 @@ impl IrisEditorOverlay {
                 self.inspector.active_dropdown = None;
                 self.inspector.is_add_menu_open = false;
 
-                // If clicked outside the active number input box, commit and close it
-                if let Some((slider_id, buffer)) = self.preferences.active_number_input.take()
-                    && let Ok(mut val) = buffer.trim().parse::<f32>()
-                {
-                    val = val.clamp(slider_id.min_val(), slider_id.max_val());
-                    if slider_id == PreferencesSliderId::PhysicsFrequency {
-                        val = preferences::PHYSICS_HZ_PRESETS
-                            .iter()
-                            .copied()
-                            .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
-                            .unwrap_or(val);
+                // Commit and dismiss any active number input on clicking elsewhere
+                if let Some((input_tag, buffer, _)) = self.preferences.active_number_input.take() {
+                    let clicked_same_tag = hit_target.as_ref().is_some_and(|h| h.tag == input_tag);
+                    if !clicked_same_tag {
+                        self.preferences
+                            .pending_interaction_events
+                            .push((input_tag, InteractionEvent::TextInput { text: buffer }));
                     }
-                    result.preferences_action =
-                        Some(PreferencesAction::SetSliderValue(slider_id, val));
+                }
+
+                // Dispatch declarative two-way property interactions and begin drag tracking
+                if let Some(ref hit) = hit_target
+                    && hit.tag != 0
+                {
+                    self.preferences.pending_interaction_events.push((
+                        hit.tag,
+                        InteractionEvent::Click {
+                            button: MouseButton::Left,
+                        },
+                    ));
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+
+                    if hit.role == WidgetRole::NumericInput {
+                        if hit.cursor == Some(WidgetCursor::Text) {
+                            let initial_text = self
+                                .tree
+                                .get(hit.id)
+                                .and_then(|node| {
+                                    if let Some(ref t) = node.text {
+                                        Some(t.as_str())
+                                    } else {
+                                        node.children.first().and_then(|&child_id| {
+                                            self.tree.get(child_id).and_then(|c| c.text.as_deref())
+                                        })
+                                    }
+                                })
+                                .unwrap_or("")
+                                .chars()
+                                .filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+                                .collect::<String>();
+                            self.preferences.active_number_input =
+                                Some((hit.tag, initial_text, true));
+                        } else {
+                            self.preferences.active_drag_tag = Some(hit.tag);
+                        }
+                    }
                 }
 
                 // Semantic Tag Hit Routing
@@ -307,10 +346,8 @@ impl IrisEditorOverlay {
                     if tag == PREF_TAG_CLOSE {
                         result.close_preferences = true;
                         self.preferences.drag_offset = None;
-                        self.preferences.active_slider_drag = None;
                         self.preferences.dropdown = None;
                         self.preferences.dropdown_trigger_rect = None;
-                        self.preferences.active_number_input = None;
                         result.consumed = true;
                         return Some(result);
                     }
@@ -330,7 +367,6 @@ impl IrisEditorOverlay {
                         self.preferences.tab = tab_idx;
                         self.preferences.dropdown = None;
                         self.preferences.dropdown_trigger_rect = None;
-                        self.preferences.active_number_input = None;
                         self.preferences.scroll_y = 0.0;
                         self.preferences.active_scrollbar_drag = None;
                         self.notifier.tag_all();
@@ -412,39 +448,6 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
 
-                    // Continuous Slider Track Click & Drag
-                    if let Some(slider_id) = parse_slider_tag(tag) {
-                        let min_val = slider_id.min_val();
-                        let max_val = slider_id.max_val();
-                        self.preferences.active_slider_drag =
-                            Some((slider_id, hit.rect, min_val, max_val));
-                        let norm = ((click_point.x - hit.rect.x) / hit.rect.width).clamp(0.0, 1.0);
-                        let mut val = min_val + norm * (max_val - min_val);
-                        if slider_id == PreferencesSliderId::PhysicsFrequency {
-                            val = preferences::PHYSICS_HZ_PRESETS
-                                .iter()
-                                .copied()
-                                .min_by(|a, b| (a - val).abs().total_cmp(&(b - val).abs()))
-                                .unwrap_or(val);
-                        }
-                        result.preferences_action =
-                            Some(PreferencesAction::SetSliderValue(slider_id, val));
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // Direct Numeric Input Box
-                    if let Some(slider_id) = parse_number_tag(tag) {
-                        let cur_val = slider_id.min_val(); // fallback or active
-                        let initial_str = slider_id.format_val(cur_val);
-                        self.preferences.active_number_input = Some((slider_id, initial_str));
-                        self.preferences.active_slider_drag = None;
-                        self.preferences.dropdown = None;
-                        self.preferences.dropdown_trigger_rect = None;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
                     // Background card / content view click absorption
                     if tag == PREF_TAG_CARD || tag == PREF_TAG_CONTENT_VIEW {
                         result.consumed = true;
@@ -453,7 +456,11 @@ impl IrisEditorOverlay {
                 }
 
                 // If click is inside card rect, consume it so it doesn't pass through to canvas
-                if card_rect.contains_point(click_point) {
+                let is_over_card = click_point.x >= card_rect.x
+                    && click_point.x <= card_rect.right()
+                    && click_point.y >= card_rect.y
+                    && click_point.y <= card_rect.bottom();
+                if is_over_card {
                     result.consumed = true;
                     return Some(result);
                 }
@@ -476,8 +483,8 @@ pub fn calculate_preferences_drag_pos(
     screen_width: f32,
     screen_height: f32,
 ) -> Point {
-    let max_x = (screen_width - preferences::PREF_CARD_WIDTH).max(0.0);
-    let max_y = (screen_height - preferences::PREF_CARD_HEIGHT).max(28.0);
+    let max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
+    let max_y = (screen_height - PREF_CARD_HEIGHT).max(28.0);
     let new_x = (cursor_pos.x - drag_offset.x).clamp(0.0, max_x);
     let new_y = (cursor_pos.y - drag_offset.y).clamp(28.0, max_y);
     Point::new(new_x, new_y)

@@ -194,6 +194,12 @@ impl<T> FloatingWindow<T> {
         self.rect.y += delta.y;
     }
 
+    /// Checks whether the point is contained within this floating window's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
+
     /// Resizes the floating window dimensions, enforcing the specified minimum size.
     pub fn resize(&mut self, delta_w: f32, delta_h: f32, min_size: f32) {
         self.rect.width = (self.rect.width + delta_w).max(min_size);
@@ -222,12 +228,6 @@ impl<T> FloatingWindow<T> {
     #[inline]
     pub fn default_content_rect(&self) -> Rect {
         self.content_rect(FloatingWindowStyle::DEFAULT_TITLE_BAR_HEIGHT)
-    }
-
-    /// Checks if a screen cursor coordinate falls inside this floating window.
-    #[inline]
-    pub fn contains_point(&self, point: Point) -> bool {
-        self.rect.contains_point(point)
     }
 }
 

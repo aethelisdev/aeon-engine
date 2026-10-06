@@ -148,21 +148,31 @@ impl IrisEditorOverlay {
                 active_number_input: num_input_ref,
                 active_text_input: text_input_ref,
                 active_rename_buffer: rename_buf_ref,
+                is_rename_all_selected: self.inspector.rename_is_all_selected
+                    && rename_buf_ref.is_some(),
                 active_hex_buffer: hex_buf_ref,
                 inspector_hsv: self.inspector.hsv,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+                hovered_tag: self.chrome.hovered_tag,
             };
 
-            let mut insp_targets = super::inspector::InspectorPanelTargets::default();
-            super::inspector::build_inspector_panel(
-                &mut self.tree,
-                root,
-                &insp_params,
-                &mut insp_targets,
-            );
-            self.inspector.targets = Some(insp_targets);
+            super::inspector::build_inspector_panel(&mut self.tree, root, &insp_params);
+            self.inspector.inspected_entity = params.scene.selected_entity;
+            if let Some(entity) = params.scene.selected_entity {
+                if let Ok(name) = params.scene.world.get::<&ae_core::ecs::Name>(entity) {
+                    self.inspector.inspected_entity_name.clear();
+                    self.inspector
+                        .inspected_entity_name
+                        .push_str(name.0.as_str());
+                } else {
+                    self.inspector.inspected_entity_name.clear();
+                }
+            } else {
+                self.inspector.inspected_entity_name.clear();
+            }
         } else {
-            self.inspector.targets = None;
+            self.inspector.inspected_entity = None;
+            self.inspector.inspected_entity_name.clear();
         }
     }
 
@@ -261,6 +271,8 @@ impl IrisEditorOverlay {
                 .collect();
 
             self.assets.selected_asset = params.panel_data.asset_browser.selected_asset.clone();
+            self.assets.filtered_items_cache = filtered_items.clone();
+            self.assets.subfolders_cache = params.panel_data.asset_browser.subfolders.clone();
 
             let assets_params = super::assets::AssetsPanelParams {
                 panel_rect: assets_rect,
@@ -283,19 +295,21 @@ impl IrisEditorOverlay {
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 active_context_menu: self.assets.context_menu.as_ref(),
                 active_preview_modal: self.assets.preview_modal.as_ref(),
+                subfolders: &params.panel_data.asset_browser.subfolders,
+                hovered_tag: self.chrome.hovered_tag,
                 thumbnail_layers: &self.assets.thumbnail_layers,
             };
 
-            let mut assets_targets = super::assets::AssetsPanelTargets::default();
-            super::assets::build_assets_panel(
-                &mut self.tree,
-                root,
-                &assets_params,
-                &mut assets_targets,
-            );
-            self.assets.targets = Some(assets_targets);
+            let metrics = super::assets::build_assets_panel(&mut self.tree, root, &assets_params);
+            self.assets.panel_rect = Some(metrics.panel_rect);
+            self.assets.sidebar_rect = metrics.sidebar_rect;
+            self.assets.content_viewport_rect = Some(metrics.content_viewport_rect);
+            self.assets.context_menu_card_rect = metrics.context_menu_card_rect;
         } else {
-            self.assets.targets = None;
+            self.assets.panel_rect = None;
+            self.assets.sidebar_rect = None;
+            self.assets.content_viewport_rect = None;
+            self.assets.context_menu_card_rect = None;
         }
     }
 

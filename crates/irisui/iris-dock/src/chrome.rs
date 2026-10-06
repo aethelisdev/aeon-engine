@@ -141,6 +141,14 @@ pub struct DockTabTarget<T> {
     pub leaf_rect: Rect,
 }
 
+impl<T> DockTabTarget<T> {
+    /// Checks whether the point is contained within this tab target's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
+}
+
 /// Native Iris tab close button hit target.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DockCloseTarget {
@@ -152,6 +160,14 @@ pub struct DockCloseTarget {
     pub rect: Rect,
 }
 
+impl DockCloseTarget {
+    /// Checks whether the point is contained within this close target's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
+}
+
 /// Native Iris dock tab overflow chevron button hit target.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DockChevronTarget {
@@ -159,6 +175,14 @@ pub struct DockChevronTarget {
     pub leaf: DockNodeId,
     /// Logical editor-space click bounds of the chevron button.
     pub rect: Rect,
+}
+
+impl DockChevronTarget {
+    /// Checks whether the point is contained within this chevron target's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
 }
 
 /// Native Iris splitter hit target linked to a stable split node.
@@ -172,6 +196,14 @@ pub struct DockSplitterTarget {
     pub rect: Rect,
     /// Total width or height of the parent split container.
     pub total_dimension: f32,
+}
+
+impl DockSplitterTarget {
+    /// Checks whether the point is contained within this splitter target's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
 }
 
 /// Native dock chrome geometry consumed by host panel builders and editor hit testing.

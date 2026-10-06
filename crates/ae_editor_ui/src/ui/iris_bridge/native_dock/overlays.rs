@@ -38,7 +38,7 @@ pub fn build_native_dock_drag_overlays(
     let hovered_leaf = computed
         .leaves
         .iter()
-        .find(|leaf| leaf.rect.contains_point(drag.cursor_pos));
+        .find(|leaf| leaf.contains_point(drag.cursor_pos));
 
     if let Some(leaf) = hovered_leaf {
         let nav_style = DockNavigatorStyle::default();

@@ -7,6 +7,7 @@
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::types::ComponentCategory;
+use super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 
 use irisui::prelude::*;
 
@@ -38,12 +39,7 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
         world.get::<&ae_animation::AnimationPlayer>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (state_text, state_col, clip_title, clip_duration, speed, looping) =
             if let Ok(player) = ctx.world.get::<&ae_animation::AnimationPlayer>(ctx.entity) {
                 let (st_txt, st_col) = match player.state {
@@ -89,124 +85,152 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
             .map(|s| s.joints.len())
             .ok();
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let spacing = 4.0;
-        let card_h = 24.0 + 4.0 * (row_h + spacing) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let mut cur_y = ctx.base_y + padding + 24.0 + 4.0;
-
-        // Row 1: Status Badge
-        let lbl1_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl1_id) {
-            node.set_name("AnimStatusLbl");
-            node.set_text("Status:");
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = Rect::new(ctx.base_x + padding, cur_y, 60.0, row_h);
-        }
-        let _ = tree.add_child(card_id, lbl1_id);
-
-        let val1_id = tree.create_node();
-        if let Some(node) = tree.get_mut(val1_id) {
-            node.set_name("AnimStatusVal");
-            node.set_text(state_text);
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = state_col;
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding + 62.0,
-                cur_y,
-                ctx.card_w - padding * 2.0 - 62.0,
-                row_h,
+        scope.container_named("AnimationPlayerCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, val1_id);
-        cur_y += row_h + spacing;
 
-        // Row 2: Active Clip
-        let lbl2_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl2_id) {
-            node.set_name("AnimClipLbl");
-            node.set_text(format!("Clip: {}", clip_title));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+            // Row 1: Status Row (Horizontal: "Status:" + state badge)
+            let status_row_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .height(20.0)
+                .gap(6.0);
+
+            card.container_named("AnimStatusRow", status_row_style, |row| {
+                row.label_styled_passive(
+                    "AnimStatusLbl",
+                    "Status:",
+                    11.0,
+                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    TextAlign::Left,
+                    Style::new().width(48.0).height(20.0),
+                );
+                row.label_styled_passive(
+                    "AnimStatusVal",
+                    state_text,
+                    11.0,
+                    state_col,
+                    TextAlign::Left,
+                    Style::new().flex_grow(1.0).height(20.0),
+                );
+            });
+
+            // Row 2: Active Clip
+            let clip_str = format!("Clip: {}", clip_title);
+            card.label_styled_passive(
+                "AnimClipLbl",
+                &clip_str,
+                11.0,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
             );
-        }
-        let _ = tree.add_child(card_id, lbl2_id);
-        cur_y += row_h + spacing;
 
-        // Row 3: Skeleton Info
-        let info_text = if let Some(joints) = has_skeleton {
-            format!("🦴 Joints: {} | ⏱ Duration: {:.2}s", joints, clip_duration)
-        } else {
-            "ℹ Static 3D Mesh (No Armature found)".to_string()
-        };
-        let lbl3_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl3_id) {
-            node.set_name("AnimSkeletonInfo");
-            node.set_text(info_text);
-            node.font_size = 10.0;
-            node.line_height = row_h;
-            node.text_color = if has_skeleton.is_some() {
-                Color::rgba(0.38, 0.74, 0.97, 1.0)
+            // Row 3: Skeleton Info / Static Warning
+            let (info_text, info_col) = if let Some(joints) = has_skeleton {
+                (
+                    format!("🦴 Joints: {} | ⏱ Duration: {:.2}s", joints, clip_duration),
+                    Color::rgba(0.38, 0.74, 0.97, 1.0),
+                )
             } else {
-                Color::rgba(0.95, 0.75, 0.15, 0.90)
+                (
+                    "ℹ Static 3D Mesh (No Armature found)".to_string(),
+                    Color::rgba(0.95, 0.75, 0.15, 0.90),
+                )
             };
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+            card.label_styled_passive(
+                "AnimSkeletonInfo",
+                &info_text,
+                10.0,
+                info_col,
+                TextAlign::Left,
+                Style::new().height(20.0),
             );
-        }
-        let _ = tree.add_child(card_id, lbl3_id);
-        cur_y += row_h + spacing;
 
-        // Row 4: Speed & Looping Indicator
-        let lbl4_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl4_id) {
-            node.set_name("AnimSpeedLoop");
+            // Row 4: Speed & Looping Indicator
             let loop_str = if looping { "Loop: Yes" } else { "Loop: No" };
-            node.set_text(format!("Speed: {:.2}x  |  {}", speed, loop_str));
-            node.font_size = 10.5;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+            let speed_loop_str = format!("Speed: {:.2}x  |  {}", speed, loop_str);
+            card.label_styled_passive(
+                "AnimSpeedLoop",
+                &speed_loop_str,
+                10.5,
+                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
             );
-        }
-        let _ = tree.add_child(card_id, lbl4_id);
-
-        card_h
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
         let _ = world.insert_one(entity, ae_animation::AnimationPlayer::default());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
+    use crate::ui::iris_bridge::inspector::tags::encode_component_delete_tag;
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+
+    #[test]
+    fn test_animation_player_card_render_tag() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_animation::AnimationPlayer::default(),));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            scroll_y: 0.0,
+            active_dropdown: None,
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+            hovered_tag: None,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+
+        let handler = AnimationPlayerHandler;
+        let mut scope = UiScope::new(&mut tree, root);
+        handler.render_card(&mut scope, &mut ctx);
+
+        let del_tag = encode_component_delete_tag("AnimationPlayer");
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "AnimationPlayer card must tag its delete button"
+        );
     }
 }

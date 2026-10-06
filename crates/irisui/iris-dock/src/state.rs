@@ -474,6 +474,14 @@ impl<T> DockState<T> {
     {
         serde_json::from_str(json_str)
     }
+
+    /// Checks whether the specified coordinate point falls inside any active floating window.
+    #[inline]
+    pub fn is_point_over_floating_window(&self, point: Point) -> bool {
+        self.floating_windows
+            .iter()
+            .any(|w| w.contains_point(point))
+    }
 }
 
 fn collect_all_tabs_recursive<T>(tree: &mut DockTree<T>, node_id: DockNodeId, out: &mut Vec<T>) {

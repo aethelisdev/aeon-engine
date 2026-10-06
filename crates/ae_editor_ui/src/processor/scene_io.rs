@@ -110,11 +110,30 @@ pub fn handle_save_entity_as_prefab(
     entity: hecs::Entity,
     path: std::path::PathBuf,
 ) {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        log::error!("Failed to create prefab directory {:?}: {}", parent, e);
+        ctx.ui.set_status_message(
+            format!("Failed to create directory: {}", e),
+            irisui::prelude::Color::rgba(0.95, 0.35, 0.35, 1.0),
+        );
+        return;
+    }
     let prefab = ae_editor::prefab::Prefab::create_from_entity(ctx.world, entity);
     if let Err(e) = prefab.save_to_file(&path) {
         log::error!("Failed to save prefab to {:?}: {}", path, e);
+        ctx.ui.set_status_message(
+            format!("Failed to save prefab: {}", e),
+            irisui::prelude::Color::rgba(0.95, 0.35, 0.35, 1.0),
+        );
     } else {
         log::info!("📦 Prefab successfully saved to {:?}", path);
+        ctx.ui.set_status_message(
+            format!("Saved prefab to {}", path.display()),
+            irisui::prelude::Color::rgba(0.25, 0.85, 0.45, 1.0),
+        );
     }
 }
 

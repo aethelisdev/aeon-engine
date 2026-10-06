@@ -406,12 +406,12 @@ pub struct DialogParams<'a> {
 
 /// Engine configuration, snapping, and preferences settings references.
 pub struct OverlayPreferencesParams<'a> {
-    /// Reference to graphics settings for Preferences rendering.
-    pub graphics_settings: &'a GraphicsSettings,
-    /// Reference to snapping settings for Preferences rendering.
-    pub snapping_settings: &'a SnapSettings,
-    /// Reference to editor configuration for Preferences rendering.
-    pub editor_config: &'a EditorConfig,
+    /// Mutable reference to graphics settings for Preferences rendering and two-way data binding.
+    pub graphics_settings: &'a mut GraphicsSettings,
+    /// Mutable reference to snapping settings for Preferences rendering and two-way data binding.
+    pub snapping_settings: &'a mut SnapSettings,
+    /// Mutable reference to editor configuration for Preferences rendering and two-way data binding.
+    pub editor_config: &'a mut EditorConfig,
     /// Set of enabled engine core modules for Preferences rendering.
     pub enabled_modules: &'a HashSet<EngineModule>,
 }

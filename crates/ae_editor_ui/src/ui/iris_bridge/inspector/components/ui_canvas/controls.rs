@@ -3,7 +3,7 @@
 
 //! # 2D Screen UI Controls & Layout Inspector Cards
 //!
-//! Provides handlers for UI Designer interactive controls:
+//! Provides declarative handlers for UI Designer interactive controls:
 //! - `UiSlider`
 //! - `UiCheckbox`
 //! - `UiTextInput`
@@ -11,10 +11,11 @@
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
 use super::super::super::types::ComponentCategory;
+use super::super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 
 use irisui::prelude::*;
 
-/// Inspector handler for UiSlider component.
+/// Inspector handler for `UiSlider` component.
 pub struct UiSliderHandler;
 
 impl ComponentInspectorHandler for UiSliderHandler {
@@ -42,58 +43,44 @@ impl ComponentInspectorHandler for UiSliderHandler {
         world.get::<&ae_core::ecs::UiSlider>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (val, min, max) = if let Ok(s) = ctx.world.get::<&ae_core::ecs::UiSlider>(ctx.entity) {
             (s.value, s.min, s.max)
         } else {
             (0.5, 0.0, 1.0)
         };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiSliderRange");
-            node.set_text(format!(
-                "Value: {:.2} (Range: {:.1} - {:.1})",
-                val, min, max
-            ));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+        scope.container_named("UiSliderCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
 
-        card_h
+            let label_text = format!("Value: {:.2} (Range: {:.1} - {:.1})", val, min, max);
+            card.label_styled_passive(
+                "UiSliderRange",
+                &label_text,
+                11.0,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -129,12 +116,7 @@ impl ComponentInspectorHandler for UiCheckboxHandler {
         world.get::<&ae_core::ecs::UiCheckbox>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (label, is_checked) =
             if let Ok(c) = ctx.world.get::<&ae_core::ecs::UiCheckbox>(ctx.entity) {
                 (c.label.clone(), c.is_checked)
@@ -142,44 +124,38 @@ impl ComponentInspectorHandler for UiCheckboxHandler {
                 ("Option".to_string(), false)
             };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiCheckboxState");
-            let mark = if is_checked { "[x]" } else { "[ ]" };
-            node.set_text(format!("{} Label: \"{}\"", mark, label));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+        scope.container_named("UiCheckboxCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
 
-        card_h
+            let mark = if is_checked { "[x]" } else { "[ ]" };
+            let label_text = format!("{} Label: \"{}\"", mark, label);
+            card.label_styled_passive(
+                "UiCheckboxState",
+                &label_text,
+                11.0,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -215,12 +191,7 @@ impl ComponentInspectorHandler for UiTextInputHandler {
         world.get::<&ae_core::ecs::UiTextInput>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let placeholder = if let Ok(input) = ctx.world.get::<&ae_core::ecs::UiTextInput>(ctx.entity)
         {
             input.placeholder.clone()
@@ -228,43 +199,37 @@ impl ComponentInspectorHandler for UiTextInputHandler {
             "Enter text...".to_string()
         };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiInputPlaceholder");
-            node.set_text(format!("Placeholder: \"{}\"", placeholder));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+        scope.container_named("UiTextInputCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
 
-        card_h
+            let label_text = format!("Placeholder: \"{}\"", placeholder);
+            card.label_styled_passive(
+                "UiInputPlaceholder",
+                &label_text,
+                11.0,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -300,12 +265,7 @@ impl ComponentInspectorHandler for UiLayoutGroupHandler {
         world.get::<&ae_core::ecs::UiLayoutGroup>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (layout_type, spacing) =
             if let Ok(lg) = ctx.world.get::<&ae_core::ecs::UiLayoutGroup>(ctx.entity) {
                 (format!("{:?}", lg.layout_type), lg.spacing)
@@ -313,46 +273,37 @@ impl ComponentInspectorHandler for UiLayoutGroupHandler {
                 ("Vertical".to_string(), 8.0)
             };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiLayoutProps");
-            node.set_text(format!(
-                "Type: {}  |  Spacing: {:.1} px",
-                layout_type, spacing
-            ));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+        scope.container_named("UiLayoutGroupCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
 
-        card_h
+            let props_str = format!("Type: {}  |  Spacing: {:.1} px", layout_type, spacing);
+            card.label_styled_passive(
+                "UiLayoutProps",
+                &props_str,
+                11.0,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {

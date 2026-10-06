@@ -140,9 +140,10 @@ fn render_procedural_clouds(
         return cr;
     }
 
-    // Curved atmospheric dome projection
+    // Curved atmospheric dome projection with physical cloud altitude scaling
+    let altitude_norm = clamp(sky.cloud_altitude / 1500.0, 0.25, 4.0);
     let dome_dist = 1.0 / (dir.y + 0.12 * (1.0 - dir.y));
-    let world_pos = dir.xz * dome_dist;
+    let world_pos = (dir.xz * dome_dist) * altitude_norm;
 
     // Fluid wind drift
     let wind_rate = sky.cloud_speed * 0.08;

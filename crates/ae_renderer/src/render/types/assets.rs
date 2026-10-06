@@ -30,7 +30,7 @@ pub enum SubmeshAlphaMode {
     Blend,
 }
 
-/// Submesh index range with its material and texture binding information.
+/// Submesh index range with its material, PBR surface factors, and texture binding information.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelSubmesh {
     pub start_index: u32,
@@ -39,6 +39,25 @@ pub struct ModelSubmesh {
     pub base_color: [f32; 4],
     pub alpha_mode: SubmeshAlphaMode,
     pub alpha_cutoff: f32,
+    pub metallic_factor: f32,
+    pub roughness_factor: f32,
+    pub uv_scale: [f32; 2],
+}
+
+impl Default for ModelSubmesh {
+    fn default() -> Self {
+        Self {
+            start_index: 0,
+            index_count: 0,
+            texture_index: None,
+            base_color: [1.0, 1.0, 1.0, 1.0],
+            alpha_mode: SubmeshAlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            metallic_factor: 0.0,
+            roughness_factor: 0.5,
+            uv_scale: [1.0, 1.0],
+        }
+    }
 }
 
 /// GPU-uploaded 3D model asset with vertex/index buffers, AABB bounds,

@@ -4,7 +4,7 @@
 //! Central font system, text layout measurement, and shaped glyph caching engine.
 
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache};
-use iris_core::{Size, TextAlign, TextWrap};
+use iris_core::{Size, TextAlign, TextWrap, UiTree, WidgetId};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -174,6 +174,23 @@ impl TextSystem {
         }
         self.measure_cache.insert(key, size);
         size
+    }
+
+    /// Measures intrinsic text dimensions for all nodes with text content in the subtree.
+    ///
+    /// Traverses the subtree starting from `root`, calculates formatted dimensions using
+    /// the internal font system and measurement cache, and updates `node.content_size`.
+    ///
+    /// # Arguments
+    /// * `tree` - Mutable reference to the UI node arena.
+    /// * `root` - Root widget identifier of the subtree to measure.
+    pub fn measure_subtree_text(&mut self, tree: &mut UiTree, root: WidgetId) {
+        tree.traverse_depth_first_mut(root, &mut |_id, node| {
+            if let Some(ref text) = node.text {
+                let measured = self.measure_text(text, node.font_size, node.line_height, None);
+                node.content_size = measured;
+            }
+        });
     }
 
     /// Creates and shapes a `cosmic_text::Buffer` for rendering a text section with caching.

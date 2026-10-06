@@ -118,11 +118,9 @@ fn push_dfs_tree(
         has_children,
         is_expanded,
     });
-    if is_expanded {
-        if let Some(children) = children_map.get(&ent) {
-            for &child in children {
-                push_dfs_tree(child, depth + 1, children_map, collapsed_entities, out_rows);
-            }
+    if is_expanded && let Some(children) = children_map.get(&ent) {
+        for &child in children {
+            push_dfs_tree(child, depth + 1, children_map, collapsed_entities, out_rows);
         }
     }
 }
@@ -631,12 +629,11 @@ mod tests {
         tree.traverse_depth_first(root, &mut |_id, node| {
             if node.name.as_deref() == Some("HierarchyEntityRow") {
                 // The first child of a depth-0 non-branch row is the entity icon
-                if let Some(&first_child_id) = node.children.first() {
-                    if let Some(child_node) = tree.get(first_child_id) {
-                        if let Some(w) = child_node.style.width {
-                            row_icon_widths.push(w);
-                        }
-                    }
+                if let Some(&first_child_id) = node.children.first()
+                    && let Some(child_node) = tree.get(first_child_id)
+                    && let Some(w) = child_node.style.width
+                {
+                    row_icon_widths.push(w);
                 }
             }
         });

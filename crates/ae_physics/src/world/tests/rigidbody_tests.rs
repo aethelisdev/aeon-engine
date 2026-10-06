@@ -451,4 +451,81 @@ mod tests {
             pos.x
         );
     }
+
+    #[test]
+    fn test_scale_modification_zeroes_residual_velocity_and_clamps_extreme_speed() {
+        let mut world = World::new();
+        let mut physics = PhysicsWorld::new();
+
+        let entity = world.spawn((
+            Position {
+                x: 0.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            Rotation::identity(),
+            Scale {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            Velocity {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            RigidBody {
+                body_type: RigidBodyType::Dynamic,
+                mass: 1.0,
+                gravity_scale: 0.0,
+            },
+            Collider {
+                shape: ColliderShape::Box {
+                    half_extents: [0.5, 0.5, 0.5],
+                },
+                friction: 0.5,
+                restitution: 0.0,
+                is_sensor: false,
+            },
+        ));
+
+        let mut event_bus = ae_core::events::DynamicEventBus::new();
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+
+        // 1. Manually inject a massive velocity into Rapier body to simulate extreme impulse
+        let handle = *physics.entity_to_body.get(&entity).unwrap();
+        if let Some(body) = physics.rigid_body_set.get_mut(handle) {
+            body.set_linvel(glam::Vec3::new(0.0, 9999.0, 0.0), true);
+            body.set_angvel(glam::Vec3::new(0.0, 9999.0, 0.0), true);
+        }
+
+        // Stepping physics must clamp this velocity to MAX_LINEAR_SPEED (500.0)
+        physics.step(&mut world, |_| None, 0.016, &mut event_bus);
+        let vel_y = world.get::<&Velocity>(entity).unwrap().y;
+        assert!(
+            vel_y <= 500.1,
+            "Velocity Y must be clamped to 500.0, but got {}",
+            vel_y
+        );
+
+        // 2. Now simulate user changing Scale in Inspector (Scale Z -> 9.0)
+        if let Ok(mut scale) = world.get::<&mut Scale>(entity) {
+            scale.z = 9.0;
+        }
+        // When syncing ECS, the collider is rebuilt and residual velocity MUST be zeroed out
+        physics.sync_ecs_to_physics(&mut world, |_| None);
+
+        let handle = *physics.entity_to_body.get(&entity).unwrap();
+        let body = physics.rigid_body_set.get(handle).unwrap();
+        assert_eq!(
+            body.linvel().length(),
+            0.0,
+            "Residual linear velocity must be 0 after collider rebuild"
+        );
+        assert_eq!(
+            body.angvel().length(),
+            0.0,
+            "Residual angular velocity must be 0 after collider rebuild"
+        );
+    }
 }

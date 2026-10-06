@@ -159,13 +159,9 @@ impl IrisEditorOverlay {
         // 2. Mouse Wheel scroll handling
         let cursor = self.cursor_pos();
         let is_over_console = self
-            .console
-            .panel_rect
-            .map_or(false, |rect| rect.contains_point(cursor))
-            || self
-                .tree
-                .hit_test_target(cursor)
-                .map_or(false, |hit| is_console_tag(hit.tag));
+            .tree
+            .hit_test_target(cursor)
+            .is_some_and(|hit| is_console_tag(hit.tag));
 
         if let WindowEvent::MouseWheel { delta, .. } = event
             && is_over_console

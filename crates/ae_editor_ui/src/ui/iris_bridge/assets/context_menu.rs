@@ -11,7 +11,7 @@
 use super::types::{
     ASSET_CTX_COPY_PATH, ASSET_CTX_DELETE, ASSET_CTX_INSPECT, ASSET_CTX_NEW_FOLDER,
     ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuTarget,
-    AssetsContextMenuTargets, AssetsPanelParams, AssetsPanelTargets, truncate_display_name,
+    AssetsPanelParams, truncate_display_name,
 };
 use crate::assets::types::AssetCategory;
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
@@ -21,19 +21,15 @@ use irisui::prelude::*;
 pub const CONTEXT_MENU_WIDTH: f32 = 190.0;
 
 /// Builds the floating right-click context menu into the `UiTree` if currently open.
+///
+/// Returns `Some(Rect)` representing the context menu card bounds for outside-click dismissal,
+/// or `None` if no context menu is active.
 pub fn build_assets_context_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
-) {
-    let (target, click_pos) = match params.active_context_menu {
-        Some(ctx_menu) => ctx_menu,
-        None => {
-            targets.context_menu = None;
-            return;
-        }
-    };
+) -> Option<Rect> {
+    let (target, click_pos) = params.active_context_menu?;
 
     let is_folder_root = match target {
         AssetsContextMenuTarget::Folder(path) => {
@@ -93,9 +89,5 @@ pub fn build_assets_context_menu(
     }
 
     let card_rect = builder.build(tree, parent_id);
-
-    targets.context_menu = Some(AssetsContextMenuTargets {
-        card_rect,
-        target: target.clone(),
-    });
+    Some(card_rect)
 }

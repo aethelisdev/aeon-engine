@@ -170,14 +170,22 @@ fn test_material_panel_click_hit_testing() {
 fn test_material_panel_does_not_mutate_parent_rect() {
     let mut tree = UiTree::new();
     let root = tree.create_root().unwrap();
-    if let Some(node) = tree.get_mut(root) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    }
-    let menubar = tree.create_node();
-    if let Some(node) = tree.get_mut(menubar) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 28.0);
-    }
-    tree.add_child(root, menubar).unwrap();
+    let menubar = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let menubar_id = scope.container(
+            Style::new()
+                .position_absolute()
+                .left(0.0)
+                .top(0.0)
+                .width(1920.0)
+                .height(28.0),
+            |sub| {
+                sub.label("Top Menu", 12.0, Color::WHITE, TextAlign::Left);
+            },
+        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+        menubar_id
+    };
 
     let world = hecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();

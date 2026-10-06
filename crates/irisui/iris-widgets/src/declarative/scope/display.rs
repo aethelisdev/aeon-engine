@@ -8,11 +8,57 @@
 //!
 
 use super::core::UiScope;
-use crate::declarative::types::{WidgetResponse, hash_label};
+use crate::declarative::types::WidgetResponse;
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Point, Rect, Style, TextAlign, WidgetCursor,
-    WidgetId, WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Point, Rect, Style, TextAlign, TextWrap,
+    WidgetCursor, WidgetId, WidgetRole,
 };
+
+/// Layout and styling descriptor for rich wrapped text labels.
+///
+/// Encapsulates typography properties (size, color, alignment, wrapping) and container layout style
+/// to eliminate parameter bloat and uphold clean API boundaries.
+#[derive(Debug, Clone)]
+pub struct WrappedLabelDescriptor {
+    /// Font size in logical points.
+    pub font_size: f32,
+    /// Foreground text color.
+    pub color: Color,
+    /// Horizontal text alignment (`Left`, `Center`, `Right`).
+    pub align: TextAlign,
+    /// Text wrap mode (`NoWrap`, `Word`, `Char`, `Auto`).
+    pub wrap: TextWrap,
+    /// Explicit layout style applied to the label.
+    pub style: Style,
+}
+
+impl WrappedLabelDescriptor {
+    /// Constructs a wrapped label descriptor with canonical word-wrap and left-align defaults.
+    #[inline]
+    pub fn new(font_size: f32, color: Color, style: Style) -> Self {
+        Self {
+            font_size,
+            color,
+            align: TextAlign::Left,
+            wrap: TextWrap::Word,
+            style,
+        }
+    }
+
+    /// Overrides the horizontal text alignment.
+    #[inline]
+    pub fn align(mut self, align: TextAlign) -> Self {
+        self.align = align;
+        self
+    }
+
+    /// Overrides the text wrap mode.
+    #[inline]
+    pub fn wrap(mut self, wrap: TextWrap) -> Self {
+        self.wrap = wrap;
+        self
+    }
+}
 
 impl<'a> UiScope<'a> {
     /// Emits a static text label node with default light gray foreground coloring.
@@ -96,7 +142,7 @@ impl<'a> UiScope<'a> {
     /// * `style` - Explicit layout style applied to the label.
     pub fn label_styled_passive(
         &mut self,
-        name: &'static str,
+        name: impl Into<String>,
         text: impl Into<String>,
         font_size: f32,
         color: Color,
@@ -113,7 +159,39 @@ impl<'a> UiScope<'a> {
             node.font_size = font_size;
             node.line_height = (font_size * 1.3).max(12.0).round();
             node.text_align = align;
+            node.set_text_wrap(TextWrap::Word);
             node.set_style(style);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        node_id
+    }
+
+    /// Emits a non-interactive, styled text label with explicit text wrapping and layout styling.
+    ///
+    /// Ideal for multi-line description paragraphs, form hints, and responsive dialog subtitles.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug identifier for profiling and inspection.
+    /// * `text` - Display string content.
+    /// * `desc` - Typography and layout descriptor ([`WrappedLabelDescriptor`]).
+    pub fn label_styled_passive_wrapped(
+        &mut self,
+        name: &'static str,
+        text: impl Into<String>,
+        desc: WrappedLabelDescriptor,
+    ) -> WidgetId {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.role = WidgetRole::Default;
+            node.interactive = false;
+            node.set_text(text);
+            node.text_color = desc.color;
+            node.font_size = desc.font_size;
+            node.line_height = (desc.font_size * 1.3).max(12.0).round();
+            node.text_align = desc.align;
+            node.set_text_wrap(desc.wrap);
+            node.set_style(desc.style);
         }
         let _ = self.tree.add_child(self.parent, node_id);
         node_id
@@ -219,6 +297,32 @@ impl<'a> UiScope<'a> {
         icon_id
     }
 
+    /// Emits a named icon quad textured from an atlas UV rectangle with a debug identifier.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug identifier assigned to the UI node.
+    /// * `icon_uv` - Normalized atlas UV bounds `[u_min, v_min, u_max, v_max]`.
+    /// * `tint` - Color tint applied across the icon quad.
+    /// * `size` - Width and height of the icon quad in physical pixels.
+    pub fn icon_named(
+        &mut self,
+        name: &'static str,
+        icon_uv: [f32; 4],
+        tint: Color,
+        size: f32,
+    ) -> WidgetId {
+        let icon_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(icon_id) {
+            node.set_name(name);
+            node.interactive = false;
+            node.set_texture_uv(icon_uv);
+            node.set_texture_tint(tint);
+            node.set_style(Style::new().width(size).height(size));
+        }
+        let _ = self.tree.add_child(self.parent, icon_id);
+        icon_id
+    }
+
     /// Emits a styled telemetry or key-value pill badge.
     ///
     /// # Arguments
@@ -279,7 +383,8 @@ impl<'a> UiScope<'a> {
     /// * `font_size` - Size of the typography in logical points.
     pub fn link(&mut self, label: impl Into<String>, font_size: f32) -> WidgetResponse {
         let label_str = label.into();
-        let tag = hash_label(&label_str);
+        let (visible, _) = crate::declarative::types::split_label_id(&label_str);
+        let tag = self.tag_for(&label_str);
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.tag = tag;
@@ -290,7 +395,7 @@ impl<'a> UiScope<'a> {
             node.interactive = true;
             node.role = WidgetRole::Button;
             node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(label_str);
+            node.set_text(visible);
             node.font_size = font_size;
             node.line_height = (font_size * 1.3).max(16.0).round();
             node.text_align = TextAlign::Center;

@@ -159,6 +159,35 @@ impl PhysicsWorld {
             &event_handler,
         );
 
+        // Clamp dynamic rigid body velocities to prevent numerical singularities or cosmic impulses
+        const MAX_LINEAR_SPEED: f32 = 500.0;
+        const MAX_ANGULAR_SPEED: f32 = 100.0;
+        for (_, body) in self.rigid_body_set.iter_mut() {
+            if body.is_dynamic() {
+                let linvel = body.linvel();
+                let lin_speed = linvel.length();
+                if lin_speed > MAX_LINEAR_SPEED || lin_speed.is_nan() {
+                    let clamped = if lin_speed.is_nan() || lin_speed < 1e-4 {
+                        Vec3::ZERO
+                    } else {
+                        linvel * (MAX_LINEAR_SPEED / lin_speed)
+                    };
+                    body.set_linvel(clamped, false);
+                }
+
+                let angvel = body.angvel();
+                let ang_speed = angvel.length();
+                if ang_speed > MAX_ANGULAR_SPEED || ang_speed.is_nan() {
+                    let clamped = if ang_speed.is_nan() || ang_speed < 1e-4 {
+                        Vec3::ZERO
+                    } else {
+                        angvel * (MAX_ANGULAR_SPEED / ang_speed)
+                    };
+                    body.set_angvel(clamped, false);
+                }
+            }
+        }
+
         // 4. Process physics events and broadcast to DynamicEventBus
         while let Ok(event) = collision_recv.try_recv() {
             match event {

@@ -244,15 +244,10 @@ impl EngineUi {
                 }
 
                 // 2. Check Native Dock Frame targets (Tabs, Close buttons, Splitters)
-                let is_over_floating =
-                    self.layout_state
-                        .dock_state
-                        .floating_windows
-                        .iter()
-                        .any(|w| {
-                            Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height)
-                                .contains_point(p)
-                        });
+                let is_over_floating = self
+                    .layout_state
+                    .dock_state
+                    .is_point_over_floating_window(p);
 
                 if !is_over_floating
                     && let Some(ref frame) = self.iris_overlay.chrome.native_dock_frame
@@ -261,7 +256,7 @@ impl EngineUi {
                     if let Some(target) = frame
                         .overflow_item_targets
                         .iter()
-                        .find(|t| t.rect.contains_point(p))
+                        .find(|t| t.contains_point(p))
                     {
                         let _ = self
                             .layout_state
@@ -273,10 +268,7 @@ impl EngineUi {
                         return true;
                     }
                     // Tab overflow chevron buttons
-                    if let Some(target) = frame
-                        .chevron_targets
-                        .iter()
-                        .find(|t| t.rect.contains_point(p))
+                    if let Some(target) = frame.chevron_targets.iter().find(|t| t.contains_point(p))
                     {
                         if self
                             .iris_overlay
@@ -294,19 +286,13 @@ impl EngineUi {
                         return true;
                     }
                     // Close buttons
-                    if let Some(target) = frame
-                        .close_targets
-                        .iter()
-                        .find(|t| t.rect.contains_point(p))
-                    {
+                    if let Some(target) = frame.close_targets.iter().find(|t| t.contains_point(p)) {
                         self.layout_state.close_tab(target.leaf, target.tab_index);
                         self.iris_overlay.chrome.active_dock_overflow = None;
                         return true;
                     }
                     // Tab pills
-                    if let Some(target) =
-                        frame.tab_targets.iter().find(|t| t.rect.contains_point(p))
-                    {
+                    if let Some(target) = frame.tab_targets.iter().find(|t| t.contains_point(p)) {
                         let _ = self
                             .layout_state
                             .dock_state
@@ -324,10 +310,8 @@ impl EngineUi {
                         return true;
                     }
                     // Splitters
-                    if let Some(target) = frame
-                        .splitter_targets
-                        .iter()
-                        .find(|t| t.rect.contains_point(p))
+                    if let Some(target) =
+                        frame.splitter_targets.iter().find(|t| t.contains_point(p))
                     {
                         let start_coord = match target.direction {
                             SplitDirection::Horizontal => p.x,

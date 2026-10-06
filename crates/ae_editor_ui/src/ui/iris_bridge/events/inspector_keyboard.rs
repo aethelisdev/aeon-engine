@@ -46,6 +46,10 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
                 if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
+                    if self.inspector.rename_is_all_selected {
+                        buf.clear();
+                        self.inspector.rename_is_all_selected = false;
+                    }
                     buf.push_str(text);
                     result.consumed = true;
                     return Some(result);
@@ -259,10 +263,12 @@ impl IrisEditorOverlay {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {
                             self.inspector.rename_buffer = None;
+                            self.inspector.rename_is_all_selected = false;
                             result.consumed = true;
                             return Some(result);
                         }
                         winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
+                            self.inspector.rename_is_all_selected = false;
                             if let Some((entity, buf)) = self.inspector.rename_buffer.take()
                                 && !buf.trim().is_empty()
                             {
@@ -273,18 +279,49 @@ impl IrisEditorOverlay {
                             result.consumed = true;
                             return Some(result);
                         }
+                        winit::keyboard::KeyCode::ArrowLeft
+                        | winit::keyboard::KeyCode::ArrowRight
+                        | winit::keyboard::KeyCode::ArrowUp
+                        | winit::keyboard::KeyCode::ArrowDown
+                        | winit::keyboard::KeyCode::Home
+                        | winit::keyboard::KeyCode::End => {
+                            if self.inspector.rename_is_all_selected {
+                                self.inspector.rename_is_all_selected = false;
+                                result.consumed = true;
+                                return Some(result);
+                            }
+                        }
                         winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
+                            if self.inspector.rename_is_all_selected {
+                                if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
+                                    buf.clear();
+                                }
+                                self.inspector.rename_is_all_selected = false;
+                            } else if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
                                 buf.pop();
                             }
                             result.consumed = true;
                             return Some(result);
+                        }
+                        winit::keyboard::KeyCode::Delete => {
+                            if self.inspector.rename_is_all_selected {
+                                if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
+                                    buf.clear();
+                                }
+                                self.inspector.rename_is_all_selected = false;
+                                result.consumed = true;
+                                return Some(result);
+                            }
                         }
                         _ => {
                             if let Some(t) = text
                                 && let Some((_, ref mut buf)) = self.inspector.rename_buffer
                                 && !t.chars().any(|c| c.is_control())
                             {
+                                if self.inspector.rename_is_all_selected {
+                                    buf.clear();
+                                    self.inspector.rename_is_all_selected = false;
+                                }
                                 buf.push_str(t);
                                 result.consumed = true;
                                 return Some(result);

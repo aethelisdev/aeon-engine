@@ -15,8 +15,7 @@ use irisui::prelude::*;
 #[test]
 fn test_build_native_dock_drag_overlays_renders_nodes() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
 
     let mut layout_state = PanelLayoutState::default();
     let source_leaf = layout_state.dock_state.tree.find_first_leaf().unwrap();
@@ -49,8 +48,7 @@ fn setup_test_layout() -> (PanelLayoutState, DockNodeId) {
 #[test]
 fn test_hybrid_tab_proportional_shrink() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
     let (mut layout_state, leaf) = setup_test_layout();
 
     // Add multiple panels to the leaf so natural widths exceed pane width
@@ -89,8 +87,7 @@ fn test_hybrid_tab_proportional_shrink() {
 #[test]
 fn test_hybrid_tab_overflow_chevron() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
     let (mut layout_state, leaf) = setup_test_layout();
 
     for panel in [
@@ -146,8 +143,7 @@ fn test_hybrid_tab_overflow_chevron() {
 #[test]
 fn test_tab_text_label_does_not_overlap_close_button() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
     let (mut layout_state, leaf) = setup_test_layout();
 
     for panel in [
@@ -210,8 +206,7 @@ fn test_tab_text_label_does_not_overlap_close_button() {
 #[test]
 fn test_dock_tab_chevron_renders_atlas_icon() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
     let (mut layout_state, leaf) = setup_test_layout();
 
     for panel in [
@@ -257,8 +252,7 @@ fn test_dock_tab_chevron_renders_atlas_icon() {
 #[test]
 fn test_dock_overflow_menu_hierarchy_and_roles() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
     let (mut layout_state, leaf) = setup_test_layout();
 
     for panel in [PanelId::Console, PanelId::Assets, PanelId::Stats] {
@@ -323,8 +317,7 @@ fn test_dock_overflow_menu_hierarchy_and_roles() {
 #[test]
 fn test_dock_overflow_menu_occludes_background_text() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must be created");
     let (mut layout_state, leaf) = setup_test_layout();
 
     for panel in [PanelId::Console, PanelId::Assets, PanelId::Stats] {
@@ -360,14 +353,23 @@ fn test_dock_overflow_menu_occludes_background_text() {
         .expect("Overflow rect must exist");
 
     // Background panel text node placed entirely inside the bounds of the active overflow popup
-    let bg_text_id = tree.create_node();
-    if let Some(node) = tree.get_mut(bg_text_id) {
-        node.set_name("BackgroundPanelText");
-        node.set_text("Console Auto-Scroll Log Entry");
-        node.computed_rect = Rect::new(overflow_rect.x + 10.0, overflow_rect.y + 10.0, 100.0, 18.0);
-        node.set_text_properties(12.0, 16.0, Color::WHITE, TextAlign::Left);
-    }
-    let _ = tree.add_child(root, bg_text_id);
+    let mut scope = UiScope::new(&mut tree, root);
+    let bg_style = Style::new()
+        .position_absolute()
+        .left(overflow_rect.x + 10.0)
+        .top(overflow_rect.y + 10.0)
+        .width(100.0)
+        .height(18.0);
+    scope.container(bg_style, |sub| {
+        sub.label_with_width(
+            "Console Auto-Scroll Log Entry",
+            100.0,
+            12.0,
+            Color::WHITE,
+            TextAlign::Left,
+        );
+    });
+    scope.finish_layout(workspace);
 
     let active_dropdowns = [overflow_rect];
     let sections = crate::ui::iris_bridge::IrisEditorOverlay::collect_text_sections_from_tree(

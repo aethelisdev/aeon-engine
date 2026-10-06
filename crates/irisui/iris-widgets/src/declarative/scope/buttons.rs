@@ -8,7 +8,7 @@
 //!
 
 use super::core::UiScope;
-use crate::declarative::types::{WidgetResponse, hash_label};
+use crate::declarative::types::WidgetResponse;
 use iris_core::{
     AlignItems, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, WidgetCursor,
     WidgetRole,
@@ -24,8 +24,9 @@ impl<'a> UiScope<'a> {
     /// * `label` - Button caption text.
     pub fn button(&mut self, label: impl Into<String>) -> WidgetResponse {
         let label_str = label.into();
-        let tag = hash_label(&label_str);
-        self.button_tagged(label_str, tag)
+        let (visible, _) = crate::declarative::types::split_label_id(&label_str);
+        let tag = self.tag_for(&label_str);
+        self.button_tagged(visible, tag)
     }
 
     /// Emits an interactive push button with a custom semantic tag.
@@ -284,8 +285,9 @@ impl<'a> UiScope<'a> {
         label: impl Into<String>,
     ) -> WidgetResponse {
         let label_str = label.into();
-        let tag = hash_label(&label_str);
-        self.button_with_icon_tagged(icon_uv, label_str, tag)
+        let (visible, _) = crate::declarative::types::split_label_id(&label_str);
+        let tag = self.tag_for(&label_str);
+        self.button_with_icon_tagged(icon_uv, visible, tag)
     }
 
     /// Emits an interactive pill toggle button for mode or option selection.

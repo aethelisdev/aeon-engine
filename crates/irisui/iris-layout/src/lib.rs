@@ -228,6 +228,11 @@ impl LayoutEngine {
                 FlexDirection::RowReverse => tf::FlexDirection::RowReverse,
                 FlexDirection::ColumnReverse => tf::FlexDirection::ColumnReverse,
             },
+            flex_wrap: match style.flex_wrap {
+                iris_core::FlexWrap::NoWrap => tf::FlexWrap::NoWrap,
+                iris_core::FlexWrap::Wrap => tf::FlexWrap::Wrap,
+                iris_core::FlexWrap::WrapReverse => tf::FlexWrap::WrapReverse,
+            },
             align_items: Some(match style.align_items {
                 AlignItems::FlexStart => tf::AlignItems::FLEX_START,
                 AlignItems::FlexEnd => tf::AlignItems::FLEX_END,

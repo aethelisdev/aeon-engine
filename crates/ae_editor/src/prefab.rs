@@ -62,8 +62,16 @@ impl Prefab {
         serde_json::from_str(json).map_err(|e| e.to_string())
     }
 
-    /// Saves the prefab to a file on disk (typically `.aeprefab`).
+    /// Saves the prefab to a file on disk (typically `.aeprefab` or `.prefab.json`).
+    ///
+    /// Automatically creates any missing parent directories before writing the file.
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), String> {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
         let json = self.to_json()?;
         std::fs::write(path, json).map_err(|e| e.to_string())
     }
@@ -125,5 +133,35 @@ mod tests {
         assert_eq!(pos.x, 50.0);
         assert_eq!(pos.y, 0.0);
         assert_eq!(pos.z, 50.0);
+    }
+
+    #[test]
+    fn test_prefab_save_creates_parent_directories() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((Name("TreePrefab".to_string()),));
+        let prefab = Prefab::create_from_entity(&world, entity);
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(12345);
+        let temp_dir = std::env::temp_dir().join(format!("ae_test_prefabs_{}", nanos));
+        let nested_file = temp_dir.join("subfolder").join("tree.prefab.json");
+
+        assert!(!nested_file.exists());
+        assert!(!nested_file.parent().unwrap().exists());
+
+        let res = prefab.save_to_file(&nested_file);
+        assert!(
+            res.is_ok(),
+            "Saving to non-existent directory should succeed"
+        );
+        assert!(nested_file.exists());
+
+        let loaded = Prefab::load_from_file(&nested_file).expect("Should load back");
+        assert_eq!(loaded.name, "TreePrefab");
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

@@ -52,6 +52,18 @@ pub enum JustifyContent {
     SpaceEvenly,
 }
 
+/// Flexbox wrapping behavior across multiple lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FlexWrap {
+    /// Items are placed in a single continuous line.
+    #[default]
+    NoWrap,
+    /// Items wrap onto multiple lines along the cross axis.
+    Wrap,
+    /// Items wrap onto multiple lines in reverse order along the cross axis.
+    WrapReverse,
+}
+
 /// Text horizontal alignment within its container.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextAlign {
@@ -116,6 +128,8 @@ pub struct Style {
     pub max_height: Option<f32>,
     /// Direction of flex items.
     pub flex_direction: FlexDirection,
+    /// Flexbox wrapping behavior across multiple lines.
+    pub flex_wrap: FlexWrap,
     /// Space between flex children in pixels.
     pub gap: f32,
     /// Alignment of flex items along the cross axis.
@@ -160,6 +174,7 @@ impl Default for Style {
             max_width: None,
             max_height: None,
             flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::NoWrap,
             gap: 0.0,
             align_items: AlignItems::Stretch,
             justify_content: JustifyContent::FlexStart,
@@ -280,6 +295,13 @@ impl Style {
     #[inline]
     pub fn flex_col(mut self) -> Self {
         self.flex_direction = FlexDirection::Column;
+        self
+    }
+
+    /// Sets flex wrapping behavior across multiple lines.
+    #[inline]
+    pub fn flex_wrap(mut self, wrap: FlexWrap) -> Self {
+        self.flex_wrap = wrap;
         self
     }
 

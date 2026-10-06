@@ -9,10 +9,14 @@
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use super::registry::InspectorRegistry;
-use super::types::{ComponentCategory, InspectorPanelParams, InspectorPanelTargets};
+use super::tags::{TAG_ADD_MENU_COMPONENT_BASE, TAG_INSPECTOR_ADD_COMPONENT};
+use super::types::{ComponentCategory, InspectorPanelParams};
 use irisui::prelude::*;
 
 /// Computes a stable, collision-resistant 64-bit FNV-1a hash tag for an attachable component type name.
+///
+/// Masks the 64-bit hash into a 24-bit range and prefixes it with [`TAG_ADD_MENU_COMPONENT_BASE`]
+/// (`0xDB00_0000`), guaranteeing that tag bounds stay strictly inside the Inspector domain.
 #[inline]
 pub fn component_name_to_tag(name: &str) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
@@ -20,7 +24,7 @@ pub fn component_name_to_tag(name: &str) -> u64 {
         hash ^= *byte as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    if hash < 1000 { hash + 1000 } else { hash }
+    TAG_ADD_MENU_COMPONENT_BASE | (hash & 0x00FF_FFFF)
 }
 
 /// Resolves a numeric menu item tag into its canonical component type name.
@@ -52,15 +56,13 @@ fn category_has_available(
 ) -> bool {
     if cat == ComponentCategory::CustomDynamic {
         let registry = InspectorRegistry::global();
-        let handled_names: std::collections::HashSet<_> = registry
-            .handlers()
-            .iter()
-            .map(|h| h.component_name())
-            .collect();
         let comp_registry = ae_core::registry::ComponentRegistry::global();
         comp_registry.handlers().iter().any(|h| {
             let name = h.type_name();
-            !handled_names.contains(name)
+            !registry
+                .handlers()
+                .iter()
+                .any(|ih| ih.component_name() == name)
                 && !super::dynamic_reflection::is_internal_or_specialized(name)
                 && if let Some(ent) = entity {
                     !h.has_component(world, ent)
@@ -105,18 +107,16 @@ pub fn get_add_component_menu_items(
 
         let child_items: Vec<CascadingMenuItem> = if cat == ComponentCategory::CustomDynamic {
             let registry = InspectorRegistry::global();
-            let handled_names: std::collections::HashSet<_> = registry
-                .handlers()
-                .iter()
-                .map(|h| h.component_name())
-                .collect();
             let comp_registry = ae_core::registry::ComponentRegistry::global();
             comp_registry
                 .handlers()
                 .iter()
                 .filter(|h| {
                     let name = h.type_name();
-                    !handled_names.contains(name)
+                    !registry
+                        .handlers()
+                        .iter()
+                        .any(|ih| ih.component_name() == name)
                         && !super::dynamic_reflection::is_internal_or_specialized(name)
                         && if let Some(ent) = entity {
                             !h.has_component(world, ent)
@@ -172,15 +172,12 @@ pub fn get_add_component_menu_items(
     result
 }
 
-/// Builds the cascading `➕ Add Component` menu in the [`UiTree`] using [`CascadingMenuBuilder`].
+/// Builds the cascading `➕ Add Component` menu in the [`UiTree`] using declarative [`UiScope`].
 pub fn build_add_component_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    targets: &mut InspectorPanelTargets,
 ) {
-    targets.active_add_component_rects.clear();
-
     if !params.is_add_menu_open {
         return;
     }
@@ -190,18 +187,154 @@ pub fn build_add_component_menu(
         return;
     }
 
-    let mut active_path = Vec::new();
-    if let Some(cat) = params.active_submenu {
-        active_path.push(cat.to_tag());
+    let anchor_rect = tree
+        .iter()
+        .find(|(_, node)| node.tag == TAG_INSPECTOR_ADD_COMPONENT)
+        .map(|(_, node)| node.computed_rect)
+        .unwrap_or(Rect::new(
+            params.panel_rect.x + 8.0,
+            params.panel_rect.bottom() - 30.0,
+            140.0,
+            24.0,
+        ));
+
+    let menu_w = 175.0;
+    let item_h = 24.0;
+    let menu_h = menu_items.len() as f32 * item_h + 8.0;
+
+    let menu_x = anchor_rect.x;
+    let menu_y = (anchor_rect.y - menu_h - 4.0).max(params.panel_rect.y + 10.0);
+
+    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    scope.dropdown_menu_card_named("AddComponentMenu", menu_x, menu_y, menu_w, |card| {
+        for item in &menu_items {
+            let icon_str = match &item.icon {
+                Some(CascadingMenuIcon::Text(t)) => *t,
+                _ => "",
+            };
+            card.dropdown_item(item.tag, icon_str, &item.label, Some("▶"), true);
+        }
+    });
+
+    if let Some(active_cat) = params.active_submenu
+        && let Some(cat_item) = menu_items.iter().find(|i| i.tag == active_cat.to_tag())
+        && let Some(ref children) = cat_item.submenu
+        && !children.is_empty()
+    {
+        let sub_w = 195.0;
+        let sub_h = children.len() as f32 * item_h + 8.0;
+
+        let sub_x = if menu_x + menu_w + sub_w > params.panel_rect.right() {
+            (menu_x - sub_w - 4.0).max(params.panel_rect.x + 4.0)
+        } else {
+            menu_x + menu_w + 4.0
+        };
+
+        let cat_idx = menu_items
+            .iter()
+            .position(|i| i.tag == active_cat.to_tag())
+            .unwrap_or(0);
+        let cat_y = menu_y + 4.0 + cat_idx as f32 * item_h;
+        let sub_y = (cat_y)
+            .min(params.panel_rect.bottom() - sub_h - 10.0)
+            .max(params.panel_rect.y + 10.0);
+
+        scope.dropdown_menu_card_named("AddComponentSubmenu", sub_x, sub_y, sub_w, |sub_card| {
+            for child in children {
+                let icon_str = match &child.icon {
+                    Some(CascadingMenuIcon::Text(t)) => *t,
+                    _ => "",
+                };
+                sub_card.dropdown_item(child.tag, icon_str, &child.label, None, true);
+            }
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_declarative_add_component_menu_structure() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root node");
+        let world = hecs::World::new();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 600.0),
+            world: &world,
+            selected_entity: None,
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            scroll_y: 0.0,
+            active_dropdown: None,
+            active_submenu: Some(ComponentCategory::Physics),
+            is_add_menu_open: true,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+            hovered_tag: None,
+        };
+
+        build_add_component_menu(&mut tree, root, &params);
+
+        let menu_node = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("AddComponentMenu"));
+        assert!(menu_node.is_some(), "AddComponentMenu must be built");
+        assert_eq!(menu_node.unwrap().1.layer, UiLayer::Popup);
+
+        let submenu_node = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("AddComponentSubmenu"));
+        assert!(
+            submenu_node.is_some(),
+            "AddComponentSubmenu must be built for active category"
+        );
+        assert_eq!(submenu_node.unwrap().1.layer, UiLayer::Popup);
+
+        let cat_items: Vec<_> = tree
+            .iter()
+            .filter(|(_, n)| {
+                n.role == WidgetRole::DropdownItem && n.tag == ComponentCategory::Physics.to_tag()
+            })
+            .collect();
+        assert!(
+            !cat_items.is_empty(),
+            "Physics category item must be listed"
+        );
+
+        let comp_items: Vec<_> = tree
+            .iter()
+            .filter(|(_, n)| {
+                n.role == WidgetRole::DropdownItem && n.tag != ComponentCategory::Physics.to_tag()
+            })
+            .collect();
+        assert!(
+            !comp_items.is_empty(),
+            "Physics components must be listed in submenu"
+        );
     }
 
-    if let Some(frame) =
-        CascadingMenuBuilder::new(targets.add_component_btn_rect, &menu_items, &active_path)
-            .cursor_pos(params.cursor_pos)
-            .open_upward(true)
-            .name("AddComponentMenu")
-            .build(tree, parent_id)
-    {
-        targets.active_add_component_rects = frame.rendered_popup_rects;
+    #[test]
+    fn test_component_name_to_tag_domain_conformance() {
+        let tag = component_name_to_tag("RigidBody");
+        assert!(
+            (TAG_ADD_MENU_COMPONENT_BASE..=(TAG_ADD_MENU_COMPONENT_BASE | 0x00FF_FFFF))
+                .contains(&tag),
+            "Component tag must stay strictly within TAG_ADD_MENU_COMPONENT_BASE domain"
+        );
+        let resolved = resolve_component_name_from_tag(tag);
+        assert_eq!(resolved, Some("RigidBody"));
     }
 }

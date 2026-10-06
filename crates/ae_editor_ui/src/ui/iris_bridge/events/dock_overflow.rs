@@ -28,10 +28,13 @@ impl IrisEditorOverlay {
         let mut result = IrisOverlayEventResult::default();
 
         match event {
-            WindowEvent::CursorMoved { position, .. } => {
-                self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
+            WindowEvent::CursorMoved { .. } => {
+                let p = self.chrome.cursor_pos;
                 if let Some(ref overflow_rect) = frame.active_overflow_rect
-                    && overflow_rect.contains_point(self.chrome.cursor_pos)
+                    && (p.x >= overflow_rect.x
+                        && p.x <= overflow_rect.right()
+                        && p.y >= overflow_rect.y
+                        && p.y <= overflow_rect.bottom())
                 {
                     result.consumed = true;
                     return Some(result);
@@ -78,7 +81,7 @@ impl IrisEditorOverlay {
                         if let Some(target) = frame
                             .chevron_targets
                             .iter()
-                            .find(|t| t.rect.contains_point(click_point))
+                            .find(|t| t.contains_point(click_point))
                         {
                             if target.leaf == active_leaf {
                                 self.chrome.active_dock_overflow = None;

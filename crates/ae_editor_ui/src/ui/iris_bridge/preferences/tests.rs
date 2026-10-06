@@ -11,10 +11,9 @@ use super::builder::{
 };
 use super::types::{
     PREF_TAG_CLOSE, PREF_TAG_TITLEBAR, PreferencesDropdownId, PreferencesParams,
-    PreferencesSliderId, PreferencesToggleId, encode_dropdown_item_tag, encode_dropdown_tag,
-    encode_number_tag, encode_section_tag, encode_slider_tag, encode_tab_tag, encode_toggle_tag,
-    is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag, parse_number_tag,
-    parse_section_tag, parse_slider_tag, parse_tab_tag, parse_toggle_tag,
+    PreferencesToggleId, encode_dropdown_item_tag, encode_dropdown_tag, encode_section_tag,
+    encode_tab_tag, encode_toggle_tag, is_preferences_tag, parse_dropdown_item_tag,
+    parse_dropdown_tag, parse_section_tag, parse_tab_tag, parse_toggle_tag,
 };
 use crate::ui::iris_bridge::events::preferences::calculate_preferences_drag_pos;
 use ae_editor::editor_state::EditorConfig;
@@ -111,52 +110,13 @@ fn test_preferences_semantic_tags_encoding_roundtrip() {
 
     // 5. Toggle tag roundtrips
     let toggles = [
-        PreferencesToggleId::ShadowsEnabled,
-        PreferencesToggleId::BloomEnabled,
-        PreferencesToggleId::FogEnabled,
         PreferencesToggleId::LiveUpdatesEnabled,
+        PreferencesToggleId::Module(ae_core::modules::EngineModule::Physics),
     ];
     for &toggle in &toggles {
         let tag = encode_toggle_tag(toggle);
         assert!(is_preferences_tag(tag));
         assert_eq!(parse_toggle_tag(tag), Some(toggle));
-    }
-
-    // 6. Slider & Number tag roundtrips
-    let sliders = [
-        PreferencesSliderId::ShadowBias,
-        PreferencesSliderId::BloomIntensity,
-        PreferencesSliderId::SunPitch,
-        PreferencesSliderId::SunYaw,
-        PreferencesSliderId::AtmosphereDensity,
-        PreferencesSliderId::OzoneDensity,
-        PreferencesSliderId::SunDiscSize,
-        PreferencesSliderId::SunGlowStrength,
-        PreferencesSliderId::CloudCoverage,
-        PreferencesSliderId::CloudDensity,
-        PreferencesSliderId::CloudSpeed,
-        PreferencesSliderId::CloudEvolution,
-        PreferencesSliderId::CloudAltitude,
-        PreferencesSliderId::FogDistance,
-        PreferencesSliderId::GridSize,
-        PreferencesSliderId::UndoHistoryLimit,
-        PreferencesSliderId::PhysicsFrequency,
-    ];
-    for &slider in &sliders {
-        let s_tag = encode_slider_tag(slider);
-        assert!(is_preferences_tag(s_tag));
-        assert_eq!(parse_slider_tag(s_tag), Some(slider));
-
-        let n_tag = encode_number_tag(slider);
-        assert!(is_preferences_tag(n_tag));
-        assert_eq!(parse_number_tag(n_tag), Some(slider));
-
-        // Verify min < max mathematical invariant
-        assert!(
-            slider.min_val() < slider.max_val(),
-            "Slider {:?} min_val must be strictly less than max_val",
-            slider
-        );
     }
 }
 
@@ -167,9 +127,9 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
 
     let collapsed = HashSet::new();
     let enabled_modules = HashSet::new();
-    let graphics_settings = GraphicsSettings::default();
-    let snapping_settings = SnapSettings::default();
-    let editor_config = EditorConfig::default();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
 
     let params = PreferencesParams {
         screen_width: 1920.0,
@@ -181,16 +141,17 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
-        active_number_input: None,
         blink_caret: false,
+        active_number_input: None,
         cursor_pos: Point::new(420.0, 215.0),
         hovered_tag: None,
         zoom_factor: 1.0,
-        graphics_settings: &graphics_settings,
-        snapping_settings: &snapping_settings,
-        editor_config: &editor_config,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
+        events: &[],
     };
 
     let (_widget_id, card_rect, content_rect, max_scroll_y) =
@@ -289,9 +250,9 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
 
     let collapsed = HashSet::new();
     let enabled_modules = HashSet::new();
-    let graphics_settings = GraphicsSettings::default();
-    let snapping_settings = SnapSettings::default();
-    let editor_config = EditorConfig::default();
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
 
     // Open Preferences dialog with Graphics tab (tab 1) and FpsLimit dropdown open
     let params = PreferencesParams {
@@ -304,16 +265,17 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
         active_dropdown: Some(PreferencesDropdownId::FpsLimit),
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
-        active_number_input: None,
         blink_caret: false,
+        active_number_input: None,
         cursor_pos: Point::new(600.0, 300.0),
         hovered_tag: None,
         zoom_factor: 1.0,
-        graphics_settings: &graphics_settings,
-        snapping_settings: &snapping_settings,
-        editor_config: &editor_config,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
+        events: &[],
     };
 
     let (_widget_id, _card_rect, _content_rect, max_scroll_y) =
@@ -379,34 +341,61 @@ fn test_preferences_scroll_translates_children_upward() {
 
     let collapsed = HashSet::new();
     let enabled_modules = HashSet::new();
-    let graphics_settings = GraphicsSettings::default();
-    let snapping_settings = SnapSettings::default();
-    let editor_config = EditorConfig::default();
+    let mut gs_0 = GraphicsSettings::default();
+    let mut gs_100 = GraphicsSettings::default();
+    let mut snapping_settings_0 = SnapSettings::default();
+    let mut editor_config_0 = EditorConfig::default();
+    let mut snapping_settings_100 = SnapSettings::default();
+    let mut editor_config_100 = EditorConfig::default();
 
-    let make_params = |scroll_y: f32| PreferencesParams {
+    let params_0 = PreferencesParams {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics
-        scroll_offset_y: scroll_y,
+        scroll_offset_y: 0.0,
         is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
-        active_number_input: None,
         blink_caret: false,
+        active_number_input: None,
         cursor_pos: Point::new(0.0, 0.0),
         hovered_tag: None,
         zoom_factor: 1.0,
-        graphics_settings: &graphics_settings,
-        snapping_settings: &snapping_settings,
-        editor_config: &editor_config,
+        graphics_settings: &mut gs_0,
+        snapping_settings: &mut snapping_settings_0,
+        editor_config: &mut editor_config_0,
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
+        events: &[],
     };
 
-    build_preferences_dialog(&mut tree_0, make_params(0.0));
-    build_preferences_dialog(&mut tree_100, make_params(100.0));
+    let params_100 = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1, // Graphics
+        scroll_offset_y: 100.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs_100,
+        snapping_settings: &mut snapping_settings_100,
+        editor_config: &mut editor_config_100,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+    };
+
+    build_preferences_dialog(&mut tree_0, params_0);
+    build_preferences_dialog(&mut tree_100, params_100);
 
     // Find the Shadows section card in both trees
     let tag = encode_section_tag("graphics_shadows");
@@ -437,5 +426,366 @@ fn test_preferences_scroll_translates_children_upward() {
         "Expected scroll shift of 100px upward, got rect_0.y={}, rect_100.y={}",
         rect_0.y,
         rect_100.y
+    );
+}
+
+#[test]
+fn test_preferences_declarative_text_wrap_and_scope_purity() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let mut enabled_modules = HashSet::new();
+    enabled_modules.insert(ae_core::modules::EngineModule::Physics);
+    let mut graphics_settings = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 9, // Modules tab
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
+        zoom_factor: 1.0,
+        graphics_settings: &mut graphics_settings,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+    };
+
+    let (_card_id, _card_rect, _content_rect, max_scroll_y) =
+        build_preferences_dialog(&mut tree, params);
+
+    // Dynamic scroll measurement should compute a non-negative scroll limit
+    assert!(
+        max_scroll_y >= 0.0,
+        "Dynamic layout should produce valid max_scroll_y >= 0"
+    );
+
+    // Verify all ModuleDesc text nodes have TextWrap::Word set declaratively
+    let module_desc_nodes: Vec<_> = tree
+        .iter()
+        .filter(|(_, n)| n.name.as_deref() == Some("ModuleDesc"))
+        .collect();
+
+    assert!(
+        !module_desc_nodes.is_empty(),
+        "ModuleDesc nodes must be generated in the Modules tab"
+    );
+
+    for (_id, node) in module_desc_nodes {
+        assert_eq!(
+            node.text_wrap,
+            TextWrap::Word,
+            "Module description labels must have TextWrap::Word via declarative UiScope"
+        );
+    }
+}
+
+#[test]
+fn test_preferences_two_way_data_binding_shadows_and_bloom() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    // Invert initial state to verify mutation
+    gs.shadow_enabled = false;
+    gs.bloom_enabled = false;
+    gs.fog_enabled = false;
+    gs.shadow_bias = 0.001;
+    gs.bloom_intensity = 0.5;
+    gs.sun_pitch = 0.0;
+    gs.cloud_coverage = 0.2;
+
+    // Collect tags for checkboxes and sliders across graphics cards
+    let tag_shadows = hash_label("Enable Directional Shadows");
+    let tag_bloom = hash_label("Enable Bloom");
+    let tag_fog = hash_label("Enable Atmospheric Depth Fog");
+    let tag_bias = hash_label("Depth Bias");
+    let tag_pitch = hash_label("Sun Pitch");
+    let tag_clouds = hash_label("Cloud Coverage");
+
+    let events = [
+        (
+            tag_shadows,
+            InteractionEvent::Click {
+                button: MouseButton::Left,
+            },
+        ),
+        (
+            tag_bloom,
+            InteractionEvent::Click {
+                button: MouseButton::Left,
+            },
+        ),
+        (
+            tag_fog,
+            InteractionEvent::Click {
+                button: MouseButton::Left,
+            },
+        ),
+        (
+            tag_bias,
+            InteractionEvent::Drag {
+                delta: Point::new(10.0, 0.0),
+            },
+        ),
+        (
+            tag_pitch,
+            InteractionEvent::Drag {
+                delta: Point::new(10.0, 0.0),
+            },
+        ),
+        (
+            tag_clouds,
+            InteractionEvent::Drag {
+                delta: Point::new(10.0, 0.0),
+            },
+        ),
+    ];
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1, // Graphics tab
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &events,
+    };
+
+    build_preferences_dialog(&mut tree, params);
+
+    // Verify two-way data binding flipped boolean values in-place!
+    assert!(
+        gs.shadow_enabled,
+        "Shadows enabled must be toggled from false to true in-place"
+    );
+    assert!(
+        gs.bloom_enabled,
+        "Bloom enabled must be toggled from false to true in-place"
+    );
+    assert!(
+        gs.fog_enabled,
+        "Fog enabled must be toggled from false to true in-place"
+    );
+    assert!(
+        (gs.shadow_bias - (0.001 + 10.0 * 0.0005)).abs() < 1e-4,
+        "Shadow bias must be updated in-place by drag delta: expected ~0.006, got {}",
+        gs.shadow_bias
+    );
+    assert!(
+        (gs.sun_pitch - 5.0_f32.to_radians()).abs() < 1e-4,
+        "Sun pitch must be updated in-place by drag delta: expected ~5 deg in radians, got {}",
+        gs.sun_pitch
+    );
+    assert!(
+        (gs.cloud_coverage - (0.2 + 10.0 * 0.01)).abs() < 1e-4,
+        "Cloud coverage must be updated in-place by drag delta: expected ~0.3, got {}",
+        gs.cloud_coverage
+    );
+}
+
+#[test]
+fn test_preferences_two_way_data_binding_editor_tab() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    // Initial values
+    snapping_settings.grid_size = 1.0;
+    editor_config.physics_hz = 60.0;
+    editor_config.max_undo_history = 100;
+
+    let tag_grid_size = hash_label("Grid Size");
+    let tag_physics = hash_label("Fixed Update Frequency");
+    let tag_undo = hash_label("Undo History Limit");
+
+    let events = [
+        (
+            tag_grid_size,
+            InteractionEvent::Drag {
+                delta: Point::new(10.0, 0.0),
+            },
+        ),
+        (
+            tag_physics,
+            InteractionEvent::Drag {
+                delta: Point::new(10.0, 0.0),
+            },
+        ),
+        (
+            tag_undo,
+            InteractionEvent::Drag {
+                delta: Point::new(10.0, 0.0),
+            },
+        ),
+    ];
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 2, // Editor tab
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &events,
+    };
+
+    build_preferences_dialog(&mut tree, params);
+
+    // Verify two-way data binding mutated Editor values in-place!
+    // Grid Size: speed = 0.05, delta = 10.0 -> 1.0 + 0.5 = 1.5
+    assert!(
+        (snapping_settings.grid_size - 1.5).abs() < 1e-4,
+        "Grid size must be updated in-place: expected 1.5, got {}",
+        snapping_settings.grid_size
+    );
+    // Physics Hz: speed = 1.0, delta = 10.0 -> 60.0 + 10.0 = 70.0
+    assert!(
+        (editor_config.physics_hz - 70.0).abs() < 1e-4,
+        "Physics frequency must be updated in-place: expected 70.0, got {}",
+        editor_config.physics_hz
+    );
+    // Undo limit: speed = 10.0, delta = 10.0 -> 100 + 100 = 200
+    assert_eq!(
+        editor_config.max_undo_history, 200,
+        "Max undo history must be updated in-place: expected 200, got {}",
+        editor_config.max_undo_history
+    );
+}
+
+#[test]
+fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    // 1. Initial State: Graphics tab with active text input on Sun Pitch number box
+    gs.sun_pitch = 0.50;
+    let tag_pitch = hash_label("Sun Pitch");
+    let num_box_pitch = irisui::widgets::hash_label_with_seed(tag_pitch, "##num_box");
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1, // Graphics tab
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: true,
+        active_number_input: Some((num_box_pitch, "0.50", true)), // Selected on click
+        cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+    };
+
+    build_preferences_dialog(&mut tree, params);
+
+    // Verify SliderNumberBox in Graphics tab renders active selection highlight
+    let num_box = tree
+        .iter()
+        .find(|(_, n)| n.tag == num_box_pitch)
+        .map(|(_, n)| n)
+        .expect("Sun Pitch number box must exist");
+
+    assert_eq!(
+        num_box.style.background_color,
+        Color::rgba(0.0, 0.40, 0.70, 0.85),
+        "Number box must have active blue selection background when all selected"
+    );
+
+    // 2. Direct Typed Input: user enters "45.0" degrees
+    let mut tree_type = UiTree::new();
+    let events = [(
+        num_box_pitch,
+        InteractionEvent::TextInput {
+            text: "45.0".to_string(),
+        },
+    )];
+
+    let params_typed = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1, // Graphics tab
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: true,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        hovered_tag: None,
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &events,
+    };
+
+    build_preferences_dialog(&mut tree_type, params_typed);
+
+    // Verify two-way data binding parsed and mutated gs.sun_pitch in-place!
+    assert!(
+        (gs.sun_pitch - 45.0_f32.to_radians()).abs() < 1e-4,
+        "Sun pitch must be updated directly via typed degree input: expected 45 deg in radians, got {}",
+        gs.sun_pitch
     );
 }

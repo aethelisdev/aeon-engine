@@ -1,188 +1,279 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Appearance and Color Palette Inspector Card Builder
+//! # Appearance and Color Palette Declarative Inspector Card
 //!
-//! Renders object color swatch, HEX text input, and quick-select palette swatches.
+//! Renders object color swatch, live HEX text input, and quick-select palette swatches
+//! using purely declarative [`UiScope`] containers, flexbox layout, and O(1) semantic tags.
+//!
 
 use super::registry::ComponentRenderContext;
 use irisui::prelude::*;
 
-/// Builds the `🎨 Appearance` card in the `UiTree` and returns the computed height.
-pub fn build_appearance_card(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    ctx: &mut ComponentRenderContext<'_>,
-) -> f32 {
-    let padding = 8.0;
-    let swatch_size = 16.0;
-    let swatch_gap = 6.0;
+const APPEARANCE_SWATCH_BASE: u64 = 0xAA00_0000;
+const APPEARANCE_HEX_TAG: u64 = 0xAA00_FF01;
+const APPEARANCE_COLOR_SWATCH_TAG: u64 = 0xAA00_FF02;
+const APPEARANCE_ADD_PALETTE_TAG: u64 = 0xAA00_FF03;
+const APPEARANCE_CLEAR_PALETTE_TAG: u64 = 0xAA00_FF04;
 
-    // Calculate how many palette rows will be required
-    let max_row_w = (ctx.card_w - padding * 2.0).max(100.0);
-    let swatches_per_row = ((max_row_w + swatch_gap) / (swatch_size + swatch_gap)).floor() as usize;
-    let swatches_per_row = swatches_per_row.max(7);
+/// Default 7-color palette swatches displayed in the Appearance inspector card.
+pub const DEFAULT_PALETTE: [Color; 7] = [
+    Color::rgba(1.0, 1.0, 1.0, 1.0),
+    Color::rgba(0.55, 0.58, 0.64, 1.0),
+    Color::rgba(0.10, 0.10, 0.12, 1.0),
+    Color::rgba(0.95, 0.22, 0.22, 1.0),
+    Color::rgba(0.15, 0.88, 0.35, 1.0),
+    Color::rgba(0.20, 0.45, 0.98, 1.0),
+    Color::rgba(0.98, 0.90, 0.15, 1.0),
+];
 
-    let total_swatches = 7 + ctx.params.saved_swatches.len();
-    let num_palette_rows = total_swatches.div_ceil(swatches_per_row);
-    let num_palette_rows = num_palette_rows.max(1);
+/// Returns the 64-bit semantic tag for the primary object color swatch button.
+#[inline]
+pub fn appearance_color_swatch_tag() -> u64 {
+    APPEARANCE_COLOR_SWATCH_TAG
+}
 
-    let palette_h = (num_palette_rows as f32) * (swatch_size + swatch_gap) - swatch_gap;
-    let card_h = 24.0 + 22.0 + 4.0 + 22.0 + 6.0 + palette_h + padding * 2.0 + 2.0;
-    let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+/// Resolves whether a semantic tag corresponds to the primary object color swatch button.
+#[inline]
+pub fn resolve_appearance_color_swatch_tag(tag: u64) -> bool {
+    tag == APPEARANCE_COLOR_SWATCH_TAG
+}
 
-    let frame = CardBuilder::new(tree, parent_id)
-        .name("AppearanceCard")
-        .rect(card_rect)
-        .title("Appearance")
-        .icon_text("🎨")
-        .title_color(Color::rgba(0.886, 0.894, 0.918, 1.0))
-        .build();
-    let card_id = frame.card_id;
+/// Returns the 64-bit semantic tag for the HEX text input box.
+#[inline]
+pub fn appearance_hex_input_tag() -> u64 {
+    APPEARANCE_HEX_TAG
+}
 
-    let mut cur_y = ctx.base_y + padding + 22.0;
+/// Resolves whether a semantic tag corresponds to the HEX text input box.
+#[inline]
+pub fn resolve_appearance_hex_input_tag(tag: u64) -> bool {
+    tag == APPEARANCE_HEX_TAG
+}
 
-    // Fetch current ECS Color or fallback to light blue
+/// Returns the 64-bit semantic tag for the 'Add to Palette' (+) button.
+#[inline]
+pub fn appearance_add_palette_tag() -> u64 {
+    APPEARANCE_ADD_PALETTE_TAG
+}
+
+/// Resolves whether a semantic tag corresponds to the 'Add to Palette' (+) button.
+#[inline]
+pub fn resolve_appearance_add_palette_tag(tag: u64) -> bool {
+    tag == APPEARANCE_ADD_PALETTE_TAG
+}
+
+/// Returns the 64-bit semantic tag for the 'Clear Palette' (🗑) button.
+#[inline]
+pub fn appearance_clear_palette_tag() -> u64 {
+    APPEARANCE_CLEAR_PALETTE_TAG
+}
+
+/// Resolves whether a semantic tag corresponds to the 'Clear Palette' (🗑) button.
+#[inline]
+pub fn resolve_appearance_clear_palette_tag(tag: u64) -> bool {
+    tag == APPEARANCE_CLEAR_PALETTE_TAG
+}
+
+/// Computes the 64-bit semantic tag for a palette swatch pill at a given global index.
+#[inline]
+pub fn appearance_palette_swatch_tag(idx: usize) -> u64 {
+    APPEARANCE_SWATCH_BASE | ((idx as u64) & 0x00FF_FFFF)
+}
+
+/// Resolves whether a semantic tag corresponds to a palette swatch pill, returning its index.
+#[inline]
+pub fn resolve_appearance_palette_swatch_tag(tag: u64) -> Option<usize> {
+    if (tag & 0xFF00_0000) == APPEARANCE_SWATCH_BASE {
+        let idx = (tag & 0x00FF_FFFF) as usize;
+        if idx <= 1024 {
+            return Some(idx);
+        }
+    }
+    None
+}
+
+/// Builds the `🎨 Appearance` card declaratively in the `UiTree` and returns the computed height.
+///
+/// Fully adheres to 100% declarative [`UiScope`] architecture without raw arena allocation
+/// or manual pixel coordinate manipulations.
+pub fn build_appearance_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
     let obj_color = ctx
         .world
         .get::<&ae_core::ecs::Color>(ctx.entity)
         .map(|c| Color::rgba(c.r, c.g, c.b, c.a))
         .unwrap_or(Color::rgba(0.60, 0.75, 0.95, 1.0));
 
-    // 3. Row 1: Object Color: [Swatch]  Hex: [#6699cc]
-    let row1_h = 22.0;
-    let lbl1_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl1_id) {
-        node.set_name("ObjectColorLabel");
-        node.set_text("Object Color:");
-        node.font_size = 11.0;
-        node.line_height = row1_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(ctx.base_x + padding, cur_y, 75.0, row1_h);
-    }
-    let _ = tree.add_child(card_id, lbl1_id);
+    scope.card_named("AppearanceCard", "🎨 Appearance", |card| {
+        render_object_color_row(
+            card,
+            obj_color,
+            ctx.params.is_color_picker_open,
+            ctx.params.inspector_color_hex,
+            ctx.params.active_hex_buffer,
+            ctx.params.blink_caret,
+            ctx.params.cursor_pos,
+        );
 
-    // Color Swatch Box
-    let swatch_rect = Rect::new(ctx.base_x + padding + 78.0, cur_y + 2.0, 38.0, row1_h - 4.0);
-    ctx.targets.color_swatch_rect = Some(swatch_rect);
-    let is_swatch_hovered = swatch_rect.contains_point(ctx.params.cursor_pos);
-    let swatch_border = if is_swatch_hovered || ctx.params.is_color_picker_open {
-        Color::rgba(1.0, 1.0, 1.0, 0.95)
-    } else {
-        Color::rgba(0.85, 0.88, 0.95, 0.70)
-    };
+        render_palette_action_row(card, ctx.params.cursor_pos);
 
-    let swatch_id = tree.create_node();
-    if let Some(node) = tree.get_mut(swatch_id) {
-        node.set_name("ColorSwatchBox");
-        node.computed_rect = swatch_rect;
-        node.style = Style::new()
+        render_palette_swatches(card, ctx.params.saved_swatches, ctx.params.cursor_pos);
+    });
+}
+
+/// Renders Row 1: Object Color swatch pill and live HEX text input field.
+fn render_object_color_row(
+    scope: &mut UiScope<'_>,
+    obj_color: Color,
+    is_color_picker_open: bool,
+    color_hex: &str,
+    active_hex_buffer: Option<&str>,
+    blink_caret: bool,
+    _cursor_pos: Point,
+) -> (WidgetId, WidgetId) {
+    let row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(22.0)
+        .gap(8.0);
+
+    let mut captured_swatch_id = WidgetId::default();
+    let mut captured_hex_id = WidgetId::default();
+
+    scope.container_named("ObjectColorRow", row_style, |row| {
+        row.label_styled_passive(
+            "ObjectColorLabel",
+            "Object Color:",
+            11.0,
+            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            TextAlign::Left,
+            Style::new().width(75.0).height(22.0),
+        );
+
+        let swatch_tag = appearance_color_swatch_tag();
+        let is_swatch_hovered = row.is_tag_hovered(swatch_tag);
+        let swatch_border = if is_swatch_hovered || is_color_picker_open {
+            Color::rgba(1.0, 1.0, 1.0, 0.95)
+        } else {
+            Color::rgba(0.85, 0.88, 0.95, 0.70)
+        };
+        let swatch_style = Style::new()
+            .width(38.0)
+            .height(18.0)
             .background(obj_color)
             .border(1.0, swatch_border)
             .border_radius(5.0);
-    }
-    let _ = tree.add_child(card_id, swatch_id);
+        captured_swatch_id = row.empty_box_tagged(
+            "ColorSwatchBox",
+            swatch_style,
+            WidgetRole::Button,
+            swatch_tag,
+        );
 
-    // Hex label
-    let hex_lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hex_lbl_id) {
-        node.set_name("HexPrefixLabel");
-        node.set_text("Hex:");
-        node.font_size = 11.0;
-        node.line_height = row1_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(swatch_rect.right() + 8.0, cur_y, 30.0, row1_h);
-    }
-    let _ = tree.add_child(card_id, hex_lbl_id);
+        row.label_styled_passive(
+            "HexPrefixLabel",
+            "Hex:",
+            11.0,
+            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            TextAlign::Left,
+            Style::new().width(28.0).height(22.0),
+        );
 
-    // Hex Input Box (Compact ~60px wide)
-    let hex_box_w = 64.0;
-    let hex_rect = Rect::new(swatch_rect.right() + 38.0, cur_y, hex_box_w, row1_h);
-    ctx.targets.hex_input_rect = Some(hex_rect);
-    let is_hex_focused = ctx.params.active_hex_buffer.is_some();
-    let is_hex_hovered = hex_rect.contains_point(ctx.params.cursor_pos);
+        let hex_tag = appearance_hex_input_tag();
+        let is_hex_focused = active_hex_buffer.is_some();
+        let is_hex_hovered = row.is_tag_hovered(hex_tag);
+        let (hex_bg, hex_border) = if is_hex_focused {
+            (
+                Color::rgba(0.180, 0.190, 0.220, 1.0),
+                Color::rgba(0.85, 0.88, 0.98, 0.95),
+            )
+        } else if is_hex_hovered {
+            (
+                Color::rgba(0.180, 0.190, 0.220, 1.0),
+                Color::rgba(0.35, 0.38, 0.45, 0.95),
+            )
+        } else {
+            (
+                Color::rgba(0.157, 0.165, 0.188, 0.98),
+                Color::rgba(0.212, 0.220, 0.259, 0.85),
+            )
+        };
 
-    let (hex_bg, hex_border) = if is_hex_focused {
-        (
-            Color::rgba(0.180, 0.190, 0.220, 1.0),
-            Color::rgba(0.85, 0.88, 0.98, 0.95),
-        )
-    } else if is_hex_hovered {
-        (
-            Color::rgba(0.180, 0.190, 0.220, 1.0),
-            Color::rgba(0.35, 0.38, 0.45, 0.95),
-        )
-    } else {
-        (
-            Color::rgba(0.157, 0.165, 0.188, 0.98),
-            Color::rgba(0.212, 0.220, 0.259, 0.85),
-        )
-    };
-
-    let hex_box_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hex_box_id) {
-        node.set_name("HexInputBox");
-        node.computed_rect = hex_rect;
-        node.style = Style::new()
-            .background(hex_bg)
-            .border(1.0, hex_border)
-            .border_radius(5.0);
-    }
-    let _ = tree.add_child(card_id, hex_box_id);
-
-    let hex_txt_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hex_txt_id) {
-        node.set_name("HexInputText");
-        let hex_val = if let Some(buf) = ctx.params.active_hex_buffer {
-            if ctx.params.blink_caret {
-                format!("{}|", buf)
+        let mut edit_buf = String::new();
+        let hex_display_str: &str = if let Some(buf) = active_hex_buffer {
+            if blink_caret {
+                edit_buf.push_str(buf);
+                edit_buf.push('|');
+                &edit_buf
             } else {
-                buf.to_string()
+                buf
             }
         } else {
-            let r = (obj_color.r.clamp(0.0, 1.0) * 255.0) as u8;
-            let g = (obj_color.g.clamp(0.0, 1.0) * 255.0) as u8;
-            let b = (obj_color.b.clamp(0.0, 1.0) * 255.0) as u8;
-            format!("#{:02x}{:02x}{:02x}", r, g, b)
+            color_hex
         };
-        node.set_text(hex_val);
-        node.font_size = 10.5;
-        node.line_height = row1_h;
-        node.text_align = TextAlign::Center;
-        node.text_color = if is_hex_focused {
-            Color::WHITE
-        } else {
-            Color::rgba(0.886, 0.894, 0.918, 1.0)
-        };
-        node.computed_rect = hex_rect;
-    }
-    let _ = tree.add_child(hex_box_id, hex_txt_id);
 
-    cur_y += row1_h + 4.0;
+        let hex_box_style = Style::new()
+            .width(64.0)
+            .height(22.0)
+            .background(hex_bg)
+            .border(1.0, hex_border)
+            .border_radius(5.0)
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center);
 
-    // 4. Row 2: Add to Palette: [+] [🗑]
-    let lbl2_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl2_id) {
-        node.set_name("AddPaletteLabel");
-        node.set_text("Add to Palette:");
-        node.font_size = 11.0;
-        node.line_height = row1_h;
-        node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-        node.computed_rect = Rect::new(ctx.base_x + padding, cur_y, 88.0, row1_h);
-    }
-    let _ = tree.add_child(card_id, lbl2_id);
+        captured_hex_id = row.container_tagged(
+            "HexInputBox",
+            hex_box_style,
+            WidgetRole::TextInput,
+            hex_tag,
+            |hex_scope| {
+                let hex_text_col = if is_hex_focused {
+                    Color::WHITE
+                } else {
+                    Color::rgba(0.886, 0.894, 0.918, 1.0)
+                };
+                hex_scope.label_styled_passive(
+                    "HexInputText",
+                    hex_display_str,
+                    10.5,
+                    hex_text_col,
+                    TextAlign::Center,
+                    Style::new().flex_grow(1.0).height(22.0),
+                );
+            },
+        );
+    });
 
-    // [+] Button
-    let btn_size = 18.0;
-    let add_pal_rect = Rect::new(ctx.base_x + padding + 90.0, cur_y + 2.0, btn_size, btn_size);
-    ctx.targets.add_palette_btn_rect = Some(add_pal_rect);
-    let is_add_hovered = add_pal_rect.contains_point(ctx.params.cursor_pos);
+    (captured_swatch_id, captured_hex_id)
+}
 
-    let add_pal_id = tree.create_node();
-    if let Some(node) = tree.get_mut(add_pal_id) {
-        node.set_name("AddPaletteBtn");
-        node.computed_rect = add_pal_rect;
-        let (bg, border, text_col) = if is_add_hovered {
+/// Renders Row 2: Add to palette (+) and clear custom palette (🗑) action buttons.
+fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) -> (WidgetId, WidgetId) {
+    let row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(22.0)
+        .gap(6.0);
+
+    let mut captured_add_id = WidgetId::default();
+    let mut captured_clr_id = WidgetId::default();
+
+    scope.container_named("AddPaletteRow", row_style, |row| {
+        row.label_styled_passive(
+            "AddPaletteLabel",
+            "Add to Palette:",
+            11.0,
+            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            TextAlign::Left,
+            Style::new().width(88.0).height(22.0),
+        );
+
+        let btn_size = 18.0;
+
+        let add_tag = appearance_add_palette_tag();
+        let is_add_hovered = row.is_tag_hovered(add_tag);
+        let (add_bg, add_border, add_text_col) = if is_add_hovered {
             (
                 Color::rgba(0.200, 0.208, 0.235, 1.0),
                 Color::rgba(0.271, 0.282, 0.329, 0.95),
@@ -195,28 +286,35 @@ pub fn build_appearance_card(
                 Color::rgba(0.82, 0.84, 0.88, 1.0),
             )
         };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-        node.set_text("+");
-        node.font_size = 13.0;
-        node.line_height = btn_size;
-        node.text_align = TextAlign::Center;
-        node.text_color = text_col;
-    }
-    let _ = tree.add_child(card_id, add_pal_id);
+        let add_style = Style::new()
+            .width(btn_size)
+            .height(btn_size)
+            .background(add_bg)
+            .border(1.0, add_border)
+            .border_radius(5.0)
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center);
+        captured_add_id = row.container_tagged(
+            "AddPaletteBtn",
+            add_style,
+            WidgetRole::Button,
+            add_tag,
+            |b| {
+                b.label_styled_passive(
+                    "AddPaletteText",
+                    "+",
+                    13.0,
+                    add_text_col,
+                    TextAlign::Center,
+                    Style::new().height(btn_size),
+                );
+            },
+        );
 
-    // [🗑] Button
-    let clr_pal_rect = Rect::new(add_pal_rect.right() + 4.0, cur_y + 2.0, btn_size, btn_size);
-    ctx.targets.clear_palette_btn_rect = Some(clr_pal_rect);
-    let is_clr_hovered = clr_pal_rect.contains_point(ctx.params.cursor_pos);
-
-    let clr_pal_id = tree.create_node();
-    if let Some(node) = tree.get_mut(clr_pal_id) {
-        node.set_name("ClearPaletteBtn");
-        node.computed_rect = clr_pal_rect;
-        let (bg, border, text_col) = if is_clr_hovered {
+        let clr_tag = appearance_clear_palette_tag();
+        let is_clr_hovered = row.is_tag_hovered(clr_tag);
+        let (clr_bg, clr_border, clr_text_col) = if is_clr_hovered {
             (
                 Color::rgba(0.35, 0.10, 0.10, 0.95),
                 Color::rgba(0.70, 0.18, 0.18, 0.85),
@@ -229,94 +327,206 @@ pub fn build_appearance_card(
                 Color::rgba(0.70, 0.73, 0.80, 0.90),
             )
         };
-        node.style = Style::new()
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-        node.set_text("🗑");
-        node.font_size = 10.5;
-        node.line_height = btn_size;
-        node.text_align = TextAlign::Center;
-        node.text_color = text_col;
-    }
-    let _ = tree.add_child(card_id, clr_pal_id);
+        let clr_style = Style::new()
+            .width(btn_size)
+            .height(btn_size)
+            .background(clr_bg)
+            .border(1.0, clr_border)
+            .border_radius(5.0)
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::Center);
+        captured_clr_id = row.container_tagged(
+            "ClearPaletteBtn",
+            clr_style,
+            WidgetRole::Button,
+            clr_tag,
+            |b| {
+                b.label_styled_passive(
+                    "ClearPaletteText",
+                    "🗑",
+                    10.5,
+                    clr_text_col,
+                    TextAlign::Center,
+                    Style::new().height(btn_size),
+                );
+            },
+        );
+    });
 
-    cur_y += row1_h + 5.0;
+    (captured_add_id, captured_clr_id)
+}
 
-    // 5. Row 3+: Palette Swatches (Default 7 + User Saved Swatches)
-    let default_palette = [
-        Color::rgba(1.0, 1.0, 1.0, 1.0),
-        Color::rgba(0.55, 0.58, 0.64, 1.0),
-        Color::rgba(0.10, 0.10, 0.12, 1.0),
-        Color::rgba(0.95, 0.22, 0.22, 1.0),
-        Color::rgba(0.15, 0.88, 0.35, 1.0),
-        Color::rgba(0.20, 0.45, 0.98, 1.0),
-        Color::rgba(0.98, 0.90, 0.15, 1.0),
-    ];
+/// Renders Row 3+: Palette swatches inside a multi-line wrapping flex container.
+fn render_palette_swatches(
+    scope: &mut UiScope<'_>,
+    saved_swatches: &[[f32; 4]],
+    _cursor_pos: Point,
+) -> Vec<(usize, WidgetId, Color)> {
+    let swatch_size = 16.0;
+    let swatch_gap = 6.0;
 
-    let mut sw_x = ctx.base_x + padding;
-    let start_x = sw_x;
+    let container_style = Style::new()
+        .flex_row()
+        .flex_wrap(FlexWrap::Wrap)
+        .align_items(AlignItems::Center)
+        .gap(swatch_gap);
 
-    // 5a. Render default 7 palette swatches
-    for (i, &col) in default_palette.iter().enumerate() {
-        if sw_x + swatch_size > ctx.base_x + ctx.card_w - padding {
-            sw_x = start_x;
-            cur_y += swatch_size + swatch_gap;
-        }
+    let mut swatch_nodes = Vec::with_capacity(7 + saved_swatches.len());
 
-        let sw_rect = Rect::new(sw_x, cur_y, swatch_size, swatch_size);
-        let is_hovered = sw_rect.contains_point(ctx.params.cursor_pos);
-
-        let sw_id = tree.create_node();
-        if let Some(node) = tree.get_mut(sw_id) {
-            node.set_name(format!("PaletteDef_{}", i));
-            node.computed_rect = sw_rect;
+    scope.container_named("PaletteSwatches", container_style, |wrap_scope| {
+        for (idx, &col) in DEFAULT_PALETTE.iter().enumerate() {
+            let tag = appearance_palette_swatch_tag(idx);
+            let is_hovered = wrap_scope.is_tag_hovered(tag);
             let border_col = if is_hovered {
                 Color::WHITE
             } else {
                 Color::rgba(0.212, 0.220, 0.259, 0.85)
             };
-            node.style = Style::new()
+            let sw_style = Style::new()
+                .width(swatch_size)
+                .height(swatch_size)
                 .background(col)
                 .border(1.0, border_col)
                 .border_radius(3.0);
-        }
-        let _ = tree.add_child(card_id, sw_id);
-
-        ctx.targets.palette_swatches.push((i, sw_rect, col));
-        sw_x += swatch_size + swatch_gap;
-    }
-
-    // 5b. Render user saved swatches
-    for (idx, &s) in ctx.params.saved_swatches.iter().enumerate() {
-        if sw_x + swatch_size > ctx.base_x + ctx.card_w - padding {
-            sw_x = start_x;
-            cur_y += swatch_size + swatch_gap;
+            let sw_id =
+                wrap_scope.empty_box_tagged("PaletteSwatch", sw_style, WidgetRole::Button, tag);
+            swatch_nodes.push((idx, sw_id, col));
         }
 
-        let col = Color::rgba(s[0], s[1], s[2], s[3]);
-        let sw_rect = Rect::new(sw_x, cur_y, swatch_size, swatch_size);
-        let is_hovered = sw_rect.contains_point(ctx.params.cursor_pos);
-
-        let sw_id = tree.create_node();
-        if let Some(node) = tree.get_mut(sw_id) {
-            node.set_name(format!("PaletteSaved_{}", idx));
-            node.computed_rect = sw_rect;
+        for (custom_idx, &s) in saved_swatches.iter().enumerate() {
+            let global_idx = 7 + custom_idx;
+            let col = Color::rgba(s[0], s[1], s[2], s[3]);
+            let tag = appearance_palette_swatch_tag(global_idx);
+            let is_hovered = wrap_scope.is_tag_hovered(tag);
             let border_col = if is_hovered {
                 Color::WHITE
             } else {
                 Color::rgba(0.35, 0.38, 0.45, 0.85)
             };
-            node.style = Style::new()
+            let sw_style = Style::new()
+                .width(swatch_size)
+                .height(swatch_size)
                 .background(col)
                 .border(1.0, border_col)
                 .border_radius(3.0);
+            let sw_id =
+                wrap_scope.empty_box_tagged("PaletteSwatch", sw_style, WidgetRole::Button, tag);
+            swatch_nodes.push((global_idx, sw_id, col));
         }
-        let _ = tree.add_child(card_id, sw_id);
+    });
 
-        ctx.targets.palette_swatches.push((7 + idx, sw_rect, col));
-        sw_x += swatch_size + swatch_gap;
+    swatch_nodes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_appearance_semantic_tags() {
+        let swatch_tag = appearance_color_swatch_tag();
+        assert!(resolve_appearance_color_swatch_tag(swatch_tag));
+        assert!(!resolve_appearance_color_swatch_tag(swatch_tag + 1));
+
+        let hex_tag = appearance_hex_input_tag();
+        assert!(resolve_appearance_hex_input_tag(hex_tag));
+        assert!(!resolve_appearance_hex_input_tag(hex_tag + 1));
+
+        let add_tag = appearance_add_palette_tag();
+        assert!(resolve_appearance_add_palette_tag(add_tag));
+        assert!(!resolve_appearance_add_palette_tag(add_tag + 1));
+
+        let clr_tag = appearance_clear_palette_tag();
+        assert!(resolve_appearance_clear_palette_tag(clr_tag));
+        assert!(!resolve_appearance_clear_palette_tag(clr_tag + 1));
+
+        for idx in [0, 1, 6, 7, 15] {
+            let tag = appearance_palette_swatch_tag(idx);
+            assert_eq!(resolve_appearance_palette_swatch_tag(tag), Some(idx));
+        }
+        assert_eq!(resolve_appearance_palette_swatch_tag(0), None);
     }
 
-    card_h
+    #[test]
+    fn test_declarative_appearance_card_structure_and_layout() {
+        let mut tree = UiTree::new();
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Color {
+            r: 0.2,
+            g: 0.4,
+            b: 0.8,
+            a: 1.0,
+        },));
+
+        let euler = [0.0, 0.0, 0.0];
+        let saved_swatches = vec![[1.0, 0.5, 0.0, 1.0], [0.0, 1.0, 1.0, 1.0]];
+
+        let params = crate::ui::iris_bridge::inspector::InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 900.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#3366cc",
+            saved_swatches: &saved_swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            scroll_y: 0.0,
+            active_dropdown: None,
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+            hovered_tag: None,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
+
+        let mut scope = UiScope::new(&mut tree, WidgetId::default());
+        let root = scope.container_named(
+            "TestContainer",
+            Style::new().width(280.0).height(300.0),
+            |card_scope| {
+                build_appearance_card(card_scope, &mut ctx);
+            },
+        );
+        layout_subtree(&mut tree, root, Rect::new(10.0, 20.0, 280.0, 300.0));
+
+        let has_swatch = tree
+            .iter()
+            .any(|(_, n)| n.tag == appearance_color_swatch_tag());
+        assert!(has_swatch, "Color swatch button must be tagged");
+
+        let has_hex = tree
+            .iter()
+            .any(|(_, n)| n.tag == appearance_hex_input_tag());
+        assert!(has_hex, "Hex input box must be tagged");
+
+        let has_add = tree
+            .iter()
+            .any(|(_, n)| n.tag == appearance_add_palette_tag());
+        assert!(has_add, "Add palette button must be tagged");
+
+        let has_clr = tree
+            .iter()
+            .any(|(_, n)| n.tag == appearance_clear_palette_tag());
+        assert!(has_clr, "Clear palette button must be tagged");
+
+        // 7 default swatches + 2 saved swatches = 9
+        let swatches_count = (0..9)
+            .filter(|&idx| {
+                tree.iter()
+                    .any(|(_, n)| n.tag == appearance_palette_swatch_tag(idx))
+            })
+            .count();
+        assert_eq!(
+            swatches_count, 9,
+            "All 9 palette swatches must be tagged in the tree"
+        );
+    }
 }

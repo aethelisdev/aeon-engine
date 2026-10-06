@@ -7,21 +7,18 @@
 //! and synchronized selection state.
 //!
 
-use super::types::{AssetsPanelParams, AssetsPanelTargets};
+use super::types::{AssetsPanelParams, encode_chip_tag};
 use crate::assets::types::{AssetCategory, AssetSource};
 use irisui::prelude::*;
 
-/// Builds the category filter chips row with live item counters.
+/// Declaratively emits the category filter chips bar into the active [`UiScope`].
 ///
-/// Iterates through canonical asset categories, calculates filtered asset counts
-/// based on the active engine content visibility setting, and produces responsive
-/// badge buttons within the Iris UI tree.
-pub fn build_category_chips(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+/// Features dynamic item counters, category accent borders, and 64-bit semantic tags
+/// (`encode_chip_tag`) for zero-allocation $O(1)$ hit-testing.
+pub fn build_category_chips_scope(
+    scope: &mut UiScope<'_>,
     chips_rect: Rect,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
 ) {
     let categories = [
         (AssetCategory::All, "All Assets"),
@@ -33,71 +30,131 @@ pub fn build_category_chips(
         (AssetCategory::Audio, "Audio"),
     ];
 
-    let mut chip_x = chips_rect.x + 8.0;
-    let chip_y = chips_rect.y + 3.0;
-    let chip_h = 22.0;
+    scope.container_named(
+        "AssetsCategoryChipsRow",
+        Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::FlexStart)
+            .width(chips_rect.width)
+            .height(chips_rect.height)
+            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+            .gap(6.0),
+        |row| {
+            for (idx, (cat, label)) in categories.into_iter().enumerate() {
+                let count = params
+                    .cached_items
+                    .iter()
+                    .filter(|i| {
+                        if !params.show_engine_content && i.source == AssetSource::Engine {
+                            return false;
+                        }
+                        if params.is_2d_mode && i.is_3d {
+                            return false;
+                        }
+                        if !params.is_2d_mode && !i.is_3d && i.category == AssetCategory::Scenes {
+                            return false;
+                        }
+                        cat == AssetCategory::All || i.category == cat
+                    })
+                    .count();
 
-    for (cat, label) in categories {
-        let count = params
-            .cached_items
-            .iter()
-            .filter(|i| {
-                if !params.show_engine_content && i.source == AssetSource::Engine {
-                    return false;
-                }
-                if params.is_2d_mode && i.is_3d {
-                    return false;
-                }
-                if !params.is_2d_mode && !i.is_3d && i.category == AssetCategory::Scenes {
-                    return false;
-                }
-                cat == AssetCategory::All || i.category == cat
-            })
-            .count();
+                let chip_text = format!("{} ({})", label, count);
+                let tag = encode_chip_tag(idx as u8);
+                let is_selected = params.active_category == cat;
+                let is_hovered = params.hovered_tag == Some(tag);
 
-        let chip_text = format!("{} ({})", label, count);
-        let chip_w = (chip_text.len() as f32 * 6.8 + 16.0).max(54.0);
-        let chip_rect = Rect::new(chip_x, chip_y, chip_w, chip_h);
-        let is_selected = params.active_category == cat;
-        let is_hovered = chip_rect.contains_point(params.cursor_pos);
+                let cat_color = super::cards::resolve_category_color(cat);
+                let border_color = if is_selected {
+                    cat_color
+                } else if is_hovered {
+                    Color::rgba(0.28, 0.32, 0.42, 0.70)
+                } else {
+                    Color::rgba(0.16, 0.18, 0.24, 0.40)
+                };
 
-        targets.category_chips.push((cat, chip_rect));
-
-        let chip_id = tree.create_node();
-        if let Some(node) = tree.get_mut(chip_id) {
-            node.set_name("CategoryChip");
-            node.set_text(&chip_text);
-            node.font_size = 11.0;
-            node.line_height = chip_h;
-            node.text_align = TextAlign::Center;
-            node.text_color = if is_selected {
-                Color::WHITE
-            } else if is_hovered {
-                Color::rgba(0.90, 0.93, 0.98, 1.0)
-            } else {
-                Color::rgba(0.65, 0.69, 0.78, 1.0)
-            };
-            node.computed_rect = chip_rect;
-            let cat_color = super::cards::resolve_category_color(cat);
-            let border_color = if is_selected {
-                cat_color
-            } else if is_hovered {
-                Color::rgba(0.28, 0.32, 0.42, 0.70)
-            } else {
-                Color::rgba(0.16, 0.18, 0.24, 0.40)
-            };
-            node.style = Style::new()
-                .background(if is_selected {
+                let bg_color = if is_selected {
                     Color::rgba(0.12, 0.16, 0.22, 0.95)
                 } else if is_hovered {
                     Color::rgba(0.10, 0.12, 0.16, 0.80)
                 } else {
                     Color::rgba(0.08, 0.09, 0.11, 0.60)
-                })
-                .border_radius(4.0)
-                .border(1.0, border_color);
+                };
+
+                let text_color = if is_selected {
+                    Color::WHITE
+                } else if is_hovered {
+                    Color::rgba(0.90, 0.93, 0.98, 1.0)
+                } else {
+                    Color::rgba(0.65, 0.69, 0.78, 1.0)
+                };
+
+                let chip_w = (chip_text.len() as f32 * 6.8 + 16.0).max(54.0);
+
+                row.container_tagged(
+                    "CategoryChip",
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center)
+                        .width(chip_w)
+                        .height(22.0)
+                        .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+                        .border_radius(4.0)
+                        .border(1.0, border_color)
+                        .background(bg_color),
+                    WidgetRole::Button,
+                    tag,
+                    |chip| {
+                        chip.label_styled_passive(
+                            "CategoryChipText",
+                            &chip_text,
+                            11.0,
+                            text_color,
+                            TextAlign::Center,
+                            Style::new().width(chip_w - 16.0),
+                        );
+                    },
+                );
+            }
+        },
+    );
+}
+
+/// Builds the category filter chips row with live item counters into the Iris tree.
+pub fn build_category_chips(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    chips_rect: Rect,
+    params: &AssetsPanelParams<'_>,
+) {
+    let mut scope = UiScope::new(tree, parent_id);
+    build_category_chips_scope(&mut scope, chips_rect, params);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::assets::types::AssetCategory;
+
+    #[test]
+    fn test_category_chips_order_matches_canonical_all() {
+        let expected_order = [
+            AssetCategory::All,
+            AssetCategory::Models3D,
+            AssetCategory::Textures2D,
+            AssetCategory::Shaders,
+            AssetCategory::Scenes,
+            AssetCategory::Materials,
+            AssetCategory::Audio,
+        ];
+
+        for (idx, &expected_cat) in expected_order.iter().enumerate() {
+            assert_eq!(
+                AssetCategory::ALL[idx],
+                expected_cat,
+                "AssetCategory::ALL at index {} must match UI chips order exactly",
+                idx
+            );
         }
-        let _ = tree.add_child(parent_id, chip_id);
-        chip_x += chip_w + 6.0;
     }
 }

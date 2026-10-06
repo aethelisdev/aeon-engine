@@ -4,35 +4,30 @@
 //! # Shadows Settings Card Builder
 //!
 //! Renders directional cascaded shadow configuration (resolution, cascades, PCF, bias)
-//! declaratively using [`UiScope`].
+//! declaratively using [`UiScope`] and immediate two-way bound property primitives.
 
-use crate::ui::iris_bridge::preferences::components::{
-    pref_dropdown_row, pref_section_card, pref_slider_row, pref_toggle_row,
-};
-use crate::ui::iris_bridge::preferences::types::{
-    PreferencesDropdownId, PreferencesParams, PreferencesSliderId, PreferencesToggleId,
-};
+use crate::ui::iris_bridge::preferences::components::{pref_dropdown_row, pref_section_card};
+use crate::ui::iris_bridge::preferences::types::{PreferencesDropdownId, PreferencesParams};
 use irisui::prelude::*;
 
 /// Renders the collapsible Shadows settings section card declaratively using [`UiScope`].
-pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
+///
+/// Binds `gs.shadow_enabled` and `gs.shadow_bias` directly via declarative two-way property primitives,
+/// eliminating intermediary action queues and enum dispatch boilerplate.
+pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_shadows");
-    let gs = params.graphics_settings;
+    let hovered_tag = params.hovered_tag;
+    let active_dropdown = params.active_dropdown;
+    let gs = &mut *params.graphics_settings;
 
     pref_section_card(
         scope,
         "graphics_shadows",
         "🌓  Shadows",
         is_collapsed,
-        params.hovered_tag,
+        hovered_tag,
         |body| {
-            pref_toggle_row(
-                body,
-                PreferencesToggleId::ShadowsEnabled,
-                "Enable Directional Shadows",
-                gs.shadow_enabled,
-                params.hovered_tag,
-            );
+            body.property_checkbox("Enable Directional Shadows", &mut gs.shadow_enabled);
 
             if gs.shadow_enabled {
                 pref_dropdown_row(
@@ -40,8 +35,8 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_
                     PreferencesDropdownId::ShadowResolution,
                     "Resolution",
                     gs.shadow_resolution.label(),
-                    params.active_dropdown == Some(PreferencesDropdownId::ShadowResolution),
-                    params.hovered_tag,
+                    active_dropdown == Some(PreferencesDropdownId::ShadowResolution),
+                    hovered_tag,
                 );
 
                 let cascade_str = match gs.shadow_cascades {
@@ -53,8 +48,8 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_
                     PreferencesDropdownId::ShadowCascades,
                     "Cascade Count",
                     cascade_str,
-                    params.active_dropdown == Some(PreferencesDropdownId::ShadowCascades),
-                    params.hovered_tag,
+                    active_dropdown == Some(PreferencesDropdownId::ShadowCascades),
+                    hovered_tag,
                 );
 
                 pref_dropdown_row(
@@ -62,19 +57,11 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_
                     PreferencesDropdownId::ShadowPcf,
                     "Filtering (PCF)",
                     gs.shadow_pcf.label(),
-                    params.active_dropdown == Some(PreferencesDropdownId::ShadowPcf),
-                    params.hovered_tag,
+                    active_dropdown == Some(PreferencesDropdownId::ShadowPcf),
+                    hovered_tag,
                 );
 
-                pref_slider_row(
-                    body,
-                    PreferencesSliderId::ShadowBias,
-                    "Depth Bias",
-                    gs.shadow_bias,
-                    params.active_number_input,
-                    params.blink_caret,
-                    params.hovered_tag,
-                );
+                body.property_slider("Depth Bias", &mut gs.shadow_bias, 0.0001, 0.05, 0.0005);
             }
         },
     );

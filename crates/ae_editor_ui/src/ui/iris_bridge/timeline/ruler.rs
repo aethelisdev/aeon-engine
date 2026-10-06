@@ -69,13 +69,15 @@ pub fn build_ruler_and_scrubber(
         let _ = render_ruler_bar(col, duration, RULER_HEIGHT, track_width, &ruler_style);
         let _ = render_scrubber_track(
             col,
-            duration,
-            current_time,
-            params.is_dragging_scrubber,
-            &keyframes,
-            SCRUBBER_TRACK_HEIGHT,
-            track_width,
-            &ruler_style,
+            &ScrubberTrackParams {
+                duration,
+                current_time,
+                is_dragging: params.is_dragging_scrubber,
+                keyframes: &keyframes,
+                height: SCRUBBER_TRACK_HEIGHT,
+                track_width,
+                style: &ruler_style,
+            },
         );
     });
 }
@@ -173,36 +175,51 @@ pub fn render_ruler_bar(
     })
 }
 
+/// Parameters describing dimensions, time bounds, keyframes, and style for scrubber track rendering.
+pub struct ScrubberTrackParams<'a> {
+    /// Total duration of the active timeline sequence in seconds.
+    pub duration: f32,
+    /// Current playhead time offset in seconds.
+    pub current_time: f32,
+    /// Whether the user is actively dragging the scrubber playhead.
+    pub is_dragging: bool,
+    /// Read-only slice of keyframe markers along the sequence.
+    pub keyframes: &'a [TimelineKeyframeMarker],
+    /// Scrubber track height in logical pixels.
+    pub height: f32,
+    /// Total track width in logical pixels.
+    pub track_width: f32,
+    /// Visual styling configuration descriptor for the track and playhead.
+    pub style: &'a TimelineRulerStyle,
+}
+
 /// Emits an interactive timeline scrubber track containing progress fill, keyframe diamonds,
 /// and the draggable playhead needle and cap handle.
 ///
 /// Returns `(track_widget_id, playhead_cap_widget_id)`.
 pub fn render_scrubber_track(
     scope: &mut UiScope<'_>,
-    duration: f32,
-    current_time: f32,
-    is_dragging: bool,
-    keyframes: &[TimelineKeyframeMarker],
-    height: f32,
-    track_width: f32,
-    style: &TimelineRulerStyle,
+    params: &ScrubberTrackParams<'_>,
 ) -> (WidgetId, WidgetId) {
-    let safe_duration = duration.max(0.001);
-    let progress_ratio = (current_time / safe_duration).clamp(0.0, 1.0);
-    let usable_width = (track_width - TIMELINE_SIDEBAR_WIDTH).max(10.0);
+    let style = params.style;
+    let height = params.height;
+    let keyframes = params.keyframes;
+    let safe_duration = params.duration.max(0.001);
+    let progress_ratio = (params.current_time / safe_duration).clamp(0.0, 1.0);
+    let usable_width = (params.track_width - TIMELINE_SIDEBAR_WIDTH).max(10.0);
 
-    let track_border = if is_dragging {
-        style.track_border_active
+    let track_border = if params.is_dragging {
+        params.style.track_border_active
     } else {
-        style.track_border_idle
+        params.style.track_border_idle
     };
 
     let track_style = Style::new()
-        .height(height)
-        .width(track_width)
-        .background(style.track_bg)
-        .border_radius(style.track_border_radius)
-        .border(style.track_border_width, track_border)
+        .height(params.height)
+        .width(params.track_width)
+        .background(params.style.track_bg)
+        .border_radius(params.style.track_border_radius)
+        .border(params.style.track_border_width, track_border)
         .clip_children(false);
 
     let mut playhead_cap_id = WidgetId::default();
@@ -345,7 +362,18 @@ mod tests {
 
         let (track_id, cap_id) = {
             let mut scope = UiScope::new(&mut tree, root);
-            render_scrubber_track(&mut scope, 4.0, 1.5, false, &keyframes, 36.0, 600.0, &style)
+            render_scrubber_track(
+                &mut scope,
+                &ScrubberTrackParams {
+                    duration: 4.0,
+                    current_time: 1.5,
+                    is_dragging: false,
+                    keyframes: &keyframes,
+                    height: 36.0,
+                    track_width: 600.0,
+                    style: &style,
+                },
+            )
         };
 
         assert!(tree.get(track_id).is_some());

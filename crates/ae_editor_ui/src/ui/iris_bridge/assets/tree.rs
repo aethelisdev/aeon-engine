@@ -4,11 +4,16 @@
 //! Hierarchical Folder Tree Sidebar for Iris UI Asset Browser.
 //!
 //! Renders an interactive, collapsible directory tree using the engine's canonical
-//! vector folder logo (`ICON_FOLDER`, Layer 6) with depth indents and selection pills.
+//! vector folder logo (`ICON_FOLDER`, Layer 6) with depth indents and selection pills
+//! via 100% declarative [`UiScope`] widgets.
+//!
+//! Zero disk I/O during rendering hot loops: folder hierarchy is referenced directly
+//! from engine pre-cached state. Zero per-frame heap allocations.
 //!
 
-use super::types::{AssetsPanelParams, AssetsPanelTargets, FolderTreeNodeTarget};
-use crate::ui::iris_bridge::icons::{ICON_FOLDER, ICON_PLUS};
+use super::components::{FolderTreeItemParams, asset_folder_tree_item};
+use super::types::{ASSETS_TAG_NEW_SUBFOLDER, AssetsPanelParams};
+use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -24,144 +29,141 @@ pub fn build_folder_tree_sidebar(
     parent_id: WidgetId,
     sidebar_rect: Rect,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
 ) {
-    targets.sidebar_rect = Some(sidebar_rect);
-
-    // 1. Sidebar Container with Hardware Scissor Clipping
-    let sb_id = tree.create_node();
-    if let Some(node) = tree.get_mut(sb_id) {
-        node.set_name("FolderTreeSidebarRoot");
-        node.computed_rect = sidebar_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70))
-            .clip_children(true);
-    }
-    let _ = tree.add_child(parent_id, sb_id);
-
-    // 2. Header Bar ("FOLDERS" + "+" button)
-    let hdr_rect = Rect::new(
-        sidebar_rect.x,
-        sidebar_rect.y,
-        sidebar_rect.width,
-        FOLDER_HEADER_HEIGHT,
-    );
-    let hdr_id = tree.create_node();
-    if let Some(node) = tree.get_mut(hdr_id) {
-        node.set_name("FolderTreeHeader");
-        node.computed_rect = hdr_rect;
-        node.style = Style::new()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.50));
-    }
-    let _ = tree.add_child(sb_id, hdr_id);
-
-    // Header Label: "FOLDERS"
-    let lbl_id = tree.create_node();
-    if let Some(node) = tree.get_mut(lbl_id) {
-        node.set_name("FoldersLabel");
-        node.set_text("FOLDERS");
-        node.font_size = 11.0;
-        node.line_height = FOLDER_HEADER_HEIGHT;
-        node.text_color = Color::rgba(0.65, 0.70, 0.80, 1.0);
-        node.computed_rect = Rect::new(
-            hdr_rect.x + 8.0,
-            hdr_rect.y,
-            hdr_rect.width - 36.0,
-            FOLDER_HEADER_HEIGHT,
-        );
-    }
-    let _ = tree.add_child(hdr_id, lbl_id);
-
-    // "+" Add Subfolder Button
-    let plus_btn_rect = Rect::new(hdr_rect.right() - 26.0, hdr_rect.y + 4.0, 20.0, 20.0);
-    targets.new_subfolder_btn_rect = Some(plus_btn_rect);
-    let is_plus_hovered = plus_btn_rect.contains_point(params.cursor_pos);
-
-    let plus_id = tree.create_node();
-    if let Some(node) = tree.get_mut(plus_id) {
-        node.set_name("NewSubfolderBtn");
-        node.computed_rect = plus_btn_rect;
-        node.style = Style::new()
-            .background(if is_plus_hovered {
-                Color::rgba(0.20, 0.24, 0.32, 1.0)
-            } else {
-                Color::rgba(0.12, 0.14, 0.18, 0.80)
-            })
-            .border_radius(3.0)
-            .border(
-                1.0,
-                if is_plus_hovered {
-                    Color::rgba(0.35, 0.42, 0.55, 0.80)
-                } else {
-                    Color::rgba(0.20, 0.23, 0.30, 0.40)
-                },
-            );
-    }
-    let _ = tree.add_child(hdr_id, plus_id);
-
-    // Canonical vector plus icon quad (12x12 px centered)
-    let icon_dim = 12.0;
-    let icon_x = plus_btn_rect.x + (plus_btn_rect.width - icon_dim) * 0.5;
-    let icon_y = plus_btn_rect.y + (plus_btn_rect.height - icon_dim) * 0.5;
-    let icon_rect = Rect::new(icon_x, icon_y, icon_dim, icon_dim);
-    let icon_id = tree.create_node();
-    if let Some(node) = tree.get_mut(icon_id) {
-        node.set_name("NewSubfolderPlusIcon");
-        node.computed_rect = icon_rect;
-        node.set_texture_uv(ICON_PLUS);
-        node.set_texture_tint(if is_plus_hovered {
-            Color::WHITE
-        } else {
-            Color::rgba(0.70, 0.75, 0.85, 1.0)
-        });
-    }
-    let _ = tree.add_child(plus_id, icon_id);
-
-    // 3. Scrollable Tree Viewport
-    let vp_rect = Rect::new(
-        sidebar_rect.x,
-        sidebar_rect.y + FOLDER_HEADER_HEIGHT,
-        sidebar_rect.width,
-        sidebar_rect.height - FOLDER_HEADER_HEIGHT,
-    );
-    let vp_id = tree.create_node();
-    if let Some(node) = tree.get_mut(vp_id) {
-        node.set_name("FolderTreeViewport");
-        node.computed_rect = vp_rect;
-        node.style = Style::new().clip_children(true);
-    }
-    let _ = tree.add_child(sb_id, vp_id);
-
-    // 4. Recursively build root directory nodes starting at "assets"
-    let root_path = PathBuf::from("assets");
-    let mut cur_y = vp_rect.y + 4.0 - params.tree_scroll_y;
-    let mut ctx = FolderTreeContext {
-        vp_rect,
-        params,
-        targets,
-    };
-    render_folder_recursive(tree, vp_id, &root_path, 0, &mut cur_y, &mut ctx);
+    let mut scope = UiScope::new(tree, parent_id);
+    build_folder_tree_sidebar_scope(&mut scope, sidebar_rect, params);
 }
 
-/// Context descriptor bundling tree traversal layout parameters and hit targets.
+/// Constructs the complete hierarchical folder tree sidebar directly via a declarative [`UiScope`].
+pub fn build_folder_tree_sidebar_scope(
+    scope: &mut UiScope<'_>,
+    sidebar_rect: Rect,
+    params: &AssetsPanelParams<'_>,
+) {
+    // 1. Sidebar Container with Hardware Scissor Clipping
+    scope.container_named(
+        "FolderTreeSidebarRoot",
+        Style::new()
+            .flex_col()
+            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
+            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70))
+            .clip_children(true)
+            .width(sidebar_rect.width)
+            .height(sidebar_rect.height),
+        |sidebar| {
+            // 2. Header Bar ("FOLDERS" + "+" button)
+            let is_plus_hovered = params.hovered_tag == Some(ASSETS_TAG_NEW_SUBFOLDER);
+
+            sidebar.container_named(
+                "FolderTreeHeader",
+                Style::new()
+                    .flex_row()
+                    .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
+                    .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.50))
+                    .height(FOLDER_HEADER_HEIGHT)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::SpaceBetween)
+                    .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0)),
+                |hdr| {
+                    hdr.label_styled_passive(
+                        "FoldersLabel",
+                        "FOLDERS",
+                        11.0,
+                        Color::rgba(0.65, 0.70, 0.80, 1.0),
+                        TextAlign::Left,
+                        Style::new(),
+                    );
+
+                    hdr.container_tagged(
+                        "NewSubfolderBtn",
+                        Style::new()
+                            .width(20.0)
+                            .height(20.0)
+                            .border_radius(3.0)
+                            .background(if is_plus_hovered {
+                                Color::rgba(0.20, 0.24, 0.32, 1.0)
+                            } else {
+                                Color::rgba(0.12, 0.14, 0.18, 0.80)
+                            })
+                            .border(
+                                1.0,
+                                if is_plus_hovered {
+                                    Color::rgba(0.35, 0.42, 0.55, 0.80)
+                                } else {
+                                    Color::rgba(0.20, 0.23, 0.30, 0.40)
+                                },
+                            )
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::Center),
+                        WidgetRole::Button,
+                        ASSETS_TAG_NEW_SUBFOLDER,
+                        |btn| {
+                            btn.icon(
+                                ICON_PLUS,
+                                if is_plus_hovered {
+                                    Color::WHITE
+                                } else {
+                                    Color::rgba(0.70, 0.75, 0.85, 1.0)
+                                },
+                                12.0,
+                            );
+                        },
+                    );
+                },
+            );
+
+            // 3. Scrollable Tree Viewport
+            let vp_rect = Rect::new(
+                sidebar_rect.x,
+                sidebar_rect.y + FOLDER_HEADER_HEIGHT,
+                sidebar_rect.width,
+                sidebar_rect.height - FOLDER_HEADER_HEIGHT,
+            );
+
+            sidebar.container_named(
+                "FolderTreeViewport",
+                Style::new()
+                    .flex_col()
+                    .clip_children(true)
+                    .flex_grow(1.0)
+                    .width(sidebar_rect.width)
+                    .padding_insets(Insets::new(4.0, 0.0, 0.0, 0.0)),
+                |viewport| {
+                    let root_path = PathBuf::from("assets");
+                    let mut cur_y = vp_rect.y + 4.0 - params.tree_scroll_y;
+                    let mut tree_idx = 0;
+                    let mut ctx = FolderTreeContext { vp_rect, params };
+                    render_folder_recursive(
+                        viewport,
+                        &root_path,
+                        0,
+                        &mut cur_y,
+                        &mut tree_idx,
+                        &mut ctx,
+                    );
+                },
+            );
+        },
+    );
+}
+
+/// Context descriptor bundling tree traversal layout parameters.
 struct FolderTreeContext<'a, 'p> {
     /// Scissor-clipped scrollable viewport bounding box.
     pub vp_rect: Rect,
     /// Read-only panel rendering parameters.
     pub params: &'a AssetsPanelParams<'p>,
-    /// Mutable hit target registry.
-    pub targets: &'a mut AssetsPanelTargets,
 }
 
-/// Recursively builds folder nodes, chevrons, and custom vector `ICON_FOLDER` quads.
+/// Recursively builds folder tree rows using declarative [`asset_folder_tree_item`].
+///
+/// Pure zero-allocation traversal referencing engine pre-cached subfolders.
 fn render_folder_recursive(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     path: &Path,
     depth: usize,
     cur_y: &mut f32,
+    tree_idx: &mut usize,
     ctx: &mut FolderTreeContext<'_, '_>,
 ) {
     let folder_name = path
@@ -169,18 +171,12 @@ fn render_folder_recursive(
         .and_then(|n| n.to_str())
         .unwrap_or("assets");
 
-    // Discover child directories
-    let mut child_dirs = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let child_path = entry.path();
-            if child_path.is_dir() {
-                child_dirs.push(child_path);
-            }
-        }
-    }
-    child_dirs.sort();
-    let has_children = !child_dirs.is_empty();
+    // Discover child directories from pre-cached engine state (ZERO DISK I/O)
+    let has_children = ctx
+        .params
+        .subfolders
+        .iter()
+        .any(|p| p.parent() == Some(path));
 
     let is_selected = ctx.params.current_folder == path;
     let is_expanded = path == Path::new("assets") || ctx.params.current_folder.starts_with(path);
@@ -188,71 +184,114 @@ fn render_folder_recursive(
     let row_y = *cur_y;
     *cur_y += FOLDER_ROW_HEIGHT;
 
-    // Viewport scissor cull: skip generating quad if completely outside viewport
+    let this_idx = *tree_idx;
+    *tree_idx += 1;
+
+    // Viewport scissor cull: skip generating node if completely outside viewport
     if row_y + FOLDER_ROW_HEIGHT < ctx.vp_rect.y || row_y > ctx.vp_rect.bottom() {
         if is_expanded {
-            for child in &child_dirs {
-                render_folder_recursive(tree, parent_id, child, depth + 1, cur_y, ctx);
+            for child in ctx
+                .params
+                .subfolders
+                .iter()
+                .filter(|p| p.parent() == Some(path))
+            {
+                render_folder_recursive(scope, child, depth + 1, cur_y, tree_idx, ctx);
             }
         }
         return;
     }
 
-    let row_rect = Rect::new(
-        ctx.vp_rect.x + 4.0,
-        row_y,
-        ctx.vp_rect.width - 8.0,
-        FOLDER_ROW_HEIGHT - 2.0,
-    );
-    let is_hovered = row_rect.contains_point(ctx.params.cursor_pos);
-
-    let label_color = if is_selected {
-        Color::WHITE
-    } else if is_hovered {
-        Color::rgba(0.90, 0.92, 0.96, 1.0)
-    } else {
-        Color::rgba(0.75, 0.78, 0.85, 1.0)
-    };
-
-    let folder_icon = TreeRowIcon::Texture {
-        uv: ICON_FOLDER,
-        tint: if is_selected {
-            Color::rgba(0.0, 0.90, 1.0, 1.0) // Cyan when selected
-        } else {
-            Color::rgba(0.95, 0.76, 0.28, 1.0) // Warm folder amber
-        },
-        size: 16.0,
-    };
-
-    let frame = TreeRowBuilder::new(row_rect)
-        .name("FolderRow")
-        .depth(depth)
-        .has_children(has_children)
-        .is_expanded(is_expanded)
-        .is_selected(is_selected)
-        .is_hovered(is_hovered)
-        .draw_connector_lines(false)
-        .foldout_glyphs("▾", "▸")
-        .icon(Some(folder_icon))
-        .label(folder_name)
-        .label_color(Some(label_color))
-        .label_align(TextAlign::Left)
-        .style(TreeRowStyle::folder_default())
-        .build(tree, parent_id);
-
-    // Register Target
-    ctx.targets.folder_nodes.push(FolderTreeNodeTarget {
-        row_rect: frame.row_rect,
-        chevron_rect: frame.foldout_rect,
-        path: path.to_path_buf(),
+    // Render pure declarative tree item (Zero Target Collections, Zero Allocations)
+    let item_params = FolderTreeItemParams {
+        node_idx: this_idx as u32,
+        name: folder_name,
+        depth,
         has_children,
         is_expanded,
-    });
+        is_selected,
+        hovered_tag: ctx.params.hovered_tag,
+    };
+    asset_folder_tree_item(scope, &item_params);
 
     // Recurse children if expanded
     if is_expanded {
-        for child in &child_dirs {
-            render_folder_recursive(tree, parent_id, child, depth + 1, cur_y, ctx);
+        for child in ctx
+            .params
+            .subfolders
+            .iter()
+            .filter(|p| p.parent() == Some(path))
+        {
+            render_folder_recursive(scope, child, depth + 1, cur_y, tree_idx, ctx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assets::types::{AssetCategory, AssetItem, AssetViewMode};
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_tree_sidebar_declarative_build() {
+        let mut tree = UiTree::new();
+        let root_id = tree.create_root().expect("Root node creation failed");
+        let current_folder = PathBuf::from("assets");
+        let items: Vec<AssetItem> = Vec::new();
+        let subfolders = vec![
+            PathBuf::from("assets/models"),
+            PathBuf::from("assets/textures"),
+        ];
+
+        let params = AssetsPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
+            screen_size: (1280.0, 720.0),
+            current_folder: &current_folder,
+            search_query: "",
+            is_search_focused: false,
+            active_category: AssetCategory::All,
+            view_mode: AssetViewMode::Grid,
+            selected_asset: None,
+            cached_items: &items,
+            filtered_items: &items,
+            is_2d_mode: false,
+            show_engine_content: false,
+            sidebar_width: 180.0,
+            sidebar_collapsed: false,
+            scroll_y: 0.0,
+            tree_scroll_y: 0.0,
+            cursor_pos: Point::new(0.0, 0.0),
+            blink_caret: false,
+            active_context_menu: None,
+            active_preview_modal: None,
+            subfolders: &subfolders,
+            hovered_tag: None,
+            thumbnail_layers: &HashMap::new(),
+        };
+
+        build_folder_tree_sidebar(
+            &mut tree,
+            root_id,
+            Rect::new(0.0, 0.0, 180.0, 500.0),
+            &params,
+        );
+
+        let found_sidebar = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("FolderTreeSidebarRoot"));
+        let found_header = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("FolderTreeHeader"));
+        let found_viewport = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("FolderTreeViewport"));
+        let found_row = tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("FolderTreeRow"));
+        assert!(found_sidebar, "FolderTreeSidebarRoot should be emitted");
+        assert!(found_header, "FolderTreeHeader should be emitted");
+        assert!(found_viewport, "FolderTreeViewport should be emitted");
+        assert!(found_row, "FolderTreeRow should be emitted");
     }
 }

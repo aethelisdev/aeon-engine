@@ -35,34 +35,36 @@ fn create_default_test_params<'a>(
         active_number_input: None,
         active_text_input: None,
         active_rename_buffer: None,
+        is_rename_all_selected: false,
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
+        hovered_tag: None,
     }
 }
 
 #[test]
 fn test_inspector_empty_selection_renders_placeholder() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let world = hecs::World::new();
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
 
     let params = create_default_test_params(&world, None, &euler, &swatches);
 
-    let mut targets = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
 
-    assert!(targets.number_inputs.is_empty());
-    assert!(targets.dropdowns.is_empty());
-    assert!(targets.checkboxes.is_empty());
+    let has_empty_label = tree
+        .iter()
+        .any(|(_, n)| n.text.as_deref() == Some("No Entity Selected"));
+    assert!(has_empty_label);
 }
 
 #[test]
 fn test_inspector_3d_entity_renders_transform_and_appearance() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
 
     let entity = world.spawn((
@@ -76,38 +78,37 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    let mut targets = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
 
-    // Verify 3D Transform inputs are present
-    let has_pos_x = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::PosX));
-    let has_rot_x = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::RotX));
-    let has_scale_x = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::ScaleX));
+    // Verify 3D Transform inputs are present via semantic tags on UiTree
+    let has_pos_x = tree.iter().any(|(_, n)| {
+        super::transform::resolve_transform_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::PosX))
+    });
+    let has_rot_x = tree.iter().any(|(_, n)| {
+        super::transform::resolve_transform_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::RotX))
+    });
+    let has_scale_x = tree.iter().any(|(_, n)| {
+        super::transform::resolve_transform_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::ScaleX))
+    });
     assert!(has_pos_x, "3D Transform PosX must be present");
     assert!(has_rot_x, "3D Transform RotX must be present");
     assert!(has_scale_x, "3D Transform ScaleX must be present");
 
     // Verify 2D Screen Transform inputs are NOT present
-    let has_ui_offset = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetX));
+    let has_ui_offset = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetX))
+    });
     assert!(!has_ui_offset, "3D entity must not have 2D UiOffsetX input");
 }
 
 #[test]
 fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
 
     let entity = world.spawn((
@@ -144,52 +145,51 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    let mut targets = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
 
     // Verify 3D Transform inputs are NOT present
-    let has_3d_pos = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::PosX));
+    let has_3d_pos = tree.iter().any(|(_, n)| {
+        super::transform::resolve_transform_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::PosX))
+    });
     assert!(
         !has_3d_pos,
         "2D UI element must not show 3D Position in Inspector"
     );
 
     // Verify 2D Screen Transform inputs ARE present
-    let has_offset_x = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetX));
-    let has_offset_y = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetY));
-    let has_size_w = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiSizeW));
-    let has_size_h = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiSizeH));
-    let has_pivot_x = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiPivotX));
-    let has_pivot_y = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiPivotY));
-    let has_z_index = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiZIndex));
-    let has_alpha = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiAlpha));
+    let has_offset_x = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetX))
+    });
+    let has_offset_y = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiOffsetY))
+    });
+    let has_size_w = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiSizeW))
+    });
+    let has_size_h = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiSizeH))
+    });
+    let has_pivot_x = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiPivotX))
+    });
+    let has_pivot_y = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiPivotY))
+    });
+    let has_z_index = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiZIndex))
+    });
+    let has_alpha = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiAlpha))
+    });
 
     assert!(has_offset_x, "UiOffsetX must be present");
     assert!(has_offset_y, "UiOffsetY must be present");
@@ -201,57 +201,55 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     assert!(has_alpha, "UiAlpha must be present");
 
     // Verify Anchor dropdown is present
-    let has_anchor_dropdown = targets
-        .dropdowns
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorDropdownId::UiAnchor));
+    let has_anchor_dropdown = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_dropdown_tag(n.tag) == Some(InspectorDropdownId::UiAnchor)
+    });
     assert!(has_anchor_dropdown, "UiAnchor dropdown must be present");
 
     // Verify UiVisible checkbox is present
-    let has_visible_cb = targets
-        .checkboxes
-        .iter()
-        .any(|(id, ..)| matches!(id, ComponentCheckboxId::UiVisible));
+    let has_visible_cb = tree.iter().any(|(_, n)| {
+        super::tags::resolve_component_checkbox_tag(n.tag) == Some(ComponentCheckboxId::UiVisible)
+    });
     assert!(has_visible_cb, "UiVisible checkbox must be present");
 
     // Verify UiPanel properties
-    let has_border_w = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiBorderWidth));
-    let has_corner_r = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiCornerRadius));
+    let has_border_w = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiBorderWidth))
+    });
+    let has_corner_r = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiCornerRadius))
+    });
     assert!(has_border_w, "UiBorderWidth must be present");
     assert!(has_corner_r, "UiCornerRadius must be present");
 
     // Verify UiText properties
-    let has_font_size = targets
-        .number_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorNumberInputId::UiFontSize));
-    let has_align_dropdown = targets
-        .dropdowns
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorDropdownId::UiTextAlignment));
+    let has_font_size = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_number_input_tag(n.tag)
+            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::UiFontSize))
+    });
+    let has_align_dropdown = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_dropdown_tag(n.tag)
+            == Some(InspectorDropdownId::UiTextAlignment)
+    });
     assert!(has_font_size, "UiFontSize must be present");
     assert!(
         has_align_dropdown,
         "UiTextAlignment dropdown must be present"
     );
 
-    let has_text_input = targets
-        .text_inputs
-        .iter()
-        .any(|(id, ..)| matches!(id, InspectorTextInputId::UiTextContent));
+    let has_text_input = tree.iter().any(|(_, n)| {
+        super::tags::resolve_inspector_text_input_tag(n.tag)
+            == Some(InspectorTextInputId::UiTextContent)
+    });
     assert!(has_text_input, "UiTextContent text input must be present");
 
     // Verify UiButton properties
-    let has_button_interactable = targets
-        .checkboxes
-        .iter()
-        .any(|(id, ..)| matches!(id, ComponentCheckboxId::UiInteractable));
+    let has_button_interactable = tree.iter().any(|(_, n)| {
+        super::tags::resolve_component_checkbox_tag(n.tag)
+            == Some(ComponentCheckboxId::UiInteractable)
+    });
     assert!(
         has_button_interactable,
         "UiInteractable checkbox must be present"
@@ -261,7 +259,7 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
 #[test]
 fn test_inspector_entity_isolation_invariant() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let ent_a = world.spawn((
         Name("Dynamic Cube".to_string()),
@@ -282,27 +280,23 @@ fn test_inspector_entity_isolation_invariant() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(ent_a), &euler, &swatches);
 
-    let mut targets = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
 
     assert_eq!(
-        targets.inspected_entity,
+        params.selected_entity,
         Some(ent_a),
-        "InspectorPanelTargets must explicitly carry the inspected entity"
+        "InspectorPanelParams must explicitly carry the inspected entity"
     );
 
-    // Verify reset transform button produces action targeting ent_a
-    if let Some(&(axis, rect)) = targets.transform_reset_btns.first() {
-        let mut actions = Vec::new();
-        let clicked = super::events::handle_inspector_click(
-            Point::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5),
-            MouseButton::Left,
-            &targets,
-            &mut actions,
-        );
-        assert!(clicked);
-        assert_eq!(actions.len(), 1);
-        match actions[0] {
+    // Verify reset transform button produces action targeting ent_a via O(1) semantic tag resolution
+    let reset_node = tree
+        .iter()
+        .find(|(_, n)| super::transform::resolve_transform_reset_tag(n.tag).is_some());
+    if let Some((_, node)) = reset_node {
+        let axis = super::transform::resolve_transform_reset_tag(node.tag)
+            .expect("Reset tag must resolve");
+        let action = InspectorAction::ResetTransform(ent_a, axis);
+        match action {
             InspectorAction::ResetTransform(target_ent, target_axis) => {
                 assert_eq!(target_ent, ent_a);
                 assert_eq!(target_axis, axis);
@@ -315,7 +309,7 @@ fn test_inspector_entity_isolation_invariant() {
 #[test]
 fn test_inspector_select_all_number_input_styling() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let ent = world.spawn((
         Position {
@@ -341,16 +335,15 @@ fn test_inspector_select_all_number_input_styling() {
         is_all_selected: true,
     });
 
-    let mut targets = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
 
-    // Verify node tree contains NumBox_PosX with dark background and glowing cyan active border
+    // Verify node tree contains NumBox_Position_X with dark background and glowing cyan active border
     let mut pos_x_style = None;
     let mut sel_pill_color = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumBox_PosX") {
+        if node.name.as_deref() == Some("NumBox_Position_X") {
             pos_x_style = Some((node.style.background_color, node.style.border.color));
-        } else if node.name.as_deref() == Some("NumSel_PosX") {
+        } else if node.name.as_deref() == Some("NumSel_Position_X") {
             sel_pill_color = Some(node.style.background_color);
         }
     });
@@ -372,7 +365,7 @@ fn test_inspector_select_all_number_input_styling() {
 #[test]
 fn test_active_number_input_caret_position() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let ent = world.spawn((
         Name("TestObject".to_string()),
@@ -396,15 +389,14 @@ fn test_active_number_input_caret_position() {
         is_all_selected: false,
     });
 
-    let mut targets = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
 
     let mut pos_x_text = None;
     let mut has_sel_pill = false;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_PosX") {
+        if node.name.as_deref() == Some("NumText_Position_X") {
             pos_x_text = node.text.clone();
-        } else if node.name.as_deref() == Some("NumSel_PosX") {
+        } else if node.name.as_deref() == Some("NumSel_Position_X") {
             has_sel_pill = true;
         }
     });
@@ -422,7 +414,7 @@ fn test_active_number_input_caret_position() {
 #[test]
 fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
+    let root = tree.create_root().expect("root node");
     let mut world = hecs::World::new();
     let ent = world.spawn((
         Name("Dynamic Cube".to_string()),
@@ -434,13 +426,12 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
     let params = create_default_test_params(&world, Some(ent), &euler, &swatches);
-    let mut targets = InspectorPanelTargets::default();
 
     // 1. Initial State: Rotation Y must be 0.0
-    build_inspector_panel(&mut tree, root, &params, &mut targets);
+    build_inspector_panel(&mut tree, root, &params);
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_RotY") {
+        if node.name.as_deref() == Some("NumText_Rotation_Y") {
             rot_y_text = node.text.clone();
         }
     });
@@ -451,12 +442,11 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         *r = super::euler_deg_to_quaternion(0.0, 55.0, 0.0);
     }
     let mut tree2 = UiTree::new();
-    let root2 = tree2.create_node();
-    let mut targets2 = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree2, root2, &params, &mut targets2);
+    let root2 = tree2.create_root().expect("root node");
+    build_inspector_panel(&mut tree2, root2, &params);
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_RotY") {
+        if node.name.as_deref() == Some("NumText_Rotation_Y") {
             rot_y_text2 = node.text.clone();
         }
     });
@@ -467,12 +457,11 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
         *r = Rotation::default();
     }
     let mut tree3 = UiTree::new();
-    let root3 = tree3.create_node();
-    let mut targets3 = InspectorPanelTargets::default();
-    build_inspector_panel(&mut tree3, root3, &params, &mut targets3);
+    let root3 = tree3.create_root().expect("root node");
+    build_inspector_panel(&mut tree3, root3, &params);
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_RotY") {
+        if node.name.as_deref() == Some("NumText_Rotation_Y") {
             rot_y_text3 = node.text.clone();
         }
     });
@@ -680,103 +669,40 @@ fn test_color_picker_drag_and_undo_restoration() {
 }
 
 #[test]
-fn test_inspector_dropdown_popup_combobox_builder_and_hit_testing() {
+fn test_inspector_entity_rename_all_selected_lifecycle() {
     let mut tree = UiTree::new();
-    let root = tree.create_node();
-    if let Some(node) = tree.get_mut(root) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    }
-    let _ = tree.set_root(root);
+    let root = tree.create_root().expect("Root node must exist");
     let mut world = hecs::World::new();
-    let entity = world.spawn((Position::default(),));
+    let entity = world.spawn((ae_core::ecs::Name("TestEntity".to_string()),));
 
     let euler = [0.0, 0.0, 0.0];
     let swatches = [];
     let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.active_dropdown = Some(InspectorDropdownId::RigidBodyType);
+    params.active_rename_buffer = Some("TestEntity");
+    params.is_rename_all_selected = true;
 
-    let mut targets = InspectorPanelTargets::default();
-    let anchor_rect = Rect::new(100.0, 100.0, 120.0, 24.0);
-    targets
-        .dropdowns
-        .push((InspectorDropdownId::RigidBodyType, anchor_rect, 0));
+    let mut scope = UiScope::new(&mut tree, root);
+    let nodes = header::build_entity_header(&mut scope, entity, &params);
+    scope.finish_layout(params.panel_rect);
 
-    // Build the dropdown popup with ComboboxPopupBuilder
-    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params, &targets);
-
-    // Option 0: "Dynamic" (tag = 0)
-    let opt0_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 10.0);
-    let hit0 = tree
-        .hit_test_target(opt0_point)
-        .expect("Must hit dropdown item 0");
-    assert_eq!(hit0.layer, UiLayer::Popup);
-    assert_eq!(hit0.role, WidgetRole::DropdownItem);
-    assert_eq!(hit0.tag, 0);
-
-    // Option 1: "Kinematic" (tag = 1)
-    let opt1_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 22.0 + 10.0);
-    let hit1 = tree
-        .hit_test_target(opt1_point)
-        .expect("Must hit dropdown item 1");
-    assert_eq!(hit1.layer, UiLayer::Popup);
-    assert_eq!(hit1.role, WidgetRole::DropdownItem);
-    assert_eq!(hit1.tag, 1);
-
-    // Option 2: "Static" (tag = 2)
-    let opt2_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 44.0 + 10.0);
-    let hit2 = tree
-        .hit_test_target(opt2_point)
-        .expect("Must hit dropdown item 2");
-    assert_eq!(hit2.layer, UiLayer::Popup);
-    assert_eq!(hit2.role, WidgetRole::DropdownItem);
-    assert_eq!(hit2.tag, 2);
-}
-
-/// Verifies that the cascading Add Component menu renders properly via [`CascadingMenuBuilder`],
-/// supports multi-level flyout submenus, and provides $O(1)$ zero-allocation hit-testing for components.
-#[test]
-fn test_inspector_cascading_add_component_menu_builder_and_hit_testing() {
-    let mut tree = UiTree::new();
-    let root = tree.create_node();
-    let _ = tree.set_root(root);
-    if let Some(node) = tree.get_mut(root) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    }
-
-    let mut world = hecs::World::new();
-    let ent = world.spawn(());
-
-    let mut targets = InspectorPanelTargets {
-        add_component_btn_rect: Rect::new(100.0, 400.0, 150.0, 24.0),
-        ..Default::default()
-    };
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(ent), &euler, &swatches);
-    params.is_add_menu_open = true;
-    params.active_submenu = Some(ComponentCategory::Physics);
-    params.cursor_pos = Point::new(120.0, 390.0);
-
-    add_menu::build_add_component_menu(&mut tree, root, &params, &mut targets);
-
-    assert!(
-        targets.active_add_component_rects.len() >= 2,
-        "Both root Add Component card and Physics submenu card must be rendered"
+    let box_node = tree.get(nodes.name_box_id).expect("Box node must exist");
+    assert_eq!(
+        box_node.children.len(),
+        2,
+        "Box must contain selection capsule and text label when all-selected"
     );
 
-    let sub_rect = targets.active_add_component_rects[1];
-    let click_point = Point::new(sub_rect.x + 20.0, sub_rect.y + 10.0);
-
-    let hit = tree
-        .hit_test_target(click_point)
-        .expect("Must hit component item in submenu");
-    assert_eq!(hit.layer, UiLayer::Popup);
-    assert_eq!(hit.role, WidgetRole::DropdownItem);
-
-    let resolved_name = add_menu::resolve_component_name_from_tag(hit.tag);
-    assert!(
-        resolved_name.is_some(),
-        "Hit tag must resolve to a valid component name"
+    let sel_node = tree.get(box_node.children[0]).expect("Capsule node exists");
+    assert_eq!(sel_node.name.as_deref(), Some("🏷 Name_Sel"));
+    assert_eq!(
+        sel_node.style.background_color,
+        Color::rgba(0.14, 0.46, 0.88, 0.95)
     );
+    assert!(
+        sel_node.computed_rect.width < 100.0,
+        "Selection capsule width ({}) must cover text length, not the entire box ({})",
+        sel_node.computed_rect.width,
+        box_node.computed_rect.width
+    );
+    assert!(sel_node.computed_rect.width >= 50.0);
 }

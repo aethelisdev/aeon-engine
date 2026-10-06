@@ -157,50 +157,49 @@ impl IrisEditorOverlay {
                     }
 
                     // E. Eye Visibility Toggle Button
-                    if let Some(row_idx) = parse_eye_tag(effective_tag) {
-                        if let Some(row) = self.hierarchy.rows_cache.get(row_idx) {
-                            self.hierarchy
-                                .actions
-                                .push(HierarchyAction::ToggleVisibility(row.entity));
-                            self.notifier.tag_all();
-                            result.consumed = true;
-                            return Some(result);
-                        }
+                    if let Some(row_idx) = parse_eye_tag(effective_tag)
+                        && let Some(row) = self.hierarchy.rows_cache.get(row_idx)
+                    {
+                        self.hierarchy
+                            .actions
+                            .push(HierarchyAction::ToggleVisibility(row.entity));
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
                     }
 
                     // E2. Foldout Expand/Collapse Toggle Button
-                    if let Some(row_idx) = parse_foldout_tag(effective_tag) {
-                        if let Some(row) = self.hierarchy.rows_cache.get(row_idx) {
-                            if self.hierarchy.collapsed_entities.contains(&row.entity) {
-                                self.hierarchy.collapsed_entities.remove(&row.entity);
-                            } else {
-                                self.hierarchy.collapsed_entities.insert(row.entity);
-                            }
-                            self.notifier.tag_all();
-                            result.consumed = true;
-                            return Some(result);
+                    if let Some(row_idx) = parse_foldout_tag(effective_tag)
+                        && let Some(row) = self.hierarchy.rows_cache.get(row_idx)
+                    {
+                        if self.hierarchy.collapsed_entities.contains(&row.entity) {
+                            self.hierarchy.collapsed_entities.remove(&row.entity);
+                        } else {
+                            self.hierarchy.collapsed_entities.insert(row.entity);
                         }
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
                     }
 
                     // F. Entity Row Selection / Context Menu
-                    if let Some(row_idx) = parse_row_tag(effective_tag) {
-                        if let Some(row) = self.hierarchy.rows_cache.get(row_idx) {
-                            if ui_button == MouseButton::Right {
-                                self.hierarchy
-                                    .actions
-                                    .push(HierarchyAction::SelectEntity(Some(row.entity)));
-                                self.hierarchy.active_context_menu =
-                                    Some((row.entity, click_point));
-                                self.hierarchy.is_add_menu_open = false;
-                            } else {
-                                self.hierarchy
-                                    .actions
-                                    .push(HierarchyAction::SelectEntity(Some(row.entity)));
-                            }
-                            self.notifier.tag_all();
-                            result.consumed = true;
-                            return Some(result);
+                    if let Some(row_idx) = parse_row_tag(effective_tag)
+                        && let Some(row) = self.hierarchy.rows_cache.get(row_idx)
+                    {
+                        if ui_button == MouseButton::Right {
+                            self.hierarchy
+                                .actions
+                                .push(HierarchyAction::SelectEntity(Some(row.entity)));
+                            self.hierarchy.active_context_menu = Some((row.entity, click_point));
+                            self.hierarchy.is_add_menu_open = false;
+                        } else {
+                            self.hierarchy
+                                .actions
+                                .push(HierarchyAction::SelectEntity(Some(row.entity)));
                         }
+                        self.notifier.tag_all();
+                        result.consumed = true;
+                        return Some(result);
                     }
 
                     // G. Panel Root or background click

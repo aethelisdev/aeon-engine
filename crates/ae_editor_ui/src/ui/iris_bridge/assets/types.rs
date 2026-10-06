@@ -83,60 +83,6 @@ pub enum AssetsContextMenuTarget {
     Folder(PathBuf),
 }
 
-/// Hit-testing bounding boxes and target descriptors for breadcrumb navigation items.
-#[derive(Debug, Clone)]
-pub struct BreadcrumbTarget {
-    /// Bounding rectangle of the breadcrumb button.
-    pub rect: Rect,
-    /// Target folder path when clicked.
-    pub path: PathBuf,
-}
-
-/// Hit-testing bounding boxes and target descriptors for folder tree sidebar rows.
-#[derive(Debug, Clone)]
-pub struct FolderTreeNodeTarget {
-    /// Bounding rectangle of the complete folder tree row.
-    pub row_rect: Rect,
-    /// Optional bounding rectangle of the expand/collapse chevron icon.
-    pub chevron_rect: Option<Rect>,
-    /// Target directory path for this tree node.
-    pub path: PathBuf,
-    /// Whether this directory has child subdirectories.
-    pub has_children: bool,
-    /// Whether this folder node is currently expanded.
-    pub is_expanded: bool,
-}
-
-/// Hit-testing bounding boxes and target descriptors for asset grid cards.
-#[derive(Debug, Clone)]
-pub struct AssetCardTarget {
-    /// Bounding rectangle of the complete asset card.
-    pub rect: Rect,
-    /// Reference path to the underlying asset on disk.
-    pub path: PathBuf,
-    /// Classified category of the asset.
-    pub category: AssetCategory,
-    /// Clone of item metadata for double-click spawning or inspection.
-    pub item: AssetItem,
-}
-
-/// Hit-testing bounding boxes and target descriptors for asset list view table rows.
-#[derive(Debug, Clone)]
-pub struct AssetRowTarget {
-    /// Bounding rectangle of the complete table row.
-    pub rect: Rect,
-    /// Bounding rectangle of the direct Spawn action button, if available.
-    pub spawn_btn_rect: Option<Rect>,
-    /// Bounding rectangle of the direct Inspect action button.
-    pub inspect_btn_rect: Option<Rect>,
-    /// Reference path to the underlying asset on disk.
-    pub path: PathBuf,
-    /// Classified category of the asset.
-    pub category: AssetCategory,
-    /// Clone of item metadata for double-click spawning or inspection.
-    pub item: AssetItem,
-}
-
 /// Numerical tags assigned to items within the Asset Browser right-click context menu.
 pub const ASSET_CTX_INSPECT: u64 = 0;
 /// Numerical tag for spawning an asset into the active scene.
@@ -157,13 +103,218 @@ pub const ASSET_PREVIEW_TAG_REVEAL: u64 = 0xF010;
 /// Semantic interaction tag for the asset preview 3D model orbit canvas.
 pub const ASSET_PREVIEW_TAG_ORBIT: u64 = 0xF011;
 
-/// Hit-testing targets for an active Asset Browser right-click context menu.
-#[derive(Debug, Clone)]
-pub struct AssetsContextMenuTargets {
-    /// Full bounding box of the floating context menu card (used for outside-click dismissal).
-    pub card_rect: Rect,
-    /// Target subject of the active context menu.
-    pub target: AssetsContextMenuTarget,
+// ============================================================================
+// 64-BIT DOMAIN SEMANTIC TAGS & BITMASKING RULES (O(1) HIT TESTING)
+// ============================================================================
+
+/// 64-bit Domain identifier for native Iris UI Content / Asset Browser panel elements.
+pub const ASSETS_TAG_DOMAIN: u64 = 0x0090_0000_0000_0000;
+/// Bitmask isolating the 16-bit Asset Browser domain prefix.
+pub const ASSETS_TAG_DOMAIN_MASK: u64 = 0xFFFF_0000_0000_0000;
+
+// --- Primary Panel Controls ---
+/// Semantic tag for the primary Asset Browser panel root container.
+pub const ASSETS_TAG_PANEL_ROOT: u64 = ASSETS_TAG_DOMAIN | 0x0001;
+/// Semantic tag for toggling the folder tree sidebar.
+pub const ASSETS_TAG_TOGGLE_SIDEBAR: u64 = ASSETS_TAG_DOMAIN | 0x0002;
+/// Semantic tag for triggering model/texture import dialog.
+pub const ASSETS_TAG_IMPORT: u64 = ASSETS_TAG_DOMAIN | 0x0003;
+/// Semantic tag for sweeping unreferenced VRAM GPU assets.
+pub const ASSETS_TAG_CLEAN_VRAM: u64 = ASSETS_TAG_DOMAIN | 0x0004;
+/// Semantic tag for switching presentation to responsive grid card view.
+pub const ASSETS_TAG_VIEW_GRID: u64 = ASSETS_TAG_DOMAIN | 0x0005;
+/// Semantic tag for switching presentation to detailed tabular list view.
+pub const ASSETS_TAG_VIEW_LIST: u64 = ASSETS_TAG_DOMAIN | 0x0006;
+/// Semantic tag for toggling visibility of built-in engine content.
+pub const ASSETS_TAG_ENGINE_CONTENT: u64 = ASSETS_TAG_DOMAIN | 0x0007;
+/// Semantic tag for the live asset search text input box.
+pub const ASSETS_TAG_SEARCH_INPUT: u64 = ASSETS_TAG_DOMAIN | 0x0008;
+/// Semantic tag for clearing the active search filter query.
+pub const ASSETS_TAG_SEARCH_CLEAR: u64 = ASSETS_TAG_DOMAIN | 0x0009;
+/// Semantic tag for primary content scrollbar track.
+pub const ASSETS_TAG_SCROLLBAR_TRACK: u64 = ASSETS_TAG_DOMAIN | 0x000A;
+/// Semantic tag for primary content scrollbar draggable thumb.
+pub const ASSETS_TAG_SCROLLBAR_THUMB: u64 = ASSETS_TAG_DOMAIN | 0x000B;
+/// Semantic tag for folder tree sidebar scrollbar track.
+pub const ASSETS_TAG_TREE_SCROLLBAR_TRACK: u64 = ASSETS_TAG_DOMAIN | 0x000C;
+/// Semantic tag for folder tree sidebar scrollbar draggable thumb.
+pub const ASSETS_TAG_TREE_SCROLLBAR_THUMB: u64 = ASSETS_TAG_DOMAIN | 0x000D;
+/// Semantic tag for creating a new subfolder in the folder tree sidebar.
+pub const ASSETS_TAG_NEW_SUBFOLDER: u64 = ASSETS_TAG_DOMAIN | 0x000E;
+/// Semantic tag for revealing the active folder in the OS file explorer.
+pub const ASSETS_TAG_REVEAL: u64 = ASSETS_TAG_DOMAIN | 0x000F;
+
+// --- Modal & Floating Preview Controls ---
+/// Semantic tag for closing the quick asset preview modal.
+pub const ASSETS_TAG_PREVIEW_CLOSE: u64 = ASSETS_TAG_DOMAIN | 0x0010;
+/// Semantic tag for revealing previewed asset in the OS file explorer.
+pub const ASSETS_TAG_PREVIEW_REVEAL_BTN: u64 = ASSETS_TAG_DOMAIN | 0x0011;
+/// Semantic tag for the 3D asset orbital camera canvas.
+pub const ASSETS_TAG_PREVIEW_ORBIT_CANVAS: u64 = ASSETS_TAG_DOMAIN | 0x0012;
+/// Semantic tag for toggling 3D preview wireframe edges.
+pub const ASSETS_TAG_PREVIEW_WIREFRAME_BTN: u64 = ASSETS_TAG_DOMAIN | 0x0013;
+
+// --- Dynamic Sub-Domains (Bitmasked Payloads) ---
+/// Base prefix for category filter chips (payload: category index `0..8`).
+pub const ASSETS_TAG_CHIP_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0000_0100;
+/// Bitmask isolating category filter chip payload.
+pub const ASSETS_TAG_CHIP_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
+
+/// Base prefix for breadcrumb navigation segments (payload: segment index `0..255`).
+pub const ASSETS_TAG_BREADCRUMB_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0000_0200;
+/// Bitmask isolating breadcrumb segment payload.
+pub const ASSETS_TAG_BREADCRUMB_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
+
+/// Base prefix for context menu actions (payload: action index `0..15`).
+pub const ASSETS_TAG_CTX_ITEM_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0000_0300;
+/// Bitmask isolating context menu action payload.
+pub const ASSETS_TAG_CTX_ITEM_MASK: u64 = 0xFFFF_FFFF_FFFF_FF00;
+
+/// Base prefix for folder tree directory rows (payload: node index `0..u32::MAX`).
+pub const ASSETS_TAG_TREE_ROW_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0001_0000_0000;
+/// Base prefix for folder tree expand/collapse chevron buttons.
+pub const ASSETS_TAG_TREE_CHEVRON_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0002_0000_0000;
+/// Bitmask isolating folder tree category prefix.
+pub const ASSETS_TAG_TREE_PREFIX_MASK: u64 = 0xFFFF_FFFF_0000_0000;
+/// Bitmask isolating 32-bit payload index.
+pub const ASSETS_TAG_PAYLOAD_MASK: u64 = 0x0000_0000_FFFF_FFFF;
+
+/// Base prefix for asset items in grid/list (primary card selection, double click, drag).
+pub const ASSETS_TAG_ITEM_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0010_0000_0000;
+/// Base prefix for table row direct Spawn button.
+pub const ASSETS_TAG_ITEM_SPAWN_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0020_0000_0000;
+/// Base prefix for table row direct Inspect button.
+pub const ASSETS_TAG_ITEM_INSPECT_BASE: u64 = ASSETS_TAG_DOMAIN | 0x0000_0030_0000_0000;
+/// Bitmask isolating item action type prefix.
+pub const ASSETS_TAG_ITEM_PREFIX_MASK: u64 = 0xFFFF_FFF0_0000_0000;
+
+/// Discriminator for interaction targets within an individual asset card or row.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AssetItemAction {
+    /// Selects the asset, or opens it on double-click.
+    SelectOrOpen,
+    /// Spawns the asset into the active 3D scene immediately.
+    Spawn,
+    /// Opens the Quick Asset Inspector orbital preview window.
+    Inspect,
+}
+
+/// Encodes a category filter chip index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_chip_tag(category_idx: u8) -> u64 {
+    ASSETS_TAG_CHIP_BASE | (category_idx as u64)
+}
+
+/// Decodes a 64-bit semantic tag into a category filter chip index, if matching.
+#[inline]
+pub fn parse_chip_tag(tag: u64) -> Option<u8> {
+    if (tag & ASSETS_TAG_CHIP_MASK) == ASSETS_TAG_CHIP_BASE {
+        Some((tag & 0xFF) as u8)
+    } else {
+        None
+    }
+}
+
+/// Encodes a breadcrumb segment index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_breadcrumb_tag(segment_idx: u8) -> u64 {
+    ASSETS_TAG_BREADCRUMB_BASE | (segment_idx as u64)
+}
+
+/// Decodes a 64-bit semantic tag into a breadcrumb segment index, if matching.
+#[inline]
+pub fn parse_breadcrumb_tag(tag: u64) -> Option<u8> {
+    if (tag & ASSETS_TAG_BREADCRUMB_MASK) == ASSETS_TAG_BREADCRUMB_BASE {
+        Some((tag & 0xFF) as u8)
+    } else {
+        None
+    }
+}
+
+/// Encodes a context menu action index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_ctx_item_tag(action_idx: u8) -> u64 {
+    ASSETS_TAG_CTX_ITEM_BASE | (action_idx as u64)
+}
+
+/// Decodes a 64-bit semantic tag into a context menu action index, if matching.
+#[inline]
+pub fn parse_ctx_item_tag(tag: u64) -> Option<u8> {
+    if (tag & ASSETS_TAG_CTX_ITEM_MASK) == ASSETS_TAG_CTX_ITEM_BASE {
+        Some((tag & 0xFF) as u8)
+    } else {
+        None
+    }
+}
+
+/// Encodes a folder tree row node index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_tree_row_tag(node_idx: u32) -> u64 {
+    ASSETS_TAG_TREE_ROW_BASE | (node_idx as u64)
+}
+
+/// Encodes a folder tree chevron button index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_tree_chevron_tag(node_idx: u32) -> u64 {
+    ASSETS_TAG_TREE_CHEVRON_BASE | (node_idx as u64)
+}
+
+/// Decodes a 64-bit semantic tag into a folder tree node index and chevron flag, if matching.
+///
+/// Returns `Some((node_idx, is_chevron))`.
+#[inline]
+pub fn parse_tree_tag(tag: u64) -> Option<(u32, bool)> {
+    let prefix = tag & ASSETS_TAG_TREE_PREFIX_MASK;
+    let idx = (tag & ASSETS_TAG_PAYLOAD_MASK) as u32;
+    if prefix == ASSETS_TAG_TREE_ROW_BASE {
+        Some((idx, false))
+    } else if prefix == ASSETS_TAG_TREE_CHEVRON_BASE {
+        Some((idx, true))
+    } else {
+        None
+    }
+}
+
+/// Encodes an asset card or row selection target index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_item_tag(item_idx: u32) -> u64 {
+    ASSETS_TAG_ITEM_BASE | (item_idx as u64)
+}
+
+/// Encodes a list table row direct Spawn button index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_item_spawn_tag(item_idx: u32) -> u64 {
+    ASSETS_TAG_ITEM_SPAWN_BASE | (item_idx as u64)
+}
+
+/// Encodes a list table row direct Inspect button index into a 64-bit semantic tag.
+#[inline]
+pub fn encode_item_inspect_tag(item_idx: u32) -> u64 {
+    ASSETS_TAG_ITEM_INSPECT_BASE | (item_idx as u64)
+}
+
+/// Decodes a 64-bit semantic tag into an asset item index and action type, if matching.
+///
+/// Returns `Some((item_idx, action))`.
+#[inline]
+pub fn parse_item_tag(tag: u64) -> Option<(u32, AssetItemAction)> {
+    let prefix = tag & ASSETS_TAG_ITEM_PREFIX_MASK;
+    let idx = (tag & ASSETS_TAG_PAYLOAD_MASK) as u32;
+    if prefix == ASSETS_TAG_ITEM_BASE {
+        Some((idx, AssetItemAction::SelectOrOpen))
+    } else if prefix == ASSETS_TAG_ITEM_SPAWN_BASE {
+        Some((idx, AssetItemAction::Spawn))
+    } else if prefix == ASSETS_TAG_ITEM_INSPECT_BASE {
+        Some((idx, AssetItemAction::Inspect))
+    } else {
+        None
+    }
+}
+
+/// Evaluates whether a 64-bit semantic tag belongs to the Asset Browser domain.
+#[inline]
+pub fn is_assets_tag(tag: u64) -> bool {
+    (tag & ASSETS_TAG_DOMAIN_MASK) == ASSETS_TAG_DOMAIN
 }
 
 /// Dynamic runtime state parameters for the 3D Quick Asset Preview orbital camera.
@@ -206,64 +357,20 @@ impl Default for AssetPreviewModalState {
     }
 }
 
-/// Hit-testing targets for the Quick Asset Preview modal window.
-#[derive(Debug, Clone, PartialEq)]
-pub struct AssetPreviewModalTargets {
-    /// Inspected asset metadata.
-    pub item: AssetItem,
-}
-
-/// Interactive hit-testing target collection populated during Asset Browser panel construction.
-#[derive(Debug, Default, Clone)]
-pub struct AssetsPanelTargets {
+/// Calculated geometry metrics from the Asset Browser panel declarative layout.
+///
+/// Encapsulates the outer panel bounds, collapsible sidebar area, asset content viewport,
+/// and optional floating context menu card bounding box resolved during declarative layout.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AssetsPanelLayoutMetrics {
     /// Total bounding rectangle of the asset browser panel.
     pub panel_rect: Rect,
-    /// Bounding rectangle of the top header toolbar.
-    pub toolbar_rect: Rect,
-    /// Bounding rectangle of the category chips toolbar.
-    pub chips_rect: Rect,
-    /// Interactive breadcrumb navigation items in the top bar.
-    pub breadcrumbs: Vec<BreadcrumbTarget>,
-    /// Bounding rectangle of the "+ Import" button.
-    pub import_btn_rect: Rect,
-    /// Bounding rectangle of the "Reveal" button.
-    pub reveal_btn_rect: Rect,
-    /// Bounding rectangle of the "Clean" button.
-    pub clean_btn_rect: Rect,
-    /// Bounding rectangle of the "Grid" view toggle button.
-    pub grid_toggle_rect: Rect,
-    /// Bounding rectangle of the "List" view toggle button.
-    pub list_toggle_rect: Rect,
-    /// Bounding rectangle of the "⚙ Engine" content visibility toggle button.
-    pub engine_toggle_btn_rect: Option<Rect>,
-    /// Bounding rectangle of the search input field box.
-    pub search_input_rect: Rect,
-    /// Bounding rectangle of the "✖" search query clear button, if query is non-empty.
-    pub search_clear_btn_rect: Option<Rect>,
-    /// Interactive category filter chip rectangles: `(Category, Rect)`.
-    pub category_chips: Vec<(AssetCategory, Rect)>,
-    /// Bounding rectangle of the left folder tree sidebar.
+    /// Bounding rectangle of the left folder tree sidebar, if not collapsed.
     pub sidebar_rect: Option<Rect>,
-    /// Bounding rectangle of the "+" new subfolder button in the sidebar header.
-    pub new_subfolder_btn_rect: Option<Rect>,
-    /// Interactive folder tree node rows.
-    pub folder_nodes: Vec<FolderTreeNodeTarget>,
     /// Bounding rectangle of the main scrollable asset content viewport.
     pub content_viewport_rect: Rect,
-    /// Interactive grid card targets when in Grid view mode.
-    pub grid_cards: Vec<AssetCardTarget>,
-    /// Interactive table row targets when in List view mode.
-    pub list_rows: Vec<AssetRowTarget>,
-    /// Bounding rectangle of the bottom status bar / footer.
-    pub footer_rect: Rect,
-    /// Bounding rectangle of the sidebar collapse/expand toggle button in the footer.
-    pub sidebar_toggle_btn_rect: Rect,
-    /// Bounding rectangle of the active folder path display in the footer.
-    pub footer_folder_rect: Rect,
-    /// Active right-click context menu targets, if open.
-    pub context_menu: Option<AssetsContextMenuTargets>,
-    /// Active Quick Asset Preview modal targets, if open.
-    pub preview_modal: Option<AssetPreviewModalTargets>,
+    /// Bounding rectangle of the active floating right-click context menu card, if open.
+    pub context_menu_card_rect: Option<Rect>,
 }
 
 /// Rendering parameters supplied to `build_assets_panel`.
@@ -308,6 +415,10 @@ pub struct AssetsPanelParams<'a> {
     pub active_context_menu: Option<&'a (AssetsContextMenuTarget, Point)>,
     /// Active Quick Asset Preview modal state, if open.
     pub active_preview_modal: Option<&'a AssetPreviewModalState>,
+    /// Discovered subfolders tree cached in engine asset state.
+    pub subfolders: &'a [PathBuf],
+    /// Optional semantic tag currently under the mouse cursor for hover reactivity.
+    pub hovered_tag: Option<u64>,
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
 }
@@ -337,9 +448,16 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
 /// Persistent interactive state for the Asset Browser panel overlay.
 #[derive(Debug, Clone)]
 pub struct AssetsPanelState {
-    /// Common panel interaction state (targets, scroll_y, search, actions).
-    pub interactions:
-        crate::ui::iris_bridge::types::PanelInteractionState<AssetsPanelTargets, AssetsPanelAction>,
+    /// Common panel interaction state (scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>,
+    /// Bounding rectangle of the Asset Browser panel from the last layout pass.
+    pub panel_rect: Option<Rect>,
+    /// Bounding rectangle of the folder tree sidebar if active.
+    pub sidebar_rect: Option<Rect>,
+    /// Bounding rectangle of the scrollable content viewport.
+    pub content_viewport_rect: Option<Rect>,
+    /// Bounding rectangle of the active floating right-click context menu card, if open.
+    pub context_menu_card_rect: Option<Rect>,
     /// Folder tree sidebar vertical scroll offset.
     pub tree_scroll_y: f32,
     /// Current folder path in Asset Browser panel.
@@ -356,12 +474,20 @@ pub struct AssetsPanelState {
     pub thumbnail_layers: HashMap<PathBuf, u32>,
     /// Next available layer index in the 2D Texture Array (32..255).
     pub next_thumbnail_layer: u32,
+    /// Cached filtered asset items from the active frame for O(1) semantic hit-testing.
+    pub filtered_items_cache: Vec<AssetItem>,
+    /// Cached subfolders from the active frame for O(1) semantic hit-testing.
+    pub subfolders_cache: Vec<PathBuf>,
 }
 
 impl Default for AssetsPanelState {
     fn default() -> Self {
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            panel_rect: None,
+            sidebar_rect: None,
+            content_viewport_rect: None,
+            context_menu_card_rect: None,
             tree_scroll_y: 0.0,
             current_folder: PathBuf::from("assets"),
             click_tracker: AssetClickTracker::default(),
@@ -370,13 +496,14 @@ impl Default for AssetsPanelState {
             selected_asset: None,
             thumbnail_layers: HashMap::new(),
             next_thumbnail_layer: 32,
+            filtered_items_cache: Vec::new(),
+            subfolders_cache: Vec::new(),
         }
     }
 }
 
 impl std::ops::Deref for AssetsPanelState {
-    type Target =
-        crate::ui::iris_bridge::types::PanelInteractionState<AssetsPanelTargets, AssetsPanelAction>;
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>;
     fn deref(&self) -> &Self::Target {
         &self.interactions
     }
@@ -385,5 +512,83 @@ impl std::ops::Deref for AssetsPanelState {
 impl std::ops::DerefMut for AssetsPanelState {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.interactions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_assets_semantic_tags_encoding_roundtrip() {
+        // 1. Domain verification
+        assert!(is_assets_tag(ASSETS_TAG_PANEL_ROOT));
+        assert!(is_assets_tag(ASSETS_TAG_TOGGLE_SIDEBAR));
+        assert!(is_assets_tag(ASSETS_TAG_IMPORT));
+        assert!(is_assets_tag(ASSETS_TAG_VIEW_GRID));
+        assert!(is_assets_tag(ASSETS_TAG_VIEW_LIST));
+        assert!(!is_assets_tag(0x0080_0000_0000_0001)); // Preferences domain
+        assert!(!is_assets_tag(0x0070_0000_0000_0001)); // UI designer domain
+        assert!(!is_assets_tag(0));
+
+        // 2. Category Chips Roundtrip (0..8)
+        for cat_idx in 0..=8 {
+            let tag = encode_chip_tag(cat_idx);
+            assert!(is_assets_tag(tag));
+            assert_eq!(parse_chip_tag(tag), Some(cat_idx));
+        }
+        assert_eq!(parse_chip_tag(ASSETS_TAG_PANEL_ROOT), None);
+
+        // 3. Breadcrumb Navigation Segments Roundtrip (0..255)
+        for seg_idx in [0, 1, 5, 128, 255] {
+            let tag = encode_breadcrumb_tag(seg_idx);
+            assert!(is_assets_tag(tag));
+            assert_eq!(parse_breadcrumb_tag(tag), Some(seg_idx));
+        }
+        assert_eq!(parse_breadcrumb_tag(ASSETS_TAG_PANEL_ROOT), None);
+
+        // 4. Context Menu Actions Roundtrip (0..15)
+        for action_idx in 0..=6 {
+            let tag = encode_ctx_item_tag(action_idx);
+            assert!(is_assets_tag(tag));
+            assert_eq!(parse_ctx_item_tag(tag), Some(action_idx));
+        }
+        assert_eq!(parse_ctx_item_tag(ASSETS_TAG_PANEL_ROOT), None);
+
+        // 5. Folder Tree Rows and Chevrons Roundtrip (0..u32::MAX)
+        for node_idx in [0, 1, 42, 1024, 0x00FF_FFFF] {
+            let row_tag = encode_tree_row_tag(node_idx);
+            let chev_tag = encode_tree_chevron_tag(node_idx);
+            assert!(is_assets_tag(row_tag));
+            assert!(is_assets_tag(chev_tag));
+            assert_eq!(parse_tree_tag(row_tag), Some((node_idx, false)));
+            assert_eq!(parse_tree_tag(chev_tag), Some((node_idx, true)));
+        }
+        assert_eq!(parse_tree_tag(ASSETS_TAG_PANEL_ROOT), None);
+
+        // 6. Asset Items (Select, Spawn, Inspect) Roundtrip
+        for item_idx in [0, 1, 99, 10000, 0x00FF_FFFF] {
+            let select_tag = encode_item_tag(item_idx);
+            let spawn_tag = encode_item_spawn_tag(item_idx);
+            let inspect_tag = encode_item_inspect_tag(item_idx);
+
+            assert!(is_assets_tag(select_tag));
+            assert!(is_assets_tag(spawn_tag));
+            assert!(is_assets_tag(inspect_tag));
+
+            assert_eq!(
+                parse_item_tag(select_tag),
+                Some((item_idx, AssetItemAction::SelectOrOpen))
+            );
+            assert_eq!(
+                parse_item_tag(spawn_tag),
+                Some((item_idx, AssetItemAction::Spawn))
+            );
+            assert_eq!(
+                parse_item_tag(inspect_tag),
+                Some((item_idx, AssetItemAction::Inspect))
+            );
+        }
+        assert_eq!(parse_item_tag(ASSETS_TAG_PANEL_ROOT), None);
     }
 }

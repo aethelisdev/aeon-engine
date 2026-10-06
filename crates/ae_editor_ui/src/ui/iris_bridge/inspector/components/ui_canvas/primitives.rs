@@ -3,7 +3,7 @@
 
 //! # 2D Screen UI Primitives Inspector Cards
 //!
-//! Provides handlers for core UI Designer widgets:
+//! Provides declarative handlers for core UI Designer widgets:
 //! - `UiElement`
 //! - `UiPanel`
 //! - `UiText`
@@ -12,11 +12,16 @@
 //! - `UiImage`
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
+use super::super::super::tags::encode_inspector_text_input_tag;
 use super::super::super::types::{
-    ComboboxRowParams, CompactNumericRowParams, ComponentCategory, ComponentCheckboxId,
-    InspectorDropdownId, InspectorNumberInputId, InspectorTextInputId,
+    ComponentCategory, ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
+    InspectorTextInputId,
 };
-use super::super::physics::{render_checkbox_row, render_combobox_row, render_numeric_row_compact};
+use super::super::physics::helpers::{
+    ComponentHeaderProps, DeclarativeComboboxRowParams, DeclarativeNumericRowParams,
+    build_declarative_card_header, render_declarative_checkbox_row,
+    render_declarative_combobox_row, render_declarative_numeric_row,
+};
 use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
 
@@ -51,14 +56,7 @@ impl ComponentInspectorHandler for UiElementHandler {
         false
     }
 
-    fn render_card(
-        &self,
-        _tree: &mut UiTree,
-        _parent_id: WidgetId,
-        _ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
-        0.0
-    }
+    fn render_card(&self, _scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {}
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
         let _ = world.insert_one(entity, ae_core::ecs::UiElement::default());
@@ -93,12 +91,7 @@ impl ComponentInspectorHandler for UiPanelHandler {
         world.get::<&ae_core::ecs::UiPanel>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (border_w, radius) = if let Ok(p) = ctx.world.get::<&ae_core::ecs::UiPanel>(ctx.entity)
         {
             (p.border_width, p.corner_radius)
@@ -106,60 +99,64 @@ impl ComponentInspectorHandler for UiPanelHandler {
             (1.0, 4.0)
         };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let row_gap = 4.0;
-        let card_h = 24.0 + 2.0 * (row_h + row_gap) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let get_edit = |id| {
+            ctx.params
+                .active_number_input
+                .filter(|s| s.id == id)
+                .map(|s| s.to_edit_state(ctx.params.blink_caret))
+        };
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let mut cur_y = ctx.base_y + padding + 22.0;
+        scope.container_named("UiPanelCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
 
-        render_numeric_row_compact(
-            tree,
-            card_id,
-            ctx,
-            CompactNumericRowParams {
-                label: "Border Width",
-                input_id: InspectorNumberInputId::UiBorderWidth,
-                val: border_w,
-                row_y: cur_y,
-                label_w: 80.0,
-                box_w: 60.0,
-                unit: Some("px"),
-            },
-        );
-        cur_y += row_h + row_gap;
+            // Row 1: Border Width
+            render_declarative_numeric_row(
+                card,
+                DeclarativeNumericRowParams {
+                    input_id: InspectorNumberInputId::UiBorderWidth,
+                    label: "Border Width",
+                    val: border_w,
+                    label_w: 80.0,
+                    box_w: 60.0,
+                    unit: Some("px"),
+                    edit_state: get_edit(InspectorNumberInputId::UiBorderWidth),
+                    is_hovered: false,
+                },
+            );
 
-        render_numeric_row_compact(
-            tree,
-            card_id,
-            ctx,
-            CompactNumericRowParams {
-                label: "Corner Radius",
-                input_id: InspectorNumberInputId::UiCornerRadius,
-                val: radius,
-                row_y: cur_y,
-                label_w: 80.0,
-                box_w: 60.0,
-                unit: Some("px"),
-            },
-        );
-
-        card_h
+            // Row 2: Corner Radius
+            render_declarative_numeric_row(
+                card,
+                DeclarativeNumericRowParams {
+                    input_id: InspectorNumberInputId::UiCornerRadius,
+                    label: "Corner Radius",
+                    val: radius,
+                    label_w: 80.0,
+                    box_w: 60.0,
+                    unit: Some("px"),
+                    edit_state: get_edit(InspectorNumberInputId::UiCornerRadius),
+                    is_hovered: false,
+                },
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -195,12 +192,7 @@ impl ComponentInspectorHandler for UiTextHandler {
         world.get::<&ae_core::ecs::UiText>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (txt, font_size, alignment) =
             if let Ok(t) = ctx.world.get::<&ae_core::ecs::UiText>(ctx.entity) {
                 (t.text.clone(), t.font_size, t.alignment)
@@ -208,77 +200,17 @@ impl ComponentInspectorHandler for UiTextHandler {
                 ("Label".to_string(), 14.0, UiTextAlignment::Left)
             };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let row_gap = 4.0;
-        let card_h = 24.0 + 3.0 * (row_h + row_gap) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
-
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let mut cur_y = ctx.base_y + padding + 22.0;
-
-        // Interactive Text String Input Field
-        let lbl_w = 42.0;
-        let input_w = (ctx.card_w - padding * 2.0 - lbl_w - 6.0).max(60.0);
-        let box_rect = Rect::new(ctx.base_x + padding + lbl_w + 4.0, cur_y, input_w, row_h);
-
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiTextLabelPrefix");
-            node.set_text("Text");
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.620, 0.635, 0.678, 1.0);
-            node.computed_rect = Rect::new(ctx.base_x + padding, cur_y, lbl_w, row_h);
-        }
-        let _ = tree.add_child(card_id, lbl_id);
+        let get_edit = |id| {
+            ctx.params
+                .active_number_input
+                .filter(|s| s.id == id)
+                .map(|s| s.to_edit_state(ctx.params.blink_caret))
+        };
 
         let is_editing = matches!(
             ctx.params.active_text_input,
             Some((InspectorTextInputId::UiTextContent, _))
         );
-        let is_hovered = box_rect.contains_point(ctx.params.cursor_pos);
-
-        let (bg, border_col) = if is_editing {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.0, 0.85, 1.0, 0.95),
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.157, 0.169, 0.200, 1.0),
-                Color::rgba(0.235, 0.247, 0.286, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.125, 0.133, 0.153, 0.98),
-                Color::rgba(0.180, 0.192, 0.227, 0.85),
-            )
-        };
-
-        let box_id = tree.create_node();
-        if let Some(node) = tree.get_mut(box_id) {
-            node.set_name("UiTextBox");
-            node.computed_rect = box_rect;
-            node.style = Style::new()
-                .background(bg)
-                .border(1.0, border_col)
-                .border_radius(4.0);
-        }
-        let _ = tree.add_child(card_id, box_id);
 
         let display_text = if is_editing {
             let buf = match ctx.params.active_text_input {
@@ -304,60 +236,123 @@ impl ComponentInspectorHandler for UiTextHandler {
             Color::rgba(0.886, 0.894, 0.918, 1.0)
         };
 
-        let txt_id = tree.create_node();
-        if let Some(node) = tree.get_mut(txt_id) {
-            node.set_name("UiTextBoxText");
-            node.set_text(display_text);
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_align = TextAlign::Left;
-            node.text_color = text_col;
-            node.computed_rect =
-                Rect::new(box_rect.x + 6.0, box_rect.y, box_rect.width - 12.0, row_h);
-        }
-        let _ = tree.add_child(box_id, txt_id);
-
-        ctx.targets
-            .text_inputs
-            .push((InspectorTextInputId::UiTextContent, box_rect, txt));
-        cur_y += row_h + row_gap;
-
-        render_numeric_row_compact(
-            tree,
-            card_id,
-            ctx,
-            CompactNumericRowParams {
-                label: "Font Size",
-                input_id: InspectorNumberInputId::UiFontSize,
-                val: font_size,
-                row_y: cur_y,
-                label_w: 80.0,
-                box_w: 60.0,
-                unit: Some("pt"),
-            },
-        );
-        cur_y += row_h + row_gap;
-
-        let (align_str, _align_idx) = match alignment {
-            UiTextAlignment::Left => ("Left", 0),
-            UiTextAlignment::Center => ("Center", 1),
-            UiTextAlignment::Right => ("Right", 2),
+        let (bg, border_col) = if is_editing {
+            (
+                Color::rgba(0.118, 0.125, 0.145, 1.0),
+                Color::rgba(0.0, 0.85, 1.0, 0.95),
+            )
+        } else {
+            (
+                Color::rgba(0.125, 0.133, 0.153, 0.98),
+                Color::rgba(0.180, 0.192, 0.227, 0.85),
+            )
         };
 
-        render_combobox_row(
-            tree,
-            card_id,
-            ctx,
-            ComboboxRowParams {
-                label: "Align",
-                selected_text: align_str,
-                dropdown_id: InspectorDropdownId::UiTextAlignment,
-                label_w: 52.0,
-                row_y: cur_y,
-            },
-        );
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        card_h
+        let align_str = match alignment {
+            UiTextAlignment::Left => "Left",
+            UiTextAlignment::Center => "Center",
+            UiTextAlignment::Right => "Right",
+        };
+
+        let is_align_open =
+            ctx.params.active_dropdown == Some(InspectorDropdownId::UiTextAlignment);
+
+        scope.container_named("UiTextCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
+
+            // Row 1: Text string interactive box
+            let text_row_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .height(22.0)
+                .gap(4.0);
+
+            card.container_named("TextRow", text_row_style, |row| {
+                row.label_styled_passive(
+                    "UiTextLabelPrefix",
+                    "Text",
+                    11.0,
+                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    TextAlign::Left,
+                    Style::new().width(42.0).height(22.0),
+                );
+
+                let box_style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .flex_grow(1.0)
+                    .height(22.0)
+                    .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
+                    .background(bg)
+                    .border(1.0, border_col)
+                    .border_radius(4.0);
+
+                let text_tag = encode_inspector_text_input_tag(InspectorTextInputId::UiTextContent);
+                row.container_tagged(
+                    "UiTextBox",
+                    box_style,
+                    WidgetRole::TextInput,
+                    text_tag,
+                    |tb| {
+                        tb.label_styled_passive(
+                            "UiTextBoxText",
+                            &display_text,
+                            11.0,
+                            text_col,
+                            TextAlign::Left,
+                            Style::new().flex_grow(1.0).height(22.0),
+                        );
+                    },
+                );
+            });
+
+            // Row 2: Font Size
+            render_declarative_numeric_row(
+                card,
+                DeclarativeNumericRowParams {
+                    input_id: InspectorNumberInputId::UiFontSize,
+                    label: "Font Size",
+                    val: font_size,
+                    label_w: 80.0,
+                    box_w: 60.0,
+                    unit: Some("pt"),
+                    edit_state: get_edit(InspectorNumberInputId::UiFontSize),
+                    is_hovered: false,
+                },
+            );
+
+            // Row 3: Text Alignment Dropdown
+            render_declarative_combobox_row(
+                card,
+                DeclarativeComboboxRowParams {
+                    dropdown_id: InspectorDropdownId::UiTextAlignment,
+                    label: Some("Align"),
+                    label_w: 52.0,
+                    selected_text: align_str,
+                    is_open: is_align_open,
+                    is_hovered: false,
+                    combo_w: 80.0,
+                },
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -393,70 +388,12 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
         world.get::<&ae_core::ecs::UiProgressBar>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 2.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
-
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (val, min, max) = ctx
             .world
             .get::<&ae_core::ecs::UiProgressBar>(ctx.entity)
             .map(|bar| (bar.value, bar.min, bar.max))
             .unwrap_or((50.0, 0.0, 100.0));
-
-        let lbl1_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl1_id) {
-            node.set_name("ProgressBarStats");
-            node.set_text(format!("Value: {:.0} / {:.0}", val, max));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.85, 0.88, 0.95, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
-        }
-        let _ = tree.add_child(card_id, lbl1_id);
-
-        // Visual Mini Progress Bar
-        let bar_w = ctx.card_w - padding * 2.0;
-        let bar_h = 10.0;
-        let bar_rect = Rect::new(ctx.base_x + padding, cur_y + row_h + 2.0, bar_w, bar_h);
-
-        let track_id = tree.create_node();
-        if let Some(node) = tree.get_mut(track_id) {
-            node.set_name("MiniBarTrack");
-            node.computed_rect = bar_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.15, 0.18, 0.25, 0.90))
-                .border(1.0, Color::rgba(0.25, 0.30, 0.40, 0.70))
-                .border_radius(3.0);
-        }
-        let _ = tree.add_child(card_id, track_id);
 
         let frac = if max > min {
             ((val - min) / (max - min)).clamp(0.0, 1.0)
@@ -464,20 +401,60 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
             0.0
         };
 
-        if frac > 0.001 {
-            let fill_w = (bar_w * frac).max(2.0);
-            let fill_id = tree.create_node();
-            if let Some(node) = tree.get_mut(fill_id) {
-                node.set_name("MiniBarFill");
-                node.computed_rect = Rect::new(bar_rect.x, bar_rect.y, fill_w, bar_h);
-                node.style = Style::new()
-                    .background(Color::rgba(0.15, 0.65, 1.0, 0.95))
-                    .border_radius(3.0);
-            }
-            let _ = tree.add_child(track_id, fill_id);
-        }
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        card_h
+        let mut del_btn_id = WidgetId::default();
+
+        scope.container_named("UiProgressBarCard", card_style, |card| {
+            del_btn_id = build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
+
+            let stats_text = format!("Value: {:.0} / {:.0}", val, max);
+            card.label_styled_passive(
+                "ProgressBarStats",
+                &stats_text,
+                11.0,
+                Color::rgba(0.85, 0.88, 0.95, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+
+            // Visual Mini Progress Bar track + fill
+            let track_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .height(10.0)
+                .background(Color::rgba(0.15, 0.18, 0.25, 0.90))
+                .border(1.0, Color::rgba(0.25, 0.30, 0.40, 0.70))
+                .border_radius(3.0);
+
+            card.container_named("MiniBarTrack", track_style, |track| {
+                if frac > 0.001 {
+                    let fill_w = ((ctx.card_w - 20.0) * frac).max(2.0);
+                    let fill_style = Style::new()
+                        .width(fill_w)
+                        .height(10.0)
+                        .background(Color::rgba(0.15, 0.65, 1.0, 0.95))
+                        .border_radius(3.0);
+                    track.empty_box_passive_named("MiniBarFill", fill_style);
+                }
+            });
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -513,49 +490,42 @@ impl ComponentInspectorHandler for UiButtonHandler {
         world.get::<&ae_core::ecs::UiButton>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let is_enabled = ctx
             .world
             .get::<&ae_core::ecs::UiButton>(ctx.entity)
             .map(|b| b.is_enabled)
             .unwrap_or(true);
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
+        scope.container_named("UiButtonCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
 
-        let cur_y = ctx.base_y + padding + 22.0;
-        render_checkbox_row(
-            tree,
-            card_id,
-            ctx,
-            "Enabled",
-            ComponentCheckboxId::UiInteractable,
-            is_enabled,
-            cur_y,
-        );
-
-        card_h
+            render_declarative_checkbox_row(
+                card,
+                ComponentCheckboxId::UiInteractable,
+                "Enabled",
+                is_enabled,
+                false,
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -591,55 +561,44 @@ impl ComponentInspectorHandler for UiImageHandler {
         world.get::<&ae_core::ecs::UiImage>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let slice_mode = if let Ok(img) = ctx.world.get::<&ae_core::ecs::UiImage>(ctx.entity) {
             format!("{:?}", img.slice_mode)
         } else {
             "Stretch".to_string()
         };
 
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        let card_id = super::super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("UiImageMode");
-            node.set_text(format!("Slice Mode: {}", slice_mode));
-            node.font_size = 11.0;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
+        scope.container_named("UiImageCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
             );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
 
-        card_h
+            let mode_str = format!("Slice Mode: {}", slice_mode);
+            card.label_styled_passive(
+                "UiImageMode",
+                &mode_str,
+                11.0,
+                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {

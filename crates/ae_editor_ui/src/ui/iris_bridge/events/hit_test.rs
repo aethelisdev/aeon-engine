@@ -59,24 +59,45 @@ mod tests {
     #[test]
     fn test_layer_queries_for_modals_and_popups() {
         let mut tree = UiTree::new();
-        let root = tree.create_node();
-        let _ = tree.set_root(root);
+        let root = tree.create_root().expect("root node");
+
+        let mut scope = UiScope::new(&mut tree, root);
 
         // Modal node
-        let modal = tree.create_node();
-        if let Some(node) = tree.get_mut(modal) {
-            node.set_role(WidgetRole::ModalWindow);
-            node.computed_rect = Rect::new(200.0, 200.0, 300.0, 200.0);
-        }
-        let _ = tree.add_child(root, modal);
+        scope.container(
+            Style::new()
+                .position_absolute()
+                .left(200.0)
+                .top(200.0)
+                .width(300.0)
+                .height(200.0),
+            |modal_parent| {
+                modal_parent.modal_card(300.0, 200.0, |modal_scope| {
+                    modal_scope.label_styled_passive(
+                        "TestModalContent",
+                        "Modal Content",
+                        12.0,
+                        Color::WHITE,
+                        TextAlign::Left,
+                        Style::new().width(300.0).height(200.0),
+                    );
+                });
+            },
+        );
 
         // Popup node
-        let popup = tree.create_node();
-        if let Some(node) = tree.get_mut(popup) {
-            node.set_role(WidgetRole::DropdownPopup);
-            node.computed_rect = Rect::new(100.0, 100.0, 150.0, 200.0);
-        }
-        let _ = tree.add_child(root, popup);
+        scope.dropdown_menu_card_named("TestPopup", 100.0, 100.0, 150.0, |popup_scope| {
+            popup_scope.label_styled_passive(
+                "TestPopupContent",
+                "Popup Content",
+                12.0,
+                Color::WHITE,
+                TextAlign::Left,
+                Style::new().width(150.0).height(200.0),
+            );
+        });
+
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
         // Verify layer queries
         assert_eq!(
@@ -87,6 +108,10 @@ mod tests {
             tree.layer_at(Point::new(350.0, 250.0)),
             Some(UiLayer::Modal)
         );
-        assert_eq!(tree.layer_at(Point::new(50.0, 50.0)), None);
+        assert_eq!(
+            tree.layer_at(Point::new(50.0, 50.0)),
+            Some(UiLayer::Content)
+        );
+        assert_eq!(tree.layer_at(Point::new(2000.0, 2000.0)), None);
     }
 }

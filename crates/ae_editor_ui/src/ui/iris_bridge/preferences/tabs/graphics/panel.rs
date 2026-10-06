@@ -14,7 +14,7 @@ use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
 /// Builds the complete Graphics preferences tab content declaratively using [`UiScope`].
-pub fn build_graphics_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
+pub fn build_graphics_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     pref_heading(
         scope,
         "Graphics Settings",

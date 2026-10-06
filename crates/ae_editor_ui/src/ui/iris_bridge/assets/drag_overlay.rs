@@ -11,13 +11,12 @@
 
 use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
-use irisui::prelude::{Color, Point, Rect, Style, UiTree, WidgetId};
+use irisui::prelude::{
+    AlignItems, Color, Insets, Point, Rect, Style, TextAlign, UiScope, UiTree, WidgetId,
+    layout_subtree, measure_height, measure_width,
+};
 
-/// Constructs topmost floating overlays for an active asset drag operation.
-///
-/// If the cursor is positioned over the 3D/2D viewport, computes the projected
-/// ground intersection point and renders the cyan landing indicator ring.
-/// In addition, constructs a floating tooltip capsule anchored to the cursor.
+/// Constructs topmost floating overlays for an active asset drag operation into the `UiTree`.
 pub fn build_asset_drag_overlays(
     tree: &mut UiTree,
     parent_id: WidgetId,
@@ -27,11 +26,35 @@ pub fn build_asset_drag_overlays(
     camera: &Camera,
     is_2d_mode: bool,
 ) {
+    let mut scope = UiScope::new(tree, parent_id);
+    build_asset_drag_overlays_scope(
+        &mut scope,
+        payload,
+        cursor_pos,
+        viewport_rect,
+        camera,
+        is_2d_mode,
+    );
+}
+
+/// Constructs topmost floating overlays for an active asset drag operation via a declarative [`UiScope`].
+///
+/// Renders 3D/2D landing indicators and cursor tooltip capsule using 100% declarative UI scope
+/// primitives with zero imperative node allocations.
+pub fn build_asset_drag_overlays_scope(
+    scope: &mut UiScope<'_>,
+    payload: &AssetDragPayload,
+    cursor_pos: Point,
+    viewport_rect: Rect,
+    camera: &Camera,
+    is_2d_mode: bool,
+) {
     // 1. 3D / 2D Viewport Landing Indicator
-    if viewport_rect.contains_point(cursor_pos)
-        && viewport_rect.width > 20.0
-        && viewport_rect.height > 20.0
-    {
+    let in_viewport = cursor_pos.x >= viewport_rect.x
+        && cursor_pos.x <= viewport_rect.x + viewport_rect.width
+        && cursor_pos.y >= viewport_rect.y
+        && cursor_pos.y <= viewport_rect.y + viewport_rect.height;
+    if in_viewport && viewport_rect.width > 20.0 && viewport_rect.height > 20.0 {
         let center_opt = if !is_2d_mode {
             // 3D Mode: Raycast against horizontal ground plane Y = 0
             if let Some(world_pos) = crate::assets::drag_drop::compute_ground_intersection(
@@ -68,41 +91,45 @@ pub fn build_asset_drag_overlays(
         if let Some((center_x, center_y)) = center_opt {
             // Outer glowing landing ring (Radius = 18.0 px)
             let ring_radius = 18.0;
-            let ring_node = tree.create_node();
-            if let Some(node) = tree.get_mut(ring_node) {
-                node.set_name("ViewportDropLandingRing");
-                node.computed_rect = Rect::new(
-                    center_x - ring_radius,
-                    center_y - ring_radius,
-                    ring_radius * 2.0,
-                    ring_radius * 2.0,
-                );
-                node.set_style(
-                    Style::new()
-                        .border(2.0, Color::from_u8(0, 229, 255, 255))
-                        .border_radius(ring_radius),
-                );
-            }
-            let _ = tree.add_child(parent_id, ring_node);
+            let ring_rect = Rect::new(
+                center_x - ring_radius,
+                center_y - ring_radius,
+                ring_radius * 2.0,
+                ring_radius * 2.0,
+            );
+            let ring_id = scope.empty_box_passive_named(
+                "ViewportDropLandingRing",
+                Style::new()
+                    .position_absolute()
+                    .left(ring_rect.x)
+                    .top(ring_rect.y)
+                    .width(ring_rect.width)
+                    .height(ring_rect.height)
+                    .border(2.0, Color::from_u8(0, 229, 255, 255))
+                    .border_radius(ring_radius),
+            );
+            layout_subtree(scope.tree_mut(), ring_id, ring_rect);
 
             // Inner landing target dot (Radius = 4.0 px)
             let dot_radius = 4.0;
-            let dot_node = tree.create_node();
-            if let Some(node) = tree.get_mut(dot_node) {
-                node.set_name("ViewportDropLandingDot");
-                node.computed_rect = Rect::new(
-                    center_x - dot_radius,
-                    center_y - dot_radius,
-                    dot_radius * 2.0,
-                    dot_radius * 2.0,
-                );
-                node.set_style(
-                    Style::new()
-                        .background(Color::from_u8(0, 229, 255, 255))
-                        .border_radius(dot_radius),
-                );
-            }
-            let _ = tree.add_child(parent_id, dot_node);
+            let dot_rect = Rect::new(
+                center_x - dot_radius,
+                center_y - dot_radius,
+                dot_radius * 2.0,
+                dot_radius * 2.0,
+            );
+            let dot_id = scope.empty_box_passive_named(
+                "ViewportDropLandingDot",
+                Style::new()
+                    .position_absolute()
+                    .left(dot_rect.x)
+                    .top(dot_rect.y)
+                    .width(dot_rect.width)
+                    .height(dot_rect.height)
+                    .background(Color::from_u8(0, 229, 255, 255))
+                    .border_radius(dot_radius),
+            );
+            layout_subtree(scope.tree_mut(), dot_id, dot_rect);
         }
     }
 
@@ -112,48 +139,35 @@ pub fn build_asset_drag_overlays(
     let badge_str = payload.category.badge();
     let name_str = &payload.name;
 
-    let badge_w = (badge_str.len() as f32) * 7.5 + 10.0;
-    let name_w = (name_str.len() as f32) * 7.5;
-    let badge_total_w = (badge_w + name_w + 24.0).max(80.0);
-    let badge_height = 26.0;
+    let capsule_id = scope.container_named(
+        "AssetDragCapsule",
+        Style::new()
+            .position_absolute()
+            .left(tip_x)
+            .top(tip_y)
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .padding_insets(Insets::new(4.0, 8.0, 4.0, 8.0))
+            .gap(6.0)
+            .background(Color::from_u8(18, 22, 32, 230))
+            .border(1.0, Color::from_u8(0, 229, 255, 220))
+            .border_radius(6.0),
+        |capsule| {
+            capsule.label(
+                badge_str,
+                11.0,
+                payload.category.badge_color(),
+                TextAlign::Left,
+            );
+            capsule.label(name_str, 11.0, Color::WHITE, TextAlign::Left);
+        },
+    );
 
-    let capsule_node = tree.create_node();
-    if let Some(node) = tree.get_mut(capsule_node) {
-        node.set_name("AssetDragCapsule");
-        node.computed_rect = Rect::new(tip_x, tip_y, badge_total_w, badge_height);
-        node.set_style(
-            Style::new()
-                .background(Color::from_u8(18, 22, 32, 230))
-                .border(1.0, Color::from_u8(0, 229, 255, 220))
-                .border_radius(6.0),
-        );
-    }
-    let _ = tree.add_child(parent_id, capsule_node);
-
-    // Category badge text node
-    let cat_node = tree.create_node();
-    if let Some(node) = tree.get_mut(cat_node) {
-        node.set_name("AssetDragCategoryBadge");
-        node.computed_rect = Rect::new(tip_x + 8.0, tip_y + 4.0, badge_w, badge_height - 8.0);
-        node.text = Some(badge_str.to_string());
-        node.font_size = 11.0;
-        node.text_color = payload.category.badge_color();
-    }
-    let _ = tree.add_child(capsule_node, cat_node);
-
-    // Asset name text node
-    let name_node = tree.create_node();
-    if let Some(node) = tree.get_mut(name_node) {
-        node.set_name("AssetDragNameLabel");
-        node.computed_rect = Rect::new(
-            tip_x + 12.0 + badge_w,
-            tip_y + 4.0,
-            name_w.max(20.0),
-            badge_height - 8.0,
-        );
-        node.text = Some(name_str.to_string());
-        node.font_size = 11.0;
-        node.text_color = Color::WHITE;
-    }
-    let _ = tree.add_child(capsule_node, name_node);
+    let measured_w = measure_width(scope.tree(), capsule_id);
+    let measured_h = measure_height(scope.tree(), capsule_id).max(24.0);
+    layout_subtree(
+        scope.tree_mut(),
+        capsule_id,
+        Rect::new(tip_x, tip_y, measured_w, measured_h),
+    );
 }

@@ -151,6 +151,8 @@ fn process_gltf_primitive_mesh(
         let mat = primitive.material();
         let pbr = mat.pbr_metallic_roughness();
         let base_color = pbr.base_color_factor();
+        let metallic_factor = pbr.metallic_factor();
+        let roughness_factor = pbr.roughness_factor();
         let texture_index = pbr
             .base_color_texture()
             .map(|t| t.texture().source().index());
@@ -302,6 +304,9 @@ fn process_gltf_primitive_mesh(
                 base_color,
                 alpha_mode,
                 alpha_cutoff,
+                metallic_factor,
+                roughness_factor,
+                uv_scale: [1.0, 1.0],
             });
         }
     }

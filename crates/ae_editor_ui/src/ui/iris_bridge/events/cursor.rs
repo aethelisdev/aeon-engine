@@ -75,54 +75,23 @@ impl IrisEditorOverlay {
                 InspectorColorDragMode::Hue => CursorIcon::NsResize,
             };
         }
-        if let Some(ref targets) = self.inspector.targets {
-            if let Some(ref picker) = targets.color_picker
-                && let Some(cur) = irisui::prelude::evaluate_color_picker_cursor(picker, p, None)
-            {
-                return match cur {
-                    irisui::prelude::ColorPickerCursor::Crosshair => CursorIcon::Crosshair,
-                    irisui::prelude::ColorPickerCursor::NsResize => CursorIcon::NsResize,
-                    irisui::prelude::ColorPickerCursor::Pointer => CursorIcon::Pointer,
-                };
+        if let Some(hit) = self.tree.hit_test_target(p) {
+            if crate::ui::iris_bridge::inspector::tags::resolve_color_picker_sv_box_tag(hit.tag) {
+                return CursorIcon::Crosshair;
             }
-            if targets
-                .number_inputs
-                .iter()
-                .any(|(_, r, _, _, _)| r.contains_point(p))
+            if crate::ui::iris_bridge::inspector::tags::resolve_color_picker_hue_bar_tag(hit.tag) {
+                return CursorIcon::NsResize;
+            }
+            if crate::ui::iris_bridge::inspector::tags::resolve_color_picker_close_tag(hit.tag) {
+                return CursorIcon::Pointer;
+            }
+            if let Some(cur) = hit.cursor {
+                return map_widget_cursor_to_winit(cur);
+            }
+            if crate::ui::iris_bridge::inspector::resolve_inspector_number_input_tag(hit.tag)
+                .is_some()
             {
                 return CursorIcon::EwResize;
-            }
-            if targets
-                .dropdowns
-                .iter()
-                .any(|(_, r, _)| r.contains_point(p))
-                || targets
-                    .component_delete_btns
-                    .iter()
-                    .any(|(_, r)| r.contains_point(p))
-                || targets.add_component_btn_rect.contains_point(p)
-                || targets.save_prefab_btn_rect.contains_point(p)
-                || targets
-                    .color_swatch_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets.hex_input_rect.is_some_and(|r| r.contains_point(p))
-                || targets
-                    .add_palette_btn_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets
-                    .clear_palette_btn_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets.preset_btn_rect.is_some_and(|r| r.contains_point(p))
-                || targets
-                    .checkboxes
-                    .iter()
-                    .any(|(_, r, _)| r.contains_point(p))
-                || targets
-                    .palette_swatches
-                    .iter()
-                    .any(|(_, r, _)| r.contains_point(p))
-            {
-                return CursorIcon::Pointer;
             }
         }
 
@@ -133,42 +102,21 @@ impl IrisEditorOverlay {
             return CursorIcon::Pointer;
         }
 
-        // 5. Assets panel interactive items
-        if let Some(ref targets) = self.assets.targets {
-            if let Some(ref cm) = targets.context_menu
-                && cm.card_rect.contains_point(p)
-            {
-                return CursorIcon::Pointer;
-            }
-            if targets.import_btn_rect.contains_point(p)
-                || targets.reveal_btn_rect.contains_point(p)
-                || targets.clean_btn_rect.contains_point(p)
-                || targets.grid_toggle_rect.contains_point(p)
-                || targets.list_toggle_rect.contains_point(p)
-                || targets.sidebar_toggle_btn_rect.contains_point(p)
-                || targets
-                    .search_clear_btn_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets
-                    .new_subfolder_btn_rect
-                    .is_some_and(|r| r.contains_point(p))
-                || targets.breadcrumbs.iter().any(|b| b.rect.contains_point(p))
-                || targets
-                    .category_chips
-                    .iter()
-                    .any(|(_, r)| r.contains_point(p))
-                || targets
-                    .folder_nodes
-                    .iter()
-                    .any(|n| n.row_rect.contains_point(p))
-                || targets.grid_cards.iter().any(|c| c.rect.contains_point(p))
-                || targets.list_rows.iter().any(|r| r.rect.contains_point(p))
-            {
-                return CursorIcon::Pointer;
-            }
-            if targets.search_input_rect.contains_point(p) {
+        // 5. Assets panel interactive items (O(1) semantic tag hit testing)
+        if let Some(hit) = self.tree.hit_test_target(p) {
+            if hit.tag == crate::ui::iris_bridge::assets::types::ASSETS_TAG_SEARCH_INPUT {
                 return CursorIcon::Text;
             }
+            if crate::ui::iris_bridge::assets::types::is_assets_tag(hit.tag)
+                && hit.tag != crate::ui::iris_bridge::assets::types::ASSETS_TAG_PANEL_ROOT
+            {
+                return CursorIcon::Pointer;
+            }
+        }
+        if self.assets.context_menu_card_rect.is_some()
+            && self.tree.layer_at(p) == Some(UiLayer::Popup)
+        {
+            return CursorIcon::Pointer;
         }
 
         CursorIcon::Default
@@ -191,8 +139,8 @@ mod tests {
             rect: Rect::new(10.0, 10.0, 80.0, 24.0),
             leaf_rect: Rect::new(10.0, 10.0, 200.0, 400.0),
         };
-        assert!(tab.rect.contains_point(Point::new(20.0, 15.0)));
-        assert!(!tab.rect.contains_point(Point::new(5.0, 5.0)));
+        assert!(tab.contains_point(Point::new(20.0, 15.0)));
+        assert!(!tab.contains_point(Point::new(5.0, 5.0)));
     }
 
     #[test]
@@ -202,8 +150,8 @@ mod tests {
             tab_index: 0,
             rect: Rect::new(75.0, 14.0, 14.0, 16.0),
         };
-        assert!(close.rect.contains_point(Point::new(80.0, 20.0)));
-        assert!(!close.rect.contains_point(Point::new(50.0, 20.0)));
+        assert!(close.contains_point(Point::new(80.0, 20.0)));
+        assert!(!close.contains_point(Point::new(50.0, 20.0)));
     }
 
     #[test]

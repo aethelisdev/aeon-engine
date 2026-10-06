@@ -70,6 +70,17 @@ pub struct NativeDockOverflowItemTarget {
     pub rect: Rect,
 }
 
+impl NativeDockOverflowItemTarget {
+    /// Checks whether the point is contained within this item target's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        point.x >= self.rect.x
+            && point.x <= self.rect.right()
+            && point.y >= self.rect.y
+            && point.y <= self.rect.bottom()
+    }
+}
+
 /// Native Iris splitter hit target linked to a stable split node.
 pub type NativeDockSplitterTarget = irisui::dock::DockSplitterTarget;
 

@@ -6,12 +6,8 @@
 //! Renders framerate limiting, hardware MSAA samples, and HDR bloom cards
 //! declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::{
-    pref_dropdown_row, pref_section_card, pref_slider_row, pref_toggle_row,
-};
-use crate::ui::iris_bridge::preferences::types::{
-    PreferencesDropdownId, PreferencesParams, PreferencesSliderId, PreferencesToggleId,
-};
+use crate::ui::iris_bridge::preferences::components::{pref_dropdown_row, pref_section_card};
+use crate::ui::iris_bridge::preferences::types::{PreferencesDropdownId, PreferencesParams};
 use irisui::prelude::*;
 
 /// Builds the Performance & Framerate card declaratively using [`UiScope`].
@@ -67,35 +63,24 @@ pub fn build_aa_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
 }
 
 /// Builds the HDR Bloom Post-Processing card declaratively using [`UiScope`].
-pub fn build_post_processing_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
+///
+/// Binds `gs.bloom_enabled` and `gs.bloom_intensity` directly via declarative two-way property primitives.
+pub fn build_post_processing_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_pp");
-    let gs = params.graphics_settings;
+    let hovered_tag = params.hovered_tag;
+    let gs = &mut *params.graphics_settings;
 
     pref_section_card(
         scope,
         "graphics_pp",
         "✨  Post-Processing (Bloom)",
         is_collapsed,
-        params.hovered_tag,
+        hovered_tag,
         |body| {
-            pref_toggle_row(
-                body,
-                PreferencesToggleId::BloomEnabled,
-                "Enable Bloom",
-                gs.bloom_enabled,
-                params.hovered_tag,
-            );
+            body.property_checkbox("Enable Bloom", &mut gs.bloom_enabled);
 
             if gs.bloom_enabled {
-                pref_slider_row(
-                    body,
-                    PreferencesSliderId::BloomIntensity,
-                    "Bloom Intensity",
-                    gs.bloom_intensity,
-                    params.active_number_input,
-                    params.blink_caret,
-                    params.hovered_tag,
-                );
+                body.property_slider("Bloom Intensity", &mut gs.bloom_intensity, 0.0, 3.0, 0.05);
             }
         },
     );

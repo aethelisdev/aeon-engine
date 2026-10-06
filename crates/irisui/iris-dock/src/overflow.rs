@@ -95,6 +95,14 @@ pub struct DockOverflowItemTarget {
     pub rect: Rect,
 }
 
+impl DockOverflowItemTarget {
+    /// Checks whether the point is contained within this overflow item's bounds.
+    #[inline]
+    pub fn contains_point(&self, point: Point) -> bool {
+        self.rect.contains_point(point)
+    }
+}
+
 /// Output frame produced when building a dock tab overflow dropdown menu into a [`UiTree`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct DockOverflowMenuFrame {

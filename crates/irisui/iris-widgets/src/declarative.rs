@@ -15,6 +15,14 @@ pub mod scope;
 mod tests;
 pub mod types;
 
-pub use layout::{layout_subtree, measure_content_height, measure_height, measure_width};
-pub use scope::{InputBoxProps, UiScope};
-pub use types::{WidgetResponse, hash_label};
+pub use layout::{
+    layout_subtree, measure_content_height, measure_content_height_constrained, measure_height,
+    measure_height_constrained, measure_width,
+};
+pub use scope::{
+    InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
+    PropertyVec3Options, PropertyVec3Response, UiScope, WrappedLabelDescriptor,
+};
+pub use types::{
+    ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
+};

@@ -38,7 +38,7 @@ pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
 pub use about::build_about_dialog;
 pub use assets::{
-    AssetClickTracker, AssetsPanelAction, AssetsPanelParams, AssetsPanelTargets,
+    AssetClickTracker, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
     build_assets_panel, handle_assets_panel_event,
 };
 pub use console::{ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, build_console_panel};
@@ -53,8 +53,8 @@ pub use material::{
 };
 pub use modals::*;
 pub use preferences::{
-    PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesSliderId,
-    PreferencesToggleId, build_preferences_dialog,
+    PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesToggleId,
+    build_preferences_dialog,
 };
 pub use stats::{StatsPanelAction, StatsPanelParams, StatsPanelState, build_stats_panel};
 pub use theme::*;

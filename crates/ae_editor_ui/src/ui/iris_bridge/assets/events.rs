@@ -9,15 +9,24 @@
 
 use super::types::{
     ASSET_CTX_COPY_PATH, ASSET_CTX_DELETE, ASSET_CTX_INSPECT, ASSET_CTX_NEW_FOLDER,
-    ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuTarget,
-    AssetsPanelAction, AssetsPanelTargets,
+    ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, ASSETS_TAG_CLEAN_VRAM,
+    ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT, ASSETS_TAG_NEW_SUBFOLDER,
+    ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_TOGGLE_SIDEBAR,
+    ASSETS_TAG_VIEW_GRID, ASSETS_TAG_VIEW_LIST, AssetItemAction, AssetPreviewModalState,
+    AssetsContextMenuTarget, AssetsPanelAction, is_assets_tag, parse_breadcrumb_tag,
+    parse_chip_tag, parse_item_tag, parse_tree_tag,
 };
-use crate::assets::types::{AssetItem, AssetViewMode};
-use irisui::prelude::{HitTargetInfo, Point, UiLayer, WidgetRole};
+use crate::assets::types::{AssetCategory, AssetItem, AssetViewMode};
+use irisui::prelude::{HitTargetInfo, Point, Rect, UiLayer, WidgetRole};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
+
+#[inline]
+fn is_point_in_rect(rect: Rect, p: Point) -> bool {
+    p.x >= rect.x && p.x <= rect.x + rect.width && p.y >= rect.y && p.y <= rect.y + rect.height
+}
 
 /// State tracking for double-click asset spawning detection and 3D preview orbital dragging.
 #[derive(Debug, Clone, Default)]
@@ -38,12 +47,22 @@ pub struct AssetClickTracker {
     pub is_dragging_asset: bool,
 }
 
-/// Context descriptor bundling query and target state for Asset Browser event processing.
+/// Context descriptor bundling query and geometry state for Asset Browser event processing.
 pub struct AssetsEventContext<'a> {
     /// Current window cursor position in physical or logical coordinates.
     pub cursor_pos: Point,
-    /// Hit target registry for active asset browser UI elements.
-    pub targets: &'a AssetsPanelTargets,
+    /// Outer panel bounds.
+    pub panel_rect: Rect,
+    /// Bounding rectangle of the folder tree sidebar if not collapsed.
+    pub sidebar_rect: Option<Rect>,
+    /// Bounding rectangle of the scrollable content viewport.
+    pub content_viewport_rect: Rect,
+    /// Active right-click context menu subject and click position, if open.
+    pub context_menu: Option<&'a (AssetsContextMenuTarget, Point)>,
+    /// Bounding rectangle of the floating context menu card, if open.
+    pub context_menu_card_rect: Option<Rect>,
+    /// Active Quick Asset Preview modal state, if open.
+    pub preview_modal: Option<&'a AssetPreviewModalState>,
     /// Current active folder path.
     pub current_folder: &'a Path,
     /// Active search filter string buffer.
@@ -52,6 +71,10 @@ pub struct AssetsEventContext<'a> {
     pub is_search_focused: bool,
     /// Currently selected asset path, if any.
     pub selected_asset: Option<&'a Path>,
+    /// Filtered asset items currently displayed.
+    pub filtered_items: &'a [AssetItem],
+    /// Discovered subfolders tree cached in engine asset state.
+    pub subfolders: &'a [PathBuf],
     /// Optional hit target information evaluated via `UiTree::hit_test_target` at cursor position.
     pub hit_target: Option<HitTargetInfo>,
 }
@@ -62,13 +85,12 @@ pub fn handle_assets_click(
     tracker: &mut AssetClickTracker,
     out_actions: &mut Vec<AssetsPanelAction>,
 ) -> bool {
-    let targets = ctx.targets;
     let cursor_pos = ctx.cursor_pos;
     let current_folder = ctx.current_folder;
     let is_search_focused = ctx.is_search_focused;
 
     // 0a. Quick Asset Preview Modal Interactions (Zero-Allocation O(1) Semantic Dispatch)
-    if let Some(ref pm) = targets.preview_modal {
+    if let Some(pm) = ctx.preview_modal {
         if let Some(ref hit) = ctx.hit_target {
             if hit.tag == irisui::prelude::MODAL_TAG_CLOSE
                 || hit.tag == irisui::prelude::MODAL_TAG_SCRIM
@@ -98,7 +120,7 @@ pub fn handle_assets_click(
     }
 
     // 0b. Floating Context Menu Interactions (Zero-Allocation O(1) Dispatch)
-    if let Some(ref cm) = targets.context_menu {
+    if let Some((target, _)) = ctx.context_menu {
         if let Some(ref hit) = ctx.hit_target
             && hit.layer == UiLayer::Popup
             && hit.role == WidgetRole::DropdownItem
@@ -106,12 +128,12 @@ pub fn handle_assets_click(
             out_actions.push(AssetsPanelAction::CloseContextMenu);
             match hit.tag {
                 ASSET_CTX_INSPECT => {
-                    if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
+                    if let AssetsContextMenuTarget::Asset(item) = target {
                         out_actions.push(AssetsPanelAction::OpenInspectModal(item.clone()));
                     }
                 }
                 ASSET_CTX_SPAWN => {
-                    if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
+                    if let AssetsContextMenuTarget::Asset(item) = target {
                         out_actions.push(AssetsPanelAction::SpawnAsset(
                             item.path.clone(),
                             item.category,
@@ -119,13 +141,13 @@ pub fn handle_assets_click(
                     }
                 }
                 ASSET_CTX_NEW_FOLDER => {
-                    let parent = match &cm.target {
+                    let parent = match target {
                         AssetsContextMenuTarget::Folder(path) => path.clone(),
                         AssetsContextMenuTarget::Asset(_) => current_folder.to_path_buf(),
                     };
                     out_actions.push(AssetsPanelAction::OpenCreateSubfolder(parent));
                 }
-                ASSET_CTX_RENAME => match &cm.target {
+                ASSET_CTX_RENAME => match target {
                     AssetsContextMenuTarget::Asset(item) => {
                         out_actions.push(AssetsPanelAction::OpenRename(
                             item.path.clone(),
@@ -143,19 +165,19 @@ pub fn handle_assets_click(
                     }
                 },
                 ASSET_CTX_DELETE => {
-                    let path = match &cm.target {
+                    let path = match target {
                         AssetsContextMenuTarget::Asset(item) => item.path.clone(),
                         AssetsContextMenuTarget::Folder(path) => path.clone(),
                     };
                     out_actions.push(AssetsPanelAction::OpenDelete(path));
                 }
                 ASSET_CTX_COPY_PATH => {
-                    if let AssetsContextMenuTarget::Asset(ref item) = cm.target {
+                    if let AssetsContextMenuTarget::Asset(item) = target {
                         out_actions.push(AssetsPanelAction::CopyPath(item.path.clone()));
                     }
                 }
                 ASSET_CTX_REVEAL => {
-                    let path = match &cm.target {
+                    let path = match target {
                         AssetsContextMenuTarget::Asset(item) => item.path.clone(),
                         AssetsContextMenuTarget::Folder(path) => path.clone(),
                     };
@@ -166,7 +188,10 @@ pub fn handle_assets_click(
             return true;
         }
 
-        if cm.card_rect.contains_point(cursor_pos) {
+        if ctx
+            .context_menu_card_rect
+            .is_some_and(|r| is_point_in_rect(r, cursor_pos))
+        {
             // Clicked inside context menu card background
             return true;
         }
@@ -175,187 +200,155 @@ pub fn handle_assets_click(
         out_actions.push(AssetsPanelAction::CloseContextMenu);
     }
 
-    if !targets.panel_rect.contains_point(cursor_pos) {
+    if !is_point_in_rect(ctx.panel_rect, cursor_pos) {
         if is_search_focused {
             out_actions.push(AssetsPanelAction::FocusSearch(false));
         }
         return false;
     }
 
-    // 1. Breadcrumbs Navigation
-    for crumb in &targets.breadcrumbs {
-        if crumb.rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::NavigateFolder(crumb.path.clone()));
+    // --- 100% Declarative O(1) Semantic Tag Dispatch ---
+    if let Some(ref hit) = ctx.hit_target
+        && is_assets_tag(hit.tag)
+    {
+        // 1. Grid Card or List Row Selection / Double-Click Spawning / Inspection
+        if let Some((item_idx, action)) = parse_item_tag(hit.tag)
+            && let Some(item) = ctx.filtered_items.get(item_idx as usize)
+        {
+            match action {
+                AssetItemAction::SelectOrOpen => {
+                    let now = Instant::now();
+                    let is_double_click = if let (Some(last_path), Some(last_time)) =
+                        (&tracker.last_path, tracker.last_instant)
+                    {
+                        last_path == &item.path && now.duration_since(last_time).as_millis() < 400
+                    } else {
+                        false
+                    };
+
+                    if is_double_click {
+                        tracker.last_path = None;
+                        tracker.last_instant = None;
+                        tracker.potential_drag_item = None;
+                        tracker.drag_start_pos = None;
+                        out_actions.push(AssetsPanelAction::SpawnAsset(
+                            item.path.clone(),
+                            item.category,
+                        ));
+                    } else {
+                        tracker.last_path = Some(item.path.clone());
+                        tracker.last_instant = Some(now);
+                        tracker.potential_drag_item = Some(item.clone());
+                        tracker.drag_start_pos = Some(cursor_pos);
+                        tracker.is_dragging_asset = false;
+                        out_actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+                    }
+                }
+                AssetItemAction::Spawn => {
+                    out_actions.push(AssetsPanelAction::SpawnAsset(
+                        item.path.clone(),
+                        item.category,
+                    ));
+                }
+                AssetItemAction::Inspect => {
+                    out_actions.push(AssetsPanelAction::OpenInspectModal(item.clone()));
+                }
+            }
             return true;
         }
-    }
 
-    // 2. Search Clear Button "✖"
-    if let Some(clr_rect) = targets.search_clear_btn_rect
-        && clr_rect.contains_point(cursor_pos)
-    {
-        out_actions.push(AssetsPanelAction::ClearSearch);
-        return true;
-    }
+        // 2. Folder Tree Row or Chevron Navigation
+        if let Some((node_idx, is_chevron)) = parse_tree_tag(hit.tag) {
+            let target_path = if node_idx == 0 {
+                PathBuf::from("assets")
+            } else if let Some(folder) = ctx.subfolders.get((node_idx - 1) as usize) {
+                folder.clone()
+            } else {
+                PathBuf::from("assets")
+            };
 
-    // 3. Search Input Box Click
-    if targets.search_input_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::FocusSearch(true));
-        return true;
-    } else if is_search_focused {
-        out_actions.push(AssetsPanelAction::FocusSearch(false));
-    }
+            // Both chevron and row click route to folder navigation
+            let _ = is_chevron;
+            out_actions.push(AssetsPanelAction::NavigateFolder(target_path));
+            return true;
+        }
 
-    // 4. View Mode Toggles
-    if targets.grid_toggle_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::SetViewMode(AssetViewMode::Grid));
-        return true;
-    }
-    if targets.list_toggle_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::SetViewMode(AssetViewMode::List));
-        return true;
-    }
+        // 3. Breadcrumb Navigation
+        if let Some(segment_idx) = parse_breadcrumb_tag(hit.tag) {
+            let segments: Vec<&str> = current_folder.iter().filter_map(|s| s.to_str()).collect();
+            if !segments.is_empty() {
+                let end_idx = (segment_idx as usize).min(segments.len() - 1);
+                let target_path: PathBuf = segments[..=end_idx].iter().collect();
+                out_actions.push(AssetsPanelAction::NavigateFolder(target_path));
+                return true;
+            }
+        }
 
-    // 4b. Engine Content Visibility Toggle (Domain Isolation Standard)
-    if let Some(engine_rect) = targets.engine_toggle_btn_rect
-        && engine_rect.contains_point(cursor_pos)
-    {
-        out_actions.push(AssetsPanelAction::ToggleEngineContent);
-        return true;
-    }
-
-    // 5. Action Buttons: Import, Reveal, Clean
-    if targets.import_btn_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::OpenImportDialog);
-        return true;
-    }
-    if targets.reveal_btn_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::RevealFolder(
-            current_folder.to_path_buf(),
-        ));
-        return true;
-    }
-    if targets.clean_btn_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::CleanVram);
-        return true;
-    }
-
-    // 6. Category Chips
-    for &(cat, rect) in &targets.category_chips {
-        if rect.contains_point(cursor_pos) {
+        // 4. Category Filter Chip
+        if let Some(cat_idx) = parse_chip_tag(hit.tag)
+            && let Some(&cat) = AssetCategory::ALL.get(cat_idx as usize)
+        {
             out_actions.push(AssetsPanelAction::SelectCategory(cat));
             return true;
         }
-    }
 
-    // 7. Sidebar Toggle Button in Footer
-    if targets.sidebar_toggle_btn_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::ToggleSidebar);
-        return true;
-    }
-
-    // 8. New Subfolder "+" in Sidebar Header
-    if let Some(plus_rect) = targets.new_subfolder_btn_rect
-        && plus_rect.contains_point(cursor_pos)
-    {
-        out_actions.push(AssetsPanelAction::OpenCreateSubfolder(
-            current_folder.to_path_buf(),
-        ));
-        return true;
-    }
-
-    // 9. Folder Tree Rows
-    for node in &targets.folder_nodes {
-        if node.row_rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::NavigateFolder(node.path.clone()));
-            return true;
-        }
-    }
-
-    // 10. Grid Cards (Click or Double Click)
-    for card in &targets.grid_cards {
-        if card.rect.contains_point(cursor_pos) {
-            let now = Instant::now();
-            let is_double_click = if let (Some(last_path), Some(last_time)) =
-                (&tracker.last_path, tracker.last_instant)
-            {
-                last_path == &card.path && now.duration_since(last_time).as_millis() < 400
-            } else {
-                false
-            };
-
-            if is_double_click {
-                tracker.last_path = None;
-                tracker.last_instant = None;
-                tracker.potential_drag_item = None;
-                tracker.drag_start_pos = None;
-                out_actions.push(AssetsPanelAction::SpawnAsset(
-                    card.path.clone(),
-                    card.category,
-                ));
-            } else {
-                tracker.last_path = Some(card.path.clone());
-                tracker.last_instant = Some(now);
-                tracker.potential_drag_item = Some(card.item.clone());
-                tracker.drag_start_pos = Some(cursor_pos);
-                tracker.is_dragging_asset = false;
-                out_actions.push(AssetsPanelAction::SelectAsset(Some(card.path.clone())));
+        // 5. Static Panel Controls
+        match hit.tag {
+            ASSETS_TAG_TOGGLE_SIDEBAR => {
+                out_actions.push(AssetsPanelAction::ToggleSidebar);
+                return true;
             }
-            return true;
-        }
-    }
-
-    // 11. List Rows (Click, Double Click, Spawn or Inspect buttons)
-    for row in &targets.list_rows {
-        if row.rect.contains_point(cursor_pos) {
-            if let Some(sp_rect) = row.spawn_btn_rect
-                && sp_rect.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::SpawnAsset(
-                    row.path.clone(),
-                    row.category,
+            ASSETS_TAG_IMPORT => {
+                out_actions.push(AssetsPanelAction::OpenImportDialog);
+                return true;
+            }
+            ASSETS_TAG_CLEAN_VRAM => {
+                out_actions.push(AssetsPanelAction::CleanVram);
+                return true;
+            }
+            ASSETS_TAG_VIEW_GRID => {
+                out_actions.push(AssetsPanelAction::SetViewMode(AssetViewMode::Grid));
+                return true;
+            }
+            ASSETS_TAG_VIEW_LIST => {
+                out_actions.push(AssetsPanelAction::SetViewMode(AssetViewMode::List));
+                return true;
+            }
+            ASSETS_TAG_ENGINE_CONTENT => {
+                out_actions.push(AssetsPanelAction::ToggleEngineContent);
+                return true;
+            }
+            ASSETS_TAG_SEARCH_INPUT => {
+                out_actions.push(AssetsPanelAction::FocusSearch(true));
+                return true;
+            }
+            ASSETS_TAG_SEARCH_CLEAR => {
+                out_actions.push(AssetsPanelAction::ClearSearch);
+                return true;
+            }
+            ASSETS_TAG_NEW_SUBFOLDER => {
+                out_actions.push(AssetsPanelAction::OpenCreateSubfolder(
+                    current_folder.to_path_buf(),
                 ));
                 return true;
             }
-            if let Some(ins_rect) = row.inspect_btn_rect
-                && ins_rect.contains_point(cursor_pos)
-            {
-                out_actions.push(AssetsPanelAction::OpenInspectModal(row.item.clone()));
+            super::types::ASSETS_TAG_REVEAL => {
+                out_actions.push(AssetsPanelAction::RevealFolder(
+                    current_folder.to_path_buf(),
+                ));
                 return true;
             }
-
-            let now = Instant::now();
-            let is_double_click = if let (Some(last_path), Some(last_time)) =
-                (&tracker.last_path, tracker.last_instant)
-            {
-                last_path == &row.path && now.duration_since(last_time).as_millis() < 400
-            } else {
-                false
-            };
-
-            if is_double_click {
-                tracker.last_path = None;
-                tracker.last_instant = None;
-                tracker.potential_drag_item = None;
-                tracker.drag_start_pos = None;
-                out_actions.push(AssetsPanelAction::SpawnAsset(
-                    row.path.clone(),
-                    row.category,
-                ));
-            } else {
-                tracker.last_path = Some(row.path.clone());
-                tracker.last_instant = Some(now);
-                tracker.potential_drag_item = Some(row.item.clone());
-                tracker.drag_start_pos = Some(cursor_pos);
-                tracker.is_dragging_asset = false;
-                out_actions.push(AssetsPanelAction::SelectAsset(Some(row.path.clone())));
-            }
-            return true;
+            _ => {}
         }
     }
 
-    // Clicking empty area deselects
-    if targets.content_viewport_rect.contains_point(cursor_pos) {
+    // Unfocus search box if clicked elsewhere
+    if is_search_focused {
+        out_actions.push(AssetsPanelAction::FocusSearch(false));
+    }
+
+    // Clicking empty area in content viewport deselects active asset
+    if is_point_in_rect(ctx.content_viewport_rect, cursor_pos) {
         out_actions.push(AssetsPanelAction::SelectAsset(None));
         return true;
     }
@@ -368,84 +361,79 @@ pub fn handle_assets_right_click(
     ctx: &AssetsEventContext<'_>,
     out_actions: &mut Vec<AssetsPanelAction>,
 ) -> bool {
-    let targets = ctx.targets;
     let cursor_pos = ctx.cursor_pos;
 
     // If preview modal is open, ignore right clicks
-    if targets.preview_modal.is_some() {
+    if ctx.preview_modal.is_some() {
         return false;
     }
 
-    if !targets.panel_rect.contains_point(cursor_pos) {
+    if !is_point_in_rect(ctx.panel_rect, cursor_pos) {
         return false;
     }
 
-    // 1. Right click on an asset grid card
-    for card in &targets.grid_cards {
-        if card.rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::SelectAsset(Some(card.path.clone())));
+    // 1. O(1) Semantic Tag Dispatch for Right-Clicks
+    if let Some(ref hit) = ctx.hit_target
+        && is_assets_tag(hit.tag)
+    {
+        // Right-click on asset card or list row
+        if let Some((item_idx, _)) = parse_item_tag(hit.tag)
+            && let Some(item) = ctx.filtered_items.get(item_idx as usize)
+        {
+            out_actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
             out_actions.push(AssetsPanelAction::OpenContextMenu(
-                AssetsContextMenuTarget::Asset(card.item.clone()),
+                AssetsContextMenuTarget::Asset(item.clone()),
+                cursor_pos,
+            ));
+            return true;
+        }
+
+        // Right-click on folder tree row
+        if let Some((node_idx, _)) = parse_tree_tag(hit.tag) {
+            let target_path = if node_idx == 0 {
+                PathBuf::from("assets")
+            } else if let Some(folder) = ctx.subfolders.get((node_idx - 1) as usize) {
+                folder.clone()
+            } else {
+                PathBuf::from("assets")
+            };
+            out_actions.push(AssetsPanelAction::OpenContextMenu(
+                AssetsContextMenuTarget::Folder(target_path),
                 cursor_pos,
             ));
             return true;
         }
     }
 
-    // 2. Right click on a list row
-    for row in &targets.list_rows {
-        if row.rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::SelectAsset(Some(row.path.clone())));
-            out_actions.push(AssetsPanelAction::OpenContextMenu(
-                AssetsContextMenuTarget::Asset(row.item.clone()),
-                cursor_pos,
-            ));
-            return true;
-        }
-    }
-
-    // 3. Right click on a folder tree node
-    for node in &targets.folder_nodes {
-        if node.row_rect.contains_point(cursor_pos) {
-            out_actions.push(AssetsPanelAction::OpenContextMenu(
-                AssetsContextMenuTarget::Folder(node.path.clone()),
-                cursor_pos,
-            ));
-            return true;
-        }
-    }
-
-    // 4. Right click on empty viewport / panel area
-    if targets.content_viewport_rect.contains_point(cursor_pos) {
-        out_actions.push(AssetsPanelAction::OpenContextMenu(
-            AssetsContextMenuTarget::Folder(ctx.current_folder.to_path_buf()),
-            cursor_pos,
-        ));
-        return true;
-    }
-
-    false
+    // 2. Default right-click in viewport / panel opens folder context menu
+    out_actions.push(AssetsPanelAction::OpenContextMenu(
+        AssetsContextMenuTarget::Folder(ctx.current_folder.to_path_buf()),
+        cursor_pos,
+    ));
+    true
 }
 
 /// Evaluates mouse wheel scrolling against the active Asset Browser panel hit targets.
 pub fn handle_assets_scroll(
     cursor_pos: Point,
     scroll_delta: f32,
-    targets: &AssetsPanelTargets,
+    panel_rect: Rect,
+    sidebar_rect: Option<Rect>,
+    content_viewport_rect: Rect,
     out_actions: &mut Vec<AssetsPanelAction>,
 ) -> bool {
-    if !targets.panel_rect.contains_point(cursor_pos) {
+    if !is_point_in_rect(panel_rect, cursor_pos) {
         return false;
     }
 
-    if let Some(sb_rect) = targets.sidebar_rect
-        && sb_rect.contains_point(cursor_pos)
+    if let Some(sb_rect) = sidebar_rect
+        && is_point_in_rect(sb_rect, cursor_pos)
     {
         out_actions.push(AssetsPanelAction::TreeScroll(scroll_delta));
         return true;
     }
 
-    if targets.content_viewport_rect.contains_point(cursor_pos) {
+    if is_point_in_rect(content_viewport_rect, cursor_pos) {
         out_actions.push(AssetsPanelAction::Scroll(scroll_delta));
         return true;
     }
@@ -549,7 +537,7 @@ pub fn handle_assets_panel_event(
         };
 
         // Quick Asset Preview modal zoom scrolling via semantic hit-target
-        if ctx.targets.preview_modal.is_some()
+        if ctx.preview_modal.is_some()
             && let Some(ref hit) = ctx.hit_target
             && (hit.layer == UiLayer::Modal || hit.tag == super::types::ASSET_PREVIEW_TAG_ORBIT)
         {
@@ -558,7 +546,14 @@ pub fn handle_assets_panel_event(
             return true;
         }
 
-        return handle_assets_scroll(ctx.cursor_pos, scroll_delta, ctx.targets, out_actions);
+        return handle_assets_scroll(
+            ctx.cursor_pos,
+            scroll_delta,
+            ctx.panel_rect,
+            ctx.sidebar_rect,
+            ctx.content_viewport_rect,
+            out_actions,
+        );
     }
 
     // 5. Keyboard Navigation & Action Shortcuts
@@ -574,11 +569,11 @@ pub fn handle_assets_panel_event(
     {
         // 5a. Escape dismisses modal, context menu, or search focus
         if matches!(logical_key, Key::Named(NamedKey::Escape)) {
-            if ctx.targets.preview_modal.is_some() {
+            if ctx.preview_modal.is_some() {
                 out_actions.push(AssetsPanelAction::CloseInspectModal);
                 return true;
             }
-            if ctx.targets.context_menu.is_some() {
+            if ctx.context_menu.is_some() {
                 out_actions.push(AssetsPanelAction::CloseContextMenu);
                 return true;
             }
@@ -609,19 +604,14 @@ pub fn handle_assets_panel_event(
                 }
                 _ => {}
             }
-        } else if ctx.targets.preview_modal.is_none() {
+        } else if ctx.preview_modal.is_none() {
             // 5c. Spacebar: Quick Asset Preview modal
             if matches!(logical_key, Key::Named(NamedKey::Space))
                 && let Some(sel_path) = ctx.selected_asset
+                && let Some(item) = ctx.filtered_items.iter().find(|i| i.path == sel_path)
             {
-                if let Some(card) = ctx.targets.grid_cards.iter().find(|c| c.path == sel_path) {
-                    out_actions.push(AssetsPanelAction::OpenInspectModal(card.item.clone()));
-                    return true;
-                }
-                if let Some(row) = ctx.targets.list_rows.iter().find(|r| r.path == sel_path) {
-                    out_actions.push(AssetsPanelAction::OpenInspectModal(row.item.clone()));
-                    return true;
-                }
+                out_actions.push(AssetsPanelAction::OpenInspectModal(item.clone()));
+                return true;
             }
 
             // 5d. F2: Rename selected asset

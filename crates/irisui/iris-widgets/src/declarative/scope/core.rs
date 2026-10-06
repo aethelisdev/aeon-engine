@@ -25,6 +25,8 @@ pub struct UiScope<'a> {
     pub(crate) tagged_events: &'a [(u64, InteractionEvent)],
     pub(crate) hovered_id: Option<WidgetId>,
     pub(crate) hovered_tag: Option<u64>,
+    pub(crate) seed: u64,
+    pub(crate) active_text_input: Option<(u64, &'a str, bool)>,
 }
 
 impl<'a> UiScope<'a> {
@@ -41,6 +43,8 @@ impl<'a> UiScope<'a> {
             tagged_events: &[],
             hovered_id: None,
             hovered_tag: None,
+            seed: 0,
+            active_text_input: None,
         }
     }
 
@@ -64,6 +68,8 @@ impl<'a> UiScope<'a> {
             tagged_events: &[],
             hovered_id,
             hovered_tag: None,
+            seed: 0,
+            active_text_input: None,
         }
     }
 
@@ -87,7 +93,78 @@ impl<'a> UiScope<'a> {
             tagged_events: events,
             hovered_id: None,
             hovered_tag,
+            seed: 0,
+            active_text_input: None,
         }
+    }
+
+    /// Attaches the active text input session containing focused widget tag, current buffer text, and selection state.
+    ///
+    /// Automatically passed down to child scopes, enabling all inline numeric text boxes to render active
+    /// cursor and selection highlights without manual per-widget boilerplate.
+    pub fn with_active_text_input(mut self, active_input: Option<(u64, &'a str, bool)>) -> Self {
+        self.active_text_input = active_input;
+        self
+    }
+
+    /// Creates a child scope for a nested widget container, preserving active events and scope seed.
+    #[inline]
+    pub(crate) fn child_scope(&mut self, parent: WidgetId) -> UiScope<'_> {
+        UiScope {
+            tree: self.tree,
+            parent,
+            events: self.events,
+            tagged_events: self.tagged_events,
+            hovered_id: self.hovered_id,
+            hovered_tag: self.hovered_tag,
+            seed: self.seed,
+            active_text_input: self.active_text_input,
+        }
+    }
+
+    /// Returns the active scope seed used to isolate tag hashing.
+    #[inline]
+    pub fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// Computes a deterministic 64-bit tag for the given label within the current scope hierarchy.
+    ///
+    /// Combines [`split_label_id`] and [`hash_label_with_seed`] using the scope's active seed.
+    /// If the label contains the `##` separator (e.g. `"Offset##collider"`), the entire string
+    /// is used for hashing while preserving the visual prefix for UI text rendering.
+    #[inline]
+    pub fn tag_for(&self, label: &str) -> u64 {
+        let (_visible, tag_source) = crate::declarative::types::split_label_id(label);
+        crate::declarative::types::hash_label_with_seed(self.seed, tag_source)
+    }
+
+    /// Executes a closure within a nested sub-scope seeded with the given identifier.
+    ///
+    /// Any widgets created within this sub-scope inherit a combined seed ([`combine_seeds`]),
+    /// preventing tag collisions between identical labels across different entities, inspector cards,
+    /// or repeated list items.
+    ///
+    /// # Arguments
+    /// * `id` - Scope discriminator seed implementing [`ScopeId`] (e.g. Entity ID, component name `&str`, or loop index `usize`).
+    /// * `f` - Closure receiving the seeded sub-scope.
+    pub fn with_id<I: crate::declarative::types::ScopeId, R, F: FnOnce(&mut UiScope<'_>) -> R>(
+        &mut self,
+        id: I,
+        f: F,
+    ) -> R {
+        let child_seed = crate::declarative::types::combine_seeds(self.seed, id.into_seed());
+        let mut sub_scope = UiScope {
+            tree: self.tree,
+            parent: self.parent,
+            events: self.events,
+            tagged_events: self.tagged_events,
+            hovered_id: self.hovered_id,
+            hovered_tag: self.hovered_tag,
+            seed: child_seed,
+            active_text_input: self.active_text_input,
+        };
+        f(&mut sub_scope)
     }
 
     /// Returns the target [`WidgetId`] currently acting as the parent for emitted widgets.
@@ -106,6 +183,15 @@ impl<'a> UiScope<'a> {
     #[inline]
     pub fn tree_mut(&mut self) -> &mut UiTree {
         self.tree
+    }
+
+    /// Returns the computed bounding rectangle of an emitted widget after layout resolution.
+    #[inline]
+    pub fn computed_rect(&self, id: WidgetId) -> Rect {
+        self.tree
+            .get(id)
+            .map(|node| node.computed_rect)
+            .unwrap_or(Rect::ZERO)
     }
 
     /// Checks the interaction state of an emitted widget against the active event stream.
@@ -147,6 +233,54 @@ impl<'a> UiScope<'a> {
         (clicked, hovered, drag_delta)
     }
 
+    /// Checks if a committed text input interaction occurred for the given widget node or semantic tag.
+    ///
+    /// Resolves against both local widget allocations and tagged event records in the active frame stream.
+    pub fn check_interaction_text(&self, id: WidgetId) -> Option<&str> {
+        let tag = self.tree.get(id).map_or(0, |n| n.tag);
+        for (ev_id, ev) in self.events {
+            let matches_id = *ev_id == id;
+            let matches_tag = tag != 0 && self.tree.get(*ev_id).is_some_and(|n| n.tag == tag);
+            if (matches_id || matches_tag)
+                && let InteractionEvent::TextInput { text } = ev
+            {
+                return Some(text.as_str());
+            }
+        }
+        for (ev_tag, ev) in self.tagged_events {
+            if tag != 0
+                && *ev_tag == tag
+                && let InteractionEvent::TextInput { text } = ev
+            {
+                return Some(text.as_str());
+            }
+        }
+        None
+    }
+
+    /// Returns the semantic tag currently hovered in the active interaction session.
+    #[inline]
+    pub fn hovered_tag(&self) -> Option<u64> {
+        self.hovered_tag
+    }
+
+    /// Checks if a persistent 64-bit semantic tag is currently hovered in the active interaction session.
+    ///
+    /// Evaluates direct match with `hovered_tag` as well as node tag on `hovered_id`.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic identifier to inspect.
+    pub fn is_tag_hovered(&self, tag: u64) -> bool {
+        if tag == 0 {
+            return false;
+        }
+        self.hovered_tag == Some(tag)
+            || self
+                .hovered_id
+                .and_then(|hid| self.tree.get(hid))
+                .is_some_and(|n| n.tag == tag)
+    }
+
     /// Calculates and applies recursive flow layout for this scope's subtree across `bounds`.
     pub fn finish_layout(&mut self, bounds: Rect) {
         layout_subtree(self.tree, self.parent, bounds);
@@ -171,6 +305,29 @@ impl<'a> UiScope<'a> {
     pub fn set_scroll_offset_y(&mut self, offset_y: f32) {
         if let Some(node) = self.tree.get_mut(self.parent) {
             node.style.scroll_offset_y = offset_y;
+        }
+    }
+
+    /// Configures the active parent container's debug name, layout style, and interactivity.
+    ///
+    /// Provides declarative setup for root nodes and container scopes without
+    /// raw `UiNode` imperative manipulation in the consumer application layer.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier assigned to the container node.
+    /// * `style` - Flexbox layout constraints and visual properties applied to the container.
+    /// * `interactive` - Whether the container node responds to pointer interactions.
+    #[inline]
+    pub fn configure_container(
+        &mut self,
+        name: impl Into<String>,
+        style: iris_core::Style,
+        interactive: bool,
+    ) {
+        if let Some(node) = self.tree.get_mut(self.parent) {
+            node.set_name(name);
+            node.interactive = interactive;
+            node.set_style(style);
         }
     }
 }

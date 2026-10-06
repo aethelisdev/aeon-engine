@@ -621,3 +621,167 @@ fn test_declarative_row_flex_badge_and_button_fits_bounds() {
     // Button must fit inside row bounds without being pushed off
     assert!(btn_node.computed_rect.right() <= bounds.right());
 }
+
+#[test]
+fn test_space_between_does_not_stretch_unconstrained_children() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut left_id = None;
+    let mut right_id = None;
+
+    scope.container_named(
+        "Toolbar",
+        iris_core::Style::new()
+            .flex_row()
+            .justify_content(iris_core::JustifyContent::SpaceBetween)
+            .width(1000.0)
+            .height(30.0),
+        |tb| {
+            let lid = tb.container_named(
+                "LeftGroup",
+                iris_core::Style::new().flex_row().height(24.0),
+                |left| {
+                    left.label_styled_passive(
+                        "BreadcrumbText",
+                        "assets",
+                        11.5,
+                        iris_core::Color::WHITE,
+                        iris_core::TextAlign::Left,
+                        iris_core::Style::new(),
+                    );
+                },
+            );
+            left_id = Some(lid);
+
+            let rid = tb.container_named(
+                "RightGroup",
+                iris_core::Style::new().flex_row().width(500.0).height(24.0),
+                |_right| {},
+            );
+            right_id = Some(rid);
+        },
+    );
+
+    let bounds = Rect::new(0.0, 0.0, 1000.0, 30.0);
+    scope.finish_layout(bounds);
+
+    let left_node = tree.get(left_id.unwrap()).expect("Left node exists");
+    let right_node = tree.get(right_id.unwrap()).expect("Right node exists");
+
+    // Left child should take its intrinsic content width (<100px), NOT stretch to fill 500px!
+    assert!(left_node.computed_rect.width < 100.0);
+    assert_eq!(left_node.computed_rect.x, 0.0);
+
+    // Right child should have width 500px and be pinned to the right edge (x + w == 1000.0)
+    assert_eq!(right_node.computed_rect.width, 500.0);
+    assert_eq!(right_node.computed_rect.right(), 1000.0);
+}
+
+#[test]
+fn test_declarative_text_wrap_multi_line_height_measurement() {
+    use crate::declarative::measure_height_constrained;
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut label_id = None;
+    let long_desc = "Direct hardware execution with low-overhead command recording, multi-draw indirect, and compute passes.";
+
+    scope.container_named(
+        "ColContainer",
+        iris_core::Style::new().flex_col().width(150.0),
+        |col| {
+            let lid = col.label_styled_passive(
+                "LongDesc",
+                long_desc,
+                11.0,
+                iris_core::Color::WHITE,
+                iris_core::TextAlign::Left,
+                iris_core::Style::new(),
+            );
+            label_id = Some(lid);
+        },
+    );
+
+    let lid = label_id.unwrap();
+
+    // Unconstrained should measure at least single line height (~14px..20px)
+    let h_unconstrained = measure_height_constrained(scope.tree(), lid, None);
+    assert!((14.0..=20.0).contains(&h_unconstrained));
+
+    // In a narrow width constraint of 150px, this 104-character string should wrap to multiple lines (>30px)
+    let h_constrained = measure_height_constrained(scope.tree(), lid, Some(150.0));
+    assert!(
+        h_constrained >= 30.0,
+        "Expected wrapped height >= 30.0, got {h_constrained}"
+    );
+
+    // Finish layout in a column container with width 150.0
+    let bounds = Rect::new(0.0, 0.0, 150.0, 300.0);
+    scope.finish_layout(bounds);
+
+    let node = tree.get(lid).expect("Node exists");
+    assert!(
+        node.computed_rect.height >= 30.0,
+        "Expected computed_rect.height >= 30.0, got {}",
+        node.computed_rect.height
+    );
+    assert_eq!(node.computed_rect.width, 150.0);
+}
+
+#[test]
+fn test_declarative_flex_wrap_row_layout() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let mut scope = UiScope::new(&mut tree, root);
+
+    let mut item_ids = Vec::new();
+    let row_style = iris_core::Style::new()
+        .flex_row()
+        .flex_wrap(iris_core::FlexWrap::Wrap)
+        .gap(6.0);
+
+    scope.container_named("WrapContainer", row_style, |wrap_scope| {
+        for i in 0..5 {
+            let item_style = iris_core::Style::new().width(20.0).height(16.0);
+            let id = wrap_scope.empty_box_tagged(
+                "WrapItem",
+                item_style,
+                WidgetRole::Default,
+                0x9000 + i,
+            );
+            item_ids.push(id);
+        }
+    });
+
+    let bounds = Rect::new(0.0, 0.0, 50.0, 200.0);
+    scope.finish_layout(bounds);
+
+    // With bounds width 50.0, item width 20.0 and gap 6.0:
+    // Line 1: Item 0 (x=0..20), Item 1 (x=26..46).
+    // Item 2 doesn't fit in 50 (26+20+6=52 > 50), so it wraps to Line 2!
+    // Line 2: Item 2 (x=0..20, y=22), Item 3 (x=26..46, y=22).
+    // Line 3: Item 4 (x=0..20, y=44).
+    let r0 = tree.get(item_ids[0]).unwrap().computed_rect;
+    let r1 = tree.get(item_ids[1]).unwrap().computed_rect;
+    let r2 = tree.get(item_ids[2]).unwrap().computed_rect;
+    let r3 = tree.get(item_ids[3]).unwrap().computed_rect;
+    let r4 = tree.get(item_ids[4]).unwrap().computed_rect;
+
+    assert_eq!(r0.x, 0.0);
+    assert_eq!(r0.y, 0.0);
+    assert_eq!(r1.x, 26.0);
+    assert_eq!(r1.y, 0.0);
+
+    assert_eq!(r2.x, 0.0);
+    assert_eq!(r2.y, 22.0); // 16.0 + 6.0 = 22.0
+    assert_eq!(r3.x, 26.0);
+    assert_eq!(r3.y, 22.0);
+
+    assert_eq!(r4.x, 0.0);
+    assert_eq!(r4.y, 44.0); // 22.0 + 22.0 = 44.0
+}
+
+mod property_tests;

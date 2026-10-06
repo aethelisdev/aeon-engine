@@ -18,7 +18,12 @@ use winit::window::Window;
 
 impl EngineUi {
     /// Forwards winit window events to Iris UI and the native dock coordinator.
-    pub fn handle_event(&mut self, window: &Window, event: &WindowEvent) -> bool {
+    pub fn handle_event(
+        &mut self,
+        window: &Window,
+        event: &WindowEvent,
+        world: Option<&hecs::World>,
+    ) -> bool {
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
         self.iris_overlay.chrome.floating_window_rects = self
             .layout_state
@@ -47,7 +52,7 @@ impl EngineUi {
             other => other,
         };
 
-        let iris_res = self.iris_overlay.handle_event(event_ref);
+        let iris_res = self.iris_overlay.handle_event(event_ref, world);
         if let Some(act) = iris_res.ui_action {
             self.pending_actions.push(act);
         }

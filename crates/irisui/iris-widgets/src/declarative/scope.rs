@@ -17,7 +17,15 @@ pub mod input;
 pub mod menu;
 pub mod modal;
 pub mod progress;
+pub mod properties;
 
-pub use super::types::{WidgetResponse, hash_label};
+pub use super::types::{
+    ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
+};
 pub use core::UiScope;
+pub use display::WrappedLabelDescriptor;
 pub use input::InputBoxProps;
+pub use properties::{
+    PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
+    PropertyVec3Response,
+};

@@ -12,9 +12,7 @@ use super::details;
 use super::model;
 use crate::assets::types::{AssetBrowserState, AssetCategory};
 use crate::ui::iris_bridge::assets::cards::resolve_category_color;
-use crate::ui::iris_bridge::assets::types::{
-    AssetPreviewModalTargets, AssetsPanelParams, AssetsPanelTargets,
-};
+use crate::ui::iris_bridge::assets::types::AssetsPanelParams;
 use irisui::prelude::*;
 
 /// Width of the quick preview modal card in logical pixels.
@@ -32,10 +30,7 @@ pub fn build_asset_preview_modal(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &AssetsPanelParams<'_>,
-    targets: &mut AssetsPanelTargets,
 ) {
-    targets.preview_modal = None;
-
     let Some(modal) = params.active_preview_modal else {
         return;
     };
@@ -168,9 +163,5 @@ pub fn build_asset_preview_modal(
         });
 
         scrim.finish_layout_with_hover(Rect::new(0.0, 0.0, screen_w, screen_h), params.cursor_pos);
-    });
-
-    targets.preview_modal = Some(AssetPreviewModalTargets {
-        item: modal.item.clone(),
     });
 }

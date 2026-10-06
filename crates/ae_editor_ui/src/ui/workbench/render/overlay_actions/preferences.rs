@@ -52,95 +52,12 @@ impl EngineUi {
                     ctx.ui_actions.push(EngineUiAction::SetUiScale(s));
                 }
                 iris_bridge::PreferencesAction::Toggle(toggle_id) => match toggle_id {
-                    iris_bridge::PreferencesToggleId::ShadowsEnabled => {
-                        ctx.graphics_settings.shadow_enabled =
-                            !ctx.graphics_settings.shadow_enabled;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesToggleId::BloomEnabled => {
-                        ctx.graphics_settings.bloom_enabled = !ctx.graphics_settings.bloom_enabled;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesToggleId::FogEnabled => {
-                        ctx.graphics_settings.fog_enabled = !ctx.graphics_settings.fog_enabled;
-                        *ctx.gs_changed = true;
-                    }
                     iris_bridge::PreferencesToggleId::LiveUpdatesEnabled => {
                         *ctx.enable_live_updates = !*ctx.enable_live_updates;
                         *ctx.live_changed = true;
                     }
                     iris_bridge::PreferencesToggleId::Module(m) => {
                         ctx.ui_actions.push(EngineUiAction::ToggleModule(m));
-                    }
-                },
-                iris_bridge::PreferencesAction::SetSliderValue(slider_id, val) => match slider_id {
-                    iris_bridge::PreferencesSliderId::ShadowBias => {
-                        ctx.graphics_settings.shadow_bias = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::BloomIntensity => {
-                        ctx.graphics_settings.bloom_intensity = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::SunPitch => {
-                        ctx.graphics_settings.sun_pitch = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::SunYaw => {
-                        ctx.graphics_settings.sun_yaw = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::AtmosphereDensity => {
-                        ctx.graphics_settings.atmosphere_density = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::OzoneDensity => {
-                        ctx.graphics_settings.ozone_density = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::SunDiscSize => {
-                        ctx.graphics_settings.sun_disc_size = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::SunGlowStrength => {
-                        ctx.graphics_settings.sun_glow_strength = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::CloudCoverage => {
-                        ctx.graphics_settings.cloud_coverage = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::CloudDensity => {
-                        ctx.graphics_settings.cloud_density = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::CloudSpeed => {
-                        ctx.graphics_settings.cloud_speed = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::CloudEvolution => {
-                        ctx.graphics_settings.cloud_evolution = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::CloudAltitude => {
-                        ctx.graphics_settings.cloud_altitude = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::FogDistance => {
-                        ctx.graphics_settings.fog_distance = val;
-                        *ctx.gs_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::GridSize => {
-                        ctx.snapping.grid_size = val;
-                        *ctx.snap_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::UndoHistoryLimit => {
-                        ctx.editor_config.max_undo_history = val as usize;
-                        *ctx.cfg_changed = true;
-                    }
-                    iris_bridge::PreferencesSliderId::PhysicsFrequency => {
-                        ctx.editor_config.physics_hz = val;
-                        *ctx.cfg_changed = true;
                     }
                 },
                 iris_bridge::PreferencesAction::SelectDropdownItem(dd_id, idx) => match dd_id {

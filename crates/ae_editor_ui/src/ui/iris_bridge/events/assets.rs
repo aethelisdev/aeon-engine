@@ -18,7 +18,8 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        let targets = self.assets.interactions.targets.as_ref()?;
+        let panel_rect = self.assets.panel_rect?;
+        let content_viewport_rect = self.assets.content_viewport_rect.unwrap_or(panel_rect);
         let mut result = IrisOverlayEventResult::default();
         let mut actions = Vec::new();
 
@@ -27,11 +28,18 @@ impl IrisEditorOverlay {
 
         let ctx = super::super::assets::AssetsEventContext {
             cursor_pos: cursor,
-            targets,
+            panel_rect,
+            sidebar_rect: self.assets.sidebar_rect,
+            content_viewport_rect,
+            context_menu: self.assets.context_menu.as_ref(),
+            context_menu_card_rect: self.assets.context_menu_card_rect,
+            preview_modal: self.assets.preview_modal.as_ref(),
             current_folder: &self.assets.current_folder,
             search_query: &self.assets.interactions.search_query,
             is_search_focused: self.assets.interactions.is_search_focused,
             selected_asset: self.assets.selected_asset.as_deref(),
+            filtered_items: &self.assets.filtered_items_cache,
+            subfolders: &self.assets.subfolders_cache,
             hit_target,
         };
 

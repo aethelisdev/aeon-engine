@@ -29,10 +29,10 @@ pub use iris_widgets as widgets;
 pub mod prelude {
     pub use iris_core::{
         AlignItems, Border, BoxShadow, Color, CornerRadii, DirtyFlags, EventDispatcher,
-        ExternalTextureId, FlexDirection, FocusManager, HitTargetInfo, HitTestResult, ImeEvent,
-        Insets, InteractionEvent, IrisCoreError, JustifyContent, KeyCode, MouseButton, Point,
-        Position, Rect, Size, Style, TextAlign, TextWrap, UiEvent, UiLayer, UiTree, WidgetCursor,
-        WidgetId, WidgetNode, WidgetRole, WidgetState,
+        ExternalTextureId, FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult,
+        ImeEvent, Insets, InteractionEvent, IrisCoreError, JustifyContent, KeyCode, MouseButton,
+        Point, Position, Rect, Size, Style, TextAlign, TextWrap, UiEvent, UiLayer, UiTree,
+        WidgetCursor, WidgetId, WidgetNode, WidgetRole, WidgetState,
     };
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DEFAULT_RESIZE_MARGIN,
@@ -76,14 +76,16 @@ pub mod prelude {
         HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, InputBoxProps,
         MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
         ModalDialogAction, ModalDialogStyle, NumericInputEditState, NumericInputPillBuilder,
-        NumericInputStyle, PanelBuilder, ResponsiveGrid, ScrollAreaBuilder, ScrollAreaFrame,
-        ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit, ScrollBarVisibility, ScrollDirection,
-        SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,
-        TabbedDialogFrame, TabbedDialogStyle, TabbedDialogTab, TextInputState, TreeRowBuilder,
-        TreeRowFrame, TreeRowIcon, TreeRowStyle, UiScope, VirtualItemHeight, VirtualList,
-        VirtualScrollConfig, VirtualSlice, WidgetResponse, evaluate_color_picker_click,
-        evaluate_color_picker_cursor, evaluate_color_picker_drag, evaluate_modal_tag, hash_label,
-        hsv_to_rgb, layout_subtree, measure_content_height, measure_height, measure_width,
-        rgb_to_hsv,
+        NumericInputStyle, PanelBuilder, PropertySliderOptions, PropertyTextOptions,
+        PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, ResponsiveGrid,
+        ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit,
+        ScrollBarVisibility, ScrollDirection, SettingSectionBuilder, SettingSectionFrame,
+        SettingSectionStyle, TabbedDialogBuilder, TabbedDialogFrame, TabbedDialogStyle,
+        TabbedDialogTab, TextInputState, TreeRowBuilder, TreeRowFrame, TreeRowIcon, TreeRowStyle,
+        UiScope, VirtualItemHeight, VirtualList, VirtualScrollConfig, VirtualSlice, WidgetResponse,
+        WrappedLabelDescriptor, evaluate_color_picker_click, evaluate_color_picker_cursor,
+        evaluate_color_picker_drag, evaluate_modal_tag, hash_label, hash_label_with_seed,
+        hsv_to_rgb, layout_subtree, measure_content_height, measure_height,
+        measure_height_constrained, measure_width, rgb_to_hsv,
     };
 }

@@ -3,49 +3,34 @@
 
 //! # Physics Preferences Card
 //!
-//! Renders physics simulation frequency settings declaratively using [`UiScope`].
+//! Renders physics simulation frequency settings declaratively using [`UiScope`] and two-way property primitives.
 
-use crate::ui::iris_bridge::preferences::components::{pref_section_card, pref_slider_row};
-use crate::ui::iris_bridge::preferences::types::{
-    PHYSICS_HZ_PRESETS, PreferencesParams, PreferencesSliderId,
-};
-use ae_editor::editor_state::EditorConfig;
+use crate::ui::iris_bridge::preferences::components::pref_section_card;
+use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
 /// Builds the Physics settings card declaratively using [`UiScope`].
-pub fn build_physics_card(
-    scope: &mut UiScope<'_>,
-    params: &PreferencesParams<'_>,
-    cfg: &EditorConfig,
-) {
+///
+/// Binds simulation update rate directly to `cfg.physics_hz` via immediate two-way property primitives.
+pub fn build_physics_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("editor_physics");
-
-    let snapped_hz = PHYSICS_HZ_PRESETS
-        .iter()
-        .copied()
-        .min_by(|a, b| {
-            (a - cfg.physics_hz)
-                .abs()
-                .total_cmp(&(b - cfg.physics_hz).abs())
-        })
-        .unwrap_or(cfg.physics_hz);
+    let hovered_tag = params.hovered_tag;
+    let cfg = &mut *params.editor_config;
 
     pref_section_card(
         scope,
         "editor_physics",
         "🎮  Physics Settings",
         is_collapsed,
-        params.hovered_tag,
+        hovered_tag,
         |body| {
-            pref_slider_row(
-                body,
-                PreferencesSliderId::PhysicsFrequency,
-                "Fixed Update Frequency",
-                snapped_hz,
-                params.active_number_input,
-                params.blink_caret,
-                params.hovered_tag,
-            );
+            let opts = PropertySliderOptions::new(30.0, 240.0, 1.0)
+                .with_format("{:.0} Hz")
+                .with_subtitle(
+                    "Physics simulation frequency. Higher values improve simulation accuracy but increase CPU usage.",
+                );
+
+            body.property_slider_with_options("Fixed Update Frequency", &mut cfg.physics_hz, opts);
         },
     );
 }

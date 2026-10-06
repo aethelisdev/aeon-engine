@@ -250,6 +250,7 @@ impl PhysicsWorld {
                         }
 
                         if needs_rebuild {
+                            let is_dynamic = body.is_dynamic();
                             let old_colliders: Vec<_> = body.colliders().to_vec();
                             for c_h in old_colliders {
                                 self.collider_set.remove(
@@ -264,6 +265,13 @@ impl PhysicsWorld {
                                 handle,
                                 &mut self.rigid_body_set,
                             );
+
+                            // When collider dimensions are rebuilt (e.g. scale or shape edited in editor/runtime),
+                            // zero out residual velocity to prevent cosmic depenetration impulses.
+                            if is_dynamic && let Some(body) = self.rigid_body_set.get_mut(handle) {
+                                body.set_linvel(Vec3::ZERO, true);
+                                body.set_angvel(Vec3::ZERO, true);
+                            }
                         }
                     }
                 }

@@ -10,7 +10,10 @@
 //! canonical vector icons, truncated titles, metadata labels, and selection/hover states.
 //!
 
-use irisui::prelude::{Color, Rect, Style, TextAlign, UiTree, WidgetCursor, WidgetId, WidgetRole};
+use irisui::prelude::{
+    AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiScope, UiTree, WidgetId,
+    WidgetRole,
+};
 
 /// Visual styling configuration for an asset browser grid card.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -158,16 +161,18 @@ pub struct AssetCardFrame {
 /// Fluent builder for constructing standardized, hardware-accelerated asset browser cards.
 pub struct AssetCardBuilder<'a> {
     rect: Rect,
-    name: Option<String>,
+    name: Option<&'static str>,
     badge: Option<AssetCardBadge<'a>>,
     status_dot: Option<Color>,
     preview: Option<AssetCardPreview<'a>>,
-    title: Option<String>,
-    metadata: Option<String>,
+    title: Option<&'a str>,
+    metadata: Option<&'a str>,
     is_selected: bool,
     is_hovered: bool,
     hover_border_color: Option<Color>,
     style: AssetCardStyle,
+    tag: Option<u64>,
+    parent_rect: Option<Rect>,
 }
 
 impl<'a> AssetCardBuilder<'a> {
@@ -187,14 +192,32 @@ impl<'a> AssetCardBuilder<'a> {
             is_hovered: false,
             hover_border_color: None,
             style: AssetCardStyle::default(),
+            tag: None,
+            parent_rect: None,
         }
+    }
+
+    /// Assigns the parent viewport rectangle to calculate relative offsets for absolute positioning.
+    #[inline]
+    #[must_use]
+    pub fn parent_rect(mut self, parent_rect: Rect) -> Self {
+        self.parent_rect = Some(parent_rect);
+        self
+    }
+
+    /// Sets the 64-bit semantic tag for zero-allocation hit-testing.
+    #[inline]
+    #[must_use]
+    pub fn tag(mut self, tag: u64) -> Self {
+        self.tag = Some(tag);
+        self
     }
 
     /// Sets the semantic/debug name of the card container node.
     #[inline]
     #[must_use]
-    pub fn name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
+    pub fn name(mut self, name: &'static str) -> Self {
+        self.name = Some(name);
         self
     }
 
@@ -225,16 +248,16 @@ impl<'a> AssetCardBuilder<'a> {
     /// Sets the primary title text of the card (e.g. filename or asset name).
     #[inline]
     #[must_use]
-    pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = Some(title.into());
+    pub fn title(mut self, title: &'a str) -> Self {
+        self.title = Some(title);
         self
     }
 
     /// Sets the bottom metadata label text (e.g. file size "2.4 MB").
     #[inline]
     #[must_use]
-    pub fn metadata(mut self, metadata: impl Into<String>) -> Self {
-        self.metadata = Some(metadata.into());
+    pub fn metadata(mut self, metadata: &'a str) -> Self {
+        self.metadata = Some(metadata);
         self
     }
 
@@ -270,10 +293,25 @@ impl<'a> AssetCardBuilder<'a> {
         self
     }
 
-    /// Compiles the asset card into the target `UiTree` under `parent_id` and returns layout targets.
+    /// Compiles the asset card into the target `UiTree` under `parent_id` via a declarative scope.
     pub fn build(self, tree: &mut UiTree, parent_id: WidgetId) -> AssetCardFrame {
-        // 1. Card Outer Container
-        let card_id = tree.create_node();
+        let mut scope = UiScope::new(tree, parent_id);
+        self.build_scope(&mut scope)
+    }
+
+    /// Compiles the asset card directly into an active declarative [`UiScope`].
+    ///
+    /// Uses 100% declarative UI scope primitives with zero imperative node allocations.
+    pub fn build_scope(self, scope: &mut UiScope<'_>) -> AssetCardFrame {
+        let card_w = self.rect.width;
+        let card_h = self.rect.height;
+        let p_rect = self
+            .parent_rect
+            .or_else(|| scope.tree().get(scope.parent()).map(|p| p.computed_rect))
+            .unwrap_or(Rect::ZERO);
+        let rel_x = self.rect.x - p_rect.x;
+        let rel_y = self.rect.y - p_rect.y;
+
         let bg_color = if self.is_selected {
             self.style.bg_selected
         } else if self.is_hovered {
@@ -296,173 +334,170 @@ impl<'a> AssetCardBuilder<'a> {
             self.style.border_width_idle
         };
 
-        if let Some(node) = tree.get_mut(card_id) {
-            let name_str = self.name.as_deref().unwrap_or("AssetCard");
-            node.set_name(name_str);
-            node.computed_rect = self.rect;
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
-            node.style = Style::new()
-                .background(bg_color)
-                .border_radius(self.style.border_radius)
-                .border(border_width, border_color)
-                .clip_children(true);
-        }
-        let _ = tree.add_child(parent_id, card_id);
+        let card_style = Style::new()
+            .position_absolute()
+            .left(rel_x)
+            .top(rel_y)
+            .width(card_w)
+            .height(card_h)
+            .flex_col()
+            .align_items(AlignItems::Center)
+            .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0))
+            .gap(3.0)
+            .background(bg_color)
+            .border_radius(self.style.border_radius)
+            .border(border_width, border_color)
+            .clip_children(true);
 
-        // 2. Category Pill Badge (Top Left)
-        if let Some(badge) = self.badge {
-            let badge_rect = Rect::new(self.rect.x + 6.0, self.rect.y + 6.0, 38.0, 16.0);
-            let badge_id = tree.create_node();
-            if let Some(node) = tree.get_mut(badge_id) {
-                node.set_name("CategoryBadge");
-                node.set_text(badge.text);
-                node.font_size = self.style.badge_font_size;
-                node.line_height = 16.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = badge.color;
-                node.computed_rect = badge_rect;
-                node.style = Style::new()
-                    .background(Color::rgba(
-                        badge.color.r,
-                        badge.color.g,
-                        badge.color.b,
-                        self.style.badge_bg_alpha,
-                    ))
-                    .border_radius(self.style.badge_radius);
-            }
-            let _ = tree.add_child(card_id, badge_id);
-        }
+        let name_str = self.name.unwrap_or("AssetCard");
 
-        // 3. Status Indicator Dot (Top Right)
-        if let Some(dot_col) = self.status_dot {
-            let dot_size = self.style.status_dot_size;
-            let dot_rect = Rect::new(
-                self.rect.right() - dot_size - 7.0,
-                self.rect.y + 8.0,
-                dot_size,
-                dot_size,
-            );
-            let dot_id = tree.create_node();
-            if let Some(node) = tree.get_mut(dot_id) {
-                node.set_name("StatusIndicatorDot");
-                node.computed_rect = dot_rect;
-                node.style = Style::new()
-                    .background(dot_col)
-                    .border_radius(dot_size * 0.5);
-            }
-            let _ = tree.add_child(card_id, dot_id);
-        }
-
-        // 4. Center Thumbnail / Preview Box
         let box_size = self.style.preview_box_size;
-        let box_x = self.rect.x + (self.rect.width - box_size) * 0.5;
+        let box_rel_x = (self.rect.width - box_size) * 0.5;
+        let box_x = self.rect.x + box_rel_x;
         let box_y = self.rect.y + 26.0;
         let preview_rect = Rect::new(box_x, box_y, box_size, box_size);
 
-        let preview_box_id = tree.create_node();
-        if let Some(node) = tree.get_mut(preview_box_id) {
-            node.set_name("ThumbnailBox");
-            node.computed_rect = preview_rect;
-            node.style = Style::new()
-                .background(self.style.preview_box_bg)
-                .border_radius(self.style.preview_box_radius)
-                .border(1.0, self.style.preview_box_border);
-        }
-        let _ = tree.add_child(card_id, preview_box_id);
+        let badge = self.badge;
+        let status_dot = self.status_dot;
+        let preview = self.preview;
+        let title = self.title;
+        let metadata = self.metadata;
+        let style = self.style;
+        let is_selected = self.is_selected;
+        let is_hovered = self.is_hovered;
 
-        if let Some(preview) = self.preview {
-            match preview {
-                AssetCardPreview::Texture { uv, tint } => {
-                    let thumb_id = tree.create_node();
-                    if let Some(node) = tree.get_mut(thumb_id) {
-                        node.set_name("CardRealThumbnail");
-                        node.computed_rect = preview_rect;
-                        node.set_texture_uv(uv);
-                        node.set_texture_tint(tint);
-                        node.style = Style::new().border_radius(self.style.preview_box_radius);
-                    }
-                    let _ = tree.add_child(preview_box_id, thumb_id);
-                }
-                AssetCardPreview::VectorIcon { uv, tint, size } => {
-                    let icon_x = box_x + (box_size - size) * 0.5;
-                    let icon_y = box_y + (box_size - size) * 0.5;
-                    let icon_rect = Rect::new(icon_x, icon_y, size, size);
-                    let icon_id = tree.create_node();
-                    if let Some(node) = tree.get_mut(icon_id) {
-                        node.set_name("CardVectorIcon");
-                        node.computed_rect = icon_rect;
-                        node.set_texture_uv(uv);
-                        node.set_texture_tint(tint);
-                    }
-                    let _ = tree.add_child(preview_box_id, icon_id);
-                }
-                AssetCardPreview::TextGlyph { text, color, size } => {
-                    let glyph_id = tree.create_node();
-                    if let Some(node) = tree.get_mut(glyph_id) {
-                        node.set_name("CardGlyphIcon");
-                        node.computed_rect = preview_rect;
-                        node.set_text(text);
-                        node.font_size = size;
-                        node.line_height = box_size;
-                        node.text_align = TextAlign::Center;
-                        node.text_color = color;
-                    }
-                    let _ = tree.add_child(preview_box_id, glyph_id);
-                }
+        let card_body = |card_scope: &mut UiScope<'_>| {
+            // 1. Top Header Row (flex_row, justify_content(SpaceBetween))
+            let has_header = badge.is_some() || status_dot.is_some();
+            if has_header {
+                card_scope.container_named(
+                    "CardHeaderRow",
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween)
+                        .width(card_w - 12.0)
+                        .height(16.0),
+                    |hdr_scope| {
+                        if let Some(b) = badge {
+                            hdr_scope.container_named(
+                                "CategoryBadge",
+                                Style::new()
+                                    .flex_row()
+                                    .align_items(AlignItems::Center)
+                                    .justify_content(JustifyContent::Center)
+                                    .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
+                                    .background(Color::rgba(
+                                        b.color.r,
+                                        b.color.g,
+                                        b.color.b,
+                                        style.badge_bg_alpha,
+                                    ))
+                                    .border_radius(style.badge_radius),
+                                |b_scope| {
+                                    b_scope.label_styled_passive(
+                                        "BadgeText",
+                                        b.text,
+                                        style.badge_font_size,
+                                        b.color,
+                                        TextAlign::Center,
+                                        Style::new(),
+                                    );
+                                },
+                            );
+                        } else {
+                            hdr_scope.empty_box_passive(Style::new().width(1.0).height(1.0));
+                        }
+
+                        if let Some(dot_col) = status_dot {
+                            let dot_size = style.status_dot_size;
+                            hdr_scope.empty_box_passive_named(
+                                "StatusIndicatorDot",
+                                Style::new()
+                                    .width(dot_size)
+                                    .height(dot_size)
+                                    .background(dot_col)
+                                    .border_radius(dot_size * 0.5),
+                            );
+                        }
+                    },
+                );
             }
-        }
 
-        // 5. Truncated Asset Name Label
-        let title_color = if self.is_selected {
-            self.style.title_color_selected
-        } else if self.is_hovered {
-            self.style.title_color_hover
-        } else {
-            self.style.title_color_idle
+            // 2. Middle Thumbnail / Preview Box (Centered flex container)
+            card_scope.container_named(
+                "ThumbnailBox",
+                Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center)
+                    .width(box_size)
+                    .height(box_size)
+                    .background(style.preview_box_bg)
+                    .border_radius(style.preview_box_radius)
+                    .border(1.0, style.preview_box_border),
+                |prev_scope| {
+                    if let Some(p) = preview {
+                        match p {
+                            AssetCardPreview::Texture { uv, tint } => {
+                                prev_scope.icon_named("CardRealThumbnail", uv, tint, box_size);
+                            }
+                            AssetCardPreview::VectorIcon { uv, tint, size } => {
+                                prev_scope.icon_named("CardVectorIcon", uv, tint, size);
+                            }
+                            AssetCardPreview::TextGlyph { text, color, size } => {
+                                prev_scope.label_styled_passive(
+                                    "CardGlyphIcon",
+                                    text,
+                                    size,
+                                    color,
+                                    TextAlign::Center,
+                                    Style::new(),
+                                );
+                            }
+                        }
+                    }
+                },
+            );
+
+            // 3. Truncated Asset Name Label (Centered)
+            let title_color = if is_selected {
+                style.title_color_selected
+            } else if is_hovered {
+                style.title_color_hover
+            } else {
+                style.title_color_idle
+            };
+
+            if let Some(t) = title {
+                card_scope.label_styled_passive(
+                    "CardAssetName",
+                    t,
+                    style.title_font_size,
+                    title_color,
+                    TextAlign::Center,
+                    Style::new().width(card_w - 8.0).height(16.0),
+                );
+            }
+
+            // 4. Metadata Badge / Size Label (Centered)
+            if let Some(m) = metadata {
+                card_scope.label_styled_passive(
+                    "CardMetadata",
+                    m,
+                    style.meta_font_size,
+                    style.meta_color,
+                    TextAlign::Center,
+                    Style::new().width(card_w - 8.0).height(14.0),
+                );
+            }
         };
 
-        if let Some(title) = self.title {
-            let name_rect = Rect::new(
-                self.rect.x + 4.0,
-                self.rect.y + 84.0,
-                self.rect.width - 8.0,
-                16.0,
-            );
-            let name_id = tree.create_node();
-            if let Some(node) = tree.get_mut(name_id) {
-                node.set_name("CardAssetName");
-                node.set_text(title);
-                node.font_size = self.style.title_font_size;
-                node.line_height = 16.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = title_color;
-                node.computed_rect = name_rect;
-            }
-            let _ = tree.add_child(card_id, name_id);
-        }
-
-        // 6. Metadata Badge / Size Label
-        if let Some(meta) = self.metadata {
-            let meta_rect = Rect::new(
-                self.rect.x + 4.0,
-                self.rect.y + 102.0,
-                self.rect.width - 8.0,
-                14.0,
-            );
-            let meta_id = tree.create_node();
-            if let Some(node) = tree.get_mut(meta_id) {
-                node.set_name("CardMetadata");
-                node.set_text(meta);
-                node.font_size = self.style.meta_font_size;
-                node.line_height = 14.0;
-                node.text_align = TextAlign::Center;
-                node.text_color = self.style.meta_color;
-                node.computed_rect = meta_rect;
-            }
-            let _ = tree.add_child(card_id, meta_id);
-        }
+        let card_id = if let Some(tag) = self.tag {
+            scope.container_tagged(name_str, card_style, WidgetRole::Button, tag, card_body)
+        } else {
+            scope.container_named(name_str, card_style, card_body)
+        };
 
         AssetCardFrame {
             card_id,
@@ -497,7 +532,9 @@ mod tests {
 
         assert_eq!(frame.card_rect, card_rect);
         let card_node = tree.get(frame.card_id).expect("Card node must exist");
-        assert_eq!(card_node.children.len(), 5); // badge, dot, preview box, title, metadata
+        assert_eq!(card_node.children.len(), 4); // CardHeaderRow, ThumbnailBox, title, metadata
+        let header_node = tree.get(card_node.children[0]).expect("Header exists");
+        assert_eq!(header_node.children.len(), 2); // badge, dot
     }
 
     #[test]
@@ -518,6 +555,6 @@ mod tests {
 
         assert_eq!(frame.card_rect, card_rect);
         let card_node = tree.get(frame.card_id).expect("Card node must exist");
-        assert_eq!(card_node.children.len(), 2); // preview box + title
+        assert_eq!(card_node.children.len(), 2); // ThumbnailBox + title
     }
 }

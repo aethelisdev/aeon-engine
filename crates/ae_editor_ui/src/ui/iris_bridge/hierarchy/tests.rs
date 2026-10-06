@@ -22,8 +22,7 @@ use std::collections::HashSet;
 #[test]
 fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let world = World::new();
     let params = HierarchyPanelParams {
@@ -113,8 +112,7 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
 #[test]
 fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let world = World::new();
     let params = HierarchyPanelParams {
@@ -161,8 +159,7 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
 #[test]
 fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let world = World::new();
     let params = HierarchyPanelParams {
@@ -249,8 +246,7 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
 #[test]
 fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let world = World::new();
     let params = HierarchyPanelParams {
@@ -292,8 +288,7 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
 #[test]
 fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let world = World::new();
     let params = HierarchyPanelParams {
@@ -343,8 +338,7 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
 #[test]
 fn test_hierarchy_add_menu_click_submenu_item() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let world = World::new();
     let params = HierarchyPanelParams {
@@ -386,11 +380,8 @@ fn test_hierarchy_add_menu_click_submenu_item() {
 #[test]
 fn test_hierarchy_context_menu_builder_and_hit_testing() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    if let Some(node) = tree.get_mut(root_id) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    }
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
+    UiScope::new(&mut tree, root_id).finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
     let mut world = World::new();
     let entity = world.spawn(("TestEntity",));
@@ -446,11 +437,8 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
     let entity = world.spawn((ae_core::ecs::Name("TestEntity".into()),));
 
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    if let Some(node) = tree.get_mut(root_id) {
-        node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    }
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
+    UiScope::new(&mut tree, root_id).finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
 
     let mut rows_cache = Vec::new();
 
@@ -501,8 +489,7 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
 
     // Rebuilding hierarchy panel with mutated world must now reflect ICON_EYE_CLOSED
     let mut new_tree = UiTree::new();
-    let new_root = new_tree.create_node();
-    let _ = new_tree.set_root(new_root);
+    let new_root = new_tree.create_root().expect("Root node must be created");
     let mut new_rows_cache = Vec::new();
 
     let new_params = HierarchyPanelParams {
@@ -575,8 +562,7 @@ fn test_hierarchy_panel_declarative_scope_build() {
     let _e2 = world.spawn((ae_core::ecs::Name("Entity Beta".into()),));
 
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let panel_rect = Rect::new(10.0, 10.0, 280.0, 500.0);
     let params = HierarchyPanelParams {
@@ -642,8 +628,7 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
     }
 
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     // Viewport height: 200.0 px (accommodates ~8 visible rows of 24px + 2px gap)
     let panel_rect = Rect::new(0.0, 0.0, 300.0, 200.0);
@@ -704,8 +689,7 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
 #[test]
 fn test_hierarchy_tree_connector_lines_and_foldout() {
     let mut tree = UiTree::new();
-    let root_id = tree.create_node();
-    let _ = tree.set_root(root_id);
+    let root_id = tree.create_root().expect("Root node must be created");
 
     let mut world = World::new();
     let parent_ent = world.spawn((ae_core::ecs::Name("Parent_Tower".to_string()),));

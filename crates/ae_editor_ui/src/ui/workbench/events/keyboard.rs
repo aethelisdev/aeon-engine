@@ -68,8 +68,9 @@ impl EngineUi {
             } = event
             && key_event.state == ElementState::Pressed
         {
-            if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape) =
-                key_event.logical_key
+            if let winit::keyboard::Key::Named(
+                winit::keyboard::NamedKey::Escape | winit::keyboard::NamedKey::Enter,
+            ) = key_event.logical_key
             {
                 self.iris_overlay.hierarchy.is_search_focused = false;
                 return true;
@@ -86,6 +87,38 @@ impl EngineUi {
                         self.iris_overlay.hierarchy.search_query.push(c);
                     }
                 }
+                return true;
+            }
+        }
+
+        // Assets Content Browser search bar live typing
+        if self.iris_overlay.assets.is_search_focused
+            && let WindowEvent::KeyboardInput {
+                event: key_event, ..
+            } = event
+            && key_event.state == ElementState::Pressed
+        {
+            if let winit::keyboard::Key::Named(
+                winit::keyboard::NamedKey::Escape | winit::keyboard::NamedKey::Enter,
+            ) = key_event.logical_key
+            {
+                self.iris_overlay.assets.is_search_focused = false;
+                return true;
+            }
+            if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
+                key_event.logical_key
+            {
+                self.iris_overlay.assets.search_query.pop();
+                self.asset_browser.search_query = self.iris_overlay.assets.search_query.clone();
+                return true;
+            }
+            if let Some(text) = &key_event.text {
+                for c in text.chars() {
+                    if !c.is_control() {
+                        self.iris_overlay.assets.search_query.push(c);
+                    }
+                }
+                self.asset_browser.search_query = self.iris_overlay.assets.search_query.clone();
                 return true;
             }
         }

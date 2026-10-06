@@ -137,7 +137,7 @@ fn render_channel_lane(
         TargetProperty::Scale => ("SCL", Color::rgba(1.0, 0.65, 0.20, 0.95)),
     };
 
-    let is_even = index % 2 == 0;
+    let is_even = index.is_multiple_of(2);
     let bg_color = if is_even {
         Color::rgba(0.07, 0.08, 0.11, 0.65)
     } else {

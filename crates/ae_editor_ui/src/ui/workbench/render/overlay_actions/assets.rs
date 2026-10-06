@@ -110,7 +110,11 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
                     if let Some(payload) = self.asset_browser.drag_payload.take() {
                         let cursor_pos = self.iris_overlay.cursor_pos();
-                        if self.last_viewport_rect.contains_point(cursor_pos)
+                        let is_over_viewport = cursor_pos.x >= self.last_viewport_rect.x
+                            && cursor_pos.x <= self.last_viewport_rect.right()
+                            && cursor_pos.y >= self.last_viewport_rect.y
+                            && cursor_pos.y <= self.last_viewport_rect.bottom();
+                        if is_over_viewport
                             && self.last_viewport_rect.width > 20.0
                             && self.last_viewport_rect.height > 20.0
                         {

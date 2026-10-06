@@ -6,11 +6,11 @@
 //! Provides handlers for `💡 Light`, `📦 ModelId`, and `🎲 Shape`.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::types::{
-    ComboboxRowParams, CompactNumericRowParams, ComponentCategory, InspectorDropdownId,
-    InspectorNumberInputId,
+use super::super::types::{ComponentCategory, InspectorDropdownId, InspectorNumberInputId};
+use super::physics::helpers::{
+    ComponentHeaderProps, DeclarativeComboboxRowParams, DeclarativeNumericRowParams,
+    build_declarative_card_header, render_declarative_combobox_row, render_declarative_numeric_row,
 };
-use super::physics::{render_combobox_row, render_numeric_row_compact};
 use irisui::prelude::*;
 
 /// Inspector handler for `💡 Light`.
@@ -41,92 +41,86 @@ impl ComponentInspectorHandler for LightHandler {
         world.get::<&ae_core::ecs::Light>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 3.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
-
-        let card_id = super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let mut cur_y = ctx.base_y + padding + 22.0;
-
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let (pos, col) = ctx
             .world
             .get::<&ae_core::ecs::Light>(ctx.entity)
             .map(|l| (l.position, l.color))
             .unwrap_or(([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
 
-        let label_w = 95.0;
-        let box_w = 44.0;
+        let get_edit = |id| {
+            ctx.params
+                .active_number_input
+                .filter(|s| s.id == id)
+                .map(|s| s.to_edit_state(ctx.params.blink_caret))
+        };
 
-        // Position Offset
-        render_numeric_row_compact(
-            tree,
-            card_id,
-            ctx,
-            CompactNumericRowParams {
-                label: "Light Offset Y:",
-                input_id: InspectorNumberInputId::LightIntensity,
-                val: pos[1],
-                row_y: cur_y,
-                label_w,
-                box_w,
-                unit: None,
-            },
-        );
-        cur_y += row_h + 3.0;
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        // Color RGB
-        render_numeric_row_compact(
-            tree,
-            card_id,
-            ctx,
-            CompactNumericRowParams {
-                label: "Color R:",
-                input_id: InspectorNumberInputId::LightRange,
-                val: col[0],
-                row_y: cur_y,
-                label_w,
-                box_w,
-                unit: None,
-            },
-        );
-        cur_y += row_h + 3.0;
+        scope.container_named("LightCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
 
-        render_numeric_row_compact(
-            tree,
-            card_id,
-            ctx,
-            CompactNumericRowParams {
-                label: "Color G:",
-                input_id: InspectorNumberInputId::LightRange,
-                val: col[1],
-                row_y: cur_y,
-                label_w,
-                box_w,
-                unit: None,
-            },
-        );
+            // Row 1: Light Offset Y
+            render_declarative_numeric_row(
+                card,
+                DeclarativeNumericRowParams {
+                    input_id: InspectorNumberInputId::LightOffsetY,
+                    label: "Light Offset Y:",
+                    val: pos[1],
+                    label_w: 95.0,
+                    box_w: 44.0,
+                    unit: None,
+                    edit_state: get_edit(InspectorNumberInputId::LightOffsetY),
+                    is_hovered: false,
+                },
+            );
 
-        card_h
+            // Row 2: Color R
+            render_declarative_numeric_row(
+                card,
+                DeclarativeNumericRowParams {
+                    input_id: InspectorNumberInputId::LightColorR,
+                    label: "Color R:",
+                    val: col[0],
+                    label_w: 95.0,
+                    box_w: 44.0,
+                    unit: None,
+                    edit_state: get_edit(InspectorNumberInputId::LightColorR),
+                    is_hovered: false,
+                },
+            );
+
+            // Row 3: Color G
+            render_declarative_numeric_row(
+                card,
+                DeclarativeNumericRowParams {
+                    input_id: InspectorNumberInputId::LightColorG,
+                    label: "Color G:",
+                    val: col[1],
+                    label_w: 95.0,
+                    box_w: 44.0,
+                    unit: None,
+                    edit_state: get_edit(InspectorNumberInputId::LightColorG),
+                    is_hovered: false,
+                },
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -166,56 +160,43 @@ impl ComponentInspectorHandler for ModelMeshHandler {
         world.get::<&ae_core::ecs::ModelId>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
-
-        let card_id = super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: self.atlas_icon(),
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let handle_str = ctx
             .world
             .get::<&ae_core::ecs::ModelId>(ctx.entity)
             .map(|m| format!("{:?}", m.0))
             .unwrap_or_else(|_| "Default".to_string());
 
-        let lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(lbl_id) {
-            node.set_name("ModelAssetInfo");
-            node.set_text(format!("Asset Handle: {}", handle_str));
-            node.font_size = 10.5;
-            node.line_height = row_h;
-            node.text_color = Color::rgba(0.54, 0.56, 0.60, 1.0);
-            node.computed_rect = Rect::new(
-                ctx.base_x + padding,
-                cur_y,
-                ctx.card_w - padding * 2.0,
-                row_h,
-            );
-        }
-        let _ = tree.add_child(card_id, lbl_id);
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
 
-        card_h
+        scope.container_named("ModelMeshCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: self.atlas_icon(),
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
+
+            card.label_styled_passive(
+                "ModelAssetInfo",
+                format!("Asset Handle: {}", handle_str),
+                10.5,
+                Color::rgba(0.54, 0.56, 0.60, 1.0),
+                TextAlign::Left,
+                Style::new().height(20.0),
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
@@ -236,7 +217,7 @@ impl ComponentInspectorHandler for ShapeHandler {
     }
 
     fn icon(&self) -> &'static str {
-        "🎲"
+        "🌐"
     }
 
     fn header_color(&self) -> Color {
@@ -251,33 +232,7 @@ impl ComponentInspectorHandler for ShapeHandler {
         world.get::<&ae_core::ecs::Shape>(entity).is_ok()
     }
 
-    fn render_card(
-        &self,
-        tree: &mut UiTree,
-        parent_id: WidgetId,
-        ctx: &mut ComponentRenderContext<'_>,
-    ) -> f32 {
-        let padding = 8.0;
-        let row_h = 22.0;
-        let card_h = 24.0 + 1.0 * (row_h + 3.0) + padding * 2.0;
-        let card_rect = Rect::new(ctx.base_x, ctx.base_y, ctx.card_w, card_h);
-
-        let card_id = super::physics::helpers::build_component_card(
-            tree,
-            parent_id,
-            ctx,
-            super::physics::helpers::ComponentHeaderProps {
-                atlas_icon: None,
-                icon: self.icon(),
-                display_title: self.display_title(),
-                header_color: self.header_color(),
-                component_name: self.component_name(),
-            },
-            card_rect,
-        );
-
-        let cur_y = ctx.base_y + padding + 22.0;
-
+    fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
         let shape_str = match ctx.world.get::<&ae_core::ecs::Shape>(ctx.entity).as_deref() {
             Ok(ae_core::ecs::Shape::Cube) => "Cube",
             Ok(ae_core::ecs::Shape::Sphere) => "Sphere",
@@ -288,23 +243,160 @@ impl ComponentInspectorHandler for ShapeHandler {
             _ => "Procedural Mesh",
         };
 
-        render_combobox_row(
-            tree,
-            card_id,
-            ctx,
-            ComboboxRowParams {
-                label: "Geometry:",
-                selected_text: shape_str,
-                dropdown_id: InspectorDropdownId::ShapeType,
-                label_w: 65.0,
-                row_y: cur_y,
-            },
-        );
+        let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::ShapeType);
 
-        card_h
+        let card_style = Style::new()
+            .flex_col()
+            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
+            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
+
+        scope.container_named("ShapeCard", card_style, |card| {
+            build_declarative_card_header(
+                card,
+                ComponentHeaderProps {
+                    atlas_icon: None,
+                    icon: self.icon(),
+                    display_title: self.display_title(),
+                    header_color: self.header_color(),
+                    component_name: self.component_name(),
+                },
+                false,
+            );
+
+            render_declarative_combobox_row(
+                card,
+                DeclarativeComboboxRowParams {
+                    dropdown_id: InspectorDropdownId::ShapeType,
+                    label: Some("Geometry:"),
+                    label_w: 65.0,
+                    selected_text: shape_str,
+                    is_open,
+                    is_hovered: false,
+                    combo_w: 96.0,
+                },
+            );
+        });
     }
 
     fn spawn_default(&self, world: &mut hecs::World, entity: hecs::Entity) {
         let _ = world.insert_one(entity, ae_core::ecs::Shape::Cube);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
+    use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
+    use crate::ui::iris_bridge::inspector::tags::{
+        encode_component_delete_tag, encode_inspector_dropdown_tag,
+    };
+    use crate::ui::iris_bridge::inspector::types::InspectorPanelParams;
+
+    #[test]
+    fn test_shape_declarative_render() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            scroll_y: 0.0,
+            active_dropdown: None,
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+            hovered_tag: None,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let handler = ShapeHandler;
+        handler.render_card(&mut scope, &mut ctx);
+
+        let del_tag = encode_component_delete_tag("Shape");
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == del_tag),
+            "Shape delete button must be tagged"
+        );
+
+        let dd_tag = encode_inspector_dropdown_tag(InspectorDropdownId::ShapeType);
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == dd_tag),
+            "Shape dropdown button must be tagged"
+        );
+
+        let has_chevron_down = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_DOWN)
+        });
+        assert!(
+            has_chevron_down,
+            "Combobox must render ICON_CHEVRON_DOWN when closed"
+        );
+    }
+
+    #[test]
+    fn test_shape_combobox_renders_chevron_up_when_open() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Shape::Cube,));
+        let mut tree = UiTree::new();
+        let root = WidgetId::default();
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 300.0, 600.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            scroll_y: 0.0,
+            active_dropdown: Some(InspectorDropdownId::ShapeType),
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+            hovered_tag: None,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let handler = ShapeHandler;
+        handler.render_card(&mut scope, &mut ctx);
+
+        let has_chevron_up = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_UP)
+        });
+        assert!(
+            has_chevron_up,
+            "Combobox must render ICON_CHEVRON_UP when open"
+        );
     }
 }

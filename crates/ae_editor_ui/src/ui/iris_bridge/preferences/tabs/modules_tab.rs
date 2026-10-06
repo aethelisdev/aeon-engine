@@ -172,19 +172,17 @@ pub fn build_modules_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>
                 );
 
                 // Description with explicit wrapping width
-                let desc_id = card.label_styled_passive(
+                card.label_styled_passive_wrapped(
                     "ModuleDesc",
                     card_data.desc,
-                    11.0,
-                    Color::rgba(0.65, 0.68, 0.76, 1.0),
-                    TextAlign::Left,
-                    Style::new()
-                        .width(530.0)
-                        .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
+                    WrappedLabelDescriptor::new(
+                        11.0,
+                        Color::rgba(0.65, 0.68, 0.76, 1.0),
+                        Style::new()
+                            .width(530.0)
+                            .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
+                    ),
                 );
-                if let Some(node) = card.tree_mut().get_mut(desc_id) {
-                    node.set_text_wrap(TextWrap::Word);
-                }
             },
         );
     }
