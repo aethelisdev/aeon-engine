@@ -47,52 +47,58 @@ pub fn build_stats_panel(
                 .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
             vp_style.scroll_offset_y = params.scroll_y;
 
-            let vp_id = panel_scope.container_named("StatsViewport", vp_style, |vp_scope| {
-                // 1. Frame Pacing & Stutter Analyzer Card
-                build_stats_card(
-                    vp_scope,
-                    "📈",
-                    "Frame Pacing & Stutter Analyzer",
-                    |card_scope| {
-                        build_frame_pacing_content(card_scope, params);
-                    },
-                );
+            let vp_id = panel_scope.container_tagged(
+                "StatsViewport",
+                vp_style,
+                WidgetRole::Default,
+                super::types::STATS_TAG_VIEWPORT,
+                |vp_scope| {
+                    // 1. Frame Pacing & Stutter Analyzer Card
+                    build_stats_card(
+                        vp_scope,
+                        "📈",
+                        "Frame Pacing & Stutter Analyzer",
+                        |card_scope| {
+                            build_frame_pacing_content(card_scope, params);
+                        },
+                    );
 
-                // 2. CPU Thread & Synchronization Card
-                build_stats_card(
-                    vp_scope,
-                    "⏱",
-                    "CPU Thread & Synchronization",
-                    |card_scope| {
-                        build_cpu_breakdown_content(card_scope, params);
-                    },
-                );
+                    // 2. CPU Thread & Synchronization Card
+                    build_stats_card(
+                        vp_scope,
+                        "⏱",
+                        "CPU Thread & Synchronization",
+                        |card_scope| {
+                            build_cpu_breakdown_content(card_scope, params);
+                        },
+                    );
 
-                // 3. GPU Render Passes Card
-                build_stats_card(vp_scope, "⚡", "GPU Render Passes", |card_scope| {
-                    build_gpu_breakdown_content(card_scope, params);
-                });
+                    // 3. GPU Render Passes Card
+                    build_stats_card(vp_scope, "⚡", "GPU Render Passes", |card_scope| {
+                        build_gpu_breakdown_content(card_scope, params);
+                    });
 
-                // 4. Scene & Geometry Metrics Card
-                build_stats_card(vp_scope, "📐", "Scene & Geometry Metrics", |card_scope| {
-                    build_scene_geometry_content(card_scope, params);
-                });
+                    // 4. Scene & Geometry Metrics Card
+                    build_stats_card(vp_scope, "📐", "Scene & Geometry Metrics", |card_scope| {
+                        build_scene_geometry_content(card_scope, params);
+                    });
 
-                // 5. Video RAM & Memory Allocations Card
-                build_stats_card(
-                    vp_scope,
-                    "💾",
-                    "Video RAM & Memory Allocations",
-                    |card_scope| {
-                        build_vram_breakdown_content(card_scope, params);
-                    },
-                );
+                    // 5. Video RAM & Memory Allocations Card
+                    build_stats_card(
+                        vp_scope,
+                        "💾",
+                        "Video RAM & Memory Allocations",
+                        |card_scope| {
+                            build_vram_breakdown_content(card_scope, params);
+                        },
+                    );
 
-                // 6. Viewport Overlays Card
-                build_stats_card(vp_scope, "🎛", "Viewport Overlays", |card_scope| {
-                    build_viewport_overlays_content(card_scope, params);
-                });
-            });
+                    // 6. Viewport Overlays Card
+                    build_stats_card(vp_scope, "🎛", "Viewport Overlays", |card_scope| {
+                        build_viewport_overlays_content(card_scope, params);
+                    });
+                },
+            );
 
             panel_scope.finish_layout(params.panel_rect);
 

@@ -17,6 +17,9 @@ use super::types::{
 /// Semantic tag for the Inspector root scroll panel container.
 pub const TAG_INSPECTOR_PANEL_ROOT: u64 = 0xDAFF_0000;
 
+/// Semantic tag for the Inspector scrollable cards container viewport.
+pub const TAG_INSPECTOR_CARDS_CONTAINER: u64 = 0xDAFF_0001;
+
 /// Base numeric domain for Inspector action buttons (Add Component, Save Prefab, etc.).
 pub const TAG_INSPECTOR_ACTION_BASE: u64 = 0xDA00_0000;
 
@@ -31,6 +34,7 @@ pub const TAG_INSPECTOR_DROPDOWN_ITEM_BASE: u64 = 0xDD80_0000;
 #[must_use]
 pub fn is_inspector_tag(tag: u64) -> bool {
     tag == TAG_INSPECTOR_PANEL_ROOT
+        || tag == TAG_INSPECTOR_CARDS_CONTAINER
         || (0xD000_0000..0xE000_0000).contains(&tag)
         || super::transform::resolve_transform_number_input_tag(tag).is_some()
         || super::transform::resolve_transform_reset_tag(tag).is_some()

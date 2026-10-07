@@ -36,7 +36,9 @@ impl IrisEditorOverlay {
             preview_modal: self.assets.preview_modal.as_ref(),
             current_folder: &self.assets.current_folder,
             search_query: &self.assets.interactions.search_query,
-            is_search_focused: self.assets.interactions.is_search_focused,
+            is_search_focused: self
+                .focus_manager
+                .is_tag_focused(super::super::assets::ASSETS_TAG_SEARCH_INPUT),
             selected_asset: self.assets.selected_asset.as_deref(),
             filtered_items: &self.assets.filtered_items_cache,
             subfolders: &self.assets.subfolders_cache,
@@ -58,12 +60,22 @@ impl IrisEditorOverlay {
             match action {
                 super::super::assets::AssetsPanelAction::Scroll(delta) => {
                     self.assets.scroll_y = (self.assets.scroll_y - delta).max(0.0);
+                    self.chrome.needs_scroll_sync = true;
                 }
                 super::super::assets::AssetsPanelAction::TreeScroll(delta) => {
                     self.assets.tree_scroll_y = (self.assets.tree_scroll_y - delta).max(0.0);
+                    self.chrome.needs_scroll_sync = true;
                 }
                 super::super::assets::AssetsPanelAction::FocusSearch(focused) => {
-                    self.assets.is_search_focused = focused;
+                    if focused {
+                        self.focus_manager
+                            .set_focus_tag(super::super::assets::ASSETS_TAG_SEARCH_INPUT);
+                    } else if self
+                        .focus_manager
+                        .is_tag_focused(super::super::assets::ASSETS_TAG_SEARCH_INPUT)
+                    {
+                        self.focus_manager.clear_focus();
+                    }
                 }
                 super::super::assets::AssetsPanelAction::SearchInput(ref query) => {
                     self.assets.search_query = query.clone();

@@ -93,25 +93,38 @@ impl<'a> UiScope<'a> {
             } else {
                 Color::rgba(0.0, 0.88, 1.0, 1.0)
             };
+            node.hover_text_color = Some(Color::WHITE);
             let mut resolved_style = style;
-            if hovered {
+            if resolved_style.hover_background.is_none() {
                 let bg = resolved_style.background_color;
                 if bg.a > 0.01 {
-                    resolved_style.background_color = Color::rgba(
+                    resolved_style.hover_background = Some(Color::rgba(
                         (bg.r * 1.30).min(1.0),
                         (bg.g * 1.30).min(1.0),
                         (bg.b * 1.30).min(1.0),
                         bg.a,
-                    );
+                    ));
                 }
+            }
+            if resolved_style.hover_border.is_none() {
                 let bc = resolved_style.border.color;
                 if bc.a > 0.01 {
-                    resolved_style.border.color = Color::rgba(
+                    let mut b = resolved_style.border;
+                    b.color = Color::rgba(
                         (bc.r * 1.35).min(1.0),
                         (bc.g * 1.35).min(1.0),
                         (bc.b * 1.35).min(1.0),
                         bc.a,
                     );
+                    resolved_style.hover_border = Some(b);
+                }
+            }
+            if hovered {
+                if let Some(hbg) = resolved_style.hover_background {
+                    resolved_style.background_color = hbg;
+                }
+                if let Some(hb) = resolved_style.hover_border {
+                    resolved_style.border = hb;
                 }
             }
             node.set_style(resolved_style);
@@ -208,6 +221,7 @@ impl<'a> UiScope<'a> {
                 } else {
                     Color::rgba(0.12, 0.14, 0.18, 0.90)
                 })
+                .hover_background(Color::rgba(0.0, 0.45, 0.60, 0.85))
                 .border(
                     1.0,
                     if hovered {
@@ -216,6 +230,7 @@ impl<'a> UiScope<'a> {
                         Color::rgba(0.20, 0.24, 0.30, 0.85)
                     },
                 )
+                .hover_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.95))
                 .border_radius(4.0)
                 .height(24.0);
             let btn_w = width.unwrap_or_else(|| {
@@ -231,6 +246,7 @@ impl<'a> UiScope<'a> {
             node.interactive = false;
             node.set_texture_uv(icon_uv);
             node.set_texture_tint(if hovered { Color::WHITE } else { icon_tint });
+            node.hover_texture_tint = Some(Color::WHITE);
             node.set_style(Style::new().width(14.0).height(14.0));
         }
         let _ = self.tree.add_child(btn_id, icon_id);
@@ -247,6 +263,7 @@ impl<'a> UiScope<'a> {
             } else {
                 Color::rgba(0.90, 0.92, 0.96, 1.0)
             };
+            node.hover_text_color = Some(Color::WHITE);
         }
         let _ = self.tree.add_child(btn_id, text_id);
 
@@ -365,6 +382,12 @@ impl<'a> UiScope<'a> {
                 .border_radius(4.0)
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
+            if !is_active {
+                style = style
+                    .hover_background(Color::rgba(0.18, 0.21, 0.28, 0.85))
+                    .hover_border(1.0, Color::rgba(0.35, 0.40, 0.50, 0.65));
+                node.hover_text_color = Some(Color::WHITE);
+            }
             if is_flex {
                 style = style
                     .flex_grow(1.0)
@@ -454,17 +477,30 @@ impl<'a> UiScope<'a> {
             };
 
             node.text_color = text_color;
-            node.set_style(
-                Style::new()
-                    .width(width)
-                    .height(24.0)
-                    .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
-                    .background(bg)
-                    .border(border_w, border_c)
-                    .border_radius(4.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-            );
+            let mut style = Style::new()
+                .width(width)
+                .height(24.0)
+                .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
+                .background(bg)
+                .border(border_w, border_c)
+                .border_radius(4.0)
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center);
+            if !is_active {
+                let hover_bg_c = Color::rgba(
+                    (accent_color.r * 0.28).clamp(0.05, 0.35),
+                    (accent_color.g * 0.28).clamp(0.05, 0.35),
+                    (accent_color.b * 0.28).clamp(0.05, 0.35),
+                    0.32,
+                );
+                let hover_border_c =
+                    Color::rgba(accent_color.r, accent_color.g, accent_color.b, 0.75);
+                style = style
+                    .hover_background(hover_bg_c)
+                    .hover_border(1.0, hover_border_c);
+                node.hover_text_color = Some(Color::WHITE);
+            }
+            node.set_style(style);
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
     }
@@ -501,6 +537,7 @@ impl<'a> UiScope<'a> {
             } else {
                 Color::rgba(0.90, 0.93, 0.98, 1.0)
             };
+            node.hover_text_color = Some(Color::WHITE);
             node.set_style(
                 Style::new()
                     .width(width)
@@ -511,6 +548,7 @@ impl<'a> UiScope<'a> {
                     } else {
                         Color::rgba(0.15, 0.18, 0.25, 0.95)
                     })
+                    .hover_background(Color::rgba(0.24, 0.29, 0.39, 1.0))
                     .border(
                         1.0,
                         if hovered {
@@ -519,6 +557,7 @@ impl<'a> UiScope<'a> {
                             Color::rgba(0.30, 0.36, 0.48, 0.75)
                         },
                     )
+                    .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
                     .border_radius(4.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center),
@@ -570,18 +609,22 @@ impl<'a> UiScope<'a> {
         if let Some(node) = self.tree.get_mut(btn_id) {
             node.interactive = true;
             node.cursor = Some(WidgetCursor::Pointer);
-            node.set_style(
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .width(32.0)
-                    .height(32.0)
-                    .background(bg)
-                    .border(1.0, border_color)
-                    .border_radius(4.0)
-                    .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35)),
-            );
+            let mut style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .width(32.0)
+                .height(32.0)
+                .background(bg)
+                .border(1.0, border_color)
+                .border_radius(4.0)
+                .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
+            if !is_active {
+                style = style
+                    .hover_background(Color::rgba(0.20, 0.23, 0.30, 0.95))
+                    .hover_border(1.0, Color::rgba(0.35, 0.40, 0.50, 0.90));
+            }
+            node.set_style(style);
         }
 
         let icon_id = self.tree.create_node();
@@ -597,6 +640,7 @@ impl<'a> UiScope<'a> {
                 Color::rgba(0.80, 0.84, 0.90, 0.90)
             };
             node.set_texture_tint(tint);
+            node.hover_texture_tint = Some(Color::rgba(0.95, 0.98, 1.0, 1.0));
             node.set_style(Style::new().width(22.0).height(22.0));
         }
         let _ = self.tree.add_child(btn_id, icon_id);
@@ -647,17 +691,19 @@ impl<'a> UiScope<'a> {
         if let Some(node) = self.tree.get_mut(btn_id) {
             node.interactive = true;
             node.cursor = Some(WidgetCursor::Pointer);
-            node.set_style(
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .gap(4.0)
-                    .width(width)
-                    .height(32.0)
-                    .background(bg)
-                    .corner_radii(radii),
-            );
+            let mut style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .gap(4.0)
+                .width(width)
+                .height(32.0)
+                .background(bg)
+                .corner_radii(radii);
+            if !is_open {
+                style = style.hover_background(Color::rgba(0.20, 0.23, 0.30, 0.90));
+            }
+            node.set_style(style);
         }
 
         if let Some(uv) = icon_uv {
@@ -667,6 +713,7 @@ impl<'a> UiScope<'a> {
                 node.set_name("ToolbarModeIcon");
                 node.set_texture_uv(uv);
                 node.set_texture_tint(text_color);
+                node.hover_texture_tint = Some(Color::WHITE);
                 node.set_style(Style::new().width(18.0).height(18.0));
             }
             let _ = self.tree.add_child(btn_id, icon_id);
@@ -683,6 +730,7 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = text_color;
+            node.hover_text_color = Some(Color::WHITE);
         }
         let _ = self.tree.add_child(btn_id, txt_id);
 

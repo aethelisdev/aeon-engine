@@ -10,7 +10,7 @@
 //!
 
 use super::types::{
-    HIERARCHY_TAG_PANEL_ROOT, HierarchyPanelParams, HierarchyRow, make_eye_tag, make_foldout_tag,
+    HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, HierarchyRow, make_eye_tag, make_foldout_tag,
     make_row_tag,
 };
 use crate::ui::iris_bridge::icons::*;
@@ -311,7 +311,7 @@ pub fn build_hierarchy_rows(
 
     scope.virtual_scroll_area(
         "HierarchyRowsViewport",
-        HIERARCHY_TAG_PANEL_ROOT,
+        HIERARCHY_TAG_VIEWPORT,
         vp_height,
         params.scroll_y,
         config,
@@ -616,7 +616,6 @@ mod tests {
             is_add_menu_open: false,
             active_context_menu: None,
             cursor_pos: Point::new(-1.0, -1.0),
-            is_search_focused: false,
             blink_caret: false,
             collapsed_entities: &collapsed,
             hovered_tag: None,

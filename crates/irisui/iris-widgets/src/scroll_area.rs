@@ -13,7 +13,7 @@ pub mod style;
 pub mod types;
 pub mod virtual_list;
 
-pub use area::{ScrollAreaBuilder, ScrollAreaFrame};
+pub use area::{ScrollArea, ScrollAreaBuilder, ScrollAreaFrame};
 pub use scroll_bar::ScrollBarGeometry;
 pub use style::ScrollAreaStyle;
 pub use types::{

@@ -52,6 +52,27 @@ impl ScrollBarGeometry {
         })
     }
 
+    /// Computes the absolute vertical Y coordinate for a scrollbar thumb given track geometry and scroll ratio.
+    ///
+    /// Clamps the ratio between `0.0` and `1.0` and guards against zero max-scroll limits.
+    #[inline]
+    #[must_use]
+    pub fn compute_thumb_y(
+        track_y: f32,
+        track_h: f32,
+        thumb_h: f32,
+        scroll_y: f32,
+        max_scroll_y: f32,
+    ) -> f32 {
+        let travel_range = (track_h - thumb_h).max(0.0);
+        let ratio = if max_scroll_y > 0.001 {
+            (scroll_y / max_scroll_y).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        track_y + ratio * travel_range
+    }
+
     /// Translates mouse movement delta in physical pixels along the scrollbar track into a scroll offset delta.
     #[must_use]
     pub fn scroll_from_thumb_drag(

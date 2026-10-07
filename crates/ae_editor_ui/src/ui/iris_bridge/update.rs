@@ -53,6 +53,7 @@ impl IrisEditorOverlay {
             material: super::material::types::MaterialPanelState::default(),
             ui_designer: super::ui_designer::types::UiDesignerPanelState::default(),
             inspector: super::inspector::types::InspectorPanelState::default(),
+            focus_manager: FocusManager::new(),
         }
     }
 
@@ -89,12 +90,9 @@ impl IrisEditorOverlay {
         self.chrome.hovered_tag = hovered_target;
 
         let mat_entity_changed = self.material.last_selected_entity != params.scene.selected_entity;
-        let mat_scroll_changed =
-            (self.material.last_scroll_y - self.material.scroll_y).abs() > 0.001;
-        let mat_dirty = mat_entity_changed || mat_scroll_changed;
+        let mat_dirty = mat_entity_changed;
         if mat_dirty {
             self.material.last_selected_entity = params.scene.selected_entity;
-            self.material.last_scroll_y = self.material.scroll_y;
         }
 
         let tl_entity_changed = self.timeline.last_selected_entity != params.scene.selected_entity;
@@ -142,7 +140,6 @@ impl IrisEditorOverlay {
             || self.chrome.last_floating_count != floating_count
             || self.modals.last_modal_active != modal_active
             || self.preferences.last_tab != self.preferences.tab
-            || (self.preferences.last_scroll_y - self.preferences.scroll_y).abs() > 0.001
             || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
             || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
@@ -150,7 +147,6 @@ impl IrisEditorOverlay {
             || self.chrome.active_dock_overflow.is_some()
             || self.chrome.needs_layout_rebuild
             || has_drag_payload
-            || hover_target_changed
             || hud_dirty
             || mat_dirty
             || tl_dirty
@@ -198,10 +194,24 @@ impl IrisEditorOverlay {
             return;
         }
 
+        let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
+        let focus_target_changed = self.focus_manager.focused_tag != self.chrome.last_focused_tag;
+        let blink_changed =
+            self.focus_manager.has_focus() && (blink_caret != self.chrome.last_blink_caret);
+
         if !self.chrome.always_rebuild && !self.notifier.is_any_dirty() && !self.tree.is_empty() {
+            if self.chrome.needs_scroll_sync || self.has_any_scroll_changed() {
+                self.sync_tree_scroll_offsets(&params);
+            } else if (hover_target_changed || focus_target_changed || blink_changed)
+                && let Some(root) = self.tree.root()
+            {
+                self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
+            }
             // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
             self.chrome.last_cursor_pos = self.cursor_pos();
             self.chrome.last_hovered_tag = self.chrome.hovered_tag;
+            self.chrome.last_focused_tag = self.focus_manager.focused_tag;
+            self.chrome.last_blink_caret = blink_caret;
             return;
         }
 
@@ -220,7 +230,10 @@ impl IrisEditorOverlay {
             self.preferences.content_rect = None;
         }
 
-        if !self.assets.is_search_focused {
+        if !self
+            .focus_manager
+            .is_tag_focused(super::assets::ASSETS_TAG_SEARCH_INPUT)
+        {
             self.assets.search_query = params.panel_data.asset_browser.search_query.clone();
         }
         self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
@@ -581,7 +594,6 @@ impl IrisEditorOverlay {
                 is_add_menu_open: self.hierarchy.is_add_menu_open,
                 active_context_menu: self.hierarchy.active_context_menu,
                 cursor_pos: cursor,
-                is_search_focused: self.hierarchy.is_search_focused,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
                 hovered_tag: self.chrome.hovered_tag,
@@ -669,11 +681,21 @@ impl IrisEditorOverlay {
         self.modals.last_modal_active = modal_active;
         self.preferences.last_tab = self.preferences.tab;
         self.preferences.last_scroll_y = self.preferences.scroll_y;
+        self.material.last_scroll_y = self.material.scroll_y;
+        self.stats.last_scroll_y = self.stats.scroll_y;
+        self.hierarchy.last_scroll_y = self.hierarchy.scroll_y;
+        self.console.interactions.last_scroll_y = self.console.interactions.scroll_y;
+        self.inspector.interactions.last_scroll_y = self.inspector.scroll_y;
+        self.assets.interactions.last_scroll_y = self.assets.scroll_y;
+        self.assets.last_tree_scroll_y = self.assets.tree_scroll_y;
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
         self.chrome.last_has_drag_payload = has_drag_payload;
         self.chrome.last_cursor_pos = self.cursor_pos();
         self.chrome.last_hovered_tag = self.chrome.hovered_tag;
+        self.chrome.last_focused_tag = self.focus_manager.focused_tag;
+        self.chrome.last_blink_caret = blink_caret;
         self.chrome.needs_layout_rebuild = false;
+        self.chrome.needs_scroll_sync = false;
         self.notifier.clear_all();
     }
 }
@@ -691,5 +713,57 @@ mod tests {
         );
         chrome.always_rebuild = false;
         assert!(!chrome.always_rebuild);
+    }
+
+    #[test]
+    fn test_collect_text_sections_with_hover_state() {
+        use crate::ui::iris_bridge::IrisEditorOverlay;
+        use irisui::prelude::{Color, Rect, UiScope, UiTree};
+
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let btn_tag = 888u64;
+
+        {
+            let mut scope = UiScope::new(&mut tree, root);
+            let _ = scope.button_tagged("Export", btn_tag);
+            scope.finish_layout(Rect::new(0.0, 0.0, 800.0, 600.0));
+        }
+
+        // Without hover
+        let normal = IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &[], &[]);
+        assert_eq!(normal.len(), 1);
+        assert_eq!(normal[0].color, Color::rgba(0.0, 0.88, 1.0, 1.0));
+
+        // With hover on btn_tag
+        let hovered = IrisEditorOverlay::collect_text_sections_from_tree_with_hover(
+            &tree,
+            &[],
+            &[],
+            &[],
+            Some(btn_tag),
+        );
+        assert_eq!(hovered.len(), 1);
+        assert_eq!(hovered[0].color, Color::WHITE);
+    }
+
+    #[test]
+    fn test_focus_manager_text_input_focus() {
+        use crate::ui::iris_bridge::hierarchy::HIERARCHY_TAG_SEARCH_INPUT;
+        use irisui::prelude::FocusManager;
+
+        let mut focus_mgr = FocusManager::new();
+        assert!(!focus_mgr.has_focus());
+        assert_eq!(focus_mgr.focused_tag(), None);
+
+        focus_mgr.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
+        assert!(focus_mgr.has_focus());
+        assert_eq!(focus_mgr.focused_tag(), Some(HIERARCHY_TAG_SEARCH_INPUT));
+        assert!(focus_mgr.is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT));
+        assert!(!focus_mgr.is_tag_focused(99999));
+
+        focus_mgr.clear_focus();
+        assert!(!focus_mgr.has_focus());
+        assert_eq!(focus_mgr.focused_tag(), None);
     }
 }

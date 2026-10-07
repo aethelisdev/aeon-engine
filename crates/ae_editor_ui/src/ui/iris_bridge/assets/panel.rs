@@ -109,13 +109,15 @@ pub fn build_assets_panel(
                     );
                     resolved_content_rect = content_rect;
 
-                    body_scope.container_named(
+                    body_scope.container_tagged(
                         "AssetsContentViewport",
                         Style::new()
                             .flex_col()
                             .flex_grow(1.0)
                             .background(Color::rgba(0.04, 0.05, 0.07, 0.98))
                             .clip_children(true),
+                        WidgetRole::Default,
+                        super::types::ASSETS_TAG_CONTENT_VIEWPORT,
                         |content_scope| match params.view_mode {
                             AssetViewMode::Grid => {
                                 build_asset_grid_cards_scope(content_scope, content_rect, params);

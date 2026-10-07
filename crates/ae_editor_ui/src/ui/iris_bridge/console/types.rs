@@ -250,8 +250,6 @@ pub struct ConsolePanelParams<'a> {
     pub filter: ConsoleFilterLevel,
     /// Substring search query for filtering log targets and messages.
     pub search_query: &'a str,
-    /// Whether the search input box currently has keyboard focus.
-    pub is_search_focused: bool,
     /// Whether the console automatically scrolls down when new logs arrive.
     pub auto_scroll: bool,
     /// Current cursor position for hover detection.

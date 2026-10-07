@@ -86,20 +86,20 @@ impl IrisEditorOverlay {
             if is_stats_tag(effective_tag) {
                 self.stats.scroll_y =
                     (self.stats.scroll_y - delta_y).clamp(0.0, self.stats.max_scroll);
-                self.chrome.needs_layout_rebuild = true;
+                self.chrome.needs_scroll_sync = true;
                 result.consumed = true;
                 return Some(result);
             }
             if is_hierarchy_tag(effective_tag) {
                 self.hierarchy.scroll_y =
                     (self.hierarchy.scroll_y - delta_y).clamp(0.0, self.hierarchy.max_scroll);
-                self.chrome.needs_layout_rebuild = true;
+                self.chrome.needs_scroll_sync = true;
                 result.consumed = true;
                 return Some(result);
             }
             if crate::ui::iris_bridge::inspector::is_inspector_tag(effective_tag) {
                 self.inspector.scroll_y = (self.inspector.scroll_y - delta_y).max(0.0);
-                self.chrome.needs_layout_rebuild = true;
+                self.chrome.needs_scroll_sync = true;
                 result.consumed = true;
                 return Some(result);
             }
@@ -114,6 +114,7 @@ impl IrisEditorOverlay {
         {
             self.preferences.scroll_y =
                 (self.preferences.scroll_y - delta_y).clamp(0.0, self.preferences.max_scroll_y);
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }

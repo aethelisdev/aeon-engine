@@ -107,9 +107,7 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
 /// Helper to render the search input box inside the flex toolbar matching Hierarchy Search UX.
 fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
     let is_search_hovered = params.hovered_tag == Some(ASSETS_TAG_SEARCH_INPUT);
-    let border_color = if params.is_search_focused {
-        Color::rgba(0.0, 0.90, 1.0, 0.90) // Active Cyan ring
-    } else if is_search_hovered {
+    let border_color = if is_search_hovered {
         Color::rgba(0.35, 0.40, 0.52, 0.95)
     } else {
         Color::rgba(0.18, 0.20, 0.26, 0.80)
@@ -129,12 +127,13 @@ fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
         .gap(6.0)
         .background(search_bg)
         .border(1.0, border_color)
+        .focus_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.90))
         .border_radius(4.0);
 
     scope.container_tagged(
         "AssetsSearchBox",
         search_style,
-        WidgetRole::Default,
+        WidgetRole::TextInput,
         ASSETS_TAG_SEARCH_INPUT,
         |s| {
             // Search Icon "🔍" with centered line_height
@@ -159,16 +158,8 @@ fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
 
             s.label_flex(display_text, 11.5, text_color, TextAlign::Left);
 
-            // Blinking Caret Cursor (matches Hierarchy)
-            if params.is_search_focused && params.blink_caret {
-                s.label_with_width(
-                    "|",
-                    6.0,
-                    11.5,
-                    Color::rgba(0.0, 0.90, 1.0, 1.0),
-                    TextAlign::Left,
-                );
-            }
+            // Blinking Caret Cursor (retained in-place; filtered at compile time when un-focused or blink off)
+            s.text_caret(Color::rgba(0.0, 0.90, 1.0, 1.0));
 
             // Clear Search "✖" Button (matches Hierarchy)
             if !params.search_query.is_empty() {

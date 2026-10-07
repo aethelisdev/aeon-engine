@@ -62,7 +62,11 @@ impl EngineUi {
         }
 
         // Hierarchy search bar live typing
-        if self.iris_overlay.hierarchy.is_search_focused
+        let is_hierarchy_search_focused = self
+            .iris_overlay
+            .focus_manager
+            .is_tag_focused(crate::ui::iris_bridge::hierarchy::HIERARCHY_TAG_SEARCH_INPUT);
+        if is_hierarchy_search_focused
             && let WindowEvent::KeyboardInput {
                 event: key_event, ..
             } = event
@@ -72,13 +76,14 @@ impl EngineUi {
                 winit::keyboard::NamedKey::Escape | winit::keyboard::NamedKey::Enter,
             ) = key_event.logical_key
             {
-                self.iris_overlay.hierarchy.is_search_focused = false;
+                self.iris_overlay.focus_manager.clear_focus();
                 return true;
             }
             if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
                 key_event.logical_key
             {
                 self.iris_overlay.hierarchy.search_query.pop();
+                self.iris_overlay.notifier.tag_all();
                 return true;
             }
             if let Some(text) = &key_event.text {
@@ -87,12 +92,17 @@ impl EngineUi {
                         self.iris_overlay.hierarchy.search_query.push(c);
                     }
                 }
+                self.iris_overlay.notifier.tag_all();
                 return true;
             }
         }
 
         // Assets Content Browser search bar live typing
-        if self.iris_overlay.assets.is_search_focused
+        let is_assets_search_focused = self
+            .iris_overlay
+            .focus_manager
+            .is_tag_focused(crate::ui::iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
+        if is_assets_search_focused
             && let WindowEvent::KeyboardInput {
                 event: key_event, ..
             } = event
@@ -102,7 +112,7 @@ impl EngineUi {
                 winit::keyboard::NamedKey::Escape | winit::keyboard::NamedKey::Enter,
             ) = key_event.logical_key
             {
-                self.iris_overlay.assets.is_search_focused = false;
+                self.iris_overlay.focus_manager.clear_focus();
                 return true;
             }
             if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
@@ -110,6 +120,7 @@ impl EngineUi {
             {
                 self.iris_overlay.assets.search_query.pop();
                 self.asset_browser.search_query = self.iris_overlay.assets.search_query.clone();
+                self.iris_overlay.notifier.tag_all();
                 return true;
             }
             if let Some(text) = &key_event.text {
@@ -119,6 +130,7 @@ impl EngineUi {
                     }
                 }
                 self.asset_browser.search_query = self.iris_overlay.assets.search_query.clone();
+                self.iris_overlay.notifier.tag_all();
                 return true;
             }
         }

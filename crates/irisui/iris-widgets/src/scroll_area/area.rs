@@ -208,6 +208,138 @@ impl<'a> ScrollAreaBuilder<'a> {
     }
 }
 
+/// High-level retained scroll synchronization routines.
+///
+/// Enables in-place updates to container scroll offsets, local subtree flow recalculation,
+/// and scrollbar thumb geometry translation for existing [`UiTree`] nodes without
+/// destroying, clearing, or rebuilding the retained widget hierarchy.
+pub struct ScrollArea;
+
+impl ScrollArea {
+    /// Updates the vertical scroll offset on the container node in-place and recalculates its subtree layout.
+    ///
+    /// Mutates `style.scroll_offset_y` via [`UiTree::set_scroll_offset_y`] and triggers
+    /// a local [`crate::declarative::layout_subtree`] pass without affecting sibling nodes.
+    ///
+    /// Returns `true` if the container was found and its layout subtree was refreshed.
+    pub fn update_container_scroll_in_place(
+        tree: &mut UiTree,
+        container_id: WidgetId,
+        scroll_y: f32,
+    ) -> bool {
+        if !tree.set_scroll_offset_y(container_id, scroll_y) {
+            return false;
+        }
+        let bounds = tree
+            .get(container_id)
+            .map_or(Rect::ZERO, |n| n.computed_rect);
+        crate::declarative::layout_subtree(tree, container_id, bounds);
+        true
+    }
+
+    /// Updates the vertical scroll offset on a container node identified by semantic tag in-place.
+    ///
+    /// Resolves the node via [`UiTree::find_node_by_tag`] and runs in-place subtree layout.
+    ///
+    /// Returns `true` if the container node matching `tag` was found and refreshed.
+    pub fn update_container_scroll_by_tag(
+        tree: &mut UiTree,
+        container_tag: u64,
+        scroll_y: f32,
+    ) -> bool {
+        if let Some(cid) = tree.find_node_by_tag(container_tag) {
+            Self::update_container_scroll_in_place(tree, cid, scroll_y)
+        } else {
+            false
+        }
+    }
+
+    /// Synchronizes a scrollbar thumb node's Y coordinate in-place based on its track node geometry.
+    ///
+    /// Computes the proportional vertical thumb offset within the track:
+    /// `thumb_y = track_y + (scroll_y / max_scroll_y).clamp(0.0, 1.0) * (track_h - thumb_h)`
+    /// and mutates the thumb's computed rectangle Y coordinate via [`UiTree::set_computed_rect_y`].
+    ///
+    /// Returns `true` if both track and thumb nodes were found and the thumb was updated.
+    pub fn sync_thumb_in_place(
+        tree: &mut UiTree,
+        track_id: WidgetId,
+        thumb_id: WidgetId,
+        scroll_y: f32,
+        max_scroll_y: f32,
+    ) -> bool {
+        let (track_rect, thumb_h) = {
+            let Some(track_node) = tree.get(track_id) else {
+                return false;
+            };
+            let Some(thumb_node) = tree.get(thumb_id) else {
+                return false;
+            };
+            (track_node.computed_rect, thumb_node.computed_rect.height)
+        };
+
+        let thumb_y = ScrollBarGeometry::compute_thumb_y(
+            track_rect.y,
+            track_rect.height,
+            thumb_h,
+            scroll_y,
+            max_scroll_y,
+        );
+        tree.set_computed_rect_y(thumb_id, thumb_y)
+    }
+
+    /// Synchronizes a scrollbar thumb node's position in-place using semantic tags for track and thumb.
+    ///
+    /// Returns `true` if both nodes were resolved by tag and the thumb was updated.
+    pub fn sync_thumb_by_tags_in_place(
+        tree: &mut UiTree,
+        track_tag: u64,
+        thumb_tag: u64,
+        scroll_y: f32,
+        max_scroll_y: f32,
+    ) -> bool {
+        let Some(track_id) = tree.find_node_by_tag(track_tag) else {
+            return false;
+        };
+        let Some(thumb_id) = tree.find_node_by_tag(thumb_tag) else {
+            return false;
+        };
+        Self::sync_thumb_in_place(tree, track_id, thumb_id, scroll_y, max_scroll_y)
+    }
+
+    /// High-level single-call retained scroll synchronizer.
+    ///
+    /// In a single pass, updates the container viewport's scroll offset and re-layouts its subtree,
+    /// and optionally updates the scrollbar thumb geometry if track and thumb tags are supplied.
+    ///
+    /// # Arguments
+    /// * `tree` - Mutable reference to the retained [`UiTree`].
+    /// * `container_tag` - Semantic tag of the scroll container viewport.
+    /// * `track_tag` - Optional semantic tag of the scrollbar track.
+    /// * `thumb_tag` - Optional semantic tag of the draggable scrollbar thumb.
+    /// * `scroll_y` - Current vertical scroll offset in physical pixels.
+    /// * `max_scroll_y` - Maximum scroll limit in physical pixels.
+    ///
+    /// Returns `true` if any nodes were found and updated.
+    pub fn sync_scroll_in_place(
+        tree: &mut UiTree,
+        container_tag: u64,
+        track_tag: Option<u64>,
+        thumb_tag: Option<u64>,
+        scroll_y: f32,
+        max_scroll_y: f32,
+    ) -> bool {
+        let container_updated = Self::update_container_scroll_by_tag(tree, container_tag, scroll_y);
+        let thumb_updated = match (track_tag, thumb_tag) {
+            (Some(trk), Some(thm)) => {
+                Self::sync_thumb_by_tags_in_place(tree, trk, thm, scroll_y, max_scroll_y)
+            }
+            _ => false,
+        };
+        container_updated || thumb_updated
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,5 +380,65 @@ mod tests {
         // Test wheel step
         let stepped = frame.scroll_step_wheel(100.0, 1.0, 24.0);
         assert_eq!(stepped, 76.0);
+    }
+
+    #[test]
+    fn test_scroll_area_retained_in_place_sync() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root must exist");
+
+        let container_tag = 0xAA01;
+        let track_tag = 0xAA02;
+        let thumb_tag = 0xAA03;
+
+        // Construct container with children via UiScope
+        let (_cid, ch1) = {
+            let mut scope = crate::declarative::UiScope::new(&mut tree, root);
+            let mut child_id = None;
+            let c = scope.container_tagged(
+                "TestScrollContainer",
+                Style::new().width(200.0).height(200.0).flex_col(),
+                iris_core::WidgetRole::Default,
+                container_tag,
+                |s| {
+                    child_id = Some(
+                        s.empty_box_passive_named("Child1", Style::new().width(200.0).height(60.0)),
+                    );
+                },
+            );
+            scope.finish_layout(Rect::new(0.0, 0.0, 200.0, 200.0));
+            (c, child_id.unwrap())
+        };
+
+        // Construct track and thumb
+        let trk = tree.create_node();
+        tree.set_tag(trk, track_tag);
+        tree.set_computed_rect(trk, Rect::new(190.0, 0.0, 10.0, 200.0));
+        let _ = tree.add_child(root, trk);
+
+        let thm = tree.create_node();
+        tree.set_tag(thm, thumb_tag);
+        tree.set_computed_rect(thm, Rect::new(190.0, 0.0, 10.0, 40.0));
+        let _ = tree.add_child(root, thm);
+
+        // Child should start at y = 0
+        assert_eq!(tree.get(ch1).unwrap().computed_rect.y, 0.0);
+        assert_eq!(tree.get(thm).unwrap().computed_rect.y, 0.0);
+
+        // Sync scroll to 50.0 (max_scroll = 100.0)
+        let updated = ScrollArea::sync_scroll_in_place(
+            &mut tree,
+            container_tag,
+            Some(track_tag),
+            Some(thumb_tag),
+            50.0,
+            100.0,
+        );
+        assert!(updated);
+
+        // Child should be shifted upwards by 50px
+        assert_eq!(tree.get(ch1).unwrap().computed_rect.y, -50.0);
+        // Thumb travel = 200 - 40 = 160. Halfway = 80.0
+        assert_eq!(tree.get(thm).unwrap().computed_rect.y, 80.0);
     }
 }

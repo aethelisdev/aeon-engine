@@ -35,8 +35,7 @@ impl IrisEditorOverlay {
                 if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_THUMB {
                     self.material.active_scrollbar_drag =
                         Some((click_point.y, self.material.interactions.scroll_y));
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
+                    self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
                 } else if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_TRACK {
@@ -55,8 +54,7 @@ impl IrisEditorOverlay {
                         new_scroll.clamp(0.0, self.material.max_scroll_y);
                     self.material.active_scrollbar_drag =
                         Some((click_point.y, self.material.interactions.scroll_y));
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
+                    self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
                 }
@@ -98,8 +96,7 @@ impl IrisEditorOverlay {
             && self.material.active_scrollbar_drag.is_some()
         {
             self.material.active_scrollbar_drag = None;
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }
@@ -131,8 +128,7 @@ impl IrisEditorOverlay {
             );
             self.material.interactions.scroll_y =
                 (start_scroll + delta_scroll).clamp(0.0, self.material.max_scroll_y);
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }
@@ -154,8 +150,7 @@ impl IrisEditorOverlay {
             let scroll_step = 24.0;
             self.material.scroll_y = (self.material.scroll_y - delta_y * scroll_step)
                 .clamp(0.0, self.material.max_scroll_y);
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }

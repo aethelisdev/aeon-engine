@@ -131,6 +131,8 @@ pub const ASSETS_TAG_ENGINE_CONTENT: u64 = ASSETS_TAG_DOMAIN | 0x0007;
 pub const ASSETS_TAG_SEARCH_INPUT: u64 = ASSETS_TAG_DOMAIN | 0x0008;
 /// Semantic tag for clearing the active search filter query.
 pub const ASSETS_TAG_SEARCH_CLEAR: u64 = ASSETS_TAG_DOMAIN | 0x0009;
+/// Semantic tag for the primary assets scrollable content area viewport.
+pub const ASSETS_TAG_CONTENT_VIEWPORT: u64 = ASSETS_TAG_DOMAIN | 0x000E;
 /// Semantic tag for primary content scrollbar track.
 pub const ASSETS_TAG_SCROLLBAR_TRACK: u64 = ASSETS_TAG_DOMAIN | 0x000A;
 /// Semantic tag for primary content scrollbar draggable thumb.
@@ -383,8 +385,6 @@ pub struct AssetsPanelParams<'a> {
     pub current_folder: &'a std::path::Path,
     /// Live search filter query string.
     pub search_query: &'a str,
-    /// Whether the search input box currently has keyboard focus.
-    pub is_search_focused: bool,
     /// Currently active asset category filter.
     pub active_category: AssetCategory,
     /// Active presentation mode (Grid vs List).
@@ -460,6 +460,8 @@ pub struct AssetsPanelState {
     pub context_menu_card_rect: Option<Rect>,
     /// Folder tree sidebar vertical scroll offset.
     pub tree_scroll_y: f32,
+    /// Last synchronized folder tree sidebar vertical scroll offset.
+    pub last_tree_scroll_y: f32,
     /// Current folder path in Asset Browser panel.
     pub current_folder: PathBuf,
     /// Double-click tracking state for asset spawning.
@@ -489,6 +491,7 @@ impl Default for AssetsPanelState {
             content_viewport_rect: None,
             context_menu_card_rect: None,
             tree_scroll_y: 0.0,
+            last_tree_scroll_y: 0.0,
             current_folder: PathBuf::from("assets"),
             click_tracker: AssetClickTracker::default(),
             context_menu: None,

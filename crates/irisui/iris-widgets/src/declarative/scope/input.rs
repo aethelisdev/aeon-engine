@@ -318,6 +318,7 @@ impl<'a> UiScope<'a> {
         } else {
             Color::rgba(0.06, 0.07, 0.09, 0.95)
         };
+
         if let Some(node) = self.tree.get_mut(box_id) {
             node.role = WidgetRole::TextInput;
             node.interactive = true;
@@ -328,7 +329,11 @@ impl<'a> UiScope<'a> {
                     .height(24.0)
                     .border_radius(4.0)
                     .border(1.0, border_color)
-                    .background(bg_color),
+                    .hover_border(1.0, Color::rgba(0.35, 0.40, 0.52, 0.95))
+                    .focus_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.95))
+                    .background(bg_color)
+                    .hover_background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+                    .focus_background(Color::rgba(0.08, 0.09, 0.12, 0.98)),
             );
         }
 
@@ -365,29 +370,28 @@ impl<'a> UiScope<'a> {
             } else {
                 Color::rgba(0.95, 0.96, 0.98, 1.0)
             };
+            node.focus_text_color = Some(Color::rgba(0.95, 0.96, 0.98, 1.0));
         }
         let _ = self.tree.add_child(box_id, text_id);
 
-        if props.is_focused && props.cursor_blink_visible {
-            let caret_offset = if props.text.is_empty() {
-                0.0_f32
-            } else {
-                props.text_width + 1.0
-            };
-            let caret_id = self.tree.create_node();
-            if let Some(node) = self.tree.get_mut(caret_id) {
-                node.set_name("TextInputCaret");
-                node.role = WidgetRole::TextInputCaret;
-                node.interactive = false;
-                node.tag = caret_offset.to_bits() as u64;
-                node.set_style(
-                    Style::new()
-                        .background(Color::rgba(0.0, 0.90, 1.0, 0.95))
-                        .border_radius(0.75),
-                );
-            }
-            let _ = self.tree.add_child(box_id, caret_id);
+        let caret_offset = if props.text.is_empty() {
+            0.0_f32
+        } else {
+            props.text_width + 1.0
+        };
+        let caret_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(caret_id) {
+            node.set_name("TextInputCaret");
+            node.role = WidgetRole::TextInputCaret;
+            node.interactive = false;
+            node.tag = caret_offset.to_bits() as u64;
+            node.set_style(
+                Style::new()
+                    .background(Color::rgba(0.0, 0.90, 1.0, 0.95))
+                    .border_radius(0.75),
+            );
         }
+        let _ = self.tree.add_child(box_id, caret_id);
 
         box_id
     }

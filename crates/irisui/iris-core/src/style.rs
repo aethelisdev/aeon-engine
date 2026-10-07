@@ -110,6 +110,22 @@ pub struct Style {
     pub border: Border,
     /// Drop shadow specification.
     pub box_shadow: Option<BoxShadow>,
+    /// Optional background color applied when the widget is hovered.
+    ///
+    /// Evaluated dynamically by the render compiler without mutating node layout or requiring AST rebuilds.
+    pub hover_background: Option<Color>,
+    /// Optional border stroke applied when the widget is hovered.
+    ///
+    /// Evaluated dynamically by the render compiler without mutating node layout or requiring AST rebuilds.
+    pub hover_border: Option<Border>,
+    /// Optional background color applied when the widget holds keyboard input focus.
+    ///
+    /// Evaluated dynamically by the render compiler without mutating node layout or requiring AST rebuilds.
+    pub focus_background: Option<Color>,
+    /// Optional border stroke applied when the widget holds keyboard input focus.
+    ///
+    /// Evaluated dynamically by the render compiler without mutating node layout or requiring AST rebuilds.
+    pub focus_border: Option<Border>,
     /// Inner padding insets.
     pub padding: Insets,
     /// Outer margin insets.
@@ -188,6 +204,10 @@ impl Default for Style {
             inset_bottom: None,
             inset_left: None,
             scroll_offset_y: 0.0,
+            hover_background: None,
+            hover_border: None,
+            focus_background: None,
+            focus_border: None,
         }
     }
 }
@@ -395,5 +415,98 @@ impl Style {
     pub fn scroll_offset_y(mut self, offset: f32) -> Self {
         self.scroll_offset_y = offset;
         self
+    }
+
+    /// Sets the background color applied when the widget is hovered.
+    ///
+    /// Allows declarative specification of hover visuals that are evaluated directly
+    /// by the retained render compiler without triggering widget hierarchy re-creation.
+    #[must_use]
+    #[inline]
+    pub fn hover_background(mut self, color: Color) -> Self {
+        self.hover_background = Some(color);
+        self
+    }
+
+    /// Sets the uniform border stroke width and color applied when the widget is hovered.
+    ///
+    /// Allows declarative specification of hover outline highlights evaluated directly
+    /// by the retained render compiler without triggering widget hierarchy re-creation.
+    #[must_use]
+    #[inline]
+    pub fn hover_border(mut self, width: f32, color: Color) -> Self {
+        self.hover_border = Some(Border::uniform(width, color));
+        self
+    }
+
+    /// Sets explicit border specifications applied when the widget is hovered.
+    ///
+    /// Allows fine-grained per-side border definitions for hover states.
+    #[must_use]
+    #[inline]
+    pub fn hover_border_spec(mut self, border: Border) -> Self {
+        self.hover_border = Some(border);
+        self
+    }
+
+    /// Sets the background color applied when the widget holds keyboard input focus.
+    ///
+    /// Allows declarative specification of focus visuals evaluated directly
+    /// by the retained render compiler without triggering widget hierarchy re-creation.
+    #[must_use]
+    #[inline]
+    pub fn focus_background(mut self, color: Color) -> Self {
+        self.focus_background = Some(color);
+        self
+    }
+
+    /// Sets the uniform border stroke width and color applied when the widget holds keyboard input focus.
+    ///
+    /// Allows declarative specification of focus outline highlights evaluated directly
+    /// by the retained render compiler without triggering widget hierarchy re-creation.
+    #[must_use]
+    #[inline]
+    pub fn focus_border(mut self, width: f32, color: Color) -> Self {
+        self.focus_border = Some(Border::uniform(width, color));
+        self
+    }
+
+    /// Sets explicit border specifications applied when the widget holds keyboard input focus.
+    ///
+    /// Allows fine-grained per-side border definitions for focus states.
+    #[must_use]
+    #[inline]
+    pub fn focus_border_spec(mut self, border: Border) -> Self {
+        self.focus_border = Some(border);
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_style_hover_properties() {
+        let style = Style::new()
+            .background(Color::BLACK)
+            .hover_background(Color::RED)
+            .hover_border(2.0, Color::GREEN);
+
+        assert_eq!(style.background_color, Color::BLACK);
+        assert_eq!(style.hover_background, Some(Color::RED));
+        assert_eq!(style.hover_border, Some(Border::uniform(2.0, Color::GREEN)));
+    }
+
+    #[test]
+    fn test_style_focus_properties() {
+        let style = Style::new()
+            .background(Color::BLACK)
+            .focus_background(Color::BLUE)
+            .focus_border(1.5, Color::CYAN);
+
+        assert_eq!(style.background_color, Color::BLACK);
+        assert_eq!(style.focus_background, Some(Color::BLUE));
+        assert_eq!(style.focus_border, Some(Border::uniform(1.5, Color::CYAN)));
     }
 }

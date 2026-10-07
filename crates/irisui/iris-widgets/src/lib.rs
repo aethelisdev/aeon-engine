@@ -61,9 +61,9 @@ pub use modal::{
 pub use numeric_input::{NumericInputEditState, NumericInputPillBuilder, NumericInputStyle};
 pub use panel::PanelBuilder;
 pub use scroll_area::{
-    ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit,
-    ScrollBarVisibility, ScrollDirection, VirtualItemHeight, VirtualList, VirtualScrollConfig,
-    VirtualSlice,
+    ScrollArea, ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry,
+    ScrollBarHit, ScrollBarVisibility, ScrollDirection, VirtualItemHeight, VirtualList,
+    VirtualScrollConfig, VirtualSlice,
 };
 pub use settings::{
     SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,

@@ -185,6 +185,81 @@ impl UiTree {
         Ok(())
     }
 
+    /// Sets the vertical scroll offset in physical pixels on the specified widget node.
+    ///
+    /// Returns `true` if the node exists and its scroll offset was updated, `false` otherwise.
+    #[inline]
+    pub fn set_scroll_offset_y(&mut self, id: WidgetId, offset_y: f32) -> bool {
+        if let Some(node) = self.nodes.get_mut(id) {
+            node.style.scroll_offset_y = offset_y;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Sets the computed rectangle Y coordinate on the specified widget node in place.
+    ///
+    /// Returns `true` if the node exists and was updated, `false` otherwise.
+    #[inline]
+    pub fn set_computed_rect_y(&mut self, id: WidgetId, y: f32) -> bool {
+        if let Some(node) = self.nodes.get_mut(id) {
+            node.computed_rect.y = y;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Sets the semantic interaction tag on the specified widget node.
+    ///
+    /// Returns `true` if the node exists and was updated, `false` otherwise.
+    #[inline]
+    pub fn set_tag(&mut self, id: WidgetId, tag: u64) -> bool {
+        if let Some(node) = self.nodes.get_mut(id) {
+            node.tag = tag;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Sets the resolved computed bounding rectangle on the specified widget node.
+    ///
+    /// Returns `true` if the node exists and was updated, `false` otherwise.
+    #[inline]
+    pub fn set_computed_rect(&mut self, id: WidgetId, rect: Rect) -> bool {
+        if let Some(node) = self.nodes.get_mut(id) {
+            node.computed_rect = rect;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Searches the tree for the first widget node possessing the specified semantic tag.
+    ///
+    /// Performs an $O(N)$ linear scan over the active node arena and returns the first
+    /// matching generational [`WidgetId`].
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit persistent semantic interaction tag to locate.
+    ///
+    /// Returns `Some(WidgetId)` if found, or `None` if `tag == 0` or no matching node exists.
+    #[inline]
+    #[must_use]
+    pub fn find_node_by_tag(&self, tag: u64) -> Option<WidgetId> {
+        if tag == 0 {
+            return None;
+        }
+        for (id, node) in &self.nodes {
+            if node.tag == tag {
+                return Some(id);
+            }
+        }
+        None
+    }
+
     /// Traverses the subtree starting from `root_id` in depth-first order.
     pub fn traverse_depth_first<'a, F>(&'a self, root_id: WidgetId, visitor: &mut F)
     where

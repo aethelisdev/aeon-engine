@@ -249,7 +249,6 @@ mod tests {
             screen_size: (1280.0, 720.0),
             current_folder: &current_folder,
             search_query: "",
-            is_search_focused: false,
             active_category: AssetCategory::All,
             view_mode: AssetViewMode::Grid,
             selected_asset: None,

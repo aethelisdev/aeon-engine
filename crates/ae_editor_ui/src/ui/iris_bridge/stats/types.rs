@@ -26,6 +26,9 @@ pub const STATS_TAG_PANEL_ROOT: u64 = 0x5354_4154_0000_0003;
 /// Semantic tag assigned to the Oscilloscope frametime canvas container.
 pub const STATS_TAG_CANVAS: u64 = 0x5354_4154_0000_0004;
 
+/// Semantic tag assigned to the Stats telemetry scroll viewport container.
+pub const STATS_TAG_VIEWPORT: u64 = 0x5354_4154_0000_0005;
+
 /// Returns `true` if the given 64-bit widget tag belongs to the Stats & Telemetry panel subsystem.
 #[inline]
 pub fn is_stats_tag(tag: u64) -> bool {
@@ -90,6 +93,8 @@ pub struct StatsPanelState {
     pub actions: Vec<StatsPanelAction>,
     /// Vertical scrolling offset in physical pixels.
     pub scroll_y: f32,
+    /// Last synchronized vertical scrolling offset for in-place scroll synchronization.
+    pub last_scroll_y: f32,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
@@ -107,6 +112,7 @@ impl Default for StatsPanelState {
         Self {
             actions: Vec::new(),
             scroll_y: 0.0,
+            last_scroll_y: 0.0,
             max_scroll: 0.0,
             last_rect: None,
             frame_counter: 0,

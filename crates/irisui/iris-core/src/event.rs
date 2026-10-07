@@ -177,6 +177,8 @@ pub enum InteractionEvent {
 pub struct FocusManager {
     /// Widget currently owning keyboard input focus.
     pub focused: Option<WidgetId>,
+    /// Semantic 64-bit tag currently owning keyboard input focus.
+    pub focused_tag: Option<u64>,
     /// Widget currently hovered by the pointer cursor.
     pub hovered: Option<WidgetId>,
     /// Widget currently pressed down by the pointer.
@@ -196,9 +198,49 @@ impl FocusManager {
         self.focused = Some(id);
     }
 
-    /// Clears any active keyboard input focus.
+    /// Sets keyboard input focus to the specified 64-bit semantic tag.
+    pub fn set_focus_tag(&mut self, tag: u64) {
+        self.focused_tag = if tag != 0 { Some(tag) } else { None };
+    }
+
+    /// Sets keyboard input focus to both a widget ID and its optional semantic tag.
+    pub fn set_focus_target(&mut self, id: WidgetId, tag: u64) {
+        self.focused = Some(id);
+        self.focused_tag = if tag != 0 { Some(tag) } else { None };
+    }
+
+    /// Clears any active keyboard input focus from both widget and semantic tag.
     pub fn clear_focus(&mut self) {
         self.focused = None;
+        self.focused_tag = None;
+    }
+
+    /// Returns whether any widget or semantic tag currently holds keyboard input focus.
+    #[must_use]
+    #[inline]
+    pub fn has_focus(&self) -> bool {
+        self.focused.is_some() || self.focused_tag.is_some()
+    }
+
+    /// Checks if a specific widget ID currently holds keyboard input focus.
+    #[must_use]
+    #[inline]
+    pub fn is_focused(&self, id: WidgetId) -> bool {
+        self.focused == Some(id)
+    }
+
+    /// Checks if a specific 64-bit semantic tag currently holds keyboard input focus.
+    #[must_use]
+    #[inline]
+    pub fn is_tag_focused(&self, tag: u64) -> bool {
+        tag != 0 && self.focused_tag == Some(tag)
+    }
+
+    /// Returns the currently focused 64-bit semantic tag, if any.
+    #[must_use]
+    #[inline]
+    pub fn focused_tag(&self) -> Option<u64> {
+        self.focused_tag
     }
 
     /// Returns the recommended screen rectangle for the OS IME composition popup.

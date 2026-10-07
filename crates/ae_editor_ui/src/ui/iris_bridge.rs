@@ -22,6 +22,7 @@ pub mod modals;
 pub mod native_dock;
 pub mod preferences;
 pub mod render;
+pub mod scroll;
 pub mod stats;
 pub mod status_bar;
 pub mod theme;

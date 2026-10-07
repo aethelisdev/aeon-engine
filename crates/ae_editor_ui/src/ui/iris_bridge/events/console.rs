@@ -53,7 +53,9 @@ impl IrisEditorOverlay {
                         self.console.auto_scroll = !self.console.auto_scroll;
                     }
                     super::super::console::ConsoleAction::FocusSearch => {
-                        self.console.interactions.is_search_focused = true;
+                        self.focus_manager.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
+                        result.consumed = true;
+                        return Some(result);
                     }
                     super::super::console::ConsoleAction::ClearSearch => {
                         self.console.interactions.search_query.clear();
@@ -73,8 +75,7 @@ impl IrisEditorOverlay {
                     self.console.active_scrollbar_drag =
                         Some((click_point.y, self.console.interactions.scroll_y));
                     self.console.auto_scroll = false;
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
+                    self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
                 } else if hit.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
@@ -94,14 +95,15 @@ impl IrisEditorOverlay {
                     self.console.auto_scroll = false;
                     self.console.active_scrollbar_drag =
                         Some((click_point.y, self.console.interactions.scroll_y));
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
+                    self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
                 }
 
-                if hit.tag != CONSOLE_TAG_SEARCH_INPUT {
-                    self.console.interactions.is_search_focused = false;
+                if hit.tag != CONSOLE_TAG_SEARCH_INPUT
+                    && self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT)
+                {
+                    self.focus_manager.clear_focus();
                 }
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
@@ -119,8 +121,7 @@ impl IrisEditorOverlay {
             && self.console.active_scrollbar_drag.is_some()
         {
             self.console.active_scrollbar_drag = None;
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }
@@ -150,8 +151,7 @@ impl IrisEditorOverlay {
             );
             self.console.interactions.scroll_y =
                 (start_scroll + delta_scroll).clamp(0.0, self.console.max_scroll_y);
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }
@@ -176,14 +176,13 @@ impl IrisEditorOverlay {
                 &mut self.console.interactions.scroll_y,
                 &mut self.console.auto_scroll,
             );
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+            self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
         }
 
         // 3. Search query typing when search input is focused
-        if self.console.is_search_focused {
+        if self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT) {
             match event {
                 WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
                     self.console.search_query.push_str(text);
@@ -205,9 +204,7 @@ impl IrisEditorOverlay {
                     winit::keyboard::KeyCode::Escape
                     | winit::keyboard::KeyCode::Enter
                     | winit::keyboard::KeyCode::NumpadEnter => {
-                        self.console.is_search_focused = false;
-                        self.notifier.tag_all();
-                        self.chrome.needs_layout_rebuild = true;
+                        self.focus_manager.clear_focus();
                         result.consumed = true;
                         return Some(result);
                     }

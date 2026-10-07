@@ -129,6 +129,30 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
+    /// Emits a blinking text input caret cursor node with [`WidgetRole::TextInputCaret`].
+    ///
+    /// The caret is rendered and collected dynamically in-place by the compiler based on
+    /// the container's focus state and frame blink phase without triggering UI tree invalidation.
+    ///
+    /// # Arguments
+    /// * `color` - Caret indicator foreground color.
+    pub fn text_caret(&mut self, color: Color) -> WidgetId {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name("TextInputCaret");
+            node.role = WidgetRole::TextInputCaret;
+            node.interactive = false;
+            node.set_text("|");
+            node.text_color = color;
+            node.font_size = 11.5;
+            node.line_height = 16.0;
+            node.text_align = TextAlign::Left;
+            node.set_style(Style::new().width(6.0));
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        node_id
+    }
+
     /// Emits a styled text label node with an explicit style layout (e.g. absolute position, size).
     ///
     /// The node is passive (`interactive = false`) by default so it does not block hit-testing.

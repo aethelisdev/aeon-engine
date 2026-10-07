@@ -53,6 +53,9 @@ impl IrisEditorOverlay {
 
         let mut options = TreeCompilerOptions::new()
             .with_clip(clip_rect)
+            .with_hovered_tag(self.chrome.hovered_tag)
+            .with_focused_tag(self.focus_manager.focused_tag)
+            .with_blink_caret(self.chrome.last_blink_caret)
             .with_custom_drawer(&mut custom_drawer);
 
         compile_tree_draw_commands_into(&self.tree, current, &mut options, &mut self.command_list);
@@ -67,17 +70,33 @@ impl IrisEditorOverlay {
         active_modal_rects: &[Rect],
         floating_window_rects: &[Rect],
     ) -> Vec<TextSection<'a>> {
+        Self::collect_text_sections_from_tree_with_hover(
+            tree,
+            active_dropdown_rects,
+            active_modal_rects,
+            floating_window_rects,
+            None,
+        )
+    }
+
+    /// Collects text rendering sections from all visible layout nodes in the tree with dynamic hover state.
+    ///
+    /// Delegates directly to Iris UI's native layer-aware typography collection engine.
+    pub fn collect_text_sections_from_tree_with_hover<'a>(
+        tree: &'a UiTree,
+        active_dropdown_rects: &[Rect],
+        active_modal_rects: &[Rect],
+        floating_window_rects: &[Rect],
+        hovered_tag: Option<u64>,
+    ) -> Vec<TextSection<'a>> {
         let mut extra_occluders = Vec::new();
         extra_occluders.extend_from_slice(active_dropdown_rects);
         extra_occluders.extend_from_slice(active_modal_rects);
         extra_occluders.extend_from_slice(floating_window_rects);
 
-        if extra_occluders.is_empty() {
-            collect_text_sections(tree)
-        } else {
-            let options = irisui::text::TextCollectionOptions { extra_occluders };
-            irisui::text::collect_text_sections_with_options(tree, &options)
-        }
+        let mut options = irisui::text::TextCollectionOptions::new().with_hovered_tag(hovered_tag);
+        options.extra_occluders = extra_occluders;
+        irisui::text::collect_text_sections_with_options(tree, &options)
     }
 
     /// Renders the Iris UI overlay into the target surface framebuffer.
@@ -115,7 +134,13 @@ impl IrisEditorOverlay {
             self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
         }
 
-        let sections = collect_text_sections(&self.tree);
+        let text_options = irisui::text::TextCollectionOptions {
+            hovered_tag: self.chrome.hovered_tag,
+            focused_tag: self.focus_manager.focused_tag,
+            blink_caret: self.chrome.last_blink_caret,
+            ..Default::default()
+        };
+        let sections = irisui::text::collect_text_sections_with_options(&self.tree, &text_options);
         if let Some(txt_renderer) = &mut self.text_renderer {
             txt_renderer.prepare(
                 device,

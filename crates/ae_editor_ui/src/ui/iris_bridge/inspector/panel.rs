@@ -68,9 +68,11 @@ pub fn build_inspector_panel(
                 .clip_children(true)
                 .scroll_offset_y(params.scroll_y);
 
-            panel_scope.container_named(
+            panel_scope.container_tagged(
                 "InspectorCardsContainer",
                 container_style,
+                WidgetRole::Default,
+                super::tags::TAG_INSPECTOR_CARDS_CONTAINER,
                 |cards_scope| {
                     // 4. Primary Transform / Layout Card
                     let is_ui_element = ctx

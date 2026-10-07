@@ -113,13 +113,12 @@ pub fn build_console_panel(
                     }
 
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-                    let blink = params.is_search_focused && params.blink_caret;
                     let search_props = InputBoxProps::new(
                         params.search_query,
                         "Search logs...",
                         210.0,
-                        params.is_search_focused,
-                        blink,
+                        false,
+                        false,
                     )
                     .with_icon("🔍");
                     tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);

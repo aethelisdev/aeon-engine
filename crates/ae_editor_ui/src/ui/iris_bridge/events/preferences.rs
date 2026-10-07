@@ -94,7 +94,7 @@ impl IrisEditorOverlay {
                         );
                         self.preferences.scroll_y =
                             (start_scroll_y + scroll_delta).clamp(0.0, max_scroll);
-                        self.notifier.tag_all();
+                        self.chrome.needs_scroll_sync = true;
                         result.consumed = true;
                         return Some(result);
                     }
@@ -118,7 +118,7 @@ impl IrisEditorOverlay {
                 }
                 if self.preferences.active_scrollbar_drag.is_some() {
                     self.preferences.active_scrollbar_drag = None;
-                    self.notifier.tag_all();
+                    self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
                 }
@@ -233,7 +233,7 @@ impl IrisEditorOverlay {
                     };
                     self.preferences.scroll_y = (self.preferences.scroll_y - scroll_y)
                         .clamp(0.0, self.preferences.max_scroll_y);
-                    self.notifier.tag_all();
+                    self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
                 }
@@ -379,7 +379,7 @@ impl IrisEditorOverlay {
                     if tag == PREF_TAG_SCROLLBAR_THUMB {
                         self.preferences.active_scrollbar_drag =
                             Some((click_point.y, self.preferences.scroll_y));
-                        self.notifier.tag_all();
+                        self.chrome.needs_scroll_sync = true;
                         result.consumed = true;
                         return Some(result);
                     }
@@ -410,7 +410,7 @@ impl IrisEditorOverlay {
                                 new_scroll.clamp(0.0, self.preferences.max_scroll_y);
                             self.preferences.active_scrollbar_drag =
                                 Some((click_point.y, self.preferences.scroll_y));
-                            self.notifier.tag_all();
+                            self.chrome.needs_scroll_sync = true;
                             result.consumed = true;
                             return Some(result);
                         }

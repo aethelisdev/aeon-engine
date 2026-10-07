@@ -30,9 +30,7 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
     scope.container_named("HierarchyHeaderBar", header_bar_style, |bar| {
         // 1. Search Bar Container (Tagged with HIERARCHY_TAG_SEARCH_INPUT)
         let is_search_hovered = params.hovered_tag == Some(HIERARCHY_TAG_SEARCH_INPUT);
-        let border_color = if params.is_search_focused {
-            Color::rgba(0.0, 0.90, 1.0, 0.90) // Active Cyan ring
-        } else if is_search_hovered {
+        let border_color = if is_search_hovered {
             Color::rgba(0.35, 0.40, 0.52, 0.95)
         } else {
             Color::rgba(0.18, 0.20, 0.26, 0.80)
@@ -52,12 +50,13 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
             .gap(6.0)
             .background(search_bg)
             .border(1.0, border_color)
+            .focus_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.90))
             .border_radius(4.0);
 
         bar.container_tagged(
             "HierarchySearchBox",
             search_style,
-            WidgetRole::Default,
+            WidgetRole::TextInput,
             HIERARCHY_TAG_SEARCH_INPUT,
             |s| {
                 // Search Icon "🔍"
@@ -82,16 +81,8 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
 
                 s.label_flex(display_text, 11.5, text_color, TextAlign::Left);
 
-                // Blinking Caret Cursor (500ms cycle)
-                if params.is_search_focused && params.blink_caret {
-                    s.label_with_width(
-                        "|",
-                        6.0,
-                        11.5,
-                        Color::rgba(0.0, 0.90, 1.0, 1.0),
-                        TextAlign::Left,
-                    );
-                }
+                // Blinking Caret Cursor (retained in-place; filtered at compile time when un-focused or blink off)
+                s.text_caret(Color::rgba(0.0, 0.90, 1.0, 1.0));
 
                 // Clear Search "✖" Button
                 if !params.search_query.is_empty() {

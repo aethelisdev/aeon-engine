@@ -195,6 +195,49 @@ impl<'a> UiScope<'a> {
         max_scroll
     }
 
+    /// Synchronizes a scrollable container's offset and scrollbar thumb in-place on the active tree without rebuilding.
+    ///
+    /// Delegates directly to [`crate::scroll_area::ScrollArea::sync_scroll_in_place`].
+    ///
+    /// # Arguments
+    /// * `container_tag` - Semantic tag of the scroll container viewport.
+    /// * `track_tag` - Optional semantic tag of the scrollbar track.
+    /// * `thumb_tag` - Optional semantic tag of the draggable scrollbar thumb.
+    /// * `scroll_y` - Current vertical scroll offset in physical pixels.
+    /// * `max_scroll_y` - Maximum scroll limit in physical pixels.
+    ///
+    /// Returns `true` if any nodes were found and updated.
+    #[inline]
+    pub fn sync_scroll_in_place(
+        &mut self,
+        container_tag: u64,
+        track_tag: Option<u64>,
+        thumb_tag: Option<u64>,
+        scroll_y: f32,
+        max_scroll_y: f32,
+    ) -> bool {
+        crate::scroll_area::ScrollArea::sync_scroll_in_place(
+            self.tree,
+            container_tag,
+            track_tag,
+            thumb_tag,
+            scroll_y,
+            max_scroll_y,
+        )
+    }
+
+    /// Updates a container node's scroll offset and re-layouts its subtree in-place on the active tree.
+    ///
+    /// Delegates directly to [`crate::scroll_area::ScrollArea::update_container_scroll_by_tag`].
+    #[inline]
+    pub fn update_container_scroll_by_tag(&mut self, container_tag: u64, scroll_y: f32) -> bool {
+        crate::scroll_area::ScrollArea::update_container_scroll_by_tag(
+            self.tree,
+            container_tag,
+            scroll_y,
+        )
+    }
+
     /// Emits a generic styled container and executes a nested child builder closure.
     ///
     /// # Arguments

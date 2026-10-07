@@ -220,6 +220,12 @@ pub struct WidgetNode {
     pub line_height: f32,
     /// Text RGBA foreground color.
     pub text_color: Color,
+    /// Optional text RGBA foreground color applied dynamically when hovered.
+    pub hover_text_color: Option<Color>,
+    /// Optional text RGBA foreground color applied dynamically when focused.
+    pub focus_text_color: Option<Color>,
+    /// Optional texture tint multiplier applied dynamically when hovered.
+    pub hover_texture_tint: Option<Color>,
     /// Text alignment.
     pub text_align: TextAlign,
     /// Text wrapping configuration mode.
@@ -264,6 +270,9 @@ impl WidgetNode {
             font_size: Self::DEFAULT_FONT_SIZE,
             line_height: Self::DEFAULT_LINE_HEIGHT,
             text_color: Color::WHITE,
+            hover_text_color: None,
+            focus_text_color: None,
+            hover_texture_tint: None,
             text_align: TextAlign::Left,
             text_wrap: TextWrap::Auto,
             visible: true,
@@ -456,6 +465,48 @@ impl WidgetNode {
     pub fn hit_test(&self, point: Point) -> bool {
         self.visible && self.interactive && self.computed_rect.contains_point(point)
     }
+
+    /// Sets the text foreground color applied dynamically when hovered in a fluent builder style.
+    #[inline]
+    pub fn with_hover_text_color(mut self, color: Color) -> Self {
+        self.hover_text_color = Some(color);
+        self
+    }
+
+    /// Sets the text foreground color applied dynamically when hovered on an existing node.
+    #[inline]
+    pub fn set_hover_text_color(&mut self, color: Color) {
+        self.hover_text_color = Some(color);
+        self.dirty |= DirtyFlags::PAINT;
+    }
+
+    /// Sets the text foreground color applied dynamically when focused in a fluent builder style.
+    #[inline]
+    pub fn with_focus_text_color(mut self, color: Color) -> Self {
+        self.focus_text_color = Some(color);
+        self
+    }
+
+    /// Sets the text foreground color applied dynamically when focused on an existing node.
+    #[inline]
+    pub fn set_focus_text_color(&mut self, color: Color) {
+        self.focus_text_color = Some(color);
+        self.dirty |= DirtyFlags::PAINT;
+    }
+
+    /// Sets the texture tint multiplier applied dynamically when hovered in a fluent builder style.
+    #[inline]
+    pub fn with_hover_texture_tint(mut self, tint: Color) -> Self {
+        self.hover_texture_tint = Some(tint);
+        self
+    }
+
+    /// Sets the texture tint multiplier applied dynamically when hovered on an existing node.
+    #[inline]
+    pub fn set_hover_texture_tint(&mut self, tint: Color) {
+        self.hover_texture_tint = Some(tint);
+        self.dirty |= DirtyFlags::PAINT;
+    }
 }
 
 #[cfg(test)]
@@ -514,5 +565,24 @@ mod tests {
 
         let tagged = WidgetNode::new(dummy_id).with_tag(101);
         assert_eq!(tagged.tag, 101);
+    }
+
+    #[test]
+    fn test_widget_node_hover_properties() {
+        let dummy_id = WidgetId::default();
+        let mut node = WidgetNode::new(dummy_id);
+        assert_eq!(node.hover_text_color, None);
+        assert_eq!(node.hover_texture_tint, None);
+
+        node.set_hover_text_color(Color::RED);
+        node.set_hover_texture_tint(Color::BLUE);
+        assert_eq!(node.hover_text_color, Some(Color::RED));
+        assert_eq!(node.hover_texture_tint, Some(Color::BLUE));
+
+        let fluent = WidgetNode::new(dummy_id)
+            .with_hover_text_color(Color::WHITE)
+            .with_hover_texture_tint(Color::GREEN);
+        assert_eq!(fluent.hover_text_color, Some(Color::WHITE));
+        assert_eq!(fluent.hover_texture_tint, Some(Color::GREEN));
     }
 }

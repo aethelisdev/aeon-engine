@@ -124,8 +124,7 @@ impl IrisEditorOverlay {
 
                     // A. Search Bar Container Focus
                     if effective_tag == HIERARCHY_TAG_SEARCH_INPUT {
-                        self.hierarchy.is_search_focused = true;
-                        self.notifier.tag_all();
+                        self.focus_manager.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
                         result.consumed = true;
                         return Some(result);
                     }
@@ -204,8 +203,12 @@ impl IrisEditorOverlay {
 
                     // G. Panel Root or background click
                     if effective_tag == HIERARCHY_TAG_PANEL_ROOT {
-                        if *button == WinitMouseButton::Left {
-                            self.hierarchy.is_search_focused = false;
+                        if *button == WinitMouseButton::Left
+                            && self
+                                .focus_manager
+                                .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
+                        {
+                            self.focus_manager.clear_focus();
                         }
                         if self.hierarchy.is_add_menu_open {
                             self.hierarchy.is_add_menu_open = false;
@@ -219,9 +222,11 @@ impl IrisEditorOverlay {
 
             // Outside panel click: unfocus search bar and dismiss menus
             if *button == WinitMouseButton::Left {
-                if self.hierarchy.is_search_focused {
-                    self.hierarchy.is_search_focused = false;
-                    self.notifier.tag_all();
+                if self
+                    .focus_manager
+                    .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
+                {
+                    self.focus_manager.clear_focus();
                 }
                 if self.hierarchy.is_add_menu_open {
                     self.hierarchy.is_add_menu_open = false;

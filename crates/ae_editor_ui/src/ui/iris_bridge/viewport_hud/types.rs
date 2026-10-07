@@ -134,8 +134,6 @@ pub struct ViewportHudState {
     pub actions: Vec<ViewportHudAction>,
     /// Active search filter text query in Viewport Add Object popup.
     pub search_query: String,
-    /// Whether search input box is focused in Viewport Add Object popup.
-    pub is_search_focused: bool,
     /// Active 3D camera Euler angles `(pitch_rad, yaw_rad)` for compass line rendering.
     pub camera_angles: (f32, f32),
     /// Cached camera position snapshot `(x, y, z)` for retained-mode dirty tracking.

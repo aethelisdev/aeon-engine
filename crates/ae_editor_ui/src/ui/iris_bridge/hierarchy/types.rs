@@ -164,6 +164,9 @@ pub const HIERARCHY_TAG_ADD_BUTTON: u64 = 0x4849_4552_0000_0003;
 /// Semantic tag assigned to the Header `🗑` Delete Selected button.
 pub const HIERARCHY_TAG_DELETE_BUTTON: u64 = 0x4849_4552_0000_0004;
 
+/// Semantic tag assigned to the Hierarchy virtual rows scroll viewport.
+pub const HIERARCHY_TAG_VIEWPORT: u64 = 0x4849_4552_0000_0005;
+
 /// Bitmask prefix for dynamic entity row selection tags.
 pub const HIERARCHY_TAG_ROW_PREFIX: u64 = 0x4849_4552_1000_0000;
 
@@ -262,8 +265,6 @@ pub struct HierarchyPanelParams<'a> {
     pub active_context_menu: Option<(hecs::Entity, Point)>,
     /// Current mouse cursor position.
     pub cursor_pos: Point,
-    /// Search input focused state.
-    pub is_search_focused: bool,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
     /// Set of currently collapsed entity identifiers.
@@ -277,10 +278,10 @@ pub struct HierarchyPanelParams<'a> {
 pub struct HierarchyPanelState {
     /// Content area vertical scroll offset in physical pixels.
     pub scroll_y: f32,
+    /// Last synchronized vertical scroll offset for in-place scroll synchronization.
+    pub last_scroll_y: f32,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
-    /// Whether the search input field is currently focused for text editing.
-    pub is_search_focused: bool,
     /// Active text query typed in the search filter input.
     pub search_query: String,
     /// Queue of dispatched actions waiting to be consumed by the editor workbench.

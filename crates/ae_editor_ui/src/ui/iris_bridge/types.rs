@@ -135,8 +135,8 @@ pub struct PanelInteractionState<TTargets, TAction> {
     pub targets: Option<TTargets>,
     /// Content area vertical scroll offset.
     pub scroll_y: f32,
-    /// Whether the panel's search input field is currently focused for text editing.
-    pub is_search_focused: bool,
+    /// Last synchronized vertical scroll offset for detecting in-place scroll deltas.
+    pub last_scroll_y: f32,
     /// Active text query typed in the search filter input.
     pub search_query: String,
     /// Queue of dispatched actions waiting to be consumed by the editor workbench.
@@ -148,7 +148,7 @@ impl<TTargets, TAction> Default for PanelInteractionState<TTargets, TAction> {
         Self {
             targets: None,
             scroll_y: 0.0,
-            is_search_focused: false,
+            last_scroll_y: 0.0,
             search_query: String::new(),
             actions: Vec::new(),
         }
@@ -209,12 +209,18 @@ pub struct IrisChromeState {
     pub last_has_drag_payload: bool,
     /// Explicit flag requesting full layout reconstruction on invalidation.
     pub needs_layout_rebuild: bool,
+    /// Explicit flag requesting in-place scroll offset synchronization without tree rebuilding.
+    pub needs_scroll_sync: bool,
     /// Currently open dock tab overflow dropdown menu, storing the parent leaf node ID and anchor button rectangle.
     pub active_dock_overflow: Option<(irisui::dock::DockNodeId, Rect)>,
     /// Currently hovered 64-bit semantic tag resolved from hit testing in the active frame.
     pub hovered_tag: Option<u64>,
     /// Last hovered 64-bit semantic tag used for reactive hover state invalidation.
     pub last_hovered_tag: Option<u64>,
+    /// Last focused 64-bit semantic tag used for reactive focus state invalidation.
+    pub last_focused_tag: Option<u64>,
+    /// Last recorded caret blink state to detect in-place caret redraw cycles.
+    pub last_blink_caret: bool,
     /// When set to `true`, disables retained diffing/sleeping cache and forces a full UI tree reconstruction
     /// every frame (pure immediate / always-rebuild mode).
     ///
@@ -238,9 +244,12 @@ impl Default for IrisChromeState {
             last_has_viewport_texture: false,
             last_has_drag_payload: false,
             needs_layout_rebuild: false,
+            needs_scroll_sync: false,
             active_dock_overflow: None,
             hovered_tag: None,
             last_hovered_tag: None,
+            last_focused_tag: None,
+            last_blink_caret: false,
             always_rebuild: true,
         }
     }
@@ -304,6 +313,8 @@ pub struct IrisEditorOverlay {
     pub ui_designer: UiDesignerPanelState,
     /// Scene Inspector component editor panel state.
     pub inspector: InspectorPanelState,
+    /// Central focus manager tracking keyboard input focus across widgets and panels.
+    pub focus_manager: FocusManager,
 }
 
 impl IrisEditorOverlay {
@@ -315,10 +326,7 @@ impl IrisEditorOverlay {
 
     /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
     pub fn is_any_text_input_focused(&self) -> bool {
-        self.hierarchy.is_search_focused
-            || self.console.is_search_focused
-            || self.assets.is_search_focused
-            || self.viewport_hud.is_search_focused
+        self.focus_manager.has_focus()
             || self.inspector.active_number_input.is_some()
             || self.inspector.active_text_input.is_some()
             || self.inspector.rename_buffer.is_some()

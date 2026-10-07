@@ -8,7 +8,7 @@
 //! hidden beneath opaque higher-layer containers (such as modal windows and popup dropdown menus).
 
 use crate::section::TextSection;
-use iris_core::{Rect, TextAlign, UiLayer, UiTree, WidgetId, WidgetRole};
+use iris_core::{Color, Rect, TextAlign, UiLayer, UiTree, WidgetId, WidgetRole};
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy)]
@@ -24,12 +24,77 @@ struct Occluder {
 pub struct TextCollectionOptions {
     /// Optional additional screen-space opaque occlusion rectangles to cull background text against.
     pub extra_occluders: Vec<Rect>,
+    /// Optional hovered semantic tag for highlighting text foreground colors.
+    pub hovered_tag: Option<u64>,
+    /// Optional hovered widget identifier for highlighting text foreground colors.
+    pub hovered_id: Option<WidgetId>,
+    /// Optional focused semantic tag for highlighting text foreground colors and controlling caret visibility.
+    pub focused_tag: Option<u64>,
+    /// Optional focused widget identifier for highlighting text foreground colors and controlling caret visibility.
+    pub focused_id: Option<WidgetId>,
+    /// Whether text input caret cursors are in the active visible blink phase.
+    pub blink_caret: bool,
+}
+
+impl TextCollectionOptions {
+    /// Creates a new default configuration for text collection.
+    #[inline]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the hovered semantic tag for dynamic hover text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_hovered_tag(mut self, tag: Option<u64>) -> Self {
+        self.hovered_tag = tag;
+        self
+    }
+
+    /// Sets the hovered widget identifier for dynamic hover text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_hovered_id(mut self, id: Option<WidgetId>) -> Self {
+        self.hovered_id = id;
+        self
+    }
+
+    /// Sets the focused semantic tag for dynamic focus text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_focused_tag(mut self, tag: Option<u64>) -> Self {
+        self.focused_tag = tag;
+        self
+    }
+
+    /// Sets the focused widget identifier for dynamic focus text highlighting.
+    #[must_use]
+    #[inline]
+    pub fn with_focused_id(mut self, id: Option<WidgetId>) -> Self {
+        self.focused_id = id;
+        self
+    }
+
+    /// Sets whether text carets are currently visible during the blink cycle.
+    #[must_use]
+    #[inline]
+    pub fn with_blink_caret(mut self, blink: bool) -> Self {
+        self.blink_caret = blink;
+        self
+    }
 }
 
 /// Helper context passed during recursive tree traversal.
 struct CollectionContext<'a> {
     clip_rect: Option<Rect>,
     inherited_layer: UiLayer,
+    inherited_hovered: bool,
+    inherited_focused: bool,
+    hovered_tag: Option<u64>,
+    hovered_id: Option<WidgetId>,
+    focused_tag: Option<u64>,
+    focused_id: Option<WidgetId>,
+    blink_caret: bool,
     occluders: &'a [Occluder],
     extra_occluders: &'a [Rect],
 }
@@ -63,6 +128,13 @@ pub fn collect_text_sections_with_options<'a>(
     let ctx = CollectionContext {
         clip_rect: None,
         inherited_layer: UiLayer::Content,
+        inherited_hovered: false,
+        inherited_focused: false,
+        hovered_tag: options.hovered_tag,
+        hovered_id: options.hovered_id,
+        focused_tag: options.focused_tag,
+        focused_id: options.focused_id,
+        blink_caret: options.blink_caret,
         occluders: &occluders,
         extra_occluders: &options.extra_occluders,
     };
@@ -171,6 +243,19 @@ fn collect_node_text<'a>(
     } else {
         incoming_clip
     };
+
+    let node_matches_hover = (ctx.hovered_id.is_some() && ctx.hovered_id == Some(current))
+        || (node.tag != 0 && ctx.hovered_tag == Some(node.tag));
+    let is_hovered = node_matches_hover || (ctx.inherited_hovered && node.tag == 0);
+
+    let node_matches_focus = (ctx.focused_id.is_some() && ctx.focused_id == Some(current))
+        || (node.tag != 0 && ctx.focused_tag == Some(node.tag));
+    let is_focused = node_matches_focus || (ctx.inherited_focused && node.tag == 0);
+
+    // Skip collecting text for caret indicator if un-focused or in blink-off phase
+    if node.role == WidgetRole::TextInputCaret && (!ctx.inherited_focused || !ctx.blink_caret) {
+        return;
+    }
 
     // If node has text and valid dimensions, test occlusion and collect
     if let Some(text) = &node.text
@@ -312,11 +397,43 @@ fn collect_node_text<'a>(
             }
 
             if !is_fully_occluded {
+                let color = if is_focused {
+                    if let Some(fc) = node.focus_text_color {
+                        fc
+                    } else if is_hovered {
+                        if let Some(hc) = node.hover_text_color {
+                            hc
+                        } else if matches!(
+                            node.role,
+                            WidgetRole::Button | WidgetRole::MenuBarItem | WidgetRole::DropdownItem
+                        ) {
+                            Color::WHITE
+                        } else {
+                            node.text_color
+                        }
+                    } else {
+                        node.text_color
+                    }
+                } else if is_hovered {
+                    if let Some(hc) = node.hover_text_color {
+                        hc
+                    } else if matches!(
+                        node.role,
+                        WidgetRole::Button | WidgetRole::MenuBarItem | WidgetRole::DropdownItem
+                    ) {
+                        Color::WHITE
+                    } else {
+                        node.text_color
+                    }
+                } else {
+                    node.text_color
+                };
+
                 let section = TextSection {
                     text: Cow::Borrowed(text.as_str()),
                     font_size: node.font_size,
                     line_height: node.line_height,
-                    color: node.text_color,
+                    color,
                     align: node.text_align,
                     wrap: node.text_wrap,
                     bounds: node.computed_rect,
@@ -330,6 +447,13 @@ fn collect_node_text<'a>(
     let child_ctx = CollectionContext {
         clip_rect: child_clip,
         inherited_layer: effective_layer,
+        inherited_hovered: is_hovered,
+        inherited_focused: is_focused,
+        hovered_tag: ctx.hovered_tag,
+        hovered_id: ctx.hovered_id,
+        focused_tag: ctx.focused_tag,
+        focused_id: ctx.focused_id,
+        blink_caret: ctx.blink_caret,
         occluders: ctx.occluders,
         extra_occluders: ctx.extra_occluders,
     };
@@ -444,5 +568,99 @@ mod tests {
         let sections = collect_text_sections(&tree);
         assert_eq!(sections.len(), 1);
         assert_eq!(sections[0].text, "Inside Panel");
+    }
+
+    #[test]
+    fn test_collect_text_hover_color_in_place() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let btn_tag = 12345u64;
+
+        let btn = tree.create_node();
+        if let Some(node) = tree.get_mut(btn) {
+            node.computed_rect = Rect::new(0.0, 0.0, 100.0, 30.0);
+            node.tag = btn_tag;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, btn).unwrap();
+
+        let label = tree.create_node();
+        if let Some(node) = tree.get_mut(label) {
+            node.computed_rect = Rect::new(10.0, 5.0, 80.0, 20.0);
+            node.text = Some("Click Me".to_string());
+            node.text_color = Color::BLACK;
+            node.hover_text_color = Some(Color::WHITE);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(btn, label).unwrap();
+
+        // 1. Unhovered collection
+        let normal_sections = collect_text_sections(&tree);
+        assert_eq!(normal_sections.len(), 1);
+        assert_eq!(normal_sections[0].color, Color::BLACK);
+
+        // 2. Hovered collection
+        let hover_opts = TextCollectionOptions::default().with_hovered_tag(Some(btn_tag));
+        let hover_sections = collect_text_sections_with_options(&tree, &hover_opts);
+        assert_eq!(hover_sections.len(), 1);
+        assert_eq!(hover_sections[0].color, Color::WHITE);
+    }
+
+    #[test]
+    fn test_collect_text_focus_and_caret_in_place() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let input_tag = 9999u64;
+
+        let input_box = tree.create_node();
+        if let Some(node) = tree.get_mut(input_box) {
+            node.computed_rect = Rect::new(0.0, 0.0, 200.0, 30.0);
+            node.tag = input_tag;
+            node.role = WidgetRole::TextInput;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, input_box).unwrap();
+
+        let text_node = tree.create_node();
+        if let Some(node) = tree.get_mut(text_node) {
+            node.computed_rect = Rect::new(10.0, 5.0, 100.0, 20.0);
+            node.text = Some("Search query".to_string());
+            node.text_color = Color::rgb(0.5, 0.5, 0.5);
+            node.focus_text_color = Some(Color::WHITE);
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(input_box, text_node).unwrap();
+
+        let caret_node = tree.create_node();
+        if let Some(node) = tree.get_mut(caret_node) {
+            node.computed_rect = Rect::new(115.0, 5.0, 6.0, 20.0);
+            node.text = Some("|".to_string());
+            node.text_color = Color::CYAN;
+            node.role = WidgetRole::TextInputCaret;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(input_box, caret_node).unwrap();
+
+        // 1. Unfocused collection -> text is gray, caret is NOT collected
+        let unfocused_sections = collect_text_sections(&tree);
+        assert_eq!(unfocused_sections.len(), 1);
+        assert_eq!(unfocused_sections[0].color, Color::rgb(0.5, 0.5, 0.5));
+        assert_eq!(unfocused_sections[0].text, "Search query");
+
+        // 2. Focused collection with blink on -> text is WHITE, caret IS collected
+        let focused_opts = TextCollectionOptions::default()
+            .with_focused_tag(Some(input_tag))
+            .with_blink_caret(true);
+        let focused_sections = collect_text_sections_with_options(&tree, &focused_opts);
+        assert_eq!(focused_sections.len(), 2);
+        assert_eq!(focused_sections[0].color, Color::WHITE);
+        assert_eq!(focused_sections[1].text, "|");
+
+        // 3. Focused collection with blink off -> caret is hidden
+        let blink_off_opts = TextCollectionOptions::default()
+            .with_focused_tag(Some(input_tag))
+            .with_blink_caret(false);
+        let blink_off_sections = collect_text_sections_with_options(&tree, &blink_off_opts);
+        assert_eq!(blink_off_sections.len(), 1);
     }
 }
