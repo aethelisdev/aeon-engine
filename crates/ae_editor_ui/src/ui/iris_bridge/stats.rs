@@ -21,5 +21,5 @@ pub use graph::append_oscilloscope_quads;
 pub use panel::build_stats_panel;
 pub use types::{
     STATS_TAG_CANVAS, STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME,
-    StatsPanelAction, StatsPanelParams, StatsPanelState, is_stats_tag,
+    StatsPanelAction, StatsPanelParams, StatsPanelState, StatsState, is_stats_tag,
 };

@@ -7,21 +7,34 @@
 //! enabling coarse-grained, retained selective redraws with zero per-frame CPU waste when idle.
 
 use std::collections::HashSet;
+use std::hash::Hash;
 
 /// Selective invalidation and redraw notification engine.
 ///
 /// Tracks dirty flags on a per-panel basis as well as global workbench-level layout dirty state.
 /// When no panels are marked dirty, the UI pipeline remains completely asleep, bypassing
 /// layout tree reconstruction and avoiding flickering or unwanted panel erasure.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct UiNotifier {
+///
+/// Generic over the panel identifier type `P: Eq + Hash + Copy + Send + Sync + 'static`,
+/// guaranteeing strongly-typed, zero-heap-allocation per-frame selective panel invalidation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UiNotifier<P: Eq + Hash + Copy + Send + Sync + 'static> {
     /// Set of panel identifiers that have requested a redraw on the current frame.
-    dirty_panels: HashSet<String>,
+    dirty_panels: HashSet<P>,
     /// Global invalidation flag indicating that the entire UI shell, window size, or dock layout changed.
     global_dirty: bool,
 }
 
-impl UiNotifier {
+impl<P: Eq + Hash + Copy + Send + Sync + 'static> Default for UiNotifier<P> {
+    fn default() -> Self {
+        Self {
+            dirty_panels: HashSet::new(),
+            global_dirty: true,
+        }
+    }
+}
+
+impl<P: Eq + Hash + Copy + Send + Sync + 'static> UiNotifier<P> {
     /// Initializes an empty UI notifier with zero dirty panels and global dirty state set to `true`
     /// to guarantee an initial first-frame full bake.
     pub fn new() -> Self {
@@ -44,8 +57,9 @@ impl UiNotifier {
     /// Tags a specific panel for a selective redraw on the next frame.
     ///
     /// Only the specified panel's contents will be reconstructed, leaving other panels and the UI shell untouched.
-    pub fn tag_redraw(&mut self, panel_id: &str) {
-        self.dirty_panels.insert(panel_id.to_string());
+    /// Passes the panel identifier `panel_id` by copy without heap allocation.
+    pub fn tag_redraw(&mut self, panel_id: P) {
+        self.dirty_panels.insert(panel_id);
     }
 
     /// Tags the entire UI shell and all panels for a full global reconstruction.
@@ -59,8 +73,8 @@ impl UiNotifier {
     ///
     /// If [`Self::is_global_dirty`] is `true`, this method always returns `true` because
     /// a global invalidation rebuilds all panels.
-    pub fn is_dirty(&self, panel_id: &str) -> bool {
-        self.global_dirty || self.dirty_panels.contains(panel_id)
+    pub fn is_dirty(&self, panel_id: P) -> bool {
+        self.global_dirty || self.dirty_panels.contains(&panel_id)
     }
 
     /// Returns `true` if any panel or the global UI shell requires a redraw on this frame.
@@ -77,8 +91,8 @@ impl UiNotifier {
     }
 
     /// Clears the dirty flag for an individual panel once its redraw pass has completed.
-    pub fn clear_panel(&mut self, panel_id: &str) {
-        self.dirty_panels.remove(panel_id);
+    pub fn clear_panel(&mut self, panel_id: P) {
+        self.dirty_panels.remove(&panel_id);
     }
 
     /// Clears all dirty flags, returning the notifier to a clean sleep state.
@@ -90,19 +104,23 @@ impl UiNotifier {
     }
 
     /// Returns an immutable reference to the set of currently dirty panel identifiers.
-    pub fn dirty_panels(&self) -> &HashSet<String> {
+    pub fn dirty_panels(&self) -> &HashSet<P> {
         &self.dirty_panels
     }
 
     /// Polls all panels registered in a [`crate::panel::PanelRegistry`] and marks any panel
     /// reporting [`crate::panel::DockPanel::is_dirty`] as requiring a redraw.
     ///
-    /// This allows self-contained panels (such as telemetries, charts, or animated widgets)
-    /// to trigger reactive UI bakes based on their own internal state.
-    pub fn poll_registry(&mut self, registry: &crate::panel::PanelRegistry) {
+    /// The `mapper` closure resolves each panel's string identifier to the strongly-typed panel key `P`.
+    pub fn poll_registry<F>(&mut self, registry: &crate::panel::PanelRegistry, mut mapper: F)
+    where
+        F: FnMut(&str) -> Option<P>,
+    {
         for panel in registry.iter() {
-            if panel.is_dirty() {
-                self.tag_redraw(panel.id());
+            if panel.is_dirty()
+                && let Some(p) = mapper(panel.id())
+            {
+                self.tag_redraw(p);
             }
         }
     }
@@ -114,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_notifier_initial_state_is_globally_dirty_for_initial_bake() {
-        let notifier = UiNotifier::new();
+        let notifier: UiNotifier<&'static str> = UiNotifier::new();
         assert!(notifier.is_global_dirty());
         assert!(notifier.is_any_dirty());
         assert!(notifier.is_dirty("hierarchy"));
@@ -123,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_notifier_clean_initialization() {
-        let notifier = UiNotifier::clean();
+        let notifier: UiNotifier<&'static str> = UiNotifier::clean();
         assert!(!notifier.is_global_dirty());
         assert!(!notifier.is_any_dirty());
         assert!(!notifier.is_dirty("inspector"));
@@ -132,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_notifier_tag_and_check_single_panel() {
-        let mut notifier = UiNotifier::clean();
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
         assert!(!notifier.is_any_dirty());
 
         notifier.tag_redraw("stats");
@@ -149,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_notifier_tag_all_and_clear_all() {
-        let mut notifier = UiNotifier::clean();
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
         notifier.tag_redraw("console");
         assert!(!notifier.is_global_dirty());
 
@@ -204,8 +222,12 @@ mod tests {
             dirty: true,
         });
 
-        let mut notifier = UiNotifier::clean();
-        notifier.poll_registry(&registry);
+        let mut notifier: UiNotifier<&'static str> = UiNotifier::clean();
+        notifier.poll_registry(&registry, |id| match id {
+            "clean_panel" => Some("clean_panel"),
+            "active_panel" => Some("active_panel"),
+            _ => None,
+        });
 
         assert!(!notifier.is_dirty("clean_panel"));
         assert!(notifier.is_dirty("active_panel"));

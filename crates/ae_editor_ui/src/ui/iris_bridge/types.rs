@@ -3,20 +3,20 @@
 
 //! Type definitions, actions, and event response structures for the Iris UI editor bridge.
 
-use super::assets::AssetsPanelState;
-use super::console::ConsolePanelState;
-use super::hierarchy::HierarchyPanelState;
-use super::inspector::InspectorPanelState;
+pub use super::assets::{AssetsPanelState, AssetsState};
+pub use super::console::{ConsolePanelState, ConsoleState};
+pub use super::hierarchy::{HierarchyPanelState, HierarchyState};
 pub use super::inspector::{
     InspectorColorDragMode, InspectorNumberDragState, InspectorNumberInputSession,
+    InspectorPanelState, InspectorState,
 };
-use super::material::MaterialPanelState;
+pub use super::material::{MaterialPanelState, MaterialState};
 use super::modals::ModalsOverlayState;
 use super::preferences::PreferencesDialogState;
-use super::stats::StatsPanelState;
-use super::timeline::TimelinePanelState;
-use super::ui_designer::UiDesignerPanelState;
-use super::viewport_hud::ViewportHudState;
+pub use super::stats::{StatsPanelState, StatsState};
+pub use super::timeline::{TimelinePanelState, TimelineState};
+pub use super::ui_designer::UiDesignerPanelState;
+pub use super::viewport_hud::ViewportHudState;
 use crate::ui::EngineUiAction;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use ae_core::modules::EngineModule;
@@ -270,7 +270,7 @@ pub struct IrisEditorOverlay {
     /// Active frame drawing command stream.
     pub command_list: DrawCommandList,
     /// Selective redraw and change notification engine.
-    pub notifier: UiNotifier,
+    pub notifier: UiNotifier<PanelId>,
     /// Central registry of dockable tool and workspace panels.
     pub panels: PanelRegistry,
     /// Creation instant used for smooth sub-second continuous UI animations.

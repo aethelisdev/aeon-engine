@@ -34,5 +34,5 @@ pub use types::{
     TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK, TIMELINE_TAG_SPEED_BASE,
     TIMELINE_TAG_STEP_BACK, TIMELINE_TAG_STEP_FWD, TIMELINE_TAG_STOP, TimelineAction,
     TimelineKeyframeMarker, TimelinePanelParams, TimelinePanelState, TimelineRulerStyle,
-    evaluate_timeline_transport_tag, is_timeline_tag,
+    TimelineState, evaluate_timeline_transport_tag, is_timeline_tag,
 };

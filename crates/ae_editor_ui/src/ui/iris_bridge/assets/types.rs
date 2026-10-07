@@ -480,6 +480,8 @@ pub struct AssetsPanelState {
     pub filtered_items_cache: Vec<AssetItem>,
     /// Cached subfolders from the active frame for O(1) semantic hit-testing.
     pub subfolders_cache: Vec<PathBuf>,
+    /// Last recorded directory items count for detecting file additions or deletions.
+    pub last_cached_items_count: usize,
 }
 
 impl Default for AssetsPanelState {
@@ -501,6 +503,7 @@ impl Default for AssetsPanelState {
             next_thumbnail_layer: 32,
             filtered_items_cache: Vec::new(),
             subfolders_cache: Vec::new(),
+            last_cached_items_count: 0,
         }
     }
 }
@@ -515,6 +518,48 @@ impl std::ops::Deref for AssetsPanelState {
 impl std::ops::DerefMut for AssetsPanelState {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.interactions
+    }
+}
+
+/// Semantic alias for [`AssetsPanelState`].
+pub type AssetsState = AssetsPanelState;
+
+impl AssetsPanelState {
+    /// Evaluates whether the Content / Asset Browser panel requires an in-place repaint.
+    ///
+    /// Inspects current folder changes, selected asset changes, item count changes,
+    /// active context menu popups, quick preview modals, or active asset drag-and-drop payloads.
+    pub fn is_dirty(
+        &self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        self.current_folder != params.panel_data.asset_browser.current_folder
+            || self.selected_asset != params.panel_data.asset_browser.selected_asset
+            || self.last_cached_items_count != params.panel_data.asset_browser.cached_items.len()
+            || self.context_menu.is_some()
+            || self.preview_modal.is_some()
+            || params.panel_data.asset_browser.drag_payload.is_some()
+    }
+
+    /// Synchronizes internal cached snapshot values against active frame parameters.
+    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
+        self.current_folder = params.panel_data.asset_browser.current_folder.clone();
+        self.selected_asset = params.panel_data.asset_browser.selected_asset.clone();
+        self.last_cached_items_count = params.panel_data.asset_browser.cached_items.len();
+    }
+
+    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
+    ///
+    /// Returns `true` if the panel state changed and requires redraw tagging.
+    pub fn check_and_sync_dirty(
+        &mut self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let dirty = self.is_dirty(params);
+        if dirty {
+            self.sync_dirty(params);
+        }
+        dirty
     }
 }
 

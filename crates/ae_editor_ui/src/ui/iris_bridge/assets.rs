@@ -47,7 +47,7 @@ pub use types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_TOGGLE_SIDEBAR,
     ASSETS_TAG_TREE_SCROLLBAR_THUMB, ASSETS_TAG_TREE_SCROLLBAR_TRACK, ASSETS_TAG_VIEW_GRID,
     ASSETS_TAG_VIEW_LIST, AssetItemAction, AssetPreviewModalState, AssetsContextMenuTarget,
-    AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams, AssetsPanelState,
+    AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams, AssetsPanelState, AssetsState,
     encode_breadcrumb_tag, encode_chip_tag, encode_ctx_item_tag, encode_item_inspect_tag,
     encode_item_spawn_tag, encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag,
     is_assets_tag, parse_breadcrumb_tag, parse_chip_tag, parse_ctx_item_tag, parse_item_tag,

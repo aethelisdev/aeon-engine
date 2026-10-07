@@ -23,6 +23,7 @@ pub use panel::build_material_panel;
 pub use types::{
     MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_ADD_TEXTURE, MATERIAL_TAG_SPRITE_CHANGE,
     MATERIAL_TAG_SPRITE_REMOVE, MATERIAL_TAG_SUBMESH_ALPHA_BASE, MATERIAL_TAG_SUBMESH_TEXTURE_BASE,
-    MaterialAction, MaterialPanelParams, MaterialPanelState, decode_submesh_alpha_tag,
-    decode_submesh_texture_tag, make_submesh_alpha_tag, make_submesh_texture_tag,
+    MaterialAction, MaterialPanelParams, MaterialPanelState, MaterialState,
+    decode_submesh_alpha_tag, decode_submesh_texture_tag, make_submesh_alpha_tag,
+    make_submesh_texture_tag,
 };

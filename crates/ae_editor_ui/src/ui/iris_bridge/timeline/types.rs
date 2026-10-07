@@ -340,6 +340,44 @@ impl std::ops::DerefMut for TimelinePanelState {
     }
 }
 
+/// Semantic alias for [`TimelinePanelState`].
+pub type TimelineState = TimelinePanelState;
+
+impl TimelinePanelState {
+    /// Evaluates whether the Animation Timeline panel requires an in-place repaint.
+    ///
+    /// Inspects whether the active ECS scene entity selection changed or the playhead
+    /// scrubber needle is actively being dragged by the mouse cursor.
+    pub fn is_dirty(
+        &self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        self.last_selected_entity != params.scene.selected_entity
+            || self.last_is_dragging != self.is_dragging
+    }
+
+    /// Synchronizes internal cached snapshot values against active frame parameters.
+    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
+        self.last_selected_entity = params.scene.selected_entity;
+        self.selected_entity = params.scene.selected_entity;
+        self.last_is_dragging = self.is_dragging;
+    }
+
+    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
+    ///
+    /// Returns `true` if the panel state changed and requires redraw tagging.
+    pub fn check_and_sync_dirty(
+        &mut self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let dirty = self.is_dirty(params);
+        if dirty {
+            self.sync_dirty(params);
+        }
+        dirty
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

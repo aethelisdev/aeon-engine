@@ -468,104 +468,93 @@ impl IrisEditorOverlay {
             false
         }
     }
-}
 
-/// Standard dockable panel implementor for built-in editor panels registered in [`PanelRegistry`].
-///
-/// Wraps a strongly typed [`crate::ui::panel_layout::PanelId`] and provides metadata and lifecycle
-/// integration with the Iris UI docking framework.
-#[derive(Debug)]
-pub struct EditorDockPanel {
-    id: String,
-    title: String,
-    panel_id: crate::ui::panel_layout::PanelId,
-}
+    /// Synchronizes localized dirty state from specialized panel state structures into the dock panel registry.
+    ///
+    /// For each registered panel, queries its corresponding localized state's
+    /// `check_and_sync_dirty` evaluation and delegates the result to the [`EditorDockPanel`].
+    pub(crate) fn sync_panel_registry_dirty(&mut self, params: &OverlayUpdateParams<'_>) {
+        use crate::ui::panel_layout::PanelId;
 
-impl EditorDockPanel {
-    /// Creates a new editor panel descriptor for the given [`crate::ui::panel_layout::PanelId`].
-    pub fn new(panel_id: crate::ui::panel_layout::PanelId) -> Self {
-        Self {
-            id: panel_id.id_str().to_string(),
-            title: panel_id.title().to_string(),
-            panel_id,
+        let vp_dirty = self.viewport_hud.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Viewport.id_str())
+        {
+            panel.set_dirty(vp_dirty);
+        }
+
+        let mat_dirty = self.material.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::MaterialEditor.id_str())
+        {
+            panel.set_dirty(mat_dirty);
+        }
+
+        let tl_dirty = self.timeline.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::AnimationTimeline.id_str())
+        {
+            panel.set_dirty(tl_dirty);
+        }
+
+        let ui_dirty = self.ui_designer.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::UiDesigner.id_str())
+        {
+            panel.set_dirty(ui_dirty);
+        }
+
+        let insp_dirty = self.inspector.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Inspector.id_str())
+        {
+            panel.set_dirty(insp_dirty);
+        }
+
+        let hier_dirty = self.hierarchy.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Hierarchy.id_str())
+        {
+            panel.set_dirty(hier_dirty);
+        }
+
+        let con_dirty = self.console.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Console.id_str())
+        {
+            panel.set_dirty(con_dirty);
+        }
+
+        let assets_dirty = self.assets.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Assets.id_str())
+        {
+            panel.set_dirty(assets_dirty);
+        }
+
+        let stats_dirty = self.stats.check_and_sync_dirty(params);
+        if let Some(panel) = self
+            .panels
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Stats.id_str())
+        {
+            panel.set_dirty(stats_dirty);
         }
     }
-
-    /// Returns the associated [`crate::ui::panel_layout::PanelId`].
-    pub fn panel_id(&self) -> crate::ui::panel_layout::PanelId {
-        self.panel_id
-    }
 }
 
-impl DockPanel for EditorDockPanel {
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn title(&self) -> &str {
-        &self.title
-    }
-
-    fn render(&mut self, _tree: &mut UiTree, _parent: WidgetId, _bounds: Rect) {
-        // Built-in editor panels require engine state (OverlayUpdateParams),
-        // which are dispatched centrally via IrisEditorOverlay::render_panel_by_id.
-    }
-
-    fn is_dirty(&self) -> bool {
-        false
-    }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-}
-
-/// Constructs the standard [`PanelRegistry`] populated with all built-in editor panels.
-pub fn create_default_panel_registry() -> PanelRegistry {
-    let mut registry = PanelRegistry::default();
-    for &panel_id in crate::ui::panel_layout::PanelId::all() {
-        registry.register(EditorDockPanel::new(panel_id));
-    }
-    registry
-}
+pub use super::dock_panel::{EditorDockPanel, create_default_panel_registry};
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::panel_layout::PanelId;
-
-    #[test]
-    fn test_default_panel_registry_contains_all_panels() {
-        let registry = create_default_panel_registry();
-        assert_eq!(registry.len(), PanelId::all().len());
-
-        for &panel_id in PanelId::all() {
-            let id = panel_id.id_str();
-            assert!(registry.contains(id));
-
-            let panel = registry.get(id).expect("panel should exist");
-            assert_eq!(panel.id(), id);
-            assert_eq!(panel.title(), panel_id.title());
-
-            let downcast = registry
-                .get_downcast::<EditorDockPanel>(id)
-                .expect("should downcast to EditorDockPanel");
-            assert_eq!(downcast.panel_id(), panel_id);
-        }
-    }
-
-    #[test]
-    fn test_editor_dock_panel_render_and_events() {
-        let mut panel = EditorDockPanel::new(PanelId::Inspector);
-        let mut tree = UiTree::new();
-        let parent = tree.create_root().expect("root widget");
-        panel.render(&mut tree, parent, Rect::new(0.0, 0.0, 100.0, 100.0));
-        assert!(!panel.is_dirty());
-    }
 
     #[test]
     fn test_render_custom_panel_dispatch() {

@@ -294,6 +294,10 @@ pub struct ConsolePanelState {
     pub active_scrollbar_drag: Option<(f32, f32)>,
     /// Active screen bounding rectangle of the Developer Console panel.
     pub panel_rect: Option<irisui::prelude::Rect>,
+    /// Last recorded log entries count for detecting new incoming console logs.
+    pub last_entries_count: usize,
+    /// Last recorded log severity filter level.
+    pub last_filter: ConsoleFilterLevel,
 }
 
 impl Default for ConsolePanelState {
@@ -305,6 +309,8 @@ impl Default for ConsolePanelState {
             max_scroll_y: 0.0,
             active_scrollbar_drag: None,
             panel_rect: None,
+            last_entries_count: 0,
+            last_filter: ConsoleFilterLevel::All,
         }
     }
 }
@@ -319,5 +325,42 @@ impl std::ops::Deref for ConsolePanelState {
 impl std::ops::DerefMut for ConsolePanelState {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.interactions
+    }
+}
+
+/// Semantic alias for [`ConsolePanelState`].
+pub type ConsoleState = ConsolePanelState;
+
+impl ConsolePanelState {
+    /// Evaluates whether the Developer Console panel requires an in-place repaint.
+    ///
+    /// Inspects whether new log entries arrived, logs were cleared, or the active
+    /// log severity filter changed.
+    pub fn is_dirty(
+        &self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        self.last_entries_count != params.panel_data.console_entries.len()
+            || self.last_filter != self.filter
+    }
+
+    /// Synchronizes internal cached snapshot values against active frame parameters.
+    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
+        self.last_entries_count = params.panel_data.console_entries.len();
+        self.last_filter = self.filter;
+    }
+
+    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
+    ///
+    /// Returns `true` if the panel state changed and requires redraw tagging.
+    pub fn check_and_sync_dirty(
+        &mut self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let dirty = self.is_dirty(params);
+        if dirty {
+            self.sync_dirty(params);
+        }
+        dirty
     }
 }

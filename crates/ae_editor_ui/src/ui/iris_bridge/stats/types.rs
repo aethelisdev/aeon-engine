@@ -122,9 +122,56 @@ impl Default for StatsPanelState {
     }
 }
 
+/// Semantic alias for [`StatsPanelState`].
+pub type StatsState = StatsPanelState;
+
 impl StatsPanelState {
     /// Consumes and returns all pending user interaction actions.
     pub fn take_actions(&mut self) -> Vec<StatsPanelAction> {
         std::mem::take(&mut self.actions)
+    }
+
+    /// Evaluates whether the Performance Stats & Telemetry panel requires an in-place repaint.
+    ///
+    /// Returns `true` whenever the docked stats panel rectangle is visible.
+    pub fn is_dirty(
+        &self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        params.panel_rects.stats.is_some()
+    }
+
+    /// Synchronizes rolling FPS text windowing calculations.
+    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
+        if params.panel_rects.stats.is_some() {
+            if self.frame_counter == 0 {
+                self.displayed_fps = params.telemetry.fps;
+                self.last_fps_refresh = std::time::Instant::now();
+            }
+            self.frame_counter += 1;
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(self.last_fps_refresh).as_secs_f32();
+            if elapsed >= 0.25 {
+                self.displayed_fps = self.frame_counter as f32 / elapsed;
+                self.frame_counter = 0;
+                self.last_fps_refresh = now;
+            }
+        } else {
+            self.frame_counter = 0;
+        }
+    }
+
+    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
+    ///
+    /// Returns `true` if the panel state changed and requires redraw tagging.
+    pub fn check_and_sync_dirty(
+        &mut self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let dirty = self.is_dirty(params);
+        if dirty {
+            self.sync_dirty(params);
+        }
+        dirty
     }
 }

@@ -13,6 +13,7 @@ use super::preferences::{self, build_preferences_dialog};
 use super::status_bar;
 use super::theme::*;
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
+use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 use irisui::text::TextSystem;
 
@@ -89,105 +90,27 @@ impl IrisEditorOverlay {
         let hover_target_changed = cursor_moved && hovered_target != self.chrome.last_hovered_tag;
         self.chrome.hovered_tag = hovered_target;
 
-        let mat_entity_changed = self.material.last_selected_entity != params.scene.selected_entity;
-        let mat_dirty = mat_entity_changed;
-        if mat_dirty {
-            self.material.last_selected_entity = params.scene.selected_entity;
-        }
-
-        let tl_entity_changed = self.timeline.last_selected_entity != params.scene.selected_entity;
-        let tl_drag_changed = self.timeline.last_is_dragging != self.timeline.is_dragging;
-        let tl_dirty = tl_entity_changed || tl_drag_changed;
-        if tl_dirty {
-            self.timeline.last_selected_entity = params.scene.selected_entity;
-            self.timeline.last_is_dragging = self.timeline.is_dragging;
-        }
-
-        let cam_p = params.viewport.camera.position;
-        let cam_pos_changed = (self.viewport_hud.last_camera_pos.0 - cam_p.x).abs() > 0.05
-            || (self.viewport_hud.last_camera_pos.1 - cam_p.y).abs() > 0.05
-            || (self.viewport_hud.last_camera_pos.2 - cam_p.z).abs() > 0.05;
-        let pitch_rad = params.viewport.camera.pitch.0;
-        let yaw_rad = params.viewport.camera.yaw.0;
-        let cam_rot_changed = (self.viewport_hud.last_camera_rot.0 - pitch_rad).abs() > 0.005
-            || (self.viewport_hud.last_camera_rot.1 - yaw_rad).abs() > 0.005;
-        let gizmo_changed = self.viewport_hud.last_gizmo_mode != Some(params.viewport.gizmo_mode)
-            || self.viewport_hud.last_gizmo_space != Some(params.viewport.gizmo_space);
-        let vp_rect = params.viewport.viewport_rect;
-        let hud_dirty = cam_pos_changed
-            || cam_rot_changed
-            || gizmo_changed
-            || self.viewport_hud.last_wireframe != params.viewport.wireframe_enabled
-            || self.viewport_hud.last_is_editing != params.context.is_editing
-            || self.viewport_hud.last_is_2d != params.context.is_2d_mode
-            || self.viewport_hud.last_selected_entity != params.scene.selected_entity
-            || self.viewport_hud.last_viewport_rect != vp_rect;
-
-        if hud_dirty {
-            self.viewport_hud.last_camera_pos = (cam_p.x, cam_p.y, cam_p.z);
-            self.viewport_hud.last_camera_rot = (pitch_rad, yaw_rad);
-            self.viewport_hud.last_gizmo_mode = Some(params.viewport.gizmo_mode);
-            self.viewport_hud.last_gizmo_space = Some(params.viewport.gizmo_space);
-            self.viewport_hud.last_wireframe = params.viewport.wireframe_enabled;
-            self.viewport_hud.last_is_editing = params.context.is_editing;
-            self.viewport_hud.last_is_2d = params.context.is_2d_mode;
-            self.viewport_hud.last_selected_entity = params.scene.selected_entity;
-            self.viewport_hud.last_viewport_rect = vp_rect;
-        }
-
+        // 1. Genuine global shell events (only these trigger global tag_all)
         if self.chrome.last_dimensions != params.context.dimensions
             || (self.chrome.last_zoom_factor - params.context.zoom_factor).abs() > 1e-4
             || self.chrome.last_floating_count != floating_count
             || self.modals.last_modal_active != modal_active
             || self.preferences.last_tab != self.preferences.tab
-            || self.chrome.last_has_viewport_texture != params.viewport.has_viewport_texture
             || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
-            || self.viewport_hud.dropdown.is_some()
             || self.chrome.active_dock_overflow.is_some()
             || self.chrome.needs_layout_rebuild
             || has_drag_payload
-            || hud_dirty
-            || mat_dirty
-            || tl_dirty
-            || self.ui_designer.is_aspect_open
-            || self.ui_designer.is_add_menu_open
-            || self.ui_designer.is_panning
-            || self.ui_designer.drag_state.is_some()
         {
             self.notifier.tag_all();
         }
 
-        if self.inspector.last_selected_entity != params.scene.selected_entity {
-            self.notifier.tag_redraw("inspector");
-        }
+        // 2. Delegate panel dirty evaluations to the panel registry
+        self.sync_panel_registry_dirty(&params);
 
-        // If the Stats & Telemetry panel is active, redraw it every frame so that the
-        // frame pacing oscilloscope, 1% low, 0.1% low, and CPU/GPU pass bars update live (0ms lag).
-        // Only the numerical FPS text snapshot is windowed to 250ms via rolling frame-count
-        // to ensure rock-solid legibility without slot-machine jitter.
-        if params.panel_rects.stats.is_some() {
-            if self.stats.frame_counter == 0 {
-                self.stats.displayed_fps = params.telemetry.fps;
-                self.stats.last_fps_refresh = std::time::Instant::now();
-            }
-            self.stats.frame_counter += 1;
-            let now = std::time::Instant::now();
-            let elapsed = now
-                .duration_since(self.stats.last_fps_refresh)
-                .as_secs_f32();
-            if elapsed >= 0.25 {
-                self.stats.displayed_fps = self.stats.frame_counter as f32 / elapsed;
-                self.stats.frame_counter = 0;
-                self.stats.last_fps_refresh = now;
-            }
-            self.notifier.tag_redraw("stats");
-        } else {
-            self.stats.frame_counter = 0;
-        }
-
-        // Poll registered panels for internal reactive changes
-        self.notifier.poll_registry(&self.panels);
+        // 3. Poll panel registry: panel dirty decisions flow through the registry and tag redraws
+        self.notifier
+            .poll_registry(&self.panels, PanelId::from_id_str);
 
         if !self.is_visible {
             self.command_list.clear();

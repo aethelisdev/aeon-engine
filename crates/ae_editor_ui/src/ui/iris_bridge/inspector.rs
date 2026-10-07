@@ -20,6 +20,7 @@ pub mod math;
 pub mod math_eval;
 pub mod panel;
 pub mod registry;
+pub mod state;
 pub mod tags;
 pub mod transform;
 pub mod types;
@@ -43,6 +44,7 @@ pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
 pub use panel::build_inspector_panel;
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
+pub use state::{InspectorPanelState, InspectorState};
 pub use tags::{
     TAG_COMPONENT_DELETE_BASE, TAG_INSPECTOR_ACTION_BASE, TAG_INSPECTOR_ADD_COMPONENT,
     TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, TAG_INSPECTOR_CHECKBOX_BASE,
@@ -62,6 +64,5 @@ pub use transform::{
 pub use types::{
     ActiveNumberInputState, ComponentCategory, ComponentCheckboxId, InspectorAction,
     InspectorColorDragMode, InspectorDropdownId, InspectorNumberDragState, InspectorNumberInputId,
-    InspectorNumberInputSession, InspectorPanelParams, InspectorPanelState, InspectorTextInputId,
-    TransformAxisType,
+    InspectorNumberInputSession, InspectorPanelParams, InspectorTextInputId, TransformAxisType,
 };

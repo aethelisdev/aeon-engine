@@ -188,3 +188,41 @@ impl std::ops::DerefMut for MaterialPanelState {
         &mut self.interactions
     }
 }
+
+/// Semantic alias for [`MaterialPanelState`].
+pub type MaterialState = MaterialPanelState;
+
+impl MaterialPanelState {
+    /// Evaluates whether the Material & Surface Studio panel requires an in-place repaint.
+    ///
+    /// Inspects whether the active ECS scene entity selection has changed.
+    pub fn is_dirty(
+        &self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        self.last_selected_entity != params.scene.selected_entity
+    }
+
+    /// Synchronizes internal cached snapshot values against active frame parameters.
+    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
+        if self.selected_entity != params.scene.selected_entity {
+            self.selected_entity = params.scene.selected_entity;
+            self.scroll_y = 0.0;
+        }
+        self.last_selected_entity = params.scene.selected_entity;
+    }
+
+    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
+    ///
+    /// Returns `true` if the panel state changed and requires redraw tagging.
+    pub fn check_and_sync_dirty(
+        &mut self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let dirty = self.is_dirty(params);
+        if dirty {
+            self.sync_dirty(params);
+        }
+        dirty
+    }
+}

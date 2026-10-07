@@ -154,11 +154,80 @@ pub struct ViewportHudState {
     pub last_selected_entity: Option<Entity>,
     /// Cached viewport bounding box for retained-mode dirty tracking.
     pub last_viewport_rect: Rect,
+    /// Cached viewport surface texture presence flag for retained-mode dirty tracking.
+    pub last_has_viewport_texture: bool,
 }
 
 impl ViewportHudState {
     /// Consumes and returns all pending dispatched Viewport HUD actions.
     pub fn take_actions(&mut self) -> Vec<ViewportHudAction> {
         std::mem::take(&mut self.actions)
+    }
+
+    /// Evaluates whether the 3D Viewport HUD overlay requires an in-place repaint.
+    ///
+    /// Inspects camera position and rotation delta thresholds, gizmo mode and space shifts,
+    /// wireframe mode, dimension mode (2D vs 3D), active entity selection, viewport bounds,
+    /// active dropdown popups, and surface texture presence.
+    pub fn is_dirty(
+        &self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let cam_p = params.viewport.camera.position;
+        let cam_pos_changed = (self.last_camera_pos.0 - cam_p.x).abs() > 0.05
+            || (self.last_camera_pos.1 - cam_p.y).abs() > 0.05
+            || (self.last_camera_pos.2 - cam_p.z).abs() > 0.05;
+
+        let pitch_rad = params.viewport.camera.pitch.0;
+        let yaw_rad = params.viewport.camera.yaw.0;
+        let cam_rot_changed = (self.last_camera_rot.0 - pitch_rad).abs() > 0.005
+            || (self.last_camera_rot.1 - yaw_rad).abs() > 0.005;
+
+        let gizmo_changed = self.last_gizmo_mode != Some(params.viewport.gizmo_mode)
+            || self.last_gizmo_space != Some(params.viewport.gizmo_space);
+
+        let vp_rect = params.viewport.viewport_rect;
+
+        cam_pos_changed
+            || cam_rot_changed
+            || gizmo_changed
+            || self.last_wireframe != params.viewport.wireframe_enabled
+            || self.last_is_editing != params.context.is_editing
+            || self.last_is_2d != params.context.is_2d_mode
+            || self.last_selected_entity != params.scene.selected_entity
+            || self.last_viewport_rect != vp_rect
+            || self.last_has_viewport_texture != params.viewport.has_viewport_texture
+            || self.dropdown.is_some()
+    }
+
+    /// Synchronizes internal cached snapshot values against active frame parameters.
+    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
+        let cam_p = params.viewport.camera.position;
+        let pitch_rad = params.viewport.camera.pitch.0;
+        let yaw_rad = params.viewport.camera.yaw.0;
+        self.last_camera_pos = (cam_p.x, cam_p.y, cam_p.z);
+        self.last_camera_rot = (pitch_rad, yaw_rad);
+        self.last_gizmo_mode = Some(params.viewport.gizmo_mode);
+        self.last_gizmo_space = Some(params.viewport.gizmo_space);
+        self.last_wireframe = params.viewport.wireframe_enabled;
+        self.last_is_editing = params.context.is_editing;
+        self.last_is_2d = params.context.is_2d_mode;
+        self.last_selected_entity = params.scene.selected_entity;
+        self.last_viewport_rect = params.viewport.viewport_rect;
+        self.last_has_viewport_texture = params.viewport.has_viewport_texture;
+    }
+
+    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
+    ///
+    /// Returns `true` if the panel state changed and requires redraw tagging.
+    pub fn check_and_sync_dirty(
+        &mut self,
+        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+    ) -> bool {
+        let dirty = self.is_dirty(params);
+        if dirty {
+            self.sync_dirty(params);
+        }
+        dirty
     }
 }

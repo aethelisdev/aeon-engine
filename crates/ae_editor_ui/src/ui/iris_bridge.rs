@@ -10,6 +10,7 @@ pub mod about;
 pub mod actions;
 pub mod assets;
 pub mod console;
+pub mod dock_panel;
 pub mod events;
 pub mod floating_layer;
 pub mod hierarchy;
@@ -35,6 +36,10 @@ pub mod viewport_content;
 pub mod viewport_hud;
 pub mod viewport_texture;
 
+#[cfg(test)]
+mod tests_dirty;
+
+pub use dock_panel::{EditorDockPanel, create_default_panel_registry};
 pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
 pub use about::build_about_dialog;
