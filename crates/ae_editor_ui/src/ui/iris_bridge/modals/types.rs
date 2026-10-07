@@ -27,3 +27,17 @@ pub struct ModalsOverlayState {
     /// Pending interaction events for declarative components inside modals.
     pub pending_interaction_events: Vec<(WidgetId, InteractionEvent)>,
 }
+
+impl ModalsOverlayState {
+    /// Synchronizes active modal flags directly from authority dialog parameters.
+    ///
+    /// Ensures modal visibility states remain authoritative and retained between frames
+    /// without relying on transient build-pass mutations or per-frame wipe cycles.
+    pub fn sync_from_dialogs(&mut self, dialogs: &crate::ui::iris_bridge::types::DialogParams<'_>) {
+        self.is_about_active = dialogs.show_about;
+        self.is_delete_active = dialogs.delete_target.is_some();
+        self.is_new_folder_active = dialogs.new_folder_parent.is_some();
+        self.is_rename_active = dialogs.rename_target.is_some();
+        self.is_loading_active = dialogs.is_loading_assets;
+    }
+}

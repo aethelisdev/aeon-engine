@@ -62,12 +62,14 @@ impl IrisEditorOverlay {
         self.screen_width = screen_width;
         self.screen_height = screen_height;
 
-        let modal_active = params.dialogs.show_about
+        self.modals.sync_from_dialogs(&params.dialogs);
+
+        let modal_active = self.modals.is_about_active
             || params.dialogs.show_preferences
-            || params.dialogs.delete_target.is_some()
-            || params.dialogs.new_folder_parent.is_some()
-            || params.dialogs.rename_target.is_some()
-            || params.dialogs.is_loading_assets;
+            || self.modals.is_delete_active
+            || self.modals.is_new_folder_active
+            || self.modals.is_rename_active
+            || self.modals.is_loading_active;
 
         let floating_count = params
             .context
@@ -208,21 +210,15 @@ impl IrisEditorOverlay {
         self.tree.clear();
         self.layout_engine.clear();
         self.command_list.clear();
-        self.menubar.actions.clear();
-        self.chrome.floating_window_rects.clear();
-        self.menubar.dropdown_rect = None;
-        self.modals.is_about_active = false;
-        self.modals.is_delete_active = false;
-        self.modals.is_new_folder_active = false;
-        self.modals.is_rename_active = false;
-        self.modals.is_loading_active = false;
-        self.preferences.card_rect = None;
-        self.preferences.content_rect = None;
-        self.viewport_hud.is_active = false;
-        self.inspector.targets = None;
-        self.console.targets = None;
-        self.material.targets = None;
-        self.ui_designer.targets = None;
+
+        if self.menubar.active_menu.is_none() {
+            self.menubar.actions.clear();
+            self.menubar.dropdown_rect = None;
+        }
+        if !params.dialogs.show_preferences {
+            self.preferences.card_rect = None;
+            self.preferences.content_rect = None;
+        }
 
         if !self.assets.is_search_focused {
             self.assets.search_query = params.panel_data.asset_browser.search_query.clone();
@@ -408,10 +404,12 @@ impl IrisEditorOverlay {
         };
 
         // 4. If Viewport canvas is valid and docked, build Viewport content (3D scene texture + HUD)
-        if !is_floating(crate::ui::panel_layout::PanelId::Viewport)
+        let is_viewport_active = !is_floating(crate::ui::panel_layout::PanelId::Viewport)
             && params.viewport.viewport_rect.width > 20.0
-            && params.viewport.viewport_rect.height > 20.0
-        {
+            && params.viewport.viewport_rect.height > 20.0;
+        self.viewport_hud.is_active = is_viewport_active;
+
+        if is_viewport_active {
             self.build_viewport_content(root, params.viewport.viewport_rect, &params);
         }
 
@@ -497,7 +495,6 @@ impl IrisEditorOverlay {
                 &pending_events,
                 hovered_id,
             );
-            self.modals.is_about_active = true;
         }
 
         // 6d. If Delete Confirmation modal is active, build its card
@@ -509,7 +506,6 @@ impl IrisEditorOverlay {
                 screen_height,
                 cursor,
             );
-            self.modals.is_delete_active = true;
         }
 
         let elapsed_secs = self.start_time.elapsed().as_secs_f32();
@@ -534,7 +530,6 @@ impl IrisEditorOverlay {
                     cursor_pos: cursor,
                 },
             );
-            self.modals.is_new_folder_active = true;
         }
 
         // 6f. If Rename modal is active, build its card
@@ -557,7 +552,6 @@ impl IrisEditorOverlay {
                     cursor_pos: cursor,
                 },
             );
-            self.modals.is_rename_active = true;
         }
 
         // 6g. If Asset Loading overlay is active, build its splash screen
@@ -570,7 +564,6 @@ impl IrisEditorOverlay {
                     time_secs: elapsed_secs,
                 },
             );
-            self.modals.is_loading_active = true;
         }
 
         // 6h. Hierarchy Add Menu and Context Menu (Rendered as topmost floating overlays)
