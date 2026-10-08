@@ -52,8 +52,6 @@ pub fn build_folder_tree_sidebar_scope(
             .height(sidebar_rect.height),
         |sidebar| {
             // 2. Header Bar ("FOLDERS" + "+" button)
-            let is_plus_hovered = params.hovered_tag == Some(ASSETS_TAG_NEW_SUBFOLDER);
-
             sidebar.container_named(
                 "FolderTreeHeader",
                 Style::new()
@@ -80,33 +78,18 @@ pub fn build_folder_tree_sidebar_scope(
                             .width(20.0)
                             .height(20.0)
                             .border_radius(3.0)
-                            .background(if is_plus_hovered {
-                                Color::rgba(0.20, 0.24, 0.32, 1.0)
-                            } else {
-                                Color::rgba(0.12, 0.14, 0.18, 0.80)
-                            })
-                            .border(
-                                1.0,
-                                if is_plus_hovered {
-                                    Color::rgba(0.35, 0.42, 0.55, 0.80)
-                                } else {
-                                    Color::rgba(0.20, 0.23, 0.30, 0.40)
-                                },
-                            )
+                            .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
+                            .hover_background(Color::rgba(0.20, 0.24, 0.32, 1.0))
+                            .border(1.0, Color::rgba(0.20, 0.23, 0.30, 0.40))
+                            .hover_border(1.0, Color::rgba(0.35, 0.42, 0.55, 0.80))
                             .align_items(AlignItems::Center)
                             .justify_content(JustifyContent::Center),
                         WidgetRole::Button,
                         ASSETS_TAG_NEW_SUBFOLDER,
                         |btn| {
-                            btn.icon(
-                                ICON_PLUS,
-                                if is_plus_hovered {
-                                    Color::WHITE
-                                } else {
-                                    Color::rgba(0.70, 0.75, 0.85, 1.0)
-                                },
-                                12.0,
-                            );
+                            let icon_id =
+                                btn.icon(ICON_PLUS, Color::rgba(0.70, 0.75, 0.85, 1.0), 12.0);
+                            btn.set_hover_texture_tint(icon_id, Color::WHITE);
                         },
                     );
                 },
@@ -210,7 +193,6 @@ fn render_folder_recursive(
         has_children,
         is_expanded,
         is_selected,
-        hovered_tag: ctx.params.hovered_tag,
     };
     asset_folder_tree_item(scope, &item_params);
 
@@ -265,7 +247,6 @@ mod tests {
             active_context_menu: None,
             active_preview_modal: None,
             subfolders: &subfolders,
-            hovered_tag: None,
             thumbnail_layers: &HashMap::new(),
         };
 

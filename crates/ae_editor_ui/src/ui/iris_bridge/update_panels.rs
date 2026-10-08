@@ -64,7 +64,7 @@ impl IrisEditorOverlay {
                 panel_rect: hierarchy_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: &self.hierarchy.search_query,
+                search_query: &self.hierarchy.interactions.search_query,
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
                 scroll_y: self.hierarchy.scroll_y,
@@ -75,7 +75,6 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
-                hovered_tag: self.chrome.hovered_tag,
             };
 
             let max_scroll = hierarchy::build_hierarchy_panel(
@@ -196,7 +195,6 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 is_scrollbar_dragging: self.console.active_scrollbar_drag.is_some(),
-                hovered_tag: self.chrome.hovered_tag,
             };
 
             let max_scroll =
@@ -293,7 +291,6 @@ impl IrisEditorOverlay {
                 active_context_menu: self.assets.context_menu.as_ref(),
                 active_preview_modal: self.assets.preview_modal.as_ref(),
                 subfolders: &params.panel_data.asset_browser.subfolders,
-                hovered_tag: self.chrome.hovered_tag,
                 thumbnail_layers: &self.assets.thumbnail_layers,
             };
 

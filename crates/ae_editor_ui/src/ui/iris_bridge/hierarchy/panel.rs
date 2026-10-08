@@ -25,7 +25,7 @@ pub fn build_hierarchy_panel(
     params: &HierarchyPanelParams<'_>,
     rows_cache: &mut Vec<HierarchyRow>,
 ) -> f32 {
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    let mut scope = UiScope::new(tree, parent_id);
 
     let root_style = Style::new()
         .flex_col()

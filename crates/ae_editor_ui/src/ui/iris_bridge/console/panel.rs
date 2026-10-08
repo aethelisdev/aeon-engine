@@ -53,7 +53,7 @@ pub fn build_console_panel(
     let mut max_scroll = 0.0_f32;
 
     // 2. Panel Base Container via declarative UiScope
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    let mut scope = UiScope::new(tree, parent_id);
     scope.panel_tagged(
         "ConsolePanelRoot",
         params.panel_rect,

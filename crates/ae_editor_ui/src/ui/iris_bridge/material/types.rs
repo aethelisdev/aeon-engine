@@ -88,6 +88,41 @@ pub fn decode_submesh_texture_tag(tag: u64) -> Option<usize> {
     }
 }
 
+/// Target destination or action resolved from a Material Studio semantic tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaterialTagTarget {
+    /// Request to change 2D sprite texture.
+    SpriteChange,
+    /// Request to remove 2D sprite texture.
+    SpriteRemove,
+    /// Request to add texture component.
+    AddTexture,
+    /// Request to add color tint component.
+    AddColor,
+    /// Submesh alpha mode pill selection: `(submesh_idx, mode)`.
+    SubmeshAlpha(usize, ae_renderer::render::types::SubmeshAlphaMode),
+    /// Submesh texture slot picker: `submesh_idx`.
+    SubmeshTexture(usize),
+}
+
+/// Resolves a raw numeric tag into a typed [`MaterialTagTarget`].
+#[inline]
+pub fn resolve_material_tag(tag: u64) -> Option<MaterialTagTarget> {
+    match tag {
+        MATERIAL_TAG_SPRITE_CHANGE => Some(MaterialTagTarget::SpriteChange),
+        MATERIAL_TAG_SPRITE_REMOVE => Some(MaterialTagTarget::SpriteRemove),
+        MATERIAL_TAG_ADD_TEXTURE => Some(MaterialTagTarget::AddTexture),
+        MATERIAL_TAG_ADD_COLOR => Some(MaterialTagTarget::AddColor),
+        _ => {
+            if let Some((idx, mode)) = decode_submesh_alpha_tag(tag) {
+                Some(MaterialTagTarget::SubmeshAlpha(idx, mode))
+            } else {
+                decode_submesh_texture_tag(tag).map(MaterialTagTarget::SubmeshTexture)
+            }
+        }
+    }
+}
+
 /// Parameters required to construct and lay out the Material & Surface Studio panel.
 pub struct MaterialPanelParams<'a> {
     /// Absolute bounding rectangle allocated for the material panel in the docking tree.
@@ -146,8 +181,6 @@ pub struct MaterialPanelState {
     pub selected_entity: Option<hecs::Entity>,
     /// Previously baked selected entity handle used for retained dirty-checking.
     pub last_selected_entity: Option<hecs::Entity>,
-    /// Previously baked vertical scroll offset used for retained dirty-checking.
-    pub last_scroll_y: f32,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Maximum vertical scroll limit computed during layout.
@@ -166,7 +199,6 @@ impl Default for MaterialPanelState {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             selected_entity: None,
             last_selected_entity: None,
-            last_scroll_y: 0.0,
             pending_interaction_events: Vec::new(),
             max_scroll_y: 0.0,
             active_scrollbar_drag: None,

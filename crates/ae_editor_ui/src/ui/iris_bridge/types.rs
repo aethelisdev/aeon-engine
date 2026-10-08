@@ -165,6 +165,15 @@ impl<TTargets, TAction> PanelInteractionState<TTargets, TAction> {
     pub fn clear_targets(&mut self) {
         self.targets = None;
     }
+
+    /// Returns `true` if there are pending actions queued in this panel interaction state.
+    ///
+    /// Enables O(1) reactive dirty invalidation without cloning or draining the action queue.
+    #[inline]
+    #[must_use]
+    pub fn has_pending_actions(&self) -> bool {
+        !self.actions.is_empty()
+    }
 }
 
 /// Top menubar and floating dropdown interaction state.

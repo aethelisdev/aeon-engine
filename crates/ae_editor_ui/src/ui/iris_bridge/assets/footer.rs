@@ -38,7 +38,6 @@ pub fn build_asset_footer_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPar
                     .gap(8.0),
                 |left| {
                     // Sidebar Toggle Button ("◀" / "▶")
-                    let is_tog_hov = params.hovered_tag == Some(ASSETS_TAG_TOGGLE_SIDEBAR);
                     let tog_text = if params.sidebar_collapsed {
                         "▶"
                     } else {
@@ -47,11 +46,8 @@ pub fn build_asset_footer_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPar
                     let tog_style = Style::new()
                         .width(26.0)
                         .height(20.0)
-                        .background(if is_tog_hov {
-                            Color::rgba(0.20, 0.24, 0.32, 1.0)
-                        } else {
-                            Color::rgba(0.12, 0.14, 0.18, 0.80)
-                        })
+                        .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
+                        .hover_background(Color::rgba(0.20, 0.24, 0.32, 1.0))
                         .border_radius(3.0);
 
                     left.button_named_styled_tagged(

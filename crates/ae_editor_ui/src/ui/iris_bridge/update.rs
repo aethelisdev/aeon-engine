@@ -519,7 +519,6 @@ impl IrisEditorOverlay {
                 cursor_pos: cursor,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
-                hovered_tag: self.chrome.hovered_tag,
             };
             hierarchy::build_hierarchy_overlays(&mut self.tree, root, &hier_params);
         }

@@ -10,11 +10,10 @@
 use super::registry::ComponentRenderContext;
 use irisui::prelude::*;
 
-const APPEARANCE_SWATCH_BASE: u64 = 0xAA00_0000;
-const APPEARANCE_HEX_TAG: u64 = 0xAA00_FF01;
-const APPEARANCE_COLOR_SWATCH_TAG: u64 = 0xAA00_FF02;
-const APPEARANCE_ADD_PALETTE_TAG: u64 = 0xAA00_FF03;
-const APPEARANCE_CLEAR_PALETTE_TAG: u64 = 0xAA00_FF04;
+use super::tags::{
+    TAG_INSPECTOR_ADD_PALETTE, TAG_INSPECTOR_CLEAR_PALETTE, TAG_INSPECTOR_COLOR_HEX,
+    TAG_INSPECTOR_COLOR_SWATCH, encode_palette_swatch_tag, resolve_palette_swatch_tag,
+};
 
 /// Default 7-color palette swatches displayed in the Appearance inspector card.
 pub const DEFAULT_PALETTE: [Color; 7] = [
@@ -29,68 +28,72 @@ pub const DEFAULT_PALETTE: [Color; 7] = [
 
 /// Returns the 64-bit semantic tag for the primary object color swatch button.
 #[inline]
-pub fn appearance_color_swatch_tag() -> u64 {
-    APPEARANCE_COLOR_SWATCH_TAG
+#[must_use]
+pub const fn appearance_color_swatch_tag() -> u64 {
+    TAG_INSPECTOR_COLOR_SWATCH
 }
 
 /// Resolves whether a semantic tag corresponds to the primary object color swatch button.
 #[inline]
-pub fn resolve_appearance_color_swatch_tag(tag: u64) -> bool {
-    tag == APPEARANCE_COLOR_SWATCH_TAG
+#[must_use]
+pub const fn resolve_appearance_color_swatch_tag(tag: u64) -> bool {
+    tag == TAG_INSPECTOR_COLOR_SWATCH
 }
 
 /// Returns the 64-bit semantic tag for the HEX text input box.
 #[inline]
-pub fn appearance_hex_input_tag() -> u64 {
-    APPEARANCE_HEX_TAG
+#[must_use]
+pub const fn appearance_hex_input_tag() -> u64 {
+    TAG_INSPECTOR_COLOR_HEX
 }
 
 /// Resolves whether a semantic tag corresponds to the HEX text input box.
 #[inline]
-pub fn resolve_appearance_hex_input_tag(tag: u64) -> bool {
-    tag == APPEARANCE_HEX_TAG
+#[must_use]
+pub const fn resolve_appearance_hex_input_tag(tag: u64) -> bool {
+    tag == TAG_INSPECTOR_COLOR_HEX
 }
 
 /// Returns the 64-bit semantic tag for the 'Add to Palette' (+) button.
 #[inline]
-pub fn appearance_add_palette_tag() -> u64 {
-    APPEARANCE_ADD_PALETTE_TAG
+#[must_use]
+pub const fn appearance_add_palette_tag() -> u64 {
+    TAG_INSPECTOR_ADD_PALETTE
 }
 
 /// Resolves whether a semantic tag corresponds to the 'Add to Palette' (+) button.
 #[inline]
-pub fn resolve_appearance_add_palette_tag(tag: u64) -> bool {
-    tag == APPEARANCE_ADD_PALETTE_TAG
+#[must_use]
+pub const fn resolve_appearance_add_palette_tag(tag: u64) -> bool {
+    tag == TAG_INSPECTOR_ADD_PALETTE
 }
 
 /// Returns the 64-bit semantic tag for the 'Clear Palette' (🗑) button.
 #[inline]
-pub fn appearance_clear_palette_tag() -> u64 {
-    APPEARANCE_CLEAR_PALETTE_TAG
+#[must_use]
+pub const fn appearance_clear_palette_tag() -> u64 {
+    TAG_INSPECTOR_CLEAR_PALETTE
 }
 
 /// Resolves whether a semantic tag corresponds to the 'Clear Palette' (🗑) button.
 #[inline]
-pub fn resolve_appearance_clear_palette_tag(tag: u64) -> bool {
-    tag == APPEARANCE_CLEAR_PALETTE_TAG
+#[must_use]
+pub const fn resolve_appearance_clear_palette_tag(tag: u64) -> bool {
+    tag == TAG_INSPECTOR_CLEAR_PALETTE
 }
 
 /// Computes the 64-bit semantic tag for a palette swatch pill at a given global index.
 #[inline]
-pub fn appearance_palette_swatch_tag(idx: usize) -> u64 {
-    APPEARANCE_SWATCH_BASE | ((idx as u64) & 0x00FF_FFFF)
+#[must_use]
+pub const fn appearance_palette_swatch_tag(idx: usize) -> u64 {
+    encode_palette_swatch_tag(idx)
 }
 
 /// Resolves whether a semantic tag corresponds to a palette swatch pill, returning its index.
 #[inline]
-pub fn resolve_appearance_palette_swatch_tag(tag: u64) -> Option<usize> {
-    if (tag & 0xFF00_0000) == APPEARANCE_SWATCH_BASE {
-        let idx = (tag & 0x00FF_FFFF) as usize;
-        if idx <= 1024 {
-            return Some(idx);
-        }
-    }
-    None
+#[must_use]
+pub const fn resolve_appearance_palette_swatch_tag(tag: u64) -> Option<usize> {
+    resolve_palette_swatch_tag(tag)
 }
 
 /// Builds the `🎨 Appearance` card declaratively in the `UiTree` and returns the computed height.

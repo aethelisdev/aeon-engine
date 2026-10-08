@@ -9,9 +9,8 @@
 //!
 
 use crate::ui::iris_bridge::hierarchy::{
-    AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_PANEL_ROOT,
-    HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HierarchyAction, is_hierarchy_tag,
-    parse_eye_tag, parse_foldout_tag, parse_row_tag,
+    AddSubmenuId, HIERARCHY_TAG_SEARCH_INPUT, HierarchyAction, HierarchyTagTarget,
+    resolve_hierarchy_tag,
 };
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::{MouseButton, UiLayer, WidgetRole};
@@ -113,109 +112,104 @@ impl IrisEditorOverlay {
 
             // 1.3 Direct Hardware Hit-Testing on Scene Hierarchy Panel Widgets
             if let Some(hit) = self.tree.hit_test_target(click_point) {
-                let effective_tag = resolve_ancestor_tag(&self.tree, hit.id);
+                let effective_tag = self.tree.resolve_ancestor_tag(hit.id);
 
-                if is_hierarchy_tag(effective_tag) {
+                if let Some(target) = resolve_hierarchy_tag(effective_tag) {
                     // Close context menu and add menu on any click inside panel outside menus
                     if self.hierarchy.active_context_menu.is_some() {
                         self.hierarchy.active_context_menu = None;
                         self.notifier.tag_all();
                     }
 
-                    // A. Search Bar Container Focus
-                    if effective_tag == HIERARCHY_TAG_SEARCH_INPUT {
-                        self.focus_manager.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // B. Clear Search "✖" Button
-                    if effective_tag == HIERARCHY_TAG_SEARCH_CLEAR {
-                        self.hierarchy.search_query.clear();
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // C. "➕" Add Entity Button
-                    if effective_tag == HIERARCHY_TAG_ADD_BUTTON {
-                        self.hierarchy.is_add_menu_open = !self.hierarchy.is_add_menu_open;
-                        self.hierarchy.active_submenu = None;
-                        self.hierarchy.active_sub_submenu = None;
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // D. "🗑" Delete Selected Button
-                    if effective_tag == HIERARCHY_TAG_DELETE_BUTTON {
-                        self.hierarchy.actions.push(HierarchyAction::DeleteSelected);
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // E. Eye Visibility Toggle Button
-                    if let Some(row_idx) = parse_eye_tag(effective_tag)
-                        && let Some(row) = self.hierarchy.rows_cache.get(row_idx)
-                    {
-                        self.hierarchy
-                            .actions
-                            .push(HierarchyAction::ToggleVisibility(row.entity));
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // E2. Foldout Expand/Collapse Toggle Button
-                    if let Some(row_idx) = parse_foldout_tag(effective_tag)
-                        && let Some(row) = self.hierarchy.rows_cache.get(row_idx)
-                    {
-                        if self.hierarchy.collapsed_entities.contains(&row.entity) {
-                            self.hierarchy.collapsed_entities.remove(&row.entity);
-                        } else {
-                            self.hierarchy.collapsed_entities.insert(row.entity);
+                    match target {
+                        HierarchyTagTarget::SearchInput => {
+                            self.focus_manager.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
+                            result.consumed = true;
+                            return Some(result);
                         }
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // F. Entity Row Selection / Context Menu
-                    if let Some(row_idx) = parse_row_tag(effective_tag)
-                        && let Some(row) = self.hierarchy.rows_cache.get(row_idx)
-                    {
-                        if ui_button == MouseButton::Right {
-                            self.hierarchy
-                                .actions
-                                .push(HierarchyAction::SelectEntity(Some(row.entity)));
-                            self.hierarchy.active_context_menu = Some((row.entity, click_point));
-                            self.hierarchy.is_add_menu_open = false;
-                        } else {
-                            self.hierarchy
-                                .actions
-                                .push(HierarchyAction::SelectEntity(Some(row.entity)));
-                        }
-                        self.notifier.tag_all();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // G. Panel Root or background click
-                    if effective_tag == HIERARCHY_TAG_PANEL_ROOT {
-                        if *button == WinitMouseButton::Left
-                            && self
-                                .focus_manager
-                                .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
-                        {
-                            self.focus_manager.clear_focus();
-                        }
-                        if self.hierarchy.is_add_menu_open {
-                            self.hierarchy.is_add_menu_open = false;
+                        HierarchyTagTarget::SearchClear => {
+                            self.hierarchy.search_query.clear();
                             self.notifier.tag_all();
+                            result.consumed = true;
+                            return Some(result);
                         }
-                        result.consumed = true;
-                        return Some(result);
+                        HierarchyTagTarget::AddButton => {
+                            self.hierarchy.is_add_menu_open = !self.hierarchy.is_add_menu_open;
+                            self.hierarchy.active_submenu = None;
+                            self.hierarchy.active_sub_submenu = None;
+                            self.notifier.tag_all();
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        HierarchyTagTarget::DeleteButton => {
+                            self.hierarchy.actions.push(HierarchyAction::DeleteSelected);
+                            self.notifier.tag_all();
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        HierarchyTagTarget::Eye(row_idx) => {
+                            if let Some(entity) =
+                                self.hierarchy.rows_cache.get(row_idx).map(|r| r.entity)
+                            {
+                                self.hierarchy
+                                    .actions
+                                    .push(HierarchyAction::ToggleVisibility(entity));
+                                self.notifier.tag_all();
+                                result.consumed = true;
+                                return Some(result);
+                            }
+                        }
+                        HierarchyTagTarget::Foldout(row_idx) => {
+                            if let Some(entity) =
+                                self.hierarchy.rows_cache.get(row_idx).map(|r| r.entity)
+                            {
+                                if self.hierarchy.collapsed_entities.contains(&entity) {
+                                    self.hierarchy.collapsed_entities.remove(&entity);
+                                } else {
+                                    self.hierarchy.collapsed_entities.insert(entity);
+                                }
+                                self.notifier.tag_all();
+                                result.consumed = true;
+                                return Some(result);
+                            }
+                        }
+                        HierarchyTagTarget::Row(row_idx) => {
+                            if let Some(entity) =
+                                self.hierarchy.rows_cache.get(row_idx).map(|r| r.entity)
+                            {
+                                if ui_button == MouseButton::Right {
+                                    self.hierarchy
+                                        .actions
+                                        .push(HierarchyAction::SelectEntity(Some(entity)));
+                                    self.hierarchy.active_context_menu =
+                                        Some((entity, click_point));
+                                    self.hierarchy.is_add_menu_open = false;
+                                } else {
+                                    self.hierarchy
+                                        .actions
+                                        .push(HierarchyAction::SelectEntity(Some(entity)));
+                                }
+                                self.notifier.tag_all();
+                                result.consumed = true;
+                                return Some(result);
+                            }
+                        }
+                        HierarchyTagTarget::PanelRoot => {
+                            if *button == WinitMouseButton::Left
+                                && self
+                                    .focus_manager
+                                    .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
+                            {
+                                self.focus_manager.clear_focus();
+                            }
+                            if self.hierarchy.is_add_menu_open {
+                                self.hierarchy.is_add_menu_open = false;
+                                self.notifier.tag_all();
+                            }
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        HierarchyTagTarget::Viewport => {}
                     }
                 }
             }
@@ -265,23 +259,4 @@ impl IrisEditorOverlay {
 
         None
     }
-}
-
-/// Traverses up the widget hierarchy starting from `start_id` to locate the first non-zero semantic tag.
-fn resolve_ancestor_tag(
-    tree: &irisui::prelude::UiTree,
-    start_id: irisui::prelude::WidgetId,
-) -> u64 {
-    let mut curr = Some(start_id);
-    while let Some(id) = curr {
-        if let Some(node) = tree.get(id) {
-            if node.tag != 0 {
-                return node.tag;
-            }
-            curr = node.parent;
-        } else {
-            break;
-        }
-    }
-    0
 }

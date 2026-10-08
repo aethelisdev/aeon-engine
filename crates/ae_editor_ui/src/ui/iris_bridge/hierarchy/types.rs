@@ -233,6 +233,55 @@ pub const fn is_hierarchy_tag(tag: u64) -> bool {
     (tag & 0xFFFF_FFFF_0000_0000) == 0x4849_4552_0000_0000
 }
 
+/// Strongly typed semantic hit target within the Scene Hierarchy panel.
+///
+/// Eliminates raw bitwise masking and arithmetic across event handling routines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HierarchyTagTarget {
+    /// Primary panel root container.
+    PanelRoot,
+    /// Search query text input box.
+    SearchInput,
+    /// Search query clear button.
+    SearchClear,
+    /// Header Add Entity `➕` button.
+    AddButton,
+    /// Header Delete Selected `🗑` button.
+    DeleteButton,
+    /// Virtual rows scroll viewport.
+    Viewport,
+    /// Dynamic entity row item by index.
+    Row(usize),
+    /// Dynamic entity visibility toggle button by index.
+    Eye(usize),
+    /// Dynamic entity chevron expand/collapse toggle button by index.
+    Foldout(usize),
+}
+
+/// Resolves a 64-bit semantic tag into a strongly typed [`HierarchyTagTarget`].
+///
+/// Returns `None` if the tag does not belong to the Scene Hierarchy panel domain.
+#[inline]
+pub fn resolve_hierarchy_tag(tag: u64) -> Option<HierarchyTagTarget> {
+    match tag {
+        HIERARCHY_TAG_PANEL_ROOT => Some(HierarchyTagTarget::PanelRoot),
+        HIERARCHY_TAG_SEARCH_INPUT => Some(HierarchyTagTarget::SearchInput),
+        HIERARCHY_TAG_SEARCH_CLEAR => Some(HierarchyTagTarget::SearchClear),
+        HIERARCHY_TAG_ADD_BUTTON => Some(HierarchyTagTarget::AddButton),
+        HIERARCHY_TAG_DELETE_BUTTON => Some(HierarchyTagTarget::DeleteButton),
+        HIERARCHY_TAG_VIEWPORT => Some(HierarchyTagTarget::Viewport),
+        _ => {
+            if let Some(row_idx) = parse_eye_tag(tag) {
+                Some(HierarchyTagTarget::Eye(row_idx))
+            } else if let Some(row_idx) = parse_foldout_tag(tag) {
+                Some(HierarchyTagTarget::Foldout(row_idx))
+            } else {
+                parse_row_tag(tag).map(HierarchyTagTarget::Row)
+            }
+        }
+    }
+}
+
 /// Numerical tag for deleting the target entity via right-click context menu.
 pub const HIERARCHY_CTX_DELETE: u64 = 0;
 
@@ -269,23 +318,15 @@ pub struct HierarchyPanelParams<'a> {
     pub blink_caret: bool,
     /// Set of currently collapsed entity identifiers.
     pub collapsed_entities: &'a std::collections::HashSet<hecs::Entity>,
-    /// Currently hovered 64-bit semantic tag resolved in the active frame.
-    pub hovered_tag: Option<u64>,
 }
 
 /// Persistent interactive state for the Scene Hierarchy panel overlay.
 #[derive(Debug, Default, Clone)]
 pub struct HierarchyPanelState {
-    /// Content area vertical scroll offset in physical pixels.
-    pub scroll_y: f32,
-    /// Last synchronized vertical scroll offset for in-place scroll synchronization.
-    pub last_scroll_y: f32,
+    /// Common panel interaction state (scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
-    /// Active text query typed in the search filter input.
-    pub search_query: String,
-    /// Queue of dispatched actions waiting to be consumed by the editor workbench.
-    pub actions: Vec<HierarchyAction>,
     /// Persistent pre-allocated row cache to eliminate per-frame allocations.
     pub rows_cache: Vec<HierarchyRow>,
     /// Set of currently collapsed entity identifiers.
@@ -309,12 +350,20 @@ pub struct HierarchyPanelState {
 /// Semantic alias for [`HierarchyPanelState`].
 pub type HierarchyState = HierarchyPanelState;
 
-impl HierarchyPanelState {
-    /// Consumes and returns all pending user interaction actions.
-    pub fn take_actions(&mut self) -> Vec<HierarchyAction> {
-        std::mem::take(&mut self.actions)
+impl std::ops::Deref for HierarchyPanelState {
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
     }
+}
 
+impl std::ops::DerefMut for HierarchyPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}
+
+impl HierarchyPanelState {
     /// Evaluates whether the Scene Hierarchy panel requires an in-place repaint.
     ///
     /// Inspects selected entity shifts, entity additions/deletions in the ECS world,
@@ -403,5 +452,43 @@ mod tests {
         assert!(state.activate_submenu(AddSubmenuId::Objects3D));
         assert_eq!(state.active_submenu, Some(AddSubmenuId::Objects3D));
         assert_eq!(state.active_sub_submenu, None);
+    }
+
+    #[test]
+    fn test_resolve_hierarchy_tag_invariants() {
+        assert_eq!(
+            resolve_hierarchy_tag(HIERARCHY_TAG_SEARCH_INPUT),
+            Some(HierarchyTagTarget::SearchInput)
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(HIERARCHY_TAG_SEARCH_CLEAR),
+            Some(HierarchyTagTarget::SearchClear)
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(HIERARCHY_TAG_ADD_BUTTON),
+            Some(HierarchyTagTarget::AddButton)
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(HIERARCHY_TAG_DELETE_BUTTON),
+            Some(HierarchyTagTarget::DeleteButton)
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(HIERARCHY_TAG_VIEWPORT),
+            Some(HierarchyTagTarget::Viewport)
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(make_eye_tag(4)),
+            Some(HierarchyTagTarget::Eye(4))
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(make_foldout_tag(8)),
+            Some(HierarchyTagTarget::Foldout(8))
+        );
+        assert_eq!(
+            resolve_hierarchy_tag(make_row_tag(15)),
+            Some(HierarchyTagTarget::Row(15))
+        );
+        assert_eq!(resolve_hierarchy_tag(0), None);
+        assert_eq!(resolve_hierarchy_tag(0xFFFF_FFFF), None);
     }
 }

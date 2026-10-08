@@ -7,24 +7,14 @@
 //! scrolling within the Developer Console panel.
 //!
 
-use super::types::{ConsoleAction, ConsoleToolbarAction, evaluate_console_toolbar_click};
+use super::types::{ConsoleAction, evaluate_console_toolbar_click};
 use irisui::prelude::{Point, UiTree};
 
 /// Handles mouse click events over the console panel using semantic tags.
 ///
 /// Dispatches click actions via the semantic `UiTree::hit_test_target` resolver.
 pub fn handle_console_click(tree: &UiTree, click_pos: Point) -> Option<ConsoleAction> {
-    if let Some(action) = evaluate_console_toolbar_click(tree, click_pos) {
-        return Some(match action {
-            ConsoleToolbarAction::ClearLogs => ConsoleAction::ClearLogs,
-            ConsoleToolbarAction::SetFilter(level) => ConsoleAction::SetFilter(level),
-            ConsoleToolbarAction::ToggleAutoScroll => ConsoleAction::ToggleAutoScroll,
-            ConsoleToolbarAction::FocusSearch => ConsoleAction::FocusSearch,
-            ConsoleToolbarAction::ClearSearch => ConsoleAction::ClearSearch,
-        });
-    }
-
-    None
+    evaluate_console_toolbar_click(tree, click_pos)
 }
 
 /// Handles mouse wheel scrolling over the console viewport.

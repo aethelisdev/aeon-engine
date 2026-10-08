@@ -323,26 +323,18 @@ pub fn build_hierarchy_rows(
             let row_tag = make_row_tag(master_idx);
             let eye_tag = make_eye_tag(master_idx);
             let foldout_tag = make_foldout_tag(master_idx);
-            let is_row_hovered = params.hovered_tag == Some(row_tag);
-            let is_eye_hovered = params.hovered_tag == Some(eye_tag);
-            let is_foldout_hovered = params.hovered_tag == Some(foldout_tag);
 
             let (bg_color, border_color) = if is_selected {
                 (
                     Color::rgba(0.0, 0.35, 0.50, 0.65), // Active cyan pill background
                     Color::rgba(0.0, 0.85, 1.0, 0.80),  // Cyan border highlight
                 )
-            } else if is_row_hovered {
-                (
-                    Color::rgba(0.14, 0.18, 0.26, 0.65), // Subtle sleek hover highlight
-                    Color::rgba(0.24, 0.32, 0.45, 0.50), // Subtle hover border
-                )
             } else {
                 (Color::TRANSPARENT, Color::TRANSPARENT)
             };
 
             let (_line_tip, padding_left) = compute_tree_connector_geometry(row.depth);
-            let row_style = Style::new()
+            let mut row_style = Style::new()
                 .flex_row()
                 .align_items(AlignItems::Center)
                 .height(HIERARCHY_ROW_HEIGHT)
@@ -351,6 +343,12 @@ pub fn build_hierarchy_rows(
                 .background(bg_color)
                 .border(1.0, border_color)
                 .border_radius(4.0);
+
+            if !is_selected {
+                row_style = row_style
+                    .hover_background(Color::rgba(0.14, 0.18, 0.26, 0.65))
+                    .hover_border(1.0, Color::rgba(0.24, 0.32, 0.45, 0.50));
+            }
 
             row_scope.container_tagged(
                 "HierarchyEntityRow",
@@ -401,7 +399,7 @@ pub fn build_hierarchy_rows(
                     // 1. Foldout Chevron Button (if entity has children)
                     if row.has_children {
                         let foldout_glyph = if row.is_expanded { "▼" } else { "▶" };
-                        let foldout_col = if is_selected || is_foldout_hovered {
+                        let foldout_col = if is_selected {
                             Color::WHITE
                         } else {
                             Color::rgba(0.65, 0.68, 0.78, 1.0)
@@ -417,15 +415,16 @@ pub fn build_hierarchy_rows(
                             "HierarchyFoldoutButton",
                             fold_style,
                             WidgetRole::Button,
-                            make_foldout_tag(master_idx),
+                            foldout_tag,
                             |fold_s| {
-                                fold_s.label_with_width(
+                                let txt_id = fold_s.label_with_width(
                                     foldout_glyph,
                                     12.0,
                                     9.0,
                                     foldout_col,
                                     TextAlign::Center,
                                 );
+                                fold_s.set_hover_text_color(txt_id, Color::WHITE);
                             },
                         );
                     }
@@ -484,16 +483,7 @@ pub fn build_hierarchy_rows(
                     });
 
                     // 3. Eye Visibility Toggle Button
-                    let (eye_uv, eye_col) = if is_eye_hovered {
-                        (
-                            if is_visible {
-                                ICON_EYE_OPEN
-                            } else {
-                                ICON_EYE_CLOSED
-                            },
-                            Color::WHITE,
-                        )
-                    } else if !is_visible {
+                    let (eye_uv, eye_col) = if !is_visible {
                         (ICON_EYE_CLOSED, Color::rgba(0.55, 0.60, 0.72, 0.65))
                     } else if is_selected {
                         (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
@@ -513,7 +503,8 @@ pub fn build_hierarchy_rows(
                         WidgetRole::Button,
                         eye_tag,
                         |eye_s| {
-                            eye_s.icon(eye_uv, eye_col, 16.0);
+                            let icon_id = eye_s.icon(eye_uv, eye_col, 16.0);
+                            eye_s.set_hover_texture_tint(icon_id, Color::WHITE);
                         },
                     );
                 },
@@ -618,7 +609,6 @@ mod tests {
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
             collapsed_entities: &collapsed,
-            hovered_tag: None,
         };
 
         build_hierarchy_rows(&mut scope, &rows, &params);

@@ -125,13 +125,7 @@ pub fn build_asset_list_table_scope(
                 let is_selected = params.selected_asset == Some(&item.path);
 
                 // Zero heap allocation: no item clones, no target list pushes
-                asset_list_row(
-                    rows_scope,
-                    row_idx as u32,
-                    item,
-                    is_selected,
-                    params.hovered_tag,
-                );
+                asset_list_row(rows_scope, row_idx as u32, item, is_selected);
             }
         },
     );
@@ -188,7 +182,6 @@ mod tests {
             active_context_menu: None,
             active_preview_modal: None,
             subfolders: &subfolders,
-            hovered_tag: None,
             thumbnail_layers: &HashMap::new(),
         };
 

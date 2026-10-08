@@ -238,6 +238,56 @@ pub fn parse_toggle_tag(tag: u64) -> Option<PreferencesToggleId> {
     None
 }
 
+/// Strongly typed semantic hit target within the Preferences configuration dialog.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PreferencesTagTarget {
+    /// Dialog close '✖' button.
+    Close,
+    /// Floating dialog titlebar header.
+    Titlebar,
+    /// Primary content view scrollbar draggable thumb.
+    ScrollbarThumb,
+    /// Primary content view scrollbar track.
+    ScrollbarTrack,
+    /// Sidebar category tab item by index (0..=9).
+    Tab(u8),
+    /// Collapsible section card header by static name.
+    Section(&'static str),
+    /// Dropdown ComboBox trigger button by identifier.
+    Dropdown(PreferencesDropdownId),
+    /// Dropdown ComboBox menu item by selection index.
+    DropdownItem(usize),
+    /// Checkbox or engine module toggle by identifier.
+    Toggle(PreferencesToggleId),
+}
+
+/// Resolves a 64-bit semantic tag into a strongly typed [`PreferencesTagTarget`].
+#[inline]
+pub fn resolve_preferences_tag(tag: u64) -> Option<PreferencesTagTarget> {
+    if !is_preferences_tag(tag) {
+        return None;
+    }
+    match tag {
+        PREF_TAG_CLOSE => Some(PreferencesTagTarget::Close),
+        PREF_TAG_TITLEBAR => Some(PreferencesTagTarget::Titlebar),
+        PREF_TAG_SCROLLBAR_THUMB => Some(PreferencesTagTarget::ScrollbarThumb),
+        PREF_TAG_SCROLLBAR_TRACK => Some(PreferencesTagTarget::ScrollbarTrack),
+        _ => {
+            if let Some(tab_idx) = parse_tab_tag(tag) {
+                Some(PreferencesTagTarget::Tab(tab_idx))
+            } else if let Some(sec_id) = parse_section_tag(tag) {
+                Some(PreferencesTagTarget::Section(sec_id))
+            } else if let Some(dd_id) = parse_dropdown_tag(tag) {
+                Some(PreferencesTagTarget::Dropdown(dd_id))
+            } else if let Some(item_idx) = parse_dropdown_item_tag(tag) {
+                Some(PreferencesTagTarget::DropdownItem(item_idx))
+            } else {
+                parse_toggle_tag(tag).map(PreferencesTagTarget::Toggle)
+            }
+        }
+    }
+}
+
 /// Standard discrete physics simulation frequency presets in Hz.
 pub const PHYSICS_HZ_PRESETS: [f32; 7] = [30.0, 60.0, 90.0, 120.0, 144.0, 180.0, 240.0];
 
@@ -309,6 +359,8 @@ pub enum PreferencesAction {
 /// Persistent interactive state for the Preferences modal dialog overlay.
 #[derive(Debug, Default, Clone)]
 pub struct PreferencesDialogState {
+    /// Common panel interaction state (scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), PreferencesAction>,
     /// Bounding rectangle of the preferences floating card for click absorption and bounds clamping.
     pub card_rect: Option<Rect>,
     /// Virtual maximum scrollable distance (total_content_height - content_height).
@@ -323,10 +375,6 @@ pub struct PreferencesDialogState {
     pub tab: u8,
     /// Previously rendered tab index in Preferences to trigger reactive invalidation on tab switches.
     pub last_tab: u8,
-    /// Content area vertical scroll offset for Preferences dialog.
-    pub scroll_y: f32,
-    /// Previously rendered scroll offset for Preferences dialog to trigger reactive redraws.
-    pub last_scroll_y: f32,
     /// Currently open dropdown ComboBox in the Preferences dialog.
     pub dropdown: Option<PreferencesDropdownId>,
     /// Bounding rectangle of the button that triggered the currently open dropdown.
@@ -339,12 +387,74 @@ pub struct PreferencesDialogState {
     pub active_number_input: Option<(u64, String, bool)>,
     /// Whether the text caret is currently visible during inline editing.
     pub blink_caret: bool,
-    /// Dispatched action queue for Preferences dialog interactions.
-    pub actions: Vec<PreferencesAction>,
     /// Persistent frame interaction event queue for declarative two-way bound property widgets.
     ///
     /// Preserved across frames and cleared with [`Vec::clear`] to guarantee zero heap allocations (Rule 9.4).
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Set of currently collapsed card/section identifiers in the Preferences dialog.
     pub collapsed_sections: HashSet<&'static str>,
+}
+
+impl std::ops::Deref for PreferencesDialogState {
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), PreferencesAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
+    }
+}
+
+impl std::ops::DerefMut for PreferencesDialogState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_preferences_tag_invariants() {
+        assert_eq!(
+            resolve_preferences_tag(PREF_TAG_CLOSE),
+            Some(PreferencesTagTarget::Close)
+        );
+        assert_eq!(
+            resolve_preferences_tag(PREF_TAG_TITLEBAR),
+            Some(PreferencesTagTarget::Titlebar)
+        );
+        assert_eq!(
+            resolve_preferences_tag(PREF_TAG_SCROLLBAR_THUMB),
+            Some(PreferencesTagTarget::ScrollbarThumb)
+        );
+        assert_eq!(
+            resolve_preferences_tag(PREF_TAG_SCROLLBAR_TRACK),
+            Some(PreferencesTagTarget::ScrollbarTrack)
+        );
+        assert_eq!(
+            resolve_preferences_tag(encode_tab_tag(2)),
+            Some(PreferencesTagTarget::Tab(2))
+        );
+        assert_eq!(
+            resolve_preferences_tag(encode_section_tag("general_scale")),
+            Some(PreferencesTagTarget::Section("general_scale"))
+        );
+        assert_eq!(
+            resolve_preferences_tag(encode_dropdown_tag(PreferencesDropdownId::UiScale)),
+            Some(PreferencesTagTarget::Dropdown(
+                PreferencesDropdownId::UiScale
+            ))
+        );
+        assert_eq!(
+            resolve_preferences_tag(encode_dropdown_item_tag(3)),
+            Some(PreferencesTagTarget::DropdownItem(3))
+        );
+        assert_eq!(
+            resolve_preferences_tag(encode_toggle_tag(PreferencesToggleId::LiveUpdatesEnabled)),
+            Some(PreferencesTagTarget::Toggle(
+                PreferencesToggleId::LiveUpdatesEnabled
+            ))
+        );
+        assert_eq!(resolve_preferences_tag(0), None);
+        assert_eq!(resolve_preferences_tag(0xFFFF_FFFF), None);
+    }
 }

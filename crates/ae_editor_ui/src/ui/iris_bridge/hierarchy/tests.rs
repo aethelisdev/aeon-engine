@@ -40,7 +40,6 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -129,7 +128,6 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -175,7 +173,6 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -261,7 +258,6 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -302,7 +298,6 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -351,7 +346,6 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         cursor_pos: Point::new(150.0, 50.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -395,7 +389,6 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         cursor_pos: Point::new(125.0, 210.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let card_rect_opt = super::context_menu::build_context_menu(&mut tree, root_id, &params);
@@ -451,7 +444,6 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
@@ -499,7 +491,6 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     super::panel::build_hierarchy_panel(&mut new_tree, new_root, &new_params, &mut new_rows_cache);
@@ -571,7 +562,6 @@ fn test_hierarchy_panel_declarative_scope_build() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let mut rows_cache = Vec::new();
@@ -637,7 +627,6 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
-        hovered_tag: None,
     };
 
     let mut rows_cache = Vec::new();
@@ -719,7 +708,6 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         collapsed_entities: &collapsed,
-        hovered_tag: None,
     };
 
     let _ = super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
@@ -773,7 +761,7 @@ fn test_hierarchy_header_and_row_hover_styling() {
     let root = tree.create_root().expect("Root node creation must succeed");
 
     // 1. Test Add Button hover
-    let params_add_hover = HierarchyPanelParams {
+    let params = HierarchyPanelParams {
         panel_rect: Rect::new(0.0, 0.0, 300.0, 400.0),
         world: &world,
         selected_entity: None,
@@ -788,11 +776,10 @@ fn test_hierarchy_header_and_row_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         collapsed_entities: &std::collections::HashSet::new(),
-        hovered_tag: Some(HIERARCHY_TAG_ADD_BUTTON),
     };
 
     let mut rows_cache = Vec::new();
-    super::panel::build_hierarchy_panel(&mut tree, root, &params_add_hover, &mut rows_cache);
+    super::panel::build_hierarchy_panel(&mut tree, root, &params, &mut rows_cache);
 
     let (_, add_node) = tree
         .iter()
@@ -800,58 +787,38 @@ fn test_hierarchy_header_and_row_hover_styling() {
         .expect("Add button must exist");
 
     assert_eq!(
-        add_node.style.background_color,
-        Color::rgba(0.30, 0.35, 0.45, 0.98),
-        "Hovered Add button must have brightened hover background"
+        add_node.style.hover_background,
+        Some(Color::rgba(0.30, 0.35, 0.45, 0.98)),
+        "Add button must have declarative hover background"
     );
     assert_eq!(
-        add_node.style.border.color,
-        Color::rgba(0.0, 0.85, 1.0, 0.85),
-        "Hovered Add button must have cyan border highlight"
+        add_node.style.hover_border,
+        Some(irisui::prelude::Border::uniform(
+            1.0,
+            Color::rgba(0.0, 0.85, 1.0, 0.85)
+        )),
+        "Add button must have declarative cyan hover border"
     );
 
-    // 2. Test Entity Row hover
-    let mut tree2 = UiTree::new();
-    let root2 = tree2
-        .create_root()
-        .expect("Root node creation must succeed");
+    // 2. Test Entity Row declarative hover
     let row_tag = make_row_tag(0);
-
-    let params_row_hover = HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 400.0),
-        world: &world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        scroll_y: 0.0,
-        active_submenu: None,
-        active_sub_submenu: None,
-        is_add_menu_open: false,
-        active_context_menu: None,
-        cursor_pos: Point::new(10.0, 10.0),
-        blink_caret: false,
-        collapsed_entities: &std::collections::HashSet::new(),
-        hovered_tag: Some(row_tag),
-    };
-
-    let mut rows_cache2 = Vec::new();
-    super::panel::build_hierarchy_panel(&mut tree2, root2, &params_row_hover, &mut rows_cache2);
-
-    let (_, row_node) = tree2
+    let (_, row_node) = tree
         .iter()
         .find(|(_, n)| n.tag == row_tag)
         .expect("Entity row must exist");
 
     assert_eq!(
-        row_node.style.background_color,
-        Color::rgba(0.14, 0.18, 0.26, 0.65),
-        "Hovered non-selected entity row must have subtle hover highlight background"
+        row_node.style.hover_background,
+        Some(Color::rgba(0.14, 0.18, 0.26, 0.65)),
+        "Entity row must have declarative hover background"
     );
     assert_eq!(
-        row_node.style.border.color,
-        Color::rgba(0.24, 0.32, 0.45, 0.50),
-        "Hovered non-selected entity row must have subtle hover border"
+        row_node.style.hover_border,
+        Some(irisui::prelude::Border::uniform(
+            1.0,
+            Color::rgba(0.24, 0.32, 0.45, 0.50)
+        )),
+        "Entity row must have declarative hover border"
     );
 
     // 3. Verify hit_test_target resolves semantic tags even when hit on child icons/labels
@@ -868,6 +835,6 @@ fn test_hierarchy_header_and_row_hover_styling() {
         row_node.computed_rect.x + row_node.computed_rect.width * 0.5,
         row_node.computed_rect.y + row_node.computed_rect.height * 0.5,
     );
-    let hit_row = tree2.hit_test_target(row_center).expect("Row must be hit");
+    let hit_row = tree.hit_test_target(row_center).expect("Row must be hit");
     assert_eq!(hit_row.tag, row_tag);
 }

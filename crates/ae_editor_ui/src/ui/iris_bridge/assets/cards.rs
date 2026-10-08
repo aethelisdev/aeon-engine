@@ -82,7 +82,6 @@ pub fn build_asset_grid_cards_scope(
                     item,
                     layer,
                     is_selected,
-                    params.hovered_tag,
                     rel_pos,
                 );
             }
@@ -127,7 +126,6 @@ mod tests {
             active_context_menu: None,
             active_preview_modal: None,
             subfolders: &subfolders,
-            hovered_tag: None,
             thumbnail_layers: &HashMap::new(),
         };
 

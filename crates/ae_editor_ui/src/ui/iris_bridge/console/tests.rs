@@ -46,7 +46,6 @@ fn test_console_click_target_routing() {
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: None,
     };
 
     build_console_panel(&mut tree, root, &params);
@@ -146,7 +145,6 @@ fn test_console_virtualized_empty_and_matching() {
         cursor_pos: Point::new(50.0, 50.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: None,
     };
 
     let mut scope = UiScope::new(&mut tree, root);
@@ -173,7 +171,6 @@ fn test_console_panel_clipping_and_clear_action() {
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: None,
     };
 
     build_console_panel(&mut tree, parent_id, &params);
@@ -221,7 +218,6 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         cursor_pos: Point::new(395.0, 80.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: None,
     };
 
     let max_scroll = build_console_panel(&mut tree, root, &params);
@@ -257,8 +253,7 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node creation must succeed");
 
-    // 1. Build with hovered_tag = Some(CONSOLE_TAG_CLEAR)
-    let params_clear_hover = ConsolePanelParams {
+    let params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 600.0, 300.0),
         entries: &[],
         scroll_y: 0.0,
@@ -268,10 +263,9 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        hovered_tag: Some(CONSOLE_TAG_CLEAR),
     };
 
-    build_console_panel(&mut tree, root, &params_clear_hover);
+    build_console_panel(&mut tree, root, &params);
 
     let (_, clear_node) = tree
         .iter()
@@ -279,49 +273,108 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         .expect("Clear button must exist in tree");
 
     assert_eq!(
-        clear_node.style.background_color,
-        Color::rgba(0.24, 0.29, 0.39, 1.0),
-        "Hovered Clear button must have brightened hover background"
+        clear_node.style.hover_background,
+        Some(Color::rgba(0.24, 0.29, 0.39, 1.0)),
+        "Clear button must have declarative hover background"
     );
     assert_eq!(
-        clear_node.text_color,
-        Color::WHITE,
-        "Hovered Clear button must have white text"
+        clear_node.hover_text_color,
+        Some(Color::WHITE),
+        "Clear button must have declarative white hover text"
     );
 
-    // 2. Build with hovered_tag = Some(CONSOLE_TAG_SEARCH_INPUT)
-    let mut tree2 = UiTree::new();
-    let root2 = tree2
-        .create_root()
-        .expect("Root node creation must succeed");
-    let params_search_hover = ConsolePanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 600.0, 300.0),
-        entries: &[],
-        scroll_y: 0.0,
-        filter: ConsoleFilterLevel::All,
-        search_query: "",
-        auto_scroll: true,
-        cursor_pos: Point::new(10.0, 10.0),
-        blink_caret: false,
-        is_scrollbar_dragging: false,
-        hovered_tag: Some(CONSOLE_TAG_SEARCH_INPUT),
-    };
-
-    build_console_panel(&mut tree2, root2, &params_search_hover);
-
-    let (_, search_node) = tree2
+    let (_, search_node) = tree
         .iter()
         .find(|(_, n)| n.tag == CONSOLE_TAG_SEARCH_INPUT && n.role == WidgetRole::TextInput)
         .expect("Search input node must exist in tree");
 
     assert_eq!(
-        search_node.style.background_color,
-        Color::rgba(0.08, 0.09, 0.12, 0.98),
-        "Hovered search input must have lifted background"
+        search_node.style.hover_background,
+        Some(Color::rgba(0.08, 0.09, 0.12, 0.98)),
+        "Search input must have declarative hover background"
     );
     assert_eq!(
-        search_node.style.border.color,
-        Color::rgba(0.35, 0.40, 0.52, 0.95),
-        "Hovered search input must have illuminated border"
+        search_node.style.hover_border,
+        Some(irisui::prelude::Border::uniform(
+            1.0,
+            Color::rgba(0.35, 0.40, 0.52, 0.95)
+        )),
+        "Search input must have declarative illuminated hover border"
+    );
+}
+
+#[test]
+fn test_console_toolbar_action_unification() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root creation failed");
+    let panel_rect = Rect::new(0.0, 0.0, 1000.0, 400.0);
+    let params = ConsolePanelParams {
+        panel_rect,
+        entries: &[],
+        scroll_y: 0.0,
+        filter: ConsoleFilterLevel::All,
+        search_query: "existing_query",
+        auto_scroll: true,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        is_scrollbar_dragging: false,
+    };
+
+    build_console_panel(&mut tree, root, &params);
+
+    let get_center = |target_tag: u64| -> Point {
+        let (_, node) = tree
+            .iter()
+            .find(|(_, n)| n.tag == target_tag && n.interactive)
+            .unwrap_or_else(|| panic!("Node with tag {:#x} not found", target_tag));
+        let r = node.computed_rect;
+        Point::new(r.x + r.width * 0.5, r.y + r.height * 0.5)
+    };
+
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_CLEAR)),
+        Some(ConsoleAction::ClearLogs)
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_ALL)),
+        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::All))
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_ERROR)),
+        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Error))
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_WARN)),
+        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Warn))
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_INFO)),
+        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Info))
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_FILTER_DEBUG)),
+        Some(ConsoleAction::SetFilter(ConsoleFilterLevel::Debug))
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_AUTOSCROLL)),
+        Some(ConsoleAction::ToggleAutoScroll)
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_SEARCH_CLEAR)),
+        Some(ConsoleAction::ClearSearch)
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, get_center(CONSOLE_TAG_SEARCH_INPUT)),
+        Some(ConsoleAction::FocusSearch)
+    );
+    assert_eq!(
+        evaluate_console_toolbar_click(&tree, Point::new(9999.0, 9999.0)),
+        None
+    );
+
+    // Also verify handle_console_click delegates identically
+    assert_eq!(
+        handle_console_click(&tree, get_center(CONSOLE_TAG_CLEAR)),
+        Some(ConsoleAction::ClearLogs)
     );
 }

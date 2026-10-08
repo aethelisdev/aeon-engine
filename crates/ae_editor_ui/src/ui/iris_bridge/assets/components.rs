@@ -62,11 +62,7 @@ pub fn resolve_category_icon(category: AssetCategory) -> ([f32; 4], Color) {
 /// Emits a declarative interactive breadcrumb navigation bar showing the active directory hierarchy.
 ///
 /// Emits a cyan folder icon at the root, followed by interactive button segments separated by chevrons.
-pub fn asset_breadcrumb_bar(
-    scope: &mut UiScope<'_>,
-    current_folder: &Path,
-    hovered_tag: Option<u64>,
-) {
+pub fn asset_breadcrumb_bar(scope: &mut UiScope<'_>, current_folder: &Path) {
     scope.container_named(
         "AssetBreadcrumbBar",
         Style::new()
@@ -103,19 +99,6 @@ pub fn asset_breadcrumb_bar(
                 }
 
                 let tag = encode_breadcrumb_tag(i as u8);
-                let is_hovered = hovered_tag == Some(tag);
-
-                let text_color = if is_hovered {
-                    Color::rgba(0.0, 0.90, 1.0, 1.0)
-                } else {
-                    Color::rgba(0.70, 0.74, 0.84, 1.0)
-                };
-
-                let bg_color = if is_hovered {
-                    Color::rgba(0.18, 0.22, 0.30, 0.80)
-                } else {
-                    Color::TRANSPARENT
-                };
 
                 let style = Style::new()
                     .flex_row()
@@ -123,7 +106,8 @@ pub fn asset_breadcrumb_bar(
                     .justify_content(JustifyContent::Center)
                     .padding_insets(Insets::symmetric(0.0, 6.0))
                     .height(22.0)
-                    .background(bg_color)
+                    .background(Color::TRANSPARENT)
+                    .hover_background(Color::rgba(0.18, 0.22, 0.30, 0.80))
                     .border_radius(3.0);
 
                 bar.container_tagged(
@@ -132,14 +116,15 @@ pub fn asset_breadcrumb_bar(
                     WidgetRole::Button,
                     tag,
                     |crumb| {
-                        crumb.label_styled_passive(
+                        let txt_id = crumb.label_styled_passive(
                             "BreadcrumbText",
                             segment,
                             11.5,
-                            text_color,
+                            Color::rgba(0.70, 0.74, 0.84, 1.0),
                             TextAlign::Center,
                             Style::new(),
                         );
+                        crumb.set_hover_text_color(txt_id, Color::rgba(0.0, 0.90, 1.0, 1.0));
                     },
                 );
             }
@@ -173,8 +158,6 @@ pub struct FolderTreeItemParams<'a> {
     pub is_expanded: bool,
     /// Whether this folder is currently selected.
     pub is_selected: bool,
-    /// Currently hovered semantic tag in the UI tree.
-    pub hovered_tag: Option<u64>,
 }
 
 /// Emits an individual directory row in the folder tree sidebar.
@@ -182,25 +165,18 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
     let row_tag = encode_tree_row_tag(params.node_idx);
     let chev_tag = encode_tree_chevron_tag(params.node_idx);
 
-    let is_row_hovered = params.hovered_tag == Some(row_tag);
-    let is_chev_hovered = params.hovered_tag == Some(chev_tag);
-
     let (bg_color, border_color, border_w) = if params.is_selected {
         (
             Color::rgba(0.08, 0.22, 0.32, 0.90),
             Color::rgba(0.0, 0.85, 1.0, 0.80),
             1.0,
         )
-    } else if is_row_hovered {
-        (Color::rgba(0.14, 0.16, 0.22, 0.70), Color::TRANSPARENT, 0.0)
     } else {
         (Color::TRANSPARENT, Color::TRANSPARENT, 0.0)
     };
 
     let text_color = if params.is_selected {
         Color::WHITE
-    } else if is_row_hovered {
-        Color::rgba(0.90, 0.92, 0.96, 1.0)
     } else {
         Color::rgba(0.75, 0.78, 0.85, 1.0)
     };
@@ -211,22 +187,28 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
         Color::rgba(0.95, 0.76, 0.28, 1.0) // Warm folder amber
     };
 
-    let chev_col = if params.is_selected || is_chev_hovered {
+    let chev_col = if params.is_selected {
         Color::rgba(0.0, 0.90, 1.0, 1.0)
     } else {
         Color::rgba(0.60, 0.65, 0.75, 1.0)
     };
 
+    let mut row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(22.0)
+        .margin_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
+        .border_radius(4.0)
+        .border(border_w, border_color)
+        .background(bg_color);
+
+    if !params.is_selected {
+        row_style = row_style.hover_background(Color::rgba(0.14, 0.16, 0.22, 0.70));
+    }
+
     scope.container_tagged(
         "FolderTreeRow",
-        Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .height(22.0)
-            .margin_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
-            .border_radius(4.0)
-            .border(border_w, border_color)
-            .background(bg_color),
+        row_style,
         WidgetRole::Button,
         row_tag,
         |row| {
@@ -250,7 +232,7 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
                     WidgetRole::Button,
                     chev_tag,
                     |c| {
-                        c.label_styled_passive(
+                        let chev_id = c.label_styled_passive(
                             "TreeChevronIcon",
                             chev_icon,
                             11.0,
@@ -258,6 +240,7 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
                             TextAlign::Center,
                             Style::new(),
                         );
+                        c.set_hover_text_color(chev_id, Color::rgba(0.0, 0.90, 1.0, 1.0));
                     },
                 );
             } else {
@@ -273,7 +256,7 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
             row.empty_box_passive_named("TreeFolderGap", Style::new().width(6.0).height(1.0));
 
             // Folder Name Label
-            row.label_styled_passive(
+            let txt_id = row.label_styled_passive(
                 "TreeFolderName",
                 params.name,
                 11.5,
@@ -281,6 +264,9 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
                 TextAlign::Left,
                 Style::new().flex_grow(1.0),
             );
+            if !params.is_selected {
+                row.set_hover_text_color(txt_id, Color::rgba(0.90, 0.92, 0.96, 1.0));
+            }
         },
     );
 }
@@ -295,17 +281,13 @@ pub fn asset_grid_card(
     item: &AssetItem,
     thumbnail_layer: Option<u32>,
     is_selected: bool,
-    hovered_tag: Option<u64>,
     rel_pos: Point,
 ) {
     let tag = encode_item_tag(item_idx);
-    let is_hovered = hovered_tag == Some(tag);
     let cat_color = resolve_category_color(item.category);
 
     let border_color = if is_selected {
         Color::rgba(0.0, 0.90, 1.0, 1.0)
-    } else if is_hovered {
-        cat_color.with_alpha(0.60)
     } else {
         Color::rgba(0.18, 0.20, 0.26, 0.75)
     };
@@ -314,27 +296,33 @@ pub fn asset_grid_card(
 
     let bg_color = if is_selected {
         Color::rgba(0.0, 0.65, 0.85, 0.12)
-    } else if is_hovered {
-        Color::rgba(0.14, 0.16, 0.22, 0.90)
     } else {
         Color::rgba(0.08, 0.09, 0.12, 0.90)
     };
 
+    let mut card_style = Style::new()
+        .position_absolute()
+        .left(rel_pos.x)
+        .top(rel_pos.y)
+        .width(ASSET_CARD_WIDTH)
+        .height(ASSET_CARD_HEIGHT)
+        .flex_col()
+        .align_items(AlignItems::Center)
+        .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0))
+        .background(bg_color)
+        .border(border_w, border_color)
+        .border_radius(6.0)
+        .clip_children(true);
+
+    if !is_selected {
+        card_style = card_style
+            .hover_background(Color::rgba(0.14, 0.16, 0.22, 0.90))
+            .hover_border(1.0, cat_color.with_alpha(0.60));
+    }
+
     scope.container_tagged(
         "AssetGridCard",
-        Style::new()
-            .position_absolute()
-            .left(rel_pos.x)
-            .top(rel_pos.y)
-            .width(ASSET_CARD_WIDTH)
-            .height(ASSET_CARD_HEIGHT)
-            .flex_col()
-            .align_items(AlignItems::Center)
-            .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0))
-            .background(bg_color)
-            .border(border_w, border_color)
-            .border_radius(6.0)
-            .clip_children(true),
+        card_style,
         WidgetRole::Button,
         tag,
         |card| {
@@ -432,42 +420,36 @@ pub fn asset_grid_card(
 }
 
 /// Emits an individual table list row with multi-column metrics and action buttons.
-pub fn asset_list_row(
-    scope: &mut UiScope<'_>,
-    item_idx: u32,
-    item: &AssetItem,
-    is_selected: bool,
-    hovered_tag: Option<u64>,
-) {
+pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, is_selected: bool) {
     let row_tag = encode_item_tag(item_idx);
     let spawn_tag = encode_item_spawn_tag(item_idx);
     let inspect_tag = encode_item_inspect_tag(item_idx);
-
-    let is_row_hovered = hovered_tag == Some(row_tag);
-    let is_spawn_hovered = hovered_tag == Some(spawn_tag);
-    let is_inspect_hovered = hovered_tag == Some(inspect_tag);
 
     let cat_color = resolve_category_color(item.category);
     let (icon_uv, icon_tint) = resolve_category_icon(item.category);
 
     let bg_color = if is_selected {
         Color::rgba(0.0, 0.65, 0.85, 0.14)
-    } else if is_row_hovered {
-        Color::rgba(0.14, 0.16, 0.22, 0.60)
     } else {
         Color::TRANSPARENT
     };
 
+    let mut row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(ASSET_LIST_ROW_HEIGHT)
+        .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+        .margin_insets(Insets::new(0.0, 0.0, 1.0, 0.0))
+        .border_radius(4.0)
+        .background(bg_color);
+
+    if !is_selected {
+        row_style = row_style.hover_background(Color::rgba(0.14, 0.16, 0.22, 0.60));
+    }
+
     scope.container_tagged(
         "AssetListRow",
-        Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .height(ASSET_LIST_ROW_HEIGHT)
-            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-            .margin_insets(Insets::new(0.0, 0.0, 1.0, 0.0))
-            .border_radius(4.0)
-            .background(bg_color),
+        row_style,
         WidgetRole::Button,
         row_tag,
         |row| {
@@ -544,22 +526,20 @@ pub fn asset_list_row(
             );
 
             // Direct Action: Spawn Button ("+ Spawn")
-            let spawn_bg = if is_spawn_hovered {
-                Color::rgba(0.0, 0.70, 0.90, 0.25)
-            } else {
-                Color::rgba(0.12, 0.14, 0.18, 0.80)
-            };
+            let spawn_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .height(20.0)
+                .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
+                .margin_insets(Insets::new(0.0, 4.0, 0.0, 0.0))
+                .border_radius(3.0)
+                .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
+                .hover_background(Color::rgba(0.0, 0.70, 0.90, 0.25));
+
             row.container_tagged(
                 "ListSpawnBtn",
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .height(20.0)
-                    .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-                    .margin_insets(Insets::new(0.0, 4.0, 0.0, 0.0))
-                    .border_radius(3.0)
-                    .background(spawn_bg),
+                spawn_style,
                 WidgetRole::Button,
                 spawn_tag,
                 |btn| {
@@ -577,22 +557,20 @@ pub fn asset_list_row(
             );
 
             // Direct Action: Inspect Button ("Inspect")
-            let inspect_bg = if is_inspect_hovered {
-                Color::rgba(0.25, 0.28, 0.38, 0.60)
-            } else {
-                Color::rgba(0.12, 0.14, 0.18, 0.80)
-            };
+            let inspect_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .height(20.0)
+                .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
+                .margin_insets(Insets::new(0.0, 4.0, 0.0, 0.0))
+                .border_radius(3.0)
+                .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
+                .hover_background(Color::rgba(0.25, 0.28, 0.38, 0.60));
+
             row.container_tagged(
                 "ListInspectBtn",
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .height(20.0)
-                    .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-                    .margin_insets(Insets::new(0.0, 4.0, 0.0, 0.0))
-                    .border_radius(3.0)
-                    .background(inspect_bg),
+                inspect_style,
                 WidgetRole::Button,
                 inspect_tag,
                 |btn| {
@@ -704,7 +682,7 @@ mod tests {
         {
             let mut scope = UiScope::new(&mut tree, root_id);
             // 1. Breadcrumbs
-            asset_breadcrumb_bar(&mut scope, Path::new("assets/models"), None);
+            asset_breadcrumb_bar(&mut scope, Path::new("assets/models"));
 
             // 2. Tree Item
             let tree_params = FolderTreeItemParams {
@@ -714,7 +692,6 @@ mod tests {
                 has_children: true,
                 is_expanded: true,
                 is_selected: false,
-                hovered_tag: None,
             };
             asset_folder_tree_item(&mut scope, &tree_params);
 
@@ -725,12 +702,11 @@ mod tests {
                 &item,
                 Some(32),
                 false,
-                None,
                 Point::new(10.0, 10.0),
             );
 
             // 4. List Row
-            asset_list_row(&mut scope, 0, &item, true, None);
+            asset_list_row(&mut scope, 0, &item, true);
 
             // 5. Empty Notice
             asset_empty_notice(&mut scope, Rect::new(0.0, 0.0, 600.0, 400.0), "search_term");

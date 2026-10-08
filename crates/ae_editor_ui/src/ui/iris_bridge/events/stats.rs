@@ -8,9 +8,7 @@
 //!
 
 use crate::ui::iris_bridge::hierarchy::is_hierarchy_tag;
-use crate::ui::iris_bridge::stats::{
-    STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME, StatsPanelAction, is_stats_tag,
-};
+use crate::ui::iris_bridge::stats::{is_stats_tag, resolve_stats_action};
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
@@ -35,18 +33,10 @@ impl IrisEditorOverlay {
             let click_point = self.cursor_pos();
 
             if let Some(hit) = self.tree.hit_test_target(click_point) {
-                let effective_tag = resolve_ancestor_tag(&self.tree, hit.id);
+                let effective_tag = self.tree.resolve_ancestor_tag(hit.id);
 
-                if effective_tag == STATS_TAG_TOGGLE_WIREFRAME {
-                    self.stats.actions.push(StatsPanelAction::ToggleWireframe);
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                    result.consumed = true;
-                    return Some(result);
-                }
-
-                if effective_tag == STATS_TAG_TOGGLE_GRID {
-                    self.stats.actions.push(StatsPanelAction::ToggleGrid);
+                if let Some(action) = resolve_stats_action(effective_tag) {
+                    self.stats.actions.push(action);
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                     result.consumed = true;
@@ -82,7 +72,7 @@ impl IrisEditorOverlay {
 
         // 1. Stats and Hierarchy Panel Scrolling via hardware hit-test
         if let Some(hit) = self.tree.hit_test_target(cursor) {
-            let effective_tag = resolve_ancestor_tag(&self.tree, hit.id);
+            let effective_tag = self.tree.resolve_ancestor_tag(hit.id);
             if is_stats_tag(effective_tag) {
                 self.stats.scroll_y =
                     (self.stats.scroll_y - delta_y).clamp(0.0, self.stats.max_scroll);
@@ -121,26 +111,4 @@ impl IrisEditorOverlay {
 
         None
     }
-}
-
-/// Traverses up the widget hierarchy starting from `start_id` to locate the first non-zero semantic tag.
-///
-/// Ensures that mouse clicks on inner child elements (e.g. checkmark text or inner checkbox container)
-/// correctly resolve to the composite parent control's semantic tag.
-fn resolve_ancestor_tag(
-    tree: &irisui::prelude::UiTree,
-    start_id: irisui::prelude::WidgetId,
-) -> u64 {
-    let mut curr = Some(start_id);
-    while let Some(id) = curr {
-        if let Some(node) = tree.get(id) {
-            if node.tag != 0 {
-                return node.tag;
-            }
-            curr = node.parent;
-        } else {
-            break;
-        }
-    }
-    0
 }

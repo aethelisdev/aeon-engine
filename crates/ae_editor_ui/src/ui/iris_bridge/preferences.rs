@@ -27,8 +27,8 @@ pub use types::{
     PREF_TAG_DROPDOWN_BASE, PREF_TAG_DROPDOWN_ITEM_BASE, PREF_TAG_SCROLLBAR_THUMB,
     PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_SECTION_BASE, PREF_TAG_TAB_BASE, PREF_TAG_TITLEBAR,
     PREF_TAG_TOGGLE_BASE, PREFERENCES_TAG_DOMAIN, PreferencesAction, PreferencesDialogState,
-    PreferencesDropdownId, PreferencesParams, PreferencesToggleId, encode_dropdown_item_tag,
-    encode_dropdown_tag, encode_section_tag, encode_tab_tag, encode_toggle_tag, is_preferences_tag,
-    parse_dropdown_item_tag, parse_dropdown_tag, parse_section_tag, parse_tab_tag,
-    parse_toggle_tag,
+    PreferencesDropdownId, PreferencesParams, PreferencesTagTarget, PreferencesToggleId,
+    encode_dropdown_item_tag, encode_dropdown_tag, encode_section_tag, encode_tab_tag,
+    encode_toggle_tag, is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag,
+    parse_section_tag, parse_tab_tag, parse_toggle_tag, resolve_preferences_tag,
 };

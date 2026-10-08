@@ -7,11 +7,7 @@
 //! high-level MaterialAction commands.
 //!
 
-use super::types::{
-    MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_ADD_TEXTURE, MATERIAL_TAG_SPRITE_CHANGE,
-    MATERIAL_TAG_SPRITE_REMOVE, MaterialAction, decode_submesh_alpha_tag,
-    decode_submesh_texture_tag,
-};
+use super::types::{MaterialAction, MaterialTagTarget, resolve_material_tag};
 
 /// Hit-tests semantic tags against interactive buttons in the Material Studio.
 pub fn handle_material_click(
@@ -20,43 +16,26 @@ pub fn handle_material_click(
     active_model: Option<ae_renderer::asset::AssetHandle>,
 ) -> Option<MaterialAction> {
     let ent = selected_entity?;
+    let target = resolve_material_tag(hit_tag)?;
 
-    match hit_tag {
-        MATERIAL_TAG_SPRITE_CHANGE => {
-            return Some(MaterialAction::PickAndAssignEntityTexture(ent));
+    match target {
+        MaterialTagTarget::SpriteChange => Some(MaterialAction::PickAndAssignEntityTexture(ent)),
+        MaterialTagTarget::SpriteRemove => Some(MaterialAction::RemoveTextureFromEntity(ent)),
+        MaterialTagTarget::AddTexture => Some(MaterialAction::PickAndAssignEntityTexture(ent)),
+        MaterialTagTarget::AddColor => Some(MaterialAction::AddColorComponent(ent)),
+        MaterialTagTarget::SubmeshAlpha(idx, mode) => {
+            let model_handle = active_model?;
+            Some(MaterialAction::SetModelSubmeshAlphaMode(
+                model_handle,
+                idx,
+                mode,
+            ))
         }
-        MATERIAL_TAG_SPRITE_REMOVE => {
-            return Some(MaterialAction::RemoveTextureFromEntity(ent));
+        MaterialTagTarget::SubmeshTexture(idx) => {
+            let model_handle = active_model?;
+            Some(MaterialAction::PickAndSetSubmeshTexture(model_handle, idx))
         }
-        MATERIAL_TAG_ADD_TEXTURE => {
-            return Some(MaterialAction::PickAndAssignEntityTexture(ent));
-        }
-        MATERIAL_TAG_ADD_COLOR => {
-            return Some(MaterialAction::AddColorComponent(ent));
-        }
-        _ => {}
     }
-
-    // Submesh alpha mode pill buttons
-    if let Some((submesh_idx, mode)) = decode_submesh_alpha_tag(hit_tag) {
-        let model_handle = active_model?;
-        return Some(MaterialAction::SetModelSubmeshAlphaMode(
-            model_handle,
-            submesh_idx,
-            mode,
-        ));
-    }
-
-    // Submesh change texture buttons
-    if let Some(submesh_idx) = decode_submesh_texture_tag(hit_tag) {
-        let model_handle = active_model?;
-        return Some(MaterialAction::PickAndSetSubmeshTexture(
-            model_handle,
-            submesh_idx,
-        ));
-    }
-
-    None
 }
 
 /// Calculates updated vertical scroll offset given a mouse wheel delta and maximum scroll limit.

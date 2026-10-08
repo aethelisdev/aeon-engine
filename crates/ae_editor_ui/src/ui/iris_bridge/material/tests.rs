@@ -298,3 +298,38 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         add_btn.y
     );
 }
+
+#[test]
+fn test_resolve_material_tag_invariants() {
+    assert_eq!(
+        resolve_material_tag(MATERIAL_TAG_SPRITE_CHANGE),
+        Some(MaterialTagTarget::SpriteChange)
+    );
+    assert_eq!(
+        resolve_material_tag(MATERIAL_TAG_SPRITE_REMOVE),
+        Some(MaterialTagTarget::SpriteRemove)
+    );
+    assert_eq!(
+        resolve_material_tag(MATERIAL_TAG_ADD_TEXTURE),
+        Some(MaterialTagTarget::AddTexture)
+    );
+    assert_eq!(
+        resolve_material_tag(MATERIAL_TAG_ADD_COLOR),
+        Some(MaterialTagTarget::AddColor)
+    );
+
+    let alpha_tag = make_submesh_alpha_tag(2, SubmeshAlphaMode::Mask);
+    assert_eq!(
+        resolve_material_tag(alpha_tag),
+        Some(MaterialTagTarget::SubmeshAlpha(2, SubmeshAlphaMode::Mask))
+    );
+
+    let tex_tag = make_submesh_texture_tag(5);
+    assert_eq!(
+        resolve_material_tag(tex_tag),
+        Some(MaterialTagTarget::SubmeshTexture(5))
+    );
+
+    assert_eq!(resolve_material_tag(0), None);
+    assert_eq!(resolve_material_tag(0xFFFF_FFFF), None);
+}

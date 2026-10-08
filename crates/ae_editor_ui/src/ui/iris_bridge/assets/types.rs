@@ -103,6 +103,40 @@ pub const ASSET_PREVIEW_TAG_REVEAL: u64 = 0xF010;
 /// Semantic interaction tag for the asset preview 3D model orbit canvas.
 pub const ASSET_PREVIEW_TAG_ORBIT: u64 = 0xF011;
 
+/// Actions selectable from the Asset Browser right-click context menu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetsContextMenuAction {
+    /// Opens the 3D orbital inspection preview modal for the asset.
+    Inspect,
+    /// Instantiates the asset into the active 3D scene.
+    Spawn,
+    /// Prompts creation of a new subfolder in the directory.
+    NewFolder,
+    /// Opens the inline renaming modal or text prompt.
+    Rename,
+    /// Prompts deletion confirmation for the file or folder.
+    Delete,
+    /// Copies the file system path to the OS clipboard.
+    CopyPath,
+    /// Reveals the file or directory in the native OS desktop file manager.
+    Reveal,
+}
+
+/// Resolves a context menu numeric tag into a typed [`AssetsContextMenuAction`].
+#[inline]
+pub fn resolve_assets_ctx_action(tag: u64) -> Option<AssetsContextMenuAction> {
+    match tag {
+        ASSET_CTX_INSPECT => Some(AssetsContextMenuAction::Inspect),
+        ASSET_CTX_SPAWN => Some(AssetsContextMenuAction::Spawn),
+        ASSET_CTX_NEW_FOLDER => Some(AssetsContextMenuAction::NewFolder),
+        ASSET_CTX_RENAME => Some(AssetsContextMenuAction::Rename),
+        ASSET_CTX_DELETE => Some(AssetsContextMenuAction::Delete),
+        ASSET_CTX_COPY_PATH => Some(AssetsContextMenuAction::CopyPath),
+        ASSET_CTX_REVEAL => Some(AssetsContextMenuAction::Reveal),
+        _ => None,
+    }
+}
+
 // ============================================================================
 // 64-BIT DOMAIN SEMANTIC TAGS & BITMASKING RULES (O(1) HIT TESTING)
 // ============================================================================
@@ -319,6 +353,82 @@ pub fn is_assets_tag(tag: u64) -> bool {
     (tag & ASSETS_TAG_DOMAIN_MASK) == ASSETS_TAG_DOMAIN
 }
 
+/// Target destination or action resolved from an Asset Browser semantic tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetsTagTarget {
+    /// Toggles the folder tree sidebar open/closed.
+    ToggleSidebar,
+    /// Prompts file import dialog.
+    Import,
+    /// Sweeps unreferenced VRAM assets.
+    CleanVram,
+    /// Switches to grid view mode.
+    ViewGrid,
+    /// Switches to tabular list view mode.
+    ViewList,
+    /// Toggles display of built-in engine content.
+    EngineContent,
+    /// Focuses search text input.
+    SearchInput,
+    /// Clears active search text query.
+    SearchClear,
+    /// Opens new subfolder creation dialog.
+    NewSubfolder,
+    /// Reveals folder in OS file explorer.
+    Reveal,
+    /// Asset card or list row target: `(item_idx, action)`.
+    Item(u32, AssetItemAction),
+    /// Folder tree row or chevron target: `(node_idx, is_chevron)`.
+    Tree(u32, bool),
+    /// Breadcrumb navigation item: `segment_idx`.
+    Breadcrumb(u8),
+    /// Category filter chip: `category_idx`.
+    Chip(u8),
+    /// Closes quick asset preview modal.
+    PreviewClose,
+    /// Reveals previewed asset in OS file manager.
+    PreviewReveal,
+    /// Quick asset preview 3D orbit canvas.
+    PreviewOrbit,
+    /// Toggles wireframe view in 3D preview.
+    PreviewWireframe,
+}
+
+/// Resolves a 64-bit semantic tag into a typed [`AssetsTagTarget`].
+#[inline]
+pub fn resolve_assets_tag(tag: u64) -> Option<AssetsTagTarget> {
+    if !is_assets_tag(tag) {
+        return None;
+    }
+    match tag {
+        ASSETS_TAG_TOGGLE_SIDEBAR => Some(AssetsTagTarget::ToggleSidebar),
+        ASSETS_TAG_IMPORT => Some(AssetsTagTarget::Import),
+        ASSETS_TAG_CLEAN_VRAM => Some(AssetsTagTarget::CleanVram),
+        ASSETS_TAG_VIEW_GRID => Some(AssetsTagTarget::ViewGrid),
+        ASSETS_TAG_VIEW_LIST => Some(AssetsTagTarget::ViewList),
+        ASSETS_TAG_ENGINE_CONTENT => Some(AssetsTagTarget::EngineContent),
+        ASSETS_TAG_SEARCH_INPUT => Some(AssetsTagTarget::SearchInput),
+        ASSETS_TAG_SEARCH_CLEAR => Some(AssetsTagTarget::SearchClear),
+        ASSETS_TAG_NEW_SUBFOLDER => Some(AssetsTagTarget::NewSubfolder),
+        ASSETS_TAG_REVEAL => Some(AssetsTagTarget::Reveal),
+        ASSETS_TAG_PREVIEW_CLOSE => Some(AssetsTagTarget::PreviewClose),
+        ASSETS_TAG_PREVIEW_REVEAL_BTN => Some(AssetsTagTarget::PreviewReveal),
+        ASSETS_TAG_PREVIEW_ORBIT_CANVAS => Some(AssetsTagTarget::PreviewOrbit),
+        ASSETS_TAG_PREVIEW_WIREFRAME_BTN => Some(AssetsTagTarget::PreviewWireframe),
+        _ => {
+            if let Some((item_idx, action)) = parse_item_tag(tag) {
+                Some(AssetsTagTarget::Item(item_idx, action))
+            } else if let Some((node_idx, is_chevron)) = parse_tree_tag(tag) {
+                Some(AssetsTagTarget::Tree(node_idx, is_chevron))
+            } else if let Some(segment_idx) = parse_breadcrumb_tag(tag) {
+                Some(AssetsTagTarget::Breadcrumb(segment_idx))
+            } else {
+                parse_chip_tag(tag).map(AssetsTagTarget::Chip)
+            }
+        }
+    }
+}
+
 /// Dynamic runtime state parameters for the 3D Quick Asset Preview orbital camera.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AssetPreviewModalState {
@@ -417,8 +527,6 @@ pub struct AssetsPanelParams<'a> {
     pub active_preview_modal: Option<&'a AssetPreviewModalState>,
     /// Discovered subfolders tree cached in engine asset state.
     pub subfolders: &'a [PathBuf],
-    /// Optional semantic tag currently under the mouse cursor for hover reactivity.
-    pub hovered_tag: Option<u64>,
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
 }
@@ -560,83 +668,5 @@ impl AssetsPanelState {
             self.sync_dirty(params);
         }
         dirty
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_assets_semantic_tags_encoding_roundtrip() {
-        // 1. Domain verification
-        assert!(is_assets_tag(ASSETS_TAG_PANEL_ROOT));
-        assert!(is_assets_tag(ASSETS_TAG_TOGGLE_SIDEBAR));
-        assert!(is_assets_tag(ASSETS_TAG_IMPORT));
-        assert!(is_assets_tag(ASSETS_TAG_VIEW_GRID));
-        assert!(is_assets_tag(ASSETS_TAG_VIEW_LIST));
-        assert!(!is_assets_tag(0x0080_0000_0000_0001)); // Preferences domain
-        assert!(!is_assets_tag(0x0070_0000_0000_0001)); // UI designer domain
-        assert!(!is_assets_tag(0));
-
-        // 2. Category Chips Roundtrip (0..8)
-        for cat_idx in 0..=8 {
-            let tag = encode_chip_tag(cat_idx);
-            assert!(is_assets_tag(tag));
-            assert_eq!(parse_chip_tag(tag), Some(cat_idx));
-        }
-        assert_eq!(parse_chip_tag(ASSETS_TAG_PANEL_ROOT), None);
-
-        // 3. Breadcrumb Navigation Segments Roundtrip (0..255)
-        for seg_idx in [0, 1, 5, 128, 255] {
-            let tag = encode_breadcrumb_tag(seg_idx);
-            assert!(is_assets_tag(tag));
-            assert_eq!(parse_breadcrumb_tag(tag), Some(seg_idx));
-        }
-        assert_eq!(parse_breadcrumb_tag(ASSETS_TAG_PANEL_ROOT), None);
-
-        // 4. Context Menu Actions Roundtrip (0..15)
-        for action_idx in 0..=6 {
-            let tag = encode_ctx_item_tag(action_idx);
-            assert!(is_assets_tag(tag));
-            assert_eq!(parse_ctx_item_tag(tag), Some(action_idx));
-        }
-        assert_eq!(parse_ctx_item_tag(ASSETS_TAG_PANEL_ROOT), None);
-
-        // 5. Folder Tree Rows and Chevrons Roundtrip (0..u32::MAX)
-        for node_idx in [0, 1, 42, 1024, 0x00FF_FFFF] {
-            let row_tag = encode_tree_row_tag(node_idx);
-            let chev_tag = encode_tree_chevron_tag(node_idx);
-            assert!(is_assets_tag(row_tag));
-            assert!(is_assets_tag(chev_tag));
-            assert_eq!(parse_tree_tag(row_tag), Some((node_idx, false)));
-            assert_eq!(parse_tree_tag(chev_tag), Some((node_idx, true)));
-        }
-        assert_eq!(parse_tree_tag(ASSETS_TAG_PANEL_ROOT), None);
-
-        // 6. Asset Items (Select, Spawn, Inspect) Roundtrip
-        for item_idx in [0, 1, 99, 10000, 0x00FF_FFFF] {
-            let select_tag = encode_item_tag(item_idx);
-            let spawn_tag = encode_item_spawn_tag(item_idx);
-            let inspect_tag = encode_item_inspect_tag(item_idx);
-
-            assert!(is_assets_tag(select_tag));
-            assert!(is_assets_tag(spawn_tag));
-            assert!(is_assets_tag(inspect_tag));
-
-            assert_eq!(
-                parse_item_tag(select_tag),
-                Some((item_idx, AssetItemAction::SelectOrOpen))
-            );
-            assert_eq!(
-                parse_item_tag(spawn_tag),
-                Some((item_idx, AssetItemAction::Spawn))
-            );
-            assert_eq!(
-                parse_item_tag(inspect_tag),
-                Some((item_idx, AssetItemAction::Inspect))
-            );
-        }
-        assert_eq!(parse_item_tag(ASSETS_TAG_PANEL_ROOT), None);
     }
 }

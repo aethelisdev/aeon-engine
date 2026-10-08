@@ -35,6 +35,16 @@ pub fn is_stats_tag(tag: u64) -> bool {
     (tag & 0xFFFF_FFFF_0000_0000) == 0x5354_4154_0000_0000
 }
 
+/// Strongly typed semantic action resolver for Stats & Profiler tags.
+#[inline]
+pub fn resolve_stats_action(tag: u64) -> Option<StatsPanelAction> {
+    match tag {
+        STATS_TAG_TOGGLE_WIREFRAME => Some(StatsPanelAction::ToggleWireframe),
+        STATS_TAG_TOGGLE_GRID => Some(StatsPanelAction::ToggleGrid),
+        _ => None,
+    }
+}
+
 /// Actions emitted by the Stats & Profiler panel interactions.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatsPanelAction {
@@ -89,12 +99,8 @@ pub struct StatsPanelParams<'a> {
 /// Persistent interactive state for the Performance Stats & Telemetry panel overlay.
 #[derive(Debug, Clone)]
 pub struct StatsPanelState {
-    /// Pending user interaction actions emitted during events.
-    pub actions: Vec<StatsPanelAction>,
-    /// Vertical scrolling offset in physical pixels.
-    pub scroll_y: f32,
-    /// Last synchronized vertical scrolling offset for in-place scroll synchronization.
-    pub last_scroll_y: f32,
+    /// Common panel interaction state (scroll_y, search, actions).
+    pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
@@ -110,9 +116,7 @@ pub struct StatsPanelState {
 impl Default for StatsPanelState {
     fn default() -> Self {
         Self {
-            actions: Vec::new(),
-            scroll_y: 0.0,
-            last_scroll_y: 0.0,
+            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             max_scroll: 0.0,
             last_rect: None,
             frame_counter: 0,
@@ -125,12 +129,20 @@ impl Default for StatsPanelState {
 /// Semantic alias for [`StatsPanelState`].
 pub type StatsState = StatsPanelState;
 
-impl StatsPanelState {
-    /// Consumes and returns all pending user interaction actions.
-    pub fn take_actions(&mut self) -> Vec<StatsPanelAction> {
-        std::mem::take(&mut self.actions)
+impl std::ops::Deref for StatsPanelState {
+    type Target = crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>;
+    fn deref(&self) -> &Self::Target {
+        &self.interactions
     }
+}
 
+impl std::ops::DerefMut for StatsPanelState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.interactions
+    }
+}
+
+impl StatsPanelState {
     /// Evaluates whether the Performance Stats & Telemetry panel requires an in-place repaint.
     ///
     /// Returns `true` whenever the docked stats panel rectangle is visible.

@@ -347,6 +347,36 @@ impl<'a> UiScope<'a> {
         icon_id
     }
 
+    /// Sets the declarative hover text color on an existing widget node.
+    ///
+    /// When the target node or an enclosing interactive container is hovered,
+    /// the text collector dynamically overrides the foreground color in-place
+    /// without triggering tree invalidation or allocations.
+    ///
+    /// # Arguments
+    /// * `node_id` - Target widget node identifier.
+    /// * `color` - Color applied to text while hovered.
+    pub fn set_hover_text_color(&mut self, node_id: WidgetId, color: Color) {
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_hover_text_color(color);
+        }
+    }
+
+    /// Sets the declarative hover texture tint on an existing widget node.
+    ///
+    /// When the target node or an enclosing interactive container is hovered,
+    /// the tree compiler dynamically overrides the quad texture tint in-place
+    /// without triggering tree invalidation or allocations.
+    ///
+    /// # Arguments
+    /// * `node_id` - Target widget node identifier.
+    /// * `tint` - Color tint applied across texture quads while hovered.
+    pub fn set_hover_texture_tint(&mut self, node_id: WidgetId, tint: Color) {
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_hover_texture_tint(tint);
+        }
+    }
+
     /// Emits a styled telemetry or key-value pill badge.
     ///
     /// # Arguments

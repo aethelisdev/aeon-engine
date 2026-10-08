@@ -62,51 +62,51 @@ pub fn build_category_chips_scope(
                 let chip_text = format!("{} ({})", label, count);
                 let tag = encode_chip_tag(idx as u8);
                 let is_selected = params.active_category == cat;
-                let is_hovered = params.hovered_tag == Some(tag);
-
                 let cat_color = super::cards::resolve_category_color(cat);
                 let border_color = if is_selected {
                     cat_color
-                } else if is_hovered {
-                    Color::rgba(0.28, 0.32, 0.42, 0.70)
                 } else {
                     Color::rgba(0.16, 0.18, 0.24, 0.40)
                 };
 
                 let bg_color = if is_selected {
                     Color::rgba(0.12, 0.16, 0.22, 0.95)
-                } else if is_hovered {
-                    Color::rgba(0.10, 0.12, 0.16, 0.80)
                 } else {
                     Color::rgba(0.08, 0.09, 0.11, 0.60)
                 };
 
                 let text_color = if is_selected {
                     Color::WHITE
-                } else if is_hovered {
-                    Color::rgba(0.90, 0.93, 0.98, 1.0)
                 } else {
                     Color::rgba(0.65, 0.69, 0.78, 1.0)
                 };
 
                 let chip_w = (chip_text.len() as f32 * 6.8 + 16.0).max(54.0);
 
+                let mut chip_style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center)
+                    .width(chip_w)
+                    .height(22.0)
+                    .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+                    .border_radius(4.0)
+                    .border(1.0, border_color)
+                    .background(bg_color);
+
+                if !is_selected {
+                    chip_style = chip_style
+                        .hover_background(Color::rgba(0.10, 0.12, 0.16, 0.80))
+                        .hover_border(1.0, Color::rgba(0.28, 0.32, 0.42, 0.70));
+                }
+
                 row.container_tagged(
                     "CategoryChip",
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center)
-                        .width(chip_w)
-                        .height(22.0)
-                        .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-                        .border_radius(4.0)
-                        .border(1.0, border_color)
-                        .background(bg_color),
+                    chip_style,
                     WidgetRole::Button,
                     tag,
                     |chip| {
-                        chip.label_styled_passive(
+                        let txt_id = chip.label_styled_passive(
                             "CategoryChipText",
                             &chip_text,
                             11.0,
@@ -114,6 +114,9 @@ pub fn build_category_chips_scope(
                             TextAlign::Center,
                             Style::new().width(chip_w - 16.0),
                         );
+                        if !is_selected {
+                            chip.set_hover_text_color(txt_id, Color::rgba(0.90, 0.93, 0.98, 1.0));
+                        }
                     },
                 );
             }

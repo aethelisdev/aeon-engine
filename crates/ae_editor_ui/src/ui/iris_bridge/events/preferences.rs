@@ -5,10 +5,8 @@
 //! using 100% declarative semantic tags and O(1) hit testing.
 
 use super::super::preferences::{
-    PREF_CARD_HEIGHT, PREF_CARD_WIDTH, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW,
-    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesAction,
-    TITLEBAR_HEIGHT, is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag,
-    parse_section_tag, parse_tab_tag, parse_toggle_tag,
+    PREF_CARD_HEIGHT, PREF_CARD_WIDTH, PreferencesAction, PreferencesTagTarget, TITLEBAR_HEIGHT,
+    is_preferences_tag, parse_dropdown_item_tag, resolve_preferences_tag,
 };
 use super::super::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
@@ -338,121 +336,109 @@ impl IrisEditorOverlay {
 
                 // Semantic Tag Hit Routing
                 if let Some(ref hit) = hit_target
-                    && is_preferences_tag(hit.tag)
+                    && let Some(target) = resolve_preferences_tag(hit.tag)
                 {
-                    let tag = hit.tag;
-
-                    // Close button
-                    if tag == PREF_TAG_CLOSE {
-                        result.close_preferences = true;
-                        self.preferences.drag_offset = None;
-                        self.preferences.dropdown = None;
-                        self.preferences.dropdown_trigger_rect = None;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // Titlebar drag start
-                    if tag == PREF_TAG_TITLEBAR {
-                        self.preferences.drag_offset = Some(Point::new(
-                            click_point.x - card_rect.x,
-                            click_point.y - card_rect.y,
-                        ));
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // Sidebar Tab Selection
-                    if let Some(tab_idx) = parse_tab_tag(tag) {
-                        self.preferences.tab = tab_idx;
-                        self.preferences.dropdown = None;
-                        self.preferences.dropdown_trigger_rect = None;
-                        self.preferences.scroll_y = 0.0;
-                        self.preferences.active_scrollbar_drag = None;
-                        self.notifier.tag_all();
-                        result.preferences_action = Some(PreferencesAction::SelectTab(tab_idx));
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // Scrollbar Thumb Drag
-                    if tag == PREF_TAG_SCROLLBAR_THUMB {
-                        self.preferences.active_scrollbar_drag =
-                            Some((click_point.y, self.preferences.scroll_y));
-                        self.chrome.needs_scroll_sync = true;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // Scrollbar Track Click
-                    if tag == PREF_TAG_SCROLLBAR_TRACK {
-                        let content_rect = self.preferences.content_rect.unwrap_or_default();
-                        let total_h = content_rect.height + self.preferences.max_scroll_y;
-                        let style = ScrollAreaStyle {
-                            thickness: 6.0,
-                            inset: 3.0,
-                            ..ScrollAreaStyle::dark_default()
-                        };
-                        if let Some(geom) = ScrollBarGeometry::compute_vertical(
-                            content_rect,
-                            total_h,
-                            self.preferences.scroll_y,
-                            &style,
-                        ) {
-                            let new_scroll = ScrollBarGeometry::scroll_from_track_click(
-                                click_point.y,
-                                geom.track_rect.y,
-                                geom.track_rect.height,
-                                geom.thumb_rect.height,
-                                self.preferences.max_scroll_y,
-                            );
-                            self.preferences.scroll_y =
-                                new_scroll.clamp(0.0, self.preferences.max_scroll_y);
+                    match target {
+                        PreferencesTagTarget::Close => {
+                            result.close_preferences = true;
+                            self.preferences.drag_offset = None;
+                            self.preferences.dropdown = None;
+                            self.preferences.dropdown_trigger_rect = None;
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        PreferencesTagTarget::Titlebar => {
+                            self.preferences.drag_offset = Some(Point::new(
+                                click_point.x - card_rect.x,
+                                click_point.y - card_rect.y,
+                            ));
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        PreferencesTagTarget::Tab(tab_idx) => {
+                            self.preferences.tab = tab_idx;
+                            self.preferences.dropdown = None;
+                            self.preferences.dropdown_trigger_rect = None;
+                            self.preferences.scroll_y = 0.0;
+                            self.preferences.active_scrollbar_drag = None;
+                            self.notifier.tag_all();
+                            result.preferences_action = Some(PreferencesAction::SelectTab(tab_idx));
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        PreferencesTagTarget::ScrollbarThumb => {
                             self.preferences.active_scrollbar_drag =
                                 Some((click_point.y, self.preferences.scroll_y));
                             self.chrome.needs_scroll_sync = true;
                             result.consumed = true;
                             return Some(result);
                         }
-                    }
-
-                    // Collapsible Section Toggle
-                    if let Some(sec_id) = parse_section_tag(tag) {
-                        if self.preferences.collapsed_sections.contains(sec_id) {
-                            self.preferences.collapsed_sections.remove(sec_id);
-                        } else {
-                            self.preferences.collapsed_sections.insert(sec_id);
+                        PreferencesTagTarget::ScrollbarTrack => {
+                            let content_rect = self.preferences.content_rect.unwrap_or_default();
+                            let total_h = content_rect.height + self.preferences.max_scroll_y;
+                            let style = ScrollAreaStyle {
+                                thickness: 6.0,
+                                inset: 3.0,
+                                ..ScrollAreaStyle::dark_default()
+                            };
+                            if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                                content_rect,
+                                total_h,
+                                self.preferences.scroll_y,
+                                &style,
+                            ) {
+                                let new_scroll = ScrollBarGeometry::scroll_from_track_click(
+                                    click_point.y,
+                                    geom.track_rect.y,
+                                    geom.track_rect.height,
+                                    geom.thumb_rect.height,
+                                    self.preferences.max_scroll_y,
+                                );
+                                self.preferences.scroll_y =
+                                    new_scroll.clamp(0.0, self.preferences.max_scroll_y);
+                                self.preferences.active_scrollbar_drag =
+                                    Some((click_point.y, self.preferences.scroll_y));
+                                self.chrome.needs_scroll_sync = true;
+                                result.consumed = true;
+                                return Some(result);
+                            }
                         }
-                        result.preferences_action = Some(PreferencesAction::ToggleSection(sec_id));
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // ComboBox Trigger
-                    if let Some(dd_id) = parse_dropdown_tag(tag) {
-                        if self.preferences.dropdown == Some(dd_id) {
-                            self.preferences.dropdown = None;
-                            self.preferences.dropdown_trigger_rect = None;
-                        } else {
-                            self.preferences.dropdown = Some(dd_id);
-                            self.preferences.dropdown_trigger_rect = Some(hit.rect);
+                        PreferencesTagTarget::Section(sec_id) => {
+                            if self.preferences.collapsed_sections.contains(sec_id) {
+                                self.preferences.collapsed_sections.remove(sec_id);
+                            } else {
+                                self.preferences.collapsed_sections.insert(sec_id);
+                            }
+                            result.preferences_action =
+                                Some(PreferencesAction::ToggleSection(sec_id));
+                            result.consumed = true;
+                            return Some(result);
                         }
-                        result.consumed = true;
-                        return Some(result);
+                        PreferencesTagTarget::Dropdown(dd_id) => {
+                            if self.preferences.dropdown == Some(dd_id) {
+                                self.preferences.dropdown = None;
+                                self.preferences.dropdown_trigger_rect = None;
+                            } else {
+                                self.preferences.dropdown = Some(dd_id);
+                                self.preferences.dropdown_trigger_rect = Some(hit.rect);
+                            }
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        PreferencesTagTarget::Toggle(toggle_id) => {
+                            result.preferences_action = Some(PreferencesAction::Toggle(toggle_id));
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        PreferencesTagTarget::DropdownItem(_) => {}
                     }
+                }
 
-                    // Toggle Switch / Checkbox
-                    if let Some(toggle_id) = parse_toggle_tag(tag) {
-                        result.preferences_action = Some(PreferencesAction::Toggle(toggle_id));
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
-                    // Background card / content view click absorption
-                    if tag == PREF_TAG_CARD || tag == PREF_TAG_CONTENT_VIEW {
-                        result.consumed = true;
-                        return Some(result);
-                    }
+                if let Some(ref hit) = hit_target
+                    && is_preferences_tag(hit.tag)
+                {
+                    result.consumed = true;
+                    return Some(result);
                 }
 
                 // If click is inside card rect, consume it so it doesn't pass through to canvas
