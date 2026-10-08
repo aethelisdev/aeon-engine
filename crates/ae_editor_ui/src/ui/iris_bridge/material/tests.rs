@@ -43,7 +43,6 @@ fn test_material_panel_build_empty_state() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 0.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };
@@ -72,7 +71,6 @@ fn test_material_panel_build_no_geometry() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 0.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };
@@ -104,7 +102,6 @@ fn test_material_panel_build_sprite_view() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 0.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };
@@ -200,7 +197,6 @@ fn test_material_panel_does_not_mutate_parent_rect() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 0.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };
@@ -236,7 +232,6 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 0.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };
@@ -258,7 +253,6 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 50.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };
@@ -283,7 +277,6 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
         scroll_y: 0.0,
-        hovered_tag: None,
         events: &[],
         is_scrollbar_dragging: false,
     };

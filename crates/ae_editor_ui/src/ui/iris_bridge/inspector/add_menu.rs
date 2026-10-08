@@ -205,7 +205,7 @@ pub fn build_add_component_menu(
     let menu_x = anchor_rect.x;
     let menu_y = (anchor_rect.y - menu_h - 4.0).max(params.panel_rect.y + 10.0);
 
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    let mut scope = UiScope::new(tree, parent_id);
     scope.dropdown_menu_card_named("AddComponentMenu", menu_x, menu_y, menu_w, |card| {
         for item in &menu_items {
             let icon_str = match &item.icon {
@@ -283,7 +283,6 @@ mod tests {
             active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
             blink_caret: false,
-            hovered_tag: None,
         };
 
         build_add_component_menu(&mut tree, root, &params);

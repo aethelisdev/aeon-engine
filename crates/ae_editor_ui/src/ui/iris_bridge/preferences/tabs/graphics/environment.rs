@@ -17,7 +17,6 @@ use irisui::prelude::*;
 /// directly to `gs` via immediate two-way property primitives without intermediary enum queues.
 pub fn build_environment_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_env");
-    let hovered_tag = params.hovered_tag;
     let active_dropdown = params.active_dropdown;
     let gs = &mut *params.graphics_settings;
     let is_advanced_sky = gs.sky_quality != SkyQuality::Low;
@@ -27,7 +26,6 @@ pub fn build_environment_card(scope: &mut UiScope<'_>, params: &mut PreferencesP
         "graphics_env",
         "⛅  Environment & Sky",
         is_collapsed,
-        hovered_tag,
         |body| {
             pref_dropdown_row(
                 body,
@@ -35,7 +33,6 @@ pub fn build_environment_card(scope: &mut UiScope<'_>, params: &mut PreferencesP
                 "Sky Quality",
                 gs.sky_quality.label(),
                 active_dropdown == Some(PreferencesDropdownId::SkyQuality),
-                hovered_tag,
             );
 
             let mut sun_pitch_deg = gs.sun_pitch.to_degrees();

@@ -43,7 +43,6 @@ fn test_ui_designer_panel_build() {
         state: &state,
         is_aspect_dropdown_open: false,
         is_add_menu_open: false,
-        hovered_tag: None,
     };
 
     let mut contexts = Vec::new();
@@ -123,7 +122,6 @@ fn test_ui_designer_canvas_projection() {
         state: &state,
         is_aspect_dropdown_open: false,
         is_add_menu_open: false,
-        hovered_tag: None,
     };
 
     let mut contexts = Vec::new();
@@ -162,7 +160,6 @@ fn test_ui_designer_click_hit_testing() {
         state: &state,
         is_aspect_dropdown_open: false,
         is_add_menu_open: false,
-        hovered_tag: None,
     };
 
     let mut contexts = Vec::new();
@@ -333,7 +330,6 @@ fn test_ui_designer_toolbar_tags() {
         state: &state,
         is_aspect_dropdown_open: false,
         is_add_menu_open: false,
-        hovered_tag: None,
     };
 
     let mut contexts = Vec::new();
@@ -400,7 +396,6 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
         state: &state,
         is_aspect_dropdown_open: false,
         is_add_menu_open: true,
-        hovered_tag: None,
     };
     let metrics = build_ui_designer_panel(&mut tree, root, &params_selected, &mut contexts);
 
@@ -473,7 +468,6 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
         state: &state,
         is_aspect_dropdown_open: false,
         is_add_menu_open: true,
-        hovered_tag: Some(target_tag),
     };
 
     let mut contexts = Vec::new();
@@ -486,9 +480,9 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
         .expect("Dropdown item with target tag must exist");
 
     assert_eq!(
-        item_node.style.background_color,
-        Color::hex("#222634"),
-        "Hovered dropdown item must have obsidian hover background"
+        item_node.style.hover_background,
+        Some(Color::hex("#222634")),
+        "Dropdown item must have obsidian hover background"
     );
 
     // Verify click on hovered dropdown item produces SpawnElement action

@@ -618,8 +618,6 @@ pub struct InspectorPanelParams<'a> {
     pub inspector_hsv: [f32; 3],
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Currently hovered widget semantic tag for real-time hover styling.
-    pub hovered_tag: Option<u64>,
 }
 
 /// Active horizontal mouse drag state for interactive Inspector numeric inputs.

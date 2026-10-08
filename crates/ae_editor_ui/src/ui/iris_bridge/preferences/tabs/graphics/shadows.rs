@@ -16,7 +16,6 @@ use irisui::prelude::*;
 /// eliminating intermediary action queues and enum dispatch boilerplate.
 pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_shadows");
-    let hovered_tag = params.hovered_tag;
     let active_dropdown = params.active_dropdown;
     let gs = &mut *params.graphics_settings;
 
@@ -25,7 +24,6 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
         "graphics_shadows",
         "🌓  Shadows",
         is_collapsed,
-        hovered_tag,
         |body| {
             body.property_checkbox("Enable Directional Shadows", &mut gs.shadow_enabled);
 
@@ -36,7 +34,6 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
                     "Resolution",
                     gs.shadow_resolution.label(),
                     active_dropdown == Some(PreferencesDropdownId::ShadowResolution),
-                    hovered_tag,
                 );
 
                 let cascade_str = match gs.shadow_cascades {
@@ -49,7 +46,6 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
                     "Cascade Count",
                     cascade_str,
                     active_dropdown == Some(PreferencesDropdownId::ShadowCascades),
-                    hovered_tag,
                 );
 
                 pref_dropdown_row(
@@ -58,7 +54,6 @@ pub fn build_shadows_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
                     "Filtering (PCF)",
                     gs.shadow_pcf.label(),
                     active_dropdown == Some(PreferencesDropdownId::ShadowPcf),
-                    hovered_tag,
                 );
 
                 body.property_slider("Depth Bias", &mut gs.shadow_bias, 0.0001, 0.05, 0.0005);

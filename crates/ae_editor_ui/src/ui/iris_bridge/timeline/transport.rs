@@ -291,7 +291,6 @@ mod tests {
             cursor_pos: Point::new(10.0, 10.0),
             is_dragging_scrubber: false,
             events: &[],
-            hovered_tag: None,
         };
 
         {
@@ -360,7 +359,6 @@ mod tests {
             cursor_pos: Point::new(10.0, 10.0),
             is_dragging_scrubber: false,
             events: &[],
-            hovered_tag: None,
         };
 
         {

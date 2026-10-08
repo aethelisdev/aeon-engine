@@ -204,7 +204,6 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         blink_caret: false,
         active_number_input: None,
         cursor_pos: Point::new(0.0, 0.0),
-        hovered_tag: None,
         zoom_factor: 1.0,
         graphics_settings: &mut graphics_settings,
         snapping_settings: &mut snapping_settings,

@@ -27,21 +27,12 @@ pub fn build_inspector_footer(
     let footer_h = 24.0;
     let btn_gap = 8.0;
 
-    let is_add_hovered = params.hovered_tag == Some(TAG_INSPECTOR_ADD_COMPONENT);
-    let is_save_hovered = params.hovered_tag == Some(TAG_INSPECTOR_SAVE_PREFAB);
-
     let (add_bg, add_border, add_text_col) = if params.is_add_menu_open {
         (
             Color::rgba(0.118, 0.125, 0.145, 1.0),
             Color::rgba(0.353, 0.376, 0.439, 0.95),
             Color::WHITE,
         )
-    } else if is_add_hovered {
-        (
-            Color::rgba(0.200, 0.208, 0.235, 1.0),
-            Color::rgba(0.271, 0.282, 0.329, 0.95),
-            Color::WHITE,
-        )
     } else {
         (
             Color::rgba(0.157, 0.165, 0.188, 0.98),
@@ -50,19 +41,11 @@ pub fn build_inspector_footer(
         )
     };
 
-    let (save_bg, save_border, save_text_col) = if is_save_hovered {
-        (
-            Color::rgba(0.200, 0.208, 0.235, 1.0),
-            Color::rgba(0.271, 0.282, 0.329, 0.95),
-            Color::WHITE,
-        )
-    } else {
-        (
-            Color::rgba(0.157, 0.165, 0.188, 0.98),
-            Color::rgba(0.212, 0.220, 0.259, 0.85),
-            Color::rgba(0.886, 0.894, 0.918, 1.0),
-        )
-    };
+    let (save_bg, save_border, save_text_col) = (
+        Color::rgba(0.157, 0.165, 0.188, 0.98),
+        Color::rgba(0.212, 0.220, 0.259, 0.85),
+        Color::rgba(0.886, 0.894, 0.918, 1.0),
+    );
 
     let row_style = Style::new()
         .flex_row()
@@ -76,7 +59,7 @@ pub fn build_inspector_footer(
 
     scope.container_named("InspectorFooter", row_style, |row| {
         // 1. `➕ Add Component` Button
-        let add_btn_style = Style::new()
+        let mut add_btn_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
@@ -88,25 +71,37 @@ pub fn build_inspector_footer(
             .border(1.0, add_border)
             .border_radius(5.0);
 
+        if !params.is_add_menu_open {
+            add_btn_style = add_btn_style
+                .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
+                .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95));
+        }
+
         add_comp_btn_id = row.container_tagged(
             "AddComponentBtn",
             add_btn_style,
             WidgetRole::Button,
             TAG_INSPECTOR_ADD_COMPONENT,
             |btn| {
-                btn.icon_named(
+                let icon_id = btn.icon_named(
                     "AddComponentPlusIcon",
                     crate::ui::iris_bridge::icons::ICON_PLUS,
                     add_text_col,
                     11.0,
                 );
-                btn.label_styled_passive_wrapped(
+                if !params.is_add_menu_open {
+                    btn.set_hover_texture_tint(icon_id, Color::WHITE);
+                }
+                let txt_id = btn.label_styled_passive_wrapped(
                     "AddComponentBtnText",
                     "Add Component",
                     WrappedLabelDescriptor::new(11.0, add_text_col, Style::new().height(footer_h))
                         .align(TextAlign::Left)
                         .wrap(TextWrap::None),
                 );
+                if !params.is_add_menu_open {
+                    btn.set_hover_text_color(txt_id, Color::WHITE);
+                }
             },
         );
 
@@ -119,6 +114,8 @@ pub fn build_inspector_footer(
             .height(footer_h)
             .background(save_bg)
             .border(1.0, save_border)
+            .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
+            .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95))
             .border_radius(5.0);
 
         save_prefab_btn_id = row.container_tagged(
@@ -127,13 +124,14 @@ pub fn build_inspector_footer(
             WidgetRole::Button,
             TAG_INSPECTOR_SAVE_PREFAB,
             |btn| {
-                btn.label_styled_passive_wrapped(
+                let txt_id = btn.label_styled_passive_wrapped(
                     "SavePrefabBtnText",
                     "💾 Save as Prefab",
                     WrappedLabelDescriptor::new(11.0, save_text_col, Style::new().height(footer_h))
                         .align(TextAlign::Center)
                         .wrap(TextWrap::None),
                 );
+                btn.set_hover_text_color(txt_id, Color::WHITE);
             },
         );
     });
@@ -176,7 +174,6 @@ mod tests {
             active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
             blink_caret: false,
-            hovered_tag: Some(TAG_INSPECTOR_ADD_COMPONENT),
         };
 
         let mut scope = UiScope::new(&mut tree, root);
@@ -201,10 +198,14 @@ mod tests {
         assert!(save_btn.computed_rect.width > 100.0);
         assert_eq!(save_btn.computed_rect.height, 24.0);
 
-        // Verify button colors reflected hover state
+        // Verify button declarative hover state
         assert_eq!(
-            add_btn.style.background_color,
-            Color::rgba(0.200, 0.208, 0.235, 1.0)
+            add_btn.style.hover_background,
+            Some(Color::rgba(0.200, 0.208, 0.235, 1.0))
+        );
+        assert_eq!(
+            save_btn.style.hover_background,
+            Some(Color::rgba(0.200, 0.208, 0.235, 1.0))
         );
     }
 }

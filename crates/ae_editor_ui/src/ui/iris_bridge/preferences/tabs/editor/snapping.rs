@@ -23,7 +23,6 @@ pub const SNAP_MODE_OPTIONS: [(&str, SnapMode); 3] = [
 /// Binds grid size directly to `snapping.grid_size` via immediate two-way property primitives.
 pub fn build_snapping_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("editor_snapping");
-    let hovered_tag = params.hovered_tag;
     let active_dropdown = params.active_dropdown;
     let snapping = &mut *params.snapping_settings;
 
@@ -40,7 +39,6 @@ pub fn build_snapping_card(scope: &mut UiScope<'_>, params: &mut PreferencesPara
         "editor_snapping",
         "🧲  Snapping",
         is_collapsed,
-        hovered_tag,
         |body| {
             pref_dropdown_row(
                 body,
@@ -48,7 +46,6 @@ pub fn build_snapping_card(scope: &mut UiScope<'_>, params: &mut PreferencesPara
                 "Snap Mode",
                 snap_mode_label,
                 is_dropdown_active,
-                hovered_tag,
             );
 
             let opts = PropertySliderOptions::new(0.1, 10.0, 0.05)

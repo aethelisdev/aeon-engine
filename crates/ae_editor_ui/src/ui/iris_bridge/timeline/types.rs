@@ -278,8 +278,6 @@ pub struct TimelinePanelParams<'a> {
     pub is_dragging_scrubber: bool,
     /// Tagged interaction events emitted during this frame for declarative widgets.
     pub events: &'a [(u64, InteractionEvent)],
-    /// Currently hovered widget persistent tag, if any.
-    pub hovered_tag: Option<u64>,
 }
 
 /// User interaction actions dispatched by the Animation Timeline Studio panel.

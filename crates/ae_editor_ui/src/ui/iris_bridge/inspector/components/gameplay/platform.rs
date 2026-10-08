@@ -137,7 +137,6 @@ mod tests {
             active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
             blink_caret: false,
-            hovered_tag: None,
         };
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);

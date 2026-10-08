@@ -141,8 +141,6 @@ pub struct MaterialPanelParams<'a> {
     pub scroll_y: f32,
     /// Tagged interaction events emitted during this frame for declarative widgets.
     pub events: &'a [(u64, InteractionEvent)],
-    /// Currently hovered widget tag, if any.
-    pub hovered_tag: Option<u64>,
     /// Whether the scrollbar thumb is currently being dragged by the mouse.
     pub is_scrollbar_dragging: bool,
 }

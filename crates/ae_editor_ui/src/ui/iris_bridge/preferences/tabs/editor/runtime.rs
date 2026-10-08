@@ -23,14 +23,12 @@ pub fn build_runtime_card(
         "editor_runtime",
         "⚙  Runtime Settings",
         is_collapsed,
-        params.hovered_tag,
         |body| {
             pref_toggle_row(
                 body,
                 PreferencesToggleId::LiveUpdatesEnabled,
                 "Enable Live Editor Updates (Hot Reload)",
                 enable_live_updates,
-                params.hovered_tag,
             );
         },
     );

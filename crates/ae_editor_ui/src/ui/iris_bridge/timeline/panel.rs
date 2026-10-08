@@ -29,8 +29,7 @@ pub fn build_timeline_panel(
 ) -> f32 {
     let mut resolved_duration = 0.0;
 
-    let mut scope =
-        UiScope::with_tagged_interactions(tree, parent_id, params.events, params.hovered_tag);
+    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, params.events, None);
 
     let root_style = Style::new()
         .position_absolute()

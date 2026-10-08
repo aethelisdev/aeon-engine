@@ -374,7 +374,6 @@ impl IrisEditorOverlay {
         // 6b. If Preferences dialogue is active, build its floating card
         if params.dialogs.show_preferences {
             let blink_caret = (self.start_time.elapsed().as_millis() % 1060) < 530;
-            let hovered_tag = self.tree.hit_test_target(cursor).map(|h| h.tag);
             let caret_buf;
             let active_number_input =
                 if let Some((t, ref s, is_all_selected)) = self.preferences.active_number_input {
@@ -403,7 +402,6 @@ impl IrisEditorOverlay {
                     active_number_input,
                     blink_caret,
                     cursor_pos: cursor,
-                    hovered_tag,
                     zoom_factor: params.context.zoom_factor,
                     graphics_settings: params.preferences.graphics_settings,
                     snapping_settings: params.preferences.snapping_settings,

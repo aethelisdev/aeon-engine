@@ -45,13 +45,11 @@ pub fn pref_section_card<F>(
     sec_id: &'static str,
     title: &'static str,
     is_collapsed: bool,
-    hovered_tag: Option<u64>,
     content: F,
 ) where
     F: FnOnce(&mut UiScope<'_>),
 {
     let tag = encode_section_tag(sec_id);
-    let is_header_hovered = hovered_tag == Some(tag);
 
     scope.container_named(
         "PrefSectionCard",
@@ -63,12 +61,6 @@ pub fn pref_section_card<F>(
             .margin_insets(Insets::new(0.0, 0.0, 14.0, 0.0)),
         |card| {
             // Section Header Bar
-            let header_bg = if is_header_hovered {
-                Color::rgba(0.16, 0.18, 0.24, 0.90)
-            } else {
-                Color::rgba(0.12, 0.13, 0.17, 0.85)
-            };
-
             card.container_tagged(
                 "PrefSectionHeader",
                 Style::new()
@@ -76,7 +68,8 @@ pub fn pref_section_card<F>(
                     .align_items(AlignItems::Center)
                     .height(34.0)
                     .padding_insets(Insets::new(0.0, 12.0, 0.0, 12.0))
-                    .background(header_bg)
+                    .background(Color::rgba(0.12, 0.13, 0.17, 0.85))
+                    .hover_background(Color::rgba(0.16, 0.18, 0.24, 0.90))
                     .border_radius(5.0),
                 WidgetRole::Button,
                 tag,
@@ -90,7 +83,7 @@ pub fn pref_section_card<F>(
                         TextAlign::Left,
                         Style::new().margin_insets(Insets::new(0.0, 8.0, 0.0, 0.0)),
                     );
-                    hdr.label_styled_passive(
+                    let title_id = hdr.label_styled_passive(
                         "PrefSectionTitle",
                         title,
                         12.5,
@@ -98,6 +91,7 @@ pub fn pref_section_card<F>(
                         TextAlign::Left,
                         Style::new().flex_grow(1.0),
                     );
+                    hdr.set_hover_text_color(title_id, Color::WHITE);
                 },
             );
 
@@ -122,10 +116,8 @@ pub fn pref_toggle_row(
     toggle_id: PreferencesToggleId,
     label: &'static str,
     is_checked: bool,
-    hovered_tag: Option<u64>,
 ) {
     let tag = encode_toggle_tag(toggle_id);
-    let is_hovered = hovered_tag == Some(tag);
 
     scope.container_tagged(
         "PrefToggleRow",
@@ -136,19 +128,14 @@ pub fn pref_toggle_row(
             .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
             .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
             .border_radius(4.0)
-            .background(if is_hovered {
-                Color::rgba(0.18, 0.20, 0.28, 0.40)
-            } else {
-                Color::TRANSPARENT
-            }),
+            .background(Color::TRANSPARENT)
+            .hover_background(Color::rgba(0.18, 0.20, 0.28, 0.40)),
         WidgetRole::Checkbox,
         tag,
         |row| {
             // Checkbox visual indicator box
             let box_bg = if is_checked {
                 Color::rgba(0.0, 0.70, 0.85, 1.0)
-            } else if is_hovered {
-                Color::rgba(0.18, 0.20, 0.28, 1.0)
             } else {
                 Color::rgba(0.11, 0.12, 0.16, 1.0)
             };
@@ -179,18 +166,15 @@ pub fn pref_toggle_row(
             );
 
             // Label text
-            row.label_styled_passive(
+            let label_id = row.label_styled_passive(
                 "PrefToggleLabel",
                 label,
                 11.5,
-                if is_hovered {
-                    Color::rgba(1.0, 1.0, 1.0, 1.0)
-                } else {
-                    Color::rgba(0.80, 0.83, 0.90, 1.0)
-                },
+                Color::rgba(0.80, 0.83, 0.90, 1.0),
                 TextAlign::Left,
                 Style::new().flex_grow(1.0),
             );
+            row.set_hover_text_color(label_id, Color::WHITE);
         },
     );
 }
@@ -202,10 +186,8 @@ pub fn pref_dropdown_row(
     label: &'static str,
     current_label: &str,
     is_open: bool,
-    hovered_tag: Option<u64>,
 ) {
     let tag = encode_dropdown_tag(dropdown_id);
-    let is_hovered = hovered_tag == Some(tag);
 
     scope.container_named(
         "PrefDropdownRow",
@@ -226,18 +208,28 @@ pub fn pref_dropdown_row(
             );
 
             // ComboBox Trigger Button
-            let btn_bg = if is_open {
-                Color::rgba(0.18, 0.22, 0.32, 0.95)
-            } else if is_hovered {
-                Color::rgba(0.16, 0.18, 0.24, 0.90)
+            let (btn_bg, hover_bg) = if is_open {
+                (
+                    Color::rgba(0.18, 0.22, 0.32, 0.95),
+                    Color::rgba(0.18, 0.22, 0.32, 0.95),
+                )
             } else {
-                Color::rgba(0.12, 0.13, 0.17, 0.85)
+                (
+                    Color::rgba(0.12, 0.13, 0.17, 0.85),
+                    Color::rgba(0.16, 0.18, 0.24, 0.90),
+                )
             };
 
-            let border_color = if is_open {
-                Color::rgba(0.0, 0.75, 1.0, 0.90)
+            let (border_color, hover_border_color) = if is_open {
+                (
+                    Color::rgba(0.0, 0.75, 1.0, 0.90),
+                    Color::rgba(0.0, 0.75, 1.0, 0.90),
+                )
             } else {
-                Color::rgba(0.22, 0.25, 0.34, 0.70)
+                (
+                    Color::rgba(0.22, 0.25, 0.34, 0.70),
+                    Color::rgba(0.0, 0.75, 1.0, 0.90),
+                )
             };
 
             let combo_text = format!("{} ▾", current_label);
@@ -248,14 +240,16 @@ pub fn pref_dropdown_row(
                     .width(180.0)
                     .height(24.0)
                     .background(btn_bg)
+                    .hover_background(hover_bg)
                     .border(1.0, border_color)
+                    .hover_border(1.0, hover_border_color)
                     .border_radius(3.0)
                     .align_items(AlignItems::Center)
                     .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0)),
                 WidgetRole::Button,
                 tag,
                 |btn| {
-                    btn.label_styled_passive(
+                    let text_id = btn.label_styled_passive(
                         "PrefComboText",
                         combo_text,
                         11.5,
@@ -263,6 +257,7 @@ pub fn pref_dropdown_row(
                         TextAlign::Left,
                         Style::new().flex_grow(1.0),
                     );
+                    btn.set_hover_text_color(text_id, Color::WHITE);
                 },
             );
         },

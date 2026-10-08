@@ -20,7 +20,6 @@ fn test_timeline_panel_build_empty_state() {
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
         events: &[],
-        hovered_tag: None,
     };
 
     let duration = build_timeline_panel(&mut tree, root, &params, &mut actions);
@@ -44,7 +43,6 @@ fn test_timeline_panel_build_missing_player() {
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
         events: &[],
-        hovered_tag: None,
     };
 
     let duration = build_timeline_panel(&mut tree, root, &params, &mut actions);
@@ -70,7 +68,6 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
         events: &[],
-        hovered_tag: None,
     };
     build_timeline_panel(&mut tree, root, &params_empty, &mut actions);
     assert!(actions.is_empty());
@@ -96,7 +93,6 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
         cursor_pos: Point::new(400.0, 480.0),
         is_dragging_scrubber: false,
         events: &click_events,
-        hovered_tag: Some(button_tag),
     };
 
     build_timeline_panel(&mut tree_click, root_click, &params_click, &mut actions);
@@ -127,7 +123,6 @@ fn test_timeline_panel_build_with_player() {
         cursor_pos: Point::new(100.0, 420.0),
         is_dragging_scrubber: false,
         events: &[],
-        hovered_tag: None,
     };
 
     let duration = build_timeline_panel(&mut tree, root, &params, &mut actions);

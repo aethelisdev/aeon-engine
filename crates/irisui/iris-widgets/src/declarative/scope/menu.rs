@@ -261,26 +261,25 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
 
-        let is_hovered = enabled && hovered;
         let (text_color, bg) = if !enabled {
             (Color::hex("#646470"), Color::TRANSPARENT)
-        } else if is_hovered {
-            (Color::WHITE, Color::hex("#222634"))
         } else {
             (Color::hex("#dcdce2"), Color::TRANSPARENT)
         };
 
         if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_style(
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .gap(6.0)
-                    .height(24.0)
-                    .padding_insets(Insets::new(2.0, 8.0, 2.0, 8.0))
-                    .background(bg)
-                    .border_radius(3.0),
-            );
+            let mut style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .gap(6.0)
+                .height(24.0)
+                .padding_insets(Insets::new(2.0, 8.0, 2.0, 8.0))
+                .background(bg)
+                .border_radius(3.0);
+            if enabled {
+                style = style.hover_background(Color::hex("#222634"));
+            }
+            node.set_style(style);
         }
 
         // 1. Icon column (fixed width 18.0)
@@ -315,6 +314,9 @@ impl<'a> UiScope<'a> {
             n.text_color = text_color;
             n.set_style(Style::new().flex_grow(1.0).height(14.0));
         }
+        if enabled {
+            self.set_hover_text_color(label_id, Color::WHITE);
+        }
         let _ = self.tree.add_child(node_id, label_id);
 
         // 3. Trailing Shortcut / Checkmark (fixed width 74.0, right-aligned)
@@ -323,8 +325,6 @@ impl<'a> UiScope<'a> {
                 Color::hex("#00e5ff")
             } else if !enabled {
                 Color::hex("#50505a")
-            } else if is_hovered {
-                Color::hex("#b0b0be")
             } else {
                 Color::hex("#828292")
             };
@@ -341,6 +341,9 @@ impl<'a> UiScope<'a> {
                 n.text_color = sc_color;
                 let sc_w = if sc.len() <= 4 { 18.0 } else { 74.0 };
                 n.set_style(Style::new().width(sc_w).height(14.0).flex_shrink(0.0));
+            }
+            if enabled && sc != "✓" {
+                self.set_hover_text_color(sc_id, Color::hex("#b0b0be"));
             }
             let _ = self.tree.add_child(node_id, sc_id);
         }

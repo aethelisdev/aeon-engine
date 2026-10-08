@@ -56,7 +56,6 @@ fn test_player_tag_card_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
@@ -110,7 +109,6 @@ fn test_velocity_card_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
     let root = WidgetId::default();
     let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
@@ -170,7 +168,6 @@ fn test_shape_card_declarative_structure_and_chevron() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
@@ -245,7 +242,6 @@ fn test_character_controller_card_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
@@ -325,7 +321,6 @@ fn test_gameplay_cards_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     use ae_editor_ui::ui::iris_bridge::inspector::components::gameplay::*;
@@ -441,7 +436,6 @@ fn test_animation_and_ui_layout_cards_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     // AnimationPlayerHandler
@@ -509,7 +503,6 @@ fn test_physics_material_card_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
@@ -584,7 +577,6 @@ fn test_audio_cards_declarative_structure() {
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     };
 
     // AudioSourceHandler test

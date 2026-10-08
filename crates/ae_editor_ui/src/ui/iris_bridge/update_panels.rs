@@ -151,7 +151,6 @@ impl IrisEditorOverlay {
                 active_hex_buffer: hex_buf_ref,
                 inspector_hsv: self.inspector.hsv,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                hovered_tag: self.chrome.hovered_tag,
             };
 
             super::inspector::build_inspector_panel(&mut self.tree, root, &insp_params);
@@ -322,7 +321,6 @@ impl IrisEditorOverlay {
                     .ok()
             });
 
-            let hovered_tag = self.chrome.hovered_tag;
             let events = std::mem::take(&mut self.timeline.pending_interaction_events);
 
             let timeline_params = super::timeline::TimelinePanelParams {
@@ -332,7 +330,6 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 is_dragging_scrubber: self.timeline.is_dragging,
                 events: &events,
-                hovered_tag,
             };
 
             let duration = super::timeline::build_timeline_panel(
@@ -357,7 +354,6 @@ impl IrisEditorOverlay {
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(material_rect) = params.panel_rects.material {
-            let hovered_tag = self.chrome.hovered_tag;
             let events = std::mem::take(&mut self.material.pending_interaction_events);
             let is_scrollbar_dragging = self.material.active_scrollbar_drag.is_some();
 
@@ -369,7 +365,6 @@ impl IrisEditorOverlay {
                 models: params.panel_data.models,
                 cursor_pos: self.cursor_pos(),
                 scroll_y: self.material.scroll_y,
-                hovered_tag,
                 events: &events,
                 is_scrollbar_dragging,
             };
@@ -404,7 +399,6 @@ impl IrisEditorOverlay {
                 state: params.panel_data.ui_designer_state,
                 is_aspect_dropdown_open: self.ui_designer.is_aspect_open,
                 is_add_menu_open: self.ui_designer.is_add_menu_open,
-                hovered_tag: self.chrome.hovered_tag,
             };
 
             let metrics = super::ui_designer::build_ui_designer_panel(

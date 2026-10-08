@@ -19,7 +19,6 @@ pub fn build_perf_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) 
         "graphics_perf",
         "⚡  Performance & Framerate",
         is_collapsed,
-        params.hovered_tag,
         |body| {
             pref_dropdown_row(
                 body,
@@ -27,7 +26,6 @@ pub fn build_perf_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) 
                 "Framerate Limit",
                 params.graphics_settings.fps_limit.label(),
                 params.active_dropdown == Some(PreferencesDropdownId::FpsLimit),
-                params.hovered_tag,
             );
         },
     );
@@ -48,7 +46,6 @@ pub fn build_aa_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
         "graphics_aa",
         "🔍  Anti-Aliasing (MSAA)",
         is_collapsed,
-        params.hovered_tag,
         |body| {
             pref_dropdown_row(
                 body,
@@ -56,7 +53,6 @@ pub fn build_aa_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
                 "MSAA Samples",
                 msaa_label,
                 params.active_dropdown == Some(PreferencesDropdownId::MsaaSamples),
-                params.hovered_tag,
             );
         },
     );
@@ -67,7 +63,6 @@ pub fn build_aa_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
 /// Binds `gs.bloom_enabled` and `gs.bloom_intensity` directly via declarative two-way property primitives.
 pub fn build_post_processing_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_pp");
-    let hovered_tag = params.hovered_tag;
     let gs = &mut *params.graphics_settings;
 
     pref_section_card(
@@ -75,7 +70,6 @@ pub fn build_post_processing_card(scope: &mut UiScope<'_>, params: &mut Preferen
         "graphics_pp",
         "✨  Post-Processing (Bloom)",
         is_collapsed,
-        hovered_tag,
         |body| {
             body.property_checkbox("Enable Bloom", &mut gs.bloom_enabled);
 

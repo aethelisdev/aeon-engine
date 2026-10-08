@@ -14,7 +14,6 @@ use irisui::prelude::*;
 /// Binds maximum undo/redo limit directly to `cfg.max_undo_history` via immediate two-way property primitives.
 pub fn build_history_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("editor_history");
-    let hovered_tag = params.hovered_tag;
     let cfg = &mut *params.editor_config;
 
     pref_section_card(
@@ -22,7 +21,6 @@ pub fn build_history_card(scope: &mut UiScope<'_>, params: &mut PreferencesParam
         "editor_history",
         "📝  History Settings",
         is_collapsed,
-        hovered_tag,
         |body| {
             let mut undo_limit = cfg.max_undo_history as f32;
             let opts = PropertySliderOptions::new(10.0, 5000.0, 10.0)

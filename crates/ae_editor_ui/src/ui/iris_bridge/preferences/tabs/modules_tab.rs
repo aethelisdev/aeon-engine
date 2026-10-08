@@ -62,7 +62,6 @@ pub fn build_modules_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>
     for card_data in &MODULES {
         let is_enabled = params.enabled_modules.contains(&card_data.module);
         let toggle_tag = encode_toggle_tag(PreferencesToggleId::Module(card_data.module));
-        let is_hovered = params.hovered_tag == Some(toggle_tag);
 
         scope.container_named(
             "ModuleCard",
@@ -135,12 +134,16 @@ pub fn build_modules_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>
                         );
 
                         // Checkbox Trigger Box
-                        let cb_bg = if is_enabled {
-                            Color::rgba(0.0, 0.70, 0.85, 1.0)
-                        } else if is_hovered {
-                            Color::rgba(0.18, 0.20, 0.28, 1.0)
+                        let (cb_bg, cb_hover_bg) = if is_enabled {
+                            (
+                                Color::rgba(0.0, 0.70, 0.85, 1.0),
+                                Color::rgba(0.0, 0.70, 0.85, 1.0),
+                            )
                         } else {
-                            Color::rgba(0.11, 0.12, 0.16, 1.0)
+                            (
+                                Color::rgba(0.11, 0.12, 0.16, 1.0),
+                                Color::rgba(0.18, 0.20, 0.28, 1.0),
+                            )
                         };
 
                         row.container_tagged(
@@ -149,6 +152,7 @@ pub fn build_modules_tab(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>
                                 .width(16.0)
                                 .height(16.0)
                                 .background(cb_bg)
+                                .hover_background(cb_hover_bg)
                                 .border(1.0, Color::rgba(0.25, 0.30, 0.42, 1.0))
                                 .border_radius(3.0)
                                 .align_items(AlignItems::Center)

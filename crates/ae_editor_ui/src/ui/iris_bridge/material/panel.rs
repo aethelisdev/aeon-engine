@@ -25,8 +25,7 @@ pub fn build_material_panel(
     parent_id: WidgetId,
     params: &MaterialPanelParams<'_>,
 ) -> f32 {
-    let mut scope =
-        UiScope::with_tagged_interactions(tree, parent_id, params.events, params.hovered_tag);
+    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, params.events, None);
 
     let root_style = Style::new()
         .flex_col()

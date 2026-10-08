@@ -94,9 +94,8 @@ pub fn build_preferences_dialog(
         .root()
         .or_else(|| tree.create_root().ok())
         .unwrap_or_default();
-    let mut root_scope =
-        UiScope::with_tagged_interactions(tree, root_id, params.events, params.hovered_tag)
-            .with_active_text_input(params.active_number_input);
+    let mut root_scope = UiScope::with_tagged_interactions(tree, root_id, params.events, None)
+        .with_active_text_input(params.active_number_input);
 
     let mut scroll_container_id: Option<WidgetId> = None;
 
@@ -153,26 +152,20 @@ pub fn build_preferences_dialog(
                     );
 
                     // Close Button
-                    let is_close_hovered = params.hovered_tag == Some(PREF_TAG_CLOSE);
-                    let close_bg = if is_close_hovered {
-                        Color::rgba(0.85, 0.20, 0.25, 0.85)
-                    } else {
-                        Color::TRANSPARENT
-                    };
-
                     titlebar.container_tagged(
                         "PrefCloseButton",
                         Style::new()
                             .width(26.0)
                             .height(26.0)
-                            .background(close_bg)
+                            .background(Color::TRANSPARENT)
+                            .hover_background(Color::rgba(0.85, 0.20, 0.25, 0.85))
                             .border_radius(4.0)
                             .align_items(AlignItems::Center)
                             .justify_content(JustifyContent::Center),
                         WidgetRole::Button,
                         PREF_TAG_CLOSE,
                         |btn| {
-                            btn.label_styled_passive(
+                            let icon_id = btn.label_styled_passive(
                                 "PrefCloseIcon",
                                 "✕",
                                 12.0,
@@ -180,6 +173,7 @@ pub fn build_preferences_dialog(
                                 TextAlign::Center,
                                 Style::new(),
                             );
+                            btn.set_hover_text_color(icon_id, Color::WHITE);
                         },
                     );
                 },
@@ -206,20 +200,19 @@ pub fn build_preferences_dialog(
                             for &(label, tab_idx) in &SIDEBAR_TABS {
                                 let tab_tag = encode_tab_tag(tab_idx);
                                 let is_active = params.active_tab == tab_idx;
-                                let is_hovered = params.hovered_tag == Some(tab_tag);
 
-                                let (bg, text_col) = if is_active {
+                                let (bg, hover_bg, text_col) = if is_active {
                                     (
                                         Color::rgba(0.0, 0.65, 0.85, 0.12),
+                                        Color::rgba(0.0, 0.65, 0.85, 0.18),
                                         Color::rgba(0.0, 0.90, 1.0, 1.0),
                                     )
-                                } else if is_hovered {
-                                    (
-                                        Color::rgba(0.18, 0.20, 0.28, 0.50),
-                                        Color::rgba(1.0, 1.0, 1.0, 1.0),
-                                    )
                                 } else {
-                                    (Color::TRANSPARENT, Color::rgba(0.80, 0.83, 0.90, 1.0))
+                                    (
+                                        Color::TRANSPARENT,
+                                        Color::rgba(0.18, 0.20, 0.28, 0.50),
+                                        Color::rgba(0.80, 0.83, 0.90, 1.0),
+                                    )
                                 };
 
                                 sidebar.container_tagged(
@@ -232,7 +225,8 @@ pub fn build_preferences_dialog(
                                         .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
                                         .border_radius(4.0)
                                         .clip_children(true)
-                                        .background(bg),
+                                        .background(bg)
+                                        .hover_background(hover_bg),
                                     WidgetRole::Button,
                                     tab_tag,
                                     |btn| {
@@ -257,7 +251,7 @@ pub fn build_preferences_dialog(
                                             Style::new().width(11.0).height(1.0),
                                         );
 
-                                        btn.label_styled_passive(
+                                        let label_id = btn.label_styled_passive(
                                             "PrefTabLabel",
                                             label,
                                             12.0,
@@ -265,6 +259,7 @@ pub fn build_preferences_dialog(
                                             TextAlign::Left,
                                             Style::new().flex_grow(1.0),
                                         );
+                                        btn.set_hover_text_color(label_id, Color::WHITE);
                                     },
                                 );
                             }
@@ -417,13 +412,6 @@ pub fn build_preferences_dialog(
             |menu| {
                 for (idx, &item_label) in options.iter().enumerate() {
                     let item_tag = encode_dropdown_item_tag(idx);
-                    let is_item_hovered = params.hovered_tag == Some(item_tag);
-
-                    let item_bg = if is_item_hovered {
-                        Color::rgba(0.0, 0.65, 0.85, 0.35)
-                    } else {
-                        Color::TRANSPARENT
-                    };
 
                     menu.container_tagged(
                         "PrefDropdownMenuItem",
@@ -433,22 +421,20 @@ pub fn build_preferences_dialog(
                             .height(item_h)
                             .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
                             .border_radius(3.0)
-                            .background(item_bg),
+                            .background(Color::TRANSPARENT)
+                            .hover_background(Color::rgba(0.0, 0.65, 0.85, 0.35)),
                         WidgetRole::DropdownItem,
                         item_tag,
                         |item| {
-                            item.label_styled_passive(
+                            let text_id = item.label_styled_passive(
                                 "PrefDropdownMenuText",
                                 item_label,
                                 11.5,
-                                if is_item_hovered {
-                                    Color::rgba(1.0, 1.0, 1.0, 1.0)
-                                } else {
-                                    Color::rgba(0.85, 0.88, 0.94, 1.0)
-                                },
+                                Color::rgba(0.85, 0.88, 0.94, 1.0),
                                 TextAlign::Left,
                                 Style::new().flex_grow(1.0),
                             );
+                            item.set_hover_text_color(text_id, Color::WHITE);
                         },
                     );
                 }

@@ -26,7 +26,7 @@ pub fn build_inspector_panel(
     let padding_x = 6.0;
     let card_w = params.panel_rect.width - padding_x * 2.0;
 
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    let mut scope = UiScope::new(tree, parent_id);
 
     let panel_style = Style::new()
         .flex_col()
@@ -211,7 +211,6 @@ mod tests {
             active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
             blink_caret: false,
-            hovered_tag: None,
         };
 
         let mut scope = UiScope::new(&mut tree, root);

@@ -22,7 +22,6 @@ pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'
     );
 
     let is_mouse_collapsed = params.collapsed_sections.contains("input_mouse");
-    let hovered_tag = params.hovered_tag;
     let cfg = &mut *params.editor_config;
 
     pref_section_card(
@@ -30,7 +29,6 @@ pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'
         "input_mouse",
         "🖱  Mouse & Cursor Sensitivity",
         is_mouse_collapsed,
-        hovered_tag,
         |body| {
             let sens_opts = PropertySliderOptions::new(0.0005, 0.0300, 0.0002)
                 .with_format("{:.4}")
@@ -51,7 +49,6 @@ pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'
         "input_mapping",
         "🎮  Standard Viewport Gestures",
         is_mapping_collapsed,
-        hovered_tag,
         |body| {
             let shortcuts: [(&str, &str, &str); 4] = [
                 (

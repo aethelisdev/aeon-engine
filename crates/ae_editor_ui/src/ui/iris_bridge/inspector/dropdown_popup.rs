@@ -45,7 +45,7 @@ pub fn build_inspector_dropdown_popup(
         anchor_rect.bottom() + 2.0
     };
 
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    let mut scope = UiScope::new(tree, parent_id);
     scope.dropdown_menu_card_named(
         "InspectorDropdownPopup",
         popup_x,
@@ -122,7 +122,6 @@ mod tests {
             active_hex_buffer: None,
             inspector_hsv: [0.0, 0.0, 1.0],
             blink_caret: false,
-            hovered_tag: Some(1),
         };
 
         build_inspector_dropdown_popup(&mut tree, root, &params);

@@ -53,7 +53,6 @@ fn create_test_params<'a>(
         active_hex_buffer: None,
         inspector_hsv: [0.0, 0.0, 1.0],
         blink_caret: false,
-        hovered_tag: None,
     }
 }
 

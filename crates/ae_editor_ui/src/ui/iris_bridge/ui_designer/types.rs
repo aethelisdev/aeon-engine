@@ -26,8 +26,6 @@ pub struct UiDesignerPanelParams<'a> {
     pub is_aspect_dropdown_open: bool,
     /// Whether the `➕ Add Element` palette popup is currently open.
     pub is_add_menu_open: bool,
-    /// Currently hovered 64-bit semantic tag resolved in the active frame.
-    pub hovered_tag: Option<u64>,
 }
 
 // ── 64-Bit Hardware Semantic Tags ────────────────────────────────────────────

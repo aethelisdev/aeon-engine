@@ -53,7 +53,7 @@ pub fn build_color_picker_popup(
         anchor_rect.bottom() + 4.0
     };
 
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, &[], params.hovered_tag);
+    let mut scope = UiScope::new(tree, parent_id);
     scope.dropdown_menu_card_named(
         "ColorPickerPopupCard",
         popup_x,
@@ -83,22 +83,12 @@ pub fn build_color_picker_popup(
                             Style::new().height(18.0),
                         );
 
-                        let is_close_hovered =
-                            params.hovered_tag == Some(TAG_INSPECTOR_COLOR_PICKER_CLOSE);
-                        let (close_bg, close_text_col) = if is_close_hovered {
-                            (Color::rgba(0.35, 0.12, 0.12, 0.95), Color::WHITE)
-                        } else {
-                            (
-                                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                                Color::rgba(0.70, 0.73, 0.80, 0.90),
-                            )
-                        };
-
                         let close_size = 16.0;
                         let close_style = Style::new()
                             .width(close_size)
                             .height(close_size)
-                            .background(close_bg)
+                            .background(Color::rgba(0.157, 0.165, 0.188, 0.98))
+                            .hover_background(Color::rgba(0.35, 0.12, 0.12, 0.95))
                             .border_radius(3.0)
                             .flex_row()
                             .align_items(AlignItems::Center)
@@ -110,14 +100,15 @@ pub fn build_color_picker_popup(
                             WidgetRole::Button,
                             TAG_INSPECTOR_COLOR_PICKER_CLOSE,
                             |btn| {
-                                btn.label_styled_passive(
+                                let txt_id = btn.label_styled_passive(
                                     "CloseGlyph",
                                     "✖",
                                     9.0,
-                                    close_text_col,
+                                    Color::rgba(0.70, 0.73, 0.80, 0.90),
                                     TextAlign::Center,
                                     Style::new().height(close_size),
                                 );
+                                btn.set_hover_text_color(txt_id, Color::WHITE);
                             },
                         );
                     });
@@ -414,7 +405,6 @@ mod tests {
             active_hex_buffer: None,
             inspector_hsv: [0.0, 1.0, 1.0],
             blink_caret: false,
-            hovered_tag: None,
         };
 
         build_color_picker_popup(&mut tree, root, &params);

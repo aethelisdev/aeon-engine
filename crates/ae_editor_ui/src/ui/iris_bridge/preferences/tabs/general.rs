@@ -30,14 +30,12 @@ pub fn build_general_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams
     );
 
     let is_scale_collapsed = params.collapsed_sections.contains("general_scale");
-    let hovered_tag = params.hovered_tag;
 
     pref_section_card(
         scope,
         "general_scale",
         "🔍  Display & UI Scale",
         is_scale_collapsed,
-        hovered_tag,
         |body| {
             body.label_styled_passive(
                 "ScaleDesc",
@@ -62,7 +60,6 @@ pub fn build_general_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams
                 "Interface Scale",
                 selected_label,
                 is_open,
-                hovered_tag,
             );
         },
     );
@@ -74,7 +71,6 @@ pub fn build_general_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams
         "general_viewport",
         "🖥  Viewport & Synchronization",
         is_sync_collapsed,
-        hovered_tag,
         |body| {
             body.container_named(
                 "SyncInfoBox",

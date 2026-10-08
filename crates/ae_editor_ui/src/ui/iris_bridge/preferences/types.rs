@@ -317,8 +317,6 @@ pub struct PreferencesParams<'a> {
     pub blink_caret: bool,
     /// Current mouse cursor coordinates.
     pub cursor_pos: Point,
-    /// Currently hovered semantic tag from tree hit testing.
-    pub hovered_tag: Option<u64>,
     /// Current display/UI zoom factor (e.g. 1.0 = 100%).
     pub zoom_factor: f32,
     /// Mutable reference to graphics settings for declarative two-way data binding.
