@@ -31,7 +31,20 @@ impl IrisEditorOverlay {
         {
             let click_point = self.cursor_pos();
 
-            if let Some(hit) = self.tree.hit_test_target(click_point) {
+            let hit_opt = self
+                .hit_test_panel(
+                    crate::ui::panel_layout::PanelId::MaterialEditor,
+                    click_point,
+                )
+                .or_else(|| self.tree.hit_test_target(click_point));
+
+            if let Some(mut hit) = hit_opt {
+                if hit.tag == 0 {
+                    hit.tag = self.resolve_panel_tag(
+                        crate::ui::panel_layout::PanelId::MaterialEditor,
+                        hit.id,
+                    );
+                }
                 if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_THUMB {
                     self.material.active_scrollbar_drag =
                         Some((click_point.y, self.material.interactions.scroll_y));

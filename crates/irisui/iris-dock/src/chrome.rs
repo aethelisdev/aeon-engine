@@ -21,110 +21,7 @@ use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
 
-/// Visual styling and dimensional metrics for docked chrome, tab strips, and splitters.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DockChromeStyle {
-    /// Background color of empty dock pane leaves.
-    pub empty_panel_bg: Color,
-    /// Border stroke color of empty dock pane leaves.
-    pub empty_panel_border: Color,
-    /// Background color of leaf panel content regions.
-    pub panel_bg: Color,
-    /// Background color of leaf tab bar header strips.
-    pub tab_bar_bg: Color,
-    /// Height of each tab bar strip in logical pixels.
-    pub tab_bar_height: f32,
-    /// Color of the 1px continuous baseline divider running along the bottom of the tab strip.
-    pub tab_bar_baseline_color: Color,
-    /// Background color for the currently active/selected tab.
-    pub tab_active_bg: Color,
-    /// Background color for an unselected tab hovered by the cursor.
-    pub tab_hovered_bg: Color,
-    /// Background color for an idle unselected tab.
-    pub tab_idle_bg: Color,
-    /// Corner radii applied to tab button top borders.
-    pub tab_corner_radii: CornerRadii,
-    /// Accent color of the 2px line anchored flush to the bottom baseline of active tabs.
-    pub tab_active_line_color: Color,
-    /// Height in logical pixels of the active tab indicator line.
-    pub tab_active_line_height: f32,
-    /// Accent color tint for icons on active tabs.
-    pub icon_active_tint: Color,
-    /// Hovered color tint for icons on hovered tabs.
-    pub icon_hovered_tint: Color,
-    /// Idle color tint for icons on unselected tabs.
-    pub icon_idle_tint: Color,
-    /// Text color for the active tab label.
-    pub text_active_color: Color,
-    /// Text color for a hovered tab label.
-    pub text_hovered_color: Color,
-    /// Text color for an idle unselected tab label.
-    pub text_idle_color: Color,
-    /// Background pill color when hovering over the tab close button.
-    pub close_btn_hover_bg: Color,
-    /// Text/icon color for the tab close button when hovered.
-    pub close_btn_hover_color: Color,
-    /// Text/icon color for the tab close button in idle state.
-    pub close_btn_idle_color: Color,
-    /// Thickness of partition splitter lines in logical pixels.
-    pub splitter_thickness: f32,
-    /// Color of partition splitter dividers when active or hovered.
-    pub splitter_active_color: Color,
-    /// Color of partition splitter dividers in idle state.
-    pub splitter_idle_color: Color,
-    /// Minimum proportional width in logical pixels before triggering overflow handling.
-    pub min_shrunk_tab_width: f32,
-    /// Width in logical pixels reserved for the tab overflow chevron button.
-    pub chevron_width: f32,
-    /// Background color for the overflow chevron button when hovered.
-    pub chevron_hovered_bg: Color,
-    /// Background color for the overflow chevron button in idle state.
-    pub chevron_idle_bg: Color,
-    /// Icon color for the overflow chevron button when hovered.
-    pub chevron_hovered_icon_col: Color,
-    /// Icon color for the overflow chevron button in idle state.
-    pub chevron_idle_icon_col: Color,
-    /// Texture atlas UV coordinates for the chevron down icon `[u0, v0, u1, v1]`, if used.
-    pub chevron_icon_uv: Option<[f32; 4]>,
-}
-
-impl Default for DockChromeStyle {
-    fn default() -> Self {
-        Self {
-            empty_panel_bg: Color::from_u8(16, 20, 28, 160),
-            empty_panel_border: Color::from_u8(35, 42, 55, 120),
-            panel_bg: Color::from_u8(16, 18, 24, 255),
-            tab_bar_bg: Color::from_u8(20, 24, 33, 255),
-            tab_bar_height: 26.0,
-            tab_bar_baseline_color: Color::from_u8(36, 42, 56, 180),
-            tab_active_bg: Color::from_u8(30, 36, 50, 255),
-            tab_hovered_bg: Color::from_u8(25, 30, 42, 255),
-            tab_idle_bg: Color::from_u8(20, 24, 33, 255),
-            tab_corner_radii: CornerRadii::new(5.0, 5.0, 0.0, 0.0),
-            tab_active_line_color: Color::from_u8(0, 229, 255, 255),
-            tab_active_line_height: 2.0,
-            icon_active_tint: Color::from_u8(0, 229, 255, 255),
-            icon_hovered_tint: Color::WHITE,
-            icon_idle_tint: Color::from_u8(156, 163, 175, 255),
-            text_active_color: Color::from_u8(0, 229, 255, 255),
-            text_hovered_color: Color::from_u8(241, 245, 249, 255),
-            text_idle_color: Color::from_u8(148, 163, 184, 255),
-            close_btn_hover_bg: Color::rgba(0.9, 0.2, 0.2, 0.25),
-            close_btn_hover_color: Color::rgba(1.0, 0.45, 0.45, 1.0),
-            close_btn_idle_color: Color::rgba(0.65, 0.68, 0.75, 0.85),
-            splitter_thickness: 3.0,
-            splitter_active_color: Color::from_u8(0, 229, 255, 255),
-            splitter_idle_color: Color::from_u8(30, 36, 48, 255),
-            min_shrunk_tab_width: 68.0,
-            chevron_width: 24.0,
-            chevron_hovered_bg: Color::from_u8(30, 36, 50, 255),
-            chevron_idle_bg: Color::from_u8(20, 24, 33, 255),
-            chevron_hovered_icon_col: Color::from_u8(0, 229, 255, 255),
-            chevron_idle_icon_col: Color::from_u8(148, 163, 184, 255),
-            chevron_icon_uv: None,
-        }
-    }
-}
+pub use crate::style::DockChromeStyle;
 
 /// Native Iris tab hit target linked to a stable dock tree leaf and tab index.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -199,10 +96,31 @@ pub struct DockSplitterTarget {
 }
 
 impl DockSplitterTarget {
-    /// Checks whether the point is contained within this splitter target's bounds.
+    /// Half-width margin in logical pixels applied to thin splitters for ergonomic hit-testing.
+    pub const HIT_MARGIN: f32 = 4.0;
+
+    /// Checks whether the point is contained within this splitter target's bounds with interactive margin.
     #[inline]
     pub fn contains_point(&self, point: Point) -> bool {
-        self.rect.contains_point(point)
+        hit_splitter(self.rect, self.direction, point, Self::HIT_MARGIN)
+    }
+}
+
+#[inline]
+fn hit_splitter(rect: Rect, dir: SplitDirection, p: Point, m: f32) -> bool {
+    match dir {
+        SplitDirection::Horizontal => {
+            p.x >= rect.x - m
+                && p.x <= rect.x + rect.width + m
+                && p.y >= rect.y
+                && p.y <= rect.y + rect.height
+        }
+        SplitDirection::Vertical => {
+            p.x >= rect.x
+                && p.x <= rect.x + rect.width
+                && p.y >= rect.y - m
+                && p.y <= rect.y + rect.height + m
+        }
     }
 }
 
@@ -643,7 +561,12 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
     for splitter in computed.splitters {
         let is_splitter_active = params.active_splitter_node == Some(splitter.node_id);
         let is_hovered = !params.is_cursor_occluded
-            && splitter.rect.contains_point(params.cursor_pos)
+            && hit_splitter(
+                splitter.rect,
+                splitter.direction,
+                params.cursor_pos,
+                DockSplitterTarget::HIT_MARGIN,
+            )
             && !params.is_dragging_splitter;
         let splitter_col = if is_splitter_active || is_hovered {
             style.splitter_active_color

@@ -9,10 +9,10 @@
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use iris_core::color::Color;
-use iris_core::geometry::{Point, Rect};
+use iris_core::geometry::{Insets, Point, Rect};
 use iris_core::id::WidgetId;
 use iris_core::node::{UiLayer, WidgetRole};
-use iris_core::style::{Style, TextAlign};
+use iris_core::style::{AlignItems, Style, TextAlign};
 use iris_core::tree::UiTree;
 
 /// Visual icon representation for a context menu item or header.
@@ -355,6 +355,13 @@ impl ContextMenuBuilder {
             node.set_layer(UiLayer::Popup);
             node.computed_rect = card_rect;
             node.style = Style::new()
+                .position_absolute()
+                .left(card_rect.x)
+                .top(card_rect.y)
+                .width(card_rect.width)
+                .height(card_rect.height)
+                .flex_col()
+                .padding_insets(Insets::new(4.0, 0.0, 4.0, 0.0))
                 .background(self.style.bg_color)
                 .border(1.0, self.style.border_color)
                 .border_radius(self.style.border_radius)
@@ -373,6 +380,12 @@ impl ContextMenuBuilder {
                 node.set_layer(UiLayer::Popup);
                 node.computed_rect = hdr_rect;
                 node.interactive = false;
+                node.style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .width(menu_w - 12.0)
+                    .height(24.0)
+                    .margin_insets(Insets::new(0.0, 6.0, 3.0, 6.0));
             }
             let _ = tree.add_child(card_id, hdr_id);
 
@@ -385,6 +398,10 @@ impl ContextMenuBuilder {
                     node.set_layer(UiLayer::Popup);
                     node.computed_rect = icon_rect;
                     node.interactive = false;
+                    node.style = Style::new()
+                        .width(16.0)
+                        .height(16.0)
+                        .margin_insets(Insets::new(0.0, 0.0, 0.0, 6.0));
                     match icon {
                         ContextMenuIcon::Text(glyph) => {
                             node.set_text(glyph);
@@ -413,6 +430,7 @@ impl ContextMenuBuilder {
                 node.text_align = TextAlign::Left;
                 node.computed_rect = text_rect;
                 node.interactive = false;
+                node.style = Style::new().flex_grow(1.0).height(24.0);
             }
             let _ = tree.add_child(hdr_id, txt_id);
 
@@ -426,7 +444,11 @@ impl ContextMenuBuilder {
                 node.set_layer(UiLayer::Popup);
                 node.computed_rect = sep_rect;
                 node.interactive = false;
-                node.style = Style::new().background(self.style.separator_color);
+                node.style = Style::new()
+                    .width(menu_w - 12.0)
+                    .height(1.0)
+                    .margin_insets(Insets::new(0.0, 6.0, 4.0, 6.0))
+                    .background(self.style.separator_color);
             }
             let _ = tree.add_child(card_id, sep_id);
 
@@ -444,7 +466,11 @@ impl ContextMenuBuilder {
                     node.set_layer(UiLayer::Popup);
                     node.computed_rect = sep_rect;
                     node.interactive = false;
-                    node.style = Style::new().background(self.style.separator_color);
+                    node.style = Style::new()
+                        .width(menu_w - 12.0)
+                        .height(1.0)
+                        .margin_insets(Insets::new(3.0, 6.0, 4.0, 6.0))
+                        .background(self.style.separator_color);
                 }
                 let _ = tree.add_child(card_id, sep_id);
                 cur_y += 4.0;
@@ -478,7 +504,14 @@ impl ContextMenuBuilder {
                 node.set_layer(UiLayer::Popup);
                 node.set_tag(item.tag);
                 node.computed_rect = item_rect;
-                node.style = Style::new().background(bg).border_radius(3.0);
+                node.style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .width(menu_w - 8.0)
+                    .height(self.style.row_height)
+                    .margin_insets(Insets::new(0.0, 4.0, 0.0, 4.0))
+                    .background(bg)
+                    .border_radius(3.0);
             }
             let _ = tree.add_child(card_id, item_id);
 
@@ -493,6 +526,10 @@ impl ContextMenuBuilder {
                     node.set_tag(item.tag);
                     node.computed_rect = icon_rect;
                     node.interactive = false;
+                    node.style = Style::new()
+                        .width(16.0)
+                        .height(16.0)
+                        .margin_insets(Insets::new(0.0, 6.0, 0.0, 6.0));
                     match icon {
                         ContextMenuIcon::Text(glyph) => {
                             node.set_text(glyph);
@@ -528,6 +565,7 @@ impl ContextMenuBuilder {
                 node.text_align = TextAlign::Left;
                 node.computed_rect = text_rect;
                 node.interactive = false;
+                node.style = Style::new().flex_grow(1.0).height(self.style.row_height);
             }
             let _ = tree.add_child(item_id, lbl_id);
 
@@ -550,6 +588,10 @@ impl ContextMenuBuilder {
                     node.text_align = TextAlign::Right;
                     node.computed_rect = sc_rect;
                     node.interactive = false;
+                    node.style = Style::new()
+                        .width(54.0)
+                        .height(self.style.row_height)
+                        .margin_insets(Insets::new(0.0, 0.0, 0.0, 6.0));
                 }
                 let _ = tree.add_child(item_id, sc_id);
             }

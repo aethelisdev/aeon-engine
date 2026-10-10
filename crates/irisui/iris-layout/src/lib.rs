@@ -184,13 +184,18 @@ impl LayoutEngine {
             node.clear_dirty(DirtyFlags::LAYOUT);
         }
 
+        let scroll_offset_y = tree
+            .get(current_id)
+            .map_or(0.0, |n| n.style.scroll_offset_y);
+        let child_parent_y = abs_y - scroll_offset_y;
+
         let child_count = tree.get(current_id).map_or(0, |n| n.children.len());
         for i in 0..child_count {
             if let Some(child_id) = tree
                 .get(current_id)
                 .and_then(|n| n.children.get(i).copied())
             {
-                self.apply_layout(tree, child_id, abs_x, abs_y);
+                self.apply_layout(tree, child_id, abs_x, child_parent_y);
             }
         }
     }
@@ -366,5 +371,35 @@ mod tests {
         assert_eq!(c2_rect.y, 55.0);
         assert_eq!(c2_rect.width, 100.0);
         assert_eq!(c2_rect.height, 60.0);
+    }
+
+    #[test]
+    fn test_layout_computation_with_scroll_offset_y() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        let child = tree.create_node();
+
+        if let Some(node) = tree.get_mut(root) {
+            let mut style = Style::new().flex_col().padding(0.0);
+            style.scroll_offset_y = 25.0;
+            node.set_style(style);
+        }
+
+        if let Some(node) = tree.get_mut(child) {
+            node.set_style(Style::new().width(100.0).height(40.0));
+        }
+
+        assert!(tree.add_child(root, child).is_ok());
+
+        let mut engine = LayoutEngine::new();
+        assert!(
+            engine
+                .compute_layout(&mut tree, Size::new(800.0, 600.0))
+                .is_ok()
+        );
+
+        let c_rect = tree.get(child).unwrap().computed_rect;
+        // child starts at y = 0.0 - scroll_offset_y (25.0) = -25.0
+        assert_eq!(c_rect.y, -25.0);
     }
 }

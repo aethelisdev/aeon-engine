@@ -93,6 +93,8 @@ impl IrisEditorOverlay {
                         self.preferences.scroll_y =
                             (start_scroll_y + scroll_delta).clamp(0.0, max_scroll);
                         self.chrome.needs_scroll_sync = true;
+                        self.chrome.needs_layout_rebuild = true;
+                        self.notifier.tag_all();
                         result.consumed = true;
                         return Some(result);
                     }
@@ -117,6 +119,8 @@ impl IrisEditorOverlay {
                 if self.preferences.active_scrollbar_drag.is_some() {
                     self.preferences.active_scrollbar_drag = None;
                     self.chrome.needs_scroll_sync = true;
+                    self.chrome.needs_layout_rebuild = true;
+                    self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
                 }
@@ -232,6 +236,8 @@ impl IrisEditorOverlay {
                     self.preferences.scroll_y = (self.preferences.scroll_y - scroll_y)
                         .clamp(0.0, self.preferences.max_scroll_y);
                     self.chrome.needs_scroll_sync = true;
+                    self.chrome.needs_layout_rebuild = true;
+                    self.notifier.tag_all();
                     result.consumed = true;
                     return Some(result);
                 }
@@ -250,7 +256,11 @@ impl IrisEditorOverlay {
                 ..
             } => {
                 let click_point = self.cursor_pos();
-                let hit_target = self.tree.hit_test_target(click_point);
+                let hit_target = self
+                    .overlay_tree
+                    .tree()
+                    .hit_test_target(click_point)
+                    .or_else(|| self.tree.hit_test_target(click_point));
 
                 // 1. If Preferences' active dropdown popup is open
                 if let Some(dd_id) = self.preferences.dropdown {
@@ -311,14 +321,20 @@ impl IrisEditorOverlay {
                     if hit.role == WidgetRole::NumericInput {
                         if hit.cursor == Some(WidgetCursor::Text) {
                             let initial_text = self
-                                .tree
+                                .overlay_tree
+                                .tree()
                                 .get(hit.id)
+                                .or_else(|| self.tree.get(hit.id))
                                 .and_then(|node| {
                                     if let Some(ref t) = node.text {
                                         Some(t.as_str())
                                     } else {
                                         node.children.first().and_then(|&child_id| {
-                                            self.tree.get(child_id).and_then(|c| c.text.as_deref())
+                                            self.overlay_tree
+                                                .tree()
+                                                .get(child_id)
+                                                .or_else(|| self.tree.get(child_id))
+                                                .and_then(|c| c.text.as_deref())
                                         })
                                     }
                                 })
@@ -370,6 +386,8 @@ impl IrisEditorOverlay {
                             self.preferences.active_scrollbar_drag =
                                 Some((click_point.y, self.preferences.scroll_y));
                             self.chrome.needs_scroll_sync = true;
+                            self.chrome.needs_layout_rebuild = true;
+                            self.notifier.tag_all();
                             result.consumed = true;
                             return Some(result);
                         }
@@ -399,6 +417,8 @@ impl IrisEditorOverlay {
                                 self.preferences.active_scrollbar_drag =
                                     Some((click_point.y, self.preferences.scroll_y));
                                 self.chrome.needs_scroll_sync = true;
+                                self.chrome.needs_layout_rebuild = true;
+                                self.notifier.tag_all();
                                 result.consumed = true;
                                 return Some(result);
                             }

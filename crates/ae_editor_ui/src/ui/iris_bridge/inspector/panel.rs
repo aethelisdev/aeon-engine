@@ -30,6 +30,8 @@ pub fn build_inspector_panel(
 
     let panel_style = Style::new()
         .flex_col()
+        .width(params.panel_rect.width)
+        .height(params.panel_rect.height)
         .background(ELEVATION_1_PANEL)
         .clip_children(true);
 
@@ -39,10 +41,12 @@ pub fn build_inspector_panel(
         WidgetRole::Default,
         super::tags::TAG_INSPECTOR_PANEL_ROOT,
         |panel_scope| {
+            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
+
             // 1. Check if an entity is selected
             let Some(entity) = params.selected_entity.filter(|e| params.world.contains(*e)) else {
                 render_empty_selection_view(panel_scope, params);
-                panel_scope.finish_layout(params.panel_rect);
+                panel_scope.finish_layout(local_rect);
                 return;
             };
 
@@ -50,14 +54,8 @@ pub fn build_inspector_panel(
             header::build_entity_header(panel_scope, entity, params);
 
             // 3. Scrollable Cards Container (Single Declarative Flex Column)
-            let mut ctx = ComponentRenderContext::new(
-                entity,
-                params.world,
-                params,
-                params.panel_rect.x + padding_x,
-                params.panel_rect.y,
-                card_w,
-            );
+            let mut ctx =
+                ComponentRenderContext::new(entity, params.world, params, padding_x, 0.0, card_w);
 
             let container_style = Style::new()
                 .flex_col()
@@ -99,19 +97,31 @@ pub fn build_inspector_panel(
             // 6. Bottom Action Bar (Fixed at bottom)
             footer::build_inspector_footer(panel_scope, params);
 
-            // 7. Single unified layout pass for the entire inspector panel
-            panel_scope.finish_layout(params.panel_rect);
+            // 7. Single unified layout pass for the entire inspector panel in local coordinates
+            panel_scope.finish_layout(local_rect);
         },
     );
+}
 
-    // 8. Cascading `➕ Add Component` Floating Dropdown Menu (Z-Order Top)
-    add_menu::build_add_component_menu(tree, parent_id, params);
-
-    // 9. Floating ComboBox Dropdown Popup (Z-Order Topmost)
-    dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params);
-
-    // 10. Floating Color Picker Popup (Z-Order Topmost)
-    color_picker_popup::build_color_picker_popup(tree, parent_id, params);
+/// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)
+/// directly into the designated overlay or portal tree, preventing panel boundary clipping (Mine 2).
+///
+/// Returns the screen-space bounding rectangle of the constructed overlay if one was active.
+pub fn build_inspector_overlays(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &InspectorPanelParams<'_>,
+    panel_tree: Option<&UiTree>,
+) -> Option<Rect> {
+    if params.is_add_menu_open {
+        add_menu::build_add_component_menu(tree, parent_id, params, panel_tree)
+    } else if params.active_dropdown.is_some() {
+        dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params, panel_tree)
+    } else if params.is_color_picker_open {
+        color_picker_popup::build_color_picker_popup(tree, parent_id, params, panel_tree)
+    } else {
+        None
+    }
 }
 
 /// Renders the empty state placeholder when no entity is selected in the editor,

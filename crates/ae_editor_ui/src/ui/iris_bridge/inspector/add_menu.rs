@@ -173,27 +173,40 @@ pub fn get_add_component_menu_items(
 }
 
 /// Builds the cascading `➕ Add Component` menu in the [`UiTree`] using declarative [`UiScope`].
+///
+/// Returns the screen-space bounding box enclosing the main menu and cascading submenu, if open.
 pub fn build_add_component_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-) {
+    panel_tree: Option<&UiTree>,
+) -> Option<Rect> {
     if !params.is_add_menu_open {
-        return;
+        return None;
     }
 
     let menu_items = get_add_component_menu_items(params.world, params.selected_entity);
     if menu_items.is_empty() {
-        return;
+        return None;
     }
 
-    let anchor_rect = tree
-        .iter()
-        .find(|(_, node)| node.tag == TAG_INSPECTOR_ADD_COMPONENT)
-        .map(|(_, node)| node.computed_rect)
+    let anchor_rect = panel_tree
+        .and_then(|ptree| {
+            ptree
+                .iter()
+                .find(|(_, node)| node.tag == TAG_INSPECTOR_ADD_COMPONENT)
+                .map(|(_, node)| {
+                    Rect::new(
+                        params.panel_rect.x + node.computed_rect.x,
+                        params.panel_rect.y + node.computed_rect.y,
+                        node.computed_rect.width,
+                        node.computed_rect.height,
+                    )
+                })
+        })
         .unwrap_or(Rect::new(
             params.panel_rect.x + 8.0,
-            params.panel_rect.bottom() - 30.0,
+            params.panel_rect.bottom() - 32.0,
             140.0,
             24.0,
         ));
@@ -215,6 +228,11 @@ pub fn build_add_component_menu(
             card.dropdown_item(item.tag, icon_str, &item.label, Some("▶"), true);
         }
     });
+
+    let mut min_x = menu_x;
+    let mut min_y = menu_y;
+    let mut max_x = menu_x + menu_w;
+    let mut max_y = menu_y + menu_h;
 
     if let Some(active_cat) = params.active_submenu
         && let Some(cat_item) = menu_items.iter().find(|i| i.tag == active_cat.to_tag())
@@ -248,7 +266,19 @@ pub fn build_add_component_menu(
                 sub_card.dropdown_item(child.tag, icon_str, &child.label, None, true);
             }
         });
+
+        min_x = min_x.min(sub_x);
+        min_y = min_y.min(sub_y);
+        max_x = max_x.max(sub_x + sub_w);
+        max_y = max_y.max(sub_y + sub_h);
     }
+
+    Some(Rect::new(
+        min_x,
+        min_y,
+        (max_x - min_x).max(1.0),
+        (max_y - min_y).max(1.0),
+    ))
 }
 
 #[cfg(test)]
@@ -285,7 +315,7 @@ mod tests {
             blink_caret: false,
         };
 
-        build_add_component_menu(&mut tree, root, &params);
+        build_add_component_menu(&mut tree, root, &params, None);
 
         let menu_node = tree
             .iter()

@@ -21,7 +21,7 @@ pub use events::{
     UiDesignerClickResult, handle_ui_designer_click, handle_ui_designer_drag,
     handle_ui_designer_scroll,
 };
-pub use panel::build_ui_designer_panel;
+pub use panel::{build_ui_designer_overlays, build_ui_designer_panel};
 pub use toolbar::UI_DESIGNER_TOOLBAR_HEIGHT;
 pub use types::{
     CanvasAspectRatio, UiDesignerAction, UiDesignerCanvasMetrics, UiDesignerPanelParams,

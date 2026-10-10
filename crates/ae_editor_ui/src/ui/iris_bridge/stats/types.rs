@@ -111,6 +111,8 @@ pub struct StatsPanelState {
     pub last_fps_refresh: std::time::Instant,
     /// Windowed rolling average FPS displayed in the UI, updated every 250ms for rock-solid readability.
     pub displayed_fps: f32,
+    /// Ring buffer snapshot of recent frame pacing samples used to draw the oscilloscope polyline.
+    pub frame_ring_buffer: Option<FrameRingBuffer>,
 }
 
 impl Default for StatsPanelState {
@@ -122,6 +124,7 @@ impl Default for StatsPanelState {
             frame_counter: 0,
             last_fps_refresh: std::time::Instant::now(),
             displayed_fps: 60.0,
+            frame_ring_buffer: None,
         }
     }
 }
@@ -150,7 +153,11 @@ impl StatsPanelState {
         &self,
         params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
     ) -> bool {
-        params.panel_rects.stats.is_some()
+        self.last_rect != params.panel_rects.stats
+            || (params.panel_rects.stats.is_some()
+                && self.last_fps_refresh.elapsed().as_secs_f32() >= 0.25)
+            || self.interactions.has_pending_actions()
+            || self.scroll_y != self.last_scroll_y
     }
 
     /// Synchronizes rolling FPS text windowing calculations.
@@ -171,6 +178,8 @@ impl StatsPanelState {
         } else {
             self.frame_counter = 0;
         }
+        self.last_rect = params.panel_rects.stats;
+        self.last_scroll_y = self.scroll_y;
     }
 
     /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.

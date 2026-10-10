@@ -39,7 +39,9 @@ impl IrisEditorOverlay {
         world: Option<&hecs::World>,
     ) -> Option<IrisOverlayEventResult> {
         // 1. Add Component Menu Hover & Submenu Cascade
-        self.handle_inspector_menu_hover(event);
+        if let Some(hover_res) = self.handle_inspector_menu_hover(event) {
+            return Some(hover_res);
+        }
 
         // 2. Keyboard / IME Input for active text, numeric, rename, or hex fields
         if let Some(key_res) = self.handle_inspector_keyboard_input(event) {
@@ -106,18 +108,30 @@ impl IrisEditorOverlay {
             match mode {
                 InspectorColorDragMode::SaturationValue => {
                     let sv_rect = self
-                        .tree
+                        .overlay_tree
+                        .tree()
                         .iter()
                         .find(|(_, n)| n.tag == inspector::tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+                        .or_else(|| {
+                            self.tree.iter().find(|(_, n)| {
+                                n.tag == inspector::tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX
+                            })
+                        })
                         .map(|(_, n)| n.computed_rect)
                         .unwrap_or(Rect::new(cursor.x - 80.0, cursor.y - 65.0, 160.0, 130.0));
                     state.update_from_sv_point(cursor, sv_rect);
                 }
                 InspectorColorDragMode::Hue => {
                     let hue_rect = self
-                        .tree
+                        .overlay_tree
+                        .tree()
                         .iter()
                         .find(|(_, n)| n.tag == inspector::tags::TAG_INSPECTOR_COLOR_PICKER_HUE_BAR)
+                        .or_else(|| {
+                            self.tree.iter().find(|(_, n)| {
+                                n.tag == inspector::tags::TAG_INSPECTOR_COLOR_PICKER_HUE_BAR
+                            })
+                        })
                         .map(|(_, n)| n.computed_rect)
                         .unwrap_or(Rect::new(cursor.x - 9.0, cursor.y - 65.0, 18.0, 130.0));
                     state.update_from_hue_point(cursor, hue_rect);
@@ -192,18 +206,33 @@ impl IrisEditorOverlay {
     }
 
     /// Handles hover events cascading submenus inside the Add Component popup.
-    fn handle_inspector_menu_hover(&mut self, event: &WindowEvent) {
+    fn handle_inspector_menu_hover(
+        &mut self,
+        event: &WindowEvent,
+    ) -> Option<IrisOverlayEventResult> {
         if let WindowEvent::CursorMoved { .. } = event
             && self.inspector.is_add_menu_open
-            && let Some(hit) = self.tree.hit_test_target(self.cursor_pos())
+            && let Some(hit) = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(self.cursor_pos())
+                .or_else(|| self.tree.hit_test_target(self.cursor_pos()))
             && hit.layer == UiLayer::Popup
-            && hit.role == WidgetRole::DropdownItem
-            && let Some(cat) = ComponentCategory::from_tag(hit.tag)
-            && self.inspector.active_submenu != Some(cat)
         {
-            self.inspector.active_submenu = Some(cat);
-            self.notifier.tag_all();
+            if hit.role == WidgetRole::DropdownItem
+                && let Some(cat) = ComponentCategory::from_tag(hit.tag)
+                && self.inspector.active_submenu != Some(cat)
+            {
+                self.inspector.active_submenu = Some(cat);
+                self.chrome.needs_layout_rebuild = true;
+                self.notifier.tag_all();
+            }
+            return Some(IrisOverlayEventResult {
+                consumed: true,
+                ..Default::default()
+            });
         }
+        None
     }
 
     /// Handles mouse click interactions inside the Inspector panel.
@@ -234,7 +263,12 @@ impl IrisEditorOverlay {
 
         // 1. Check if an active dropdown popup is open and clicked
         if let Some(active_dd) = self.inspector.active_dropdown {
-            if let Some(hit) = self.tree.hit_test_target(click_point) {
+            if let Some(hit) = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(click_point)
+                .or_else(|| self.tree.hit_test_target(click_point))
+            {
                 if hit.layer == UiLayer::Popup && hit.role == WidgetRole::DropdownItem {
                     let opt_idx = (hit.tag - TAG_INSPECTOR_DROPDOWN_ITEM_BASE) as usize;
                     if let Some(entity) = entity_opt {
@@ -258,7 +292,11 @@ impl IrisEditorOverlay {
         // 1c. Check if Add Component Cascading Menu is open and clicked
         if self.inspector.is_add_menu_open
             && ui_button == MouseButton::Left
-            && let Some(hit) = self.tree.hit_test_target(click_point)
+            && let Some(hit) = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(click_point)
+                .or_else(|| self.tree.hit_test_target(click_point))
             && hit.layer == UiLayer::Popup
         {
             if hit.role == WidgetRole::DropdownItem {
@@ -290,7 +328,11 @@ impl IrisEditorOverlay {
 
         // 1b. Check if 2D HSV Color Picker is open and clicked
         if self.inspector.is_color_picker_open
-            && let Some(hit) = self.tree.hit_test_target(click_point)
+            && let Some(hit) = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(click_point)
+                .or_else(|| self.tree.hit_test_target(click_point))
             && hit.layer == UiLayer::Popup
         {
             if inspector::tags::resolve_color_picker_close_tag(hit.tag) {
@@ -360,7 +402,11 @@ impl IrisEditorOverlay {
 
         // Close color picker or add menu if clicked outside
         if self.inspector.is_color_picker_open {
-            let hit = self.tree.hit_test_target(click_point);
+            let hit = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(click_point)
+                .or_else(|| self.tree.hit_test_target(click_point));
             let inside_picker = hit.is_some_and(|h| {
                 h.layer == UiLayer::Popup
                     && (inspector::tags::resolve_color_picker_card_tag(h.tag)
@@ -384,7 +430,15 @@ impl IrisEditorOverlay {
         }
 
         // 2. Resolve interactive UiTree node hit (O(1) semantic tag)
-        if let Some(hit) = self.tree.hit_test_target(click_point) {
+        let hit_opt = self
+            .hit_test_panel(crate::ui::panel_layout::PanelId::Inspector, click_point)
+            .or_else(|| self.tree.hit_test_target(click_point));
+
+        if let Some(mut hit) = hit_opt {
+            if hit.tag == 0 {
+                hit.tag =
+                    self.resolve_panel_tag(crate::ui::panel_layout::PanelId::Inspector, hit.id);
+            }
             // 2a. Entity Name Input
             if inspector::resolve_entity_name_input_tag(hit.tag) {
                 if let Some(entity) = entity_opt {

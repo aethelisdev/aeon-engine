@@ -99,6 +99,76 @@ impl IrisEditorOverlay {
         irisui::text::collect_text_sections_with_options(tree, &options)
     }
 
+    /// Composites all active UI layers (shell tree, independent dock panel trees, and top overlay tree)
+    /// into the internal [`TreeCompositor`] command list in strict back-to-front Z-order.
+    ///
+    /// Applies hardware scissor clipping and `(0, 0)` local-to-screen coordinate translation
+    /// per panel to prevent clipping and overflow.
+    pub fn composite_active_layers(&mut self) {
+        self.compositor.clear();
+
+        // 1. Base Layer: Shell tree commands (MenuBar, StatusBar, dock chrome)
+        let shell_commands = std::mem::take(&mut self.command_list);
+        self.compositor.append_shell_commands(shell_commands);
+
+        // 2. Docked & Floating Panel Layers: Apply hardware scissor and local-to-screen offset
+        let frame_ring = self.stats.frame_ring_buffer;
+        for panel in self.panels.iter() {
+            if let (Some(tree), Some(bounds)) = (panel.tree(), panel.bounds())
+                && tree.root().is_some()
+                && bounds.width > 1.0
+                && bounds.height > 1.0
+            {
+                if panel.id() == crate::ui::panel_layout::PanelId::Stats.id_str() {
+                    let mut stats_drawer =
+                        |target_list: &mut DrawCommandList,
+                         _id: WidgetId,
+                         node: &WidgetNode,
+                         _clip: Option<Rect>| {
+                            if node.role == WidgetRole::OscilloscopeCanvas
+                                && let Some(ref ring) = frame_ring
+                            {
+                                super::stats::append_oscilloscope_quads(
+                                    target_list,
+                                    node.computed_rect,
+                                    ring,
+                                );
+                            }
+                        };
+                    self.compositor.append_panel_tree_with_drawer(
+                        tree,
+                        bounds,
+                        self.chrome.hovered_tag,
+                        self.focus_manager.focused_tag,
+                        self.chrome.last_blink_caret,
+                        Some(&mut stats_drawer),
+                    );
+                } else {
+                    self.compositor.append_panel_tree(
+                        tree,
+                        bounds,
+                        self.chrome.hovered_tag,
+                        self.focus_manager.focused_tag,
+                        self.chrome.last_blink_caret,
+                    );
+                }
+            }
+        }
+
+        // 3. Top-Level Overlay Layer: Modals, dropdowns, and popups rendered without scissor clipping
+        if self.overlay_tree.is_open() && self.overlay_tree.tree().root().is_some() {
+            self.compositor.append_overlay_tree(
+                self.overlay_tree.tree(),
+                self.chrome.hovered_tag,
+                self.focus_manager.focused_tag,
+                self.chrome.last_blink_caret,
+            );
+        }
+
+        // Assign composited list back to self.command_list
+        self.command_list = std::mem::take(&mut self.compositor.command_list);
+    }
+
     /// Renders the Iris UI overlay into the target surface framebuffer.
     pub fn render(
         &mut self,
@@ -114,7 +184,8 @@ impl IrisEditorOverlay {
         if !self.is_visible
             || (self.command_list.quads.is_empty()
                 && self.command_list.texture_quads.is_empty()
-                && self.tree.root().is_none())
+                && self.tree.root().is_none()
+                && !self.overlay_tree.is_open())
         {
             return;
         }
@@ -134,13 +205,56 @@ impl IrisEditorOverlay {
             self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
         }
 
+        let mut extra_occluders = Vec::new();
+        if let Some(bounds) = self.overlay_tree.overlay_bounds() {
+            let is_opaque_overlay = matches!(
+                self.overlay_tree.active_overlay(),
+                Some(
+                    super::overlay_tree::ActiveOverlay::MenubarDropdown(_)
+                        | super::overlay_tree::ActiveOverlay::InspectorAddComponent
+                        | super::overlay_tree::ActiveOverlay::InspectorDropdown
+                        | super::overlay_tree::ActiveOverlay::InspectorColorPicker
+                        | super::overlay_tree::ActiveOverlay::HierarchyContextMenu
+                        | super::overlay_tree::ActiveOverlay::AssetsContextMenu
+                        | super::overlay_tree::ActiveOverlay::Modal(_)
+                        | super::overlay_tree::ActiveOverlay::UiDesignerAddElement
+                        | super::overlay_tree::ActiveOverlay::UiDesignerAspectRatio
+                )
+            );
+            if is_opaque_overlay {
+                extra_occluders.push(bounds);
+            }
+        }
+        if let Some(dd_rect) = self.menubar.dropdown_rect {
+            extra_occluders.push(dd_rect);
+        }
+
         let text_options = irisui::text::TextCollectionOptions {
             hovered_tag: self.chrome.hovered_tag,
             focused_tag: self.focus_manager.focused_tag,
             blink_caret: self.chrome.last_blink_caret,
+            extra_occluders,
             ..Default::default()
         };
-        let sections = irisui::text::collect_text_sections_with_options(&self.tree, &text_options);
+
+        let mut docked_panels = Vec::new();
+        for panel in self.panels.iter() {
+            if let (Some(tree), Some(bounds)) = (panel.tree(), panel.bounds())
+                && tree.root().is_some()
+                && bounds.width > 1.0
+                && bounds.height > 1.0
+            {
+                docked_panels.push((tree, bounds));
+            }
+        }
+
+        let sections = super::compositor::TreeCompositor::collect_composited_text_sections(
+            &self.tree,
+            &docked_panels,
+            self.overlay_tree.tree(),
+            &text_options,
+        );
+
         if let Some(txt_renderer) = &mut self.text_renderer {
             txt_renderer.prepare(
                 device,

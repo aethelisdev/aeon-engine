@@ -24,7 +24,18 @@ impl IrisEditorOverlay {
         let mut actions = Vec::new();
 
         let cursor = self.cursor_pos();
-        let hit_target = self.tree.hit_test_target(cursor);
+        let hit_target = self
+            .overlay_tree
+            .tree()
+            .hit_test_target(cursor)
+            .or_else(|| self.hit_test_panel(crate::ui::panel_layout::PanelId::Assets, cursor))
+            .or_else(|| self.tree.hit_test_target(cursor))
+            .map(|mut h| {
+                if h.tag == 0 {
+                    h.tag = self.resolve_panel_tag(crate::ui::panel_layout::PanelId::Assets, h.id);
+                }
+                h
+            });
 
         let ctx = super::super::assets::AssetsEventContext {
             cursor_pos: cursor,

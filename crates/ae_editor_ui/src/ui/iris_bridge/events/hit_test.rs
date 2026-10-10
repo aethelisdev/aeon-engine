@@ -6,6 +6,7 @@
 //! Powered directly by Iris UI's native [`UiTree`] stacking layers ([`UiLayer`]),
 //! providing zero-allocation, generic spatial queries without inspecting subsystem structs.
 
+use crate::ui::iris_bridge::overlay_tree::ActiveOverlay;
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use irisui::prelude::*;
 
@@ -23,6 +24,24 @@ impl IrisEditorOverlay {
     pub fn is_point_over_modal_or_dropdown(&self, point: Point) -> bool {
         if point.y <= Self::MENUBAR_HEIGHT {
             return true;
+        }
+        if self.overlay_tree.is_open() {
+            if matches!(
+                self.overlay_tree.active_overlay(),
+                Some(ActiveOverlay::Modal(
+                    crate::ui::iris_bridge::ModalKind::Preferences,
+                ))
+            ) {
+                if self.overlay_tree.contains_point(point) {
+                    return true;
+                }
+            } else if matches!(
+                self.overlay_tree.active_overlay(),
+                Some(ActiveOverlay::Modal(_))
+            ) || self.overlay_tree.contains_point(point)
+            {
+                return true;
+            }
         }
         if self.tree.is_modal_active() {
             return true;
@@ -113,5 +132,24 @@ mod tests {
             Some(UiLayer::Content)
         );
         assert_eq!(tree.layer_at(Point::new(2000.0, 2000.0)), None);
+    }
+
+    #[test]
+    fn test_preferences_modal_hit_test_bounds() {
+        let mut overlay_tree = crate::ui::iris_bridge::OverlayTree::new();
+        let pref_bounds = Rect::new(400.0, 200.0, 760.0, 540.0);
+        overlay_tree.open(
+            ActiveOverlay::Modal(crate::ui::iris_bridge::ModalKind::Preferences),
+            crate::ui::iris_bridge::OverlayDismissPolicy::ExplicitOnly,
+        );
+        overlay_tree.set_overlay_bounds(pref_bounds);
+
+        // Inside Preferences dialog
+        assert!(overlay_tree.contains_point(Point::new(500.0, 300.0)));
+        assert!(overlay_tree.contains_point(Point::new(400.0, 200.0)));
+
+        // Outside Preferences dialog (in background workspace, y > MENUBAR_HEIGHT)
+        assert!(!overlay_tree.contains_point(Point::new(100.0, 100.0)));
+        assert!(!overlay_tree.contains_point(Point::new(1500.0, 500.0)));
     }
 }

@@ -42,7 +42,7 @@ pub const SIDEBAR_TABS: [(&str, u8); 10] = [
 #[inline]
 pub fn tab_virtual_height(tab_idx: u8) -> f32 {
     match tab_idx {
-        0 => 500.0,
+        0 => 680.0,
         1 => 1800.0, // Graphics tab: complete Shadows, Performance, AA, Bloom, Atmosphere, Clouds & Fog
         2 => 1100.0,
         3 => 650.0,
@@ -276,6 +276,7 @@ pub fn build_preferences_dialog(
                             .width(content_w)
                             .height(content_h)
                             .clip_children(true)
+                            .scroll_offset_y(params.scroll_offset_y)
                             .padding_insets(Insets::new(14.0, 18.0, 14.0, 18.0)),
                         WidgetRole::Default,
                         PREF_TAG_CONTENT_VIEW,
@@ -283,10 +284,7 @@ pub fn build_preferences_dialog(
                             // Virtual Scrolling Container
                             let sc_id = content.container_named(
                                 "PreferencesScrollContainer",
-                                Style::new()
-                                    .flex_col()
-                                    .gap(14.0)
-                                    .scroll_offset_y(params.scroll_offset_y),
+                                Style::new().flex_col().gap(14.0),
                                 |scroll_col| {
                                     match params.active_tab {
                                         0 => build_general_tab(scroll_col, &mut params),

@@ -135,9 +135,8 @@ pub fn build_assets_panel(
         },
     );
 
-    // 6. Right-Click Floating Context Menu (Z-Order Top)
-    let context_menu_card_rect =
-        super::context_menu::build_assets_context_menu(tree, parent_id, params);
+    // 6. Right-Click Floating Context Menu is rendered on top-level OverlayTree (Layer 2)
+    // to prevent clipping and preserve precise absolute screen coordinates.
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
     super::preview::build_asset_preview_modal(tree, parent_id, params);
@@ -146,6 +145,6 @@ pub fn build_assets_panel(
         panel_rect: params.panel_rect,
         sidebar_rect: resolved_sidebar_rect,
         content_viewport_rect: resolved_content_rect,
-        context_menu_card_rect,
+        context_menu_card_rect: None,
     }
 }

@@ -102,6 +102,14 @@ impl EngineUi {
             self.asset_browser.delete_confirmation = None;
         }
 
+        let modal_closed = iris_res.close_about
+            || iris_res.cancel_delete
+            || iris_res.confirm_delete
+            || iris_res.cancel_new_folder
+            || iris_res.create_folder.is_some()
+            || iris_res.cancel_rename
+            || iris_res.apply_rename.is_some();
+
         if let Some(folder_name) = iris_res.create_folder
             && let Some(parent) = self.asset_browser.new_folder_parent.take()
         {
@@ -124,6 +132,12 @@ impl EngineUi {
         if iris_res.cancel_rename {
             self.asset_browser.rename_state = None;
             self.iris_overlay.modals.rename_buffer.clear();
+        }
+
+        if modal_closed {
+            self.iris_overlay.overlay_tree.close();
+            self.iris_overlay.notifier.tag_all();
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
         }
 
         if iris_res.clear_console_entries {

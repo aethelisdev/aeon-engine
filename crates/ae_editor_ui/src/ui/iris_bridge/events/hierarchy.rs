@@ -42,7 +42,11 @@ impl IrisEditorOverlay {
             // 1.1 Direct Hit-Testing on Add Menu Items (Zero-Allocation O(1) Dispatch)
             if self.hierarchy.is_add_menu_open
                 && ui_button == MouseButton::Left
-                && let Some(hit) = self.tree.hit_test_target(click_point)
+                && let Some(hit) = self
+                    .overlay_tree
+                    .tree()
+                    .hit_test_target(click_point)
+                    .or_else(|| self.tree.hit_test_target(click_point))
                 && hit.layer == UiLayer::Popup
             {
                 if hit.role == WidgetRole::DropdownItem {
@@ -78,7 +82,11 @@ impl IrisEditorOverlay {
             // 1.2 Direct Hit-Testing on Right-Click Entity Context Menu (Zero-Allocation O(1) Dispatch)
             if let Some((target_ent, _)) = self.hierarchy.active_context_menu
                 && ui_button == MouseButton::Left
-                && let Some(hit) = self.tree.hit_test_target(click_point)
+                && let Some(hit) = self
+                    .overlay_tree
+                    .tree()
+                    .hit_test_target(click_point)
+                    .or_else(|| self.tree.hit_test_target(click_point))
                 && hit.layer == UiLayer::Popup
             {
                 if hit.role == WidgetRole::DropdownItem {
@@ -111,8 +119,16 @@ impl IrisEditorOverlay {
             }
 
             // 1.3 Direct Hardware Hit-Testing on Scene Hierarchy Panel Widgets
-            if let Some(hit) = self.tree.hit_test_target(click_point) {
-                let effective_tag = self.tree.resolve_ancestor_tag(hit.id);
+            let hit_opt = self
+                .hit_test_panel(crate::ui::panel_layout::PanelId::Hierarchy, click_point)
+                .or_else(|| self.tree.hit_test_target(click_point));
+
+            if let Some(hit) = hit_opt {
+                let effective_tag = if hit.tag != 0 {
+                    hit.tag
+                } else {
+                    self.resolve_panel_tag(crate::ui::panel_layout::PanelId::Hierarchy, hit.id)
+                };
 
                 if let Some(target) = resolve_hierarchy_tag(effective_tag) {
                     // Close context menu and add menu on any click inside panel outside menus
@@ -238,7 +254,11 @@ impl IrisEditorOverlay {
             && self.hierarchy.is_add_menu_open
         {
             let cursor = self.cursor_pos();
-            if let Some(hit) = self.tree.hit_test_target(cursor)
+            if let Some(hit) = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(cursor)
+                .or_else(|| self.tree.hit_test_target(cursor))
                 && hit.layer == UiLayer::Popup
             {
                 if hit.role == WidgetRole::DropdownItem {

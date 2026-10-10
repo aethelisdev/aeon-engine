@@ -46,27 +46,38 @@ impl IrisEditorOverlay {
                 winit::keyboard::KeyCode::Escape => {
                     if self.modals.is_about_active {
                         result.close_about = true;
+                        self.modals.is_about_active = false;
                     } else if self.modals.is_delete_active {
                         result.cancel_delete = true;
+                        self.modals.is_delete_active = false;
                     } else if self.modals.is_new_folder_active {
                         result.cancel_new_folder = true;
+                        self.modals.is_new_folder_active = false;
                     } else if self.modals.is_rename_active {
                         result.cancel_rename = true;
+                        self.modals.is_rename_active = false;
                     }
+                    self.overlay_tree.close();
                     result.consumed = true;
                     return Some(result);
                 }
                 winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
                     if self.modals.is_delete_active {
                         result.confirm_delete = true;
+                        self.modals.is_delete_active = false;
+                        self.overlay_tree.close();
                     } else if self.modals.is_new_folder_active
                         && !self.modals.new_folder_buffer.trim().is_empty()
                     {
                         result.create_folder = Some(self.modals.new_folder_buffer.clone());
+                        self.modals.is_new_folder_active = false;
+                        self.overlay_tree.close();
                     } else if self.modals.is_rename_active
                         && !self.modals.rename_buffer.trim().is_empty()
                     {
                         result.apply_rename = Some(self.modals.rename_buffer.clone());
+                        self.modals.is_rename_active = false;
+                        self.overlay_tree.close();
                     }
                     result.consumed = true;
                     return Some(result);
@@ -115,7 +126,11 @@ impl IrisEditorOverlay {
                 ..
             } => {
                 let click_point = self.cursor_pos();
-                let hit_target = self.tree.hit_test_target(click_point);
+                let hit_target = self
+                    .overlay_tree
+                    .tree()
+                    .hit_test_target(click_point)
+                    .or_else(|| self.tree.hit_test_target(click_point));
 
                 if let Some(ref h) = hit_target {
                     self.modals.pending_interaction_events.push((
@@ -136,6 +151,8 @@ impl IrisEditorOverlay {
                             | ModalDialogAction::Cancel
                             | ModalDialogAction::ScrimDismiss => {
                                 result.close_about = true;
+                                self.modals.is_about_active = false;
+                                self.overlay_tree.close();
                             }
                         }
                     }
@@ -148,11 +165,15 @@ impl IrisEditorOverlay {
                         match action {
                             ModalDialogAction::Confirm => {
                                 result.confirm_delete = true;
+                                self.modals.is_delete_active = false;
+                                self.overlay_tree.close();
                             }
                             ModalDialogAction::Close
                             | ModalDialogAction::Cancel
                             | ModalDialogAction::ScrimDismiss => {
                                 result.cancel_delete = true;
+                                self.modals.is_delete_active = false;
+                                self.overlay_tree.close();
                             }
                         }
                     }
@@ -167,12 +188,16 @@ impl IrisEditorOverlay {
                                 if !self.modals.new_folder_buffer.trim().is_empty() {
                                     result.create_folder =
                                         Some(self.modals.new_folder_buffer.clone());
+                                    self.modals.is_new_folder_active = false;
+                                    self.overlay_tree.close();
                                 }
                             }
                             ModalDialogAction::Close
                             | ModalDialogAction::Cancel
                             | ModalDialogAction::ScrimDismiss => {
                                 result.cancel_new_folder = true;
+                                self.modals.is_new_folder_active = false;
+                                self.overlay_tree.close();
                             }
                         }
                     }
@@ -186,12 +211,16 @@ impl IrisEditorOverlay {
                             ModalDialogAction::Confirm => {
                                 if !self.modals.rename_buffer.trim().is_empty() {
                                     result.apply_rename = Some(self.modals.rename_buffer.clone());
+                                    self.modals.is_rename_active = false;
+                                    self.overlay_tree.close();
                                 }
                             }
                             ModalDialogAction::Close
                             | ModalDialogAction::Cancel
                             | ModalDialogAction::ScrimDismiss => {
                                 result.cancel_rename = true;
+                                self.modals.is_rename_active = false;
+                                self.overlay_tree.close();
                             }
                         }
                     }

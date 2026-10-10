@@ -259,6 +259,11 @@ pub fn build_dock_navigator_nodes(
             node.set_name("IrisDockNavButton");
             node.set_style(
                 Style::new()
+                    .position_absolute()
+                    .left(button_rect.x)
+                    .top(button_rect.y)
+                    .width(button_rect.width)
+                    .height(button_rect.height)
                     .background(bg_color)
                     .border(border_width, border_color)
                     .border_radius(style.corner_radius),
@@ -281,6 +286,11 @@ pub fn build_dock_navigator_nodes(
             node.set_name("IrisDockNavInnerFrame");
             node.set_style(
                 Style::new()
+                    .position_absolute()
+                    .left(inset)
+                    .top(inset)
+                    .width(inner_rect.width)
+                    .height(inner_rect.height)
                     .background(Color::TRANSPARENT)
                     .border(0.75, style.divider_color)
                     .border_radius(1.0),
@@ -298,6 +308,11 @@ pub fn build_dock_navigator_nodes(
             node.set_name("IrisDockNavHeaderRim");
             node.set_style(
                 Style::new()
+                    .position_absolute()
+                    .left(inset)
+                    .top(inset)
+                    .width(rim_rect.width)
+                    .height(rim_rect.height)
                     .background(style.header_color)
                     .border_radius(0.5),
             );
@@ -334,7 +349,15 @@ pub fn build_dock_navigator_nodes(
             let fill_id = tree.create_node();
             if let Some(node) = tree.get_mut(fill_id) {
                 node.set_name("IrisDockNavActiveFill");
-                node.set_style(Style::new().background(style.active_partition_fill));
+                node.set_style(
+                    Style::new()
+                        .position_absolute()
+                        .left(active_fill_rect.x - button_rect.x)
+                        .top(active_fill_rect.y - button_rect.y)
+                        .width(active_fill_rect.width)
+                        .height(active_fill_rect.height)
+                        .background(style.active_partition_fill),
+                );
                 node.computed_rect = active_fill_rect;
             }
             let _ = tree.add_child(button_id, fill_id);
@@ -353,12 +376,21 @@ pub fn build_dock_navigator_nodes(
                     let t1 = dash_pair[1];
                     let seg_y = body_y + body_h * t0;
                     let seg_h = (body_h * (t1 - t0)).max(1.0);
+                    let dash_rect = Rect::new(mid_x, seg_y, 1.0, seg_h);
 
                     let dash_id = tree.create_node();
                     if let Some(node) = tree.get_mut(dash_id) {
                         node.set_name("IrisDockNavDashedLine");
-                        node.set_style(Style::new().background(style.divider_color));
-                        node.computed_rect = Rect::new(mid_x, seg_y, 1.0, seg_h);
+                        node.set_style(
+                            Style::new()
+                                .position_absolute()
+                                .left(dash_rect.x - button_rect.x)
+                                .top(dash_rect.y - button_rect.y)
+                                .width(dash_rect.width)
+                                .height(dash_rect.height)
+                                .background(style.divider_color),
+                        );
+                        node.computed_rect = dash_rect;
                     }
                     let _ = tree.add_child(button_id, dash_id);
                 }
@@ -371,12 +403,21 @@ pub fn build_dock_navigator_nodes(
                     let t1 = dash_pair[1];
                     let seg_x = body_x + body_w * t0;
                     let seg_w = (body_w * (t1 - t0)).max(1.0);
+                    let dash_rect = Rect::new(seg_x, mid_y, seg_w, 1.0);
 
                     let dash_id = tree.create_node();
                     if let Some(node) = tree.get_mut(dash_id) {
                         node.set_name("IrisDockNavDashedLine");
-                        node.set_style(Style::new().background(style.divider_color));
-                        node.computed_rect = Rect::new(seg_x, mid_y, seg_w, 1.0);
+                        node.set_style(
+                            Style::new()
+                                .position_absolute()
+                                .left(dash_rect.x - button_rect.x)
+                                .top(dash_rect.y - button_rect.y)
+                                .width(dash_rect.width)
+                                .height(dash_rect.height)
+                                .background(style.divider_color),
+                        );
+                        node.computed_rect = dash_rect;
                     }
                     let _ = tree.add_child(button_id, dash_id);
                 }
@@ -400,6 +441,11 @@ pub fn build_drop_preview_node(
         node.set_name("IrisDockDropPreview");
         node.set_style(
             Style::new()
+                .position_absolute()
+                .left(preview_rect.x)
+                .top(preview_rect.y)
+                .width(preview_rect.width)
+                .height(preview_rect.height)
                 .background(style.preview_fill)
                 .border(1.5, style.preview_border)
                 .border_radius(4.0),
@@ -445,6 +491,11 @@ pub fn build_floating_tab_badge(
         node.set_name("IrisDockFloatingBadge");
         node.set_style(
             Style::new()
+                .position_absolute()
+                .left(badge_rect.x)
+                .top(badge_rect.y)
+                .width(badge_rect.width)
+                .height(badge_rect.height)
                 .background(Color::from_u8(16, 20, 28, 235))
                 .border(1.0, Color::from_u8(0, 229, 255, 200))
                 .border_radius(4.0),
@@ -454,6 +505,12 @@ pub fn build_floating_tab_badge(
     let _ = tree.add_child(parent_id, badge_id);
 
     // 2. Icon + Title label node
+    let label_rect = Rect::new(
+        badge_x + 8.0,
+        badge_y + 4.0,
+        badge_width - 24.0,
+        badge_height - 8.0,
+    );
     let label_id = tree.create_node();
     if let Some(node) = tree.get_mut(label_id) {
         node.set_name("IrisDockFloatingBadgeLabel");
@@ -462,13 +519,15 @@ pub fn build_floating_tab_badge(
         } else {
             params.title.to_string()
         };
-        node.set_style(Style::new());
-        node.computed_rect = Rect::new(
-            badge_x + 8.0,
-            badge_y + 4.0,
-            badge_width - 24.0,
-            badge_height - 8.0,
+        node.set_style(
+            Style::new()
+                .position_absolute()
+                .left(8.0)
+                .top(4.0)
+                .width(badge_width - 24.0)
+                .height(badge_height - 8.0),
         );
+        node.computed_rect = label_rect;
         node.text = Some(display_text);
         node.font_size = 11.5;
         node.text_color = Color::WHITE;
@@ -476,16 +535,24 @@ pub fn build_floating_tab_badge(
     let _ = tree.add_child(badge_id, label_id);
 
     // 3. Trailing close '✕' glyph
+    let close_rect = Rect::new(
+        badge_x + badge_width - 18.0,
+        badge_y + 4.0,
+        14.0,
+        badge_height - 8.0,
+    );
     let close_id = tree.create_node();
     if let Some(node) = tree.get_mut(close_id) {
         node.set_name("IrisDockFloatingBadgeClose");
-        node.set_style(Style::new());
-        node.computed_rect = Rect::new(
-            badge_x + badge_width - 18.0,
-            badge_y + 4.0,
-            14.0,
-            badge_height - 8.0,
+        node.set_style(
+            Style::new()
+                .position_absolute()
+                .left(badge_width - 18.0)
+                .top(4.0)
+                .width(14.0)
+                .height(badge_height - 8.0),
         );
+        node.computed_rect = close_rect;
         node.text = Some("✕".to_string());
         node.font_size = 10.0;
         node.text_color = Color::from_u8(160, 175, 195, 255);

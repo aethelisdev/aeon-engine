@@ -53,9 +53,12 @@ fn test_inspector_dropdown_popup_declarative_scope_and_hit_testing() {
     let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
     params.active_dropdown = Some(InspectorDropdownId::RigidBodyType);
 
+    let mut panel_tree = UiTree::new();
+    let panel_root = panel_tree.create_root().expect("panel root node");
+
     // Build trigger anchor via declarative UiScope
     {
-        let mut scope = UiScope::new(&mut tree, root);
+        let mut scope = UiScope::new(&mut panel_tree, panel_root);
         scope.container_tagged(
             "AnchorDropdownTrigger",
             Style::new()
@@ -81,7 +84,7 @@ fn test_inspector_dropdown_popup_declarative_scope_and_hit_testing() {
     }
 
     // Build the dropdown popup via declarative UiScope
-    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params);
+    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params, Some(&panel_tree));
 
     // Option 0: "Dynamic" (tag = TAG_INSPECTOR_DROPDOWN_ITEM_BASE)
     let opt0_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 10.0);
@@ -115,9 +118,12 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     params.is_add_menu_open = true;
     params.active_submenu = Some(ComponentCategory::Physics);
 
+    let mut panel_tree = UiTree::new();
+    let panel_root = panel_tree.create_root().expect("panel root node");
+
     // Build Add Component button anchor via declarative UiScope
     {
-        let mut scope = UiScope::new(&mut tree, root);
+        let mut scope = UiScope::new(&mut panel_tree, panel_root);
         scope.container_tagged(
             "AddComponentButton",
             Style::new()
@@ -143,7 +149,7 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     }
 
     // Build the cascading add menu via declarative UiScope
-    add_menu::build_add_component_menu(&mut tree, root, &params);
+    add_menu::build_add_component_menu(&mut tree, root, &params, Some(&panel_tree));
 
     // Find Physics category card item
     let mut physics_cat_node = None;
@@ -199,9 +205,12 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     params.inspector_hsv = [180.0, 0.5, 0.8];
     params.inspector_color_hex = "#33cccc";
 
+    let mut panel_tree = UiTree::new();
+    let panel_root = panel_tree.create_root().expect("panel root node");
+
     // Build Swatch trigger anchor via declarative UiScope
     {
-        let mut scope = UiScope::new(&mut tree, root);
+        let mut scope = UiScope::new(&mut panel_tree, panel_root);
         scope.container_tagged(
             "ColorSwatchAnchor",
             Style::new()
@@ -227,7 +236,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     }
 
     // Build color picker popup via declarative UiScope
-    color_picker_popup::build_color_picker_popup(&mut tree, root, &params);
+    color_picker_popup::build_color_picker_popup(&mut tree, root, &params, Some(&panel_tree));
 
     // Verify popup elements exist with UiLayer::Popup
     let mut sv_box_found = false;
@@ -253,4 +262,26 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     assert!(sv_box_found, "2D SV Box must exist in Popup layer");
     assert!(hue_bar_found, "Hue Bar must exist in Popup layer");
     assert!(close_btn_found, "Close Button must exist in Popup layer");
+
+    // Verify hardware hit-testing hits the SV box and returns the full container's bounding rectangle
+    let (_, sv_node) = tree
+        .iter()
+        .find(|(_, n)| n.tag == tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX)
+        .expect("SV box must exist");
+    let test_point = Point::new(
+        sv_node.computed_rect.x + 20.0,
+        sv_node.computed_rect.y + 20.0,
+    );
+    let hit = tree
+        .hit_test_target(test_point)
+        .expect("SV box point must hit a target");
+    assert_eq!(
+        hit.tag,
+        tags::TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
+        "Clicking inside SV box must hit TAG_INSPECTOR_COLOR_PICKER_SV_BOX"
+    );
+    assert_eq!(
+        hit.rect, sv_node.computed_rect,
+        "Hit rect must match the full SV box container, not an internal cell"
+    );
 }

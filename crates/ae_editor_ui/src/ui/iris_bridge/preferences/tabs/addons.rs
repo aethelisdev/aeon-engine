@@ -15,7 +15,8 @@ struct AddonItem {
     version: &'static str,
     status: &'static str,
     status_color: Color,
-    description: &'static str,
+    desc_line1: &'static str,
+    desc_line2: &'static str,
 }
 
 const ENGINE_ADDONS: [AddonItem; 4] = [
@@ -24,28 +25,32 @@ const ENGINE_ADDONS: [AddonItem; 4] = [
         version: "v2.0 Built-in",
         status: "Active",
         status_color: Color::rgba(0.20, 0.85, 0.45, 1.0),
-        description: "Official Kronos glTF asset loading pipeline. Supports PBR materials, multi-channel textures, skeletal skins, and embedded binary buffers.",
+        desc_line1: "Official Kronos glTF asset loading pipeline. Supports PBR materials,",
+        desc_line2: "multi-channel textures, skeletal skins, and embedded binary buffers.",
     },
     AddonItem {
         name: "Iris UI Framework",
         version: "v1.0 Retained",
         status: "Active",
         status_color: Color::rgba(0.20, 0.85, 0.45, 1.0),
-        description: "Hardware-accelerated Signed Distance Field (SDF) vector renderer and declarative UiScope hierarchy builder with zero CPU garbage generation.",
+        desc_line1: "Hardware-accelerated Signed Distance Field (SDF) vector renderer and",
+        desc_line2: "declarative UiScope hierarchy builder with zero CPU garbage generation.",
     },
     AddonItem {
         name: "Kira Audio Subsystem",
         version: "v0.9 DSP",
         status: "Active",
         status_color: Color::rgba(0.20, 0.85, 0.45, 1.0),
-        description: "Low-latency spatial audio engine. Provides 3D sound attenuation, doppler pitch shifting, procedural synthesizers, and environmental reverb.",
+        desc_line1: "Low-latency spatial audio engine. Provides 3D sound attenuation,",
+        desc_line2: "doppler pitch shifting, procedural synthesizers, and environmental reverb.",
     },
     AddonItem {
         name: "WGSL Shader Compiler & Hot-Reload",
         version: "v30.0 WGPU",
         status: "Active",
         status_color: Color::rgba(0.20, 0.85, 0.45, 1.0),
-        description: "Asynchronous file-system watcher for WGSL compute and raster pipelines. Dynamically re-binds GPU pipelines on file modification with zero restart.",
+        desc_line1: "Asynchronous file-system watcher for WGSL compute and raster pipelines.",
+        desc_line2: "Dynamically re-binds GPU pipelines on file modification with zero restart.",
     },
 ];
 
@@ -124,8 +129,16 @@ pub fn build_addons_tab(scope: &mut UiScope<'_>, _params: &PreferencesParams<'_>
                 );
 
                 card.label_styled_passive(
-                    "AddonDesc",
-                    addon.description,
+                    "AddonDescLine1",
+                    addon.desc_line1,
+                    11.0,
+                    Color::rgba(0.65, 0.68, 0.76, 1.0),
+                    TextAlign::Left,
+                    Style::new().margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
+                );
+                card.label_styled_passive(
+                    "AddonDescLine2",
+                    addon.desc_line2,
                     11.0,
                     Color::rgba(0.65, 0.68, 0.76, 1.0),
                     TextAlign::Left,

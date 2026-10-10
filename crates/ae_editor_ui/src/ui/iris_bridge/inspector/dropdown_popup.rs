@@ -12,20 +12,31 @@ use super::types::{InspectorDropdownId, InspectorPanelParams};
 use irisui::prelude::*;
 
 /// Builds the floating dropdown menu popup for the currently active Inspector ComboBox using declarative [`UiScope`].
+///
+/// Returns the screen-space bounding rectangle of the constructed dropdown popup, if active.
 pub fn build_inspector_dropdown_popup(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-) {
-    let Some(active_id) = params.active_dropdown else {
-        return;
-    };
+    panel_tree: Option<&UiTree>,
+) -> Option<Rect> {
+    let active_id = params.active_dropdown?;
 
     let active_tag = encode_inspector_dropdown_tag(active_id);
-    let anchor_rect = tree
-        .iter()
-        .find(|(_, node)| node.tag == active_tag)
-        .map(|(_, node)| node.computed_rect)
+    let anchor_rect = panel_tree
+        .and_then(|ptree| {
+            ptree
+                .iter()
+                .find(|(_, node)| node.tag == active_tag)
+                .map(|(_, node)| {
+                    Rect::new(
+                        params.panel_rect.x + node.computed_rect.x,
+                        params.panel_rect.y + node.computed_rect.y,
+                        node.computed_rect.width,
+                        node.computed_rect.height,
+                    )
+                })
+        })
         .unwrap_or(Rect::new(
             params.panel_rect.x + 8.0,
             params.panel_rect.y + 40.0,
@@ -58,6 +69,8 @@ pub fn build_inspector_dropdown_popup(
             }
         },
     );
+
+    Some(Rect::new(popup_x, popup_y, popup_w, popup_h))
 }
 
 /// Returns the slice of option label strings for a given dropdown identifier.
@@ -124,7 +137,7 @@ mod tests {
             blink_caret: false,
         };
 
-        build_inspector_dropdown_popup(&mut tree, root, &params);
+        build_inspector_dropdown_popup(&mut tree, root, &params, None);
 
         let popup_node = tree
             .iter()

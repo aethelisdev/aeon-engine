@@ -171,8 +171,8 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
     );
     assert_eq!(content_rect.height, PREF_CARD_HEIGHT - TITLEBAR_HEIGHT);
 
-    // General tab (tab 0) virtual height is smaller than content height -> max_scroll_y is 0
-    assert_eq!(max_scroll_y, 0.0);
+    // General tab (tab 0) virtual height (680.0) exceeds content height -> scrollable
+    assert_eq!(max_scroll_y, 176.0);
 
     // Verify hit testing: Titlebar contains point for dragging
     let title_point = Point::new(450.0, 215.0);
@@ -778,5 +778,317 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         (gs.sun_pitch - 45.0_f32.to_radians()).abs() < 1e-4,
         "Sun pitch must be updated directly via typed degree input: expected 45 deg in radians, got {}",
         gs.sun_pitch
+    );
+}
+
+#[test]
+fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
+    let mut tree = UiTree::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let enabled_modules = HashSet::new();
+    let collapsed = HashSet::new();
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1, // Graphics tab (overflows content height)
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: true,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+    };
+
+    let (_card_id, _card_rect, _content_rect, max_scroll_y) =
+        build_preferences_dialog(&mut tree, params);
+
+    assert!(max_scroll_y > 0.0, "Graphics tab must be scrollable");
+
+    let thumb_id = tree
+        .find_node_by_tag(super::types::PREF_TAG_SCROLLBAR_THUMB)
+        .expect("Scrollbar thumb node must exist in tree");
+
+    let thumb_node = tree.get(thumb_id).expect("Thumb node must exist");
+    let thumb_center = Point::new(
+        thumb_node.computed_rect.x + thumb_node.computed_rect.width * 0.5,
+        thumb_node.computed_rect.y + thumb_node.computed_rect.height * 0.5,
+    );
+
+    let hit = tree.hit_test_target(thumb_center);
+    assert_eq!(
+        hit.map(|h| h.tag),
+        Some(super::types::PREF_TAG_SCROLLBAR_THUMB),
+        "Clicking scrollbar thumb center must hit PREF_TAG_SCROLLBAR_THUMB, not card background or None"
+    );
+}
+
+#[test]
+fn test_preferences_mouse_wheel_scroll_event_handling() {
+    let mut tree = UiTree::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let enabled_modules = HashSet::new();
+    let collapsed = HashSet::new();
+
+    let (_card_id, card_rect, content_rect, max_scroll_y) = build_preferences_dialog(
+        &mut tree,
+        PreferencesParams {
+            screen_width: 1920.0,
+            screen_height: 1080.0,
+            window_pos: None,
+            active_tab: 1, // Graphics tab
+            scroll_offset_y: 150.0,
+            is_scrollbar_dragging: false,
+            active_dropdown: None,
+            dropdown_trigger_rect: None,
+            collapsed_sections: &collapsed,
+            active_number_input: None,
+            blink_caret: false,
+            cursor_pos: Point::new(750.0, 400.0),
+            zoom_factor: 1.0,
+            graphics_settings: &mut gs,
+            snapping_settings: &mut snapping_settings,
+            editor_config: &mut editor_config,
+            enable_live_updates: false,
+            enabled_modules: &enabled_modules,
+            events: &[],
+        },
+    );
+
+    let (_card_id_unscrolled, _, _, _) = build_preferences_dialog(
+        &mut UiTree::new(),
+        PreferencesParams {
+            screen_width: 1920.0,
+            screen_height: 1080.0,
+            window_pos: None,
+            active_tab: 1,
+            scroll_offset_y: 0.0,
+            is_scrollbar_dragging: false,
+            active_dropdown: None,
+            dropdown_trigger_rect: None,
+            collapsed_sections: &collapsed,
+            active_number_input: None,
+            blink_caret: false,
+            cursor_pos: Point::new(750.0, 400.0),
+            zoom_factor: 1.0,
+            graphics_settings: &mut gs,
+            snapping_settings: &mut snapping_settings,
+            editor_config: &mut editor_config,
+            enable_live_updates: false,
+            enabled_modules: &enabled_modules,
+            events: &[],
+        },
+    );
+
+    assert!(max_scroll_y > 0.0);
+    assert_eq!(card_rect.width, PREF_CARD_WIDTH);
+    assert_eq!(content_rect.height, PREF_CARD_HEIGHT - TITLEBAR_HEIGHT);
+    let tag = encode_section_tag("graphics_shadows");
+    let y_scrolled = tree
+        .iter()
+        .find(|(_, n)| n.tag == tag)
+        .unwrap()
+        .1
+        .computed_rect
+        .y;
+    assert!(y_scrolled > 0.0);
+}
+
+#[test]
+fn test_sync_scroll_in_place_translates_children() {
+    let mut tree = UiTree::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let enabled_modules = HashSet::new();
+    let collapsed = HashSet::new();
+
+    let params = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1, // Graphics tab
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: true,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &[],
+    };
+
+    let (_card_id, _card_rect, _content_rect, max_scroll_y) =
+        build_preferences_dialog(&mut tree, params);
+
+    let tag = encode_section_tag("graphics_shadows");
+    let y_before = tree
+        .iter()
+        .find(|(_, n)| n.tag == tag)
+        .unwrap()
+        .1
+        .computed_rect
+        .y;
+
+    // Now call ScrollArea::sync_scroll_in_place
+    let updated = ScrollArea::sync_scroll_in_place(
+        &mut tree,
+        super::types::PREF_TAG_CONTENT_VIEW,
+        Some(super::types::PREF_TAG_SCROLLBAR_TRACK),
+        Some(super::types::PREF_TAG_SCROLLBAR_THUMB),
+        100.0,
+        max_scroll_y,
+    );
+
+    assert!(updated, "sync_scroll_in_place must return true");
+
+    let y_after = tree
+        .iter()
+        .find(|(_, n)| n.tag == tag)
+        .unwrap()
+        .1
+        .computed_rect
+        .y;
+    eprintln!(
+        "Before: {}, After: {}, Delta: {}",
+        y_before,
+        y_after,
+        y_before - y_after
+    );
+    assert_eq!(y_after, y_before - 100.0);
+
+    // Also verify text sections collected from overlay tree
+    let options = irisui::text::TextCollectionOptions::default();
+    let sections = irisui::text::collect_text_sections_with_options(&tree, &options);
+    for s in &sections {
+        eprintln!("Section text: '{}', bounds: {:?}", s.text, s.bounds);
+    }
+    let shadow_text = sections
+        .iter()
+        .find(|s| s.text.contains("Shadows"))
+        .expect("Shadows text must exist");
+    eprintln!("Shadows text section y: {}", shadow_text.bounds.y);
+    assert!(
+        shadow_text.bounds.y < 350.0,
+        "Shadows text must be shifted up by scroll"
+    );
+}
+
+#[test]
+fn test_preferences_mouse_wheel_and_drag() {
+    let mut tree = UiTree::new();
+    let screen_width = 1920.0;
+    let screen_height = 1080.0;
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+    let enabled_modules = HashSet::new();
+    let collapsed = HashSet::new();
+
+    let (_card_id, _card_rect, _content_rect, max_scroll_y) = build_preferences_dialog(
+        &mut tree,
+        PreferencesParams {
+            screen_width,
+            screen_height,
+            window_pos: None,
+            active_tab: 1, // Graphics tab
+            scroll_offset_y: 0.0,
+            is_scrollbar_dragging: false,
+            active_dropdown: None,
+            dropdown_trigger_rect: None,
+            collapsed_sections: &collapsed,
+            active_number_input: None,
+            blink_caret: false,
+            cursor_pos: Point::new(500.0, 500.0),
+            zoom_factor: 1.0,
+            graphics_settings: &mut gs,
+            snapping_settings: &mut snapping_settings,
+            editor_config: &mut editor_config,
+            enable_live_updates: false,
+            enabled_modules: &enabled_modules,
+            events: &[],
+        },
+    );
+
+    assert!(
+        max_scroll_y > 100.0,
+        "Graphics tab must have max_scroll_y > 100, got {}",
+        max_scroll_y
+    );
+
+    let tag = encode_section_tag("graphics_shadows");
+    let y_at_0 = tree
+        .iter()
+        .find(|(_, n)| n.tag == tag)
+        .unwrap()
+        .1
+        .computed_rect
+        .y;
+
+    // Now build with scroll_offset_y: 150.0
+    let mut tree_scrolled = UiTree::new();
+    let (_card_id, _card_rect, _content_rect, _max_scroll_y) = build_preferences_dialog(
+        &mut tree_scrolled,
+        PreferencesParams {
+            screen_width,
+            screen_height,
+            window_pos: None,
+            active_tab: 1, // Graphics tab
+            scroll_offset_y: 150.0,
+            is_scrollbar_dragging: false,
+            active_dropdown: None,
+            dropdown_trigger_rect: None,
+            collapsed_sections: &collapsed,
+            active_number_input: None,
+            blink_caret: false,
+            cursor_pos: Point::new(500.0, 500.0),
+            zoom_factor: 1.0,
+            graphics_settings: &mut gs,
+            snapping_settings: &mut snapping_settings,
+            editor_config: &mut editor_config,
+            enable_live_updates: false,
+            enabled_modules: &enabled_modules,
+            events: &[],
+        },
+    );
+
+    let y_at_150 = tree_scrolled
+        .iter()
+        .find(|(_, n)| n.tag == tag)
+        .unwrap()
+        .1
+        .computed_rect
+        .y;
+    eprintln!(
+        "y_at_0 = {}, y_at_150 = {}, diff = {}",
+        y_at_0,
+        y_at_150,
+        y_at_0 - y_at_150
+    );
+    assert_eq!(
+        y_at_150,
+        y_at_0 - 150.0,
+        "Building with scroll_offset_y: 150.0 must shift content up by 150px"
     );
 }

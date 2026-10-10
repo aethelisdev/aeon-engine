@@ -37,6 +37,7 @@ pub use components::{
     FOLDER_TREE_ROW_HEIGHT, asset_breadcrumb_bar, asset_empty_notice, asset_folder_tree_item,
     asset_grid_card, asset_list_row, resolve_category_color, resolve_category_icon,
 };
+pub use context_menu::{build_assets_context_menu, build_assets_context_menu_overlay};
 pub use drag_overlay::build_asset_drag_overlays;
 pub use events::{
     AssetClickTracker, AssetsEventContext, handle_assets_click, handle_assets_panel_event,

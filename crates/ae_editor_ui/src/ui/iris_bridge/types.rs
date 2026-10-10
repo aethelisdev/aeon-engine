@@ -45,26 +45,31 @@ pub enum ActiveMenu {
 
 impl ActiveMenu {
     /// Converts this menu category to its numeric widget tag.
+    ///
+    /// Uses non-zero identifiers (`10..=14`) to ensure valid hardware hit-testing
+    /// and unambiguous hover targeting across all engine subsystems.
     #[inline]
     pub const fn to_tag(self) -> u64 {
         match self {
-            Self::File => 0,
-            Self::Edit => 1,
-            Self::View => 2,
-            Self::Window => 3,
-            Self::Help => 4,
+            Self::File => 10,
+            Self::Edit => 11,
+            Self::View => 12,
+            Self::Window => 13,
+            Self::Help => 14,
         }
     }
 
     /// Resolves an active menu category from its numeric widget tag.
+    ///
+    /// Accepts both legacy indices (`0..=4`) and designated tag space (`10..=14`).
     #[inline]
     pub const fn from_tag(tag: u64) -> Option<Self> {
         match tag {
-            0 => Some(Self::File),
-            1 => Some(Self::Edit),
-            2 => Some(Self::View),
-            3 => Some(Self::Window),
-            4 => Some(Self::Help),
+            0 | 10 => Some(Self::File),
+            1 | 11 => Some(Self::Edit),
+            2 | 12 => Some(Self::View),
+            3 | 13 => Some(Self::Window),
+            4 | 14 => Some(Self::Help),
             _ => None,
         }
     }
@@ -226,10 +231,16 @@ pub struct IrisChromeState {
     pub hovered_tag: Option<u64>,
     /// Last hovered 64-bit semantic tag used for reactive hover state invalidation.
     pub last_hovered_tag: Option<u64>,
+    /// Currently hovered dock panel identifier resolved from multi-tree hit testing.
+    pub hovered_panel: Option<PanelId>,
+    /// Last hovered dock panel identifier used to detect panel-level hover transitions and tag redraws.
+    pub last_hovered_panel: Option<PanelId>,
     /// Last focused 64-bit semantic tag used for reactive focus state invalidation.
     pub last_focused_tag: Option<u64>,
     /// Last recorded caret blink state to detect in-place caret redraw cycles.
     pub last_blink_caret: bool,
+    /// Active pointer capture source locking mouse move and release events to a specific panel during drag operations.
+    pub pointer_capture: Option<PanelId>,
     /// When set to `true`, disables retained diffing/sleeping cache and forces a full UI tree reconstruction
     /// every frame (pure immediate / always-rebuild mode).
     ///
@@ -257,10 +268,37 @@ impl Default for IrisChromeState {
             active_dock_overflow: None,
             hovered_tag: None,
             last_hovered_tag: None,
+            hovered_panel: None,
+            last_hovered_panel: None,
             last_focused_tag: None,
             last_blink_caret: false,
-            always_rebuild: true,
+            pointer_capture: None,
+            always_rebuild: false,
         }
+    }
+}
+
+impl IrisChromeState {
+    /// Evaluates whether the window chrome, dock frame, or root shell requires reconstruction.
+    ///
+    /// Rebuilding is required when dimensions, display scaling, floating windows, active modals,
+    /// or explicit layout rebuild flags change, or when [`Self::always_rebuild`] is enabled.
+    #[must_use]
+    pub fn is_dirty(
+        &self,
+        dimensions: (f32, f32),
+        zoom_factor: f32,
+        floating_count: usize,
+        has_drag_payload: bool,
+    ) -> bool {
+        self.always_rebuild
+            || self.needs_layout_rebuild
+            || self.last_dimensions != dimensions
+            || (self.last_zoom_factor - zoom_factor).abs() > 1e-4
+            || self.last_floating_count != floating_count
+            || self.active_dock_overflow.is_some()
+            || self.last_has_drag_payload != has_drag_payload
+            || has_drag_payload
     }
 }
 
@@ -324,6 +362,11 @@ pub struct IrisEditorOverlay {
     pub inspector: InspectorPanelState,
     /// Central focus manager tracking keyboard input focus across widgets and panels.
     pub focus_manager: FocusManager,
+    /// Dedicated top-level overlay and portal tree for dropdowns, popups, and modal dialogs (Phase 5.2).
+    pub overlay_tree: super::overlay_tree::OverlayTree,
+    /// Multi-tree layer compositor merging independent panel trees, floating windows,
+    /// and the topmost overlay tree (Phase 5.3).
+    pub compositor: super::compositor::TreeCompositor,
 }
 
 impl IrisEditorOverlay {

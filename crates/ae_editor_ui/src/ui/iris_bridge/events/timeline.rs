@@ -36,7 +36,20 @@ impl IrisEditorOverlay {
         {
             let click_point = self.cursor_pos();
 
-            if let Some(hit) = self.tree.hit_test_target(click_point) {
+            let hit_opt = self
+                .hit_test_panel(
+                    crate::ui::panel_layout::PanelId::AnimationTimeline,
+                    click_point,
+                )
+                .or_else(|| self.tree.hit_test_target(click_point));
+
+            if let Some(mut hit) = hit_opt {
+                if hit.tag == 0 {
+                    hit.tag = self.resolve_panel_tag(
+                        crate::ui::panel_layout::PanelId::AnimationTimeline,
+                        hit.id,
+                    );
+                }
                 // A. Scrubber Track or Playhead Cap hit -> initiate scrubbing drag
                 if hit.tag == TIMELINE_TAG_SCRUBBER_TRACK || hit.tag == TIMELINE_TAG_PLAYHEAD_CAP {
                     let track_x = hit.rect.x + super::super::timeline::TIMELINE_SIDEBAR_WIDTH;

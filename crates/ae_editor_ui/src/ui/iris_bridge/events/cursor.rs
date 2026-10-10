@@ -7,6 +7,7 @@
 //! dock tabs, close buttons, floating window borders, and interactive panel widgets
 //! to determine the appropriate system cursor icon (`Pointer`, `Resize`, `Crosshair`, `Text`, `Default`).
 
+use crate::ui::iris_bridge::compositor;
 use crate::ui::iris_bridge::types::{InspectorColorDragMode, IrisEditorOverlay};
 use irisui::dock::{DEFAULT_RESIZE_MARGIN, FloatingWindowCursor, evaluate_floating_resize_cursor};
 use irisui::prelude::*;
@@ -61,12 +62,36 @@ impl IrisEditorOverlay {
             };
         }
 
+        // 1b. Native Dock Splitter Handles (with ergonomic hit margin)
+        if let Some(ref dock_frame) = self.chrome.native_dock_frame {
+            for splitter in &dock_frame.splitter_targets {
+                if splitter.contains_point(p) {
+                    return match splitter.direction {
+                        irisui::dock::SplitDirection::Horizontal => CursorIcon::ColResize,
+                        irisui::dock::SplitDirection::Vertical => CursorIcon::RowResize,
+                    };
+                }
+            }
+        }
+
         // 2. Native Tree-Driven Cursor Resolution (Primary Iris UI Authority)
         // Resolves menubar items, buttons, dock tabs, close buttons, splitters,
         // numeric input pills, tree rows, and asset cards with full layer/modal occlusion.
         let tree_cursor = self.tree.cursor_at(p);
         if tree_cursor != WidgetCursor::Default {
             return map_widget_cursor_to_winit(tree_cursor);
+        }
+
+        if let Some(pid) = self.chrome.hovered_panel
+            && let Some(panel) = self.panels.get(pid.id_str())
+            && let Some(tree) = panel.tree()
+            && let Some(bounds) = panel.bounds()
+        {
+            let local_p = compositor::screen_to_panel_local(p, bounds);
+            let panel_cursor = tree.cursor_at(local_p);
+            if panel_cursor != WidgetCursor::Default {
+                return map_widget_cursor_to_winit(panel_cursor);
+            }
         }
 
         if let Some(mode) = self.inspector.color_drag_mode {

@@ -233,14 +233,21 @@ impl ComponentInspectorHandler for PlayerTagHandler {
                 false,
             );
 
-            card.label_styled_passive_wrapped(
+            card.label_styled_passive(
                 "PlayerTagDesc",
-                "Designates this entity as the active Player target for gameplay logic and camera tracking.",
-                WrappedLabelDescriptor::new(
-                    10.5,
-                    Color::rgba(0.54, 0.56, 0.60, 1.0),
-                    Style::new().flex_grow(1.0),
-                ),
+                "Designates this entity as the active Player target",
+                10.5,
+                Color::rgba(0.54, 0.56, 0.60, 1.0),
+                TextAlign::Left,
+                Style::new().margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
+            );
+            card.label_styled_passive(
+                "PlayerTagDescSub",
+                "for gameplay logic and camera tracking.",
+                10.5,
+                Color::rgba(0.54, 0.56, 0.60, 1.0),
+                TextAlign::Left,
+                Style::new(),
             );
         });
     }

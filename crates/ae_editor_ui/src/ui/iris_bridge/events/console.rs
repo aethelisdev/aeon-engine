@@ -68,47 +68,56 @@ impl IrisEditorOverlay {
                 return Some(result);
             }
 
-            if let Some(hit) = self.tree.hit_test_target(click_point)
-                && is_console_tag(hit.tag)
-            {
-                if hit.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
-                    self.console.active_scrollbar_drag =
-                        Some((click_point.y, self.console.interactions.scroll_y));
-                    self.console.auto_scroll = false;
-                    self.chrome.needs_scroll_sync = true;
-                    result.consumed = true;
-                    return Some(result);
-                } else if hit.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
-                    let track_y = hit.rect.y;
-                    let track_h = hit.rect.height.max(10.0);
-                    let thumb_h = ((track_h / (self.console.max_scroll_y + track_h)) * track_h)
-                        .clamp(20.0, track_h);
-                    let new_scroll = irisui::prelude::ScrollBarGeometry::scroll_from_track_click(
-                        click_point.y,
-                        track_y,
-                        track_h,
-                        thumb_h,
-                        self.console.max_scroll_y,
-                    );
-                    self.console.interactions.scroll_y =
-                        new_scroll.clamp(0.0, self.console.max_scroll_y);
-                    self.console.auto_scroll = false;
-                    self.console.active_scrollbar_drag =
-                        Some((click_point.y, self.console.interactions.scroll_y));
-                    self.chrome.needs_scroll_sync = true;
-                    result.consumed = true;
-                    return Some(result);
-                }
+            let hit_opt = self
+                .hit_test_panel(crate::ui::panel_layout::PanelId::Console, click_point)
+                .or_else(|| self.tree.hit_test_target(click_point));
 
-                if hit.tag != CONSOLE_TAG_SEARCH_INPUT
-                    && self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT)
-                {
-                    self.focus_manager.clear_focus();
+            if let Some(mut hit) = hit_opt {
+                if hit.tag == 0 {
+                    hit.tag =
+                        self.resolve_panel_tag(crate::ui::panel_layout::PanelId::Console, hit.id);
                 }
-                self.notifier.tag_all();
-                self.chrome.needs_layout_rebuild = true;
-                result.consumed = true;
-                return Some(result);
+                if is_console_tag(hit.tag) {
+                    if hit.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
+                        self.console.active_scrollbar_drag =
+                            Some((click_point.y, self.console.interactions.scroll_y));
+                        self.console.auto_scroll = false;
+                        self.chrome.needs_scroll_sync = true;
+                        result.consumed = true;
+                        return Some(result);
+                    } else if hit.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
+                        let track_y = hit.rect.y;
+                        let track_h = hit.rect.height.max(10.0);
+                        let thumb_h = ((track_h / (self.console.max_scroll_y + track_h)) * track_h)
+                            .clamp(20.0, track_h);
+                        let new_scroll =
+                            irisui::prelude::ScrollBarGeometry::scroll_from_track_click(
+                                click_point.y,
+                                track_y,
+                                track_h,
+                                thumb_h,
+                                self.console.max_scroll_y,
+                            );
+                        self.console.interactions.scroll_y =
+                            new_scroll.clamp(0.0, self.console.max_scroll_y);
+                        self.console.auto_scroll = false;
+                        self.console.active_scrollbar_drag =
+                            Some((click_point.y, self.console.interactions.scroll_y));
+                        self.chrome.needs_scroll_sync = true;
+                        result.consumed = true;
+                        return Some(result);
+                    }
+
+                    if hit.tag != CONSOLE_TAG_SEARCH_INPUT
+                        && self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT)
+                    {
+                        self.focus_manager.clear_focus();
+                    }
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                    result.consumed = true;
+                    return Some(result);
+                }
             }
         }
 

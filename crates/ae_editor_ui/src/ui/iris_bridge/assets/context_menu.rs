@@ -24,13 +24,15 @@ pub const CONTEXT_MENU_WIDTH: f32 = 190.0;
 ///
 /// Returns `Some(Rect)` representing the context menu card bounds for outside-click dismissal,
 /// or `None` if no context menu is active.
-pub fn build_assets_context_menu(
+/// Builds the floating context menu for an asset or folder into the top-level overlay tree.
+pub fn build_assets_context_menu_overlay(
     tree: &mut UiTree,
     parent_id: WidgetId,
-    params: &AssetsPanelParams<'_>,
-) -> Option<Rect> {
-    let (target, click_pos) = params.active_context_menu?;
-
+    target: &AssetsContextMenuTarget,
+    click_pos: Point,
+    cursor_pos: Point,
+    viewport_bounds: Option<Rect>,
+) -> Rect {
     let is_folder_root = match target {
         AssetsContextMenuTarget::Folder(path) => {
             path == std::path::Path::new("assets") || path.as_os_str().is_empty()
@@ -38,10 +40,13 @@ pub fn build_assets_context_menu(
         AssetsContextMenuTarget::Asset(_) => false,
     };
 
-    let mut builder = ContextMenuBuilder::new(*click_pos)
-        .cursor_pos(params.cursor_pos)
-        .viewport_bounds(params.panel_rect)
+    let mut builder = ContextMenuBuilder::new(click_pos)
+        .cursor_pos(cursor_pos)
         .width(CONTEXT_MENU_WIDTH);
+
+    if let Some(bounds) = viewport_bounds {
+        builder = builder.viewport_bounds(bounds);
+    }
 
     match target {
         AssetsContextMenuTarget::Folder(path) => {
@@ -88,6 +93,26 @@ pub fn build_assets_context_menu(
         }
     }
 
-    let card_rect = builder.build(tree, parent_id);
+    builder.build(tree, parent_id)
+}
+
+/// Builds the floating right-click context menu into the `UiTree` if currently open.
+///
+/// Returns `Some(Rect)` representing the context menu card bounds for outside-click dismissal,
+/// or `None` if no context menu is active.
+pub fn build_assets_context_menu(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &AssetsPanelParams<'_>,
+) -> Option<Rect> {
+    let (target, click_pos) = params.active_context_menu?;
+    let card_rect = build_assets_context_menu_overlay(
+        tree,
+        parent_id,
+        target,
+        *click_pos,
+        params.cursor_pos,
+        Some(params.panel_rect),
+    );
     Some(card_rect)
 }

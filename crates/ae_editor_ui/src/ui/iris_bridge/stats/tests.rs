@@ -175,3 +175,18 @@ fn test_checkbox_children_resolve_ancestor_tag() {
         "Both row and inner box must be tagged with STATS_TAG_TOGGLE_WIREFRAME"
     );
 }
+
+#[test]
+fn test_stats_panel_state_ring_buffer_snapshot() {
+    let mut state = StatsPanelState::default();
+    assert!(state.frame_ring_buffer.is_none());
+
+    let mut ring = FrameRingBuffer::new();
+    ring.push(8.33);
+    ring.push(8.25);
+    state.frame_ring_buffer = Some(ring);
+
+    assert!(state.frame_ring_buffer.is_some());
+    let copied = state.frame_ring_buffer.unwrap();
+    assert_eq!(copied.count(), 2);
+}

@@ -57,11 +57,18 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = text_color;
+            node.hover_text_color = Some(Color::WHITE);
+            let hover_bg = if is_active {
+                Color::hex("#1e2230")
+            } else {
+                Color::hex("#222634")
+            };
             node.set_style(
                 Style::new()
                     .height(20.0)
                     .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
                     .background(bg)
+                    .hover_background(hover_bg)
                     .border_radius(3.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)

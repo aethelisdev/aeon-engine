@@ -30,6 +30,8 @@ pub fn build_ui_designer_panel(
 
     let root_style = Style::new()
         .flex_col()
+        .width(params.panel_rect.width)
+        .height(params.panel_rect.height)
         .background(Color::rgba(0.065, 0.070, 0.082, 1.0))
         .border(1.0, Color::rgba(0.14, 0.15, 0.18, 0.70))
         .clip_children(true);
@@ -54,8 +56,14 @@ pub fn build_ui_designer_panel(
     );
 
     // ── 4. Dropdown Popups (Rendered on top in UiLayer::Popup via UiScope) ────
-    build_aspect_ratio_popup(&mut scope, params);
-    build_add_element_popup(&mut scope, params);
+    build_ui_designer_overlays(&mut scope, params);
 
     canvas_metrics
+}
+
+/// Builds top-level floating popups (Aspect Ratio and Add Element palettes)
+/// into the designated overlay or portal scope, preventing panel scissor clipping (Mine 2).
+pub fn build_ui_designer_overlays(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
+    build_aspect_ratio_popup(scope, params);
+    build_add_element_popup(scope, params);
 }

@@ -55,7 +55,10 @@ pub fn build_about_dialog(
     events: &[(WidgetId, InteractionEvent)],
     hovered_id: Option<WidgetId>,
 ) -> WidgetId {
-    let parent = tree.root().unwrap_or_default();
+    let parent = tree
+        .root()
+        .or_else(|| tree.create_root().ok())
+        .unwrap_or_default();
     let mut scope = UiScope::with_interactions(tree, parent, events, hovered_id);
 
     scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.55), |scrim| {

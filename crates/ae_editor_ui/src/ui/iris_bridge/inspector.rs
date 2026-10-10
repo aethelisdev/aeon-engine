@@ -42,7 +42,7 @@ pub use events::resolve_inspector_tag_click;
 pub use header::{entity_name_input_tag, resolve_entity_name_input_tag};
 pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
-pub use panel::build_inspector_panel;
+pub use panel::{build_inspector_overlays, build_inspector_panel};
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
 pub use state::{InspectorPanelState, InspectorState};
 pub use tags::{

@@ -375,6 +375,7 @@ impl HierarchyPanelState {
         let world_len = params.scene.world.len() as usize;
         self.last_selected_entity != params.scene.selected_entity
             || self.last_entity_count != world_len
+            || (self.scroll_y - self.last_scroll_y).abs() > 0.001
             || self.is_add_menu_open
             || self.active_context_menu.is_some()
     }
@@ -383,6 +384,7 @@ impl HierarchyPanelState {
     pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
         self.last_selected_entity = params.scene.selected_entity;
         self.last_entity_count = params.scene.world.len() as usize;
+        self.last_scroll_y = self.scroll_y;
     }
 
     /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
@@ -490,5 +492,20 @@ mod tests {
         );
         assert_eq!(resolve_hierarchy_tag(0), None);
         assert_eq!(resolve_hierarchy_tag(0xFFFF_FFFF), None);
+    }
+
+    #[test]
+    fn test_hierarchy_scroll_dirty_detection() {
+        let mut state = HierarchyPanelState::default();
+        assert_eq!(state.scroll_y, 0.0);
+        assert_eq!(state.last_scroll_y, 0.0);
+
+        // Modifying scroll_y reflects a dirty scroll delta
+        state.scroll_y = 50.0;
+        assert!((state.scroll_y - state.last_scroll_y).abs() > 0.001);
+
+        // Synchronizing updates last_scroll_y to match active scroll_y
+        state.last_scroll_y = state.scroll_y;
+        assert!((state.scroll_y - state.last_scroll_y).abs() <= 0.001);
     }
 }

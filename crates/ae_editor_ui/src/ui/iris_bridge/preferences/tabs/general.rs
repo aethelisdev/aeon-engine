@@ -90,8 +90,16 @@ pub fn build_general_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams
                         Style::new().margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
                     );
                     card.label_styled_passive(
-                        "SyncInfoDesc",
-                        "VSync locks presentation to monitor refresh rate to eliminate tearing. Framerate caps, MSAA samples, and GPU pacing options can be tuned under the Graphics tab.",
+                        "SyncInfoDesc1",
+                        "VSync locks presentation to monitor refresh rate to eliminate tearing.",
+                        11.0,
+                        Color::rgba(0.65, 0.68, 0.76, 1.0),
+                        TextAlign::Left,
+                        Style::new().margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
+                    );
+                    card.label_styled_passive(
+                        "SyncInfoDesc2",
+                        "Framerate caps, MSAA samples, and GPU pacing options can be tuned under the Graphics tab.",
                         11.0,
                         Color::rgba(0.65, 0.68, 0.76, 1.0),
                         TextAlign::Left,

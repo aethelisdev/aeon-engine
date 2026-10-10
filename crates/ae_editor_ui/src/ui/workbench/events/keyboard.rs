@@ -61,6 +61,31 @@ impl EngineUi {
             }
         }
 
+        // Keyboard shortcut: Preferences toggle (Ctrl + ,)
+        if let WindowEvent::KeyboardInput {
+            event: key_event, ..
+        } = event
+            && key_event.state == ElementState::Pressed
+            && self.iris_overlay.chrome.ctrl_held
+            && !self.wants_keyboard_input()
+        {
+            let is_comma = match key_event.physical_key {
+                winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::Comma) => true,
+                _ => {
+                    if let winit::keyboard::Key::Character(ref c) = key_event.logical_key {
+                        c == ","
+                    } else {
+                        false
+                    }
+                }
+            };
+            if is_comma {
+                self.show_preferences = !self.show_preferences;
+                self.iris_overlay.notifier.tag_all();
+                return true;
+            }
+        }
+
         // Hierarchy search bar live typing
         let is_hierarchy_search_focused = self
             .iris_overlay

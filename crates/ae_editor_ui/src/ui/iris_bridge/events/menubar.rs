@@ -39,8 +39,13 @@ impl IrisEditorOverlay {
                 ..
             } => {
                 let click_point = self.cursor_pos();
+                let hit_opt = self
+                    .overlay_tree
+                    .tree()
+                    .hit_test_target(click_point)
+                    .or_else(|| self.tree.hit_test_target(click_point));
 
-                if let Some(hit) = self.tree.hit_test_target(click_point) {
+                if let Some(hit) = hit_opt {
                     // 1. Menu item headers (File, Edit, View, Window, Help)
                     if hit.role == WidgetRole::MenuBarItem {
                         result.consumed = true;

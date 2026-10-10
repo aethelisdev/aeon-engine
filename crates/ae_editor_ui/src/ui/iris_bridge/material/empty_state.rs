@@ -12,9 +12,12 @@ use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_PLUS, ICON_WORLD};
 use irisui::prelude::*;
 
 /// Builds an empty-state placeholder card when no entity is currently selected directly on [`UiScope`].
-pub fn build_no_entity_selected(scope: &mut UiScope<'_>) {
+pub fn build_no_entity_selected(scope: &mut UiScope<'_>, panel_width: f32) {
+    let card_w = (panel_width - 24.0).max(100.0);
     let card_style = Style::new()
         .flex_col()
+        .align_items(AlignItems::Center)
+        .width(card_w)
         .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
         .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
         .border_radius(8.0)
@@ -33,27 +36,30 @@ pub fn build_no_entity_selected(scope: &mut UiScope<'_>) {
             "No Entity Selected",
             12.0,
             Color::rgba(0.90, 0.92, 0.95, 1.0),
-            TextAlign::Left,
+            TextAlign::Center,
         );
         card.label(
-            "Select a 3D model or 2D sprite in the viewport",
+            "Select a 3D model or 2D sprite in the",
             10.5,
             Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Left,
+            TextAlign::Center,
         );
         card.label(
-            "or hierarchy to edit materials.",
+            "viewport or hierarchy to edit materials.",
             10.5,
             Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Left,
+            TextAlign::Center,
         );
     });
 }
 
 /// Builds an empty-state placeholder card when the selected entity has no ModelId or SpriteId.
-pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>) {
+pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>, panel_width: f32) {
+    let card_w = (panel_width - 24.0).max(100.0);
     let card_style = Style::new()
         .flex_col()
+        .align_items(AlignItems::Center)
+        .width(card_w)
         .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
         .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
         .border_radius(8.0)
@@ -72,19 +78,19 @@ pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>) {
             "No Renderable Geometry",
             12.0,
             Color::rgba(0.90, 0.92, 0.95, 1.0),
-            TextAlign::Left,
+            TextAlign::Center,
         );
         card.label(
-            "Selected entity does not have a 3D Model or 2D Sprite component",
+            "Selected entity does not have a",
             10.5,
             Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Left,
+            TextAlign::Center,
         );
         card.label(
-            "attached.",
+            "3D Model or 2D Sprite component attached.",
             10.5,
             Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Left,
+            TextAlign::Center,
         );
         let btn_row = Style::new()
             .flex_row()

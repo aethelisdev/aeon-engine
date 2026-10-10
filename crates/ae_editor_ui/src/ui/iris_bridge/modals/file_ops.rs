@@ -29,7 +29,10 @@ pub fn build_delete_modal(
     screen_height: f32,
     cursor_pos: Point,
 ) -> WidgetId {
-    let parent = tree.root().unwrap_or_default();
+    let parent = tree
+        .root()
+        .or_else(|| tree.create_root().ok())
+        .unwrap_or_default();
     let mut scope = UiScope::new(tree, parent);
 
     scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.60), |scrim| {
@@ -126,7 +129,10 @@ pub struct RenameModalParams<'a> {
 
 /// Constructs the centered 'Create New Folder' modal in the UI tree using declarative [`UiScope`].
 pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) -> WidgetId {
-    let parent = tree.root().unwrap_or_default();
+    let parent = tree
+        .root()
+        .or_else(|| tree.create_root().ok())
+        .unwrap_or_default();
     let mut scope = UiScope::new(tree, parent);
 
     scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.60), |scrim| {
@@ -200,7 +206,10 @@ pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) 
 
 /// Constructs the centered 'Rename Asset / Folder' modal in the UI tree using declarative [`UiScope`].
 pub fn build_rename_modal(tree: &mut UiTree, params: RenameModalParams<'_>) -> WidgetId {
-    let parent = tree.root().unwrap_or_default();
+    let parent = tree
+        .root()
+        .or_else(|| tree.create_root().ok())
+        .unwrap_or_default();
     let mut scope = UiScope::new(tree, parent);
 
     let title = if params.is_folder {

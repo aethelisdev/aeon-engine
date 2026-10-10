@@ -29,6 +29,8 @@ pub fn build_material_panel(
 
     let root_style = Style::new()
         .flex_col()
+        .width(params.panel_rect.width)
+        .height(params.panel_rect.height)
         .background(Color::rgba(0.065, 0.068, 0.080, 0.98))
         .border(1.0, Color::rgba(0.12, 0.13, 0.16, 0.90))
         .clip_children(true);
@@ -48,10 +50,11 @@ pub fn build_material_panel(
                     .flex_col()
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
+                    .width(params.panel_rect.width)
                     .height(vp_h)
                     .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
                 panel_scope.container(center_style, |center_scope| {
-                    build_no_entity_selected(center_scope);
+                    build_no_entity_selected(center_scope, params.panel_rect.width);
                 });
             }
             Some(entity) => {
@@ -67,6 +70,7 @@ pub fn build_material_panel(
                     let mut vp_style = Style::new()
                         .clip_children(true)
                         .flex_col()
+                        .width(params.panel_rect.width)
                         .height(vp_h)
                         .gap(6.0)
                         .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
@@ -94,6 +98,7 @@ pub fn build_material_panel(
                     let mut vp_style = Style::new()
                         .clip_children(true)
                         .flex_col()
+                        .width(params.panel_rect.width)
                         .height(vp_h)
                         .gap(6.0)
                         .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
@@ -121,10 +126,11 @@ pub fn build_material_panel(
                         .flex_col()
                         .align_items(AlignItems::Center)
                         .justify_content(JustifyContent::Center)
+                        .width(params.panel_rect.width)
                         .height(vp_h)
                         .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
                     panel_scope.container(center_style, |center_scope| {
-                        build_no_renderable_geometry(center_scope);
+                        build_no_renderable_geometry(center_scope, params.panel_rect.width);
                     });
                 }
             }
@@ -134,12 +140,8 @@ pub fn build_material_panel(
         if max_scroll > 0.0 {
             let content_h = vp_h + max_scroll;
             let effective_scroll_y = params.scroll_y.clamp(0.0, max_scroll);
-            let vp_rect = Rect::new(
-                params.panel_rect.x,
-                params.panel_rect.y + MATERIAL_HEADER_HEIGHT,
-                params.panel_rect.width,
-                vp_h,
-            );
+            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
+            let vp_rect = Rect::new(0.0, MATERIAL_HEADER_HEIGHT, params.panel_rect.width, vp_h);
             let scroll_style = ScrollAreaStyle::dark_default();
             if let Some(geom) = ScrollBarGeometry::compute_vertical(
                 vp_rect,
@@ -149,7 +151,7 @@ pub fn build_material_panel(
             ) {
                 panel_scope.scrollbar_vertical(
                     geom,
-                    params.panel_rect,
+                    local_rect,
                     params.is_scrollbar_dragging,
                     Some(params.cursor_pos),
                     MATERIAL_TAG_SCROLLBAR_TRACK,
@@ -158,7 +160,8 @@ pub fn build_material_panel(
             }
         }
 
-        panel_scope.finish_layout(params.panel_rect);
+        let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
+        panel_scope.finish_layout(local_rect);
     });
 
     max_scroll

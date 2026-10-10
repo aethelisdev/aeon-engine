@@ -19,26 +19,41 @@ use irisui::prelude::*;
 
 /// Builds the floating 2D HSV Color Picker popup for the currently active Inspector entity using declarative [`UiScope`].
 ///
+/// Returns the screen-space bounding box of the constructed color picker popup, if active.
+///
 /// **Tech Debt:** 234-node HSV color picker cell explosion is temporary; will be replaced by a single GPU SDF gradient quad/shader primitive in irisui.
 pub fn build_color_picker_popup(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-) {
+    panel_tree: Option<&UiTree>,
+) -> Option<Rect> {
     if !params.is_color_picker_open {
-        return;
+        return None;
     }
 
-    // Anchor to the Object Color swatch rect if available
+    // Anchor to the Object Color swatch rect if available, or fallback gracefully
     let swatch_tag = appearance_color_swatch_tag();
-    let anchor_rect = tree
-        .iter()
-        .find(|(_, node)| node.tag == swatch_tag)
-        .map(|(_, node)| node.computed_rect);
-
-    let Some(anchor_rect) = anchor_rect else {
-        return;
-    };
+    let anchor_rect = panel_tree
+        .and_then(|ptree| {
+            ptree
+                .iter()
+                .find(|(_, node)| node.tag == swatch_tag)
+                .map(|(_, node)| {
+                    Rect::new(
+                        params.panel_rect.x + node.computed_rect.x,
+                        params.panel_rect.y + node.computed_rect.y,
+                        node.computed_rect.width,
+                        node.computed_rect.height,
+                    )
+                })
+        })
+        .unwrap_or(Rect::new(
+            params.panel_rect.x + 20.0,
+            params.panel_rect.y + 120.0,
+            40.0,
+            20.0,
+        ));
 
     let popup_w = 206.0;
     let popup_h = 224.0;
@@ -162,7 +177,7 @@ pub fn build_color_picker_popup(
                                             .height(cell_h + 0.2)
                                             .background(col);
 
-                                        sv_box.empty_box(cell_style);
+                                        sv_box.empty_box_passive(cell_style);
                                     }
                                 }
 
@@ -182,7 +197,7 @@ pub fn build_color_picker_popup(
                                     .border_radius(5.0)
                                     .box_shadow(0.0, 1.0, 3.0, Color::rgba(0.0, 0.0, 0.0, 0.90));
 
-                                sv_box.empty_box(ring_style);
+                                sv_box.empty_box_passive(ring_style);
                             },
                         );
 
@@ -218,7 +233,7 @@ pub fn build_color_picker_popup(
                                         .height(step_h + 0.2)
                                         .background(col);
 
-                                    hue_bar.empty_box(strip_style);
+                                    hue_bar.empty_box_passive(strip_style);
                                 }
 
                                 // Hue Indicator Line
@@ -235,7 +250,7 @@ pub fn build_color_picker_popup(
                                     .border(1.0, Color::BLACK)
                                     .border_radius(1.0);
 
-                                hue_bar.empty_box(ind_style);
+                                hue_bar.empty_box_passive(ind_style);
                             },
                         );
                     });
@@ -271,6 +286,8 @@ pub fn build_color_picker_popup(
             );
         },
     );
+
+    Some(Rect::new(popup_x, popup_y, popup_w, popup_h))
 }
 
 /// Dispatches interactive 2D HSV color picker actions: start, live preview, and atomic commit.
@@ -407,7 +424,7 @@ mod tests {
             blink_caret: false,
         };
 
-        build_color_picker_popup(&mut tree, root, &params);
+        build_color_picker_popup(&mut tree, root, &params, None);
 
         let popup_card = tree
             .iter()

@@ -48,6 +48,8 @@ pub fn build_timeline_panel(
         WidgetRole::Default,
         TIMELINE_TAG_PANEL_ROOT,
         |panel_scope| {
+            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
+
             // ── Case A: No Entity Selected ──
             let Some(entity) = params.entity else {
                 render_empty_placeholder(
@@ -57,14 +59,14 @@ pub fn build_timeline_panel(
                     "Animation Timeline Studio",
                     "No entity selected. Select an animated 3D model in the viewport or hierarchy.",
                 );
-                panel_scope.finish_layout(params.panel_rect);
+                panel_scope.finish_layout(local_rect);
                 return;
             };
 
             // ── Case B: Selected Entity Missing AnimationPlayer Component ──
             let Some(player) = params.animation_player else {
                 render_missing_player_card(panel_scope, params.panel_rect.height, actions, entity);
-                panel_scope.finish_layout(params.panel_rect);
+                panel_scope.finish_layout(local_rect);
                 return;
             };
 
@@ -79,7 +81,7 @@ pub fn build_timeline_panel(
             build_ruler_and_scrubber(panel_scope, params, duration);
             build_dope_sheet_lanes(panel_scope, params, duration);
 
-            panel_scope.finish_layout(params.panel_rect);
+            panel_scope.finish_layout(local_rect);
         },
     );
 

@@ -32,16 +32,26 @@ impl IrisEditorOverlay {
         } = event
         {
             let click_point = self.cursor_pos();
-            let hit_target = self.tree.hit_test_target(click_point);
-            let panel_rect = self.ui_designer.canvas_metrics.panel_rect;
-            if panel_rect.width <= 0.0 || panel_rect.height <= 0.0 {
-                return None;
-            }
-
-            let is_over_panel = click_point.x >= panel_rect.x
-                && click_point.x <= panel_rect.right()
-                && click_point.y >= panel_rect.y
-                && click_point.y <= panel_rect.bottom();
+            let hit_target = self
+                .hit_test_panel(crate::ui::panel_layout::PanelId::UiDesigner, click_point)
+                .or_else(|| self.tree.hit_test_target(click_point))
+                .map(|mut h| {
+                    if h.tag == 0 {
+                        h.tag = self
+                            .resolve_panel_tag(crate::ui::panel_layout::PanelId::UiDesigner, h.id);
+                    }
+                    h
+                });
+            let screen_bounds = self
+                .panels
+                .get(crate::ui::panel_layout::PanelId::UiDesigner.id_str())
+                .and_then(|p| p.bounds());
+            let is_over_panel = screen_bounds.is_some_and(|b| {
+                click_point.x >= b.x
+                    && click_point.x <= b.right()
+                    && click_point.y >= b.y
+                    && click_point.y <= b.bottom()
+            });
 
             // If popups are closed and click is outside panel, ignore
             if !self.ui_designer.is_aspect_open

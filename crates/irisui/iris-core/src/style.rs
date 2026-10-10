@@ -296,6 +296,20 @@ impl Style {
         self
     }
 
+    /// Sets maximum allowed width constraint in pixels.
+    #[inline]
+    pub fn max_width(mut self, max_width: f32) -> Self {
+        self.max_width = Some(max_width);
+        self
+    }
+
+    /// Sets maximum allowed height constraint in pixels.
+    #[inline]
+    pub fn max_height(mut self, max_height: f32) -> Self {
+        self.max_height = Some(max_height);
+        self
+    }
+
     /// Sets explicit fixed size dimensions.
     #[inline]
     pub fn size(mut self, size: Size) -> Self {

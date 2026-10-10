@@ -42,6 +42,8 @@ impl<'a> UiScope<'a> {
             node.layer = UiLayer::Modal;
             node.set_style(
                 Style::new()
+                    .flex_grow(1.0)
+                    .flex_shrink(0.0)
                     .flex_col()
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)

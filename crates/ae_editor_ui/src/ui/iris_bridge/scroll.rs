@@ -51,7 +51,7 @@ impl IrisEditorOverlay {
             || self.chrome.needs_scroll_sync
         {
             ScrollArea::sync_scroll_in_place(
-                &mut self.tree,
+                self.overlay_tree.tree_mut(),
                 super::preferences::types::PREF_TAG_CONTENT_VIEW,
                 Some(super::preferences::types::PREF_TAG_SCROLLBAR_TRACK),
                 Some(super::preferences::types::PREF_TAG_SCROLLBAR_THUMB),

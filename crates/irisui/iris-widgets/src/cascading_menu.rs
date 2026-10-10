@@ -9,10 +9,10 @@
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
 use iris_core::color::Color;
-use iris_core::geometry::{Point, Rect};
+use iris_core::geometry::{Insets, Point, Rect};
 use iris_core::id::WidgetId;
 use iris_core::node::{UiLayer, WidgetRole};
-use iris_core::style::{Style, TextAlign};
+use iris_core::style::{AlignItems, Style, TextAlign};
 use iris_core::tree::UiTree;
 
 /// Visual icon representation for a menu item.
@@ -221,6 +221,7 @@ pub struct CascadingMenuFrame {
 /// Internal rendering context grouping recursive parameters to ensure clean function signatures.
 struct CascadingRenderContext<'a, 'b> {
     tree: &'a mut UiTree,
+    root_parent_id: WidgetId,
     rendered_rects: &'b mut Vec<Rect>,
     item_nodes: &'b mut Vec<(u64, WidgetId)>,
     effective_viewport: Option<Rect>,
@@ -352,6 +353,7 @@ impl<'a> CascadingMenuBuilder<'a> {
         // Render recursive levels according to active_path
         let mut ctx = CascadingRenderContext {
             tree,
+            root_parent_id: parent_id,
             rendered_rects: &mut rendered_popup_rects,
             item_nodes: &mut item_nodes,
             effective_viewport: effective_vp,
@@ -393,6 +395,13 @@ impl<'a> CascadingMenuBuilder<'a> {
             node.layer = UiLayer::Popup;
             node.computed_rect = rect;
             node.style = Style::new()
+                .position_absolute()
+                .left(rect.x)
+                .top(rect.y)
+                .width(rect.width)
+                .height(rect.height)
+                .flex_col()
+                .padding_insets(Insets::new(4.0, 0.0, 4.0, 0.0))
                 .background(self.style.background)
                 .border(self.style.border_width, self.style.border_color)
                 .border_radius(self.style.border_radius)
@@ -427,7 +436,11 @@ impl<'a> CascadingMenuBuilder<'a> {
                     node.set_name("MenuSeparator");
                     node.layer = UiLayer::Popup;
                     node.computed_rect = sep_rect;
-                    node.style = Style::new().background(self.style.separator_color);
+                    node.style = Style::new()
+                        .width(menu_w - 12.0)
+                        .height(1.0)
+                        .margin_insets(Insets::new(2.0, 6.0, 3.0, 6.0))
+                        .background(self.style.separator_color);
                 }
                 let _ = ctx.tree.add_child(card_id, sep_id);
                 cur_y += self.style.separator_height;
@@ -469,7 +482,19 @@ impl<'a> CascadingMenuBuilder<'a> {
                 node.layer = UiLayer::Popup;
                 node.tag = item.tag;
                 node.computed_rect = item_rect;
-                node.style = Style::new().background(bg).border_radius(3.0);
+                node.style = Style::new()
+                    .flex_row()
+                    .align_items(AlignItems::Center)
+                    .width(menu_w - (self.style.item_padding_x * 2.0))
+                    .height(self.style.row_height)
+                    .margin_insets(Insets::new(
+                        0.0,
+                        self.style.item_padding_x,
+                        0.0,
+                        self.style.item_padding_x,
+                    ))
+                    .background(bg)
+                    .border_radius(3.0);
             }
             let _ = ctx.tree.add_child(card_id, row_id);
             ctx.item_nodes.push((item.tag, row_id));
@@ -490,6 +515,10 @@ impl<'a> CascadingMenuBuilder<'a> {
                     node.set_tag(item.tag);
                     node.interactive = false;
                     node.computed_rect = ic_rect;
+                    node.style = Style::new()
+                        .width(14.0)
+                        .height(14.0)
+                        .margin_insets(Insets::new(0.0, 6.0, 0.0, 6.0));
                     match icon {
                         CascadingMenuIcon::Text(glyph) => {
                             node.set_name("MenuIconText");
@@ -527,6 +556,7 @@ impl<'a> CascadingMenuBuilder<'a> {
                 node.set_tag(item.tag);
                 node.interactive = false;
                 node.computed_rect = lbl_rect;
+                node.style = Style::new().flex_grow(1.0).height(self.style.row_height);
                 node.set_text(&item.label);
                 node.font_size = self.style.font_size;
                 node.line_height = self.style.row_height;
@@ -546,6 +576,10 @@ impl<'a> CascadingMenuBuilder<'a> {
                     node.set_tag(item.tag);
                     node.interactive = false;
                     node.computed_rect = arrow_rect;
+                    node.style = Style::new()
+                        .width(12.0)
+                        .height(self.style.row_height)
+                        .margin_insets(Insets::new(0.0, 0.0, 0.0, 4.0));
                     node.set_text("▸");
                     node.font_size = 10.0;
                     node.line_height = self.style.row_height;
@@ -568,6 +602,10 @@ impl<'a> CascadingMenuBuilder<'a> {
                     node.set_tag(item.tag);
                     node.interactive = false;
                     node.computed_rect = sc_rect;
+                    node.style = Style::new()
+                        .width(50.0)
+                        .height(self.style.row_height)
+                        .margin_insets(Insets::new(0.0, 0.0, 0.0, 5.0));
                     node.set_text(shortcut);
                     node.font_size = 10.0;
                     node.line_height = self.style.row_height;
@@ -621,7 +659,7 @@ impl<'a> CascadingMenuBuilder<'a> {
                 let sub_rect = Rect::new(sub_x, sub_y, sub_w, sub_h);
                 let sub_card_id = self.render_menu_card(
                     ctx.tree,
-                    card_id,
+                    ctx.root_parent_id,
                     &format!("{}_Submenu", item.label),
                     sub_rect,
                 );

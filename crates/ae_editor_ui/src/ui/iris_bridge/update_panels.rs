@@ -13,6 +13,7 @@ impl IrisEditorOverlay {
     /// Builds the Performance Stats & Telemetry profiler panel if active in either docked or floating mode.
     pub(crate) fn build_stats_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -20,8 +21,9 @@ impl IrisEditorOverlay {
             && stats_rect.width > 20.0
             && stats_rect.height > 20.0
         {
+            let local_stats_rect = Rect::new(0.0, 0.0, stats_rect.width, stats_rect.height);
             let stats_params = StatsPanelParams {
-                panel_rect: stats_rect,
+                panel_rect: local_stats_rect,
                 scroll_y: self.stats.scroll_y,
                 cursor_pos: self.cursor_pos(),
                 wireframe_enabled: params.viewport.wireframe_enabled,
@@ -41,18 +43,21 @@ impl IrisEditorOverlay {
                 selected_entity: params.scene.selected_entity,
             };
 
-            let max_scroll = stats::build_stats_panel(&mut self.tree, root, &stats_params);
+            let max_scroll = stats::build_stats_panel(tree, root, &stats_params);
             self.stats.max_scroll = max_scroll;
             self.stats.last_rect = Some(stats_rect);
+            self.stats.frame_ring_buffer = Some(*params.telemetry.frame_pacing);
             self.chrome.last_zoom_factor = params.context.zoom_factor;
         } else {
             self.stats.last_rect = None;
+            self.stats.frame_ring_buffer = None;
         }
     }
 
     /// Builds the Scene Hierarchy panel if active in either docked or floating mode.
     pub(crate) fn build_hierarchy_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -60,8 +65,9 @@ impl IrisEditorOverlay {
             && hierarchy_rect.width > 20.0
             && hierarchy_rect.height > 20.0
         {
+            let local_hier_rect = Rect::new(0.0, 0.0, hierarchy_rect.width, hierarchy_rect.height);
             let hier_params = HierarchyPanelParams {
-                panel_rect: hierarchy_rect,
+                panel_rect: local_hier_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
                 search_query: &self.hierarchy.interactions.search_query,
@@ -78,7 +84,7 @@ impl IrisEditorOverlay {
             };
 
             let max_scroll = hierarchy::build_hierarchy_panel(
-                &mut self.tree,
+                tree,
                 root,
                 &hier_params,
                 &mut self.hierarchy.rows_cache,
@@ -93,6 +99,7 @@ impl IrisEditorOverlay {
     /// Builds the Scene Inspector panel if active in either docked or floating mode.
     pub(crate) fn build_inspector_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -130,8 +137,9 @@ impl IrisEditorOverlay {
                 .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, s)| s.as_str());
 
+            let local_insp_rect = Rect::new(0.0, 0.0, inspector_rect.width, inspector_rect.height);
             let insp_params = super::inspector::InspectorPanelParams {
-                panel_rect: inspector_rect,
+                panel_rect: local_insp_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
                 inspector_euler: params.panel_data.inspector_euler,
@@ -153,7 +161,7 @@ impl IrisEditorOverlay {
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
-            super::inspector::build_inspector_panel(&mut self.tree, root, &insp_params);
+            super::inspector::build_inspector_panel(tree, root, &insp_params);
             self.inspector.inspected_entity = params.scene.selected_entity;
             if let Some(entity) = params.scene.selected_entity {
                 if let Ok(name) = params.scene.world.get::<&ae_core::ecs::Name>(entity) {
@@ -176,6 +184,7 @@ impl IrisEditorOverlay {
     /// Builds the Developer Console panel if active in either docked or floating mode.
     pub(crate) fn build_console_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -184,8 +193,9 @@ impl IrisEditorOverlay {
             && console_rect.height > 20.0
         {
             self.console.panel_rect = Some(console_rect);
+            let local_console_rect = Rect::new(0.0, 0.0, console_rect.width, console_rect.height);
             let console_params = super::console::ConsolePanelParams {
-                panel_rect: console_rect,
+                panel_rect: local_console_rect,
                 entries: params.panel_data.console_entries,
                 scroll_y: self.console.scroll_y,
                 filter: self.console.filter,
@@ -196,8 +206,7 @@ impl IrisEditorOverlay {
                 is_scrollbar_dragging: self.console.active_scrollbar_drag.is_some(),
             };
 
-            let max_scroll =
-                super::console::build_console_panel(&mut self.tree, root, &console_params);
+            let max_scroll = super::console::build_console_panel(tree, root, &console_params);
             self.console.max_scroll_y = max_scroll;
         } else {
             self.console.panel_rect = None;
@@ -207,6 +216,7 @@ impl IrisEditorOverlay {
     /// Builds the Content / Asset Browser panel if active in either docked or floating mode.
     pub(crate) fn build_assets_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -269,8 +279,9 @@ impl IrisEditorOverlay {
             self.assets.filtered_items_cache = filtered_items.clone();
             self.assets.subfolders_cache = params.panel_data.asset_browser.subfolders.clone();
 
+            let local_assets_rect = Rect::new(0.0, 0.0, assets_rect.width, assets_rect.height);
             let assets_params = super::assets::AssetsPanelParams {
-                panel_rect: assets_rect,
+                panel_rect: local_assets_rect,
                 screen_size: (self.screen_width, self.screen_height),
                 current_folder: &self.assets.current_folder,
                 search_query: &self.assets.search_query,
@@ -293,10 +304,17 @@ impl IrisEditorOverlay {
                 thumbnail_layers: &self.assets.thumbnail_layers,
             };
 
-            let metrics = super::assets::build_assets_panel(&mut self.tree, root, &assets_params);
-            self.assets.panel_rect = Some(metrics.panel_rect);
-            self.assets.sidebar_rect = metrics.sidebar_rect;
-            self.assets.content_viewport_rect = Some(metrics.content_viewport_rect);
+            let metrics = super::assets::build_assets_panel(tree, root, &assets_params);
+            self.assets.panel_rect = Some(assets_rect);
+            self.assets.sidebar_rect = metrics
+                .sidebar_rect
+                .map(|r| Rect::new(r.x + assets_rect.x, r.y + assets_rect.y, r.width, r.height));
+            self.assets.content_viewport_rect = Some(Rect::new(
+                metrics.content_viewport_rect.x + assets_rect.x,
+                metrics.content_viewport_rect.y + assets_rect.y,
+                metrics.content_viewport_rect.width,
+                metrics.content_viewport_rect.height,
+            ));
             self.assets.context_menu_card_rect = metrics.context_menu_card_rect;
         } else {
             self.assets.panel_rect = None;
@@ -309,6 +327,7 @@ impl IrisEditorOverlay {
     /// Builds the Animation Timeline Studio panel if active in either docked or floating mode.
     pub(crate) fn build_timeline_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -323,8 +342,10 @@ impl IrisEditorOverlay {
 
             let events = std::mem::take(&mut self.timeline.pending_interaction_events);
 
+            let local_timeline_rect =
+                Rect::new(0.0, 0.0, timeline_rect.width, timeline_rect.height);
             let timeline_params = super::timeline::TimelinePanelParams {
-                panel_rect: timeline_rect,
+                panel_rect: local_timeline_rect,
                 entity: params.scene.selected_entity,
                 animation_player: anim_player.as_deref(),
                 cursor_pos: self.cursor_pos(),
@@ -333,7 +354,7 @@ impl IrisEditorOverlay {
             };
 
             let duration = super::timeline::build_timeline_panel(
-                &mut self.tree,
+                tree,
                 root,
                 &timeline_params,
                 &mut self.timeline.actions,
@@ -350,6 +371,7 @@ impl IrisEditorOverlay {
     /// Builds the Material & Surface Studio panel if active in either docked or floating mode.
     pub(crate) fn build_material_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -357,8 +379,10 @@ impl IrisEditorOverlay {
             let events = std::mem::take(&mut self.material.pending_interaction_events);
             let is_scrollbar_dragging = self.material.active_scrollbar_drag.is_some();
 
+            let local_material_rect =
+                Rect::new(0.0, 0.0, material_rect.width, material_rect.height);
             let material_params = super::material::MaterialPanelParams {
-                panel_rect: material_rect,
+                panel_rect: local_material_rect,
                 entity: params.scene.selected_entity,
                 world: params.scene.world,
                 textures: params.panel_data.textures,
@@ -369,8 +393,7 @@ impl IrisEditorOverlay {
                 is_scrollbar_dragging,
             };
 
-            let max_scroll =
-                super::material::build_material_panel(&mut self.tree, root, &material_params);
+            let max_scroll = super::material::build_material_panel(tree, root, &material_params);
             self.material.max_scroll_y = max_scroll;
             self.material.panel_rect = Some(material_rect);
             self.material.active_model = params
@@ -387,12 +410,15 @@ impl IrisEditorOverlay {
     /// Builds the 2D Visual UI Designer panel if active in either docked or floating mode.
     pub(crate) fn build_ui_designer_panel_if_active(
         &mut self,
+        tree: &mut UiTree,
         root: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(designer_rect) = params.panel_rects.ui_designer {
+            let local_designer_rect =
+                Rect::new(0.0, 0.0, designer_rect.width, designer_rect.height);
             let designer_params = super::ui_designer::UiDesignerPanelParams {
-                panel_rect: designer_rect,
+                panel_rect: local_designer_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
                 cursor_pos: self.cursor_pos(),
@@ -402,7 +428,7 @@ impl IrisEditorOverlay {
             };
 
             let metrics = super::ui_designer::build_ui_designer_panel(
-                &mut self.tree,
+                tree,
                 root,
                 &designer_params,
                 &mut self.ui_designer.drag_contexts,
@@ -421,6 +447,7 @@ impl IrisEditorOverlay {
     pub(crate) fn render_panel_by_id(
         &mut self,
         panel: crate::ui::panel_layout::PanelId,
+        tree: &mut UiTree,
         parent: WidgetId,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -436,14 +463,14 @@ impl IrisEditorOverlay {
                     self.build_viewport_content(parent, vp_rect, params);
                 }
             }
-            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(parent, params),
-            PanelId::Inspector => self.build_inspector_panel_if_active(parent, params),
-            PanelId::Console => self.build_console_panel_if_active(parent, params),
-            PanelId::Assets => self.build_assets_panel_if_active(parent, params),
-            PanelId::MaterialEditor => self.build_material_panel_if_active(parent, params),
-            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(parent, params),
-            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(parent, params),
-            PanelId::Stats => self.build_stats_panel_if_active(parent, params),
+            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(tree, parent, params),
+            PanelId::Inspector => self.build_inspector_panel_if_active(tree, parent, params),
+            PanelId::Console => self.build_console_panel_if_active(tree, parent, params),
+            PanelId::Assets => self.build_assets_panel_if_active(tree, parent, params),
+            PanelId::MaterialEditor => self.build_material_panel_if_active(tree, parent, params),
+            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(tree, parent, params),
+            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(tree, parent, params),
+            PanelId::Stats => self.build_stats_panel_if_active(tree, parent, params),
         }
     }
 
@@ -538,10 +565,52 @@ impl IrisEditorOverlay {
         {
             panel.set_dirty(stats_dirty);
         }
+
+        self.sync_panel_registry_bounds(params);
+    }
+
+    /// Synchronizes current dock bounds rectangles into registered dock panels and advances their retained lifecycles.
+    ///
+    /// For every active tool panel, delegates bounds tracking and in-place flexbox relayout
+    /// directly to [`EditorDockPanel::update_lifecycle`]. If dimensions change, in-place relayout
+    /// is performed without allocating new widget nodes and the panel is tagged for redraw in [`UiNotifier`].
+    pub(crate) fn sync_panel_registry_bounds(&mut self, params: &OverlayUpdateParams<'_>) {
+        use crate::ui::panel_layout::PanelId;
+
+        let (panels, layout_engine, notifier) = (
+            &mut self.panels,
+            &mut self.layout_engine,
+            &mut self.notifier,
+        );
+
+        for &panel_id in PanelId::all_tool_panels() {
+            let rect_opt = match panel_id {
+                PanelId::Viewport => Some(params.viewport.viewport_rect),
+                PanelId::Hierarchy => params.panel_rects.hierarchy,
+                PanelId::Inspector => params.panel_rects.inspector,
+                PanelId::Console => params.panel_rects.console,
+                PanelId::Assets => params.panel_rects.assets,
+                PanelId::MaterialEditor => params.panel_rects.material,
+                PanelId::AnimationTimeline => params.panel_rects.timeline,
+                PanelId::UiDesigner => params.panel_rects.ui_designer,
+                PanelId::Stats => params.panel_rects.stats,
+            };
+
+            if let Some(panel) = panels.get_downcast_mut::<EditorDockPanel>(panel_id.id_str()) {
+                if let Some(rect) = rect_opt {
+                    let result = panel.update_lifecycle(layout_engine, rect);
+                    if result == PanelLifecycleResult::RelayoutInPlace {
+                        notifier.tag_redraw(panel_id);
+                    }
+                } else {
+                    panel.clear_bounds();
+                }
+            }
+        }
     }
 }
 
-pub use super::dock_panel::{EditorDockPanel, create_default_panel_registry};
+pub use super::dock_panel::{EditorDockPanel, PanelLifecycleResult, create_default_panel_registry};
 
 #[cfg(test)]
 mod tests {
@@ -617,5 +686,45 @@ mod tests {
         // 30 frames over ~0.30s = ~100 FPS
         assert!(stats_displayed_fps > 90.0 && stats_displayed_fps < 110.0);
         assert_eq!(stats_frame_counter, 0);
+    }
+
+    #[test]
+    fn test_sync_panel_lifecycle_relayout_on_resize() {
+        use crate::ui::panel_layout::PanelId;
+        use irisui::prelude::{LayoutEngine, UiNotifier};
+
+        let mut registry = create_default_panel_registry();
+        let mut layout_engine = LayoutEngine::new();
+        let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
+
+        let initial_bounds = Rect::new(0.0, 0.0, 300.0, 200.0);
+        let resized_bounds = Rect::new(0.0, 0.0, 500.0, 350.0);
+
+        // 1. Initial build when marked dirty
+        let panel = registry
+            .get_downcast_mut::<EditorDockPanel>(PanelId::Console.id_str())
+            .expect("Console panel exists");
+        panel.mark_dirty();
+        let initial_res = panel.update_lifecycle(&mut layout_engine, initial_bounds);
+        assert_eq!(initial_res, PanelLifecycleResult::Rebuilt);
+        assert_eq!(panel.last_bounds(), Some(initial_bounds));
+
+        // Simulate successful render by render_dock_panel_into_tree
+        let _ = panel.tree_mut().create_root();
+        panel.clear_dirty();
+
+        // 2. Simulate resize: without premature set_last_bounds, update_lifecycle detects delta
+        let resize_res = panel.update_lifecycle(&mut layout_engine, resized_bounds);
+        assert_eq!(resize_res, PanelLifecycleResult::RelayoutInPlace);
+        assert_eq!(panel.last_bounds(), Some(resized_bounds));
+
+        if resize_res == PanelLifecycleResult::RelayoutInPlace {
+            notifier.tag_redraw(PanelId::Console);
+        }
+        assert!(notifier.is_dirty(PanelId::Console));
+
+        // 3. Repeated call with identical bounds yields Unchanged
+        let stable_res = panel.update_lifecycle(&mut layout_engine, resized_bounds);
+        assert_eq!(stable_res, PanelLifecycleResult::Unchanged);
     }
 }

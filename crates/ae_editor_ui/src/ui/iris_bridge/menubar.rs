@@ -20,15 +20,15 @@ pub const MENUBAR_HEIGHT: f32 = 26.0;
 pub const DROPDOWN_WIDTH: f32 = 260.0;
 
 /// Numeric widget tag for the File menu header button.
-pub const TAG_MENU_FILE: u64 = 0;
+pub const TAG_MENU_FILE: u64 = 10;
 /// Numeric widget tag for the Edit menu header button.
-pub const TAG_MENU_EDIT: u64 = 1;
+pub const TAG_MENU_EDIT: u64 = 11;
 /// Numeric widget tag for the View menu header button.
-pub const TAG_MENU_VIEW: u64 = 2;
+pub const TAG_MENU_VIEW: u64 = 12;
 /// Numeric widget tag for the Window menu header button.
-pub const TAG_MENU_WINDOW: u64 = 3;
+pub const TAG_MENU_WINDOW: u64 = 13;
 /// Numeric widget tag for the Help menu header button.
-pub const TAG_MENU_HELP: u64 = 4;
+pub const TAG_MENU_HELP: u64 = 14;
 /// Numeric widget tag for the Play/Stop editor toolbar action button.
 pub const TAG_ACTION_PLAY_PAUSE: u64 = 100;
 
@@ -378,10 +378,10 @@ mod tests {
         );
 
         // Verify all 5 menu headers exist with MenuBarItem role and semantic tags
-        for (idx, (menu, btn_id)) in output.menu_button_ids.iter().enumerate() {
+        for (menu, btn_id) in output.menu_button_ids.iter() {
             let btn_node = tree.get(*btn_id).expect("Menu button node must exist");
             assert_eq!(btn_node.role, WidgetRole::MenuBarItem);
-            assert_eq!(btn_node.tag, idx as u64);
+            assert_eq!(btn_node.tag, menu.to_tag());
             if *menu == ActiveMenu::File {
                 assert_eq!(btn_node.text_color, Color::hex("#00e5ff"));
             }

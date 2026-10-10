@@ -46,6 +46,39 @@ pub trait DockPanel: Send + Sync + 'static {
         false
     }
 
+    /// Returns a reference to the panel's retained UI tree, if managed independently.
+    ///
+    /// Implementations that manage an isolated, retained [`UiTree`] for multi-modular
+    /// architectures override this method to expose their internal tree arena.
+    fn tree(&self) -> Option<&UiTree> {
+        None
+    }
+
+    /// Returns a mutable reference to the panel's retained UI tree, if managed independently.
+    ///
+    /// Allows callers or compositors to mutate or traverse the panel's private UI tree.
+    fn tree_mut(&mut self) -> Option<&mut UiTree> {
+        None
+    }
+
+    /// Returns the last cached layout bounds rectangle allocated to this panel.
+    ///
+    /// Used by docking containers to detect dock split resize events without traversing
+    /// the full node graph.
+    fn bounds(&self) -> Option<Rect> {
+        None
+    }
+
+    /// Updates the panel layout in-place when dock bounds change without rebuilding widget nodes.
+    ///
+    /// When dock splitters are dragged or window dimensions change, retained panels
+    /// can update their root layout constraints and recompute flexbox coordinates in-place
+    /// with zero node allocations. Returns `true` if in-place relayout succeeded, or `false`
+    /// if a full UI reconstruction is required.
+    fn update_layout(&mut self, _new_bounds: Rect) -> bool {
+        false
+    }
+
     /// Returns this panel as a `&dyn Any` reference for downcasting to concrete types.
     fn as_any(&self) -> &dyn Any;
 

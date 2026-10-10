@@ -29,6 +29,8 @@ pub fn build_hierarchy_panel(
 
     let root_style = Style::new()
         .flex_col()
+        .width(params.panel_rect.width)
+        .height(params.panel_rect.height)
         .background(ELEVATION_1_PANEL)
         .border(1.0, Color::rgba(0.12, 0.13, 0.16, 0.90))
         .clip_children(true);
@@ -54,8 +56,9 @@ pub fn build_hierarchy_panel(
             // 4. Footer Status Line (Object Count & Selection Telemetry)
             build_hierarchy_footer(panel_scope, total_objects, params);
 
-            // 5. Finalize flexbox layout to prevent dock leaf collapse
-            panel_scope.finish_layout(params.panel_rect);
+            // 5. Finalize flexbox layout in panel-local (0, 0) coordinates
+            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
+            panel_scope.finish_layout(local_rect);
         },
     );
 
@@ -66,14 +69,21 @@ pub fn build_hierarchy_panel(
 ///
 /// Ensures menus are attached to the root overlay layer on top of all docked panels,
 /// preventing any bleed-through or clipping by neighboring dock tabs.
+///
+/// Returns all rendered popup rectangles for precise overlay boundary tracking.
 pub fn build_hierarchy_overlays(
     tree: &mut UiTree,
     overlay_root: WidgetId,
     params: &HierarchyPanelParams<'_>,
-) {
+) -> Vec<Rect> {
+    let mut rects = Vec::new();
     // 1. Right-Click Entity Context Menu (if open)
-    let _ = build_context_menu(tree, overlay_root, params);
+    if let Some(ctx_rect) = build_context_menu(tree, overlay_root, params) {
+        rects.push(ctx_rect);
+    }
 
     // 2. Cascading `➕` Add Entity Dropdown Menu (if open)
-    let _ = build_add_menu(tree, overlay_root, params);
+    let add_rects = build_add_menu(tree, overlay_root, params);
+    rects.extend(add_rects);
+    rects
 }
