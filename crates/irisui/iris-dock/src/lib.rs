@@ -15,6 +15,7 @@ pub mod area;
 pub mod chrome;
 pub mod context_menu;
 pub mod drag_drop;
+pub mod events;
 pub mod floating;
 pub mod layout;
 pub mod navigator;
@@ -37,6 +38,10 @@ pub use context_menu::{TabContextMenuAction, TabContextMenuState};
 pub use drag_drop::{
     DockDragState, DropZone, calculate_drop_preview_rect, calculate_drop_zone,
     calculate_leaf_half_drop_zone, calculate_screen_drop_zone,
+};
+pub use events::{
+    SplitterInteractionResponse, TabStripInteractionResponse, handle_splitter_event,
+    handle_tab_strip_event,
 };
 pub use floating::{
     DEFAULT_RESIZE_MARGIN, FloatingDragState, FloatingResizeEdge, FloatingWindow,

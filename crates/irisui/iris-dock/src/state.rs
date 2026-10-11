@@ -53,6 +53,9 @@ pub struct DockState<T> {
     /// Active tab context menu state, if a right-click menu is currently open.
     #[serde(skip)]
     pub active_context_menu: Option<TabContextMenuState>,
+    /// Active tab overflow dropdown menu, storing leaf ID and anchor rect if open.
+    #[serde(skip)]
+    pub active_overflow: Option<(DockNodeId, Rect)>,
 }
 
 fn default_min_pane_size() -> f32 {
@@ -77,7 +80,25 @@ impl<T> DockState<T> {
             floating_windows: Vec::new(),
             auto_hide_single_tab_bar: false,
             active_context_menu: None,
+            active_overflow: None,
         }
+    }
+
+    /// Sets the active tab on the specified leaf node.
+    pub fn set_active_tab(&mut self, leaf: DockNodeId, active_tab: usize) -> Result<(), DockError> {
+        self.tree.set_active_tab(leaf, active_tab)
+    }
+
+    /// Removes a tab from a leaf node and automatically collapses redundant empty splits.
+    ///
+    /// If the owning leaf was maximized and becomes empty, maximization is safely cleared.
+    pub fn close_tab(&mut self, leaf: DockNodeId, tab_idx: usize) -> Result<T, DockError> {
+        let tab = self.tree.remove_tab(leaf, tab_idx)?;
+        self.tree.collapse_empty_leaves();
+        if self.maximized_leaf == Some(leaf) && self.tree.get(leaf).is_none() {
+            self.maximized_leaf = None;
+        }
+        Ok(tab)
     }
 
     /// Sets the minimum allowable pane dimension in logical pixels.
