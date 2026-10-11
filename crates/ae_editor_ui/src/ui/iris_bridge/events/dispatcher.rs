@@ -265,43 +265,55 @@ impl IrisEditorOverlay {
 
         // 7. LAYER 2: Floating Windows Layer
         // If cursor is over any floating window, dispatch using local coordinates (cursor - float_rect.min)
-        // and CONSUME mouse clicks so they never click through to docked panels underneath!
+        // and block mouse clicks/hovers from falling through to docked panels underneath.
         let cursor = self.cursor_pos();
+        const FLOAT_GRAB_OUTSET: f32 = 4.0;
         let floating_rect_opt = self
             .chrome
             .floating_window_rects
             .iter()
+            .rev()
             .find(|r| {
-                cursor.x >= r.x
-                    && cursor.x <= r.right()
-                    && cursor.y >= r.y
-                    && cursor.y <= r.bottom()
+                cursor.x >= r.x - FLOAT_GRAB_OUTSET
+                    && cursor.x <= r.right() + FLOAT_GRAB_OUTSET
+                    && cursor.y >= r.y - FLOAT_GRAB_OUTSET
+                    && cursor.y <= r.bottom() + FLOAT_GRAB_OUTSET
             })
             .copied();
 
         if let Some(float_rect) = floating_rect_opt {
             let is_in_title_bar = cursor.y < float_rect.y + 26.0;
-            let is_on_resize_edge =
-                irisui::dock::detect_resize_edge(float_rect, cursor, 6.0).is_some();
+            let is_on_resize_edge = irisui::dock::detect_resize_edge(
+                float_rect,
+                cursor,
+                irisui::dock::DEFAULT_RESIZE_MARGIN,
+            )
+            .is_some();
 
-            if !is_in_title_bar && !is_on_resize_edge {
-                if let Some(floating_res) =
-                    self.dispatch_floating_layer_events(event, world, float_rect)
-                {
-                    return floating_res;
-                }
-                // Pointer press over floating window content background: consumed to prevent click-through
-                if matches!(
-                    event,
-                    WindowEvent::MouseInput {
-                        state: winit::event::ElementState::Pressed,
-                        ..
-                    }
-                ) {
-                    result.consumed = true;
-                    return result;
-                }
+            if is_in_title_bar || is_on_resize_edge {
+                // Event targets the floating window title or resize boundary.
+                // Prevent falling through to docked panels or HUD, delegating directly to autonomous dock handling.
+                return result;
             }
+
+            if let Some(floating_res) =
+                self.dispatch_floating_layer_events(event, world, float_rect)
+            {
+                return floating_res;
+            }
+            // Pointer press over floating window content background: consumed to prevent click-through
+            if matches!(
+                event,
+                WindowEvent::MouseInput {
+                    state: winit::event::ElementState::Pressed,
+                    ..
+                }
+            ) {
+                result.consumed = true;
+                return result;
+            }
+            // Pointer is over floating window interior body: block fall-through to underlying docked panels
+            return result;
         }
 
         // 8. Viewport HUD Controls (Interactive on docked or floating viewports)
@@ -361,9 +373,6 @@ impl IrisEditorOverlay {
         }
         if let Some(ui_res) = self.handle_ui_designer_window_event(event) {
             return Some(ui_res);
-        }
-        if let Some(dock_res) = self.handle_dock_overflow_event(event) {
-            return Some(dock_res);
         }
         None
     }

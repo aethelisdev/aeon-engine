@@ -4,7 +4,7 @@
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use crate::ui::types::{ConsoleEntry, EngineUiAction};
-use irisui::prelude::{Color, Point, Rect};
+use irisui::prelude::{Color, Rect};
 use winit::window::Window;
 
 /// Action payload sent from async native file dialog threads to the main UI thread.
@@ -12,8 +12,6 @@ pub enum SceneDialogAction {
     SaveTo(std::path::PathBuf),
     LoadFrom(std::path::PathBuf),
 }
-
-use irisui::dock::FloatingDragState;
 
 /// The main UI management system for the Aeon Engine.
 ///
@@ -102,27 +100,6 @@ pub struct EngineUi {
     pub pending_actions: Vec<EngineUiAction>,
     /// Iris UI retained-mode overlay manager (SDF shaders, menubar, docking).
     pub iris_overlay: IrisEditorOverlay,
-    /// Active floating window drag mode: `(window_id, drag_state)`.
-    pub active_floating_drag: Option<(u64, FloatingDragState)>,
-    /// Pending tab drag awaiting distance threshold to activate native dock drag.
-    pub pending_tab_drag: Option<PendingTabDrag>,
-}
-
-/// Tracks a pending tab drag before the cursor moves past the activation distance threshold.
-#[derive(Debug, Clone, Copy)]
-pub struct PendingTabDrag {
-    /// Leaf owning the tab.
-    pub leaf: irisui::dock::DockNodeId,
-    /// Tab index within the owning leaf.
-    pub tab_index: usize,
-    /// Associated panel identifier.
-    pub panel: PanelId,
-    /// Screen-space position where mouse was pressed.
-    pub press_pos: Point,
-    /// Bounding rectangle of the source leaf.
-    pub leaf_rect: Rect,
-    /// Optional floating window identifier if dragged from a floating window.
-    pub floating_window_id: Option<u64>,
 }
 
 impl EngineUi {
@@ -198,8 +175,6 @@ impl EngineUi {
             ui_zoom_factor: 1.0,
             asset_browser: crate::assets::AssetBrowserState::new(),
             ui_designer_state: ae_uidesign::UiDesignerState::default(),
-            active_floating_drag: None,
-            pending_tab_drag: None,
         }
     }
 

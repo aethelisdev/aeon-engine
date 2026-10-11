@@ -52,7 +52,6 @@ impl IrisEditorOverlay {
         let screen_width = ctx.screen_width;
         let screen_height = ctx.screen_height;
         let cursor = ctx.cursor;
-        let workspace_rect = ctx.workspace_rect;
         let is_cursor_occluded = ctx.is_cursor_occluded;
 
         let elapsed_secs = self.start_time.elapsed().as_secs_f32();
@@ -389,29 +388,6 @@ impl IrisEditorOverlay {
                     self.overlay_tree.set_overlay_bounds(bounds);
                 }
             }
-        }
-
-        // 9. Native Dock Drag Overlays
-        if params.context.layout_state.dock_state.active_drag.is_some() {
-            let overlay_root = self
-                .overlay_tree
-                .tree_mut()
-                .root()
-                .unwrap_or_else(|| self.overlay_tree.tree_mut().create_root().unwrap_or(root));
-
-            super::native_dock::build_native_dock_drag_overlays(
-                self.overlay_tree.tree_mut(),
-                overlay_root,
-                params.context.layout_state,
-                workspace_rect,
-            );
-            self.overlay_tree.open(
-                super::overlay_tree::ActiveOverlay::CustomPopup {
-                    id: "dock_drag".to_string(),
-                    anchor: workspace_rect,
-                },
-                super::overlay_tree::OverlayDismissPolicy::ExplicitOnly,
-            );
         }
 
         // 10. Asset Drag & Viewport Drop Overlays

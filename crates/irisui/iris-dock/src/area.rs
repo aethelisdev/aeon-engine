@@ -11,12 +11,19 @@
 //!
 
 use crate::chrome::{DockChromeFrame, DockChromeParams, DockChromeStyle, build_dock_chrome};
-use crate::floating::{FloatingWindowStyle, build_floating_windows_layer};
+use crate::events::{
+    handle_floating_window_event, handle_splitter_event, handle_tab_drag_event,
+    handle_tab_strip_event,
+};
+use crate::floating::{
+    FloatingWindowClampBounds, FloatingWindowStyle, build_floating_windows_layer,
+};
 use crate::state::DockState;
 use crate::tab_viewer::TabViewer;
 use crate::tree::DockNode;
+use iris_core::event::UiEvent;
 use iris_core::geometry::{Point, Rect};
-use iris_core::node::WidgetRole;
+use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::Style;
 use iris_widgets::UiScope;
 
@@ -256,7 +263,235 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
             }
         }
 
+        // 3. Autonomous tab drag-and-drop overlays (compass navigator, drop preview, floating tab badge)
+        if let Some(ref drag) = self.state.active_drag {
+            let computed = crate::layout::compute_dock_layout(
+                &self.state.tree,
+                self.bounds,
+                self.style.splitter_thickness,
+                self.style.tab_bar_height,
+            );
+
+            let hovered_leaf = computed
+                .leaves
+                .iter()
+                .find(|leaf| leaf.contains_point(drag.cursor_pos));
+
+            if let Some(leaf) = hovered_leaf {
+                let nav_style = crate::navigator::DockNavigatorStyle::default();
+                let geometry = crate::navigator::DockNavigatorGeometry::from_content_rect(
+                    leaf.content_rect,
+                    40.0,
+                    4.0,
+                );
+                let drop_zone = geometry.hit_test(drag.cursor_pos);
+
+                if let Some(zone) = drop_zone {
+                    crate::navigator::build_drop_preview_node(
+                        scope.tree_mut(),
+                        parent_id,
+                        leaf.content_rect,
+                        zone,
+                        &nav_style,
+                    );
+                }
+
+                crate::navigator::build_dock_navigator_nodes(
+                    scope.tree_mut(),
+                    parent_id,
+                    &geometry,
+                    drop_zone,
+                    &nav_style,
+                );
+            }
+
+            let title_str = viewer.title(&drag.tab_data);
+            let badge_params = crate::navigator::FloatingTabBadgeParams {
+                cursor_pos: drag.cursor_pos,
+                title: &title_str,
+                icon: None,
+            };
+            crate::navigator::build_floating_tab_badge(scope.tree_mut(), parent_id, badge_params);
+        }
+
         frame
+    }
+
+    /// Orchestrates incoming user interface events across all docking sub-systems:
+    /// 1. Floating windows (title dragging, 8-way edge/corner resizing, close, and tab selection).
+    /// 2. Active tab drag-and-drop or threshold motion detection.
+    /// 3. Tab headers (selection, middle-click close, close button, and overflow menu).
+    /// 4. Splitter dividers (drag resizing and hover cursor feedback).
+    ///
+    /// Returns a [`DockResponse`] indicating event consumption, requested cursor override,
+    /// and whether visual layout reconstruction is necessary.
+    ///
+    /// # Arguments
+    /// * `state` - Mutable reference to the central [`DockState`].
+    /// * `viewer` - Reference to the tab viewer providing tab titles and custom metrics.
+    /// * `event` - The incoming user interface event.
+    /// * `workspace_rect` - Absolute screen boundaries of the primary docking area.
+    /// * `config` - Interaction parameters configuring divider thickness, header heights, and window clamping.
+    pub fn handle_event<V: TabViewer<Tab>>(
+        state: &mut DockState<Tab>,
+        viewer: &V,
+        event: &UiEvent,
+        workspace_rect: Rect,
+        config: &DockInteractionConfig,
+    ) -> DockResponse {
+        let mut response = DockResponse::default();
+
+        // 1. Process Floating Windows (highest visual layer)
+        let floating_res = handle_floating_window_event(state, viewer, event, config.clamp_bounds);
+
+        if floating_res.consumed {
+            response.consumed = true;
+        }
+        if floating_res.layout_changed {
+            response.layout_changed = true;
+        }
+        if let Some(cursor) = floating_res.cursor {
+            response.cursor_override = Some(cursor);
+        }
+
+        // Apply floating window lifecycle requests
+        if let Some(win_id) = floating_res.closed_window {
+            let _ = state.close_floating_window(win_id);
+            response.layout_changed = true;
+        }
+        if let Some(win_id) = floating_res.dock_back_window {
+            if let Some(target_leaf) = state.tree.find_first_leaf() {
+                let _ = state.dock_floating_window(win_id, target_leaf, crate::DropZone::Center);
+            } else {
+                let _ = state.close_floating_window(win_id);
+            }
+            response.layout_changed = true;
+        }
+        if let Some(pending) = floating_res.pending_tab_drag {
+            state.pending_tab_drag = Some(pending);
+        }
+
+        if response.consumed {
+            return response;
+        }
+
+        // 2. Process Tab Drag and Drop (active drag or pending threshold activation)
+        let computed_layout = crate::layout::compute_dock_layout_with_viewer(
+            &state.tree,
+            workspace_rect,
+            config.splitter_thickness,
+            config.tab_bar_height,
+            viewer,
+        );
+
+        let mut pending = state.pending_tab_drag;
+        let drag_res =
+            handle_tab_drag_event(state, event, &mut pending, workspace_rect, &computed_layout);
+        state.pending_tab_drag = pending;
+
+        if drag_res.consumed {
+            response.consumed = true;
+        }
+        if drag_res.layout_changed {
+            response.layout_changed = true;
+        }
+        if let Some(cursor) = drag_res.cursor {
+            response.cursor_override = Some(cursor);
+        }
+
+        if response.consumed {
+            return response;
+        }
+
+        // Compute current dock chrome hit targets (tab headers, close buttons, chevrons, splitters)
+        let targets_frame = crate::events::compute_dock_interaction_targets(
+            &state.tree,
+            workspace_rect,
+            config.splitter_thickness,
+            config.tab_bar_height,
+            viewer,
+        );
+
+        // 3. Process Tab Headers, Close Buttons, and Overflow Menus
+        let tab_strip_res = handle_tab_strip_event(
+            state,
+            event,
+            &targets_frame.tab_targets,
+            &targets_frame.close_targets,
+            &targets_frame.chevron_targets,
+            &[],
+        );
+
+        if tab_strip_res.consumed {
+            response.consumed = true;
+        }
+        if tab_strip_res.layout_changed {
+            response.layout_changed = true;
+        }
+        if let Some(cursor) = tab_strip_res.cursor {
+            response.cursor_override = Some(cursor);
+        }
+        if let Some((leaf, tab_index, tab, press_pos, leaf_rect)) = tab_strip_res.pending_drag {
+            state.pending_tab_drag = Some(crate::events::PendingTabDrag {
+                leaf,
+                tab_index,
+                tab,
+                press_pos,
+                leaf_rect,
+                floating_window_id: None,
+            });
+        }
+
+        if response.consumed {
+            return response;
+        }
+
+        // 4. Process Splitter Dividers
+        let splitter_res = handle_splitter_event(state, event, &targets_frame.splitter_targets);
+
+        if splitter_res.consumed {
+            response.consumed = true;
+        }
+        if splitter_res.layout_changed {
+            response.layout_changed = true;
+        }
+        if let Some(cursor) = splitter_res.cursor {
+            response.cursor_override = Some(cursor);
+        }
+
+        response
+    }
+}
+
+/// High-level response summarizing the results of processing an event in [`DockArea::handle_event`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DockResponse {
+    /// Whether the event was consumed by the docking hierarchy, stopping propagation.
+    pub consumed: bool,
+    /// Requested cursor override (e.g. `ColResize`, `RowResize`, `NwseResize`, `Grabbing`, `Pointer`).
+    pub cursor_override: Option<WidgetCursor>,
+    /// Whether docking layout or floating window geometry changed, requiring visual rebuild.
+    pub layout_changed: bool,
+}
+
+/// Configuration parameters for dock event handling.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DockInteractionConfig {
+    /// Thickness of split dividers in logical pixels. Defaults to 4.0.
+    pub splitter_thickness: f32,
+    /// Height of tab headers in logical pixels. Defaults to 26.0.
+    pub tab_bar_height: f32,
+    /// Screen clamping boundaries for floating windows (top inset, bottom statusbar inset, min visible margin).
+    pub clamp_bounds: FloatingWindowClampBounds,
+}
+
+impl Default for DockInteractionConfig {
+    fn default() -> Self {
+        Self {
+            splitter_thickness: 4.0,
+            tab_bar_height: 26.0,
+            clamp_bounds: FloatingWindowClampBounds::default(),
+        }
     }
 }
 
@@ -429,6 +664,282 @@ mod tests {
             parent_node.name.as_deref(),
             Some("FloatingWindow_101"),
             "Floating content must be a child of FloatingWindow_101 container"
+        );
+    }
+
+    #[test]
+    fn test_dock_area_handle_event_floating_priority() {
+        use crate::floating::FloatingWindow;
+
+        let mut dock_tree = DockTree::new();
+        let center = dock_tree.create_leaf(vec![TestPanel::Hierarchy]);
+        dock_tree.set_root(center);
+
+        let mut dock_state = DockState::new(dock_tree);
+        // Create floating window right over the center area
+        let floating_win = FloatingWindow::new(
+            201,
+            "Floating Inspector",
+            Rect::new(50.0, 50.0, 300.0, 200.0),
+            vec![TestPanel::Inspector],
+        );
+        dock_state.floating_windows.push(floating_win);
+
+        let viewer = MockViewer {
+            rendered_hierarchy: false,
+            rendered_inspector: false,
+            rendered_console: false,
+        };
+
+        let workspace_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        let config = DockInteractionConfig::default();
+
+        // 1. Click on empty space of floating title bar (x = 250.0, y = 62.0)
+        let click_title = UiEvent::MouseDown {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(250.0, 62.0),
+        };
+        let res = DockArea::handle_event(
+            &mut dock_state,
+            &viewer,
+            &click_title,
+            workspace_rect,
+            &config,
+        );
+        assert!(res.consumed, "Floating title click must be consumed");
+        assert!(
+            dock_state.active_floating_drag.is_some(),
+            "Title drag must be activated"
+        );
+
+        // 2. Move cursor -> window position should update
+        let move_cursor = UiEvent::MouseMove {
+            point: Point::new(300.0, 112.0),
+        };
+        let res_move = DockArea::handle_event(
+            &mut dock_state,
+            &viewer,
+            &move_cursor,
+            workspace_rect,
+            &config,
+        );
+        assert!(res_move.consumed, "Active title drag motion is consumed");
+        assert!(
+            dock_state.floating_windows[0].rect.x > 50.0,
+            "Floating window must move"
+        );
+
+        // 3. Release mouse -> drag finalized
+        let release = UiEvent::MouseUp {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(300.0, 112.0),
+        };
+        let res_rel =
+            DockArea::handle_event(&mut dock_state, &viewer, &release, workspace_rect, &config);
+        assert!(res_rel.consumed);
+        assert!(dock_state.active_floating_drag.is_none());
+    }
+
+    #[test]
+    fn test_dock_area_handle_event_tab_selection_and_close() {
+        let mut dock_tree = DockTree::new();
+        let center = dock_tree.create_leaf(vec![TestPanel::Hierarchy, TestPanel::Console]);
+        dock_tree.set_root(center);
+
+        let mut dock_state = DockState::new(dock_tree);
+        let viewer = MockViewer {
+            rendered_hierarchy: false,
+            rendered_inspector: false,
+            rendered_console: false,
+        };
+
+        let workspace_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        let config = DockInteractionConfig::default();
+
+        // Initially active tab is index 0 (Hierarchy)
+        let leaf = dock_state.tree.find_first_leaf().unwrap();
+        let initial_tab = match dock_state.tree.get(leaf) {
+            Some(DockNode::Leaf { active_tab, .. }) => Some(*active_tab),
+            _ => None,
+        };
+        assert_eq!(initial_tab, Some(0));
+
+        // Click tab pill for Console (second tab starts after ~120px)
+        let click_console_tab = UiEvent::MouseDown {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(160.0, 13.0),
+        };
+        let res = DockArea::handle_event(
+            &mut dock_state,
+            &viewer,
+            &click_console_tab,
+            workspace_rect,
+            &config,
+        );
+        assert!(res.consumed, "Tab selection click must be consumed");
+        let switched_tab = match dock_state.tree.get(leaf) {
+            Some(DockNode::Leaf { active_tab, .. }) => Some(*active_tab),
+            _ => None,
+        };
+        assert_eq!(switched_tab, Some(1), "Active tab must switch to Console");
+    }
+
+    #[test]
+    fn test_dock_area_handle_event_splitter_drag() {
+        let mut dock_tree = DockTree::new();
+        let center = dock_tree.create_leaf(vec![TestPanel::Hierarchy]);
+        dock_tree.set_root(center);
+        let (_left, _right) = dock_tree
+            .split_ordered(
+                center,
+                SplitDirection::Horizontal,
+                0.5,
+                vec![TestPanel::Inspector],
+                true,
+            )
+            .expect("Split succeeds");
+
+        let mut dock_state = DockState::new(dock_tree);
+        let viewer = MockViewer {
+            rendered_hierarchy: false,
+            rendered_inspector: false,
+            rendered_console: false,
+        };
+
+        let workspace_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        let config = DockInteractionConfig::default();
+
+        // Center split is at x = 400.0 (horizontal split line)
+        // Hover over splitter (x = 400.0, y = 200.0)
+        let hover = UiEvent::MouseMove {
+            point: Point::new(400.0, 200.0),
+        };
+        let res_hover =
+            DockArea::handle_event(&mut dock_state, &viewer, &hover, workspace_rect, &config);
+        assert_eq!(
+            res_hover.cursor_override,
+            Some(WidgetCursor::ColResize),
+            "Splitter hover must report ColResize"
+        );
+
+        // Click down on splitter
+        let press = UiEvent::MouseDown {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(400.0, 200.0),
+        };
+        let res_press =
+            DockArea::handle_event(&mut dock_state, &viewer, &press, workspace_rect, &config);
+        assert!(res_press.consumed);
+        assert!(
+            dock_state.active_splitter.is_some(),
+            "Splitter drag must be active"
+        );
+
+        // Drag to x = 500.0
+        let drag_move = UiEvent::MouseMove {
+            point: Point::new(500.0, 200.0),
+        };
+        let res_move = DockArea::handle_event(
+            &mut dock_state,
+            &viewer,
+            &drag_move,
+            workspace_rect,
+            &config,
+        );
+        assert!(res_move.consumed);
+        assert!(res_move.layout_changed);
+
+        // Release mouse
+        let release = UiEvent::MouseUp {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(500.0, 200.0),
+        };
+        let res_rel =
+            DockArea::handle_event(&mut dock_state, &viewer, &release, workspace_rect, &config);
+        assert!(res_rel.consumed);
+        assert!(
+            dock_state.active_splitter.is_none(),
+            "Splitter drag must terminate"
+        );
+    }
+
+    #[test]
+    fn test_dock_area_handle_event_tab_tear_off_to_floating_window() {
+        let mut dock_tree = DockTree::new();
+        let left = dock_tree.create_leaf(vec![TestPanel::Hierarchy]);
+        dock_tree.set_root(left);
+        let (_first, _second) = dock_tree
+            .split_ordered(
+                left,
+                SplitDirection::Horizontal,
+                0.5,
+                vec![TestPanel::Inspector],
+                true,
+            )
+            .expect("Split succeeds");
+
+        let mut dock_state = DockState::new(dock_tree);
+        let viewer = MockViewer {
+            rendered_hierarchy: false,
+            rendered_inspector: false,
+            rendered_console: false,
+        };
+
+        let workspace_rect = Rect::new(0.0, 0.0, 1000.0, 800.0);
+        let config = DockInteractionConfig::default();
+
+        // 1. Mouse down on Hierarchy tab (x = 50.0, y = 13.0)
+        let click_tab = UiEvent::MouseDown {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(50.0, 13.0),
+        };
+        let res_press = DockArea::handle_event(
+            &mut dock_state,
+            &viewer,
+            &click_tab,
+            workspace_rect,
+            &config,
+        );
+        assert!(res_press.consumed);
+        assert!(dock_state.pending_tab_drag.is_some());
+
+        // 2. Drag cursor beyond 4px threshold into open content area away from compass buttons (e.g. x = 200.0, y = 150.0)
+        let drag_motion = UiEvent::MouseMove {
+            point: Point::new(200.0, 150.0),
+        };
+        let res_motion = DockArea::handle_event(
+            &mut dock_state,
+            &viewer,
+            &drag_motion,
+            workspace_rect,
+            &config,
+        );
+        assert!(res_motion.consumed);
+        assert!(dock_state.active_drag.is_some());
+
+        // 3. Release mouse in open space
+        let release = UiEvent::MouseUp {
+            button: iris_core::MouseButton::Left,
+            point: Point::new(200.0, 150.0),
+        };
+        let res_release =
+            DockArea::handle_event(&mut dock_state, &viewer, &release, workspace_rect, &config);
+        assert!(res_release.consumed);
+        assert!(res_release.layout_changed);
+        assert!(dock_state.active_drag.is_none());
+
+        // Must detach as an autonomous floating window instead of snapping into another leaf
+        assert_eq!(
+            dock_state.floating_windows.len(),
+            1,
+            "Tear-off tab dropped into empty space must become a floating window"
+        );
+        assert_eq!(
+            dock_state.floating_windows[0]
+                .tree
+                .find_tab(&TestPanel::Inspector)
+                .map(|(_, i)| i),
+            Some(0)
         );
     }
 }

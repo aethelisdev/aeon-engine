@@ -86,13 +86,36 @@ impl FloatingResizeEdge {
 /// of the border, or `None` if the cursor is inside the window body or entirely outside.
 #[inline]
 pub fn detect_resize_edge(rect: Rect, point: Point, margin: f32) -> Option<FloatingResizeEdge> {
-    if !rect.contains_point(point) {
+    const OUTSET: f32 = 4.0;
+    // Bounding box including outward grab margin
+    if point.x < rect.x - OUTSET
+        || point.x > rect.right() + OUTSET
+        || point.y < rect.y - OUTSET
+        || point.y > rect.bottom() + OUTSET
+    {
         return None;
     }
-    let on_left = point.x <= rect.x + margin;
-    let on_right = point.x >= rect.right() - margin;
-    let on_top = point.y <= rect.y + margin;
-    let on_bottom = point.y >= rect.bottom() - margin;
+
+    // Interior body boundary where edge resize is not triggered
+    let in_left = rect.x + margin;
+    let in_right = rect.right() - margin;
+    let in_top = rect.y + margin;
+    let in_bottom = rect.bottom() - margin;
+
+    if in_left < in_right
+        && in_top < in_bottom
+        && point.x > in_left
+        && point.x < in_right
+        && point.y > in_top
+        && point.y < in_bottom
+    {
+        return None;
+    }
+
+    let on_left = point.x <= in_left;
+    let on_right = point.x >= in_right;
+    let on_top = point.y <= in_top;
+    let on_bottom = point.y >= in_bottom;
 
     if on_top && on_left {
         Some(FloatingResizeEdge::TopLeft)

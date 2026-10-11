@@ -59,6 +59,9 @@ pub struct DockState<T> {
     /// Active floating window drag state, tracking window identifier and title or resize mode.
     #[serde(skip)]
     pub active_floating_drag: Option<(u64, FloatingDragState)>,
+    /// Pending tab drag awaiting threshold motion before turning into an active drag.
+    #[serde(skip)]
+    pub pending_tab_drag: Option<crate::events::PendingTabDrag<T>>,
 }
 
 fn default_min_pane_size() -> f32 {
@@ -85,6 +88,7 @@ impl<T> DockState<T> {
             active_context_menu: None,
             active_overflow: None,
             active_floating_drag: None,
+            pending_tab_drag: None,
         }
     }
 

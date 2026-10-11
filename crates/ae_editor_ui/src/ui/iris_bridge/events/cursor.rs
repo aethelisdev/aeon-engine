@@ -9,7 +9,6 @@
 
 use crate::ui::iris_bridge::compositor;
 use crate::ui::iris_bridge::types::{InspectorColorDragMode, IrisEditorOverlay};
-use irisui::dock::{DEFAULT_RESIZE_MARGIN, FloatingWindowCursor, evaluate_floating_resize_cursor};
 use irisui::prelude::*;
 use winit::window::CursorIcon;
 
@@ -48,33 +47,19 @@ impl IrisEditorOverlay {
             return CursorIcon::EwResize;
         }
 
-        // 1. Floating window resize edges
-        if let Some(edge_cursor) = evaluate_floating_resize_cursor(
-            &self.chrome.floating_window_rects,
-            p,
-            DEFAULT_RESIZE_MARGIN,
-        ) {
-            return match edge_cursor {
-                FloatingWindowCursor::NwseResize => CursorIcon::NwseResize,
-                FloatingWindowCursor::NeswResize => CursorIcon::NeswResize,
-                FloatingWindowCursor::ColResize => CursorIcon::ColResize,
-                FloatingWindowCursor::RowResize => CursorIcon::RowResize,
-            };
+        // Floating window 8-way resize boundary evaluation (Higher Z-layer than docked panels)
+        if p.y > Self::MENUBAR_HEIGHT
+            && !self.overlay_tree.is_open()
+            && let Some(cur) = irisui::dock::evaluate_floating_resize_cursor(
+                &self.chrome.floating_window_rects,
+                p,
+                irisui::dock::DEFAULT_RESIZE_MARGIN,
+            )
+        {
+            return map_widget_cursor_to_winit(cur.to_widget_cursor());
         }
 
-        // 1b. Native Dock Splitter Handles (with ergonomic hit margin)
-        if let Some(ref dock_frame) = self.chrome.native_dock_frame {
-            for splitter in &dock_frame.splitter_targets {
-                if splitter.contains_point(p) {
-                    return match splitter.direction {
-                        irisui::dock::SplitDirection::Horizontal => CursorIcon::ColResize,
-                        irisui::dock::SplitDirection::Vertical => CursorIcon::RowResize,
-                    };
-                }
-            }
-        }
-
-        // 2. Native Tree-Driven Cursor Resolution (Primary Iris UI Authority)
+        // Native Tree-Driven Cursor Resolution (Primary Iris UI Authority)
         // Resolves menubar items, buttons, dock tabs, close buttons, splitters,
         // numeric input pills, tree rows, and asset cards with full layer/modal occlusion.
         let tree_cursor = self.tree.cursor_at(p);

@@ -11,6 +11,7 @@ pub mod drag_drop;
 pub mod floating;
 pub mod splitter;
 pub mod tab_strip;
+pub mod targets;
 
 pub use drag_drop::{
     DEFAULT_FLOATING_PANE_SIZE, PendingTabDrag, TAB_DRAG_MOTION_THRESHOLD_SQ,
@@ -19,3 +20,4 @@ pub use drag_drop::{
 pub use floating::{FloatingInteractionResponse, handle_floating_window_event};
 pub use splitter::{SplitterInteractionResponse, handle_splitter_event};
 pub use tab_strip::{TabStripInteractionResponse, handle_tab_strip_event};
+pub use targets::compute_dock_interaction_targets;

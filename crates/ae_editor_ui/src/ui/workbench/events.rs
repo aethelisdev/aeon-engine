@@ -6,14 +6,14 @@
 //! Forwards winit window events to Iris UI overlays, native dock coordinator,
 //! keyboard hotkey handlers, and manages modal/dialog lifecycle state.
 
-pub mod dock_interaction;
 pub mod hit_test;
 pub mod keyboard;
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::workbench::state::EngineUi;
-use irisui::prelude::Rect;
-use winit::event::WindowEvent;
+use irisui::dock::{DockArea, DockInteractionConfig, FloatingWindowClampBounds};
+use irisui::prelude::{Point, Rect, UiEvent, WidgetCursor};
+use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::window::Window;
 
 impl EngineUi {
@@ -155,7 +155,6 @@ impl EngineUi {
             return true;
         }
 
-        let p = self.iris_overlay.cursor_pos();
         let win_size = window.inner_size();
         let screen_w = win_size.width as f32 / zoom;
         let screen_h = win_size.height as f32 / zoom;
@@ -175,21 +174,31 @@ impl EngineUi {
             IrisEditorOverlay::STATUS_BAR_HEIGHT,
         );
 
-        // Process native dock cursor movements and mouse inputs
-        let mut dock_consumed = false;
-        if matches!(event, WindowEvent::CursorMoved { .. }) {
-            dock_consumed = self.handle_dock_cursor_moved(p, screen_w, screen_h, workspace_rect);
-        } else if matches!(event, WindowEvent::MouseInput { .. }) {
-            dock_consumed = self.handle_dock_mouse_input(p, event);
-        }
+        // Process autonomous dock events (splitters, tabs, drag-and-drop, and floating windows)
+        let (dock_consumed, dock_cursor) =
+            self.handle_dock_event(event_ref, workspace_rect, screen_w, screen_h);
 
         // Apply requested cursor
-        let requested_cursor = self.iris_overlay.requested_cursor_icon();
-        if requested_cursor != winit::window::CursorIcon::Default {
-            window.set_cursor(requested_cursor);
+        let requested_cursor = if let Some(cursor) = dock_cursor {
+            match cursor {
+                irisui::prelude::WidgetCursor::Default => winit::window::CursorIcon::Default,
+                irisui::prelude::WidgetCursor::Pointer => winit::window::CursorIcon::Pointer,
+                irisui::prelude::WidgetCursor::Grab => winit::window::CursorIcon::Grab,
+                irisui::prelude::WidgetCursor::Grabbing => winit::window::CursorIcon::Grabbing,
+                irisui::prelude::WidgetCursor::Text => winit::window::CursorIcon::Text,
+                irisui::prelude::WidgetCursor::ColResize => winit::window::CursorIcon::ColResize,
+                irisui::prelude::WidgetCursor::RowResize => winit::window::CursorIcon::RowResize,
+                irisui::prelude::WidgetCursor::EwResize => winit::window::CursorIcon::EwResize,
+                irisui::prelude::WidgetCursor::NsResize => winit::window::CursorIcon::NsResize,
+                irisui::prelude::WidgetCursor::NwseResize => winit::window::CursorIcon::NwseResize,
+                irisui::prelude::WidgetCursor::NeswResize => winit::window::CursorIcon::NeswResize,
+                irisui::prelude::WidgetCursor::Crosshair => winit::window::CursorIcon::Crosshair,
+                irisui::prelude::WidgetCursor::NotAllowed => winit::window::CursorIcon::NotAllowed,
+            }
         } else {
-            window.set_cursor(winit::window::CursorIcon::Default);
-        }
+            self.iris_overlay.requested_cursor_icon()
+        };
+        window.set_cursor(requested_cursor);
 
         let consumed = iris_res.consumed || dock_consumed;
         if consumed {
@@ -197,5 +206,80 @@ impl EngineUi {
             self.iris_overlay.chrome.needs_layout_rebuild = true;
         }
         consumed
+    }
+
+    /// Dispatches cursor motion and mouse button events into [`irisui::dock::DockArea::handle_event`].
+    ///
+    /// Manages splitter divider resizes, tab selection, middle-click close, tab drag-and-drop,
+    /// and floating window 8-way resize/dragging in a unified autonomous pass.
+    ///
+    /// Returns `(consumed, cursor_override)`.
+    pub(crate) fn handle_dock_event(
+        &mut self,
+        event: &WindowEvent,
+        workspace_rect: Rect,
+        screen_w: f32,
+        screen_h: f32,
+    ) -> (bool, Option<WidgetCursor>) {
+        let ui_event = match event {
+            WindowEvent::CursorMoved { position, .. } => UiEvent::MouseMove {
+                point: Point::new(position.x as f32, position.y as f32),
+            },
+            WindowEvent::MouseInput { state, button, .. } => {
+                let btn = match button {
+                    MouseButton::Left => irisui::prelude::MouseButton::Left,
+                    MouseButton::Right => irisui::prelude::MouseButton::Right,
+                    MouseButton::Middle => irisui::prelude::MouseButton::Middle,
+                    MouseButton::Other(b) => irisui::prelude::MouseButton::Other(*b),
+                    _ => irisui::prelude::MouseButton::Left,
+                };
+                let point = self.iris_overlay.chrome.cursor_pos;
+                match state {
+                    ElementState::Pressed => UiEvent::MouseDown { button: btn, point },
+                    ElementState::Released => UiEvent::MouseUp { button: btn, point },
+                }
+            }
+            _ => return (false, None),
+        };
+
+        // If modal or dropdown is open and event is mouse press, ignore dock interaction
+        if let UiEvent::MouseDown { point, .. } = ui_event
+            && self.iris_overlay.is_point_over_modal_or_dropdown(point)
+        {
+            return (false, None);
+        }
+
+        let clamp_bounds = FloatingWindowClampBounds {
+            min_width: 220.0,
+            min_height: 140.0,
+            screen_width: screen_w,
+            screen_height: screen_h,
+            min_y: IrisEditorOverlay::MENUBAR_HEIGHT,
+            bottom_inset: IrisEditorOverlay::STATUS_BAR_HEIGHT,
+            min_visible_margin: 60.0,
+            title_bar_height: crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
+        };
+
+        let config = DockInteractionConfig {
+            splitter_thickness: crate::ui::iris_bridge::native_dock::SPLITTER_THICKNESS,
+            tab_bar_height: crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
+            clamp_bounds,
+        };
+
+        let viewer = crate::ui::panel_layout::PanelTabViewer::default();
+        let res = DockArea::handle_event(
+            &mut self.layout_state.dock_state,
+            &viewer,
+            &ui_event,
+            workspace_rect,
+            &config,
+        );
+
+        if res.layout_changed {
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+            self.iris_overlay.notifier.tag_all();
+        }
+
+        (res.consumed, res.cursor_override)
     }
 }

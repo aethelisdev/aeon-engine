@@ -8,9 +8,7 @@
 //! into docked split leaves or detached floating windows.
 //!
 
-use crate::drag_drop::{
-    DropZone, calculate_drop_preview_rect, calculate_drop_zone, calculate_screen_drop_zone,
-};
+use crate::drag_drop::{DropZone, calculate_drop_preview_rect, calculate_screen_drop_zone};
 use crate::layout::ComputedDockLayout;
 use crate::state::DockState;
 use crate::tree::DockNodeId;
@@ -183,35 +181,17 @@ pub fn handle_tab_drag_event<T: Clone + Copy + PartialEq>(
             if dock_state.active_drag.is_some() {
                 dock_state.update_tab_drag(*point, layout);
 
-                // Fallback to screen drop zone or leaf drop zone if compass anchor buttons were not directly hit
+                // Fallback to outer screen drop zone (32px border) if compass was not hit
                 if let Some(drag) = dock_state
                     .active_drag
                     .as_mut()
                     .filter(|d| d.hover_target.is_none() && d.tab_reorder_target.is_none())
-                {
-                    if let Some(screen_zone) =
+                    && let Some(screen_zone) =
                         calculate_screen_drop_zone(workspace_rect, *point, 32.0)
-                    {
-                        let preview = calculate_drop_preview_rect(workspace_rect, screen_zone);
-                        let root_id = dock_state.tree.root().unwrap_or(drag.source_leaf);
-                        drag.hover_target = Some((root_id, screen_zone, preview));
-                    } else if let Some((leaf_id, zone, preview)) =
-                        layout.leaves.iter().find_map(|leaf| {
-                            if leaf.content_rect.contains_point(*point) {
-                                calculate_drop_zone(leaf.content_rect, *point).map(|z| {
-                                    (
-                                        leaf.node_id,
-                                        z,
-                                        calculate_drop_preview_rect(leaf.content_rect, z),
-                                    )
-                                })
-                            } else {
-                                None
-                            }
-                        })
-                    {
-                        drag.hover_target = Some((leaf_id, zone, preview));
-                    }
+                {
+                    let preview = calculate_drop_preview_rect(workspace_rect, screen_zone);
+                    let root_id = dock_state.tree.root().unwrap_or(drag.source_leaf);
+                    drag.hover_target = Some((root_id, screen_zone, preview));
                 }
 
                 let preview = dock_state
@@ -462,9 +442,9 @@ mod tests {
         );
         let mut pending = None;
 
-        // Move to leaf_b's right edge (e.g., x=750.0, y=300.0 in an 800-wide workspace)
+        // Move to right split zone (outer border 32px or compass right, e.g. x=785.0 in an 800-wide workspace)
         let move_to_right = UiEvent::MouseMove {
-            point: Point::new(750.0, 300.0),
+            point: Point::new(785.0, 300.0),
         };
         let resp_move = handle_tab_drag_event(
             &mut dock_state,
@@ -480,7 +460,7 @@ mod tests {
         // Release mouse to commit split
         let mouse_up = UiEvent::MouseUp {
             button: MouseButton::Left,
-            point: Point::new(750.0, 300.0),
+            point: Point::new(785.0, 300.0),
         };
         let resp_drop =
             handle_tab_drag_event(&mut dock_state, &mouse_up, &mut pending, workspace, &layout);

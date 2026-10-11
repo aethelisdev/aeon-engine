@@ -10,12 +10,10 @@
 
 pub mod builder;
 pub mod overflow;
-pub mod overlays;
 #[cfg(test)]
 pub mod tests;
 pub mod types;
 
 pub use builder::{build_native_dock, editor_dock_style};
 pub use overflow::build_native_dock_overflow_menu;
-pub use overlays::build_native_dock_drag_overlays;
 pub use types::*;

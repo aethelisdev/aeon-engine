@@ -257,9 +257,9 @@ pub fn find_active_tab_content_rect<Tab: PartialEq>(
 /// Checks front-to-back (reverse iteration) for highest visual priority:
 /// 1. Dock-back button `⤢` (top-right)
 /// 2. Close button `✖` (top-right)
-/// 3. Tab pills (selecting active tab)
-/// 4. Title bar background (initiates window drag)
-/// 5. Window boundary resize margins (initiates edge/corner resize)
+/// 3. Window boundary resize margins (initiates edge/corner resize)
+/// 4. Tab pills (selecting active tab)
+/// 5. Title bar background (initiates window drag)
 pub fn evaluate_floating_window_click<Tab: Clone, V: TabViewer<Tab>>(
     windows: &[FloatingWindow<Tab>],
     viewer: &V,
@@ -282,7 +282,15 @@ pub fn evaluate_floating_window_click<Tab: Clone, V: TabViewer<Tab>>(
             return Some(FloatingWindowClickAction::Close { window_id: win.id });
         }
 
-        // 3. Tab pills
+        // 3. Window boundary edge resize (Evaluated before title drag and tabs to ensure 8-way border/corner grab)
+        if let Some(edge) = detect_resize_edge(win.rect, cursor, resize_margin) {
+            return Some(FloatingWindowClickAction::ResizeStart {
+                window_id: win.id,
+                edge,
+            });
+        }
+
+        // 4. Tab pills
         let mut current_tab_x = bar_rect.x;
         for (leaf_id, node) in win.tree.iter() {
             if let DockNode::Leaf { tabs, .. } = node {
@@ -313,19 +321,11 @@ pub fn evaluate_floating_window_click<Tab: Clone, V: TabViewer<Tab>>(
             }
         }
 
-        // 4. Title bar drag
+        // 5. Title bar drag
         if bar_rect.contains_point(cursor) {
             return Some(FloatingWindowClickAction::TitleDragStart {
                 window_id: win.id,
                 offset: Point::new(cursor.x - win.rect.x, cursor.y - win.rect.y),
-            });
-        }
-
-        // 5. Window boundary edge resize
-        if let Some(edge) = detect_resize_edge(win.rect, cursor, resize_margin) {
-            return Some(FloatingWindowClickAction::ResizeStart {
-                window_id: win.id,
-                edge,
             });
         }
     }
@@ -430,14 +430,36 @@ mod tests {
             Some(FloatingWindowClickAction::DockBack { window_id: 1 })
         );
 
-        // Click title bar drag
+        // Click top edge (inside title bar Y span, but within top resize margin) -> ResizeStart
+        let top_resize_action =
+            evaluate_floating_window_click(&windows, &viewer, Point::new(200.0, 52.0), 6.0, 26.0);
+        assert_eq!(
+            top_resize_action,
+            Some(FloatingWindowClickAction::ResizeStart {
+                window_id: 1,
+                edge: FloatingResizeEdge::Top,
+            })
+        );
+
+        // Click right edge -> ResizeStart
+        let right_resize_action =
+            evaluate_floating_window_click(&windows, &viewer, Point::new(348.0, 120.0), 6.0, 26.0);
+        assert_eq!(
+            right_resize_action,
+            Some(FloatingWindowClickAction::ResizeStart {
+                window_id: 1,
+                edge: FloatingResizeEdge::Right,
+            })
+        );
+
+        // Click title bar interior (below top resize margin, away from edges) -> TitleDragStart
         let drag_action =
-            evaluate_floating_window_click(&windows, &viewer, Point::new(200.0, 60.0), 6.0, 26.0);
+            evaluate_floating_window_click(&windows, &viewer, Point::new(200.0, 65.0), 6.0, 26.0);
         assert_eq!(
             drag_action,
             Some(FloatingWindowClickAction::TitleDragStart {
                 window_id: 1,
-                offset: Point::new(150.0, 10.0),
+                offset: Point::new(150.0, 15.0),
             })
         );
     }

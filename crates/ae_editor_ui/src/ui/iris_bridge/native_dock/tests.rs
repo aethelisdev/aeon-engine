@@ -5,7 +5,6 @@
 
 use super::builder::build_native_dock;
 use super::overflow::build_native_dock_overflow_menu;
-use super::overlays::build_native_dock_drag_overlays;
 use super::types::*;
 use crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN;
 use crate::ui::panel_layout::{PanelId, PanelLayoutState, PanelTabViewer};
@@ -29,7 +28,16 @@ fn test_build_native_dock_drag_overlays_renders_nodes() {
     );
 
     let workspace = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-    build_native_dock_drag_overlays(&mut tree, root, &layout_state, workspace);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::default();
+    let _ = build_native_dock(
+        &mut scope,
+        &mut layout_state,
+        workspace,
+        Point::new(200.0, 200.0),
+        false,
+        &mut viewer,
+    );
 
     let root_node = tree.get(root).expect("Root exists");
     assert!(
