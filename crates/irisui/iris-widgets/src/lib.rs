@@ -22,6 +22,7 @@ pub mod numeric_input;
 pub mod panel;
 pub mod scroll_area;
 pub mod settings;
+pub mod tree_view;
 
 pub use canvas::ChartDrawer;
 
@@ -58,6 +59,12 @@ pub use scroll_area::{
 pub use settings::{
     SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,
     TabbedDialogFrame, TabbedDialogStyle, TabbedDialogTab,
+};
+pub use tree_view::{
+    DEFAULT_TREE_BASE_PADDING, DEFAULT_TREE_INDENT_STEP, DEFAULT_TREE_LINE_ARM_GAP,
+    DEFAULT_TREE_LINE_ARM_LENGTH, DEFAULT_TREE_LINE_THICKNESS, DEFAULT_TREE_ROW_HEIGHT,
+    TreeConnectorGeometry, TreeIndentConfig, TreeLineHorizontal, TreeLineVertical, TreeState,
+    compute_tree_connector_geometry,
 };
 
 #[cfg(test)]
