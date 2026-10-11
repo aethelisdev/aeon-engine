@@ -8,6 +8,7 @@
 //!
 
 pub mod area;
+pub mod events;
 pub mod scroll_bar;
 pub mod style;
 pub mod types;
@@ -15,6 +16,10 @@ pub mod virtual_list;
 pub mod wheel;
 
 pub use area::{ScrollArea, ScrollAreaBuilder, ScrollAreaFrame};
+pub use events::{
+    ScrollAreaState, ScrollResponse, ScrollbarDragState, handle_scroll_area_event,
+    handle_scrollbar_event,
+};
 pub use scroll_bar::ScrollBarGeometry;
 pub use style::ScrollAreaStyle;
 pub use types::{
