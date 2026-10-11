@@ -36,9 +36,9 @@ pub mod prelude {
     };
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DEFAULT_RESIZE_MARGIN,
-        DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
-        DockDragState, DockError, DockLayoutOptions, DockNavigatorGeometry, DockNavigatorStyle,
-        DockNode, DockNodeId, DockOverflowClickAction, DockOverflowItemTarget,
+        DockArea, DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle,
+        DockCloseTarget, DockDragState, DockError, DockLayoutOptions, DockNavigatorGeometry,
+        DockNavigatorStyle, DockNode, DockNodeId, DockOverflowClickAction, DockOverflowItemTarget,
         DockOverflowMenuFrame, DockOverflowMenuParams, DockOverflowMenuStyle, DockPanel,
         DockSplitterTarget, DockState, DockStyle, DockTabTarget, DockTree, DropZone,
         FloatingDockWindow, FloatingDragState, FloatingResizeEdge, FloatingTabBadgeParams,

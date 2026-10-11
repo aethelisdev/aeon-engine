@@ -24,6 +24,8 @@ impl TabViewer<MockTab> for MockViewer {
     fn closeable(&self, tab: &MockTab) -> bool {
         *tab != MockTab::Viewport
     }
+
+    fn ui(&mut self, _scope: &mut iris_widgets::UiScope<'_>, _tab: &MockTab) {}
 }
 
 #[test]

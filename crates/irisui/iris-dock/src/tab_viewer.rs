@@ -107,6 +107,12 @@ pub trait TabViewer<Tab> {
     fn clear_background(&self, _tab: &Tab) -> bool {
         false
     }
+
+    /// Renders the user-facing content of the specified tab into the provided declarative UI scope.
+    ///
+    /// The `scope` parameter represents the allocated content viewport of the host leaf pane,
+    /// pre-configured with physical bounding geometry and layout clipping.
+    fn ui(&mut self, scope: &mut iris_widgets::UiScope<'_>, tab: &Tab);
 }
 
 /// Simple default [`TabViewer`] implementation using [`Display`] for tab titles.
@@ -119,6 +125,8 @@ impl<Tab: Display> TabViewer<Tab> for SimpleTabViewer {
     fn title(&self, tab: &Tab) -> String {
         tab.to_string()
     }
+
+    fn ui(&mut self, _scope: &mut iris_widgets::UiScope<'_>, _tab: &Tab) {}
 }
 
 #[cfg(test)]
@@ -161,6 +169,8 @@ mod tests {
         fn is_draggable(&self, tab: &MockTab) -> bool {
             !tab.is_pinned
         }
+
+        fn ui(&mut self, _scope: &mut iris_widgets::UiScope<'_>, _tab: &MockTab) {}
     }
 
     #[test]

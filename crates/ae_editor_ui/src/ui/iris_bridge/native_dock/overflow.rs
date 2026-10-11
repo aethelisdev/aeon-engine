@@ -44,7 +44,7 @@ pub fn build_native_dock_overflow_menu(
             anchor_rect: params.anchor_rect,
             cursor_pos: params.cursor_pos,
         },
-        &PanelTabViewer,
+        &PanelTabViewer::default(),
         &style,
     ) else {
         return;

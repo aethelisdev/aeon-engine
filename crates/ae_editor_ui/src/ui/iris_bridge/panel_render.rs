@@ -22,7 +22,7 @@ use irisui::prelude::*;
 
 use super::compositor;
 use super::dock_panel::EditorDockPanel;
-use super::types::{IrisEditorOverlay, OverlayUpdateParams};
+use super::types::IrisEditorOverlay;
 
 impl IrisEditorOverlay {
     /// Returns the active pointer capture panel, if any.
@@ -94,98 +94,6 @@ impl IrisEditorOverlay {
             tree.resolve_ancestor_tag(id)
         } else {
             self.tree.resolve_ancestor_tag(id)
-        }
-    }
-
-    /// Renders a tool panel into its independently retained [`EditorDockPanel::tree`].
-    ///
-    /// Evaluates whether the panel is dirty or unbuilt. If rebuild is needed, extracts
-    /// the tree, clears it, constructs the panel content using local `(0, 0)` coordinates,
-    /// recomputes layout, and stores it back into [`Self::panels`].
-    pub(crate) fn render_dock_panel_into_tree(
-        &mut self,
-        panel_id: PanelId,
-        params: &OverlayUpdateParams<'_>,
-    ) {
-        let rect_opt = match panel_id {
-            PanelId::Viewport => None,
-            PanelId::Hierarchy => params.panel_rects.hierarchy,
-            PanelId::Inspector => params.panel_rects.inspector,
-            PanelId::Console => params.panel_rects.console,
-            PanelId::Assets => params.panel_rects.assets,
-            PanelId::MaterialEditor => params.panel_rects.material,
-            PanelId::AnimationTimeline => params.panel_rects.timeline,
-            PanelId::UiDesigner => params.panel_rects.ui_designer,
-            PanelId::Stats => params.panel_rects.stats,
-        };
-
-        let Some(panel_bounds) = rect_opt else {
-            if let Some(panel) = self
-                .panels
-                .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
-            {
-                panel.clear_bounds();
-            }
-            return;
-        };
-
-        if panel_bounds.width <= 20.0 || panel_bounds.height <= 20.0 {
-            if let Some(panel) = self
-                .panels
-                .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
-            {
-                panel.clear_bounds();
-            }
-            return;
-        }
-
-        let is_dirty = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
-            .is_some_and(|p| {
-                p.is_dirty()
-                    || self.notifier.is_dirty(panel_id)
-                    || self.notifier.is_global_dirty()
-                    || p.tree().root().is_none()
-                    || p.last_bounds() != Some(panel_bounds)
-            });
-
-        if !is_dirty {
-            return;
-        }
-
-        let mut tree = if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
-        {
-            std::mem::take(panel.tree_mut())
-        } else {
-            UiTree::new()
-        };
-
-        tree.clear();
-        if let Ok(root) = tree.create_root() {
-            // Directly build into the panel's isolated tree without mem::swap shims
-            self.render_panel_by_id(panel_id, &mut tree, root, params);
-
-            // Pre-measure all text nodes to populate intrinsic content_size
-            self.text_system.measure_subtree_text(&mut tree, root);
-
-            // Compute Taffy layout for the panel's local coordinates (0, 0, width, height)
-            let mut layout_engine = LayoutEngine::new();
-            let _ = layout_engine.compute_layout(
-                &mut tree,
-                Size::new(panel_bounds.width, panel_bounds.height),
-            );
-        }
-
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
-        {
-            *panel.tree_mut() = tree;
-            panel.clear_dirty();
-            panel.set_last_bounds(panel_bounds);
         }
     }
 }

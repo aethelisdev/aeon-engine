@@ -359,11 +359,40 @@ impl PanelLayoutState {
     }
 }
 
-/// Tab viewer implementation for [`PanelId`] used by Iris docking layout computations.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PanelTabViewer;
+/// Type alias for the mutable closure dispatching panel UI rendering into a host [`UiScope`].
+pub type PanelRenderDispatch<'a> = &'a mut dyn FnMut(&mut irisui::widgets::UiScope<'_>, &PanelId);
 
-impl irisui::dock::TabViewer<PanelId> for PanelTabViewer {
+/// Tab viewer implementation for [`PanelId`] used by Iris docking layout computations.
+///
+/// Encapsulates tab display metadata (icons, titles, closeability) and dispatches
+/// panel content rendering into the host leaf's [`irisui::widgets::UiScope`].
+pub struct PanelTabViewer<'a> {
+    render_dispatch: Option<PanelRenderDispatch<'a>>,
+}
+
+impl<'a> PanelTabViewer<'a> {
+    /// Creates a default [`PanelTabViewer`] without an attached render dispatch closure.
+    pub fn new() -> Self {
+        Self {
+            render_dispatch: None,
+        }
+    }
+
+    /// Creates a [`PanelTabViewer`] with an active render dispatch closure.
+    pub fn with_dispatch(dispatch: PanelRenderDispatch<'a>) -> Self {
+        Self {
+            render_dispatch: Some(dispatch),
+        }
+    }
+}
+
+impl Default for PanelTabViewer<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> irisui::dock::TabViewer<PanelId> for PanelTabViewer<'a> {
     fn title(&self, tab: &PanelId) -> String {
         if tab.atlas_icon().is_some() {
             tab.title().to_string()
@@ -382,6 +411,16 @@ impl irisui::dock::TabViewer<PanelId> for PanelTabViewer {
 
     fn closeable(&self, tab: &PanelId) -> bool {
         *tab != PanelId::Viewport
+    }
+
+    fn clear_background(&self, tab: &PanelId) -> bool {
+        *tab == PanelId::Viewport
+    }
+
+    fn ui(&mut self, scope: &mut irisui::widgets::UiScope<'_>, tab: &PanelId) {
+        if let Some(dispatch) = self.render_dispatch.as_mut() {
+            dispatch(scope, tab);
+        }
     }
 }
 

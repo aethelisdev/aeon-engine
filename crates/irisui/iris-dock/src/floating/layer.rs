@@ -250,6 +250,8 @@ mod tests {
         fn title(&self, tab: &&'static str) -> String {
             tab.to_string()
         }
+
+        fn ui(&mut self, _scope: &mut iris_widgets::UiScope<'_>, _tab: &&'static str) {}
     }
 
     #[test]

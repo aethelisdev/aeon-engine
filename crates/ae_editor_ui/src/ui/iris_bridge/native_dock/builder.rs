@@ -3,37 +3,20 @@
 
 //! Native Iris docking chrome layout calculation and retained node generation.
 //!
-//! Dispatches directly into [`irisui::dock::build_dock_chrome`] with the engine's theme styling and [`PanelTabViewer`].
+//! Dispatches directly into [`irisui::dock::DockArea`] with the engine's theme styling and [`crate::ui::panel_layout::PanelTabViewer`].
 //!
 
-use crate::ui::panel_layout::{PanelLayoutState, PanelTabViewer};
-use irisui::dock::{DockChromeParams, DockChromeStyle, build_dock_chrome};
+use crate::ui::panel_layout::PanelLayoutState;
+use irisui::dock::DockChromeStyle;
 use irisui::prelude::*;
 
 use super::super::icons::*;
 use super::super::theme::*;
 use super::types::*;
 
-/// Builds Iris-rendered tab strips, panel backgrounds, and split dividers for the native tree.
-///
-/// The returned geometry is the authoritative panel-coordinate source used by the Iris overlay.
-pub fn build_native_dock(
-    tree: &mut UiTree,
-    parent: WidgetId,
-    layout_state: &PanelLayoutState,
-    workspace_rect: Rect,
-    cursor_pos: Point,
-    is_cursor_occluded: bool,
-) -> NativeDockFrame {
-    let is_dragging_splitter = layout_state.dock_state.active_splitter.is_some();
-    let active_splitter_node = layout_state
-        .dock_state
-        .active_splitter
-        .as_ref()
-        .map(|s| s.node_id);
-    let is_dragging_tab = layout_state.dock_state.active_drag.is_some();
-
-    let style = DockChromeStyle {
+/// Returns the engine-themed [`DockChromeStyle`] used across the editor.
+pub fn editor_dock_style() -> DockChromeStyle {
+    DockChromeStyle {
         empty_panel_bg: Color::from_u8(16, 20, 28, 160),
         empty_panel_border: Color::from_u8(35, 42, 55, 120),
         panel_bg: ELEVATION_1_PANEL,
@@ -65,21 +48,25 @@ pub fn build_native_dock(
         chevron_hovered_icon_col: ACCENT_CYAN,
         chevron_idle_icon_col: TEXT_MUTED,
         chevron_icon_uv: Some(ICON_CHEVRON_DOWN),
-    };
+    }
+}
 
-    let params = DockChromeParams {
-        dock_tree: &layout_state.dock_state.tree,
-        workspace_rect,
-        cursor_pos,
-        is_cursor_occluded,
-        is_dragging_splitter,
-        active_splitter_node,
-        is_dragging_tab,
-        viewer: &PanelTabViewer,
-        style: &style,
-    };
-
-    let chrome = build_dock_chrome(tree, parent, &params);
+/// Builds Iris-rendered tab strips, panel backgrounds, and split dividers using [`DockArea`].
+pub fn build_native_dock<V: irisui::dock::TabViewer<crate::ui::panel_layout::PanelId>>(
+    scope: &mut UiScope<'_>,
+    layout_state: &mut PanelLayoutState,
+    workspace_rect: Rect,
+    cursor_pos: Point,
+    is_cursor_occluded: bool,
+    viewer: &mut V,
+) -> NativeDockFrame {
+    let style = editor_dock_style();
+    let chrome = irisui::dock::DockArea::new(&mut layout_state.dock_state)
+        .bounds(workspace_rect)
+        .style(style)
+        .cursor_pos(cursor_pos)
+        .cursor_occluded(is_cursor_occluded)
+        .show(scope, viewer);
 
     chrome.into()
 }

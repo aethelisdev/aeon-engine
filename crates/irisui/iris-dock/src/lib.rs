@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod area;
 pub mod chrome;
 pub mod context_menu;
 pub mod drag_drop;
@@ -27,6 +28,7 @@ pub mod tab_viewer;
 pub mod tree;
 pub mod viewport;
 
+pub use area::DockArea;
 pub use chrome::{
     DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
     DockSplitterTarget, DockTabTarget, build_dock_chrome,

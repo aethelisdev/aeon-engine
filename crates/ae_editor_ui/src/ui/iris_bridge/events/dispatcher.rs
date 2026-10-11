@@ -280,21 +280,27 @@ impl IrisEditorOverlay {
             .copied();
 
         if let Some(float_rect) = floating_rect_opt {
-            if let Some(floating_res) =
-                self.dispatch_floating_layer_events(event, world, float_rect)
-            {
-                return floating_res;
-            }
-            // Pointer press over floating window background: consumed to prevent click-through
-            if matches!(
-                event,
-                WindowEvent::MouseInput {
-                    state: winit::event::ElementState::Pressed,
-                    ..
+            let is_in_title_bar = cursor.y < float_rect.y + 26.0;
+            let is_on_resize_edge =
+                irisui::dock::detect_resize_edge(float_rect, cursor, 6.0).is_some();
+
+            if !is_in_title_bar && !is_on_resize_edge {
+                if let Some(floating_res) =
+                    self.dispatch_floating_layer_events(event, world, float_rect)
+                {
+                    return floating_res;
                 }
-            ) {
-                result.consumed = true;
-                return result;
+                // Pointer press over floating window content background: consumed to prevent click-through
+                if matches!(
+                    event,
+                    WindowEvent::MouseInput {
+                        state: winit::event::ElementState::Pressed,
+                        ..
+                    }
+                ) {
+                    result.consumed = true;
+                    return result;
+                }
             }
         }
 

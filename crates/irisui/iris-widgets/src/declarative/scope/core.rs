@@ -107,9 +107,12 @@ impl<'a> UiScope<'a> {
         self
     }
 
-    /// Creates a child scope for a nested widget container, preserving active events and scope seed.
+    /// Creates a child scope for a nested widget container, preserving active events, tags, and text input state.
+    ///
+    /// Enables sub-systems and custom container builders to emit child nodes into an existing
+    /// container while maintaining consistent event mapping, focus states, and typography context.
     #[inline]
-    pub(crate) fn child_scope(&mut self, parent: WidgetId) -> UiScope<'_> {
+    pub fn child_scope(&mut self, parent: WidgetId) -> UiScope<'_> {
         UiScope {
             tree: self.tree,
             parent,

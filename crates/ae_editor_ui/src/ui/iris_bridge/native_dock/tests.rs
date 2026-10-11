@@ -8,7 +8,7 @@ use super::overflow::build_native_dock_overflow_menu;
 use super::overlays::build_native_dock_drag_overlays;
 use super::types::*;
 use crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN;
-use crate::ui::panel_layout::{PanelId, PanelLayoutState};
+use crate::ui::panel_layout::{PanelId, PanelLayoutState, PanelTabViewer};
 use irisui::dock::DockNodeId;
 use irisui::prelude::*;
 
@@ -58,13 +58,15 @@ fn test_hybrid_tab_proportional_shrink() {
 
     // A pane width of 350px can hold 4 panels shrunk proportionally (4 * 68px = 272px <= 350px)
     let workspace = Rect::new(0.0, 0.0, 350.0, 600.0);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::new();
     let frame = build_native_dock(
-        &mut tree,
-        root,
-        &layout_state,
+        &mut scope,
+        &mut layout_state,
         workspace,
         Point::new(0.0, 0.0),
         false,
+        &mut viewer,
     );
 
     assert_eq!(frame.tab_targets.len(), 4);
@@ -101,13 +103,15 @@ fn test_hybrid_tab_overflow_chevron() {
     }
 
     let workspace = Rect::new(0.0, 0.0, 200.0, 600.0);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::new();
     let mut frame = build_native_dock(
-        &mut tree,
-        root,
-        &layout_state,
+        &mut scope,
+        &mut layout_state,
         workspace,
         Point::new(0.0, 0.0),
         false,
+        &mut viewer,
     );
 
     assert!(
@@ -158,13 +162,15 @@ fn test_tab_text_label_does_not_overlap_close_button() {
     let _ = layout_state.dock_state.tree.set_active_tab(leaf, 1);
 
     let workspace = Rect::new(0.0, 0.0, 300.0, 600.0);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::new();
     let frame = build_native_dock(
-        &mut tree,
-        root,
-        &layout_state,
+        &mut scope,
+        &mut layout_state,
         workspace,
         Point::new(0.0, 0.0),
         false,
+        &mut viewer,
     );
 
     // Collect all label nodes and verify strict non-overlapping boundary with close buttons
@@ -220,13 +226,15 @@ fn test_dock_tab_chevron_renders_atlas_icon() {
     }
 
     let workspace = Rect::new(0.0, 0.0, 200.0, 600.0);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::new();
     let frame = build_native_dock(
-        &mut tree,
-        root,
-        &layout_state,
+        &mut scope,
+        &mut layout_state,
         workspace,
         Point::new(0.0, 0.0),
         false,
+        &mut viewer,
     );
 
     assert!(!frame.chevron_targets.is_empty());
@@ -260,13 +268,15 @@ fn test_dock_overflow_menu_hierarchy_and_roles() {
     }
 
     let workspace = Rect::new(0.0, 0.0, 150.0, 600.0);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::new();
     let mut frame = build_native_dock(
-        &mut tree,
-        root,
-        &layout_state,
+        &mut scope,
+        &mut layout_state,
         workspace,
         Point::new(0.0, 0.0),
         false,
+        &mut viewer,
     );
 
     assert!(!frame.chevron_targets.is_empty());
@@ -325,13 +335,15 @@ fn test_dock_overflow_menu_occludes_background_text() {
     }
 
     let workspace = Rect::new(0.0, 0.0, 150.0, 600.0);
+    let mut scope = UiScope::new(&mut tree, root);
+    let mut viewer = PanelTabViewer::new();
     let mut frame = build_native_dock(
-        &mut tree,
-        root,
-        &layout_state,
+        &mut scope,
+        &mut layout_state,
         workspace,
         Point::new(0.0, 0.0),
         false,
+        &mut viewer,
     );
 
     let chevron = frame.chevron_targets[0];

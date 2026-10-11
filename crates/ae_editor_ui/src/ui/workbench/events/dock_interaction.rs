@@ -155,7 +155,7 @@ impl EngineUi {
                 workspace_rect,
                 crate::ui::iris_bridge::native_dock::SPLITTER_THICKNESS,
                 crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
-                &crate::ui::panel_layout::PanelTabViewer,
+                &crate::ui::panel_layout::PanelTabViewer::default(),
             );
             self.layout_state.dock_state.update_tab_drag(p, &computed);
             dock_consumed = true;
@@ -180,7 +180,7 @@ impl EngineUi {
                 // 1. Check Floating Window controls
                 if let Some(action) = irisui::dock::evaluate_floating_window_click(
                     &self.layout_state.dock_state.floating_windows,
-                    &crate::ui::panel_layout::PanelTabViewer,
+                    &crate::ui::panel_layout::PanelTabViewer::default(),
                     p,
                     6.0,
                     26.0,

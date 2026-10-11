@@ -139,6 +139,8 @@ pub struct DockChromeFrame<T> {
     pub splitter_targets: Vec<DockSplitterTarget>,
     /// Click targets for tab strip overflow chevron buttons (`▾`).
     pub chevron_targets: Vec<DockChevronTarget>,
+    /// Bounding rectangles of active floating windows.
+    pub floating_rects: Vec<Rect>,
 }
 
 impl<T> Default for DockChromeFrame<T> {
@@ -149,6 +151,7 @@ impl<T> Default for DockChromeFrame<T> {
             close_targets: Vec::new(),
             splitter_targets: Vec::new(),
             chevron_targets: Vec::new(),
+            floating_rects: Vec::new(),
         }
     }
 }

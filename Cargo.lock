@@ -1776,6 +1776,7 @@ name = "iris-dock"
 version = "0.1.0"
 dependencies = [
  "iris-core",
+ "iris-widgets",
  "serde",
  "serde_json",
  "slotmap",

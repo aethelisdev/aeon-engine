@@ -502,16 +502,41 @@ impl IrisEditorOverlay {
                     .dock_state
                     .is_point_over_floating_window(cursor);
 
-            // 3. Native Iris Docking Framework: construct full dock tree (splitters, container tabs, content rects)
-            let dock_frame = super::native_dock::build_native_dock(
-                &mut self.tree,
-                root,
-                params.context.layout_state,
-                workspace_rect,
-                cursor,
-                is_cursor_occluded,
-            );
-            self.chrome.native_dock_frame = Some(dock_frame);
+            // 3. Declarative Docking Framework: orchestrate layout, splitters, tab bars, and leaf panel UIs via DockArea
+            let dock_style = super::native_dock::editor_dock_style();
+            let mut tree = std::mem::take(&mut self.tree);
+            let root_id = tree.root().unwrap_or(root);
+            {
+                let mut scope = UiScope::new(&mut tree, root_id);
+                let mut render_panel =
+                    |leaf_scope: &mut UiScope<'_>, panel: &crate::ui::panel_layout::PanelId| {
+                        let parent_id = leaf_scope.parent();
+                        self.render_panel_by_id(*panel, leaf_scope.tree_mut(), parent_id, &params);
+                    };
+                let mut panel_tab_viewer =
+                    crate::ui::panel_layout::PanelTabViewer::with_dispatch(&mut render_panel);
+
+                let dock_frame =
+                    irisui::dock::DockArea::from_ref(&params.context.layout_state.dock_state)
+                        .bounds(workspace_rect)
+                        .style(dock_style)
+                        .cursor_pos(cursor)
+                        .cursor_occluded(is_cursor_occluded)
+                        .show(&mut scope, &mut panel_tab_viewer);
+
+                for &(panel_id, panel_rect) in &dock_frame.panel_rects {
+                    if let Some(panel) = self
+                        .panels
+                        .get_downcast_mut::<super::dock_panel::EditorDockPanel>(panel_id.id_str())
+                    {
+                        panel.set_last_bounds(panel_rect);
+                    }
+                }
+
+                self.chrome.floating_window_rects = dock_frame.floating_rects.clone();
+                self.chrome.native_dock_frame = Some(dock_frame.into());
+            }
+            self.tree = tree;
 
             let is_floating = |panel: crate::ui::panel_layout::PanelId| {
                 super::floating_layer::is_panel_in_floating_window(
@@ -520,27 +545,12 @@ impl IrisEditorOverlay {
                 )
             };
 
-            // 4. If Viewport canvas is valid and docked, build Viewport content (3D scene texture + HUD)
             let is_viewport_active = !is_floating(crate::ui::panel_layout::PanelId::Viewport)
                 && params.viewport.viewport_rect.width > 20.0
                 && params.viewport.viewport_rect.height > 20.0;
             self.viewport_hud.is_active = is_viewport_active;
 
-            if is_viewport_active {
-                self.build_viewport_content(root, params.viewport.viewport_rect, &params);
-            }
-
-            // 5. Layer 1: Render all FLOATING Windows Frame Chrome (Z-Index: Foreground Frame Layer)
-            let (floating_rects, _floating_containers) =
-                super::floating_layer::build_floating_windows(
-                    &mut self.tree,
-                    root,
-                    params.context.layout_state,
-                    cursor,
-                );
-            self.chrome.floating_window_rects = floating_rects;
-
-            // 6. FLOATING OVERLAYS (Rendered on top of docked and floating panels):
+            // 5. FLOATING OVERLAYS (Rendered on top of docked and floating panels):
             self.build_shell_overlays(
                 root,
                 &mut params,
@@ -552,13 +562,6 @@ impl IrisEditorOverlay {
                     is_cursor_occluded,
                 },
             );
-        }
-
-        // Multi-Tree Architecture: Render all tool panels into their independent EditorDockPanel trees
-        for &panel in crate::ui::panel_layout::PanelId::all_tool_panels() {
-            if panel != crate::ui::panel_layout::PanelId::Viewport {
-                self.render_dock_panel_into_tree(panel, &params);
-            }
         }
 
         // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)

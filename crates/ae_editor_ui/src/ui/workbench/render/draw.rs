@@ -51,7 +51,7 @@ impl EngineUi {
             workspace_rect,
             crate::ui::iris_bridge::native_dock::SPLITTER_THICKNESS,
             crate::ui::iris_bridge::native_dock::NATIVE_DOCK_TAB_HEIGHT,
-            &crate::ui::panel_layout::PanelTabViewer,
+            &crate::ui::panel_layout::PanelTabViewer::default(),
         );
 
         let is_floating = |panel: PanelId| {

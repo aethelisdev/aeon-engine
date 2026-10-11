@@ -56,7 +56,7 @@ pub fn build_floating_windows(
         tree,
         root_id,
         &layout_state.dock_state.floating_windows,
-        &PanelTabViewer,
+        &PanelTabViewer::default(),
         cursor_pos,
         &FloatingWindowStyle::default(),
     )

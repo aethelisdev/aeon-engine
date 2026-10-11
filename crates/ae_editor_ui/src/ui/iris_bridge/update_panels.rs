@@ -474,7 +474,7 @@ impl IrisEditorOverlay {
                 )
                 .unwrap_or(params.viewport.viewport_rect);
                 if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
-                    self.build_viewport_content(parent, vp_rect, params);
+                    self.build_viewport_content(tree, parent, vp_rect, params);
                 }
             }
             PanelId::Hierarchy => self.build_hierarchy_panel_if_active(tree, parent, params),

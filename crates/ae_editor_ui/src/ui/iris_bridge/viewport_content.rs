@@ -15,6 +15,7 @@ impl IrisEditorOverlay {
     /// hardware 3D RTT texture quad, and the complete interactive HUD overlay.
     pub(crate) fn build_viewport_content(
         &mut self,
+        tree: &mut UiTree,
         parent: WidgetId,
         viewport_rect: Rect,
         params: &OverlayUpdateParams<'_>,
@@ -25,14 +26,14 @@ impl IrisEditorOverlay {
 
         let root_style = Style::new()
             .position_absolute()
-            .left(viewport_rect.x)
-            .top(viewport_rect.y)
+            .left(0.0)
+            .top(0.0)
             .width(viewport_rect.width)
             .height(viewport_rect.height)
             .background(Color::TRANSPARENT)
             .clip_children(true);
 
-        let mut scope = UiScope::new(&mut self.tree, parent);
+        let mut scope = UiScope::new(tree, parent);
         let root = scope.container_passive(root_style, |vp_scope| {
             if params.viewport.has_viewport_texture {
                 vp_scope.external_texture(
@@ -64,7 +65,7 @@ impl IrisEditorOverlay {
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
         viewport_hud::build_viewport_hud(
-            &mut self.tree,
+            tree,
             root,
             &ViewportHudParams {
                 viewport_rect,
