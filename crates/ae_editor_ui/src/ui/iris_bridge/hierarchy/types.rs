@@ -167,6 +167,12 @@ pub const HIERARCHY_TAG_DELETE_BUTTON: u64 = 0x4849_4552_0000_0004;
 /// Semantic tag assigned to the Hierarchy virtual rows scroll viewport.
 pub const HIERARCHY_TAG_VIEWPORT: u64 = 0x4849_4552_0000_0005;
 
+/// Semantic tag assigned to the Hierarchy scrollbar track.
+pub const HIERARCHY_TAG_SCROLLBAR_TRACK: u64 = 0x4849_4552_0000_0006;
+
+/// Semantic tag assigned to the Hierarchy draggable scrollbar thumb.
+pub const HIERARCHY_TAG_SCROLLBAR_THUMB: u64 = 0x4849_4552_0000_0007;
+
 /// Bitmask prefix for dynamic entity row selection tags.
 pub const HIERARCHY_TAG_ROW_PREFIX: u64 = 0x4849_4552_1000_0000;
 
@@ -250,6 +256,10 @@ pub enum HierarchyTagTarget {
     DeleteButton,
     /// Virtual rows scroll viewport.
     Viewport,
+    /// Stationary scrollbar track.
+    ScrollbarTrack,
+    /// Draggable scrollbar thumb.
+    ScrollbarThumb,
     /// Dynamic entity row item by index.
     Row(usize),
     /// Dynamic entity visibility toggle button by index.
@@ -270,6 +280,8 @@ pub fn resolve_hierarchy_tag(tag: u64) -> Option<HierarchyTagTarget> {
         HIERARCHY_TAG_ADD_BUTTON => Some(HierarchyTagTarget::AddButton),
         HIERARCHY_TAG_DELETE_BUTTON => Some(HierarchyTagTarget::DeleteButton),
         HIERARCHY_TAG_VIEWPORT => Some(HierarchyTagTarget::Viewport),
+        HIERARCHY_TAG_SCROLLBAR_TRACK => Some(HierarchyTagTarget::ScrollbarTrack),
+        HIERARCHY_TAG_SCROLLBAR_THUMB => Some(HierarchyTagTarget::ScrollbarThumb),
         _ => {
             if let Some(row_idx) = parse_eye_tag(tag) {
                 Some(HierarchyTagTarget::Eye(row_idx))
@@ -318,6 +330,12 @@ pub struct HierarchyPanelParams<'a> {
     pub blink_caret: bool,
     /// Set of currently collapsed entity identifiers.
     pub collapsed_entities: &'a std::collections::HashSet<hecs::Entity>,
+    /// Whether the Hierarchy scrollbar thumb is actively being dragged.
+    pub is_scrollbar_dragging: bool,
+    /// Whether the search input currently possesses active keyboard focus.
+    pub is_search_focused: bool,
+    /// Byte offset of the text cursor inside [`Self::search_query`].
+    pub cursor_byte_idx: usize,
 }
 
 /// Persistent interactive state for the Scene Hierarchy panel overlay.
@@ -327,6 +345,8 @@ pub struct HierarchyPanelState {
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
+    /// Active scrollbar dragging state: `(initial_cursor_y, initial_scroll_y)` in physical pixels.
+    pub active_scrollbar_drag: Option<(f32, f32)>,
     /// Persistent pre-allocated row cache to eliminate per-frame allocations.
     pub rows_cache: Vec<HierarchyRow>,
     /// Set of currently collapsed entity identifiers.

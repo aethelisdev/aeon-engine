@@ -127,6 +127,8 @@ mod tests {
             active_preview_modal: None,
             subfolders: &subfolders,
             thumbnail_layers: &HashMap::new(),
+            is_search_focused: false,
+            cursor_byte_idx: 0,
         };
 
         build_asset_grid_cards(

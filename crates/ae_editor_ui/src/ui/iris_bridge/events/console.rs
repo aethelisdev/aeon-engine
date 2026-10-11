@@ -7,11 +7,13 @@
 //! for the Iris UI Developer Console panel.
 //!
 
+use crate::ui::iris_bridge::console::CONSOLE_TOOLBAR_HEIGHT;
 use crate::ui::iris_bridge::console::types::{
-    CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_INPUT,
-    is_console_tag,
+    CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR,
+    CONSOLE_TAG_SEARCH_INPUT, is_console_tag,
 };
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
+use irisui::prelude::{Rect, ScrollAreaStyle, ScrollBarGeometry};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
@@ -58,7 +60,7 @@ impl IrisEditorOverlay {
                         return Some(result);
                     }
                     super::super::console::ConsoleAction::ClearSearch => {
-                        self.console.interactions.search_query.clear();
+                        self.console.search_input.clear();
                     }
                     super::super::console::ConsoleAction::CopyLog(_) => {}
                 }
@@ -81,6 +83,7 @@ impl IrisEditorOverlay {
                     if hit.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
                         self.console.active_scrollbar_drag =
                             Some((click_point.y, self.console.interactions.scroll_y));
+                        self.set_pointer_capture(crate::ui::panel_layout::PanelId::Console);
                         self.console.auto_scroll = false;
                         self.chrome.needs_scroll_sync = true;
                         result.consumed = true;
@@ -103,16 +106,58 @@ impl IrisEditorOverlay {
                         self.console.auto_scroll = false;
                         self.console.active_scrollbar_drag =
                             Some((click_point.y, self.console.interactions.scroll_y));
+                        self.set_pointer_capture(crate::ui::panel_layout::PanelId::Console);
                         self.chrome.needs_scroll_sync = true;
                         result.consumed = true;
                         return Some(result);
                     }
 
-                    if hit.tag != CONSOLE_TAG_SEARCH_INPUT
-                        && self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT)
-                    {
-                        self.focus_manager.clear_focus();
+                    if hit.tag == CONSOLE_TAG_SEARCH_INPUT {
+                        self.focus_manager.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
+                    } else if hit.tag == CONSOLE_TAG_SEARCH_CLEAR {
+                        self.console.search_input.clear();
+                    } else {
+                        if self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT) {
+                            self.focus_manager.clear_focus();
+                        }
+                        match hit.tag {
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_CLEAR => {
+                                if let Ok(mut lock) = ae_editor::editor_logger::LOGGER.logs.lock() {
+                                    lock.clear();
+                                }
+                                ae_editor::editor_logger::LOGGER
+                                    .log_count
+                                    .store(0, std::sync::atomic::Ordering::Relaxed);
+                                self.console.interactions.scroll_y = 0.0;
+                                result.clear_console_entries = true;
+                            }
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_FILTER_ALL => {
+                                self.console.filter =
+                                    crate::ui::iris_bridge::console::ConsoleFilterLevel::All;
+                            }
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_FILTER_ERROR => {
+                                self.console.filter =
+                                    crate::ui::iris_bridge::console::ConsoleFilterLevel::Error;
+                            }
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_FILTER_WARN => {
+                                self.console.filter =
+                                    crate::ui::iris_bridge::console::ConsoleFilterLevel::Warn;
+                            }
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_FILTER_INFO => {
+                                self.console.filter =
+                                    crate::ui::iris_bridge::console::ConsoleFilterLevel::Info;
+                            }
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_FILTER_DEBUG => {
+                                self.console.filter =
+                                    crate::ui::iris_bridge::console::ConsoleFilterLevel::Debug;
+                            }
+                            crate::ui::iris_bridge::console::CONSOLE_TAG_AUTOSCROLL => {
+                                self.console.auto_scroll = !self.console.auto_scroll;
+                            }
+                            _ => {}
+                        }
                     }
+
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                     result.consumed = true;
@@ -130,6 +175,7 @@ impl IrisEditorOverlay {
             && self.console.active_scrollbar_drag.is_some()
         {
             self.console.active_scrollbar_drag = None;
+            self.release_pointer_capture();
             self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
@@ -141,36 +187,40 @@ impl IrisEditorOverlay {
         {
             let cursor = self.cursor_pos();
             let delta_y = cursor.y - start_y;
-            let mut track_h = 200.0_f32;
-            let mut thumb_h = 30.0_f32;
-            if let Some(root_id) = self.tree.root() {
-                self.tree.traverse_depth_first(root_id, &mut |_id, node| {
-                    if node.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
-                        track_h = node.computed_rect.height;
-                    } else if node.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
-                        thumb_h = node.computed_rect.height;
-                    }
-                });
+            let panel_rect = self
+                .console
+                .panel_rect
+                .unwrap_or(Rect::new(0.0, 0.0, 300.0, 200.0));
+            let vp_h = (panel_rect.height - CONSOLE_TOOLBAR_HEIGHT).max(10.0);
+            let total_h = vp_h + self.console.max_scroll_y;
+            let vp_rect = Rect::new(0.0, CONSOLE_TOOLBAR_HEIGHT, panel_rect.width, vp_h);
+            let scroll_style = ScrollAreaStyle::dark_default();
+            if let Some(geom) =
+                ScrollBarGeometry::compute_vertical(vp_rect, total_h, start_scroll, &scroll_style)
+            {
+                let delta_scroll = ScrollBarGeometry::scroll_from_thumb_drag(
+                    delta_y,
+                    geom.track_rect.height,
+                    geom.thumb_rect.height,
+                    self.console.max_scroll_y,
+                );
+                self.console.interactions.scroll_y =
+                    (start_scroll + delta_scroll).clamp(0.0, self.console.max_scroll_y);
+                self.chrome.needs_scroll_sync = true;
+                result.consumed = true;
+                return Some(result);
             }
-            let delta_scroll = irisui::prelude::ScrollBarGeometry::scroll_from_thumb_drag(
-                delta_y,
-                track_h,
-                thumb_h,
-                self.console.max_scroll_y,
-            );
-            self.console.interactions.scroll_y =
-                (start_scroll + delta_scroll).clamp(0.0, self.console.max_scroll_y);
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
         }
 
         // 2. Mouse Wheel scroll handling
         let cursor = self.cursor_pos();
         let is_over_console = self
-            .tree
-            .hit_test_target(cursor)
-            .is_some_and(|hit| is_console_tag(hit.tag));
+            .hit_test_panel(crate::ui::panel_layout::PanelId::Console, cursor)
+            .is_some_and(|hit| is_console_tag(hit.tag))
+            || self
+                .tree
+                .hit_test_target(cursor)
+                .is_some_and(|hit| is_console_tag(hit.tag));
 
         if let WindowEvent::MouseWheel { delta, .. } = event
             && is_over_console
@@ -188,56 +238,6 @@ impl IrisEditorOverlay {
             self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
-        }
-
-        // 3. Search query typing when search input is focused
-        if self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT) {
-            match event {
-                WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                    self.console.search_query.push_str(text);
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                    result.consumed = true;
-                    return Some(result);
-                }
-                WindowEvent::KeyboardInput {
-                    event:
-                        winit::event::KeyEvent {
-                            physical_key: winit::keyboard::PhysicalKey::Code(key),
-                            text,
-                            state: ElementState::Pressed,
-                            ..
-                        },
-                    ..
-                } => match *key {
-                    winit::keyboard::KeyCode::Escape
-                    | winit::keyboard::KeyCode::Enter
-                    | winit::keyboard::KeyCode::NumpadEnter => {
-                        self.focus_manager.clear_focus();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-                    winit::keyboard::KeyCode::Backspace => {
-                        self.console.search_query.pop();
-                        self.notifier.tag_all();
-                        self.chrome.needs_layout_rebuild = true;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-                    _ => {
-                        if let Some(t) = text
-                            && !t.chars().any(|c| c.is_control())
-                        {
-                            self.console.search_query.push_str(t);
-                            self.notifier.tag_all();
-                            self.chrome.needs_layout_rebuild = true;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                    }
-                },
-                _ => {}
-            }
         }
 
         None

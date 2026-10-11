@@ -12,7 +12,10 @@ use super::context_menu::build_context_menu;
 use super::footer::build_hierarchy_footer;
 use super::header::build_hierarchy_header;
 use super::rows::{build_hierarchy_rows, sync_hierarchy_rows};
-use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyPanelParams, HierarchyRow};
+use super::types::{
+    HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_SCROLLBAR_THUMB, HIERARCHY_TAG_SCROLLBAR_TRACK,
+    HierarchyPanelParams, HierarchyRow,
+};
 use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
@@ -56,7 +59,33 @@ pub fn build_hierarchy_panel(
             // 4. Footer Status Line (Object Count & Selection Telemetry)
             build_hierarchy_footer(panel_scope, total_objects, params);
 
-            // 5. Finalize flexbox layout in panel-local (0, 0) coordinates
+            // 5. Scrollbar overlay indicator when content overflows viewport
+            let vp_h = (params.panel_rect.height - 63.0).max(40.0);
+            if max_scroll > 0.0 {
+                let content_h = vp_h + max_scroll;
+                let effective_scroll_y = params.scroll_y.clamp(0.0, max_scroll);
+                let local_rect =
+                    Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
+                let vp_rect = Rect::new(0.0, 31.0, params.panel_rect.width, vp_h);
+                let scroll_style = ScrollAreaStyle::dark_default();
+                if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                    vp_rect,
+                    content_h,
+                    effective_scroll_y,
+                    &scroll_style,
+                ) {
+                    panel_scope.scrollbar_vertical(
+                        geom,
+                        local_rect,
+                        params.is_scrollbar_dragging,
+                        Some(params.cursor_pos),
+                        HIERARCHY_TAG_SCROLLBAR_TRACK,
+                        HIERARCHY_TAG_SCROLLBAR_THUMB,
+                    );
+                }
+            }
+
+            // 6. Finalize flexbox layout in panel-local (0, 0) coordinates
             let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
             panel_scope.finish_layout(local_rect);
         },

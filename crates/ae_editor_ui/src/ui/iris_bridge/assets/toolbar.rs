@@ -88,87 +88,17 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
 
 /// Helper to render the search input box inside the flex toolbar matching Hierarchy Search UX.
 fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
-    let search_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .width(180.0)
-        .height(24.0)
-        .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-        .gap(6.0)
-        .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
-        .hover_background(Color::rgba(0.06, 0.08, 0.11, 0.98))
-        .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.80))
-        .hover_border(1.0, Color::rgba(0.35, 0.40, 0.52, 0.95))
-        .focus_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.90))
-        .border_radius(4.0);
-
-    scope.container_tagged(
-        "AssetsSearchBox",
-        search_style,
-        WidgetRole::TextInput,
-        ASSETS_TAG_SEARCH_INPUT,
-        |s| {
-            // Search Icon "🔍" with centered line_height
-            let icon_id = s.label_with_width(
-                "🔍",
-                14.0,
-                11.0,
-                Color::rgba(0.55, 0.58, 0.68, 1.0),
-                TextAlign::Center,
-            );
-            s.set_hover_text_color(icon_id, Color::rgba(0.85, 0.88, 0.98, 1.0));
-
-            // Search Query Text or Placeholder Hint
-            let (display_text, text_color, hover_color) = if params.search_query.is_empty() {
-                (
-                    "Search assets...",
-                    Color::rgba(0.42, 0.45, 0.55, 1.0),
-                    Some(Color::rgba(0.55, 0.58, 0.68, 1.0)),
-                )
-            } else {
-                (
-                    params.search_query,
-                    Color::rgba(0.92, 0.94, 0.98, 1.0),
-                    None,
-                )
-            };
-
-            let lbl_id = s.label_flex(display_text, 11.5, text_color, TextAlign::Left);
-            if let Some(hc) = hover_color {
-                s.set_hover_text_color(lbl_id, hc);
-            }
-
-            // Blinking Caret Cursor (retained in-place; filtered at compile time when un-focused or blink off)
-            s.text_caret(Color::rgba(0.0, 0.90, 1.0, 1.0));
-
-            // Clear Search "✖" Button (matches Hierarchy)
-            if !params.search_query.is_empty() {
-                let clear_btn_style = Style::new()
-                    .flex_row()
-                    .width(16.0)
-                    .height(18.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center);
-
-                s.container_tagged(
-                    "SearchClearButton",
-                    clear_btn_style,
-                    WidgetRole::Button,
-                    ASSETS_TAG_SEARCH_CLEAR,
-                    |clr| {
-                        let clear_id = clr.label_with_width(
-                            "✖",
-                            16.0,
-                            9.5,
-                            Color::rgba(0.60, 0.63, 0.72, 1.0),
-                            TextAlign::Center,
-                        );
-                        clr.set_hover_text_color(clear_id, Color::WHITE);
-                    },
-                );
-            }
-        },
-    );
+    let search_props = InputBoxProps::new(
+        params.search_query,
+        "Search assets...",
+        180.0,
+        params.is_search_focused,
+        params.is_search_focused && params.blink_caret,
+    )
+    .with_icon("🔍")
+    .with_cursor_byte_idx(params.cursor_byte_idx)
+    .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR);
+    scope.input_box_tagged(&search_props, ASSETS_TAG_SEARCH_INPUT);
 }
 
 /// Helper to render an action button in the toolbar.

@@ -40,6 +40,9 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -128,6 +131,9 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -173,6 +179,9 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -258,6 +267,9 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -298,6 +310,9 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -346,6 +361,9 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         cursor_pos: Point::new(150.0, 50.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let menu_rects = build_add_menu(&mut tree, root_id, &params);
@@ -389,6 +407,9 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         cursor_pos: Point::new(125.0, 210.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let card_rect_opt = super::context_menu::build_context_menu(&mut tree, root_id, &params);
@@ -444,6 +465,9 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
@@ -491,6 +515,9 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     super::panel::build_hierarchy_panel(&mut new_tree, new_root, &new_params, &mut new_rows_cache);
@@ -562,6 +589,9 @@ fn test_hierarchy_panel_declarative_scope_build() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let mut rows_cache = Vec::new();
@@ -627,6 +657,9 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         collapsed_entities: &HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let mut rows_cache = Vec::new();
@@ -708,6 +741,9 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         collapsed_entities: &collapsed,
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let _ = super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
@@ -776,6 +812,9 @@ fn test_hierarchy_header_and_row_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         collapsed_entities: &std::collections::HashSet::new(),
+        is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let mut rows_cache = Vec::new();

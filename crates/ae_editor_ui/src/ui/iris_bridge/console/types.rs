@@ -253,6 +253,10 @@ pub struct ConsolePanelParams<'a> {
     pub blink_caret: bool,
     /// Whether the scrollbar thumb is currently being dragged.
     pub is_scrollbar_dragging: bool,
+    /// Whether the search text input currently holds keyboard focus.
+    pub is_search_focused: bool,
+    /// Byte offset of the text cursor inside [`Self::search_query`].
+    pub cursor_byte_idx: usize,
 }
 
 /// Persistent interactive state for the Developer Console panel overlay.

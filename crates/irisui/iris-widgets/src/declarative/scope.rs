@@ -24,7 +24,7 @@ pub use super::types::{
 };
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
-pub use input::InputBoxProps;
+pub use input::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use properties::{
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
     PropertyVec3Response,

@@ -58,7 +58,7 @@ pub mod prelude {
     pub use iris_layout::{LayoutEngine, LayoutError};
     pub use iris_text::{
         TextCollectionOptions, TextRenderer, TextSection, TextSystem, collect_text_sections,
-        collect_text_sections_with_options,
+        collect_text_sections_with_options, measure_text_advance, set_default_text_family,
     };
     pub use iris_wgpu::{
         CustomDrawCallback, DrawCommand, DrawCommandList, ExternalTexturePipeline,
@@ -67,25 +67,21 @@ pub mod prelude {
         compile_tree_draw_commands_into,
     };
     pub use iris_widgets::{
-        CardBuilder, CardFrame, CardIcon, CardStyle, CascadingMenuBuilder, CascadingMenuFrame,
-        CascadingMenuIcon, CascadingMenuItem, CascadingMenuStyle, ChartDrawer,
-        ColorPickerClickAction, ColorPickerCursor, ColorPickerDragMode, ComboboxButtonBuilder,
-        ComboboxButtonFrame, ComboboxButtonStyle, ComboboxPopupBuilder, ComboboxPopupFrame,
-        ComboboxPopupStyle, ComboboxRowBuilder, ComboboxRowFrame, ComboboxRowStyle,
-        ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
-        HsvColorPickerBuilder, HsvColorPickerState, HsvColorPickerTargets, InputBoxProps,
-        MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
-        ModalDialogAction, ModalDialogStyle, NumericInputEditState, NumericInputPillBuilder,
+        CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
+        CascadingMenuStyle, ChartDrawer, ColorPickerDragMode, ContextMenuBuilder,
+        ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle, HsvColorPickerState,
+        InputBoxProps, MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER,
+        MODAL_TAG_SCRIM, ModalDialogAction, ModalDialogStyle, NumericInputEditState,
         NumericInputStyle, PanelBuilder, PropertySliderOptions, PropertyTextOptions,
         PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, ResponsiveGrid,
         ScrollArea, ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaStyle, ScrollBarGeometry,
         ScrollBarHit, ScrollBarVisibility, ScrollDirection, SettingSectionBuilder,
         SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder, TabbedDialogFrame,
-        TabbedDialogStyle, TabbedDialogTab, TextInputState, TreeRowBuilder, TreeRowFrame,
-        TreeRowIcon, TreeRowStyle, UiScope, VirtualItemHeight, VirtualList, VirtualScrollConfig,
-        VirtualSlice, WidgetResponse, WrappedLabelDescriptor, evaluate_color_picker_click,
-        evaluate_color_picker_cursor, evaluate_color_picker_drag, evaluate_modal_tag, hash_label,
-        hash_label_with_seed, hsv_to_rgb, layout_subtree, measure_content_height, measure_height,
-        measure_height_constrained, measure_width, rgb_to_hsv,
+        TabbedDialogStyle, TabbedDialogTab, TextInputState, UiScope, VirtualItemHeight,
+        VirtualList, VirtualScrollConfig, VirtualSlice, WidgetResponse, WrappedLabelDescriptor,
+        calculate_visible_slice_and_caret, copy_to_clipboard, evaluate_modal_tag,
+        get_clipboard_text, hash_label, hash_label_with_seed, hsv_to_rgb, layout_subtree,
+        measure_content_height, measure_height, measure_height_constrained, measure_width,
+        rgb_to_hsv,
     };
 }

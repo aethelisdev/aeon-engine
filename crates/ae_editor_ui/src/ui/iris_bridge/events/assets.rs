@@ -46,7 +46,7 @@ impl IrisEditorOverlay {
             context_menu_card_rect: self.assets.context_menu_card_rect,
             preview_modal: self.assets.preview_modal.as_ref(),
             current_folder: &self.assets.current_folder,
-            search_query: &self.assets.interactions.search_query,
+            search_query: self.assets.interactions.search_input.text(),
             is_search_focused: self
                 .focus_manager
                 .is_tag_focused(super::super::assets::ASSETS_TAG_SEARCH_INPUT),
@@ -89,11 +89,11 @@ impl IrisEditorOverlay {
                     }
                 }
                 super::super::assets::AssetsPanelAction::SearchInput(ref query) => {
-                    self.assets.search_query = query.clone();
+                    self.assets.search_input.set_text(query);
                     self.assets.actions.push(action);
                 }
                 super::super::assets::AssetsPanelAction::ClearSearch => {
-                    self.assets.search_query.clear();
+                    self.assets.search_input.clear();
                     self.assets.actions.push(action);
                 }
                 super::super::assets::AssetsPanelAction::NavigateFolder(ref path) => {

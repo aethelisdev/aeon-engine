@@ -180,12 +180,14 @@ impl IrisEditorOverlay {
                 if let Some(root) = self.tree.root() {
                     self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
                 }
+                self.chrome.last_blink_caret = blink_caret;
                 self.composite_active_layers();
             } else if (hover_target_changed || focus_target_changed || blink_changed)
                 && let Some(root) = self.tree.root()
             {
                 self.command_list.clear();
                 self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
+                self.chrome.last_blink_caret = blink_caret;
                 self.composite_active_layers();
             }
             // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
@@ -324,7 +326,9 @@ impl IrisEditorOverlay {
             .focus_manager
             .is_tag_focused(super::assets::ASSETS_TAG_SEARCH_INPUT)
         {
-            self.assets.search_query = params.panel_data.asset_browser.search_query.clone();
+            self.assets
+                .search_input
+                .set_text(&params.panel_data.asset_browser.search_query);
         }
         self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
         self.timeline.selected_entity = params.scene.selected_entity;
@@ -370,15 +374,18 @@ impl IrisEditorOverlay {
                 self.inspector.active_text_input = Some((ent, id, buf));
             }
         }
-        if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
+        if let Some((ent, input)) = self.inspector.rename_input.take() {
             if Some(ent) != params.scene.selected_entity {
-                if !buf.trim().is_empty() {
+                let final_name = input.text().trim().to_string();
+                if !final_name.is_empty() {
                     self.inspector
                         .actions
-                        .push(super::inspector::InspectorAction::RenameEntity(ent, buf));
+                        .push(super::inspector::InspectorAction::RenameEntity(
+                            ent, final_name,
+                        ));
                 }
             } else {
-                self.inspector.rename_buffer = Some((ent, buf));
+                self.inspector.rename_input = Some((ent, input));
             }
         }
 
@@ -559,6 +566,7 @@ impl IrisEditorOverlay {
         if let Some(root) = self.tree.root() {
             self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
         }
+        self.chrome.last_blink_caret = blink_caret;
 
         // Composite active layers: Shell (Layer 0) + Dock Panels (Layer 1) + OverlayTree (Layer 2)
         self.composite_active_layers();

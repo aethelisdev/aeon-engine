@@ -167,7 +167,7 @@ impl IrisEditorOverlay {
 
         // 4. New Folder Modal
         if let Some(parent_path) = params.dialogs.new_folder_parent {
-            let input_name = self.modals.new_folder_buffer.as_str();
+            let input_name = self.modals.new_folder_input.text();
             let text_width = self
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
@@ -201,7 +201,7 @@ impl IrisEditorOverlay {
 
         // 5. Rename Modal
         if let Some((target_path, is_folder)) = params.dialogs.rename_target {
-            let input_name = self.modals.rename_buffer.as_str();
+            let input_name = self.modals.rename_input.text();
             let text_width = self
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
@@ -250,7 +250,7 @@ impl IrisEditorOverlay {
                 panel_rect: hier_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: &self.hierarchy.search_query,
+                search_query: self.hierarchy.search_input.text(),
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
                 scroll_y: self.hierarchy.scroll_y,
@@ -261,6 +261,11 @@ impl IrisEditorOverlay {
                 cursor_pos: cursor,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
+                is_scrollbar_dragging: self.hierarchy.active_scrollbar_drag.is_some(),
+                is_search_focused: self
+                    .focus_manager
+                    .is_tag_focused(hierarchy::HIERARCHY_TAG_SEARCH_INPUT),
+                cursor_byte_idx: self.hierarchy.search_input.cursor_byte_idx,
             };
             let overlay_root = self
                 .overlay_tree
@@ -315,10 +320,10 @@ impl IrisEditorOverlay {
                 .map(|(_, id, s)| (*id, s.as_str()));
             let rename_buf_ref = self
                 .inspector
-                .rename_buffer
+                .rename_input
                 .as_ref()
                 .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-                .map(|(_, s)| s.as_str());
+                .map(|(_, input)| input.text());
             let hex_buf_ref = self
                 .inspector
                 .hex_buffer

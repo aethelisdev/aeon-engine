@@ -3,6 +3,7 @@
 
 //! Keyboard and IME text input dispatch subsystem for Inspector text and numeric fields.
 
+use crate::ui::iris_bridge::events::text_input::TextInputActionResult;
 use crate::ui::iris_bridge::inspector::{self, InspectorAction};
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
@@ -16,13 +17,97 @@ impl IrisEditorOverlay {
     ) -> Option<IrisOverlayEventResult> {
         if self.inspector.active_number_input.is_none()
             && self.inspector.active_text_input.is_none()
-            && self.inspector.rename_buffer.is_none()
+            && self.inspector.active_text_input_state.is_none()
+            && self.inspector.rename_input.is_none()
             && self.inspector.hex_buffer.is_none()
         {
             return None;
         }
 
         let mut result = IrisOverlayEventResult::default();
+
+        // 1. Centralized Entity Rename Text Input
+        if let Some((entity, mut input)) = self.inspector.rename_input.take() {
+            let action = crate::ui::iris_bridge::events::text_input::handle_text_input_event(
+                &mut input,
+                event,
+                self.chrome.ctrl_held,
+            );
+            match action {
+                TextInputActionResult::Confirmed => {
+                    let final_name = input.text().trim().to_string();
+                    if !final_name.is_empty() {
+                        self.inspector
+                            .actions
+                            .push(InspectorAction::RenameEntity(entity, final_name));
+                    }
+                    self.inspector.clear_rename();
+                    self.focus_manager.clear_focus();
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Cancelled => {
+                    self.inspector.clear_rename();
+                    self.focus_manager.clear_focus();
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Changed => {
+                    self.inspector.rename_is_all_selected = input.has_selection();
+                    self.inspector.rename_input = Some((entity, input));
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Ignored => {
+                    self.inspector.rename_input = Some((entity, input));
+                }
+            }
+        }
+
+        // 2. Centralized Component String Text Inputs
+        if self.inspector.active_text_input_state.is_none()
+            && let Some((entity, id, ref buf)) = self.inspector.active_text_input
+        {
+            let input = TextInputState::new(buf);
+            self.inspector.active_text_input_state = Some((entity, id, input));
+        }
+
+        if let Some((entity, id, mut input)) = self.inspector.active_text_input_state.take() {
+            let action = crate::ui::iris_bridge::events::text_input::handle_text_input_event(
+                &mut input,
+                event,
+                self.chrome.ctrl_held,
+            );
+            match action {
+                TextInputActionResult::Confirmed => {
+                    self.inspector.actions.push(InspectorAction::SetTextValue(
+                        entity,
+                        id,
+                        input.buffer,
+                    ));
+                    self.inspector.active_text_input = None;
+                    self.focus_manager.clear_focus();
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Cancelled => {
+                    self.inspector.active_text_input = None;
+                    self.focus_manager.clear_focus();
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Changed => {
+                    self.inspector.active_text_input = Some((entity, id, input.buffer.clone()));
+                    self.inspector.active_text_input_state = Some((entity, id, input));
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Ignored => {
+                    self.inspector.active_text_input_state = Some((entity, id, input));
+                }
+            }
+        }
+
         match event {
             WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
                 if let Some(ref mut session) = self.inspector.active_number_input {
@@ -37,20 +122,6 @@ impl IrisEditorOverlay {
                             session.cursor_idx += c.len_utf8();
                         }
                     }
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if let Some((_, _, ref mut buf)) = self.inspector.active_text_input {
-                    buf.push_str(text);
-                    result.consumed = true;
-                    return Some(result);
-                }
-                if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
-                    if self.inspector.rename_is_all_selected {
-                        buf.clear();
-                        self.inspector.rename_is_all_selected = false;
-                    }
-                    buf.push_str(text);
                     result.consumed = true;
                     return Some(result);
                 }
@@ -86,42 +157,6 @@ impl IrisEditorOverlay {
                     },
                 ..
             } => {
-                if self.inspector.active_text_input.is_some() {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.inspector.active_text_input = None;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            if let Some((entity, id, buf)) = self.inspector.active_text_input.take()
-                            {
-                                self.inspector
-                                    .actions
-                                    .push(InspectorAction::SetTextValue(entity, id, buf));
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
-                            if let Some((_, _, ref mut buf)) = self.inspector.active_text_input {
-                                buf.pop();
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        _ => {
-                            if let Some(t) = text
-                                && let Some((_, _, ref mut buf)) = self.inspector.active_text_input
-                                && !t.chars().any(|c| c.is_control())
-                            {
-                                buf.push_str(t);
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                    }
-                }
                 if self.inspector.active_number_input.is_some() {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {
@@ -259,76 +294,7 @@ impl IrisEditorOverlay {
                         }
                     }
                 }
-                if self.inspector.rename_buffer.is_some() {
-                    match *key {
-                        winit::keyboard::KeyCode::Escape => {
-                            self.inspector.rename_buffer = None;
-                            self.inspector.rename_is_all_selected = false;
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                            self.inspector.rename_is_all_selected = false;
-                            if let Some((entity, buf)) = self.inspector.rename_buffer.take()
-                                && !buf.trim().is_empty()
-                            {
-                                self.inspector
-                                    .actions
-                                    .push(InspectorAction::RenameEntity(entity, buf));
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::ArrowLeft
-                        | winit::keyboard::KeyCode::ArrowRight
-                        | winit::keyboard::KeyCode::ArrowUp
-                        | winit::keyboard::KeyCode::ArrowDown
-                        | winit::keyboard::KeyCode::Home
-                        | winit::keyboard::KeyCode::End => {
-                            if self.inspector.rename_is_all_selected {
-                                self.inspector.rename_is_all_selected = false;
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                        winit::keyboard::KeyCode::Backspace => {
-                            if self.inspector.rename_is_all_selected {
-                                if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
-                                    buf.clear();
-                                }
-                                self.inspector.rename_is_all_selected = false;
-                            } else if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
-                                buf.pop();
-                            }
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                        winit::keyboard::KeyCode::Delete => {
-                            if self.inspector.rename_is_all_selected {
-                                if let Some((_, ref mut buf)) = self.inspector.rename_buffer {
-                                    buf.clear();
-                                }
-                                self.inspector.rename_is_all_selected = false;
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                        _ => {
-                            if let Some(t) = text
-                                && let Some((_, ref mut buf)) = self.inspector.rename_buffer
-                                && !t.chars().any(|c| c.is_control())
-                            {
-                                if self.inspector.rename_is_all_selected {
-                                    buf.clear();
-                                    self.inspector.rename_is_all_selected = false;
-                                }
-                                buf.push_str(t);
-                                result.consumed = true;
-                                return Some(result);
-                            }
-                        }
-                    }
-                }
+
                 if self.inspector.hex_buffer.is_some() {
                     match *key {
                         winit::keyboard::KeyCode::Escape => {

@@ -19,9 +19,10 @@ pub mod system;
 pub use collector::{
     TextCollectionOptions, collect_text_sections, collect_text_sections_with_options,
 };
+pub use iris_core::TextMeasurer;
 pub use renderer::TextRenderer;
 pub use section::TextSection;
-pub use system::{TextShapeParams, TextSystem};
+pub use system::{TextShapeParams, TextSystem, measure_text_advance, set_default_text_family};
 
 #[cfg(test)]
 mod tests {
@@ -35,6 +36,36 @@ mod tests {
 
         assert!(size.width > 0.0);
         assert!(size.height >= 20.0);
+    }
+
+    #[test]
+    fn test_custom_font_family() {
+        let mut system = TextSystem::new();
+        assert_eq!(system.default_family(), "sans-serif");
+
+        system.set_default_family("Noto Sans");
+        assert_eq!(system.default_family(), "Noto Sans");
+
+        let adv = system.measure_advance("Test String", 14.0);
+        assert!(adv > 0.0);
+
+        system.set_default_family("sans-serif");
+        assert_eq!(system.default_family(), "sans-serif");
+        let adv_fallback = system.measure_advance("Test String", 14.0);
+        assert!(adv_fallback > 0.0);
+    }
+
+    #[test]
+    fn test_text_advance_dynamic() {
+        let adv_11 = measure_text_advance("Hello World", 11.0);
+        let adv_22 = measure_text_advance("Hello World", 22.0);
+
+        assert!(adv_11 > 0.0);
+        assert!(adv_22 > adv_11);
+        assert!((adv_22 - adv_11 * 2.0).abs() < 5.0);
+
+        let empty = measure_text_advance("", 11.0);
+        assert_eq!(empty, 0.0);
     }
 
     #[test]

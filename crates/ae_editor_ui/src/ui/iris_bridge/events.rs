@@ -17,6 +17,7 @@ pub mod menubar;
 pub mod modals;
 pub mod preferences;
 pub mod stats;
+pub mod text_input;
 pub mod timeline;
 pub mod ui_designer;
 pub mod viewport_hud;

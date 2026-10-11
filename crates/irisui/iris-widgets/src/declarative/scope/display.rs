@@ -137,12 +137,25 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `color` - Caret indicator foreground color.
     pub fn text_caret(&mut self, color: Color) -> WidgetId {
+        self.text_caret_with_offset(color, 0.0)
+    }
+
+    /// Emits an in-place retained text caret cursor with a custom horizontal layout offset.
+    ///
+    /// Retains the caret in the layout tree while storing the horizontal displacement
+    /// in `node.tag` for O(1) in-place positioning without tree reconstruction.
+    ///
+    /// # Arguments
+    /// * `color` - Caret indicator foreground color.
+    /// * `offset` - Horizontal pixel offset relative to the text beginning.
+    pub fn text_caret_with_offset(&mut self, color: Color, offset: f32) -> WidgetId {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("TextInputCaret");
             node.role = WidgetRole::TextInputCaret;
             node.interactive = false;
             node.set_text("|");
+            node.tag = offset.to_bits() as u64;
             node.text_color = color;
             node.font_size = 11.5;
             node.line_height = 16.0;

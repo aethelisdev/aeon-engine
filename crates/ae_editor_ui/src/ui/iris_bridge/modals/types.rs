@@ -18,10 +18,10 @@ pub struct ModalsOverlayState {
     pub is_rename_active: bool,
     /// Whether the Asset Loading splash screen is currently active.
     pub is_loading_active: bool,
-    /// Live typing input buffer for the new folder modal.
-    pub new_folder_buffer: String,
-    /// Live typing input buffer for the rename modal.
-    pub rename_buffer: String,
+    /// Centralized text input state for new folder modal dialogues.
+    pub new_folder_input: irisui::prelude::TextInputState,
+    /// Centralized text input state for rename modal dialogues.
+    pub rename_input: irisui::prelude::TextInputState,
     /// Last recorded modal visibility state for detecting dialog popups.
     pub last_modal_active: bool,
     /// Pending interaction events for declarative components inside modals.
@@ -39,5 +39,26 @@ impl ModalsOverlayState {
         self.is_new_folder_active = dialogs.new_folder_parent.is_some();
         self.is_rename_active = dialogs.rename_target.is_some();
         self.is_loading_active = dialogs.is_loading_assets;
+    }
+
+    /// Sets the new folder input text, positioning the cursor at the end.
+    pub fn set_new_folder_text(&mut self, text: &str) {
+        self.new_folder_input.set_text(text);
+    }
+
+    /// Sets the rename input text and selects all text for immediate overwriting.
+    pub fn set_rename_text(&mut self, text: &str) {
+        self.rename_input.set_text(text);
+        self.rename_input.select_all();
+    }
+
+    /// Clears the new folder input state.
+    pub fn clear_new_folder(&mut self) {
+        self.new_folder_input.clear();
+    }
+
+    /// Clears the rename input state.
+    pub fn clear_rename(&mut self) {
+        self.rename_input.clear();
     }
 }

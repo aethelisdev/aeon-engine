@@ -48,6 +48,7 @@ impl IrisEditorOverlay {
                 if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_THUMB {
                     self.material.active_scrollbar_drag =
                         Some((click_point.y, self.material.interactions.scroll_y));
+                    self.set_pointer_capture(crate::ui::panel_layout::PanelId::MaterialEditor);
                     self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
@@ -67,6 +68,7 @@ impl IrisEditorOverlay {
                         new_scroll.clamp(0.0, self.material.max_scroll_y);
                     self.material.active_scrollbar_drag =
                         Some((click_point.y, self.material.interactions.scroll_y));
+                    self.set_pointer_capture(crate::ui::panel_layout::PanelId::MaterialEditor);
                     self.chrome.needs_scroll_sync = true;
                     result.consumed = true;
                     return Some(result);
@@ -109,6 +111,7 @@ impl IrisEditorOverlay {
             && self.material.active_scrollbar_drag.is_some()
         {
             self.material.active_scrollbar_drag = None;
+            self.release_pointer_capture();
             self.chrome.needs_scroll_sync = true;
             result.consumed = true;
             return Some(result);
@@ -120,30 +123,31 @@ impl IrisEditorOverlay {
         {
             let cursor = self.cursor_pos();
             let delta_y = cursor.y - start_y;
-            let mut track_h = 200.0_f32;
-            let mut thumb_h = 30.0_f32;
-            if let Some(root_id) = self.tree.root() {
-                self.tree.traverse_depth_first(root_id, &mut |_id, node| {
-                    if node.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_TRACK {
-                        track_h = node.computed_rect.height;
-                    } else if node.tag
-                        == super::super::material::types::MATERIAL_TAG_SCROLLBAR_THUMB
-                    {
-                        thumb_h = node.computed_rect.height;
-                    }
-                });
-            }
-            let delta_scroll = ScrollBarGeometry::scroll_from_thumb_drag(
-                delta_y,
-                track_h,
-                thumb_h,
-                self.material.max_scroll_y,
+            let vp_h = (panel_rect.height - super::super::material::header::MATERIAL_HEADER_HEIGHT)
+                .max(10.0);
+            let total_h = vp_h + self.material.max_scroll_y;
+            let vp_rect = Rect::new(
+                0.0,
+                super::super::material::header::MATERIAL_HEADER_HEIGHT,
+                panel_rect.width,
+                vp_h,
             );
-            self.material.interactions.scroll_y =
-                (start_scroll + delta_scroll).clamp(0.0, self.material.max_scroll_y);
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
+            let scroll_style = ScrollAreaStyle::dark_default();
+            if let Some(geom) =
+                ScrollBarGeometry::compute_vertical(vp_rect, total_h, start_scroll, &scroll_style)
+            {
+                let delta_scroll = ScrollBarGeometry::scroll_from_thumb_drag(
+                    delta_y,
+                    geom.track_rect.height,
+                    geom.thumb_rect.height,
+                    self.material.max_scroll_y,
+                );
+                self.material.interactions.scroll_y =
+                    (start_scroll + delta_scroll).clamp(0.0, self.material.max_scroll_y);
+                self.chrome.needs_scroll_sync = true;
+                result.consumed = true;
+                return Some(result);
+            }
         }
 
         // 2. Mouse Wheel Scroll handling

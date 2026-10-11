@@ -46,6 +46,8 @@ fn test_console_click_target_routing() {
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_console_panel(&mut tree, root, &params);
@@ -145,6 +147,8 @@ fn test_console_virtualized_empty_and_matching() {
         cursor_pos: Point::new(50.0, 50.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let mut scope = UiScope::new(&mut tree, root);
@@ -171,6 +175,8 @@ fn test_console_panel_clipping_and_clear_action() {
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_console_panel(&mut tree, parent_id, &params);
@@ -218,6 +224,8 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         cursor_pos: Point::new(395.0, 80.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let max_scroll = build_console_panel(&mut tree, root, &params);
@@ -263,6 +271,8 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_console_panel(&mut tree, root, &params);
@@ -318,9 +328,13 @@ fn test_console_toolbar_action_unification() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_console_panel(&mut tree, root, &params);
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, Size::new(1000.0, 400.0));
 
     let get_center = |target_tag: u64| -> Point {
         let (_, node) = tree
@@ -377,4 +391,53 @@ fn test_console_toolbar_action_unification() {
         handle_console_click(&tree, get_center(CONSOLE_TAG_CLEAR)),
         Some(ConsoleAction::ClearLogs)
     );
+}
+
+#[test]
+fn test_console_search_focused_caret_positioning() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root creation failed");
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 300.0);
+    let params = ConsolePanelParams {
+        panel_rect,
+        entries: &[],
+        scroll_y: 0.0,
+        filter: ConsoleFilterLevel::All,
+        search_query: "error_trace",
+        auto_scroll: true,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: true,
+        is_scrollbar_dragging: false,
+        is_search_focused: true,
+        cursor_byte_idx: 5,
+    };
+
+    build_console_panel(&mut tree, root, &params);
+
+    let (_, search_box) = tree
+        .iter()
+        .find(|(_, n)| n.tag == CONSOLE_TAG_SEARCH_INPUT && n.interactive)
+        .expect("Search box must exist");
+
+    assert_eq!(search_box.tag, CONSOLE_TAG_SEARCH_INPUT);
+
+    // Verify caret exists and is offset by cursor_byte_idx
+    let caret_node = search_box
+        .children
+        .iter()
+        .filter_map(|&cid| tree.get(cid))
+        .find(|n| n.role == irisui::prelude::WidgetRole::TextInputCaret)
+        .expect("Caret must exist when focused and blinking");
+
+    let expected_offset = irisui::prelude::measure_text_advance("error", 11.0);
+    let text_start = search_box
+        .children
+        .iter()
+        .filter_map(|&cid| tree.get(cid))
+        .find(|n| n.text.as_deref() == Some("error_trace"))
+        .expect("Text node must exist")
+        .computed_rect
+        .x;
+
+    assert_eq!(caret_node.computed_rect.x, text_start + expected_offset);
 }

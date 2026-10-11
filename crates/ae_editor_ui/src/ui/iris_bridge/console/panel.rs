@@ -70,6 +70,20 @@ pub fn build_console_panel(
                     tb.toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR);
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 
+                    let search_props = InputBoxProps::new(
+                        params.search_query,
+                        "Search logs...",
+                        200.0,
+                        params.is_search_focused,
+                        params.is_search_focused && params.blink_caret,
+                    )
+                    .with_icon("🔍")
+                    .with_cursor_byte_idx(params.cursor_byte_idx)
+                    .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
+                    tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
+
+                    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
+
                     let filters = [
                         (
                             ConsoleFilterLevel::All,
@@ -110,20 +124,6 @@ pub fn build_console_panel(
                     for (filter_lvl, label, width, color, tag) in &filters {
                         let is_active = params.filter == *filter_lvl;
                         tb.filter_pill_tagged(label, is_active, *color, *width, *tag);
-                    }
-
-                    tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
-                    let search_props = InputBoxProps::new(
-                        params.search_query,
-                        "Search logs...",
-                        210.0,
-                        false,
-                        false,
-                    )
-                    .with_icon("🔍");
-                    tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
-                    if !params.search_query.is_empty() {
-                        tb.toolbar_button_tagged("✖", 20.0, CONSOLE_TAG_SEARCH_CLEAR);
                     }
 
                     // Spacer pushes Auto-Scroll and log count to the right edge

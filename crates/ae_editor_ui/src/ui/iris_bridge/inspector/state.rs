@@ -28,14 +28,20 @@ pub struct InspectorPanelState {
     pub active_number_input: Option<InspectorNumberInputSession>,
     /// Currently active string text input editing state in Inspector: `(entity, id, buffer)`.
     pub active_text_input: Option<(hecs::Entity, InspectorTextInputId, String)>,
+    /// Currently active `TextInputState` session for Inspector string text fields.
+    pub active_text_input_state: Option<(
+        hecs::Entity,
+        InspectorTextInputId,
+        irisui::prelude::TextInputState,
+    )>,
     /// Active continuous horizontal mouse drag state for Inspector numeric fields.
     pub drag_number: Option<InspectorNumberDragState>,
     /// Active entity component pre-edit snapshot captured when an Inspector edit starts: `(entity, component_name, old_data)`.
     pub edit_start_snapshot: Option<(hecs::Entity, &'static str, Vec<u8>)>,
     /// Pre-edit color snapshot captured when color picker dragging or editing begins: `(entity, start_color)`.
     pub color_edit_start: Option<(hecs::Entity, ae_core::ecs::Color)>,
-    /// Live entity rename text buffer if currently focused: `(entity, buffer)`.
-    pub rename_buffer: Option<(hecs::Entity, String)>,
+    /// Live entity rename TextInputState session if currently focused.
+    pub rename_input: Option<(hecs::Entity, irisui::prelude::TextInputState)>,
     /// Whether the active entity rename buffer has its full text selected in blue.
     pub rename_is_all_selected: bool,
     /// Live HEX color text input editing buffer if currently focused: `(entity, buffer)`.
@@ -81,9 +87,24 @@ impl InspectorPanelState {
         self.last_selected_entity != params.scene.selected_entity
             || self.active_number_input.is_some()
             || self.active_text_input.is_some()
+            || self.rename_input.is_some()
             || self.drag_number.is_some()
             || self.is_color_picker_open
             || self.is_add_menu_open
+    }
+
+    /// Starts an active entity rename session with full selection highlight.
+    pub fn start_rename(&mut self, entity: hecs::Entity, name: &str) {
+        let mut input = irisui::prelude::TextInputState::new(name);
+        input.select_all();
+        self.rename_is_all_selected = true;
+        self.rename_input = Some((entity, input));
+    }
+
+    /// Clears any active entity rename session.
+    pub fn clear_rename(&mut self) {
+        self.rename_input = None;
+        self.rename_is_all_selected = false;
     }
 
     /// Synchronizes internal cached snapshot values against active frame parameters.

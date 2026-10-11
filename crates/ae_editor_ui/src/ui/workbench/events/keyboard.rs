@@ -86,80 +86,105 @@ impl EngineUi {
             }
         }
 
-        // Hierarchy search bar live typing
-        let is_hierarchy_search_focused = self
-            .iris_overlay
-            .focus_manager
-            .is_tag_focused(crate::ui::iris_bridge::hierarchy::HIERARCHY_TAG_SEARCH_INPUT);
-        if is_hierarchy_search_focused
-            && let WindowEvent::KeyboardInput {
-                event: key_event, ..
-            } = event
-            && key_event.state == ElementState::Pressed
-        {
-            if let winit::keyboard::Key::Named(
-                winit::keyboard::NamedKey::Escape | winit::keyboard::NamedKey::Enter,
-            ) = key_event.logical_key
-            {
-                self.iris_overlay.focus_manager.clear_focus();
-                return true;
-            }
-            if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
-                key_event.logical_key
-            {
-                self.iris_overlay.hierarchy.search_query.pop();
+        // Hierarchy search bar live typing via TextInputState
+        let ctrl_held = self.iris_overlay.chrome.ctrl_held;
+        let hier_res = crate::ui::iris_bridge::events::text_input::handle_focused_text_input(
+            &mut self.iris_overlay.hierarchy.search_input,
+            &mut self.iris_overlay.focus_manager,
+            crate::ui::iris_bridge::hierarchy::HIERARCHY_TAG_SEARCH_INPUT,
+            event,
+            ctrl_held,
+        );
+        if hier_res.is_consumed() {
+            if hier_res.is_changed() {
                 self.iris_overlay.notifier.tag_all();
-                return true;
             }
-            if let Some(text) = &key_event.text {
-                for c in text.chars() {
-                    if !c.is_control() {
-                        self.iris_overlay.hierarchy.search_query.push(c);
-                    }
-                }
-                self.iris_overlay.notifier.tag_all();
-                return true;
-            }
+            return true;
         }
 
-        // Assets Content Browser search bar live typing
-        let is_assets_search_focused = self
-            .iris_overlay
-            .focus_manager
-            .is_tag_focused(crate::ui::iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT);
-        if is_assets_search_focused
-            && let WindowEvent::KeyboardInput {
-                event: key_event, ..
-            } = event
-            && key_event.state == ElementState::Pressed
-        {
-            if let winit::keyboard::Key::Named(
-                winit::keyboard::NamedKey::Escape | winit::keyboard::NamedKey::Enter,
-            ) = key_event.logical_key
-            {
-                self.iris_overlay.focus_manager.clear_focus();
-                return true;
-            }
-            if let winit::keyboard::Key::Named(winit::keyboard::NamedKey::Backspace) =
-                key_event.logical_key
-            {
-                self.iris_overlay.assets.search_query.pop();
-                self.asset_browser.search_query = self.iris_overlay.assets.search_query.clone();
+        // Assets Content Browser search bar live typing via TextInputState
+        let assets_res = crate::ui::iris_bridge::events::text_input::handle_focused_text_input(
+            &mut self.iris_overlay.assets.search_input,
+            &mut self.iris_overlay.focus_manager,
+            crate::ui::iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT,
+            event,
+            ctrl_held,
+        );
+        if assets_res.is_consumed() {
+            if assets_res.is_changed() {
+                self.asset_browser.search_query =
+                    self.iris_overlay.assets.search_input.text().to_string();
                 self.iris_overlay.notifier.tag_all();
-                return true;
             }
-            if let Some(text) = &key_event.text {
-                for c in text.chars() {
-                    if !c.is_control() {
-                        self.iris_overlay.assets.search_query.push(c);
-                    }
-                }
-                self.asset_browser.search_query = self.iris_overlay.assets.search_query.clone();
+            return true;
+        }
+
+        // Developer Console search bar live typing via TextInputState
+        let console_res = crate::ui::iris_bridge::events::text_input::handle_focused_text_input(
+            &mut self.iris_overlay.console.search_input,
+            &mut self.iris_overlay.focus_manager,
+            crate::ui::iris_bridge::console::CONSOLE_TAG_SEARCH_INPUT,
+            event,
+            ctrl_held,
+        );
+        if console_res.is_consumed() {
+            if console_res.is_changed() {
                 self.iris_overlay.notifier.tag_all();
-                return true;
             }
+            return true;
         }
 
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ui::iris_bridge::events::text_input::{
+        TextInputActionResult, handle_focused_text_input,
+    };
+    use irisui::prelude::{FocusManager, TextInputState};
+    use winit::event::{Ime, WindowEvent};
+
+    #[test]
+    fn test_assets_search_input_single_dispatch_ime() {
+        let mut search_input = TextInputState::new("asset_");
+        let mut focus_manager = FocusManager::new();
+        let target_tag = crate::ui::iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT;
+        focus_manager.set_focus_tag(target_tag);
+
+        let event = WindowEvent::Ime(Ime::Commit("model".into()));
+        let res = handle_focused_text_input(
+            &mut search_input,
+            &mut focus_manager,
+            target_tag,
+            &event,
+            false,
+        );
+
+        assert_eq!(res, TextInputActionResult::Changed);
+        assert_eq!(search_input.text(), "asset_model");
+        assert!(focus_manager.is_tag_focused(target_tag));
+    }
+
+    #[test]
+    fn test_console_search_input_centralized_dispatch_ime() {
+        let mut search_input = TextInputState::new("log_");
+        let mut focus_manager = FocusManager::new();
+        let target_tag = crate::ui::iris_bridge::console::CONSOLE_TAG_SEARCH_INPUT;
+        focus_manager.set_focus_tag(target_tag);
+
+        let event = WindowEvent::Ime(Ime::Commit("filter".into()));
+        let res = handle_focused_text_input(
+            &mut search_input,
+            &mut focus_manager,
+            target_tag,
+            &event,
+            false,
+        );
+
+        assert_eq!(res, TextInputActionResult::Changed);
+        assert_eq!(search_input.text(), "log_filter");
+        assert!(focus_manager.is_tag_focused(target_tag));
     }
 }

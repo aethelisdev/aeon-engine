@@ -185,6 +185,30 @@ impl<'a> UiScope<'a> {
         self.tree
     }
 
+    /// Measures the horizontal layout advance width of a string in physical pixels at the given font size.
+    ///
+    /// Dynamically evaluates font glyph advances via the underlying typography engine.
+    ///
+    /// # Arguments
+    /// * `text` - Text string to measure.
+    /// * `font_size` - Font size in physical pixels.
+    ///
+    /// # Returns
+    /// Total horizontal advance width in pixels.
+    #[inline]
+    pub fn measure_text_advance(&self, text: &str, font_size: f32) -> f32 {
+        iris_text::measure_text_advance(text, font_size)
+    }
+
+    /// Configures the default font family name for thread-local dynamic text layout measurements.
+    ///
+    /// # Arguments
+    /// * `family` - Target font family name (e.g. `"Inter"`, `"Roboto"`, `"sans-serif"`).
+    #[inline]
+    pub fn set_default_font_family(&self, family: &str) {
+        iris_text::set_default_text_family(family);
+    }
+
     /// Returns the computed bounding rectangle of an emitted widget after layout resolution.
     #[inline]
     pub fn computed_rect(&self, id: WidgetId) -> Rect {

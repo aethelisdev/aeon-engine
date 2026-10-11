@@ -61,6 +61,8 @@ fn test_assets_panel_structure_and_no_emojis() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let metrics = build_assets_panel(&mut tree, root_id, &params);
@@ -293,6 +295,8 @@ fn test_preview_modal_build_and_actions() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let metrics = build_assets_panel(&mut tree, root_id, &params);
@@ -380,6 +384,8 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_assets_panel(&mut tree, root_id, &params_idle);
@@ -512,6 +518,8 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     // Should build cards with Turkish/Unicode filenames without any panic
@@ -810,6 +818,8 @@ fn test_engine_and_sidebar_vector_icons() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_assets_panel(&mut tree, root_id, &params);
@@ -1016,6 +1026,8 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         active_context_menu: Some(&ctx_menu_data),
         active_preview_modal: None,
         thumbnail_layers: &thumbnail_layers,
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     let card_rect = super::context_menu::build_assets_context_menu(&mut tree, root_id, &params)
@@ -1183,6 +1195,8 @@ fn test_assets_toolbar_width_and_search_ux() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
+        is_search_focused: false,
+        cursor_byte_idx: 0,
     };
 
     build_assets_panel(&mut tree, root_id, &params);

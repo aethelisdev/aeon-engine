@@ -114,12 +114,12 @@ impl EngineUi {
             && let Some(parent) = self.asset_browser.new_folder_parent.take()
         {
             let _ = crate::assets::file_ops::create_subfolder(&parent, &folder_name);
-            self.iris_overlay.modals.new_folder_buffer.clear();
+            self.iris_overlay.modals.clear_new_folder();
             self.asset_browser.new_folder_name.clear();
         }
         if iris_res.cancel_new_folder {
             self.asset_browser.new_folder_parent = None;
-            self.iris_overlay.modals.new_folder_buffer.clear();
+            self.iris_overlay.modals.clear_new_folder();
             self.asset_browser.new_folder_name.clear();
         }
 
@@ -127,11 +127,11 @@ impl EngineUi {
             && let Some(ren) = self.asset_browser.rename_state.take()
         {
             let _ = crate::assets::file_ops::rename_asset_or_folder(&ren.target_path, &new_name);
-            self.iris_overlay.modals.rename_buffer.clear();
+            self.iris_overlay.modals.clear_rename();
         }
         if iris_res.cancel_rename {
             self.asset_browser.rename_state = None;
-            self.iris_overlay.modals.rename_buffer.clear();
+            self.iris_overlay.modals.clear_rename();
         }
 
         if modal_closed {
@@ -143,6 +143,11 @@ impl EngineUi {
         if iris_res.clear_console_entries {
             self.console_entries.clear();
             self.console_last_count = 0;
+        }
+
+        // Layer isolation mandate: events consumed by Iris UI overlays or panels must never leak to underlying systems
+        if iris_res.consumed {
+            return true;
         }
 
         // Process keyboard shortcuts and search live-typing

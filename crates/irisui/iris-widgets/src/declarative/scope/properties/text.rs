@@ -21,6 +21,8 @@ pub struct PropertyTextOptions<'a> {
     pub blink_caret: bool,
     /// Whether all text within the input field is selected with a highlight capsule.
     pub is_all_selected: bool,
+    /// Optional selection range (start_byte_idx, end_byte_idx) for selection highlight capsule.
+    pub selection: Option<(usize, usize)>,
     /// Optional fixed column width in physical pixels for the left-aligned property label.
     pub label_width: Option<f32>,
     /// Optional explicit semantic tag override. If `None`, computed via `tag_for(label)`.
@@ -35,6 +37,7 @@ impl<'a> PropertyTextOptions<'a> {
             is_editing: false,
             blink_caret: false,
             is_all_selected: false,
+            selection: None,
             label_width: None,
             custom_tag: None,
         }
@@ -56,6 +59,12 @@ impl<'a> PropertyTextOptions<'a> {
     /// Sets whether all text within the input field is currently selected with a highlight capsule.
     pub const fn with_all_selected(mut self, is_all_selected: bool) -> Self {
         self.is_all_selected = is_all_selected;
+        self
+    }
+
+    /// Attaches an active text selection range to display a selection highlight capsule.
+    pub const fn with_selection(mut self, selection: Option<(usize, usize)>) -> Self {
+        self.selection = selection;
         self
     }
 
@@ -173,11 +182,24 @@ impl<'a> UiScope<'a> {
                 WidgetRole::TextInput,
                 tag,
                 |box_scope| {
-                    if options.is_editing && options.is_all_selected && !value.is_empty() {
+                    let selection_range = options.selection.or({
+                        if options.is_all_selected && !value.is_empty() {
+                            Some((0, value.len()))
+                        } else {
+                            None
+                        }
+                    });
+                    if options.is_editing
+                        && let Some((start_byte, end_byte)) = selection_range
+                        && !value.is_empty()
+                    {
                         let approx_char_w = 6.8;
-                        let text_w = (value.chars().count() as f32 * approx_char_w).max(12.0);
-                        let sel_x = 6.0;
-                        let sel_w = text_w + 4.0;
+                        let start_char_idx = value[..start_byte.min(value.len())].chars().count();
+                        let end_char_idx = value[..end_byte.min(value.len())].chars().count();
+                        let sel_start = start_char_idx.min(end_char_idx);
+                        let sel_count = end_char_idx.saturating_sub(sel_start).max(1);
+                        let sel_x = 6.0 + sel_start as f32 * approx_char_w;
+                        let sel_w = sel_count as f32 * approx_char_w + 2.0;
                         let sel_name = format!("{}_Sel", sanitized_label);
                         let sel_style = Style::new()
                             .position_absolute()

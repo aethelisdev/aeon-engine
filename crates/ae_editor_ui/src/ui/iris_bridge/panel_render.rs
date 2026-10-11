@@ -55,6 +55,16 @@ impl IrisEditorOverlay {
         }
     }
 
+    /// Returns a mutable reference to the independently retained [`UiTree`] owned by a panel, if active.
+    ///
+    /// Resolves the panel from [`Self::panels`] by string identifier and extracts its inner tree.
+    /// Returns `None` if the panel is not registered or does not own an active retained tree.
+    pub fn panel_tree_mut(&mut self, panel_id: PanelId) -> Option<&mut UiTree> {
+        self.panels
+            .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
+            .map(|panel| panel.tree_mut())
+    }
+
     /// Queries hit-testing on a panel's retained tree using screen-space cursor coordinates.
     ///
     /// Automatically converts screen coordinates to panel-local `(0, 0)` coordinates

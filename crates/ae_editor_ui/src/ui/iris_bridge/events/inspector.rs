@@ -442,22 +442,24 @@ impl IrisEditorOverlay {
             // 2a. Entity Name Input
             if inspector::resolve_entity_name_input_tag(hit.tag) {
                 if let Some(entity) = entity_opt {
-                    if let Some((cur_ent, _)) = self.inspector.rename_buffer {
-                        if cur_ent == entity && self.inspector.rename_is_all_selected {
+                    if let Some((cur_ent, ref mut input)) = self.inspector.rename_input {
+                        if cur_ent == entity && input.has_selection() {
+                            input.clear_selection();
                             self.inspector.rename_is_all_selected = false;
                         } else if cur_ent != entity {
                             let current_name = self.inspector.inspected_entity_name.clone();
-                            self.inspector.rename_buffer = Some((entity, current_name));
-                            self.inspector.rename_is_all_selected = true;
+                            self.inspector.start_rename(entity, &current_name);
                         }
                     } else {
                         let current_name = self.inspector.inspected_entity_name.clone();
-                        self.inspector.rename_buffer = Some((entity, current_name));
-                        self.inspector.rename_is_all_selected = true;
+                        self.inspector.start_rename(entity, &current_name);
                     }
                 }
+                self.focus_manager
+                    .set_focus_tag(inspector::entity_name_input_tag());
                 self.inspector.active_number_input = None;
                 self.inspector.active_text_input = None;
+                self.inspector.active_text_input_state = None;
                 self.inspector.hex_buffer = None;
                 result.consumed = true;
                 return Some(result);
@@ -479,14 +481,15 @@ impl IrisEditorOverlay {
             if let Some((num_id, min_val, max_val, sensitivity)) =
                 inspector::resolve_inspector_number_input_tag(hit.tag)
             {
-                if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
-                    if !buf.trim().is_empty() {
+                if let Some((ent, input)) = self.inspector.rename_input.take() {
+                    let final_name = input.text().trim().to_string();
+                    if !final_name.is_empty() {
                         self.inspector
                             .interactions
                             .actions
-                            .push(InspectorAction::RenameEntity(ent, buf));
+                            .push(InspectorAction::RenameEntity(ent, final_name));
                     }
-                    self.inspector.rename_is_all_selected = false;
+                    self.inspector.clear_rename();
                 }
                 if let Some(prev) = self.inspector.active_number_input.take()
                     && prev.id != num_id
@@ -545,6 +548,7 @@ impl IrisEditorOverlay {
                         .interactions
                         .actions
                         .push(InspectorAction::SetTextValue(prev_ent, prev_id, prev_buf));
+                    self.inspector.active_text_input_state = None;
                 }
                 let cur_val = self
                     .tree
@@ -561,17 +565,22 @@ impl IrisEditorOverlay {
                     .unwrap_or_default();
 
                 if let Some(entity) = entity_opt {
+                    let mut input = irisui::prelude::TextInputState::new(&cur_val);
+                    input.select_all();
+                    self.inspector.active_text_input_state = Some((entity, text_id, input));
                     self.inspector.active_text_input = Some((entity, text_id, cur_val));
                 }
+                self.focus_manager.set_focus_tag(hit.tag);
                 self.inspector.active_number_input = None;
-                if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
-                    if !buf.trim().is_empty() {
+                if let Some((ent, input)) = self.inspector.rename_input.take() {
+                    let final_name = input.text().trim().to_string();
+                    if !final_name.is_empty() {
                         self.inspector
                             .interactions
                             .actions
-                            .push(InspectorAction::RenameEntity(ent, buf));
+                            .push(InspectorAction::RenameEntity(ent, final_name));
                     }
-                    self.inspector.rename_is_all_selected = false;
+                    self.inspector.clear_rename();
                 }
                 self.inspector.hex_buffer = None;
                 result.consumed = true;
@@ -610,8 +619,7 @@ impl IrisEditorOverlay {
                         InspectorAction::FocusRename => {
                             if let Some(entity) = entity_opt {
                                 let current_name = self.inspector.inspected_entity_name.clone();
-                                self.inspector.rename_buffer = Some((entity, current_name));
-                                self.inspector.rename_is_all_selected = true;
+                                self.inspector.start_rename(entity, &current_name);
                             }
                             self.inspector.active_number_input = None;
                             self.inspector.active_text_input = None;
@@ -674,18 +682,21 @@ impl IrisEditorOverlay {
                 .interactions
                 .actions
                 .push(InspectorAction::SetTextValue(ent, id, buf));
+            self.inspector.active_text_input_state = None;
         }
 
         // Commit active rename input if clicked outside
-        if let Some((ent, buf)) = self.inspector.rename_buffer.take() {
-            if !buf.trim().is_empty() {
+        if let Some((ent, input)) = self.inspector.rename_input.take() {
+            let final_name = input.text().trim().to_string();
+            if !final_name.is_empty() {
                 self.inspector
                     .interactions
                     .actions
-                    .push(InspectorAction::RenameEntity(ent, buf));
+                    .push(InspectorAction::RenameEntity(ent, final_name));
             }
-            self.inspector.rename_is_all_selected = false;
+            self.inspector.clear_rename();
         }
+        self.focus_manager.clear_focus();
 
         // Commit active hex input if clicked outside
         if let Some((ent, buf)) = self.inspector.hex_buffer.take() {

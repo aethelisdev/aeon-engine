@@ -1823,6 +1823,7 @@ version = "0.1.0"
 dependencies = [
  "iris-core",
  "iris-layout",
+ "iris-text",
  "iris-wgpu",
  "thiserror 2.0.20",
 ]

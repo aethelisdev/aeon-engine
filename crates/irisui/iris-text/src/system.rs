@@ -26,6 +26,12 @@ struct ShapeCacheKey {
     wrap: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct AdvanceCacheKey {
+    text: String,
+    font_size_bits: u32,
+}
+
 /// Parameters describing typography metrics, bounding constraints, and alignment for text shaping.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TextShapeParams {
@@ -47,8 +53,10 @@ pub struct TextShapeParams {
 pub struct TextSystem {
     font_system: FontSystem,
     swash_cache: SwashCache,
+    default_family: Option<String>,
     measure_cache: HashMap<MeasureCacheKey, Size>,
     shape_cache: HashMap<ShapeCacheKey, Buffer>,
+    advance_cache: HashMap<AdvanceCacheKey, f32>,
 }
 
 impl Default for TextSystem {
@@ -59,26 +67,16 @@ impl Default for TextSystem {
 }
 
 impl TextSystem {
-    /// Initializes a new `TextSystem` loading embedded Noto fonts (standard, symbols, math, and monochrome emojis).
+    /// Initializes a new `TextSystem` loading embedded fallback typography fonts.
     pub fn new() -> Self {
         let mut db = cosmic_text::fontdb::Database::new();
 
-        // Load Aeon Engine standard embedded fonts for default typography rendering
-        db.load_font_data(
-            include_bytes!("../../../ae_engine/assets/fonts/NotoSans-Regular.ttf").to_vec(),
-        );
-        db.load_font_data(
-            include_bytes!("../../../ae_engine/assets/fonts/NotoSansSymbols-Regular.ttf").to_vec(),
-        );
-        db.load_font_data(
-            include_bytes!("../../../ae_engine/assets/fonts/NotoSansSymbols2-Regular.ttf").to_vec(),
-        );
-        db.load_font_data(
-            include_bytes!("../../../ae_engine/assets/fonts/NotoSansMath-Regular.ttf").to_vec(),
-        );
-        db.load_font_data(
-            include_bytes!("../../../ae_engine/assets/fonts/NotoEmoji-Regular.ttf").to_vec(),
-        );
+        // Load embedded default fonts for isolated standalone typography rendering
+        db.load_font_data(include_bytes!("../assets/fonts/NotoSans-Regular.ttf").to_vec());
+        db.load_font_data(include_bytes!("../assets/fonts/NotoSansSymbols-Regular.ttf").to_vec());
+        db.load_font_data(include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf").to_vec());
+        db.load_font_data(include_bytes!("../assets/fonts/NotoSansMath-Regular.ttf").to_vec());
+        db.load_font_data(include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf").to_vec());
 
         db.set_sans_serif_family("Noto Sans");
         db.set_serif_family("Noto Sans");
@@ -89,9 +87,47 @@ impl TextSystem {
         Self {
             font_system,
             swash_cache: SwashCache::new(),
+            default_family: None,
             measure_cache: HashMap::with_capacity(256),
             shape_cache: HashMap::with_capacity(256),
+            advance_cache: HashMap::with_capacity(256),
         }
+    }
+
+    /// Resolves the default text styling attributes using the active family or generic sans-serif.
+    #[inline]
+    fn default_attrs(&self) -> Attrs<'_> {
+        match &self.default_family {
+            Some(family) if !family.is_empty() && !family.eq_ignore_ascii_case("sans-serif") => {
+                Attrs::new().family(Family::Name(family))
+            }
+            _ => Attrs::new().family(Family::SansSerif),
+        }
+    }
+
+    /// Sets the active default font family used for text shaping and layout measurement.
+    ///
+    /// If an empty string or `"sans-serif"` is specified, the engine falls back to generic `Family::SansSerif`.
+    /// Internal layout and shaping caches are invalidated upon modification.
+    ///
+    /// # Arguments
+    /// * `family` - Target font family name (e.g. `"Inter"`, `"Roboto"`, `"sans-serif"`).
+    pub fn set_default_family(&mut self, family: &str) {
+        let new_family = if family.is_empty() || family.eq_ignore_ascii_case("sans-serif") {
+            None
+        } else {
+            Some(family.to_string())
+        };
+        if self.default_family != new_family {
+            self.default_family = new_family;
+            self.clear_cache();
+        }
+    }
+
+    /// Returns the active default font family name if explicitly configured, or `"sans-serif"`.
+    #[inline]
+    pub fn default_family(&self) -> &str {
+        self.default_family.as_deref().unwrap_or("sans-serif")
     }
 
     /// Provides mutable access to the underlying `FontSystem`.
@@ -117,6 +153,7 @@ impl TextSystem {
     pub fn clear_cache(&mut self) {
         self.measure_cache.clear();
         self.shape_cache.clear();
+        self.advance_cache.clear();
     }
 
     /// Measures the dimensions of a text string given font size and line height constraints with caching.
@@ -149,7 +186,7 @@ impl TextSystem {
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
         buffer.set_size(max_width, None);
-        let attrs = Attrs::new().family(Family::Name("Noto Sans"));
+        let attrs = self.default_attrs();
         let shaping = if text.is_ascii() {
             Shaping::Basic
         } else {
@@ -248,7 +285,7 @@ impl TextSystem {
             TextAlign::Right => cosmic_text::Align::Right,
         };
 
-        let attrs = Attrs::new().family(Family::Name("Noto Sans"));
+        let attrs = self.default_attrs();
         let shaping = if text.is_ascii() {
             Shaping::Basic
         } else {
@@ -264,4 +301,80 @@ impl TextSystem {
         self.shape_cache.insert(key, buffer.clone());
         buffer
     }
+
+    /// Measures the exact horizontal layout advance of a single line of text dynamically.
+    ///
+    /// Shapes the glyphs at the requested font size and computes the total horizontal advance
+    /// width in physical pixels. Results are cached dynamically.
+    ///
+    /// # Arguments
+    /// * `text` - Text string to shape and measure.
+    /// * `font_size` - Target font size in physical pixels.
+    ///
+    /// # Returns
+    /// Horizontal advance width in pixels. Returns `0.0` if `text` is empty.
+    pub fn measure_advance(&mut self, text: &str, font_size: f32) -> f32 {
+        if text.is_empty() {
+            return 0.0;
+        }
+
+        let key = AdvanceCacheKey {
+            text: text.to_string(),
+            font_size_bits: font_size.to_bits(),
+        };
+
+        if let Some(&cached) = self.advance_cache.get(&key) {
+            return cached;
+        }
+
+        let metrics = Metrics::new(font_size, font_size * 1.2);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+        buffer.set_size(None, None);
+        let attrs = self.default_attrs();
+        let shaping = if text.is_ascii() {
+            Shaping::Basic
+        } else {
+            Shaping::Advanced
+        };
+        buffer.set_text(text, &attrs, shaping, None);
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        let advance = buffer.layout_runs().next().map_or(0.0, |run| run.line_w);
+
+        if self.advance_cache.len() > 1024 {
+            self.advance_cache.clear();
+        }
+        self.advance_cache.insert(key, advance);
+        advance
+    }
+}
+
+impl iris_core::TextMeasurer for TextSystem {
+    #[inline]
+    fn measure_text_advance(&mut self, text: &str, font_size: f32) -> f32 {
+        self.measure_advance(text, font_size)
+    }
+}
+
+std::thread_local! {
+    static SHARED_TEXT_SYSTEM: std::cell::RefCell<TextSystem> = std::cell::RefCell::new(TextSystem::new());
+}
+
+/// Measures the dynamic horizontal advance width of a string in physical pixels at the specified font size.
+///
+/// Backed by a thread-local [`TextSystem`] instance with glyph shaping and metric caching.
+///
+/// # Arguments
+/// * `text` - Text string to measure.
+/// * `font_size` - Font size in physical pixels.
+///
+/// # Returns
+/// Total advance width in physical pixels. Returns `0.0` if `text` is empty.
+pub fn measure_text_advance(text: &str, font_size: f32) -> f32 {
+    SHARED_TEXT_SYSTEM.with(|sys| sys.borrow_mut().measure_advance(text, font_size))
+}
+
+/// Configures the default font family name for the thread-local [`TextSystem`] instance.
+pub fn set_default_text_family(family: &str) {
+    SHARED_TEXT_SYSTEM.with(|sys| sys.borrow_mut().set_default_family(family));
 }

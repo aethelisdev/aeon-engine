@@ -529,6 +529,10 @@ pub struct AssetsPanelParams<'a> {
     pub subfolders: &'a [PathBuf],
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
+    /// Whether the search input currently possesses active keyboard focus.
+    pub is_search_focused: bool,
+    /// Byte offset of the text cursor inside [`Self::search_query`].
+    pub cursor_byte_idx: usize,
 }
 
 /// Truncates a UTF-8 string safely at Unicode code point boundaries.

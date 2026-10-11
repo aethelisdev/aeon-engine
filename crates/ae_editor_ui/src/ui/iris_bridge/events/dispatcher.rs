@@ -475,6 +475,7 @@ impl IrisEditorOverlay {
                 Some(PanelId::Inspector) => self.inspector.active_number_input.is_some(),
                 Some(PanelId::Console) => self.console.active_scrollbar_drag.is_some(),
                 Some(PanelId::MaterialEditor) => self.material.active_scrollbar_drag.is_some(),
+                Some(PanelId::Hierarchy) => self.hierarchy.active_scrollbar_drag.is_some(),
                 _ => false,
             };
             if !still_dragging {

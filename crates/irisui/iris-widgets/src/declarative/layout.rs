@@ -135,7 +135,7 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
                     }
                 });
                 let caret_x = if has_icon {
-                    text_start - 3.0 + offset
+                    text_start + offset
                 } else {
                     (inner.x + 8.0 + offset).min(inner.x + inner.width - 12.0)
                 };

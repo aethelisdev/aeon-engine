@@ -1,13 +1,25 @@
-# Aeon Engine
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../assets/icons/aeon_logo.svg">
+    <source media="(prefers-color-scheme: light)" srcset="../assets/icons/aeon_logo_dark.svg">
+    <img src="../assets/icons/aeon_logo.svg" alt="Aeon Engine Logo" width="160">
+  </picture>
 
-[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-orange.svg)](https://opensource.org/licenses/MPL-2.0)
-[![Status](https://img.shields.io/badge/status-in_active_development-green)](https://github.com/aethelisdev/aeon-engine)
-[![Rust](https://img.shields.io/badge/rust-v1.99.0-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![YouTube](https://img.shields.io/badge/AeonEngine-FF0000?style=flat&logo=youtube&logoColor=white)](https://youtube.com/@Aeonengine)
-[![Instagram](https://img.shields.io/badge/AeonEngine-E4405F?style=flat&logo=instagram&logoColor=white)](https://instagram.com/aeonengine)
-[![X / Twitter](https://img.shields.io/badge/AeonEngine-000000?style=flat&logo=x&logoColor=white)](https://x.com/aeonengine)
+  <h1>Aeon Engine</h1>
 
-[English](../README.md) | [Türkçe](README_tr.md) | **日本語** | [简体中文](README_zh.md)
+  <p>
+    <a href="https://opensource.org/licenses/MPL-2.0"><img src="https://img.shields.io/badge/License-MPL_2.0-orange.svg" alt="License: MPL 2.0"></a>
+    <a href="https://github.com/aethelisdev/aeon-engine"><img src="https://img.shields.io/badge/status-in_active_development-green" alt="Status"></a>
+    <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-v1.99.0-orange?logo=rust&logoColor=white" alt="Rust"></a>
+    <a href="https://youtube.com/@Aeonengine"><img src="https://img.shields.io/badge/AeonEngine-FF0000?style=flat&logo=youtube&logoColor=white" alt="YouTube"></a>
+    <a href="https://instagram.com/aeonengine"><img src="https://img.shields.io/badge/AeonEngine-E4405F?style=flat&logo=instagram&logoColor=white" alt="Instagram"></a>
+    <a href="https://x.com/aeonengine"><img src="https://img.shields.io/badge/AeonEngine-000000?style=flat&logo=x&logoColor=white" alt="X / Twitter"></a>
+  </p>
+
+  <p>
+    <a href="../README.md">English</a> | <a href="README_tr.md">Türkçe</a> | <b>日本語</b> | <a href="README_zh.md">简体中文</a>
+  </p>
+</div>
 
 ![Aeon Engine Play Mode](../assets/screenshots/aeonengineplaymode.png)
 

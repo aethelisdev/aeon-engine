@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ICON_SOURCE="${SCRIPT_DIR}/../icon/aeicon.png"
 DESKTOP_SOURCE="${SCRIPT_DIR}/com.aeengine.Editor.desktop"
 
-ICON_NAME="com.aeengine.Editor"
+ICON_NAMES=("com.aeonengine.Editor" "com.aeengine.Editor" "ae_engine" "aeon-engine")
 XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 ICON_DEST_BASE="${XDG_DATA_HOME}/icons/hicolor"
 DESKTOP_DEST_DIR="${XDG_DATA_HOME}/applications"
@@ -46,16 +46,16 @@ SIZES=("16x16" "22x22" "24x24" "32x32" "48x48" "64x64" "128x128" "256x256" "512x
 for SIZE in "${SIZES[@]}"; do
     TARGET_DIR="${ICON_DEST_BASE}/${SIZE}/apps"
     mkdir -p "$TARGET_DIR"
-    if command -v magick &> /dev/null; then
-        echo "📦 Installing ${SIZE} icon: ${TARGET_DIR}/${ICON_NAME}.png"
-        magick "$ICON_SOURCE" -resize "$SIZE" "${TARGET_DIR}/${ICON_NAME}.png"
-    elif command -v convert &> /dev/null; then
-        echo "📦 Installing ${SIZE} icon: ${TARGET_DIR}/${ICON_NAME}.png"
-        convert "$ICON_SOURCE" -resize "$SIZE" "${TARGET_DIR}/${ICON_NAME}.png"
-    else
-        echo "📦 Installing icon: ${TARGET_DIR}/${ICON_NAME}.png"
-        cp "$ICON_SOURCE" "${TARGET_DIR}/${ICON_NAME}.png"
-    fi
+    for NAME in "${ICON_NAMES[@]}"; do
+        if command -v magick &> /dev/null; then
+            magick "$ICON_SOURCE" -resize "$SIZE" "${TARGET_DIR}/${NAME}.png"
+        elif command -v convert &> /dev/null; then
+            convert "$ICON_SOURCE" -resize "$SIZE" "${TARGET_DIR}/${NAME}.png"
+        else
+            cp "$ICON_SOURCE" "${TARGET_DIR}/${NAME}.png"
+        fi
+    done
+    echo "📦 Installed ${SIZE} icons into ${TARGET_DIR}"
 done
 
 # Install .desktop file

@@ -81,19 +81,21 @@ impl EngineUi {
         let delete_target = self.asset_browser.delete_confirmation.as_deref();
 
         if self.asset_browser.new_folder_parent.is_some()
-            && self.iris_overlay.modals.new_folder_buffer.is_empty()
+            && self.iris_overlay.modals.new_folder_input.text().is_empty()
             && !self.asset_browser.new_folder_name.is_empty()
         {
-            self.iris_overlay.modals.new_folder_buffer = self.asset_browser.new_folder_name.clone();
+            self.iris_overlay
+                .modals
+                .set_new_folder_text(&self.asset_browser.new_folder_name);
         }
 
         let new_folder_parent = self.asset_browser.new_folder_parent.as_deref();
 
         if let Some(ref ren) = self.asset_browser.rename_state
-            && self.iris_overlay.modals.rename_buffer.is_empty()
+            && self.iris_overlay.modals.rename_input.text().is_empty()
             && !ren.current_name.is_empty()
         {
-            self.iris_overlay.modals.rename_buffer = ren.current_name.clone();
+            self.iris_overlay.modals.set_rename_text(&ren.current_name);
         }
 
         let rename_target = self

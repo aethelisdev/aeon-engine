@@ -17,6 +17,7 @@ pub mod error;
 pub mod event;
 pub mod geometry;
 pub mod id;
+pub mod measurer;
 pub mod node;
 pub mod style;
 pub mod tree;
@@ -30,6 +31,7 @@ pub use event::{
 };
 pub use geometry::{Border, BoxShadow, CornerRadii, Insets, Point, Rect, Size};
 pub use id::WidgetId;
+pub use measurer::TextMeasurer;
 pub use node::{ExternalTextureId, UiLayer, WidgetCursor, WidgetNode, WidgetRole};
 pub use style::{
     AlignItems, FlexDirection, FlexWrap, JustifyContent, Position, Style, TextAlign, TextWrap,

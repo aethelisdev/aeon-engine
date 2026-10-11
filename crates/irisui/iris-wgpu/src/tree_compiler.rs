@@ -175,7 +175,11 @@ fn populate_layer_commands(
 
     let node_matches_focus = (ctx.focused_id.is_some() && ctx.focused_id == Some(current))
         || (node.tag != 0 && ctx.focused_tag == Some(node.tag));
-    let is_focused = node_matches_focus || (ctx.inherited_focused && node.tag == 0);
+    let is_focused = if node.role == WidgetRole::TextInputCaret {
+        ctx.inherited_focused
+    } else {
+        node_matches_focus || (ctx.inherited_focused && node.tag == 0)
+    };
 
     // Skip drawing text input caret if the field is not focused or currently in blink-off phase
     if node.role == WidgetRole::TextInputCaret && (!ctx.inherited_focused || !ctx.blink_caret) {

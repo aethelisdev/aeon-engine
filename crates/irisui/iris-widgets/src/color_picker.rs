@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! # Hardware-Accelerated 2D HSV Color Picker (`iris-widgets::color_picker`)
+//! # Hardware-Accelerated 2D HSV Color Representation & Math (`iris-widgets::color_picker`)
 //!
-//! Provides a full-featured 2D Saturation-Value gradient box, vertical rainbow Hue spectrum bar,
-//! interactive indicator rings, live color preview, and bidirectional RGB/HSV/HEX conversions.
+//! Provides bidirectional RGB/HSV/HEX conversions, color state tracking,
+//! and interaction drag modes for color pickers and palettes in Iris UI.
+//!
 
-use iris_core::{Color, Point, Rect, Style, TextAlign, UiTree, WidgetId, WidgetRole};
+use iris_core::color::Color;
+use iris_core::geometry::{Point, Rect};
 
 /// Converts standard RGB components (0.0 ..= 1.0) to HSV representation.
 ///
@@ -14,6 +16,11 @@ use iris_core::{Color, Point, Rect, Style, TextAlign, UiTree, WidgetId, WidgetRo
 /// - `hue`: `0.0 .. 360.0` degrees
 /// - `saturation`: `0.0 ..= 1.0`
 /// - `value`: `0.0 ..= 1.0`
+///
+/// # Arguments
+/// * `r` - Red channel in logical range `[0.0, 1.0]`.
+/// * `g` - Green channel in logical range `[0.0, 1.0]`.
+/// * `b` - Blue channel in logical range `[0.0, 1.0]`.
 #[inline]
 pub fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     let max = r.max(g).max(b);
@@ -36,8 +43,9 @@ pub fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
     (h, s, v)
 }
 
-/// Converts HSV color representation to standard `Color` (RGBA float).
+/// Converts HSV color representation to standard [`Color`] (RGBA float).
 ///
+/// # Arguments
 /// - `h`: Hue in degrees `0.0 .. 360.0`
 /// - `s`: Saturation `0.0 ..= 1.0`
 /// - `v`: Value / Brightness `0.0 ..= 1.0`
@@ -60,7 +68,10 @@ pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color {
     Color::rgba(r1 + m, g1 + m, b1 + m, 1.0)
 }
 
-/// Dynamic state tracker for the 2D HSV Color Picker widget.
+/// Dynamic state tracker for the 2D HSV Color representation.
+///
+/// Encapsulates hue, saturation, value, and alpha channels with bidirectional
+/// conversion methods to and from [`Color`] and hexadecimal strings.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct HsvColorPickerState {
     /// Active Hue in degrees `0.0 .. 360.0`.
@@ -85,7 +96,7 @@ impl Default for HsvColorPickerState {
 }
 
 impl HsvColorPickerState {
-    /// Constructs a new `HsvColorPickerState` from an existing `Color`.
+    /// Constructs a new [`HsvColorPickerState`] from an existing [`Color`].
     #[must_use]
     pub fn from_color(color: Color) -> Self {
         let (h, s, v) = rgb_to_hsv(color.r, color.g, color.b);
@@ -97,7 +108,7 @@ impl HsvColorPickerState {
         }
     }
 
-    /// Converts the current HSV state to a concrete `Color` instance.
+    /// Converts the current HSV state to a concrete [`Color`] instance.
     #[must_use]
     pub fn to_color(&self) -> Color {
         let mut c = hsv_to_rgb(self.hue, self.saturation, self.value);
@@ -137,42 +148,6 @@ impl HsvColorPickerState {
     }
 }
 
-/// Hit-testing bounding targets for interactive 2D HSV color picker elements.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct HsvColorPickerTargets {
-    /// Bounding rectangle of the entire floating popup card.
-    pub card_rect: Rect,
-    /// Bounding rectangle of the 2D Saturation-Value gradient box.
-    pub sv_box_rect: Rect,
-    /// Bounding rectangle of the vertical Rainbow Hue spectrum bar.
-    pub hue_bar_rect: Rect,
-    /// Bounding rectangle of the live color preview bar.
-    pub preview_rect: Rect,
-    /// Bounding rectangle of the close `✖` button.
-    pub close_btn_rect: Option<Rect>,
-}
-
-/// Action evaluated from clicking over an active Color Picker widget.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ColorPickerClickAction {
-    /// Clicked on the close button (`✖`).
-    Close,
-    /// Clicked on the 2D Saturation-Value box, updating HSV and initiating a drag gesture.
-    StartSvDrag {
-        /// Newly computed color with updated saturation and value.
-        color: Color,
-    },
-    /// Clicked on the vertical Rainbow Hue spectrum bar, updating Hue and initiating a drag gesture.
-    StartHueDrag {
-        /// Newly computed color with updated hue.
-        color: Color,
-    },
-    /// Click landed inside the popup card (e.g. background, header, preview) and was consumed without state mutation.
-    CardConsumed,
-    /// Click was completely outside the popup card boundaries.
-    Miss,
-}
-
 /// Drag mode for continuous Color Picker mouse interaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColorPickerDragMode {
@@ -182,552 +157,76 @@ pub enum ColorPickerDragMode {
     Hue,
 }
 
-/// Cursor shape to render when hovering over Color Picker interactive regions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColorPickerCursor {
-    /// Crosshair cursor over the 2D Saturation-Value matrix.
-    Crosshair,
-    /// North-South vertical resize cursor over the Hue bar.
-    NsResize,
-    /// Hand pointer cursor over buttons or card background.
-    Pointer,
-}
-
-/// Evaluates a mouse click event against an active Color Picker popup.
-///
-/// Mutates `state` in-place if an interactive sub-element (SV box or Hue bar) was clicked,
-/// and returns the resulting semantic action.
-pub fn evaluate_color_picker_click(
-    targets: &HsvColorPickerTargets,
-    state: &mut HsvColorPickerState,
-    click_point: Point,
-) -> ColorPickerClickAction {
-    if let Some(close_btn) = targets.close_btn_rect
-        && close_btn.contains_point(click_point)
-    {
-        return ColorPickerClickAction::Close;
-    }
-
-    if targets.sv_box_rect.contains_point(click_point) {
-        state.update_from_sv_point(click_point, targets.sv_box_rect);
-        return ColorPickerClickAction::StartSvDrag {
-            color: state.to_color(),
-        };
-    }
-
-    if targets.hue_bar_rect.contains_point(click_point) {
-        state.update_from_hue_point(click_point, targets.hue_bar_rect);
-        return ColorPickerClickAction::StartHueDrag {
-            color: state.to_color(),
-        };
-    }
-
-    if targets.card_rect.contains_point(click_point) {
-        ColorPickerClickAction::CardConsumed
-    } else {
-        ColorPickerClickAction::Miss
-    }
-}
-
-/// Evaluates continuous mouse dragging over an active Color Picker widget.
-///
-/// Updates `state` based on the specified active drag mode and returns the updated [`Color`].
-pub fn evaluate_color_picker_drag(
-    targets: &HsvColorPickerTargets,
-    state: &mut HsvColorPickerState,
-    mode: ColorPickerDragMode,
-    cursor: Point,
-) -> Color {
-    match mode {
-        ColorPickerDragMode::SaturationValue => {
-            state.update_from_sv_point(cursor, targets.sv_box_rect);
-        }
-        ColorPickerDragMode::Hue => {
-            state.update_from_hue_point(cursor, targets.hue_bar_rect);
-        }
-    }
-    state.to_color()
-}
-
-/// Evaluates the appropriate mouse cursor icon for a point over an active Color Picker.
-///
-/// Prioritizes active drag gestures before inspecting hit targets.
-pub fn evaluate_color_picker_cursor(
-    targets: &HsvColorPickerTargets,
-    point: Point,
-    active_drag: Option<ColorPickerDragMode>,
-) -> Option<ColorPickerCursor> {
-    if let Some(mode) = active_drag {
-        return match mode {
-            ColorPickerDragMode::SaturationValue => Some(ColorPickerCursor::Crosshair),
-            ColorPickerDragMode::Hue => Some(ColorPickerCursor::NsResize),
-        };
-    }
-
-    if targets.sv_box_rect.contains_point(point) {
-        return Some(ColorPickerCursor::Crosshair);
-    }
-
-    if targets.hue_bar_rect.contains_point(point) {
-        return Some(ColorPickerCursor::NsResize);
-    }
-
-    if targets
-        .close_btn_rect
-        .is_some_and(|r| r.contains_point(point))
-        || targets.card_rect.contains_point(point)
-    {
-        return Some(ColorPickerCursor::Pointer);
-    }
-
-    None
-}
-
-/// Builder for constructing retained 2D HSV Color Pickers in the `UiTree`.
-pub struct HsvColorPickerBuilder<'a> {
-    tree: &'a mut UiTree,
-    parent_id: WidgetId,
-    anchor_rect: Rect,
-    state: HsvColorPickerState,
-    cursor_pos: Point,
-    screen_rect: Rect,
-}
-
-impl<'a> HsvColorPickerBuilder<'a> {
-    /// Creates a new `HsvColorPickerBuilder`.
-    pub fn new(
-        tree: &'a mut UiTree,
-        parent_id: WidgetId,
-        anchor_rect: Rect,
-        state: HsvColorPickerState,
-        cursor_pos: Point,
-        screen_rect: Rect,
-    ) -> Self {
-        Self {
-            tree,
-            parent_id,
-            anchor_rect,
-            state,
-            cursor_pos,
-            screen_rect,
-        }
-    }
-
-    /// Builds the complete 2D HSV Color Picker layout into the `UiTree` and returns targets.
-    pub fn build(self) -> (WidgetId, HsvColorPickerTargets) {
-        let tree = self.tree;
-        let mut targets = HsvColorPickerTargets::default();
-
-        let popup_w = 206.0;
-        let popup_h = 224.0;
-        let padding = 8.0;
-
-        let popup_x = self
-            .anchor_rect
-            .x
-            .min(self.screen_rect.right() - popup_w - 6.0)
-            .max(self.screen_rect.x + 6.0);
-        let popup_y = if self.anchor_rect.bottom() + popup_h > self.screen_rect.bottom() - 30.0 {
-            (self.anchor_rect.y - popup_h - 4.0).max(30.0)
-        } else {
-            self.anchor_rect.bottom() + 4.0
-        };
-
-        let card_rect = Rect::new(popup_x, popup_y, popup_w, popup_h);
-        targets.card_rect = card_rect;
-
-        // 1. Root Floating Popup Container
-        let card_id = tree.create_node();
-        if let Some(node) = tree.get_mut(card_id) {
-            node.set_name("ColorPickerPopupCard");
-            node.set_role(WidgetRole::DropdownPopup);
-            node.computed_rect = card_rect;
-            node.style = Style::new()
-                .background(Color::rgba(0.082, 0.086, 0.102, 0.98))
-                .border(1.0, Color::rgba(0.200, 0.208, 0.235, 0.95))
-                .border_radius(6.0)
-                .box_shadow(0.0, 10.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.80));
-        }
-        let _ = tree.add_child(self.parent_id, card_id);
-
-        let mut cur_y = popup_y + padding;
-
-        // 2. Header Row: 🎨 Color Picker   [✖]
-        let hdr_w = popup_w - padding * 2.0;
-        let hdr_lbl_id = tree.create_node();
-        if let Some(node) = tree.get_mut(hdr_lbl_id) {
-            node.set_name("ColorPickerHeaderLabel");
-            node.set_role(WidgetRole::DropdownLabel);
-            node.set_text("🎨 Color Picker");
-            node.font_size = 11.5;
-            node.line_height = 18.0;
-            node.text_color = Color::rgba(0.886, 0.894, 0.918, 1.0);
-            node.computed_rect = Rect::new(popup_x + padding, cur_y, hdr_w - 20.0, 18.0);
-        }
-        let _ = tree.add_child(card_id, hdr_lbl_id);
-
-        // Close button
-        let close_size = 16.0;
-        let close_rect = Rect::new(
-            popup_x + popup_w - padding - close_size,
-            cur_y + 1.0,
-            close_size,
-            close_size,
-        );
-        targets.close_btn_rect = Some(close_rect);
-        let is_close_hovered = close_rect.contains_point(self.cursor_pos);
-
-        let close_id = tree.create_node();
-        if let Some(node) = tree.get_mut(close_id) {
-            node.set_name("ColorPickerCloseButton");
-            node.computed_rect = close_rect;
-            let (bg, text_col) = if is_close_hovered {
-                (Color::rgba(0.35, 0.12, 0.12, 0.95), Color::WHITE)
-            } else {
-                (
-                    Color::rgba(0.157, 0.165, 0.188, 0.98),
-                    Color::rgba(0.70, 0.73, 0.80, 0.90),
-                )
-            };
-            node.style = Style::new().background(bg).border_radius(3.0);
-            node.set_text("✖");
-            node.font_size = 9.0;
-            node.line_height = close_size;
-            node.text_align = TextAlign::Center;
-            node.text_color = text_col;
-        }
-        let _ = tree.add_child(card_id, close_id);
-
-        cur_y += 22.0;
-
-        // 3. Middle Section: 2D SV Box (Left) + Vertical Hue Bar (Right)
-        let sv_w = 160.0;
-        let sv_h = 130.0;
-        let hue_w = 18.0;
-        let gap = 8.0;
-
-        let sv_rect = Rect::new(popup_x + padding, cur_y, sv_w, sv_h);
-        targets.sv_box_rect = sv_rect;
-
-        let hue_rect = Rect::new(sv_rect.right() + gap, cur_y, hue_w, sv_h);
-        targets.hue_bar_rect = hue_rect;
-
-        // 3a. Render 2D Saturation-Value Matrix
-        let sv_container_id = tree.create_node();
-        if let Some(node) = tree.get_mut(sv_container_id) {
-            node.set_name("ColorPickerSvContainer");
-            node.computed_rect = sv_rect;
-            node.style = Style::new()
-                .border(1.0, Color::rgba(0.25, 0.28, 0.35, 0.90))
-                .border_radius(4.0)
-                .clip_children(true);
-        }
-        let _ = tree.add_child(card_id, sv_container_id);
-
-        let grid_nx = 16;
-        let grid_ny = 13;
-        let cell_w = sv_w / (grid_nx as f32);
-        let cell_h = sv_h / (grid_ny as f32);
-
-        for j in 0..grid_ny {
-            for i in 0..grid_nx {
-                let s = (i as f32 + 0.5) / (grid_nx as f32);
-                let v = 1.0 - (j as f32 + 0.5) / (grid_ny as f32);
-                let col = hsv_to_rgb(self.state.hue, s, v);
-
-                let cell_rect = Rect::new(
-                    sv_rect.x + (i as f32) * cell_w,
-                    sv_rect.y + (j as f32) * cell_h,
-                    cell_w + 0.2, // Small subpixel overlap for  gradient
-                    cell_h + 0.2,
-                );
-
-                let cell_id = tree.create_node();
-                if let Some(node) = tree.get_mut(cell_id) {
-                    node.set_name(format!("SvCell_{}_{}", i, j));
-                    node.computed_rect = cell_rect;
-                    node.style = Style::new().background(col);
-                }
-                let _ = tree.add_child(sv_container_id, cell_id);
-            }
-        }
-
-        // Indicator Ring on SV Box
-        let ring_size = 10.0;
-        let ring_x = (sv_rect.x + self.state.saturation * sv_w - ring_size * 0.5)
-            .clamp(sv_rect.x, sv_rect.right() - ring_size);
-        let ring_y = (sv_rect.y + (1.0 - self.state.value) * sv_h - ring_size * 0.5)
-            .clamp(sv_rect.y, sv_rect.bottom() - ring_size);
-        let ring_rect = Rect::new(ring_x, ring_y, ring_size, ring_size);
-
-        let ring_id = tree.create_node();
-        if let Some(node) = tree.get_mut(ring_id) {
-            node.set_name("ColorPickerSvIndicatorRing");
-            node.computed_rect = ring_rect;
-            node.style = Style::new()
-                .border(2.0, Color::WHITE)
-                .border_radius(5.0)
-                .box_shadow(0.0, 1.0, 3.0, Color::rgba(0.0, 0.0, 0.0, 0.90));
-        }
-        let _ = tree.add_child(card_id, ring_id);
-
-        // 3b. Render Vertical Rainbow Hue Bar
-        let hue_container_id = tree.create_node();
-        if let Some(node) = tree.get_mut(hue_container_id) {
-            node.set_name("ColorPickerHueContainer");
-            node.computed_rect = hue_rect;
-            node.style = Style::new()
-                .border(1.0, Color::rgba(0.25, 0.28, 0.35, 0.90))
-                .border_radius(4.0)
-                .clip_children(true);
-        }
-        let _ = tree.add_child(card_id, hue_container_id);
-
-        let hue_steps = 26;
-        let step_h = sv_h / (hue_steps as f32);
-
-        for step in 0..hue_steps {
-            let h_val = (step as f32 + 0.5) / (hue_steps as f32) * 360.0;
-            let col = hsv_to_rgb(h_val, 1.0, 1.0);
-
-            let strip_rect = Rect::new(
-                hue_rect.x,
-                hue_rect.y + (step as f32) * step_h,
-                hue_w,
-                step_h + 0.2, // Small overlap for silky smooth gradient
-            );
-
-            let strip_id = tree.create_node();
-            if let Some(node) = tree.get_mut(strip_id) {
-                node.set_name(format!("HueStrip_{}", step));
-                node.computed_rect = strip_rect;
-                node.style = Style::new().background(col);
-            }
-            let _ = tree.add_child(hue_container_id, strip_id);
-        }
-
-        // Indicator Bar on Hue Slider
-        let hue_indicator_y = (hue_rect.y + (self.state.hue / 360.0) * sv_h - 2.0)
-            .clamp(hue_rect.y, hue_rect.bottom() - 4.0);
-        let hue_ind_rect = Rect::new(hue_rect.x - 2.0, hue_indicator_y, hue_w + 4.0, 4.0);
-
-        let hue_ind_id = tree.create_node();
-        if let Some(node) = tree.get_mut(hue_ind_id) {
-            node.set_name("ColorPickerHueIndicator");
-            node.computed_rect = hue_ind_rect;
-            node.style = Style::new()
-                .background(Color::WHITE)
-                .border(1.0, Color::BLACK)
-                .border_radius(2.0)
-                .box_shadow(0.0, 1.0, 3.0, Color::rgba(0.0, 0.0, 0.0, 0.90));
-        }
-        let _ = tree.add_child(card_id, hue_ind_id);
-
-        cur_y += sv_h + 8.0;
-
-        // 4. Bottom Row: Live Color Preview Bar + Dynamic HEX Text + RGB Values
-        let current_color = self.state.to_color();
-        let preview_h = 24.0;
-        let preview_rect = Rect::new(popup_x + padding, cur_y, hdr_w, preview_h);
-        targets.preview_rect = preview_rect;
-
-        let prev_id = tree.create_node();
-        if let Some(node) = tree.get_mut(prev_id) {
-            node.set_name("ColorPickerPreviewBar");
-            node.computed_rect = preview_rect;
-            let hex_label = self.state.to_hex();
-            let r = (current_color.r * 255.0) as u8;
-            let g = (current_color.g * 255.0) as u8;
-            let b = (current_color.b * 255.0) as u8;
-
-            let text_col = if self.state.value > 0.5 && self.state.saturation < 0.6 {
-                Color::BLACK
-            } else {
-                Color::WHITE
-            };
-
-            node.set_text(format!("{}   R:{} G:{} B:{}", hex_label, r, g, b));
-            node.font_size = 11.0;
-            node.line_height = preview_h;
-            node.text_align = TextAlign::Center;
-            node.text_color = text_col;
-            node.style = Style::new()
-                .background(current_color)
-                .border(1.0, Color::rgba(0.35, 0.38, 0.45, 0.90))
-                .border_radius(4.0);
-        }
-        let _ = tree.add_child(card_id, prev_id);
-
-        (card_id, targets)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_rgb_to_hsv_and_back() {
-        // Red
-        let (h, s, v) = rgb_to_hsv(1.0, 0.0, 0.0);
-        assert!((h - 0.0).abs() < 0.01);
-        assert!((s - 1.0).abs() < 0.01);
-        assert!((v - 1.0).abs() < 0.01);
-        let col = hsv_to_rgb(h, s, v);
-        assert!((col.r - 1.0).abs() < 0.01);
-        assert!((col.g - 0.0).abs() < 0.01);
-        assert!((col.b - 0.0).abs() < 0.01);
+    fn test_rgb_hsv_roundtrip() {
+        let colors = [
+            Color::RED,
+            Color::GREEN,
+            Color::BLUE,
+            Color::WHITE,
+            Color::BLACK,
+            Color::rgba(0.2, 0.4, 0.8, 1.0),
+        ];
 
-        // Cyan
-        let (h, s, v) = rgb_to_hsv(0.0, 1.0, 1.0);
-        assert!((h - 180.0).abs() < 0.01);
-        assert!((s - 1.0).abs() < 0.01);
-        assert!((v - 1.0).abs() < 0.01);
-        let col = hsv_to_rgb(h, s, v);
-        assert!((col.r - 0.0).abs() < 0.01);
-        assert!((col.g - 1.0).abs() < 0.01);
-        assert!((col.b - 1.0).abs() < 0.01);
-
-        // White
-        let (h, s, v) = rgb_to_hsv(1.0, 1.0, 1.0);
-        assert!((s - 0.0).abs() < 0.01);
-        assert!((v - 1.0).abs() < 0.01);
-        let col = hsv_to_rgb(h, s, v);
-        assert!((col.r - 1.0).abs() < 0.01);
-        assert!((col.g - 1.0).abs() < 0.01);
-        assert!((col.b - 1.0).abs() < 0.01);
+        for c in colors {
+            let (h, s, v) = rgb_to_hsv(c.r, c.g, c.b);
+            let back = hsv_to_rgb(h, s, v);
+            assert!(
+                (c.r - back.r).abs() < 1e-4,
+                "R mismatch for {:?}: got {}",
+                c,
+                back.r
+            );
+            assert!(
+                (c.g - back.g).abs() < 1e-4,
+                "G mismatch for {:?}: got {}",
+                c,
+                back.g
+            );
+            assert!(
+                (c.b - back.b).abs() < 1e-4,
+                "B mismatch for {:?}: got {}",
+                c,
+                back.b
+            );
+        }
     }
 
     #[test]
-    fn test_hsv_color_picker_state_mutations() {
-        let mut state = HsvColorPickerState::from_color(Color::rgba(0.2, 0.5, 0.8, 1.0));
-        assert!(state.hue > 190.0 && state.hue < 230.0);
-        assert!(state.saturation > 0.6);
-        assert!(state.value > 0.7);
-
-        let sv_rect = Rect::new(10.0, 10.0, 100.0, 100.0);
-        state.update_from_sv_point(Point::new(60.0, 30.0), sv_rect);
-        assert!((state.saturation - 0.5).abs() < 0.01);
-        assert!((state.value - 0.8).abs() < 0.01);
-
-        let hue_rect = Rect::new(120.0, 10.0, 20.0, 100.0);
-        state.update_from_hue_point(Point::new(125.0, 60.0), hue_rect);
-        assert!((state.hue - 180.0).abs() < 0.01);
+    fn test_hsv_state_conversions() {
+        let state = HsvColorPickerState {
+            hue: 200.0,
+            saturation: 0.5,
+            value: 0.8,
+            alpha: 1.0,
+        };
+        let color = state.to_color();
+        let reconstructed = HsvColorPickerState::from_color(color);
+        assert!((state.hue - reconstructed.hue).abs() < 0.5);
+        assert!((state.saturation - reconstructed.saturation).abs() < 0.01);
+        assert!((state.value - reconstructed.value).abs() < 0.01);
 
         let hex = state.to_hex();
         assert!(hex.starts_with('#') && hex.len() == 7);
     }
 
     #[test]
-    fn test_hsv_color_picker_builder() {
-        let mut tree = UiTree::new();
-        let root = tree.create_node();
-        let _ = tree.set_root(root);
+    fn test_update_from_sv_and_hue_point() {
+        let mut state = HsvColorPickerState::default();
+        let sv_rect = Rect::new(10.0, 20.0, 100.0, 100.0);
+        let hue_rect = Rect::new(120.0, 20.0, 20.0, 100.0);
 
-        let state = HsvColorPickerState::default();
-        let (card_id, targets) = HsvColorPickerBuilder::new(
-            &mut tree,
-            root,
-            Rect::new(50.0, 50.0, 40.0, 20.0),
-            state,
-            Point::new(100.0, 100.0),
-            Rect::new(0.0, 0.0, 800.0, 600.0),
-        )
-        .build();
+        // Center click on SV box
+        state.update_from_sv_point(Point::new(60.0, 70.0), sv_rect);
+        assert!((state.saturation - 0.5).abs() < 0.01);
+        assert!((state.value - 0.5).abs() < 0.01);
 
-        assert!(tree.get(card_id).is_some());
-        assert!(targets.card_rect.width > 150.0);
-        assert!(targets.sv_box_rect.width > 100.0);
-        assert!(targets.hue_bar_rect.width > 10.0);
-        assert!(targets.close_btn_rect.is_some());
-    }
-
-    #[test]
-    fn test_evaluate_color_picker_click_and_drag() {
-        let targets = HsvColorPickerTargets {
-            card_rect: Rect::new(50.0, 50.0, 200.0, 220.0),
-            sv_box_rect: Rect::new(60.0, 80.0, 150.0, 120.0),
-            hue_bar_rect: Rect::new(215.0, 80.0, 20.0, 120.0),
-            preview_rect: Rect::new(60.0, 210.0, 175.0, 20.0),
-            close_btn_rect: Some(Rect::new(230.0, 55.0, 15.0, 15.0)),
-        };
-
-        let mut state = HsvColorPickerState {
-            hue: 0.0,
-            saturation: 1.0,
-            value: 1.0,
-            alpha: 1.0,
-        };
-
-        // 1. Close click
-        let close_action =
-            evaluate_color_picker_click(&targets, &mut state, Point::new(235.0, 60.0));
-        assert_eq!(close_action, ColorPickerClickAction::Close);
-
-        // 2. SV click
-        let sv_action = evaluate_color_picker_click(&targets, &mut state, Point::new(135.0, 140.0));
-        match sv_action {
-            ColorPickerClickAction::StartSvDrag { color } => {
-                assert!(color.r > 0.0);
-                assert!(state.saturation > 0.4 && state.saturation < 0.6);
-            }
-            _ => panic!("Expected StartSvDrag"),
-        }
-
-        // 3. Hue click
-        let hue_action =
-            evaluate_color_picker_click(&targets, &mut state, Point::new(220.0, 140.0));
-        match hue_action {
-            ColorPickerClickAction::StartHueDrag { color: _ } => {
-                assert!(state.hue > 170.0 && state.hue < 190.0);
-            }
-            _ => panic!("Expected StartHueDrag"),
-        }
-
-        // 4. Card Consumed
-        let card_action = evaluate_color_picker_click(&targets, &mut state, Point::new(55.0, 55.0));
-        assert_eq!(card_action, ColorPickerClickAction::CardConsumed);
-
-        // 5. Miss
-        let miss_action = evaluate_color_picker_click(&targets, &mut state, Point::new(10.0, 10.0));
-        assert_eq!(miss_action, ColorPickerClickAction::Miss);
-
-        // 6. Continuous Drag
-        let updated = evaluate_color_picker_drag(
-            &targets,
-            &mut state,
-            ColorPickerDragMode::SaturationValue,
-            Point::new(60.0, 80.0), // top-left: s=0, v=1 (white)
-        );
-        assert!((state.saturation - 0.0).abs() < 0.01);
-        assert!((state.value - 1.0).abs() < 0.01);
-        assert!((updated.r - 1.0).abs() < 0.01 && (updated.g - 1.0).abs() < 0.01);
-
-        // 7. Cursor Evaluation
-        assert_eq!(
-            evaluate_color_picker_cursor(&targets, Point::new(100.0, 100.0), None),
-            Some(ColorPickerCursor::Crosshair)
-        );
-        assert_eq!(
-            evaluate_color_picker_cursor(&targets, Point::new(220.0, 100.0), None),
-            Some(ColorPickerCursor::NsResize)
-        );
-        assert_eq!(
-            evaluate_color_picker_cursor(&targets, Point::new(235.0, 60.0), None),
-            Some(ColorPickerCursor::Pointer)
-        );
-        assert_eq!(
-            evaluate_color_picker_cursor(&targets, Point::new(10.0, 10.0), None),
-            None
-        );
-        // Active drag overrides hover position
-        assert_eq!(
-            evaluate_color_picker_cursor(
-                &targets,
-                Point::new(10.0, 10.0),
-                Some(ColorPickerDragMode::Hue)
-            ),
-            Some(ColorPickerCursor::NsResize)
-        );
+        // Halfway click on Hue bar
+        state.update_from_hue_point(Point::new(130.0, 70.0), hue_rect);
+        assert!((state.hue - 180.0).abs() < 1.0);
     }
 }

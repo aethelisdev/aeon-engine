@@ -142,8 +142,8 @@ pub struct PanelInteractionState<TTargets, TAction> {
     pub scroll_y: f32,
     /// Last synchronized vertical scroll offset for detecting in-place scroll deltas.
     pub last_scroll_y: f32,
-    /// Active text query typed in the search filter input.
-    pub search_query: String,
+    /// Encapsulated interactive text input editing state with selection, caret navigation and clipboard.
+    pub search_input: irisui::prelude::TextInputState,
     /// Queue of dispatched actions waiting to be consumed by the editor workbench.
     pub actions: Vec<TAction>,
 }
@@ -154,7 +154,7 @@ impl<TTargets, TAction> Default for PanelInteractionState<TTargets, TAction> {
             targets: None,
             scroll_y: 0.0,
             last_scroll_y: 0.0,
-            search_query: String::new(),
+            search_input: irisui::prelude::TextInputState::default(),
             actions: Vec::new(),
         }
     }
@@ -381,7 +381,7 @@ impl IrisEditorOverlay {
         self.focus_manager.has_focus()
             || self.inspector.active_number_input.is_some()
             || self.inspector.active_text_input.is_some()
-            || self.inspector.rename_buffer.is_some()
+            || self.inspector.rename_input.is_some()
             || self.inspector.hex_buffer.is_some()
             || self.modals.is_new_folder_active
             || self.modals.is_rename_active

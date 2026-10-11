@@ -609,6 +609,9 @@ mod tests {
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
             collapsed_entities: &collapsed,
+            is_scrollbar_dragging: false,
+            is_search_focused: false,
+            cursor_byte_idx: 0,
         };
 
         build_hierarchy_rows(&mut scope, &rows, &params);

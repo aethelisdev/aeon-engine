@@ -7,6 +7,7 @@
 //!
 
 use super::super::types::{IrisEditorOverlay, IrisOverlayEventResult};
+use crate::ui::iris_bridge::events::text_input::TextInputActionResult;
 use irisui::prelude::{ModalDialogAction, evaluate_modal_tag};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
@@ -31,18 +32,88 @@ impl IrisEditorOverlay {
 
         let mut result = IrisOverlayEventResult::default();
 
-        // 1. Keyboard event handling
-        match event {
-            WindowEvent::KeyboardInput {
-                event:
-                    winit::event::KeyEvent {
-                        physical_key: winit::keyboard::PhysicalKey::Code(key),
-                        state: ElementState::Pressed,
-                        text,
-                        ..
-                    },
-                ..
-            } => match *key {
+        // 1. Text Input modal keyboard and IME handling (New Folder)
+        if self.modals.is_new_folder_active {
+            let action = crate::ui::iris_bridge::events::text_input::handle_text_input_event(
+                &mut self.modals.new_folder_input,
+                event,
+                self.chrome.ctrl_held,
+            );
+            match action {
+                TextInputActionResult::Confirmed => {
+                    let folder = self.modals.new_folder_input.text().trim().to_string();
+                    if !folder.is_empty() {
+                        result.create_folder = Some(folder);
+                        self.modals.is_new_folder_active = false;
+                        self.modals.clear_new_folder();
+                        self.overlay_tree.close();
+                    }
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Cancelled => {
+                    result.cancel_new_folder = true;
+                    self.modals.is_new_folder_active = false;
+                    self.modals.clear_new_folder();
+                    self.overlay_tree.close();
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Changed => {
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Ignored => {}
+            }
+        }
+
+        // 2. Text Input modal keyboard and IME handling (Rename Asset / Folder)
+        if self.modals.is_rename_active {
+            let action = crate::ui::iris_bridge::events::text_input::handle_text_input_event(
+                &mut self.modals.rename_input,
+                event,
+                self.chrome.ctrl_held,
+            );
+            match action {
+                TextInputActionResult::Confirmed => {
+                    let rename = self.modals.rename_input.text().trim().to_string();
+                    if !rename.is_empty() {
+                        result.apply_rename = Some(rename);
+                        self.modals.is_rename_active = false;
+                        self.modals.clear_rename();
+                        self.overlay_tree.close();
+                    }
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Cancelled => {
+                    result.cancel_rename = true;
+                    self.modals.is_rename_active = false;
+                    self.modals.clear_rename();
+                    self.overlay_tree.close();
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Changed => {
+                    result.consumed = true;
+                    return Some(result);
+                }
+                TextInputActionResult::Ignored => {}
+            }
+        }
+
+        // 3. Non-text modal dialogues (About / Delete Confirmation)
+        if let WindowEvent::KeyboardInput {
+            event:
+                winit::event::KeyEvent {
+                    physical_key: winit::keyboard::PhysicalKey::Code(key),
+                    state: ElementState::Pressed,
+                    ..
+                },
+            ..
+        } = event
+        {
+            match *key {
                 winit::keyboard::KeyCode::Escape => {
                     if self.modals.is_about_active {
                         result.close_about = true;
@@ -50,190 +121,142 @@ impl IrisEditorOverlay {
                     } else if self.modals.is_delete_active {
                         result.cancel_delete = true;
                         self.modals.is_delete_active = false;
-                    } else if self.modals.is_new_folder_active {
-                        result.cancel_new_folder = true;
-                        self.modals.is_new_folder_active = false;
-                    } else if self.modals.is_rename_active {
-                        result.cancel_rename = true;
-                        self.modals.is_rename_active = false;
                     }
                     self.overlay_tree.close();
                     result.consumed = true;
                     return Some(result);
                 }
-                winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter => {
-                    if self.modals.is_delete_active {
-                        result.confirm_delete = true;
-                        self.modals.is_delete_active = false;
-                        self.overlay_tree.close();
-                    } else if self.modals.is_new_folder_active
-                        && !self.modals.new_folder_buffer.trim().is_empty()
-                    {
-                        result.create_folder = Some(self.modals.new_folder_buffer.clone());
-                        self.modals.is_new_folder_active = false;
-                        self.overlay_tree.close();
-                    } else if self.modals.is_rename_active
-                        && !self.modals.rename_buffer.trim().is_empty()
-                    {
-                        result.apply_rename = Some(self.modals.rename_buffer.clone());
-                        self.modals.is_rename_active = false;
-                        self.overlay_tree.close();
-                    }
+                winit::keyboard::KeyCode::Enter | winit::keyboard::KeyCode::NumpadEnter
+                    if self.modals.is_delete_active =>
+                {
+                    result.confirm_delete = true;
+                    self.modals.is_delete_active = false;
+                    self.overlay_tree.close();
                     result.consumed = true;
                     return Some(result);
                 }
-                winit::keyboard::KeyCode::Backspace => {
-                    if self.modals.is_new_folder_active {
-                        self.modals.new_folder_buffer.pop();
-                        result.consumed = true;
-                        return Some(result);
-                    } else if self.modals.is_rename_active {
-                        self.modals.rename_buffer.pop();
-                        result.consumed = true;
-                        return Some(result);
-                    }
-                }
-                _ => {
-                    if let Some(t) = text
-                        && !t.chars().any(|c| c.is_control())
-                    {
-                        if self.modals.is_new_folder_active {
-                            self.modals.new_folder_buffer.push_str(t);
-                            result.consumed = true;
-                            return Some(result);
-                        } else if self.modals.is_rename_active {
-                            self.modals.rename_buffer.push_str(t);
-                            result.consumed = true;
-                            return Some(result);
-                        }
-                    }
-                }
-            },
-            WindowEvent::Ime(winit::event::Ime::Commit(t)) => {
-                if self.modals.is_new_folder_active {
-                    self.modals.new_folder_buffer.push_str(t);
-                    result.consumed = true;
-                    return Some(result);
-                } else if self.modals.is_rename_active {
-                    self.modals.rename_buffer.push_str(t);
-                    result.consumed = true;
-                    return Some(result);
-                }
+                _ => {}
             }
-            WindowEvent::MouseInput {
-                state: ElementState::Pressed,
-                button: WinitMouseButton::Left,
-                ..
-            } => {
-                let click_point = self.cursor_pos();
-                let hit_target = self
-                    .overlay_tree
-                    .tree()
-                    .hit_test_target(click_point)
-                    .or_else(|| self.tree.hit_test_target(click_point));
+        }
 
-                if let Some(ref h) = hit_target {
-                    self.modals.pending_interaction_events.push((
-                        h.id,
-                        irisui::prelude::InteractionEvent::Click {
-                            button: irisui::prelude::MouseButton::Left,
-                        },
-                    ));
-                }
+        if let WindowEvent::MouseInput {
+            state: ElementState::Pressed,
+            button: WinitMouseButton::Left,
+            ..
+        } = event
+        {
+            let click_point = self.cursor_pos();
+            let hit_target = self
+                .overlay_tree
+                .tree()
+                .hit_test_target(click_point)
+                .or_else(|| self.tree.hit_test_target(click_point));
 
-                let modal_action = hit_target.and_then(|h| evaluate_modal_tag(h.tag));
+            if let Some(ref h) = hit_target {
+                self.modals.pending_interaction_events.push((
+                    h.id,
+                    irisui::prelude::InteractionEvent::Click {
+                        button: irisui::prelude::MouseButton::Left,
+                    },
+                ));
+            }
 
-                if self.modals.is_about_active {
-                    if let Some(action) = modal_action {
-                        match action {
-                            ModalDialogAction::Close
-                            | ModalDialogAction::Confirm
-                            | ModalDialogAction::Cancel
-                            | ModalDialogAction::ScrimDismiss => {
-                                result.close_about = true;
-                                self.modals.is_about_active = false;
-                                self.overlay_tree.close();
-                            }
+            let modal_action = hit_target.and_then(|h| evaluate_modal_tag(h.tag));
+
+            if self.modals.is_about_active {
+                if let Some(action) = modal_action {
+                    match action {
+                        ModalDialogAction::Close
+                        | ModalDialogAction::Confirm
+                        | ModalDialogAction::Cancel
+                        | ModalDialogAction::ScrimDismiss => {
+                            result.close_about = true;
+                            self.modals.is_about_active = false;
+                            self.overlay_tree.close();
                         }
                     }
-                    result.consumed = true;
-                    return Some(result);
                 }
+                result.consumed = true;
+                return Some(result);
+            }
 
-                if self.modals.is_delete_active {
-                    if let Some(action) = modal_action {
-                        match action {
-                            ModalDialogAction::Confirm => {
-                                result.confirm_delete = true;
-                                self.modals.is_delete_active = false;
-                                self.overlay_tree.close();
-                            }
-                            ModalDialogAction::Close
-                            | ModalDialogAction::Cancel
-                            | ModalDialogAction::ScrimDismiss => {
-                                result.cancel_delete = true;
-                                self.modals.is_delete_active = false;
-                                self.overlay_tree.close();
-                            }
+            if self.modals.is_delete_active {
+                if let Some(action) = modal_action {
+                    match action {
+                        ModalDialogAction::Confirm => {
+                            result.confirm_delete = true;
+                            self.modals.is_delete_active = false;
+                            self.overlay_tree.close();
+                        }
+                        ModalDialogAction::Close
+                        | ModalDialogAction::Cancel
+                        | ModalDialogAction::ScrimDismiss => {
+                            result.cancel_delete = true;
+                            self.modals.is_delete_active = false;
+                            self.overlay_tree.close();
                         }
                     }
-                    result.consumed = true;
-                    return Some(result);
                 }
+                result.consumed = true;
+                return Some(result);
+            }
 
-                if self.modals.is_new_folder_active {
-                    if let Some(action) = modal_action {
-                        match action {
-                            ModalDialogAction::Confirm => {
-                                if !self.modals.new_folder_buffer.trim().is_empty() {
-                                    result.create_folder =
-                                        Some(self.modals.new_folder_buffer.clone());
-                                    self.modals.is_new_folder_active = false;
-                                    self.overlay_tree.close();
-                                }
-                            }
-                            ModalDialogAction::Close
-                            | ModalDialogAction::Cancel
-                            | ModalDialogAction::ScrimDismiss => {
-                                result.cancel_new_folder = true;
+            if self.modals.is_new_folder_active {
+                if let Some(action) = modal_action {
+                    match action {
+                        ModalDialogAction::Confirm => {
+                            let folder = self.modals.new_folder_input.text().trim().to_string();
+                            if !folder.is_empty() {
+                                result.create_folder = Some(folder);
                                 self.modals.is_new_folder_active = false;
+                                self.modals.clear_new_folder();
                                 self.overlay_tree.close();
                             }
                         }
-                    }
-                    result.consumed = true;
-                    return Some(result);
-                }
-
-                if self.modals.is_rename_active {
-                    if let Some(action) = modal_action {
-                        match action {
-                            ModalDialogAction::Confirm => {
-                                if !self.modals.rename_buffer.trim().is_empty() {
-                                    result.apply_rename = Some(self.modals.rename_buffer.clone());
-                                    self.modals.is_rename_active = false;
-                                    self.overlay_tree.close();
-                                }
-                            }
-                            ModalDialogAction::Close
-                            | ModalDialogAction::Cancel
-                            | ModalDialogAction::ScrimDismiss => {
-                                result.cancel_rename = true;
-                                self.modals.is_rename_active = false;
-                                self.overlay_tree.close();
-                            }
+                        ModalDialogAction::Close
+                        | ModalDialogAction::Cancel
+                        | ModalDialogAction::ScrimDismiss => {
+                            result.cancel_new_folder = true;
+                            self.modals.is_new_folder_active = false;
+                            self.modals.clear_new_folder();
+                            self.overlay_tree.close();
                         }
                     }
-                    result.consumed = true;
-                    return Some(result);
                 }
-
-                if self.modals.is_loading_active {
-                    result.consumed = true;
-                    return Some(result);
-                }
+                result.consumed = true;
+                return Some(result);
             }
-            _ => {}
+
+            if self.modals.is_rename_active {
+                if let Some(action) = modal_action {
+                    match action {
+                        ModalDialogAction::Confirm => {
+                            let rename = self.modals.rename_input.text().trim().to_string();
+                            if !rename.is_empty() {
+                                result.apply_rename = Some(rename);
+                                self.modals.is_rename_active = false;
+                                self.modals.clear_rename();
+                                self.overlay_tree.close();
+                            }
+                        }
+                        ModalDialogAction::Close
+                        | ModalDialogAction::Cancel
+                        | ModalDialogAction::ScrimDismiss => {
+                            result.cancel_rename = true;
+                            self.modals.is_rename_active = false;
+                            self.modals.clear_rename();
+                            self.overlay_tree.close();
+                        }
+                    }
+                }
+                result.consumed = true;
+                return Some(result);
+            }
+
+            if self.modals.is_loading_active {
+                result.consumed = true;
+                return Some(result);
+            }
         }
 
         None

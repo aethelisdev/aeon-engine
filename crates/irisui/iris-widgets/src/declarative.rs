@@ -22,6 +22,7 @@ pub use layout::{
 pub use scope::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
     PropertyVec3Options, PropertyVec3Response, UiScope, WrappedLabelDescriptor,
+    calculate_visible_slice_and_caret, measure_text_advance,
 };
 pub use types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,

@@ -573,26 +573,11 @@ pub fn handle_assets_panel_event(
             }
         }
 
-        // 5b. Search box typing (when active)
+        // 5b. Search box focus release on Enter (typing is centralized in workbench/events/keyboard.rs)
         if ctx.is_search_focused {
-            match logical_key {
-                Key::Named(NamedKey::Backspace) => {
-                    let mut new_query = ctx.search_query.to_string();
-                    new_query.pop();
-                    out_actions.push(AssetsPanelAction::SearchInput(new_query));
-                    return true;
-                }
-                Key::Named(NamedKey::Enter) => {
-                    out_actions.push(AssetsPanelAction::FocusSearch(false));
-                    return true;
-                }
-                Key::Character(text) => {
-                    let mut new_query = ctx.search_query.to_string();
-                    new_query.push_str(text.as_str());
-                    out_actions.push(AssetsPanelAction::SearchInput(new_query));
-                    return true;
-                }
-                _ => {}
+            if matches!(logical_key, Key::Named(NamedKey::Enter)) {
+                out_actions.push(AssetsPanelAction::FocusSearch(false));
+                return true;
             }
         } else if ctx.preview_modal.is_none() {
             // 5c. Spacebar: Quick Asset Preview modal

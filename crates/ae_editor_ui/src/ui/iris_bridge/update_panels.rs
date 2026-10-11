@@ -70,7 +70,7 @@ impl IrisEditorOverlay {
                 panel_rect: local_hier_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: &self.hierarchy.interactions.search_query,
+                search_query: self.hierarchy.interactions.search_input.text(),
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
                 scroll_y: self.hierarchy.scroll_y,
@@ -81,6 +81,11 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
+                is_scrollbar_dragging: self.hierarchy.active_scrollbar_drag.is_some(),
+                is_search_focused: self
+                    .focus_manager
+                    .is_tag_focused(super::hierarchy::HIERARCHY_TAG_SEARCH_INPUT),
+                cursor_byte_idx: self.hierarchy.interactions.search_input.cursor_byte_idx,
             };
 
             let max_scroll = hierarchy::build_hierarchy_panel(
@@ -126,10 +131,10 @@ impl IrisEditorOverlay {
                 .map(|(_, id, s)| (*id, s.as_str()));
             let rename_buf_ref = self
                 .inspector
-                .rename_buffer
+                .rename_input
                 .as_ref()
                 .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
-                .map(|(_, s)| s.as_str());
+                .map(|(_, input)| input.text());
             let hex_buf_ref = self
                 .inspector
                 .hex_buffer
@@ -194,16 +199,21 @@ impl IrisEditorOverlay {
         {
             self.console.panel_rect = Some(console_rect);
             let local_console_rect = Rect::new(0.0, 0.0, console_rect.width, console_rect.height);
+            let is_search_focused = self
+                .focus_manager
+                .is_tag_focused(super::console::CONSOLE_TAG_SEARCH_INPUT);
             let console_params = super::console::ConsolePanelParams {
                 panel_rect: local_console_rect,
                 entries: params.panel_data.console_entries,
                 scroll_y: self.console.scroll_y,
                 filter: self.console.filter,
-                search_query: &self.console.search_query,
+                search_query: self.console.search_input.text(),
                 auto_scroll: self.console.auto_scroll,
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 is_scrollbar_dragging: self.console.active_scrollbar_drag.is_some(),
+                is_search_focused,
+                cursor_byte_idx: self.console.search_input.cursor_byte_idx,
             };
 
             let max_scroll = super::console::build_console_panel(tree, root, &console_params);
@@ -226,7 +236,7 @@ impl IrisEditorOverlay {
         {
             let is_root_folder =
                 params.panel_data.asset_browser.current_folder == std::path::Path::new("assets");
-            let query_lower = self.assets.search_query.trim().to_ascii_lowercase();
+            let query_lower = self.assets.search_input.text().trim().to_ascii_lowercase();
 
             let filtered_items: Vec<_> = params
                 .panel_data
@@ -284,7 +294,7 @@ impl IrisEditorOverlay {
                 panel_rect: local_assets_rect,
                 screen_size: (self.screen_width, self.screen_height),
                 current_folder: &self.assets.current_folder,
-                search_query: &self.assets.search_query,
+                search_query: self.assets.search_input.text(),
                 active_category: params.panel_data.asset_browser.active_category,
                 view_mode: params.panel_data.asset_browser.view_mode,
                 selected_asset: params.panel_data.asset_browser.selected_asset.as_deref(),
@@ -302,6 +312,10 @@ impl IrisEditorOverlay {
                 active_preview_modal: self.assets.preview_modal.as_ref(),
                 subfolders: &params.panel_data.asset_browser.subfolders,
                 thumbnail_layers: &self.assets.thumbnail_layers,
+                is_search_focused: self
+                    .focus_manager
+                    .is_tag_focused(super::assets::ASSETS_TAG_SEARCH_INPUT),
+                cursor_byte_idx: self.assets.search_input.cursor_byte_idx,
             };
 
             let metrics = super::assets::build_assets_panel(tree, root, &assets_params);

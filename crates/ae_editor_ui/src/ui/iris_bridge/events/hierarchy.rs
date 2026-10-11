@@ -13,7 +13,7 @@ use crate::ui::iris_bridge::hierarchy::{
     resolve_hierarchy_tag,
 };
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
-use irisui::prelude::{MouseButton, UiLayer, WidgetRole};
+use irisui::prelude::{MouseButton, Rect, ScrollAreaStyle, ScrollBarGeometry, UiLayer, WidgetRole};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
@@ -23,6 +23,52 @@ impl IrisEditorOverlay {
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
         let mut result = IrisOverlayEventResult::default();
+
+        // 0a. Scrollbar drag release
+        if let WindowEvent::MouseInput {
+            state: ElementState::Released,
+            button: WinitMouseButton::Left,
+            ..
+        } = event
+            && self.hierarchy.active_scrollbar_drag.is_some()
+        {
+            self.hierarchy.active_scrollbar_drag = None;
+            self.release_pointer_capture();
+            self.chrome.needs_scroll_sync = true;
+            result.consumed = true;
+            return Some(result);
+        }
+
+        // 0b. Scrollbar continuous mouse drag
+        if let WindowEvent::CursorMoved { .. } = event
+            && let Some((start_y, start_scroll)) = self.hierarchy.active_scrollbar_drag
+        {
+            let cursor = self.cursor_pos();
+            let delta_y = cursor.y - start_y;
+            let panel_rect = self
+                .hierarchy
+                .last_rect
+                .unwrap_or(Rect::new(0.0, 0.0, 260.0, 400.0));
+            let vp_h = (panel_rect.height - 63.0).max(40.0);
+            let total_h = vp_h + self.hierarchy.max_scroll;
+            let vp_rect = Rect::new(0.0, 31.0, panel_rect.width, vp_h);
+            let scroll_style = ScrollAreaStyle::dark_default();
+            if let Some(geom) =
+                ScrollBarGeometry::compute_vertical(vp_rect, total_h, start_scroll, &scroll_style)
+            {
+                let delta_scroll = ScrollBarGeometry::scroll_from_thumb_drag(
+                    delta_y,
+                    geom.track_rect.height,
+                    geom.thumb_rect.height,
+                    self.hierarchy.max_scroll,
+                );
+                self.hierarchy.scroll_y =
+                    (start_scroll + delta_scroll).clamp(0.0, self.hierarchy.max_scroll);
+                self.chrome.needs_scroll_sync = true;
+                result.consumed = true;
+                return Some(result);
+            }
+        }
 
         // 1. Mouse Input Handling (Entity clicking, context menus, search bar focus, add menu)
         if let WindowEvent::MouseInput {
@@ -144,7 +190,7 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         HierarchyTagTarget::SearchClear => {
-                            self.hierarchy.search_query.clear();
+                            self.hierarchy.search_input.clear();
                             self.notifier.tag_all();
                             result.consumed = true;
                             return Some(result);
@@ -226,6 +272,56 @@ impl IrisEditorOverlay {
                             return Some(result);
                         }
                         HierarchyTagTarget::Viewport => {}
+                        HierarchyTagTarget::ScrollbarThumb => {
+                            self.hierarchy.active_scrollbar_drag =
+                                Some((click_point.y, self.hierarchy.scroll_y));
+                            self.set_pointer_capture(crate::ui::panel_layout::PanelId::Hierarchy);
+                            result.consumed = true;
+                            return Some(result);
+                        }
+                        HierarchyTagTarget::ScrollbarTrack => {
+                            let panel_rect = self
+                                .hierarchy
+                                .last_rect
+                                .unwrap_or(Rect::new(0.0, 0.0, 260.0, 400.0));
+                            let vp_h = (panel_rect.height - 63.0).max(40.0);
+                            let total_h = vp_h + self.hierarchy.max_scroll;
+                            let vp_rect = Rect::new(0.0, 31.0, panel_rect.width, vp_h);
+                            let style = ScrollAreaStyle::dark_default();
+                            if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                                vp_rect,
+                                total_h,
+                                self.hierarchy.scroll_y,
+                                &style,
+                            ) {
+                                let local_y = if let Some(bounds) = self.hierarchy.last_rect {
+                                    crate::ui::iris_bridge::compositor::screen_to_panel_local(
+                                        click_point,
+                                        bounds,
+                                    )
+                                    .y
+                                } else {
+                                    click_point.y
+                                };
+                                let target_scroll = ScrollBarGeometry::scroll_from_track_click(
+                                    local_y,
+                                    geom.track_rect.y,
+                                    geom.track_rect.height,
+                                    geom.thumb_rect.height,
+                                    self.hierarchy.max_scroll,
+                                );
+                                self.hierarchy.scroll_y =
+                                    target_scroll.clamp(0.0, self.hierarchy.max_scroll);
+                                self.hierarchy.active_scrollbar_drag =
+                                    Some((click_point.y, self.hierarchy.scroll_y));
+                                self.set_pointer_capture(
+                                    crate::ui::panel_layout::PanelId::Hierarchy,
+                                );
+                                self.chrome.needs_scroll_sync = true;
+                                result.consumed = true;
+                                return Some(result);
+                            }
+                        }
                     }
                 }
             }
