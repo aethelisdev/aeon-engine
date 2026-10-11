@@ -40,9 +40,10 @@ pub use drag_drop::{
     calculate_leaf_half_drop_zone, calculate_screen_drop_zone,
 };
 pub use events::{
-    DEFAULT_FLOATING_PANE_SIZE, PendingTabDrag, SplitterInteractionResponse,
-    TAB_DRAG_MOTION_THRESHOLD_SQ, TabDragInteractionResponse, TabStripInteractionResponse,
-    handle_splitter_event, handle_tab_drag_event, handle_tab_strip_event,
+    DEFAULT_FLOATING_PANE_SIZE, FloatingInteractionResponse, PendingTabDrag,
+    SplitterInteractionResponse, TAB_DRAG_MOTION_THRESHOLD_SQ, TabDragInteractionResponse,
+    TabStripInteractionResponse, handle_floating_window_event, handle_splitter_event,
+    handle_tab_drag_event, handle_tab_strip_event,
 };
 pub use floating::{
     DEFAULT_RESIZE_MARGIN, FloatingDragState, FloatingResizeEdge, FloatingWindow,

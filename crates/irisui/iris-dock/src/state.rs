@@ -5,7 +5,7 @@
 
 use crate::context_menu::TabContextMenuState;
 use crate::drag_drop::{DockDragState, DropZone, calculate_drop_preview_rect};
-use crate::floating::FloatingWindow;
+use crate::floating::{FloatingDragState, FloatingWindow};
 use crate::layout::ComputedDockLayout;
 use crate::tree::{DockError, DockNode, DockNodeId, DockTree, SplitDirection};
 use iris_core::{Point, Rect};
@@ -56,6 +56,9 @@ pub struct DockState<T> {
     /// Active tab overflow dropdown menu, storing leaf ID and anchor rect if open.
     #[serde(skip)]
     pub active_overflow: Option<(DockNodeId, Rect)>,
+    /// Active floating window drag state, tracking window identifier and title or resize mode.
+    #[serde(skip)]
+    pub active_floating_drag: Option<(u64, FloatingDragState)>,
 }
 
 fn default_min_pane_size() -> f32 {
@@ -81,6 +84,20 @@ impl<T> DockState<T> {
             auto_hide_single_tab_bar: false,
             active_context_menu: None,
             active_overflow: None,
+            active_floating_drag: None,
+        }
+    }
+
+    /// Brings the specified floating window to the front of the visual stacking order (Z-order).
+    pub fn bring_floating_to_front(&mut self, window_id: u64) {
+        if let Some(pos) = self
+            .floating_windows
+            .iter()
+            .position(|w| w.id == window_id)
+            .filter(|&pos| pos + 1 < self.floating_windows.len())
+        {
+            let win = self.floating_windows.remove(pos);
+            self.floating_windows.push(win);
         }
     }
 

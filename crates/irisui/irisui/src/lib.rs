@@ -41,8 +41,8 @@ pub mod prelude {
         DockNavigatorGeometry, DockNavigatorStyle, DockNode, DockNodeId, DockOverflowClickAction,
         DockOverflowItemTarget, DockOverflowMenuFrame, DockOverflowMenuParams,
         DockOverflowMenuStyle, DockPanel, DockSplitterTarget, DockState, DockStyle, DockTabTarget,
-        DockTree, DropZone, FloatingDockWindow, FloatingDragState, FloatingResizeEdge,
-        FloatingTabBadgeParams, FloatingWindow, FloatingWindowClampBounds,
+        DockTree, DropZone, FloatingDockWindow, FloatingDragState, FloatingInteractionResponse,
+        FloatingResizeEdge, FloatingTabBadgeParams, FloatingWindow, FloatingWindowClampBounds,
         FloatingWindowClickAction, FloatingWindowCursor, FloatingWindowId, FloatingWindowStyle,
         LeafLayoutInfo, MultiViewportManager, PanelRegistry, PendingTabDrag, SimpleTabViewer,
         SplitDirection, SplitterInteractionResponse, SplitterLayoutInfo,
@@ -55,8 +55,8 @@ pub mod prelude {
         compute_dock_layout, compute_dock_layout_advanced, compute_dock_layout_with_options,
         compute_dock_layout_with_viewer, compute_floating_layouts, compute_tab_bar_layout,
         detect_resize_edge, evaluate_dock_overflow_click, evaluate_floating_resize_cursor,
-        evaluate_floating_window_click, find_active_tab_content_rect, handle_splitter_event,
-        handle_tab_drag_event, handle_tab_strip_event, hit_test_navigator,
+        evaluate_floating_window_click, find_active_tab_content_rect, handle_floating_window_event,
+        handle_splitter_event, handle_tab_drag_event, handle_tab_strip_event, hit_test_navigator,
     };
     pub use iris_layout::{LayoutEngine, LayoutError};
     pub use iris_text::{
