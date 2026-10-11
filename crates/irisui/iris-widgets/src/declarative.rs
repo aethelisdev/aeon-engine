@@ -21,7 +21,7 @@ pub use layout::{
 };
 pub use scope::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, UiScope, WrappedLabelDescriptor,
+    PropertyVec3Options, PropertyVec3Response, ScrollAreaConfig, UiScope, WrappedLabelDescriptor,
     calculate_visible_slice_and_caret, measure_text_advance,
 };
 pub use types::{

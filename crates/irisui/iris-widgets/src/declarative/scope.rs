@@ -18,6 +18,9 @@ pub mod menu;
 pub mod modal;
 pub mod progress;
 pub mod properties;
+pub mod scroll_area;
+
+pub use scroll_area::ScrollAreaConfig;
 
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,

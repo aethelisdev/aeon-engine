@@ -35,7 +35,7 @@ pub use context_menu::{
 };
 pub use declarative::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, ScopeId, UiScope, WidgetResponse,
+    PropertyVec3Options, PropertyVec3Response, ScopeId, ScrollAreaConfig, UiScope, WidgetResponse,
     WrappedLabelDescriptor, calculate_visible_slice_and_caret, combine_seeds, hash_label,
     hash_label_with_seed, layout_subtree, measure_content_height, measure_height,
     measure_height_constrained, measure_text_advance, measure_width, split_label_id,
