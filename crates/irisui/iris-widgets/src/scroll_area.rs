@@ -12,6 +12,7 @@ pub mod scroll_bar;
 pub mod style;
 pub mod types;
 pub mod virtual_list;
+pub mod wheel;
 
 pub use area::{ScrollArea, ScrollAreaBuilder, ScrollAreaFrame};
 pub use scroll_bar::ScrollBarGeometry;
@@ -21,3 +22,6 @@ pub use types::{
     VirtualSlice,
 };
 pub use virtual_list::VirtualList;
+pub use wheel::{
+    DEFAULT_SCROLL_STEP, WheelScrollConfig, WheelScrollResponse, evaluate_wheel_scroll,
+};
