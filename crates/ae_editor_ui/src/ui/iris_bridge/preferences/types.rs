@@ -379,8 +379,8 @@ pub struct PreferencesDialogState {
     pub dropdown_trigger_rect: Option<Rect>,
     /// Currently active continuous slider or float drag semantic tag.
     pub active_drag_tag: Option<u64>,
-    /// Active scrollbar dragging state: `(start_cursor_y, start_scroll_y)`.
-    pub active_scrollbar_drag: Option<(f32, f32)>,
+    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
+    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Currently active inline numeric text editing state: `(target_tag, current_string_buffer, is_all_selected)`.
     pub active_number_input: Option<(u64, String, bool)>,
     /// Whether the text caret is currently visible during inline editing.

@@ -86,7 +86,7 @@ impl IrisEditorOverlay {
                     window_pos: self.preferences.pos,
                     active_tab: self.preferences.tab,
                     scroll_offset_y: self.preferences.scroll_y,
-                    is_scrollbar_dragging: self.preferences.active_scrollbar_drag.is_some(),
+                    is_scrollbar_dragging: self.preferences.scroll_state.is_dragging(),
                     active_dropdown: self.preferences.dropdown,
                     dropdown_trigger_rect: self.preferences.dropdown_trigger_rect,
                     collapsed_sections: &self.preferences.collapsed_sections,
@@ -260,7 +260,7 @@ impl IrisEditorOverlay {
                 cursor_pos: cursor,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
-                is_scrollbar_dragging: self.hierarchy.active_scrollbar_drag.is_some(),
+                is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
                 is_search_focused: self
                     .focus_manager
                     .is_tag_focused(hierarchy::HIERARCHY_TAG_SEARCH_INPUT),

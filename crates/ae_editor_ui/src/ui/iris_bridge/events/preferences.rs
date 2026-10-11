@@ -5,8 +5,8 @@
 //! using 100% declarative semantic tags and O(1) hit testing.
 
 use super::super::preferences::{
-    PREF_CARD_HEIGHT, PREF_CARD_WIDTH, PreferencesAction, PreferencesTagTarget, TITLEBAR_HEIGHT,
-    is_preferences_tag, parse_dropdown_item_tag, resolve_preferences_tag,
+    PREF_CARD_HEIGHT, PREF_CARD_WIDTH, PreferencesAction, PreferencesTagTarget, is_preferences_tag,
+    parse_dropdown_item_tag, resolve_preferences_tag,
 };
 use super::super::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
@@ -23,7 +23,7 @@ impl IrisEditorOverlay {
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
         if self.preferences.drag_offset.is_none()
-            && self.preferences.active_scrollbar_drag.is_none()
+            && !self.preferences.scroll_state.is_dragging()
             && self.preferences.active_drag_tag.is_none()
         {
             return None;
@@ -64,34 +64,26 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
 
-                // 3. Scrollbar Thumb Dragging
-                if let Some((start_cursor_y, start_scroll_y)) =
-                    self.preferences.active_scrollbar_drag
+                // 3. Scrollbar Thumb Dragging via autonomous scroll state
+                if self.preferences.scroll_state.is_dragging()
+                    && let Some(content_rect) = self.preferences.content_rect
+                    && let Some(ui_event) =
+                        super::adapter::winit_to_ui_event(event, self.cursor_pos())
                 {
-                    let delta_y = self.cursor_pos().y - start_cursor_y;
-                    let max_scroll = self.preferences.max_scroll_y;
-                    let content_h = PREF_CARD_HEIGHT - TITLEBAR_HEIGHT;
-                    let total_h = content_h + max_scroll;
-                    let content_rect = self.preferences.content_rect.unwrap_or_default();
-                    let style = ScrollAreaStyle {
-                        thickness: 6.0,
-                        inset: 3.0,
-                        ..ScrollAreaStyle::dark_default()
-                    };
-                    if let Some(geom) = ScrollBarGeometry::compute_vertical(
+                    let scroll_frame = ScrollAreaFrame::from_geometry(
                         content_rect,
-                        total_h,
+                        content_rect.height + self.preferences.max_scroll_y,
                         self.preferences.scroll_y,
-                        &style,
-                    ) {
-                        let scroll_delta = ScrollBarGeometry::scroll_from_thumb_drag(
-                            delta_y,
-                            geom.track_rect.height,
-                            geom.thumb_rect.height,
-                            max_scroll,
-                        );
-                        self.preferences.scroll_y =
-                            (start_scroll_y + scroll_delta).clamp(0.0, max_scroll);
+                        &ScrollAreaStyle::dark_default(),
+                    );
+                    let scroll_res = handle_scroll_area_event(
+                        &mut self.preferences.scroll_state,
+                        &ui_event,
+                        &scroll_frame,
+                        None,
+                    );
+                    if scroll_res.consumed {
+                        self.preferences.scroll_y = scroll_res.scroll_y;
                         self.chrome.needs_scroll_sync = true;
                         self.chrome.needs_layout_rebuild = true;
                         self.notifier.tag_all();
@@ -116,8 +108,24 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     return Some(result);
                 }
-                if self.preferences.active_scrollbar_drag.is_some() {
-                    self.preferences.active_scrollbar_drag = None;
+                if self.preferences.scroll_state.is_dragging() {
+                    if let Some(content_rect) = self.preferences.content_rect
+                        && let Some(ui_event) =
+                            super::adapter::winit_to_ui_event(event, self.cursor_pos())
+                    {
+                        let scroll_frame = ScrollAreaFrame::from_geometry(
+                            content_rect,
+                            content_rect.height + self.preferences.max_scroll_y,
+                            self.preferences.scroll_y,
+                            &ScrollAreaStyle::dark_default(),
+                        );
+                        let _ = handle_scroll_area_event(
+                            &mut self.preferences.scroll_state,
+                            &ui_event,
+                            &scroll_frame,
+                            None,
+                        );
+                    }
                     self.chrome.needs_scroll_sync = true;
                     self.chrome.needs_layout_rebuild = true;
                     self.notifier.tag_all();
@@ -143,6 +151,33 @@ impl IrisEditorOverlay {
 
         let card_rect = self.preferences.card_rect?;
         let mut result = IrisOverlayEventResult::default();
+
+        // Autonomous ScrollArea event handling for Preferences view (wheel & scrollbar click/drag)
+        if let Some(content_rect) = self.preferences.content_rect
+            && let Some(ui_event) = super::adapter::winit_to_ui_event(event, self.cursor_pos())
+        {
+            let scroll_frame = ScrollAreaFrame::from_geometry(
+                content_rect,
+                content_rect.height + self.preferences.max_scroll_y,
+                self.preferences.scroll_y,
+                &ScrollAreaStyle::dark_default(),
+            );
+            self.preferences.scroll_state.scroll_y = self.preferences.scroll_y;
+            let scroll_res = handle_scroll_area_event(
+                &mut self.preferences.scroll_state,
+                &ui_event,
+                &scroll_frame,
+                None,
+            );
+            if scroll_res.consumed {
+                self.preferences.scroll_y = scroll_res.scroll_y;
+                self.chrome.needs_scroll_sync = true;
+                self.chrome.needs_layout_rebuild = true;
+                self.notifier.tag_all();
+                result.consumed = true;
+                return Some(result);
+            }
+        }
 
         match event {
             WindowEvent::KeyboardInput {
@@ -216,32 +251,13 @@ impl IrisEditorOverlay {
                     } else {
                         result.close_preferences = true;
                         self.preferences.drag_offset = None;
-                        self.preferences.active_scrollbar_drag = None;
+                        self.preferences.scroll_state.drag_state = None;
                     }
                     result.consumed = true;
                     return Some(result);
                 }
             }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let cursor = self.cursor_pos();
-                let is_over_card = cursor.x >= card_rect.x
-                    && cursor.x <= card_rect.right()
-                    && cursor.y >= card_rect.y
-                    && cursor.y <= card_rect.bottom();
-                if !self.is_point_over_popup(cursor) && is_over_card {
-                    let scroll_y = match delta {
-                        winit::event::MouseScrollDelta::LineDelta(_, y) => *y * 28.0,
-                        winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
-                    };
-                    self.preferences.scroll_y = (self.preferences.scroll_y - scroll_y)
-                        .clamp(0.0, self.preferences.max_scroll_y);
-                    self.chrome.needs_scroll_sync = true;
-                    self.chrome.needs_layout_rebuild = true;
-                    self.notifier.tag_all();
-                    result.consumed = true;
-                    return Some(result);
-                }
-            }
+
             WindowEvent::CursorMoved { position, .. } => {
                 self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
             }
@@ -376,52 +392,17 @@ impl IrisEditorOverlay {
                             self.preferences.dropdown = None;
                             self.preferences.dropdown_trigger_rect = None;
                             self.preferences.scroll_y = 0.0;
-                            self.preferences.active_scrollbar_drag = None;
+                            self.preferences.scroll_state.scroll_y = 0.0;
+                            self.preferences.scroll_state.drag_state = None;
                             self.notifier.tag_all();
                             result.preferences_action = Some(PreferencesAction::SelectTab(tab_idx));
                             result.consumed = true;
                             return Some(result);
                         }
-                        PreferencesTagTarget::ScrollbarThumb => {
-                            self.preferences.active_scrollbar_drag =
-                                Some((click_point.y, self.preferences.scroll_y));
-                            self.chrome.needs_scroll_sync = true;
-                            self.chrome.needs_layout_rebuild = true;
-                            self.notifier.tag_all();
+                        PreferencesTagTarget::ScrollbarThumb
+                        | PreferencesTagTarget::ScrollbarTrack => {
                             result.consumed = true;
                             return Some(result);
-                        }
-                        PreferencesTagTarget::ScrollbarTrack => {
-                            let content_rect = self.preferences.content_rect.unwrap_or_default();
-                            let total_h = content_rect.height + self.preferences.max_scroll_y;
-                            let style = ScrollAreaStyle {
-                                thickness: 6.0,
-                                inset: 3.0,
-                                ..ScrollAreaStyle::dark_default()
-                            };
-                            if let Some(geom) = ScrollBarGeometry::compute_vertical(
-                                content_rect,
-                                total_h,
-                                self.preferences.scroll_y,
-                                &style,
-                            ) {
-                                let new_scroll = ScrollBarGeometry::scroll_from_track_click(
-                                    click_point.y,
-                                    geom.track_rect.y,
-                                    geom.track_rect.height,
-                                    geom.thumb_rect.height,
-                                    self.preferences.max_scroll_y,
-                                );
-                                self.preferences.scroll_y =
-                                    new_scroll.clamp(0.0, self.preferences.max_scroll_y);
-                                self.preferences.active_scrollbar_drag =
-                                    Some((click_point.y, self.preferences.scroll_y));
-                                self.chrome.needs_scroll_sync = true;
-                                self.chrome.needs_layout_rebuild = true;
-                                self.notifier.tag_all();
-                                result.consumed = true;
-                                return Some(result);
-                            }
                         }
                         PreferencesTagTarget::Section(sec_id) => {
                             if self.preferences.collapsed_sections.contains(sec_id) {

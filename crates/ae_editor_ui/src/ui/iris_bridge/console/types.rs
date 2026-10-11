@@ -270,8 +270,8 @@ pub struct ConsolePanelState {
     pub auto_scroll: bool,
     /// Maximum vertical scroll limit computed during layout.
     pub max_scroll_y: f32,
-    /// Active scrollbar dragging state: `(start_cursor_y, start_scroll_y)`.
-    pub active_scrollbar_drag: Option<(f32, f32)>,
+    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
+    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Active screen bounding rectangle of the Developer Console panel.
     pub panel_rect: Option<irisui::prelude::Rect>,
     /// Last recorded log entries count for detecting new incoming console logs.
@@ -287,7 +287,7 @@ impl Default for ConsolePanelState {
             filter: ConsoleFilterLevel::All,
             auto_scroll: true,
             max_scroll_y: 0.0,
-            active_scrollbar_drag: None,
+            scroll_state: irisui::prelude::ScrollAreaState::default(),
             panel_rect: None,
             last_entries_count: 0,
             last_filter: ConsoleFilterLevel::All,

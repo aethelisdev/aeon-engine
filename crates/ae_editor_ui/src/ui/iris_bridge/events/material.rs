@@ -3,24 +3,68 @@
 
 //! # Material & Surface Studio Window Event Routing
 //!
-//! Dispatches mouse clicks, scroll wheel deltas, scrollbar dragging, and button activations
-//! for the Iris UI Material & Surface Studio panel.
+//! Dispatches mouse clicks, autonomous scrollbar dragging, track jumps,
+//! wheel scrolling, and button activations for the Iris UI Material & Surface Studio panel.
 //!
 
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
-use irisui::prelude::*;
-use winit::event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent};
+use irisui::prelude::{
+    InteractionEvent, MouseButton, Rect, ScrollAreaFrame, ScrollAreaStyle, handle_scroll_area_event,
+};
+use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
     /// Routes window events to the Material & Surface Studio panel when active.
     ///
-    /// Returns `Some(IrisOverlayEventResult)` if the event was consumed by the material panel.
+    /// Delegates scrollbar dragging, track jumps, and mouse wheel navigation
+    /// to the framework's autonomous [`handle_scroll_area_event`] subsystem.
     pub(crate) fn handle_material_window_event(
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
         let panel_rect = self.material.panel_rect?;
         let mut result = IrisOverlayEventResult::default();
+        let cursor = self.cursor_pos();
+
+        // 0. Autonomous ScrollArea Event Routing (Thumb Drag, Track Jump, Wheel Scroll)
+        if let Some(ui_event) = super::winit_to_ui_event(event, cursor) {
+            let vp_h = (panel_rect.height - super::super::material::header::MATERIAL_HEADER_HEIGHT)
+                .max(10.0);
+            let total_content_height = vp_h + self.material.max_scroll_y;
+            let vp_rect = Rect::new(
+                panel_rect.x,
+                panel_rect.y + super::super::material::header::MATERIAL_HEADER_HEIGHT,
+                panel_rect.width,
+                vp_h,
+            );
+            let scroll_frame = ScrollAreaFrame::from_geometry(
+                vp_rect,
+                total_content_height,
+                self.material.interactions.scroll_y,
+                &ScrollAreaStyle::dark_default(),
+            );
+
+            self.material.scroll_state.scroll_y = self.material.interactions.scroll_y;
+            let scroll_res = handle_scroll_area_event(
+                &mut self.material.scroll_state,
+                &ui_event,
+                &scroll_frame,
+                None,
+            );
+
+            if scroll_res.consumed {
+                self.material.interactions.scroll_y = scroll_res.scroll_y;
+                if scroll_res.capture_pointer {
+                    self.set_pointer_capture(crate::ui::panel_layout::PanelId::MaterialEditor);
+                }
+                if scroll_res.release_pointer {
+                    self.release_pointer_capture();
+                }
+                self.chrome.needs_scroll_sync = true;
+                result.consumed = true;
+                return Some(result);
+            }
+        }
 
         // 1. Mouse Click handling
         if let WindowEvent::MouseInput {
@@ -29,7 +73,7 @@ impl IrisEditorOverlay {
             ..
         } = event
         {
-            let click_point = self.cursor_pos();
+            let click_point = cursor;
 
             let hit_opt = self
                 .hit_test_panel(
@@ -45,31 +89,11 @@ impl IrisEditorOverlay {
                         hit.id,
                     );
                 }
-                if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_THUMB {
-                    self.material.active_scrollbar_drag =
-                        Some((click_point.y, self.material.interactions.scroll_y));
-                    self.set_pointer_capture(crate::ui::panel_layout::PanelId::MaterialEditor);
-                    self.chrome.needs_scroll_sync = true;
-                    result.consumed = true;
-                    return Some(result);
-                } else if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_TRACK {
-                    let track_y = hit.rect.y;
-                    let track_h = hit.rect.height.max(10.0);
-                    let thumb_h = ((track_h / (self.material.max_scroll_y + track_h)) * track_h)
-                        .clamp(20.0, track_h);
-                    let new_scroll = ScrollBarGeometry::scroll_from_track_click(
-                        click_point.y,
-                        track_y,
-                        track_h,
-                        thumb_h,
-                        self.material.max_scroll_y,
-                    );
-                    self.material.interactions.scroll_y =
-                        new_scroll.clamp(0.0, self.material.max_scroll_y);
-                    self.material.active_scrollbar_drag =
-                        Some((click_point.y, self.material.interactions.scroll_y));
-                    self.set_pointer_capture(crate::ui::panel_layout::PanelId::MaterialEditor);
-                    self.chrome.needs_scroll_sync = true;
+
+                // Scrollbar thumb and track are handled autonomously above
+                if hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_THUMB
+                    || hit.tag == super::super::material::types::MATERIAL_TAG_SCROLLBAR_TRACK
+                {
                     result.consumed = true;
                     return Some(result);
                 }
@@ -100,76 +124,6 @@ impl IrisEditorOverlay {
                 result.consumed = true;
                 return Some(result);
             }
-        }
-
-        // 1b. Scrollbar drag release
-        if let WindowEvent::MouseInput {
-            state: ElementState::Released,
-            button: WinitMouseButton::Left,
-            ..
-        } = event
-            && self.material.active_scrollbar_drag.is_some()
-        {
-            self.material.active_scrollbar_drag = None;
-            self.release_pointer_capture();
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
-        }
-
-        // 1c. Scrollbar continuous mouse drag
-        if let WindowEvent::CursorMoved { .. } = event
-            && let Some((start_y, start_scroll)) = self.material.active_scrollbar_drag
-        {
-            let cursor = self.cursor_pos();
-            let delta_y = cursor.y - start_y;
-            let vp_h = (panel_rect.height - super::super::material::header::MATERIAL_HEADER_HEIGHT)
-                .max(10.0);
-            let total_h = vp_h + self.material.max_scroll_y;
-            let vp_rect = Rect::new(
-                0.0,
-                super::super::material::header::MATERIAL_HEADER_HEIGHT,
-                panel_rect.width,
-                vp_h,
-            );
-            let scroll_style = ScrollAreaStyle::dark_default();
-            if let Some(geom) =
-                ScrollBarGeometry::compute_vertical(vp_rect, total_h, start_scroll, &scroll_style)
-            {
-                let delta_scroll = ScrollBarGeometry::scroll_from_thumb_drag(
-                    delta_y,
-                    geom.track_rect.height,
-                    geom.thumb_rect.height,
-                    self.material.max_scroll_y,
-                );
-                self.material.interactions.scroll_y =
-                    (start_scroll + delta_scroll).clamp(0.0, self.material.max_scroll_y);
-                self.chrome.needs_scroll_sync = true;
-                result.consumed = true;
-                return Some(result);
-            }
-        }
-
-        // 2. Mouse Wheel Scroll handling
-        let cursor = self.cursor_pos();
-        let is_over_panel = cursor.x >= panel_rect.x
-            && cursor.x <= panel_rect.right()
-            && cursor.y >= panel_rect.y
-            && cursor.y <= panel_rect.bottom();
-        if let WindowEvent::MouseWheel { delta, .. } = event
-            && is_over_panel
-        {
-            let delta_y = match delta {
-                MouseScrollDelta::LineDelta(_, y) => *y,
-                MouseScrollDelta::PixelDelta(pos) => (pos.y as f32) / 20.0,
-            };
-
-            let scroll_step = 24.0;
-            self.material.scroll_y = (self.material.scroll_y - delta_y * scroll_step)
-                .clamp(0.0, self.material.max_scroll_y);
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
         }
 
         None

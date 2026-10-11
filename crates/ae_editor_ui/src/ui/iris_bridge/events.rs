@@ -3,8 +3,11 @@
 
 //! Event routing, hit-testing, and interaction dispatch subsystem for Iris UI editor overlays.
 
+pub mod adapter;
 pub mod assets;
 pub mod console;
+
+pub use adapter::winit_to_ui_event;
 pub mod cursor;
 pub mod dispatcher;
 pub mod hierarchy;

@@ -488,9 +488,9 @@ impl IrisEditorOverlay {
                 Some(PanelId::AnimationTimeline) => self.timeline.is_dragging,
                 Some(PanelId::Assets) => self.assets.click_tracker.is_dragging_asset,
                 Some(PanelId::Inspector) => self.inspector.active_number_input.is_some(),
-                Some(PanelId::Console) => self.console.active_scrollbar_drag.is_some(),
-                Some(PanelId::MaterialEditor) => self.material.active_scrollbar_drag.is_some(),
-                Some(PanelId::Hierarchy) => self.hierarchy.active_scrollbar_drag.is_some(),
+                Some(PanelId::Console) => self.console.scroll_state.is_dragging(),
+                Some(PanelId::MaterialEditor) => self.material.scroll_state.is_dragging(),
+                Some(PanelId::Hierarchy) => self.hierarchy.scroll_state.is_dragging(),
                 _ => false,
             };
             if !still_dragging {

@@ -3,37 +3,88 @@
 
 //! # Developer Console Window Event Routing
 //!
-//! Dispatches mouse clicks, wheel scrolling, and keyboard search filtering
-//! for the Iris UI Developer Console panel.
+//! Dispatches mouse clicks, autonomous scrollbar dragging, track jumps,
+//! wheel scrolling, and keyboard search filtering for the Iris UI Developer Console panel.
 //!
 
 use crate::ui::iris_bridge::console::CONSOLE_TOOLBAR_HEIGHT;
 use crate::ui::iris_bridge::console::types::{
-    CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SEARCH_CLEAR,
-    CONSOLE_TAG_SEARCH_INPUT, is_console_tag,
+    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, is_console_tag,
 };
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
-use irisui::prelude::{Rect, ScrollAreaStyle, ScrollBarGeometry};
+use irisui::prelude::{Rect, ScrollAreaFrame, ScrollAreaStyle, handle_scroll_area_event};
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
     /// Routes window events to the Developer Console panel when active.
     ///
-    /// Returns `Some(IrisOverlayEventResult)` if the event was consumed by the console.
+    /// Delegates scrollbar dragging, track jumps, and mouse wheel navigation
+    /// to the framework's autonomous [`handle_scroll_area_event`] subsystem.
     pub(crate) fn handle_console_window_event(
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
         let mut result = IrisOverlayEventResult::default();
+        let cursor = self.cursor_pos();
 
-        // 1. Mouse Click handling
+        // 1. Autonomous ScrollArea Event Routing (Thumb Drag, Track Jump, Wheel Scroll)
+        if let Some(ui_event) = super::winit_to_ui_event(event, cursor) {
+            let panel_rect = self
+                .console
+                .panel_rect
+                .unwrap_or(Rect::new(0.0, 0.0, 300.0, 200.0));
+            let vp_h = (panel_rect.height - CONSOLE_TOOLBAR_HEIGHT).max(10.0);
+            let vp_rect = Rect::new(
+                panel_rect.x,
+                panel_rect.y + CONSOLE_TOOLBAR_HEIGHT,
+                panel_rect.width,
+                vp_h,
+            );
+            let total_content_height = vp_h + self.console.max_scroll_y;
+            let scroll_frame = ScrollAreaFrame::from_geometry(
+                vp_rect,
+                total_content_height,
+                self.console.interactions.scroll_y,
+                &ScrollAreaStyle::dark_default(),
+            );
+
+            // Synchronize active scroll offset into autonomous scroll state
+            self.console.scroll_state.scroll_y = self.console.interactions.scroll_y;
+
+            let scroll_res = handle_scroll_area_event(
+                &mut self.console.scroll_state,
+                &ui_event,
+                &scroll_frame,
+                None,
+            );
+
+            if scroll_res.consumed {
+                self.console.interactions.scroll_y = scroll_res.scroll_y;
+                self.console.auto_scroll = false;
+
+                if scroll_res.capture_pointer {
+                    self.set_pointer_capture(crate::ui::panel_layout::PanelId::Console);
+                }
+                if scroll_res.release_pointer {
+                    self.release_pointer_capture();
+                }
+
+                self.chrome.needs_scroll_sync = true;
+                result.consumed = true;
+                return Some(result);
+            }
+        }
+
+        // 2. Mouse Click Handling on Console Toolbar and Action Buttons
         if let WindowEvent::MouseInput {
             state: ElementState::Pressed,
             button: WinitMouseButton::Left,
             ..
         } = event
         {
-            let click_point = self.cursor_pos();
+            let click_point = cursor;
+
+            // Direct toolbar action evaluator
             if let Some(action) =
                 super::super::console::handle_console_click(&self.tree, click_point)
             {
@@ -70,6 +121,7 @@ impl IrisEditorOverlay {
                 return Some(result);
             }
 
+            // Semantic tag hit-testing fallback
             let hit_opt = self
                 .hit_test_panel(crate::ui::panel_layout::PanelId::Console, click_point)
                 .or_else(|| self.tree.hit_test_target(click_point));
@@ -80,38 +132,6 @@ impl IrisEditorOverlay {
                         self.resolve_panel_tag(crate::ui::panel_layout::PanelId::Console, hit.id);
                 }
                 if is_console_tag(hit.tag) {
-                    if hit.tag == CONSOLE_TAG_SCROLLBAR_THUMB {
-                        self.console.active_scrollbar_drag =
-                            Some((click_point.y, self.console.interactions.scroll_y));
-                        self.set_pointer_capture(crate::ui::panel_layout::PanelId::Console);
-                        self.console.auto_scroll = false;
-                        self.chrome.needs_scroll_sync = true;
-                        result.consumed = true;
-                        return Some(result);
-                    } else if hit.tag == CONSOLE_TAG_SCROLLBAR_TRACK {
-                        let track_y = hit.rect.y;
-                        let track_h = hit.rect.height.max(10.0);
-                        let thumb_h = ((track_h / (self.console.max_scroll_y + track_h)) * track_h)
-                            .clamp(20.0, track_h);
-                        let new_scroll =
-                            irisui::prelude::ScrollBarGeometry::scroll_from_track_click(
-                                click_point.y,
-                                track_y,
-                                track_h,
-                                thumb_h,
-                                self.console.max_scroll_y,
-                            );
-                        self.console.interactions.scroll_y =
-                            new_scroll.clamp(0.0, self.console.max_scroll_y);
-                        self.console.auto_scroll = false;
-                        self.console.active_scrollbar_drag =
-                            Some((click_point.y, self.console.interactions.scroll_y));
-                        self.set_pointer_capture(crate::ui::panel_layout::PanelId::Console);
-                        self.chrome.needs_scroll_sync = true;
-                        result.consumed = true;
-                        return Some(result);
-                    }
-
                     if hit.tag == CONSOLE_TAG_SEARCH_INPUT {
                         self.focus_manager.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
                     } else if hit.tag == CONSOLE_TAG_SEARCH_CLEAR {
@@ -164,80 +184,6 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
             }
-        }
-
-        // 1b. Scrollbar drag release
-        if let WindowEvent::MouseInput {
-            state: ElementState::Released,
-            button: WinitMouseButton::Left,
-            ..
-        } = event
-            && self.console.active_scrollbar_drag.is_some()
-        {
-            self.console.active_scrollbar_drag = None;
-            self.release_pointer_capture();
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
-        }
-
-        // 1c. Scrollbar continuous mouse drag
-        if let WindowEvent::CursorMoved { .. } = event
-            && let Some((start_y, start_scroll)) = self.console.active_scrollbar_drag
-        {
-            let cursor = self.cursor_pos();
-            let delta_y = cursor.y - start_y;
-            let panel_rect = self
-                .console
-                .panel_rect
-                .unwrap_or(Rect::new(0.0, 0.0, 300.0, 200.0));
-            let vp_h = (panel_rect.height - CONSOLE_TOOLBAR_HEIGHT).max(10.0);
-            let total_h = vp_h + self.console.max_scroll_y;
-            let vp_rect = Rect::new(0.0, CONSOLE_TOOLBAR_HEIGHT, panel_rect.width, vp_h);
-            let scroll_style = ScrollAreaStyle::dark_default();
-            if let Some(geom) =
-                ScrollBarGeometry::compute_vertical(vp_rect, total_h, start_scroll, &scroll_style)
-            {
-                let delta_scroll = ScrollBarGeometry::scroll_from_thumb_drag(
-                    delta_y,
-                    geom.track_rect.height,
-                    geom.thumb_rect.height,
-                    self.console.max_scroll_y,
-                );
-                self.console.interactions.scroll_y =
-                    (start_scroll + delta_scroll).clamp(0.0, self.console.max_scroll_y);
-                self.chrome.needs_scroll_sync = true;
-                result.consumed = true;
-                return Some(result);
-            }
-        }
-
-        // 2. Mouse Wheel scroll handling
-        let cursor = self.cursor_pos();
-        let is_over_console = self
-            .hit_test_panel(crate::ui::panel_layout::PanelId::Console, cursor)
-            .is_some_and(|hit| is_console_tag(hit.tag))
-            || self
-                .tree
-                .hit_test_target(cursor)
-                .is_some_and(|hit| is_console_tag(hit.tag));
-
-        if let WindowEvent::MouseWheel { delta, .. } = event
-            && is_over_console
-        {
-            let delta_lines = match delta {
-                winit::event::MouseScrollDelta::LineDelta(_, y) => *y,
-                winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 24.0,
-            };
-            super::super::console::handle_console_scroll(
-                delta_lines,
-                self.console.max_scroll_y,
-                &mut self.console.interactions.scroll_y,
-                &mut self.console.auto_scroll,
-            );
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
         }
 
         None

@@ -46,6 +46,34 @@ impl ScrollAreaFrame {
         let delta = wheel_delta * step_size;
         self.clamp_scroll_y(current_scroll - delta)
     }
+
+    /// Constructs a pure geometric [`ScrollAreaFrame`] without mutating a [`UiTree`].
+    ///
+    /// Ideal for event dispatchers and interaction routers that need to evaluate
+    /// hit-testing, track jumping, and thumb dragging against scrollbar geometry.
+    #[must_use]
+    pub fn from_geometry(
+        viewport_rect: Rect,
+        content_height: f32,
+        scroll_y: f32,
+        style: &ScrollAreaStyle,
+    ) -> Self {
+        let max_scroll_y = (content_height - viewport_rect.height).max(0.0);
+        let safe_scroll_y = scroll_y.clamp(0.0, max_scroll_y);
+        let scrollbar = ScrollBarGeometry::compute_vertical(
+            viewport_rect,
+            content_height,
+            safe_scroll_y,
+            style,
+        );
+        Self {
+            container_id: WidgetId::default(),
+            viewport_rect,
+            content_height,
+            max_scroll_y,
+            scrollbar,
+        }
+    }
 }
 
 /// Fluent builder for constructing a generic scroll area container with optional scrollbars.

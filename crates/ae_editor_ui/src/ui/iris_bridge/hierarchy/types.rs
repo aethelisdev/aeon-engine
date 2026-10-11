@@ -345,8 +345,8 @@ pub struct HierarchyPanelState {
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
-    /// Active scrollbar dragging state: `(initial_cursor_y, initial_scroll_y)` in physical pixels.
-    pub active_scrollbar_drag: Option<(f32, f32)>,
+    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
+    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Persistent pre-allocated row cache to eliminate per-frame allocations.
     pub rows_cache: Vec<HierarchyRow>,
     /// Set of currently collapsed entity identifiers.

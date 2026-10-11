@@ -81,7 +81,7 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 collapsed_entities: &self.hierarchy.collapsed_entities,
-                is_scrollbar_dragging: self.hierarchy.active_scrollbar_drag.is_some(),
+                is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
                 is_search_focused: self
                     .focus_manager
                     .is_tag_focused(super::hierarchy::HIERARCHY_TAG_SEARCH_INPUT),
@@ -211,7 +211,7 @@ impl IrisEditorOverlay {
                 auto_scroll: self.console.auto_scroll,
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                is_scrollbar_dragging: self.console.active_scrollbar_drag.is_some(),
+                is_scrollbar_dragging: self.console.scroll_state.is_dragging(),
                 is_search_focused,
                 cursor_byte_idx: self.console.search_input.cursor_byte_idx,
             };
@@ -391,7 +391,7 @@ impl IrisEditorOverlay {
     ) {
         if let Some(material_rect) = params.panel_rects.material {
             let events = std::mem::take(&mut self.material.pending_interaction_events);
-            let is_scrollbar_dragging = self.material.active_scrollbar_drag.is_some();
+            let is_scrollbar_dragging = self.material.scroll_state.is_dragging();
 
             let local_material_rect =
                 Rect::new(0.0, 0.0, material_rect.width, material_rect.height);
