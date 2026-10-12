@@ -18,21 +18,7 @@ use winit::window::CursorIcon;
 /// text carats, grabs, and crosshairs.
 #[inline]
 pub fn map_widget_cursor_to_winit(cur: WidgetCursor) -> CursorIcon {
-    match cur {
-        WidgetCursor::Default => CursorIcon::Default,
-        WidgetCursor::Pointer => CursorIcon::Pointer,
-        WidgetCursor::Text => CursorIcon::Text,
-        WidgetCursor::Crosshair => CursorIcon::Crosshair,
-        WidgetCursor::Grab => CursorIcon::Grab,
-        WidgetCursor::Grabbing => CursorIcon::Grabbing,
-        WidgetCursor::ColResize => CursorIcon::ColResize,
-        WidgetCursor::RowResize => CursorIcon::RowResize,
-        WidgetCursor::EwResize => CursorIcon::EwResize,
-        WidgetCursor::NsResize => CursorIcon::NsResize,
-        WidgetCursor::NeswResize => CursorIcon::NeswResize,
-        WidgetCursor::NwseResize => CursorIcon::NwseResize,
-        WidgetCursor::NotAllowed => CursorIcon::NotAllowed,
-    }
+    iris_winit::cursor::widget_cursor_to_winit(cur)
 }
 
 impl IrisEditorOverlay {

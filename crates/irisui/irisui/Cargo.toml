@@ -12,3 +12,4 @@ iris-text = { workspace = true }
 iris-wgpu = { workspace = true }
 iris-widgets = { workspace = true }
 iris-dock = { workspace = true }
+iris-winit = { workspace = true }

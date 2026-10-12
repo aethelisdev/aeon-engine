@@ -156,6 +156,7 @@ dependencies = [
  "gltf",
  "hecs",
  "image",
+ "iris-winit",
  "irisui",
  "log",
  "rayon",
@@ -1830,6 +1831,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "iris-winit"
+version = "0.1.0"
+dependencies = [
+ "iris-core",
+ "winit",
+]
+
+[[package]]
 name = "irisui"
 version = "0.1.0"
 dependencies = [
@@ -1839,6 +1848,7 @@ dependencies = [
  "iris-text",
  "iris-wgpu",
  "iris-widgets",
+ "iris-winit",
 ]
 
 [[package]]

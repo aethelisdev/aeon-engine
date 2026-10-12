@@ -10,6 +10,7 @@
 //! - `iris-wgpu`: High-performance batched instanced quad renderer and custom external texture pipelines.
 //! - `iris-widgets`: Industrial, hardware-accelerated game engine UI widget kit.
 //! - `iris-dock`: Generational binary split-tree docking and floating window multi-viewport engine.
+//! - `iris-winit`: Winit platform adapter, event translation, HighDPI scaling, and cursor mapping.
 //!
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
@@ -22,6 +23,7 @@ pub use iris_layout as layout;
 pub use iris_text as text;
 pub use iris_wgpu as wgpu_backend;
 pub use iris_widgets as widgets;
+pub use iris_winit as winit;
 
 /// Fluent, comprehensive umbrella prelude re-exporting all standard Iris UI primitives.
 ///

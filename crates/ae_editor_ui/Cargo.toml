@@ -28,6 +28,7 @@ cgmath = "0.18"
 rayon = "1.12.0"
 gltf = "1.4.1"
 irisui = { workspace = true }
+iris-winit = { workspace = true }
 
 [lints.clippy]
 disallowed_methods = "warn"
