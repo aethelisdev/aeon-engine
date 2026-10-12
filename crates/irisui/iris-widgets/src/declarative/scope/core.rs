@@ -223,13 +223,37 @@ impl<'a> UiScope<'a> {
 
     /// Checks the interaction state of an emitted widget against the active event stream.
     ///
-    /// Matches either directly by allocated [`WidgetId`] or by persistent [`WidgetNode::tag`].
+    /// Resolves interaction states both against autonomous [`iris_core::dispatch::EventState`]
+    /// tracked directly on [`UiTree`] and against explicitly supplied frame interaction records.
     ///
     /// Returns `(clicked, hovered, drag_delta)`.
     pub fn check_interaction(&self, id: WidgetId) -> (bool, bool, Option<Point>) {
         let tag = self.tree.get(id).map_or(0, |n| n.tag);
         let mut clicked = false;
         let mut drag_delta = None;
+
+        // 1. Autonomous dispatch event integration from UiTree::event_state
+        if self.tree.event_state.frame_clicked_id == Some(id)
+            || (tag != 0 && self.tree.event_state.frame_clicked_tag == Some(tag))
+        {
+            clicked = true;
+        }
+
+        if let Some(delta) = self.tree.event_state.frame_drag_delta {
+            let captured_matches = self.tree.event_state.pointer_capture == Some(id)
+                || (tag != 0
+                    && self
+                        .tree
+                        .event_state
+                        .pointer_capture
+                        .and_then(|cid| self.tree.get(cid))
+                        .is_some_and(|n| n.tag == tag));
+            if captured_matches {
+                drag_delta = Some(delta);
+            }
+        }
+
+        // 2. Compatibility check for explicitly supplied frame interaction events
         for (ev_id, ev) in self.events {
             let matches_id = *ev_id == id;
             let matches_tag = tag != 0 && self.tree.get(*ev_id).is_some_and(|n| n.tag == tag);
@@ -250,14 +274,42 @@ impl<'a> UiScope<'a> {
                 }
             }
         }
+
+        // 3. Resolve hovered state combining local scope flags and autonomous tree event_state
         let hovered = self.hovered_id == Some(id)
             || (tag != 0 && self.hovered_tag == Some(tag))
             || (tag != 0
                 && self
                     .hovered_id
                     .and_then(|hid| self.tree.get(hid))
+                    .is_some_and(|n| n.tag == tag))
+            || self.tree.event_state.hovered == Some(id)
+            || (tag != 0
+                && self
+                    .tree
+                    .event_state
+                    .hovered
+                    .and_then(|hid| self.tree.get(hid))
                     .is_some_and(|n| n.tag == tag));
+
         (clicked, hovered, drag_delta)
+    }
+
+    /// Checks whether the given widget node or its semantic tag is actively in a pressed state.
+    ///
+    /// Evaluates against [`iris_core::dispatch::EventState`] where an active mouse press gesture
+    /// is held down on this specific widget.
+    #[inline]
+    pub fn is_pressed(&self, id: WidgetId) -> bool {
+        let tag = self.tree.get(id).map_or(0, |n| n.tag);
+        self.tree.event_state.pressed == Some(id)
+            || (tag != 0
+                && self
+                    .tree
+                    .event_state
+                    .pressed
+                    .and_then(|pid| self.tree.get(pid))
+                    .is_some_and(|n| n.tag == tag))
     }
 
     /// Checks if a committed text input interaction occurred for the given widget node or semantic tag.

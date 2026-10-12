@@ -80,6 +80,8 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
+        let pressed = self.is_pressed(node_id);
+
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = true;
             node.role = WidgetRole::Button;
@@ -88,7 +90,7 @@ impl<'a> UiScope<'a> {
             node.font_size = 11.0;
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
-            node.text_color = if hovered {
+            node.text_color = if hovered || pressed {
                 Color::WHITE
             } else {
                 Color::rgba(0.0, 0.88, 1.0, 1.0)
@@ -119,7 +121,15 @@ impl<'a> UiScope<'a> {
                     resolved_style.hover_border = Some(b);
                 }
             }
-            if hovered {
+            if pressed {
+                if let Some(hbg) = resolved_style.hover_background {
+                    resolved_style.background_color =
+                        Color::rgba(hbg.r * 0.82, hbg.g * 0.82, hbg.b * 0.82, hbg.a);
+                }
+                if let Some(hb) = resolved_style.hover_border {
+                    resolved_style.border = hb;
+                }
+            } else if hovered {
                 if let Some(hbg) = resolved_style.hover_background {
                     resolved_style.background_color = hbg;
                 }
@@ -129,7 +139,12 @@ impl<'a> UiScope<'a> {
             }
             node.set_style(resolved_style);
         }
-        WidgetResponse::new(node_id, clicked, hovered, false)
+
+        let mut resp = WidgetResponse::new(node_id, clicked, hovered, false);
+        if pressed {
+            resp = resp.with_pressed(true);
+        }
+        resp
     }
 
     /// Emits an interactive push button with a descriptive node name and a custom semantic tag.

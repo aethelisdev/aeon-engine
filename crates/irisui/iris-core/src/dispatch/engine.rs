@@ -29,6 +29,12 @@ use crate::tree::UiTree;
 /// 4. **State Machine Transitions**: Synchronizes hover, pressed, click, double-click,
 ///    and keyboard focus transitions on [`super::types::EventState`].
 pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
+    // Clear transient frame click markers when processing non-MouseUp events
+    if !matches!(event, UiEvent::MouseUp { .. }) {
+        tree.event_state.frame_clicked_id = None;
+        tree.event_state.frame_clicked_tag = None;
+    }
+
     match event {
         UiEvent::MouseMove { point } => handle_mouse_move(tree, *point),
         UiEvent::MouseDown { button, point } => handle_mouse_down(tree, *button, *point),
@@ -63,6 +69,12 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             let initial_scroll = tree.event_state.initial_scroll_y;
             update_scrollbar_drag(tree, captured_id, delta_y, initial_scroll);
         }
+
+        let delta = tree
+            .event_state
+            .press_origin
+            .map(|origin| Point::new(point.x - origin.x, point.y - origin.y));
+        tree.event_state.frame_drag_delta = delta;
 
         let node = tree.get(captured_id).unwrap();
         let cursor = node.cursor.or_else(|| node.role.default_cursor());
@@ -118,6 +130,10 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
 
 /// Processes mouse button press inputs, initiating press states, focus, and drag capture.
 fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> DispatchResult {
+    tree.event_state.frame_clicked_id = None;
+    tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_drag_delta = None;
+
     let hit_id = tree.hit_test_layered(point);
     tree.event_state.pressed = hit_id;
     tree.event_state.pressed_button = Some(button);
@@ -243,6 +259,8 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             match button {
                 MouseButton::Left => {
                     flags = flags.union(ResponseFlags::CLICKED);
+                    tree.event_state.frame_clicked_id = Some(target_id);
+                    tree.event_state.frame_clicked_tag = if tag != 0 { Some(tag) } else { None };
 
                     let is_double_click = if let (Some(last_id), Some(last_pos), Some(last_time)) = (
                         tree.event_state.last_click_id,

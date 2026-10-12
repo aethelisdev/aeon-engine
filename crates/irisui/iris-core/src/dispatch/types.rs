@@ -49,6 +49,12 @@ pub struct EventState {
     pub last_click_pos: Option<Point>,
     /// Monotonic timestamp of the last confirmed click gesture.
     pub last_click_time: Option<Instant>,
+    /// Widget node confirmed as clicked during the current dispatch cycle, if any.
+    pub frame_clicked_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag confirmed as clicked during the current dispatch cycle, if any.
+    pub frame_clicked_tag: Option<u64>,
+    /// Pointer delta movement vector accumulated during active dragging gestures in the current frame.
+    pub frame_drag_delta: Option<Point>,
 }
 
 impl EventState {
@@ -67,6 +73,9 @@ impl EventState {
             last_click_id: None,
             last_click_pos: None,
             last_click_time: None,
+            frame_clicked_id: None,
+            frame_clicked_tag: None,
+            frame_drag_delta: None,
         }
     }
 
@@ -82,6 +91,17 @@ impl EventState {
         self.last_click_id = None;
         self.last_click_pos = None;
         self.last_click_time = None;
+        self.frame_clicked_id = None;
+        self.frame_clicked_tag = None;
+        self.frame_drag_delta = None;
+    }
+
+    /// Clears any confirmed click state recorded for the current frame.
+    #[inline]
+    pub fn clear_frame_clicks(&mut self) {
+        self.frame_clicked_id = None;
+        self.frame_clicked_tag = None;
+        self.frame_drag_delta = None;
     }
 
     /// Clears active keyboard and semantic tag focus.
