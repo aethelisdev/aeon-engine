@@ -61,7 +61,7 @@ impl IrisEditorOverlay {
         None
     }
 
-    /// Handles mouse wheel scrolling for docked panels (Stats, Hierarchy, Preferences, Inspector).
+    /// Handles mouse wheel scrolling for docked panels (Stats, Hierarchy, Inspector).
     pub(crate) fn handle_panel_mouse_wheel(
         &mut self,
         event: &WindowEvent,
@@ -154,20 +154,6 @@ impl IrisEditorOverlay {
                 result.consumed = true;
                 return Some(result);
             }
-        }
-
-        // 3. Preferences Dialog Scrolling
-        if let Some(card_rect) = self.preferences.card_rect
-            && (cursor.x >= card_rect.x
-                && cursor.x <= card_rect.right()
-                && cursor.y >= card_rect.y
-                && cursor.y <= card_rect.bottom())
-        {
-            self.preferences.scroll_y =
-                (self.preferences.scroll_y - delta_y).clamp(0.0, self.preferences.max_scroll_y);
-            self.chrome.needs_scroll_sync = true;
-            result.consumed = true;
-            return Some(result);
         }
 
         None

@@ -75,6 +75,13 @@ impl ScrollAreaState {
     pub fn reset_drag(&mut self) {
         self.drag_state = None;
     }
+
+    /// Resets both the scroll position to zero and clears any active drag interaction.
+    #[inline]
+    pub fn reset(&mut self) {
+        self.scroll_y = 0.0;
+        self.drag_state = None;
+    }
 }
 
 /// Evaluated outcome of a scroll interaction (drag, track click, or wheel gesture).

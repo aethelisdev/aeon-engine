@@ -126,10 +126,6 @@ impl EngineUi {
                         }
                     }
                 },
-                iris_bridge::PreferencesAction::Scroll(delta) => {
-                    self.iris_overlay.preferences.scroll_y =
-                        (self.iris_overlay.preferences.scroll_y + delta).max(0.0);
-                }
                 iris_bridge::PreferencesAction::ToggleSection(_) => {}
             }
         }

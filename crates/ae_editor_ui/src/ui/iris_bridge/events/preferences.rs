@@ -6,13 +6,25 @@
 
 use super::super::preferences::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, PreferencesAction, PreferencesTagTarget, is_preferences_tag,
-    parse_dropdown_item_tag, resolve_preferences_tag,
+    parse_dropdown_item_tag, preferences_scroll_style, resolve_preferences_tag,
 };
 use super::super::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use irisui::prelude::*;
 use winit::event::{ElementState, MouseButton as WinitMouseButton, WindowEvent};
 
 impl IrisEditorOverlay {
+    /// Constructs the current [`ScrollAreaFrame`] for the Preferences modal content view.
+    #[inline]
+    pub(crate) fn preferences_scroll_frame(&self) -> Option<ScrollAreaFrame> {
+        let content_rect = self.preferences.content_rect?;
+        Some(ScrollAreaFrame::from_geometry(
+            content_rect,
+            content_rect.height + self.preferences.max_scroll_y,
+            self.preferences.scroll_state.scroll_y,
+            &preferences_scroll_style(),
+        ))
+    }
+
     /// Handles active continuous mouse dragging and release interactions for the Preferences dialog.
     ///
     /// Must be invoked at high priority in event dispatch (Step 3b), before the menubar
@@ -66,16 +78,10 @@ impl IrisEditorOverlay {
 
                 // 3. Scrollbar Thumb Dragging via autonomous scroll state
                 if self.preferences.scroll_state.is_dragging()
-                    && let Some(content_rect) = self.preferences.content_rect
+                    && let Some(scroll_frame) = self.preferences_scroll_frame()
                     && let Some(ui_event) =
                         super::adapter::winit_to_ui_event(event, self.cursor_pos())
                 {
-                    let scroll_frame = ScrollAreaFrame::from_geometry(
-                        content_rect,
-                        content_rect.height + self.preferences.max_scroll_y,
-                        self.preferences.scroll_y,
-                        &ScrollAreaStyle::dark_default(),
-                    );
                     let scroll_res = handle_scroll_area_event(
                         &mut self.preferences.scroll_state,
                         &ui_event,
@@ -83,7 +89,7 @@ impl IrisEditorOverlay {
                         None,
                     );
                     if scroll_res.consumed {
-                        self.preferences.scroll_y = scroll_res.scroll_y;
+                        self.preferences.sync_scroll_y();
                         self.chrome.needs_scroll_sync = true;
                         self.chrome.needs_layout_rebuild = true;
                         self.notifier.tag_all();
@@ -109,23 +115,20 @@ impl IrisEditorOverlay {
                     return Some(result);
                 }
                 if self.preferences.scroll_state.is_dragging() {
-                    if let Some(content_rect) = self.preferences.content_rect
+                    if let Some(scroll_frame) = self.preferences_scroll_frame()
                         && let Some(ui_event) =
                             super::adapter::winit_to_ui_event(event, self.cursor_pos())
                     {
-                        let scroll_frame = ScrollAreaFrame::from_geometry(
-                            content_rect,
-                            content_rect.height + self.preferences.max_scroll_y,
-                            self.preferences.scroll_y,
-                            &ScrollAreaStyle::dark_default(),
-                        );
                         let _ = handle_scroll_area_event(
                             &mut self.preferences.scroll_state,
                             &ui_event,
                             &scroll_frame,
                             None,
                         );
+                    } else {
+                        self.preferences.scroll_state.reset_drag();
                     }
+                    self.preferences.sync_scroll_y();
                     self.chrome.needs_scroll_sync = true;
                     self.chrome.needs_layout_rebuild = true;
                     self.notifier.tag_all();
@@ -153,16 +156,9 @@ impl IrisEditorOverlay {
         let mut result = IrisOverlayEventResult::default();
 
         // Autonomous ScrollArea event handling for Preferences view (wheel & scrollbar click/drag)
-        if let Some(content_rect) = self.preferences.content_rect
+        if let Some(scroll_frame) = self.preferences_scroll_frame()
             && let Some(ui_event) = super::adapter::winit_to_ui_event(event, self.cursor_pos())
         {
-            let scroll_frame = ScrollAreaFrame::from_geometry(
-                content_rect,
-                content_rect.height + self.preferences.max_scroll_y,
-                self.preferences.scroll_y,
-                &ScrollAreaStyle::dark_default(),
-            );
-            self.preferences.scroll_state.scroll_y = self.preferences.scroll_y;
             let scroll_res = handle_scroll_area_event(
                 &mut self.preferences.scroll_state,
                 &ui_event,
@@ -170,10 +166,23 @@ impl IrisEditorOverlay {
                 None,
             );
             if scroll_res.consumed {
-                self.preferences.scroll_y = scroll_res.scroll_y;
+                self.preferences.sync_scroll_y();
                 self.chrome.needs_scroll_sync = true;
                 self.chrome.needs_layout_rebuild = true;
                 self.notifier.tag_all();
+                result.consumed = true;
+                return Some(result);
+            }
+        }
+
+        // Absorb mouse wheel events over preferences card outside scrollable content area
+        if matches!(event, WindowEvent::MouseWheel { .. }) {
+            let cursor = self.cursor_pos();
+            let is_over_card = cursor.x >= card_rect.x
+                && cursor.x <= card_rect.right()
+                && cursor.y >= card_rect.y
+                && cursor.y <= card_rect.bottom();
+            if is_over_card {
                 result.consumed = true;
                 return Some(result);
             }
@@ -251,7 +260,7 @@ impl IrisEditorOverlay {
                     } else {
                         result.close_preferences = true;
                         self.preferences.drag_offset = None;
-                        self.preferences.scroll_state.drag_state = None;
+                        self.preferences.scroll_state.reset_drag();
                     }
                     result.consumed = true;
                     return Some(result);
@@ -391,9 +400,7 @@ impl IrisEditorOverlay {
                             self.preferences.tab = tab_idx;
                             self.preferences.dropdown = None;
                             self.preferences.dropdown_trigger_rect = None;
-                            self.preferences.scroll_y = 0.0;
-                            self.preferences.scroll_state.scroll_y = 0.0;
-                            self.preferences.scroll_state.drag_state = None;
+                            self.preferences.reset_scroll();
                             self.notifier.tag_all();
                             result.preferences_action = Some(PreferencesAction::SelectTab(tab_idx));
                             result.consumed = true;

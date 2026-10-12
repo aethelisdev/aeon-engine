@@ -16,6 +16,8 @@ pub mod types;
 mod tabs_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_scroll;
 
 pub use builder::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, SIDEBAR_WIDTH, TITLEBAR_HEIGHT,
@@ -30,5 +32,6 @@ pub use types::{
     PreferencesDropdownId, PreferencesParams, PreferencesTagTarget, PreferencesToggleId,
     encode_dropdown_item_tag, encode_dropdown_tag, encode_section_tag, encode_tab_tag,
     encode_toggle_tag, is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag,
-    parse_section_tag, parse_tab_tag, parse_toggle_tag, resolve_preferences_tag,
+    parse_section_tag, parse_tab_tag, parse_toggle_tag, preferences_scroll_style,
+    resolve_preferences_tag,
 };

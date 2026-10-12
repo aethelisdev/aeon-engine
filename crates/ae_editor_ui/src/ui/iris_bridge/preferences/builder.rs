@@ -11,7 +11,7 @@ use super::tabs::*;
 use super::types::{
     PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLLBAR_THUMB,
     PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesParams, encode_dropdown_item_tag,
-    encode_tab_tag,
+    encode_tab_tag, preferences_scroll_style,
 };
 use irisui::prelude::*;
 
@@ -335,11 +335,7 @@ pub fn build_preferences_dialog(
 
     // 4. Custom Scrollbar Indicator if virtual height exceeds content height
     if total_h > content_h {
-        let style = ScrollAreaStyle {
-            thickness: 6.0,
-            inset: 3.0,
-            ..ScrollAreaStyle::dark_default()
-        };
+        let style = preferences_scroll_style();
         if let Some(geom) = ScrollBarGeometry::compute_vertical(
             content_rect,
             total_h,

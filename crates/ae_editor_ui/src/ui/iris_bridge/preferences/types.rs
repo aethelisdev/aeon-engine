@@ -350,8 +350,16 @@ pub enum PreferencesAction {
     Toggle(PreferencesToggleId),
     /// Select item index in an open dropdown.
     SelectDropdownItem(PreferencesDropdownId, usize),
-    /// Content area scrolled via mouse wheel.
-    Scroll(f32),
+}
+
+/// Standard scrollbar styling for the Preferences modal dialog.
+#[must_use]
+pub const fn preferences_scroll_style() -> ScrollAreaStyle {
+    ScrollAreaStyle {
+        thickness: 6.0,
+        inset: 3.0,
+        ..ScrollAreaStyle::dark_default()
+    }
 }
 
 /// Persistent interactive state for the Preferences modal dialog overlay.
@@ -391,6 +399,21 @@ pub struct PreferencesDialogState {
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Set of currently collapsed card/section identifiers in the Preferences dialog.
     pub collapsed_sections: HashSet<&'static str>,
+}
+
+impl PreferencesDialogState {
+    /// Resets scroll position and ongoing drag gesture to initial zero offset.
+    #[inline]
+    pub fn reset_scroll(&mut self) {
+        self.scroll_state.reset();
+        self.interactions.scroll_y = 0.0;
+    }
+
+    /// Synchronizes current scroll offset from autonomous [`ScrollAreaState`] into panel interaction state.
+    #[inline]
+    pub fn sync_scroll_y(&mut self) {
+        self.interactions.scroll_y = self.scroll_state.scroll_y;
+    }
 }
 
 impl std::ops::Deref for PreferencesDialogState {

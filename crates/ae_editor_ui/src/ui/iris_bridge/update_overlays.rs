@@ -85,7 +85,7 @@ impl IrisEditorOverlay {
                     screen_height,
                     window_pos: self.preferences.pos,
                     active_tab: self.preferences.tab,
-                    scroll_offset_y: self.preferences.scroll_y,
+                    scroll_offset_y: self.preferences.scroll_state.scroll_y,
                     is_scrollbar_dragging: self.preferences.scroll_state.is_dragging(),
                     active_dropdown: self.preferences.dropdown,
                     dropdown_trigger_rect: self.preferences.dropdown_trigger_rect,
