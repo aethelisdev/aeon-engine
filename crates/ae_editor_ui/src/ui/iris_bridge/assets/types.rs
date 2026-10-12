@@ -9,7 +9,7 @@
 
 use super::events::AssetClickTracker;
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-use irisui::prelude::{Point, Rect, TreeState};
+use irisui::prelude::{FocusState, FocusTarget, Point, Rect, TreeState};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -32,8 +32,8 @@ pub enum AssetsPanelAction {
     SearchInput(String),
     /// Clears the active search filter query.
     ClearSearch,
-    /// Updates keyboard focus state for the search input box.
-    FocusSearch(bool),
+    /// Requests keyboard focus for the search input box.
+    FocusSearch,
     /// Triggers model import dialog request.
     OpenImportDialog,
     /// Reveals the active directory in the operating system's native file explorer.
@@ -533,8 +533,8 @@ pub struct AssetsPanelParams<'a> {
     pub subfolders: &'a [PathBuf],
     /// Map of asset paths to allocated 2D Texture Array thumbnail layer indices.
     pub thumbnail_layers: &'a HashMap<PathBuf, u32>,
-    /// Whether the search input currently possesses active keyboard focus.
-    pub is_search_focused: bool,
+    /// Autonomous focus state machine providing SSOT for panel inputs.
+    pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
 }

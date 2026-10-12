@@ -289,6 +289,24 @@ impl FocusState<FocusTarget> {
             None => core_manager.clear_focus(),
         }
     }
+
+    /// Returns true if the specified 64-bit semantic tag currently owns keyboard input focus.
+    ///
+    /// Used by editor panels, toolbars, and search inputs to query focus status without
+    /// allocating or pattern-matching manually against [`FocusTarget`].
+    #[must_use]
+    #[inline]
+    pub fn is_tag_focused(&self, tag: u64) -> bool {
+        self.focused == Some(FocusTarget::Tag(tag))
+    }
+
+    /// Sets keyboard input focus to the specified 64-bit semantic tag.
+    ///
+    /// Returns `true` if the focus target changed, or `false` if it was already focused.
+    #[inline]
+    pub fn set_focus_tag(&mut self, tag: u64) -> bool {
+        self.set_focus(FocusTarget::Tag(tag))
+    }
 }
 
 /// High-level response emitted after evaluating an interaction against the focus subsystem.
@@ -650,5 +668,27 @@ mod tests {
         widget_focus.set_focus(FocusTarget::Tag(888));
         widget_focus.sync_to_core(&mut core_manager);
         assert_eq!(core_manager.focused_tag(), Some(888));
+    }
+
+    #[test]
+    fn test_focus_state_tag_methods() {
+        let mut state = FocusState::new();
+        assert!(!state.is_tag_focused(123));
+
+        assert!(state.set_focus_tag(123));
+        assert!(state.is_tag_focused(123));
+        assert!(!state.is_tag_focused(456));
+
+        // Setting same tag again returns false (no change)
+        assert!(!state.set_focus_tag(123));
+
+        // Switching tag
+        assert!(state.set_focus_tag(456));
+        assert!(!state.is_tag_focused(123));
+        assert!(state.is_tag_focused(456));
+
+        // Clearing focus
+        assert!(state.clear_focus());
+        assert!(!state.is_tag_focused(456));
     }
 }

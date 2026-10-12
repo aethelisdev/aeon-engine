@@ -23,3 +23,6 @@ pub mod text_input;
 pub mod timeline;
 pub mod ui_designer;
 pub mod viewport_hud;
+
+#[cfg(test)]
+mod tests_dispatcher;

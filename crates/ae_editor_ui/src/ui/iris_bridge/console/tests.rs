@@ -46,7 +46,7 @@ fn test_console_click_target_routing() {
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -147,7 +147,7 @@ fn test_console_virtualized_empty_and_matching() {
         cursor_pos: Point::new(50.0, 50.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -175,7 +175,7 @@ fn test_console_panel_clipping_and_clear_action() {
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -224,7 +224,7 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
         cursor_pos: Point::new(395.0, 80.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -271,7 +271,7 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -328,7 +328,7 @@ fn test_console_toolbar_action_unification() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -398,6 +398,8 @@ fn test_console_search_focused_caret_positioning() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root creation failed");
     let panel_rect = Rect::new(0.0, 0.0, 800.0, 300.0);
+    let mut focus_state = FocusState::new();
+    focus_state.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
     let params = ConsolePanelParams {
         panel_rect,
         entries: &[],
@@ -408,7 +410,7 @@ fn test_console_search_focused_caret_positioning() {
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: true,
         is_scrollbar_dragging: false,
-        is_search_focused: true,
+        focus_state: &focus_state,
         cursor_byte_idx: 5,
     };
 

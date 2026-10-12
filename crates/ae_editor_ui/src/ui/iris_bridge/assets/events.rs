@@ -12,7 +12,7 @@ use super::types::{
     AssetsPanelAction, AssetsTagTarget, resolve_assets_ctx_action, resolve_assets_tag,
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetViewMode};
-use irisui::prelude::{HitTargetInfo, Point, Rect, UiLayer, WidgetRole};
+use irisui::prelude::{FocusState, FocusTarget, HitTargetInfo, Point, Rect, UiLayer, WidgetRole};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
@@ -62,8 +62,8 @@ pub struct AssetsEventContext<'a> {
     pub current_folder: &'a Path,
     /// Active search filter string buffer.
     pub search_query: &'a str,
-    /// Whether the search input box currently has keyboard focus.
-    pub is_search_focused: bool,
+    /// Autonomous focus state machine providing SSOT for panel inputs.
+    pub focus_state: &'a FocusState<FocusTarget>,
     /// Currently selected asset path, if any.
     pub selected_asset: Option<&'a Path>,
     /// Filtered asset items currently displayed.
@@ -82,7 +82,6 @@ pub fn handle_assets_click(
 ) -> bool {
     let cursor_pos = ctx.cursor_pos;
     let current_folder = ctx.current_folder;
-    let is_search_focused = ctx.is_search_focused;
 
     // 0a. Quick Asset Preview Modal Interactions (Zero-Allocation O(1) Semantic Dispatch)
     if let Some(pm) = ctx.preview_modal {
@@ -196,9 +195,6 @@ pub fn handle_assets_click(
     }
 
     if !is_point_in_rect(ctx.panel_rect, cursor_pos) {
-        if is_search_focused {
-            out_actions.push(AssetsPanelAction::FocusSearch(false));
-        }
         return false;
     }
 
@@ -309,7 +305,7 @@ pub fn handle_assets_click(
                 return true;
             }
             AssetsTagTarget::SearchInput => {
-                out_actions.push(AssetsPanelAction::FocusSearch(true));
+                out_actions.push(AssetsPanelAction::FocusSearch);
                 return true;
             }
             AssetsTagTarget::SearchClear => {
@@ -333,11 +329,6 @@ pub fn handle_assets_click(
             | AssetsTagTarget::PreviewOrbit
             | AssetsTagTarget::PreviewWireframe => {}
         }
-    }
-
-    // Unfocus search box if clicked elsewhere
-    if is_search_focused {
-        out_actions.push(AssetsPanelAction::FocusSearch(false));
     }
 
     // Clicking empty area in content viewport deselects active asset
@@ -570,16 +561,20 @@ pub fn handle_assets_panel_event(
                 out_actions.push(AssetsPanelAction::CloseContextMenu);
                 return true;
             }
-            if ctx.is_search_focused {
-                out_actions.push(AssetsPanelAction::FocusSearch(false));
+            if ctx
+                .focus_state
+                .is_tag_focused(super::types::ASSETS_TAG_SEARCH_INPUT)
+            {
                 return true;
             }
         }
 
         // 5b. Search box focus release on Enter (typing is centralized in workbench/events/keyboard.rs)
-        if ctx.is_search_focused {
+        if ctx
+            .focus_state
+            .is_tag_focused(super::types::ASSETS_TAG_SEARCH_INPUT)
+        {
             if matches!(logical_key, Key::Named(NamedKey::Enter)) {
-                out_actions.push(AssetsPanelAction::FocusSearch(false));
                 return true;
             }
         } else if ctx.preview_modal.is_none() {

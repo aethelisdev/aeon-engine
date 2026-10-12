@@ -332,8 +332,8 @@ pub struct HierarchyPanelParams<'a> {
     pub tree_state: &'a TreeState<hecs::Entity>,
     /// Whether the Hierarchy scrollbar thumb is actively being dragged.
     pub is_scrollbar_dragging: bool,
-    /// Whether the search input currently possesses active keyboard focus.
-    pub is_search_focused: bool,
+    /// Autonomous focus state machine providing SSOT for panel inputs.
+    pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
 }

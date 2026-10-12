@@ -261,9 +261,7 @@ impl IrisEditorOverlay {
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 tree_state: &self.hierarchy.tree_state,
                 is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
-                is_search_focused: self
-                    .focus_manager
-                    .is_tag_focused(hierarchy::HIERARCHY_TAG_SEARCH_INPUT),
+                focus_state: &self.focus_state,
                 cursor_byte_idx: self.hierarchy.search_input.cursor_byte_idx,
             };
             let overlay_root = self

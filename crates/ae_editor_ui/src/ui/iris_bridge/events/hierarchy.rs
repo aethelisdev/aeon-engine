@@ -178,7 +178,7 @@ impl IrisEditorOverlay {
 
                     match target {
                         HierarchyTagTarget::SearchInput => {
-                            self.focus_manager.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
+                            self.set_focus_tag(HIERARCHY_TAG_SEARCH_INPUT);
                             result.consumed = true;
                             return Some(result);
                         }
@@ -270,13 +270,6 @@ impl IrisEditorOverlay {
                             }
                         }
                         HierarchyTagTarget::PanelRoot => {
-                            if *button == WinitMouseButton::Left
-                                && self
-                                    .focus_manager
-                                    .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
-                            {
-                                self.focus_manager.clear_focus();
-                            }
                             if self.hierarchy.is_add_menu_open {
                                 self.hierarchy.is_add_menu_open = false;
                                 self.notifier.tag_all();
@@ -293,14 +286,8 @@ impl IrisEditorOverlay {
                 }
             }
 
-            // Outside panel click: unfocus search bar and dismiss menus
+            // Outside panel click: dismiss menus (focus clearing handled centrally by dispatcher)
             if *button == WinitMouseButton::Left {
-                if self
-                    .focus_manager
-                    .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
-                {
-                    self.focus_manager.clear_focus();
-                }
                 if self.hierarchy.is_add_menu_open {
                     self.hierarchy.is_add_menu_open = false;
                     self.notifier.tag_all();

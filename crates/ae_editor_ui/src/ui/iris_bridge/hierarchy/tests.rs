@@ -40,7 +40,7 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -131,7 +131,7 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -179,7 +179,7 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -267,7 +267,7 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -310,7 +310,7 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -361,7 +361,7 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -407,7 +407,7 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -465,7 +465,7 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -515,7 +515,7 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -589,7 +589,7 @@ fn test_hierarchy_panel_declarative_scope_build() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -657,7 +657,7 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -721,7 +721,7 @@ fn test_hierarchy_header_and_row_hover_styling() {
         blink_caret: false,
         tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 

@@ -57,7 +57,7 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         blink_caret: false,
         tree_state: &tree_state,
         is_scrollbar_dragging: false,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 

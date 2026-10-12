@@ -30,12 +30,15 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
     scope.container_named("HierarchyHeaderBar", header_bar_style, |bar| {
         // 1. Search Bar Input Box via standard declarative input_box_tagged widget
         let search_width = (params.panel_rect.width - 68.0).max(60.0);
+        let is_search_focused = params
+            .focus_state
+            .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT);
         let search_props = InputBoxProps::new(
             params.search_query,
             "Search...",
             search_width,
-            params.is_search_focused,
-            params.is_search_focused && params.blink_caret,
+            is_search_focused,
+            is_search_focused && params.blink_caret,
         )
         .with_icon("🔍")
         .with_cursor_byte_idx(params.cursor_byte_idx)

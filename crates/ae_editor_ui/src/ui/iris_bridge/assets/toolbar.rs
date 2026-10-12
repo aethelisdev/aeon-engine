@@ -88,12 +88,13 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
 
 /// Helper to render the search input box inside the flex toolbar matching Hierarchy Search UX.
 fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
+    let is_search_focused = params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT);
     let search_props = InputBoxProps::new(
         params.search_query,
         "Search assets...",
         180.0,
-        params.is_search_focused,
-        params.is_search_focused && params.blink_caret,
+        is_search_focused,
+        is_search_focused && params.blink_caret,
     )
     .with_icon("🔍")
     .with_cursor_byte_idx(params.cursor_byte_idx)

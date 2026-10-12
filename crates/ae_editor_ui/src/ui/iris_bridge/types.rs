@@ -362,6 +362,8 @@ pub struct IrisEditorOverlay {
     pub inspector: InspectorPanelState,
     /// Central focus manager tracking keyboard input focus across widgets and panels.
     pub focus_manager: FocusManager,
+    /// Autonomous focus state machine providing SSOT for panel inputs and outside-click clearing.
+    pub focus_state: FocusState<FocusTarget>,
     /// Dedicated top-level overlay and portal tree for dropdowns, popups, and modal dialogs (Phase 5.2).
     pub overlay_tree: super::overlay_tree::OverlayTree,
     /// Multi-tree layer compositor merging independent panel trees, floating windows,
@@ -376,9 +378,37 @@ impl IrisEditorOverlay {
         self.chrome.cursor_pos
     }
 
+    /// Returns true if the specified 64-bit semantic tag currently holds keyboard input focus.
+    #[must_use]
+    #[inline]
+    pub fn is_tag_focused(&self, tag: u64) -> bool {
+        self.focus_state.is_tag_focused(tag)
+    }
+
+    /// Assigns keyboard input focus to the specified 64-bit semantic tag and synchronizes the core focus manager.
+    #[inline]
+    pub fn set_focus_tag(&mut self, tag: u64) {
+        if self.focus_state.set_focus_tag(tag) {
+            self.focus_state.sync_to_core(&mut self.focus_manager);
+        }
+    }
+
+    /// Clears any active keyboard input focus from both the autonomous focus state and the core focus manager.
+    ///
+    /// Returns `true` if an active focus target was cleared.
+    #[inline]
+    pub fn clear_focus(&mut self) -> bool {
+        let changed = self.focus_state.clear_focus();
+        if changed {
+            self.focus_state.sync_to_core(&mut self.focus_manager);
+        }
+        changed
+    }
+
     /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
     pub fn is_any_text_input_focused(&self) -> bool {
-        self.focus_manager.has_focus()
+        self.focus_state.has_focus()
+            || self.focus_manager.has_focus()
             || self.inspector.active_number_input.is_some()
             || self.inspector.active_text_input.is_some()
             || self.inspector.rename_input.is_some()

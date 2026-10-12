@@ -8,7 +8,7 @@
 //!
 
 use crate::ui::types::ConsoleEntry;
-use irisui::prelude::{Point, Rect, UiTree, WidgetRole};
+use irisui::prelude::{FocusState, FocusTarget, Point, Rect, UiTree, WidgetRole};
 
 /// Semantic hit-testing tag for the Developer Console root panel container.
 pub const CONSOLE_TAG_PANEL_ROOT: u64 = 0x5000;
@@ -253,8 +253,8 @@ pub struct ConsolePanelParams<'a> {
     pub blink_caret: bool,
     /// Whether the scrollbar thumb is currently being dragged.
     pub is_scrollbar_dragging: bool,
-    /// Whether the search text input currently holds keyboard focus.
-    pub is_search_focused: bool,
+    /// Autonomous focus state machine providing SSOT for panel inputs.
+    pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
 }

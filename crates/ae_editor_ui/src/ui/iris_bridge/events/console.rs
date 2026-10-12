@@ -106,7 +106,7 @@ impl IrisEditorOverlay {
                         self.console.auto_scroll = !self.console.auto_scroll;
                     }
                     super::super::console::ConsoleAction::FocusSearch => {
-                        self.focus_manager.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
+                        self.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
                         result.consumed = true;
                         return Some(result);
                     }
@@ -133,13 +133,10 @@ impl IrisEditorOverlay {
                 }
                 if is_console_tag(hit.tag) {
                     if hit.tag == CONSOLE_TAG_SEARCH_INPUT {
-                        self.focus_manager.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
+                        self.set_focus_tag(CONSOLE_TAG_SEARCH_INPUT);
                     } else if hit.tag == CONSOLE_TAG_SEARCH_CLEAR {
                         self.console.search_input.clear();
                     } else {
-                        if self.focus_manager.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT) {
-                            self.focus_manager.clear_focus();
-                        }
                         match hit.tag {
                             crate::ui::iris_bridge::console::CONSOLE_TAG_CLEAR => {
                                 if let Ok(mut lock) = ae_editor::editor_logger::LOGGER.logs.lock() {

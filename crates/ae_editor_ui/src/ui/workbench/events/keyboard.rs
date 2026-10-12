@@ -90,6 +90,7 @@ impl EngineUi {
         let ctrl_held = self.iris_overlay.chrome.ctrl_held;
         let hier_res = crate::ui::iris_bridge::events::text_input::handle_focused_text_input(
             &mut self.iris_overlay.hierarchy.search_input,
+            &mut self.iris_overlay.focus_state,
             &mut self.iris_overlay.focus_manager,
             crate::ui::iris_bridge::hierarchy::HIERARCHY_TAG_SEARCH_INPUT,
             event,
@@ -105,6 +106,7 @@ impl EngineUi {
         // Assets Content Browser search bar live typing via TextInputState
         let assets_res = crate::ui::iris_bridge::events::text_input::handle_focused_text_input(
             &mut self.iris_overlay.assets.search_input,
+            &mut self.iris_overlay.focus_state,
             &mut self.iris_overlay.focus_manager,
             crate::ui::iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT,
             event,
@@ -122,6 +124,7 @@ impl EngineUi {
         // Developer Console search bar live typing via TextInputState
         let console_res = crate::ui::iris_bridge::events::text_input::handle_focused_text_input(
             &mut self.iris_overlay.console.search_input,
+            &mut self.iris_overlay.focus_state,
             &mut self.iris_overlay.focus_manager,
             crate::ui::iris_bridge::console::CONSOLE_TAG_SEARCH_INPUT,
             event,
@@ -143,19 +146,22 @@ mod tests {
     use crate::ui::iris_bridge::events::text_input::{
         TextInputActionResult, handle_focused_text_input,
     };
-    use irisui::prelude::{FocusManager, TextInputState};
+    use irisui::prelude::{FocusManager, FocusState, TextInputState};
     use winit::event::{Ime, WindowEvent};
 
     #[test]
     fn test_assets_search_input_single_dispatch_ime() {
         let mut search_input = TextInputState::new("asset_");
+        let mut focus_state = FocusState::new();
         let mut focus_manager = FocusManager::new();
         let target_tag = crate::ui::iris_bridge::assets::ASSETS_TAG_SEARCH_INPUT;
-        focus_manager.set_focus_tag(target_tag);
+        focus_state.set_focus_tag(target_tag);
+        focus_state.sync_to_core(&mut focus_manager);
 
         let event = WindowEvent::Ime(Ime::Commit("model".into()));
         let res = handle_focused_text_input(
             &mut search_input,
+            &mut focus_state,
             &mut focus_manager,
             target_tag,
             &event,
@@ -164,19 +170,23 @@ mod tests {
 
         assert_eq!(res, TextInputActionResult::Changed);
         assert_eq!(search_input.text(), "asset_model");
+        assert!(focus_state.is_tag_focused(target_tag));
         assert!(focus_manager.is_tag_focused(target_tag));
     }
 
     #[test]
     fn test_console_search_input_centralized_dispatch_ime() {
         let mut search_input = TextInputState::new("log_");
+        let mut focus_state = FocusState::new();
         let mut focus_manager = FocusManager::new();
         let target_tag = crate::ui::iris_bridge::console::CONSOLE_TAG_SEARCH_INPUT;
-        focus_manager.set_focus_tag(target_tag);
+        focus_state.set_focus_tag(target_tag);
+        focus_state.sync_to_core(&mut focus_manager);
 
         let event = WindowEvent::Ime(Ime::Commit("filter".into()));
         let res = handle_focused_text_input(
             &mut search_input,
+            &mut focus_state,
             &mut focus_manager,
             target_tag,
             &event,
@@ -185,6 +195,7 @@ mod tests {
 
         assert_eq!(res, TextInputActionResult::Changed);
         assert_eq!(search_input.text(), "log_filter");
+        assert!(focus_state.is_tag_focused(target_tag));
         assert!(focus_manager.is_tag_focused(target_tag));
     }
 }

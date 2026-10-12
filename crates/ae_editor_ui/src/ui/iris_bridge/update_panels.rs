@@ -82,9 +82,7 @@ impl IrisEditorOverlay {
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 tree_state: &self.hierarchy.tree_state,
                 is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
-                is_search_focused: self
-                    .focus_manager
-                    .is_tag_focused(super::hierarchy::HIERARCHY_TAG_SEARCH_INPUT),
+                focus_state: &self.focus_state,
                 cursor_byte_idx: self.hierarchy.interactions.search_input.cursor_byte_idx,
             };
 
@@ -200,9 +198,6 @@ impl IrisEditorOverlay {
         {
             self.console.panel_rect = Some(console_rect);
             let local_console_rect = Rect::new(0.0, 0.0, console_rect.width, console_rect.height);
-            let is_search_focused = self
-                .focus_manager
-                .is_tag_focused(super::console::CONSOLE_TAG_SEARCH_INPUT);
             let console_params = super::console::ConsolePanelParams {
                 panel_rect: local_console_rect,
                 entries: params.panel_data.console_entries,
@@ -213,7 +208,7 @@ impl IrisEditorOverlay {
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 is_scrollbar_dragging: self.console.scroll_state.is_dragging(),
-                is_search_focused,
+                focus_state: &self.focus_state,
                 cursor_byte_idx: self.console.search_input.cursor_byte_idx,
             };
 
@@ -314,9 +309,7 @@ impl IrisEditorOverlay {
                 active_preview_modal: self.assets.preview_modal.as_ref(),
                 subfolders: &params.panel_data.asset_browser.subfolders,
                 thumbnail_layers: &self.assets.thumbnail_layers,
-                is_search_focused: self
-                    .focus_manager
-                    .is_tag_focused(super::assets::ASSETS_TAG_SEARCH_INPUT),
+                focus_state: &self.focus_state,
                 cursor_byte_idx: self.assets.search_input.cursor_byte_idx,
             };
 

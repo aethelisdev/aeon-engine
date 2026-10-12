@@ -70,12 +70,14 @@ pub fn build_console_panel(
                     tb.toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR);
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 
+                    let is_search_focused =
+                        params.focus_state.is_tag_focused(CONSOLE_TAG_SEARCH_INPUT);
                     let search_props = InputBoxProps::new(
                         params.search_query,
                         "Search logs...",
                         200.0,
-                        params.is_search_focused,
-                        params.is_search_focused && params.blink_caret,
+                        is_search_focused,
+                        is_search_focused && params.blink_caret,
                     )
                     .with_icon("🔍")
                     .with_cursor_byte_idx(params.cursor_byte_idx)

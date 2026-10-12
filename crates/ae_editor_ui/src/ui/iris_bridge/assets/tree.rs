@@ -260,7 +260,7 @@ mod tests {
             active_preview_modal: None,
             subfolders: &subfolders,
             thumbnail_layers: &HashMap::new(),
-            is_search_focused: false,
+            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
         };
 
@@ -329,7 +329,7 @@ mod tests {
                 active_preview_modal: None,
                 subfolders: &subfolders,
                 thumbnail_layers: &HashMap::new(),
-                is_search_focused: false,
+                focus_state: &FocusState::new(),
                 cursor_byte_idx: 0,
             };
 
@@ -387,7 +387,7 @@ mod tests {
             active_preview_modal: None,
             subfolders: &subfolders,
             thumbnail_layers: &HashMap::new(),
-            is_search_focused: false,
+            focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
         };
         let mut tree_expanded = UiTree::new();

@@ -62,7 +62,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -157,7 +157,7 @@ fn test_assets_actions_dispatch() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(HitTargetInfo {
             id: WidgetId::default(),
@@ -214,7 +214,7 @@ fn test_assets_right_click_context_menu_dispatch() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(HitTargetInfo {
             id: root_id,
@@ -264,7 +264,7 @@ fn test_assets_folder_tree_click_and_toggle_dispatch() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(HitTargetInfo {
             id: WidgetId::default(),
@@ -366,7 +366,7 @@ fn test_preview_modal_build_and_actions() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -392,7 +392,7 @@ fn test_preview_modal_build_and_actions() {
         preview_modal: Some(&preview_state),
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: tree.hit_test_target(close_pos),
         filtered_items: &[],
@@ -456,7 +456,7 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         active_context_menu: None,
         active_preview_modal: Some(&preview_state),
         thumbnail_layers: &HashMap::new(),
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -591,7 +591,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -830,7 +830,7 @@ fn test_engine_toggle_action_dispatch() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(HitTargetInfo {
             id: WidgetId::default(),
@@ -892,7 +892,7 @@ fn test_engine_and_sidebar_vector_icons() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -1101,7 +1101,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         active_context_menu: Some(&ctx_menu_data),
         active_preview_modal: None,
         thumbnail_layers: &thumbnail_layers,
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -1147,7 +1147,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(hit_inspect),
         filtered_items: &[],
@@ -1175,7 +1175,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(hit_rename),
         filtered_items: &[],
@@ -1203,7 +1203,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(hit_delete),
         filtered_items: &[],
@@ -1231,7 +1231,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: None,
         filtered_items: &[],
@@ -1271,7 +1271,7 @@ fn test_assets_toolbar_width_and_search_ux() {
         active_context_menu: None,
         active_preview_modal: None,
         thumbnail_layers: &HashMap::new(),
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
@@ -1310,7 +1310,7 @@ fn test_assets_click_outside_panel_rect_does_not_consume_even_with_hit_target() 
         preview_modal: None,
         current_folder: Path::new("assets"),
         search_query: "",
-        is_search_focused: false,
+        focus_state: &FocusState::new(),
         selected_asset: None,
         hit_target: Some(HitTargetInfo {
             id: WidgetId::default(),

@@ -69,6 +69,33 @@ impl IrisEditorOverlay {
         // 3. Any active UI node in the retained UiTree
         self.tree.hit_test_layered(point).is_some()
     }
+
+    /// Evaluates hit-testing across all overlay trees, docked panel trees, and the base UI tree.
+    ///
+    /// Resolves panel-local tags to global semantic tags, returning the hit target information
+    /// at the given coordinate. Used by centralized focus clearing and pointer dispatcher.
+    pub fn hit_test_any(&self, point: Point) -> Option<HitTargetInfo> {
+        if let Some(hit) = self.overlay_tree.tree().hit_test_target(point) {
+            return Some(hit);
+        }
+        for panel_id in [
+            crate::ui::panel_layout::PanelId::Hierarchy,
+            crate::ui::panel_layout::PanelId::Inspector,
+            crate::ui::panel_layout::PanelId::Console,
+            crate::ui::panel_layout::PanelId::Assets,
+            crate::ui::panel_layout::PanelId::Stats,
+            crate::ui::panel_layout::PanelId::MaterialEditor,
+            crate::ui::panel_layout::PanelId::AnimationTimeline,
+        ] {
+            if let Some(mut hit) = self.hit_test_panel(panel_id, point) {
+                if hit.tag == 0 {
+                    hit.tag = self.resolve_panel_tag(panel_id, hit.id);
+                }
+                return Some(hit);
+            }
+        }
+        self.tree.hit_test_target(point)
+    }
 }
 
 #[cfg(test)]

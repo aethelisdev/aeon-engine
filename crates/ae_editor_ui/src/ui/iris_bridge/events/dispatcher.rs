@@ -3,7 +3,10 @@
 
 //! Top-level event orchestration and interaction routing for Iris UI editor overlays.
 
+use crate::ui::iris_bridge::assets::{ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT};
 use crate::ui::iris_bridge::compositor;
+use crate::ui::iris_bridge::console::{CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT};
+use crate::ui::iris_bridge::hierarchy::{HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT};
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use crate::ui::iris_bridge::{ActiveOverlay, ModalKind};
 use crate::ui::panel_layout::PanelId;
@@ -254,6 +257,59 @@ impl IrisEditorOverlay {
                 consumed: true,
                 ..Default::default()
             };
+        }
+
+        // 5b. Search input focus cancellation via Escape key (Single Source of Truth)
+        if let WindowEvent::KeyboardInput {
+            event:
+                winit::event::KeyEvent {
+                    logical_key: winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape),
+                    state: winit::event::ElementState::Pressed,
+                    ..
+                },
+            ..
+        } = event
+            && self.focus_state.has_focus()
+        {
+            self.clear_focus();
+            self.chrome.needs_layout_rebuild = true;
+            self.notifier.tag_all();
+            return IrisOverlayEventResult {
+                consumed: true,
+                ..Default::default()
+            };
+        }
+
+        // 5c. Autonomous focus clearing on outside click (clear_on_outside_click)
+        if let WindowEvent::MouseInput {
+            state: winit::event::ElementState::Pressed,
+            button: winit::event::MouseButton::Left,
+            ..
+        } = event
+            && self.focus_state.has_focus()
+        {
+            let cursor = self.cursor_pos();
+            let hit = self.hit_test_any(cursor);
+            let hit_tag = hit.as_ref().map(|h| h.tag);
+            let hit_id = hit.as_ref().map(|h| h.id);
+            let is_hit_focused = match (self.focus_state.focused, hit_tag) {
+                (Some(FocusTarget::Tag(focused_tag)), Some(tag)) => {
+                    tag == focused_tag
+                        || (focused_tag == HIERARCHY_TAG_SEARCH_INPUT
+                            && tag == HIERARCHY_TAG_SEARCH_CLEAR)
+                        || (focused_tag == ASSETS_TAG_SEARCH_INPUT
+                            && tag == ASSETS_TAG_SEARCH_CLEAR)
+                        || (focused_tag == CONSOLE_TAG_SEARCH_INPUT
+                            && tag == CONSOLE_TAG_SEARCH_CLEAR)
+                }
+                (Some(FocusTarget::Widget(focused_id)), _) => hit_id == Some(focused_id),
+                _ => false,
+            };
+            if !is_hit_focused {
+                self.clear_focus();
+                self.chrome.needs_layout_rebuild = true;
+                self.notifier.tag_all();
+            }
         }
 
         // 6. Top Menubar header bar (when cursor is over the header strip)
@@ -516,233 +572,5 @@ impl IrisEditorOverlay {
         self.ui_designer.is_add_menu_open = false;
         self.ui_designer.is_aspect_open = false;
         self.overlay_tree.close();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ui::iris_bridge::assets::types::{AssetsPanelAction, AssetsPanelState};
-    use crate::ui::iris_bridge::console::{ConsoleAction, ConsolePanelState};
-    use crate::ui::iris_bridge::hierarchy::{HierarchyAction, HierarchyPanelState};
-    use crate::ui::iris_bridge::inspector::{InspectorAction, InspectorPanelState};
-    use crate::ui::iris_bridge::material::{MaterialAction, MaterialPanelState};
-    use crate::ui::iris_bridge::preferences::{PreferencesAction, PreferencesDialogState};
-    use crate::ui::iris_bridge::stats::{StatsPanelAction, StatsPanelState};
-    use crate::ui::iris_bridge::types::PanelInteractionState;
-
-    #[test]
-    fn test_panel_interaction_state_pending_actions_invariants() {
-        let mut state: PanelInteractionState<(), ConsoleAction> = PanelInteractionState::default();
-        assert!(
-            !state.has_pending_actions(),
-            "Default state must report zero pending actions"
-        );
-
-        state.actions.push(ConsoleAction::ClearLogs);
-        assert!(
-            state.has_pending_actions(),
-            "Must report pending action when queue is non-empty"
-        );
-
-        let drained = state.take_actions();
-        assert_eq!(drained.len(), 1);
-        assert!(
-            !state.has_pending_actions(),
-            "State must report zero pending actions after take_actions"
-        );
-    }
-
-    #[test]
-    fn test_all_panels_pending_actions_invariants() {
-        // 1. Hierarchy panel state
-        let mut hier = HierarchyPanelState::default();
-        assert!(!hier.interactions.has_pending_actions());
-        hier.interactions
-            .actions
-            .push(HierarchyAction::DeleteSelected);
-        assert!(hier.interactions.has_pending_actions());
-        let _ = hier.interactions.take_actions();
-        assert!(!hier.interactions.has_pending_actions());
-
-        // 2. Stats panel state
-        let mut stats = StatsPanelState::default();
-        assert!(!stats.interactions.has_pending_actions());
-        stats
-            .interactions
-            .actions
-            .push(StatsPanelAction::ToggleWireframe);
-        assert!(stats.interactions.has_pending_actions());
-        let _ = stats.interactions.take_actions();
-        assert!(!stats.interactions.has_pending_actions());
-
-        // 3. Console panel state
-        let mut console = ConsolePanelState::default();
-        assert!(!console.interactions.has_pending_actions());
-        console.interactions.actions.push(ConsoleAction::ClearLogs);
-        assert!(console.interactions.has_pending_actions());
-        let _ = console.interactions.take_actions();
-        assert!(!console.interactions.has_pending_actions());
-
-        // 4. Material panel state
-        let mut mat = MaterialPanelState::default();
-        assert!(!mat.interactions.has_pending_actions());
-        mat.interactions
-            .actions
-            .push(MaterialAction::RemoveTextureFromEntity(
-                hecs::Entity::DANGLING,
-            ));
-        assert!(mat.interactions.has_pending_actions());
-        let _ = mat.interactions.take_actions();
-        assert!(!mat.interactions.has_pending_actions());
-
-        // 5. Assets panel state
-        let mut assets = AssetsPanelState::default();
-        assert!(!assets.interactions.has_pending_actions());
-        assets
-            .interactions
-            .actions
-            .push(AssetsPanelAction::CleanVram);
-        assert!(assets.interactions.has_pending_actions());
-        let _ = assets.interactions.take_actions();
-        assert!(!assets.interactions.has_pending_actions());
-
-        // 6. Preferences dialog state
-        let mut pref = PreferencesDialogState::default();
-        assert!(!pref.interactions.has_pending_actions());
-        pref.interactions.actions.push(PreferencesAction::Close);
-        assert!(pref.interactions.has_pending_actions());
-        let _ = pref.interactions.take_actions();
-        assert!(!pref.interactions.has_pending_actions());
-
-        // 7. Inspector panel state
-        let mut insp = InspectorPanelState::default();
-        assert!(!insp.interactions.has_pending_actions());
-        insp.interactions
-            .actions
-            .push(InspectorAction::ToggleColorPicker);
-        assert!(insp.interactions.has_pending_actions());
-        let _ = insp.interactions.take_actions();
-        assert!(!insp.interactions.has_pending_actions());
-
-        // 8. Timeline panel state
-        let mut tl = crate::ui::iris_bridge::timeline::TimelinePanelState::default();
-        assert!(!tl.interactions.has_pending_actions());
-        tl.interactions
-            .actions
-            .push(crate::ui::iris_bridge::timeline::TimelineAction::TogglePlayPause);
-        assert!(tl.interactions.has_pending_actions());
-        let _ = tl.interactions.take_actions();
-        assert!(!tl.interactions.has_pending_actions());
-
-        // 9. UI Designer panel state
-        let mut ui_des = crate::ui::iris_bridge::ui_designer::UiDesignerPanelState::default();
-        assert!(!ui_des.interactions.has_pending_actions());
-        ui_des
-            .interactions
-            .actions
-            .push(crate::ui::iris_bridge::ui_designer::UiDesignerAction::ToggleGrid);
-        assert!(ui_des.interactions.has_pending_actions());
-        let _ = ui_des.interactions.take_actions();
-        assert!(!ui_des.interactions.has_pending_actions());
-
-        // 10. Viewport HUD state
-        let mut vp_hud = crate::ui::iris_bridge::viewport_hud::ViewportHudState::default();
-        assert!(vp_hud.actions.is_empty());
-        vp_hud
-            .actions
-            .push(crate::ui::iris_bridge::viewport_hud::ViewportHudAction::ToggleWireframe);
-        assert!(!vp_hud.actions.is_empty());
-        let _ = vp_hud.take_actions();
-        assert!(vp_hud.actions.is_empty());
-    }
-
-    #[test]
-    fn test_top_down_layered_hit_test_overlay_priority() {
-        use crate::ui::iris_bridge::overlay_tree::{
-            ActiveOverlay, OverlayDismissPolicy, OverlayTree,
-        };
-        use irisui::prelude::{Point, Rect};
-
-        let mut overlay_tree = OverlayTree::new();
-        let overlay_rect = Rect::new(100.0, 100.0, 200.0, 150.0);
-        overlay_tree.open(
-            ActiveOverlay::MenubarDropdown(crate::ui::iris_bridge::types::ActiveMenu::File),
-            OverlayDismissPolicy::ClickOutside,
-        );
-        overlay_tree.set_overlay_bounds(overlay_rect);
-
-        // Click inside overlay: must be detected inside overlay bounds
-        let inside_click = Point::new(150.0, 150.0);
-        assert!(overlay_tree.contains_point(inside_click));
-
-        // Click outside overlay: must trigger dismiss without click-through
-        let outside_click = Point::new(400.0, 400.0);
-        assert!(!overlay_tree.contains_point(outside_click));
-        let dismiss_res = overlay_tree.handle_pointer_down(outside_click);
-        assert_eq!(
-            dismiss_res,
-            crate::ui::iris_bridge::OverlayDismissResult::Dismissed
-        );
-    }
-
-    #[test]
-    fn test_floating_window_occlusion_and_coordinate_transformation() {
-        use irisui::prelude::{Point, Rect};
-
-        let floating_rect = Rect::new(200.0, 150.0, 500.0, 400.0);
-        let screen_cursor = Point::new(250.0, 200.0);
-
-        // Point is inside floating window
-        assert!(crate::ui::iris_bridge::is_point_in_panel(
-            screen_cursor,
-            floating_rect
-        ));
-
-        // Transformed to (0, 0) local coordinates
-        let local_cursor =
-            crate::ui::iris_bridge::screen_to_panel_local(screen_cursor, floating_rect);
-        assert_eq!(local_cursor.x, 50.0);
-        assert_eq!(local_cursor.y, 50.0);
-    }
-
-    #[test]
-    fn test_pointer_capture_routes_outside_cursor_to_captured_panel() {
-        use crate::ui::iris_bridge::types::IrisChromeState;
-        use crate::ui::panel_layout::PanelId;
-        use irisui::prelude::{Point, Rect};
-
-        let mut chrome = IrisChromeState::default();
-        let timeline_rect = Rect::new(0.0, 600.0, 800.0, 200.0);
-        let hierarchy_rect = Rect::new(0.0, 28.0, 250.0, 572.0);
-
-        // Without capture, cursor at (50, 100) is in Hierarchy, NOT in Timeline
-        let cursor_in_hier = Point::new(50.0, 100.0);
-        assert!(crate::ui::iris_bridge::is_point_in_panel(
-            cursor_in_hier,
-            hierarchy_rect
-        ));
-        assert!(!crate::ui::iris_bridge::is_point_in_panel(
-            cursor_in_hier,
-            timeline_rect
-        ));
-
-        // When Timeline acquires pointer capture:
-        chrome.pointer_capture = Some(PanelId::AnimationTimeline);
-        assert_eq!(chrome.pointer_capture, Some(PanelId::AnimationTimeline));
-
-        // The captured predicate routes to Timeline even though cursor is physically over Hierarchy
-        let captured = chrome.pointer_capture;
-        let is_in = |id: PanelId| -> bool {
-            if let Some(cap) = captured {
-                return cap == id;
-            }
-            false
-        };
-        assert!(is_in(PanelId::AnimationTimeline));
-        assert!(!is_in(PanelId::Hierarchy));
-
-        // Releasing capture clears routing
-        chrome.pointer_capture = None;
-        assert_eq!(chrome.pointer_capture, None);
     }
 }

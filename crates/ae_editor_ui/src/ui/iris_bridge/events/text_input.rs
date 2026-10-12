@@ -6,7 +6,7 @@
 //! Provides unified typing, caret navigation, clipboard operations (Ctrl+C, Ctrl+V, Ctrl+X),
 //! text selection, and focus management integration for interactive text inputs.
 
-use irisui::prelude::{FocusManager, TextInputState, get_clipboard_text};
+use irisui::prelude::{FocusManager, FocusState, FocusTarget, TextInputState, get_clipboard_text};
 use winit::event::{ElementState, Ime, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
@@ -41,23 +41,26 @@ impl TextInputActionResult {
 
 /// Evaluates a window event for a specific focused semantic tag.
 ///
-/// If the tag holds focus in the provided `FocusManager`, dispatches the keyboard event
-/// through `handle_text_input_event`. On `Confirmed` or `Cancelled`, clears active focus.
+/// If the tag holds focus in the provided `FocusState`, dispatches the keyboard event
+/// through `handle_text_input_event`. On `Confirmed` or `Cancelled`, clears active focus
+/// and synchronizes the core focus manager.
 pub fn handle_focused_text_input(
     state: &mut TextInputState,
+    focus_state: &mut FocusState<FocusTarget>,
     focus_manager: &mut FocusManager,
     target_tag: u64,
     event: &WindowEvent,
     ctrl_held: bool,
 ) -> TextInputActionResult {
-    if !focus_manager.is_tag_focused(target_tag) {
+    if !focus_state.is_tag_focused(target_tag) {
         return TextInputActionResult::Ignored;
     }
 
     let result = handle_text_input_event(state, event, ctrl_held);
     match result {
         TextInputActionResult::Confirmed | TextInputActionResult::Cancelled => {
-            focus_manager.clear_focus();
+            focus_state.clear_focus();
+            focus_state.sync_to_core(focus_manager);
         }
         _ => {}
     }
@@ -290,14 +293,24 @@ mod tests {
     #[test]
     fn test_focused_text_input_confirmation_clears_focus() {
         let mut state = TextInputState::new("query");
-        let mut focus = FocusManager::new();
+        let mut focus_state = FocusState::new();
+        let mut focus_manager = FocusManager::new();
         let target_tag = 0x1234;
-        focus.set_focus_tag(target_tag);
+        focus_state.set_focus_tag(target_tag);
+        focus_state.sync_to_core(&mut focus_manager);
 
         let event = WindowEvent::Ime(Ime::Commit("!".into()));
-        let res = handle_focused_text_input(&mut state, &mut focus, target_tag, &event, false);
+        let res = handle_focused_text_input(
+            &mut state,
+            &mut focus_state,
+            &mut focus_manager,
+            target_tag,
+            &event,
+            false,
+        );
         assert_eq!(res, TextInputActionResult::Changed);
         assert_eq!(state.buffer, "query!");
-        assert!(focus.is_tag_focused(target_tag));
+        assert!(focus_state.is_tag_focused(target_tag));
+        assert!(focus_manager.is_tag_focused(target_tag));
     }
 }

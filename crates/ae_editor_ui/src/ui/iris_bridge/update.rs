@@ -51,6 +51,7 @@ impl IrisEditorOverlay {
             ui_designer: super::ui_designer::types::UiDesignerPanelState::default(),
             inspector: super::inspector::types::InspectorPanelState::default(),
             focus_manager: FocusManager::new(),
+            focus_state: FocusState::new(),
             overlay_tree: super::overlay_tree::OverlayTree::new(),
             compositor: super::compositor::TreeCompositor::new(),
         }
