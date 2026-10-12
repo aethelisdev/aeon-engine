@@ -168,8 +168,13 @@ impl<'a> ScrollAreaBuilder<'a> {
         if let Some(node) = tree.get_mut(container_id) {
             node.set_name(self.name);
             node.computed_rect = self.viewport_rect;
-            node.role = WidgetRole::Default;
-            let mut style = Style::new().clip_children(true);
+            node.content_size =
+                iris_core::geometry::Size::new(self.viewport_rect.width, self.content_height);
+            node.role = WidgetRole::ScrollAreaViewport;
+            node.interactive = true;
+            let mut style = Style::new()
+                .clip_children(true)
+                .scroll_offset_y(safe_scroll_y);
             if let Some(bg) = self.background {
                 style = style.background(bg);
             }
@@ -196,6 +201,8 @@ impl<'a> ScrollAreaBuilder<'a> {
             if let Some(node) = tree.get_mut(track_id) {
                 node.set_name(format!("{}_Track", self.name));
                 node.computed_rect = geom.track_rect;
+                node.role = WidgetRole::ScrollBarTrack;
+                node.interactive = true;
                 node.style = Style::new()
                     .background(self.style.track_bg)
                     .border_radius(self.style.track_border_radius);
@@ -219,6 +226,8 @@ impl<'a> ScrollAreaBuilder<'a> {
             if let Some(node) = tree.get_mut(thumb_id) {
                 node.set_name(format!("{}_Thumb", self.name));
                 node.computed_rect = geom.thumb_rect;
+                node.role = WidgetRole::ScrollBarThumb;
+                node.interactive = true;
                 node.style = Style::new()
                     .background(thumb_bg)
                     .border_radius(self.style.thumb_border_radius);

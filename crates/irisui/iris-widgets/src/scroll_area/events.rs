@@ -82,6 +82,18 @@ impl ScrollAreaState {
         self.scroll_y = 0.0;
         self.drag_state = None;
     }
+
+    /// Synchronizes this local state with the current scroll offset stored in the [`iris_core::tree::UiTree`].
+    #[inline]
+    pub fn sync_from_tree(
+        &mut self,
+        tree: &iris_core::tree::UiTree,
+        container_id: iris_core::id::WidgetId,
+    ) {
+        if let Some(node) = tree.get(container_id) {
+            self.scroll_y = node.style.scroll_offset_y;
+        }
+    }
 }
 
 /// Evaluated outcome of a scroll interaction (drag, track click, or wheel gesture).

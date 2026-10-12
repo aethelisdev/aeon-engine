@@ -61,6 +61,12 @@ pub enum WidgetRole {
     TextInputIcon,
     /// Animated blinking vertical caret cursor indicator inside an active text input field.
     TextInputCaret,
+    /// Scroll area clipped viewport container holding scrollable child nodes.
+    ScrollAreaViewport,
+    /// Vertical or horizontal scrollbar track background line.
+    ScrollBarTrack,
+    /// Draggable vertical or horizontal scrollbar thumb handle indicator.
+    ScrollBarThumb,
 }
 
 /// Canonical hardware mouse cursor shapes supported across the Iris UI ecosystem.
@@ -156,7 +162,10 @@ impl WidgetRole {
             | WidgetRole::DockSplitterVertical
             | WidgetRole::ProgressBar
             | WidgetRole::TextInputIcon
-            | WidgetRole::TextInputCaret => UiLayer::Content,
+            | WidgetRole::TextInputCaret
+            | WidgetRole::ScrollAreaViewport
+            | WidgetRole::ScrollBarTrack
+            | WidgetRole::ScrollBarThumb => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
             WidgetRole::ModalWindow => UiLayer::Modal,
             WidgetRole::DropdownPopup
