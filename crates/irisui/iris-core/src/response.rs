@@ -30,16 +30,18 @@ bitflags! {
         const DOUBLE_CLICKED = 1 << 3;
         /// Secondary (right-click) mouse button was pressed on the widget (context menu trigger).
         const SECONDARY_CLICKED = 1 << 4;
+        /// Middle mouse button click detected (e.g. close tab gesture).
+        const MIDDLE_CLICKED = 1 << 5;
         /// Active pointer drag gesture is occurring over or captured by this widget.
-        const DRAGGED = 1 << 5;
+        const DRAGGED = 1 << 6;
         /// The widget's bound value or text model was mutated during this interaction pass.
-        const CHANGED = 1 << 6;
+        const CHANGED = 1 << 7;
         /// Widget currently holds active keyboard navigation or text input focus.
-        const FOCUSED = 1 << 7;
+        const FOCUSED = 1 << 8;
         /// Widget transitioned into focused state during this frame.
-        const GAINED_FOCUS = 1 << 8;
+        const GAINED_FOCUS = 1 << 9;
         /// Widget transitioned out of focused state during this frame.
-        const LOST_FOCUS = 1 << 9;
+        const LOST_FOCUS = 1 << 10;
     }
 }
 
@@ -55,18 +57,12 @@ pub struct WidgetResponse {
     pub id: WidgetId,
     /// Absolute layout bounding box of the widget in screen pixels.
     pub rect: Rect,
-    /// Detailed interaction bitflags.
+    /// Detailed interaction bitflags representing the single source of truth (SSOT).
     pub flags: ResponseFlags,
-    /// Direct boolean cached mirror of `flags.contains(ResponseFlags::CLICKED)`.
-    pub clicked: bool,
-    /// Direct boolean cached mirror of `flags.contains(ResponseFlags::HOVERED)`.
-    pub hovered: bool,
-    /// Direct boolean cached mirror of `flags.contains(ResponseFlags::CHANGED)`.
-    pub changed: bool,
 }
 
 impl WidgetResponse {
-    /// Constructs a basic widget response with direct state flags (maintaining backwards compatibility).
+    /// Constructs a basic widget response with direct state flags.
     #[inline]
     pub const fn new(id: WidgetId, clicked: bool, hovered: bool, changed: bool) -> Self {
         let mut flags = ResponseFlags::empty();
@@ -84,27 +80,13 @@ impl WidgetResponse {
             id,
             rect: Rect::ZERO,
             flags,
-            clicked,
-            hovered,
-            changed,
         }
     }
 
     /// Constructs a rich widget response with explicit bounding box and interaction flags.
     #[inline]
     pub const fn from_flags(id: WidgetId, rect: Rect, flags: ResponseFlags) -> Self {
-        let clicked = flags.contains(ResponseFlags::CLICKED);
-        let hovered = flags.contains(ResponseFlags::HOVERED);
-        let changed = flags.contains(ResponseFlags::CHANGED);
-
-        Self {
-            id,
-            rect,
-            flags,
-            clicked,
-            hovered,
-            changed,
-        }
+        Self { id, rect, flags }
     }
 
     /// Constructs an un-interacted empty response for a widget node.
@@ -114,9 +96,6 @@ impl WidgetResponse {
             id,
             rect: Rect::ZERO,
             flags: ResponseFlags::empty(),
-            clicked: false,
-            hovered: false,
-            changed: false,
         }
     }
 
@@ -142,13 +121,12 @@ impl WidgetResponse {
     /// Returns `true` if primary mouse button clicked the widget during this frame.
     #[inline]
     pub const fn clicked(&self) -> bool {
-        self.clicked
+        self.flags.contains(ResponseFlags::CLICKED)
     }
 
     /// Sets the clicked state flag and returns updated response.
     #[inline]
     pub const fn with_clicked(mut self, clicked: bool) -> Self {
-        self.clicked = clicked;
         if clicked {
             self.flags = self.flags.union(ResponseFlags::CLICKED);
         } else {
@@ -191,16 +169,34 @@ impl WidgetResponse {
         self
     }
 
+    /// Returns `true` if middle mouse button (wheel click) clicked this widget.
+    ///
+    /// Useful for tab-close gestures and background open actions.
+    #[inline]
+    pub const fn middle_clicked(&self) -> bool {
+        self.flags.contains(ResponseFlags::MIDDLE_CLICKED)
+    }
+
+    /// Sets the middle clicked state flag and returns updated response.
+    #[inline]
+    pub const fn with_middle_clicked(mut self, middle_clicked: bool) -> Self {
+        if middle_clicked {
+            self.flags = self.flags.union(ResponseFlags::MIDDLE_CLICKED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::MIDDLE_CLICKED);
+        }
+        self
+    }
+
     /// Returns `true` if the pointer is currently hovering over the widget.
     #[inline]
     pub const fn hovered(&self) -> bool {
-        self.hovered
+        self.flags.contains(ResponseFlags::HOVERED)
     }
 
     /// Sets the hovered state flag and returns updated response.
     #[inline]
     pub const fn with_hovered(mut self, hovered: bool) -> Self {
-        self.hovered = hovered;
         if hovered {
             self.flags = self.flags.union(ResponseFlags::HOVERED);
         } else {
@@ -229,13 +225,12 @@ impl WidgetResponse {
     /// Returns `true` if the underlying model property was mutated during this frame.
     #[inline]
     pub const fn changed(&self) -> bool {
-        self.changed
+        self.flags.contains(ResponseFlags::CHANGED)
     }
 
     /// Sets the changed state flag and returns updated response.
     #[inline]
     pub const fn with_changed(mut self, changed: bool) -> Self {
-        self.changed = changed;
         if changed {
             self.flags = self.flags.union(ResponseFlags::CHANGED);
         } else {
@@ -348,7 +343,8 @@ mod tests {
             .with_pressed(true)
             .with_changed(true)
             .with_dragged(true)
-            .with_secondary_clicked(true);
+            .with_secondary_clicked(true)
+            .with_middle_clicked(true);
 
         assert!(resp.clicked());
         assert!(resp.hovered());
@@ -356,6 +352,7 @@ mod tests {
         assert!(resp.changed());
         assert!(resp.dragged());
         assert!(resp.secondary_clicked());
+        assert!(resp.middle_clicked());
         assert_eq!(resp.rect(), rect);
 
         let cleared = resp.with_clicked(false).with_dragged(false);

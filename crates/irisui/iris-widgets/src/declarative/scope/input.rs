@@ -158,9 +158,9 @@ impl<'a> UiScope<'a> {
             let ry = row.drag_float("Y", &mut values[1], speed, -10_000.0, 10_000.0);
             let rz = row.drag_float("Z", &mut values[2], speed, -10_000.0, 10_000.0);
 
-            any_changed = rx.changed || ry.changed || rz.changed;
-            any_clicked = rx.clicked || ry.clicked || rz.clicked;
-            any_hovered = rx.hovered || ry.hovered || rz.hovered;
+            any_changed = rx.changed() || ry.changed() || rz.changed();
+            any_clicked = rx.clicked() || ry.clicked() || rz.clicked();
+            any_hovered = rx.hovered() || ry.hovered() || rz.hovered();
         });
 
         WidgetResponse::new(row_id, any_clicked, any_hovered, any_changed)
