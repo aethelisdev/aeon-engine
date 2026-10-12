@@ -50,7 +50,7 @@ pub fn build_hierarchy_panel(
             build_hierarchy_header(panel_scope, params);
 
             // 2. Sync and Flatten ECS Hierarchy Tree Rows into persistent cache
-            sync_hierarchy_rows(params.world, params.collapsed_entities, rows_cache);
+            sync_hierarchy_rows(params.world, params.tree_state, rows_cache);
             let total_objects = rows_cache.len();
 
             // 3. Virtualized & Frustum-Culled Entity Rows Viewport

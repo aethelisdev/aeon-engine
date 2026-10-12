@@ -254,7 +254,6 @@ pub fn handle_assets_click(
                 }
             }
             AssetsTagTarget::Tree(node_idx, is_chevron) => {
-                let _ = is_chevron;
                 let target_path = if node_idx == 0 {
                     PathBuf::from("assets")
                 } else if let Some(folder) = ctx.subfolders.get((node_idx - 1) as usize) {
@@ -262,7 +261,11 @@ pub fn handle_assets_click(
                 } else {
                     PathBuf::from("assets")
                 };
-                out_actions.push(AssetsPanelAction::NavigateFolder(target_path));
+                if is_chevron {
+                    out_actions.push(AssetsPanelAction::ToggleFolder(target_path));
+                } else {
+                    out_actions.push(AssetsPanelAction::NavigateFolder(target_path));
+                }
                 return true;
             }
             AssetsTagTarget::Breadcrumb(segment_idx) => {

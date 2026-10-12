@@ -9,7 +9,7 @@ use super::panel::build_assets_panel;
 use super::types::{
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetPreviewModalState,
     AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelParams, encode_breadcrumb_tag,
-    encode_item_tag, truncate_display_name,
+    encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag, truncate_display_name,
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
@@ -56,6 +56,7 @@ fn test_assets_panel_structure_and_no_emojis() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -246,6 +247,75 @@ fn test_assets_right_click_context_menu_dispatch() {
 }
 
 #[test]
+fn test_assets_folder_tree_click_and_toggle_dispatch() {
+    let mut tracker = AssetClickTracker::default();
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
+    let subfolders = vec![PathBuf::from("assets/models")];
+
+    // 1. Click on folder chevron button (is_chevron = true)
+    let mut actions = Vec::new();
+    let ctx_chev = AssetsEventContext {
+        cursor_pos: Point::new(20.0, 50.0),
+        panel_rect,
+        sidebar_rect: Some(Rect::new(0.0, 0.0, 180.0, 400.0)),
+        content_viewport_rect: panel_rect,
+        context_menu: None,
+        context_menu_card_rect: None,
+        preview_modal: None,
+        current_folder: Path::new("assets"),
+        search_query: "",
+        is_search_focused: false,
+        selected_asset: None,
+        hit_target: Some(HitTargetInfo {
+            id: WidgetId::default(),
+            layer: UiLayer::Content,
+            role: WidgetRole::Button,
+            cursor: Some(WidgetCursor::Pointer),
+            tag: encode_tree_chevron_tag(1),
+            rect: Rect::new(10.0, 45.0, 14.0, 18.0),
+            name: Some("TreeChevronBtn".to_string()),
+        }),
+        filtered_items: &[],
+        subfolders: &subfolders,
+    };
+
+    let consumed = events::handle_assets_click(&ctx_chev, &mut tracker, &mut actions);
+    assert!(consumed, "Click on chevron must be consumed");
+    assert_eq!(
+        actions,
+        vec![AssetsPanelAction::ToggleFolder(PathBuf::from(
+            "assets/models"
+        ))],
+        "Chevron click must dispatch ToggleFolder action"
+    );
+
+    // 2. Click on folder row item body (is_chevron = false)
+    let mut actions_row = Vec::new();
+    let ctx_row = AssetsEventContext {
+        hit_target: Some(HitTargetInfo {
+            id: WidgetId::default(),
+            layer: UiLayer::Content,
+            role: WidgetRole::Button,
+            cursor: Some(WidgetCursor::Pointer),
+            tag: encode_tree_row_tag(1),
+            rect: Rect::new(10.0, 45.0, 160.0, 22.0),
+            name: Some("FolderTreeRow".to_string()),
+        }),
+        ..ctx_chev
+    };
+
+    let consumed_row = events::handle_assets_click(&ctx_row, &mut tracker, &mut actions_row);
+    assert!(consumed_row, "Click on folder row must be consumed");
+    assert_eq!(
+        actions_row,
+        vec![AssetsPanelAction::NavigateFolder(PathBuf::from(
+            "assets/models"
+        ))],
+        "Folder row click must dispatch NavigateFolder action"
+    );
+}
+
+#[test]
 fn test_preview_modal_build_and_actions() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
@@ -290,6 +360,7 @@ fn test_preview_modal_build_and_actions() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(500.0, 300.0),
         blink_caret: true,
         active_context_menu: None,
@@ -379,6 +450,7 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         active_context_menu: None,
@@ -513,6 +585,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -813,6 +886,7 @@ fn test_engine_and_sidebar_vector_icons() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -1021,6 +1095,7 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(210.0, 160.0),
         blink_caret: false,
         active_context_menu: Some(&ctx_menu_data),
@@ -1190,6 +1265,7 @@ fn test_assets_toolbar_width_and_search_ux() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
+        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,

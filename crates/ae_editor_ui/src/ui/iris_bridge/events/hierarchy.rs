@@ -218,11 +218,10 @@ impl IrisEditorOverlay {
                             if let Some(entity) =
                                 self.hierarchy.rows_cache.get(row_idx).map(|r| r.entity)
                             {
-                                if self.hierarchy.collapsed_entities.contains(&entity) {
-                                    self.hierarchy.collapsed_entities.remove(&entity);
-                                } else {
-                                    self.hierarchy.collapsed_entities.insert(entity);
-                                }
+                                irisui::prelude::handle_tree_foldout_click(
+                                    &mut self.hierarchy.tree_state,
+                                    &entity,
+                                );
                                 self.notifier.tag_all();
                                 result.consumed = true;
                                 return Some(result);
@@ -233,6 +232,7 @@ impl IrisEditorOverlay {
                                 self.hierarchy.rows_cache.get(row_idx).map(|r| r.entity)
                             {
                                 if ui_button == MouseButton::Right {
+                                    self.hierarchy.tree_state.select_single(entity);
                                     self.hierarchy
                                         .actions
                                         .push(HierarchyAction::SelectEntity(Some(entity)));
@@ -240,9 +240,29 @@ impl IrisEditorOverlay {
                                         Some((entity, click_point));
                                     self.hierarchy.is_add_menu_open = false;
                                 } else {
-                                    self.hierarchy
-                                        .actions
-                                        .push(HierarchyAction::SelectEntity(Some(entity)));
+                                    let modifiers =
+                                        irisui::prelude::TreeSelectionModifiers::from_ctrl_shift(
+                                            self.chrome.ctrl_held,
+                                            self.chrome.shift_held,
+                                        );
+                                    let visible_order: Vec<hecs::Entity> = self
+                                        .hierarchy
+                                        .rows_cache
+                                        .iter()
+                                        .map(|r| r.entity)
+                                        .collect();
+                                    let resp = irisui::prelude::handle_tree_row_click(
+                                        &mut self.hierarchy.tree_state,
+                                        entity,
+                                        modifiers,
+                                        Some(&visible_order),
+                                    );
+                                    if resp.selection_changed {
+                                        let selected = self.hierarchy.tree_state.primary_selected;
+                                        self.hierarchy
+                                            .actions
+                                            .push(HierarchyAction::SelectEntity(selected));
+                                    }
                                 }
                                 self.notifier.tag_all();
                                 result.consumed = true;
@@ -317,6 +337,73 @@ impl IrisEditorOverlay {
                 }
                 result.consumed = true;
                 return Some(result);
+            }
+        }
+
+        // 3. Keyboard Arrow Navigation (Up, Down, Left, Right, Home, End)
+        if let WindowEvent::KeyboardInput {
+            event:
+                winit::event::KeyEvent {
+                    logical_key,
+                    state: ElementState::Pressed,
+                    ..
+                },
+            ..
+        } = event
+            && !self
+                .focus_manager
+                .is_tag_focused(HIERARCHY_TAG_SEARCH_INPUT)
+            && !self.hierarchy.is_add_menu_open
+            && self.hierarchy.active_context_menu.is_none()
+        {
+            let key_code = match logical_key {
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowUp) => {
+                    Some(irisui::prelude::KeyCode::ArrowUp)
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowDown) => {
+                    Some(irisui::prelude::KeyCode::ArrowDown)
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowLeft) => {
+                    Some(irisui::prelude::KeyCode::ArrowLeft)
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::ArrowRight) => {
+                    Some(irisui::prelude::KeyCode::ArrowRight)
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::Home) => {
+                    Some(irisui::prelude::KeyCode::Home)
+                }
+                winit::keyboard::Key::Named(winit::keyboard::NamedKey::End) => {
+                    Some(irisui::prelude::KeyCode::End)
+                }
+                _ => None,
+            };
+
+            if let Some(key) = key_code
+                && !self.hierarchy.rows_cache.is_empty()
+            {
+                let tree_items: Vec<irisui::prelude::TreeItemInfo<hecs::Entity>> = self
+                    .hierarchy
+                    .rows_cache
+                    .iter()
+                    .map(|r| irisui::prelude::TreeItemInfo::new(r.entity, r.depth, r.has_children))
+                    .collect();
+                let nav_res = irisui::prelude::handle_tree_arrow_navigation(
+                    &mut self.hierarchy.tree_state,
+                    &tree_items,
+                    key,
+                    self.chrome.shift_held,
+                );
+                if nav_res.consumed {
+                    if nav_res.selection_changed {
+                        let selected = self.hierarchy.tree_state.primary_selected;
+                        self.hierarchy
+                            .actions
+                            .push(HierarchyAction::SelectEntity(selected));
+                    }
+                    self.notifier.tag_all();
+                    result.consumed = true;
+                    return Some(result);
+                }
             }
         }
 

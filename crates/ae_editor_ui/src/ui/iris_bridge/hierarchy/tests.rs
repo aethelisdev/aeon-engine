@@ -12,12 +12,11 @@ use super::types::{
     AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_PREFIX,
     HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_PREFIX, HIERARCHY_TAG_SEARCH_CLEAR,
     HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams, is_hierarchy_tag, make_eye_tag, make_row_tag,
-    parse_eye_tag, parse_foldout_tag, parse_row_tag,
+    parse_eye_tag, parse_row_tag,
 };
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use hecs::World;
 use irisui::prelude::*;
-use std::collections::HashSet;
 
 #[test]
 fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
@@ -39,7 +38,7 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -130,7 +129,7 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -178,7 +177,7 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -266,7 +265,7 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -309,7 +308,7 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -360,7 +359,7 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 50.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -406,7 +405,7 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         active_context_menu: Some((entity, Point::new(120.0, 200.0))),
         cursor_pos: Point::new(125.0, 210.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -464,7 +463,7 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -514,7 +513,7 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -588,7 +587,7 @@ fn test_hierarchy_panel_declarative_scope_build() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -656,7 +655,7 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        collapsed_entities: &HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,
@@ -698,97 +697,6 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
 }
 
 #[test]
-fn test_hierarchy_tree_connector_lines_and_foldout() {
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node must be created");
-
-    let mut world = World::new();
-    let parent_ent = world.spawn((ae_core::ecs::Name("Parent_Tower".to_string()),));
-    let _child_a = world.spawn((
-        ae_core::ecs::Name("Child_A".to_string()),
-        ae_core::ecs::Parent(parent_ent),
-    ));
-    let _child_b = world.spawn((
-        ae_core::ecs::Name("Child_B".to_string()),
-        ae_core::ecs::Parent(parent_ent),
-    ));
-
-    let mut collapsed = HashSet::new();
-    let mut rows_cache = Vec::new();
-
-    // 1. Expanded by default
-    super::rows::sync_hierarchy_rows(&world, &collapsed, &mut rows_cache);
-    assert_eq!(rows_cache.len(), 3);
-    assert_eq!(rows_cache[0].depth, 0);
-    assert!(rows_cache[0].has_children);
-    assert!(rows_cache[0].is_expanded);
-    assert_eq!(rows_cache[1].depth, 1);
-    assert_eq!(rows_cache[2].depth, 1);
-
-    // 2. Build panel with expanded parent
-    let params = HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 0.0, 300.0, 400.0),
-        world: &world,
-        selected_entity: None,
-        search_query: "",
-        is_editing: true,
-        is_2d: false,
-        scroll_y: 0.0,
-        active_submenu: None,
-        active_sub_submenu: None,
-        is_add_menu_open: false,
-        active_context_menu: None,
-        cursor_pos: Point::new(0.0, 0.0),
-        blink_caret: false,
-        collapsed_entities: &collapsed,
-        is_scrollbar_dragging: false,
-        is_search_focused: false,
-        cursor_byte_idx: 0,
-    };
-
-    let _ = super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
-
-    // Verify foldout chevron widget exists and eye buttons maintain strictly identical X alignment across all rows
-    let mut found_foldout = false;
-    let mut eye_x_coords = Vec::new();
-    tree.traverse_depth_first(root_id, &mut |_, node| {
-        if node.name.as_deref() == Some("HierarchyFoldoutButton") {
-            found_foldout = true;
-            assert_eq!(parse_foldout_tag(node.tag), Some(0));
-        } else if node.name.as_deref() == Some("EyeVisibilityButton") {
-            eye_x_coords.push(node.computed_rect.x);
-        }
-    });
-    assert!(
-        found_foldout,
-        "Parent row must have a foldout chevron button"
-    );
-    assert_eq!(eye_x_coords.len(), 3, "All 3 rows must render eye buttons");
-    assert_eq!(
-        eye_x_coords[0], eye_x_coords[1],
-        "Parent and child eye buttons must have strictly identical X alignment"
-    );
-    assert_eq!(
-        eye_x_coords[1], eye_x_coords[2],
-        "Sibling child eye buttons must have strictly identical X alignment"
-    );
-
-    // 3. Collapse parent
-    collapsed.insert(parent_ent);
-    rows_cache.clear();
-    super::rows::sync_hierarchy_rows(&world, &collapsed, &mut rows_cache);
-    assert_eq!(rows_cache.len(), 1, "Collapsed parent hides its children");
-    assert!(!rows_cache[0].is_expanded);
-
-    // 4. Re-expand parent
-    collapsed.remove(&parent_ent);
-    rows_cache.clear();
-    super::rows::sync_hierarchy_rows(&world, &collapsed, &mut rows_cache);
-    assert_eq!(rows_cache.len(), 3, "Expanded parent restores its children");
-    assert!(rows_cache[0].is_expanded);
-}
-
-#[test]
 fn test_hierarchy_header_and_row_hover_styling() {
     let mut world = hecs::World::new();
     let _ent = world.spawn((ae_core::ecs::Name("TestEntity".to_string()),));
@@ -811,7 +719,7 @@ fn test_hierarchy_header_and_row_hover_styling() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        collapsed_entities: &std::collections::HashSet::new(),
+        tree_state: &TreeState::expanded_by_default(),
         is_scrollbar_dragging: false,
         is_search_focused: false,
         cursor_byte_idx: 0,

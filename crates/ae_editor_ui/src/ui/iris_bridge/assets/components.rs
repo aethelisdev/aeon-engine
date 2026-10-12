@@ -160,115 +160,55 @@ pub struct FolderTreeItemParams<'a> {
     pub is_selected: bool,
 }
 
-/// Emits an individual directory row in the folder tree sidebar.
+/// Emits an individual directory row in the folder tree sidebar using declarative [`UiScope::tree_row`].
 pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemParams<'_>) {
     let row_tag = encode_tree_row_tag(params.node_idx);
     let chev_tag = encode_tree_chevron_tag(params.node_idx);
 
-    let (bg_color, border_color, border_w) = if params.is_selected {
-        (
-            Color::rgba(0.08, 0.22, 0.32, 0.90),
-            Color::rgba(0.0, 0.85, 1.0, 0.80),
-            1.0,
-        )
-    } else {
-        (Color::TRANSPARENT, Color::TRANSPARENT, 0.0)
-    };
-
-    let text_color = if params.is_selected {
-        Color::WHITE
-    } else {
-        Color::rgba(0.75, 0.78, 0.85, 1.0)
-    };
-
-    let folder_tint = if params.is_selected {
-        Color::rgba(0.0, 0.90, 1.0, 1.0) // Cyan when selected
-    } else {
-        Color::rgba(0.95, 0.76, 0.28, 1.0) // Warm folder amber
-    };
-
-    let chev_col = if params.is_selected {
-        Color::rgba(0.0, 0.90, 1.0, 1.0)
-    } else {
-        Color::rgba(0.60, 0.65, 0.75, 1.0)
-    };
-
-    let mut row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(22.0)
-        .margin_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
-        .border_radius(4.0)
-        .border(border_w, border_color)
-        .background(bg_color);
-
-    if !params.is_selected {
-        row_style = row_style.hover_background(Color::rgba(0.14, 0.16, 0.22, 0.70));
-    }
-
-    scope.container_tagged(
-        "FolderTreeRow",
-        row_style,
-        WidgetRole::Button,
+    let row_props = TreeRowProps::new(
+        params.depth as u16,
+        params.has_children,
+        params.is_expanded,
+        params.is_selected,
         row_tag,
-        |row| {
-            // Indent spacing based on hierarchy tree depth
-            let indent_w = params.depth as f32 * 14.0 + 4.0;
-            if indent_w > 0.0 {
-                row.empty_box_passive_named("TreeIndent", Style::new().width(indent_w).height(1.0));
-            }
-
-            // Expand / Collapse Chevron Button
-            if params.has_children {
-                let chev_icon = if params.is_expanded { "▾" } else { "▸" };
-
-                row.container_tagged(
-                    "TreeChevronBtn",
-                    Style::new()
-                        .width(14.0)
-                        .height(18.0)
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center),
-                    WidgetRole::Button,
-                    chev_tag,
-                    |c| {
-                        let chev_id = c.label_styled_passive(
-                            "TreeChevronIcon",
-                            chev_icon,
-                            11.0,
-                            chev_col,
-                            TextAlign::Center,
-                            Style::new(),
-                        );
-                        c.set_hover_text_color(chev_id, Color::rgba(0.0, 0.90, 1.0, 1.0));
-                    },
-                );
-            } else {
-                row.empty_box_passive_named(
-                    "TreeNoChevronSpacer",
-                    Style::new().width(14.0).height(1.0),
-                );
-            }
-
-            // Folder Atlas Icon (Layer 6: ICON_FOLDER)
-            row.icon(ICON_FOLDER, folder_tint, 16.0);
-
-            row.empty_box_passive_named("TreeFolderGap", Style::new().width(6.0).height(1.0));
-
-            // Folder Name Label
-            let txt_id = row.label_styled_passive(
-                "TreeFolderName",
-                params.name,
-                11.5,
-                text_color,
-                TextAlign::Left,
-                Style::new().flex_grow(1.0),
-            );
-            if !params.is_selected {
-                row.set_hover_text_color(txt_id, Color::rgba(0.90, 0.92, 0.96, 1.0));
-            }
-        },
+        chev_tag,
     );
+
+    let tree_config = TreeViewConfig::new()
+        .with_row_height(FOLDER_TREE_ROW_HEIGHT)
+        .with_row_gap(0.0);
+
+    scope.tree_row("FolderTreeRow", row_props, &tree_config, |row| {
+        let folder_tint = if params.is_selected {
+            Color::rgba(0.0, 0.90, 1.0, 1.0) // Cyan when selected
+        } else {
+            Color::rgba(0.95, 0.76, 0.28, 1.0) // Warm folder amber
+        };
+
+        // Folder Atlas Icon (Layer 6: ICON_FOLDER)
+        row.icon(ICON_FOLDER, folder_tint, 16.0);
+
+        row.empty_box_passive_named("TreeFolderGap", Style::new().width(6.0).height(1.0));
+
+        let text_color = if params.is_selected {
+            Color::WHITE
+        } else {
+            Color::rgba(0.75, 0.78, 0.85, 1.0)
+        };
+
+        // Folder Name Label
+        let txt_id = row.label_styled_passive(
+            "TreeFolderName",
+            params.name,
+            11.5,
+            text_color,
+            TextAlign::Left,
+            Style::new().flex_grow(1.0),
+        );
+        if !params.is_selected {
+            row.set_hover_text_color(txt_id, Color::rgba(0.90, 0.92, 0.96, 1.0));
+        }
+    });
 }
 
 /// Emits an individual grid asset card.

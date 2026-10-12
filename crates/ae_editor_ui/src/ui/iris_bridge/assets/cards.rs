@@ -121,6 +121,7 @@ mod tests {
             sidebar_collapsed: false,
             scroll_y: 0.0,
             tree_scroll_y: 0.0,
+            tree_state: &TreeState::default(),
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,

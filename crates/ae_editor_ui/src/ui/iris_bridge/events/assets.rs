@@ -96,9 +96,36 @@ impl IrisEditorOverlay {
                     self.assets.search_input.clear();
                     self.assets.actions.push(action);
                 }
+                super::super::assets::AssetsPanelAction::ToggleFolder(ref path) => {
+                    let sel_res = irisui::prelude::handle_tree_foldout_click(
+                        &mut self.assets.tree_state,
+                        path,
+                    );
+                    if sel_res.layout_changed {
+                        self.chrome.needs_scroll_sync = true;
+                    }
+                    self.notifier.tag_all();
+                }
                 super::super::assets::AssetsPanelAction::NavigateFolder(ref path) => {
+                    let sel_res = irisui::prelude::handle_tree_row_click(
+                        &mut self.assets.tree_state,
+                        path.clone(),
+                        irisui::prelude::TreeSelectionModifiers::new(),
+                        None,
+                    );
+                    if sel_res.selection_changed {
+                        self.chrome.needs_scroll_sync = true;
+                    }
+                    let mut curr = path.as_path();
+                    while let Some(parent) = curr.parent() {
+                        self.assets
+                            .tree_state
+                            .set_expanded(parent.to_path_buf(), true);
+                        curr = parent;
+                    }
                     self.assets.current_folder = path.clone();
                     self.assets.actions.push(action);
+                    self.notifier.tag_all();
                 }
                 super::super::assets::AssetsPanelAction::OpenContextMenu(target, pos) => {
                     self.assets.context_menu = Some((target, pos));

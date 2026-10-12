@@ -80,7 +80,7 @@ impl IrisEditorOverlay {
                 active_context_menu: self.hierarchy.active_context_menu,
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                collapsed_entities: &self.hierarchy.collapsed_entities,
+                tree_state: &self.hierarchy.tree_state,
                 is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
                 is_search_focused: self
                     .focus_manager
@@ -306,6 +306,7 @@ impl IrisEditorOverlay {
                 sidebar_collapsed: params.panel_data.asset_browser.sidebar_collapsed,
                 scroll_y: self.assets.scroll_y,
                 tree_scroll_y: self.assets.tree_scroll_y,
+                tree_state: &self.assets.tree_state,
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 active_context_menu: self.assets.context_menu.as_ref(),

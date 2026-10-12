@@ -15,7 +15,7 @@ use super::types::{
 };
 use crate::ui::iris_bridge::icons::*;
 use irisui::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Legacy aliases for Scene Hierarchy icons in `editor_atlas.png`.
 pub use crate::ui::iris_bridge::icons::{
@@ -35,10 +35,10 @@ pub const HIERARCHY_ROW_GAP: f32 = 2.0;
 pub const HIERARCHY_ROW_STRIDE: f32 = HIERARCHY_ROW_HEIGHT + HIERARCHY_ROW_GAP;
 
 /// Flattens the ECS world hierarchy into a deterministic DFS pre-order row list,
-/// respecting collapsed branch state.
+/// respecting collapsed branch state in [`TreeState`].
 pub fn sync_hierarchy_rows(
     world: &hecs::World,
-    collapsed_entities: &HashSet<hecs::Entity>,
+    tree_state: &TreeState<hecs::Entity>,
     out_rows: &mut Vec<HierarchyRow>,
 ) {
     out_rows.clear();
@@ -98,7 +98,7 @@ pub fn sync_hierarchy_rows(
     root_entities.sort_by_key(|e| e.id());
 
     for root in root_entities {
-        push_dfs_tree(root, 0, &children_map, collapsed_entities, out_rows);
+        push_dfs_tree(root, 0, &children_map, tree_state, out_rows);
     }
 }
 
@@ -107,11 +107,11 @@ fn push_dfs_tree(
     ent: hecs::Entity,
     depth: u16,
     children_map: &HashMap<hecs::Entity, Vec<hecs::Entity>>,
-    collapsed_entities: &HashSet<hecs::Entity>,
+    tree_state: &TreeState<hecs::Entity>,
     out_rows: &mut Vec<HierarchyRow>,
 ) {
     let has_children = children_map.get(&ent).is_some_and(|v| !v.is_empty());
-    let is_expanded = !collapsed_entities.contains(&ent);
+    let is_expanded = tree_state.is_expanded(&ent);
     out_rows.push(HierarchyRow {
         entity: ent,
         depth,
@@ -120,7 +120,7 @@ fn push_dfs_tree(
     });
     if is_expanded && let Some(children) = children_map.get(&ent) {
         for &child in children {
-            push_dfs_tree(child, depth + 1, children_map, collapsed_entities, out_rows);
+            push_dfs_tree(child, depth + 1, children_map, tree_state, out_rows);
         }
     }
 }
@@ -309,6 +309,27 @@ pub fn build_hierarchy_rows(
         .with_overscan(2)
         .with_bg(Color::TRANSPARENT);
 
+    let tree_config = TreeViewConfig::default()
+        .with_name("HierarchyEntityRow")
+        .with_row_height(HIERARCHY_ROW_HEIGHT)
+        .with_row_gap(HIERARCHY_ROW_GAP)
+        .with_indent(
+            TreeIndentConfig::default()
+                .with_base_padding(6.0)
+                .with_indent_step(18.0)
+                .with_line_arm_length(8.0)
+                .with_line_arm_gap(4.0)
+                .with_line_color(Color::rgba(0.20, 0.55, 0.90, 0.85)),
+        )
+        .with_style(
+            TreeRowStyle::dark_default()
+                .with_selected_bg(Color::rgba(0.0, 0.35, 0.50, 0.65))
+                .with_selected_border(Color::rgba(0.0, 0.85, 1.0, 0.80))
+                .with_hover_bg(Color::rgba(0.14, 0.18, 0.26, 0.65))
+                .with_hover_border(Color::rgba(0.24, 0.32, 0.45, 0.50))
+                .with_border_radius(4.0),
+        );
+
     scope.virtual_scroll_area(
         "HierarchyRowsViewport",
         HIERARCHY_TAG_VIEWPORT,
@@ -324,213 +345,96 @@ pub fn build_hierarchy_rows(
             let eye_tag = make_eye_tag(master_idx);
             let foldout_tag = make_foldout_tag(master_idx);
 
-            let (bg_color, border_color) = if is_selected {
-                (
-                    Color::rgba(0.0, 0.35, 0.50, 0.65), // Active cyan pill background
-                    Color::rgba(0.0, 0.85, 1.0, 0.80),  // Cyan border highlight
-                )
-            } else {
-                (Color::TRANSPARENT, Color::TRANSPARENT)
-            };
-
-            let (_line_tip, padding_left) = compute_tree_connector_geometry(row.depth);
-            let mut row_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .height(HIERARCHY_ROW_HEIGHT)
-                .padding_insets(Insets::new(0.0, 6.0, 0.0, padding_left))
-                .gap(4.0)
-                .background(bg_color)
-                .border(1.0, border_color)
-                .border_radius(4.0);
-
-            if !is_selected {
-                row_style = row_style
-                    .hover_background(Color::rgba(0.14, 0.18, 0.26, 0.65))
-                    .hover_border(1.0, Color::rgba(0.24, 0.32, 0.45, 0.50));
-            }
-
-            row_scope.container_tagged(
-                "HierarchyEntityRow",
-                row_style,
-                WidgetRole::Button,
+            let row_props = TreeRowProps::new(
+                row.depth,
+                row.has_children,
+                row.is_expanded,
+                is_selected,
                 row_tag,
-                |row_s| {
-                    // 0. Hierarchy Tree Connector Lines (L-shape connector when depth > 0)
-                    if row.depth > 0 {
-                        let line_color = Color::rgba(0.20, 0.55, 0.90, 0.85);
-                        for d in 0..row.depth {
-                            let stem_x = 12.0 + (d as f32 * 18.0);
-                            let is_last_level = d == row.depth - 1;
+                foldout_tag,
+            );
 
-                            // Iris UI absolute positioning adds `inner.x` (which equals `padding_left`).
-                            // To place the stem line precisely at absolute `stem_x`, subtract `padding_left`.
-                            let rel_x = stem_x - padding_left;
-
-                            // Vertical branch line
-                            let v_h = if is_last_level {
-                                HIERARCHY_ROW_HEIGHT * 0.5
-                            } else {
-                                HIERARCHY_ROW_HEIGHT
-                            };
-                            let v_style = Style::new()
-                                .position_absolute()
-                                .left(rel_x)
-                                .top(0.0)
-                                .width(1.2)
-                                .height(v_h)
-                                .background(line_color);
-                            row_s.empty_box(v_style);
-
-                            // Horizontal branch arm ending precisely 4.0px before the child icon
-                            if is_last_level {
-                                let h_style = Style::new()
-                                    .position_absolute()
-                                    .left(rel_x)
-                                    .top((HIERARCHY_ROW_HEIGHT * 0.5 - 0.6).round())
-                                    .width(8.0)
-                                    .height(1.2)
-                                    .background(line_color);
-                                row_s.empty_box(h_style);
-                            }
-                        }
+            row_scope.tree_row("HierarchyEntityRow", row_props, &tree_config, |row_s| {
+                // 1. Entity Type Icon
+                let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
+                match comp_icon {
+                    EntityIcon::Texture(uv, tint) => {
+                        row_s.icon(uv, tint, 16.0);
                     }
-
-                    // 1. Foldout Chevron Button (if entity has children)
-                    if row.has_children {
-                        let foldout_glyph = if row.is_expanded { "▼" } else { "▶" };
-                        let foldout_col = if is_selected {
-                            Color::WHITE
+                    EntityIcon::Text(glyph) => {
+                        let text_col = if is_selected {
+                            Color::rgba(0.0, 0.95, 1.0, 1.0)
                         } else {
-                            Color::rgba(0.65, 0.68, 0.78, 1.0)
+                            Color::WHITE
                         };
-                        let fold_style = Style::new()
-                            .flex_row()
-                            .width(12.0)
-                            .height(HIERARCHY_ROW_HEIGHT)
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::Center);
-
-                        row_s.container_tagged(
-                            "HierarchyFoldoutButton",
-                            fold_style,
-                            WidgetRole::Button,
-                            foldout_tag,
-                            |fold_s| {
-                                let txt_id = fold_s.label_with_width(
-                                    foldout_glyph,
-                                    12.0,
-                                    9.0,
-                                    foldout_col,
-                                    TextAlign::Center,
-                                );
-                                fold_s.set_hover_text_color(txt_id, Color::WHITE);
-                            },
+                        row_s.label_with_width(
+                            glyph.trim(),
+                            16.0,
+                            11.0,
+                            text_col,
+                            TextAlign::Center,
                         );
                     }
+                }
 
-                    // 2. Entity Type Icon
-                    let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
-                    match comp_icon {
-                        EntityIcon::Texture(uv, tint) => {
-                            row_s.icon(uv, tint, 16.0);
-                        }
-                        EntityIcon::Text(glyph) => {
-                            let text_col = if is_selected {
-                                Color::rgba(0.0, 0.95, 1.0, 1.0)
-                            } else {
-                                Color::WHITE
-                            };
-                            row_s.label_with_width(
-                                glyph.trim(),
-                                16.0,
-                                11.0,
-                                text_col,
-                                TextAlign::Center,
-                            );
-                        }
-                    }
+                // 2. Entity Name Label
+                let is_visible = params
+                    .world
+                    .get::<&ae_core::ecs::Hidden>(row.entity)
+                    .is_err();
 
-                    // 2. Entity Name Label
-                    let is_visible = params
-                        .world
-                        .get::<&ae_core::ecs::Hidden>(row.entity)
-                        .is_err();
+                let text_color = if is_selected {
+                    Color::rgba(0.0, 0.95, 1.0, 1.0) // Bright cyan #00e5ff
+                } else if !is_visible {
+                    Color::rgba(0.55, 0.60, 0.72, 0.65) // Muted slate when entity is hidden
+                } else {
+                    Color::rgba(0.88, 0.91, 0.98, 1.0) // Crisp slate white
+                };
 
-                    let text_color = if is_selected {
-                        Color::rgba(0.0, 0.95, 1.0, 1.0) // Bright cyan #00e5ff
-                    } else if !is_visible {
-                        Color::rgba(0.55, 0.60, 0.72, 0.65) // Muted slate when entity is hidden
-                    } else {
-                        Color::rgba(0.88, 0.91, 0.98, 1.0) // Crisp slate white
-                    };
-
-                    let entity_name = if let Ok(name_comp) =
-                        params.world.get::<&ae_core::ecs::Name>(row.entity)
-                    {
+                let entity_name =
+                    if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity) {
                         name_comp.0.clone()
                     } else {
                         format!("Entity {:?}", row.entity)
                     };
 
-                    let name_container_style = Style::new()
-                        .flex_row()
-                        .flex_grow(1.0)
-                        .align_items(AlignItems::Center);
+                let name_container_style = Style::new()
+                    .flex_row()
+                    .flex_grow(1.0)
+                    .align_items(AlignItems::Center);
 
-                    row_s.container(name_container_style, |nc| {
-                        nc.label(entity_name, 11.5, text_color, TextAlign::Left);
-                    });
+                row_s.container(name_container_style, |nc| {
+                    nc.label(entity_name, 11.5, text_color, TextAlign::Left);
+                });
 
-                    // 3. Eye Visibility Toggle Button
-                    let (eye_uv, eye_col) = if !is_visible {
-                        (ICON_EYE_CLOSED, Color::rgba(0.55, 0.60, 0.72, 0.65))
-                    } else if is_selected {
-                        (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
-                    } else {
-                        (ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
-                    };
+                // 3. Eye Visibility Toggle Button
+                let (eye_uv, eye_col) = if !is_visible {
+                    (ICON_EYE_CLOSED, Color::rgba(0.55, 0.60, 0.72, 0.65))
+                } else if is_selected {
+                    (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
+                } else {
+                    (ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
+                };
 
-                    let eye_style = Style::new()
-                        .width(22.0)
-                        .height(20.0)
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center);
+                let eye_style = Style::new()
+                    .width(22.0)
+                    .height(20.0)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center);
 
-                    row_s.container_tagged(
-                        "EyeVisibilityButton",
-                        eye_style,
-                        WidgetRole::Button,
-                        eye_tag,
-                        |eye_s| {
-                            let icon_id = eye_s.icon(eye_uv, eye_col, 16.0);
-                            eye_s.set_hover_texture_tint(icon_id, Color::WHITE);
-                        },
-                    );
-                },
-            );
+                row_s.container_tagged(
+                    "EyeVisibilityButton",
+                    eye_style,
+                    WidgetRole::Button,
+                    eye_tag,
+                    |eye_s| {
+                        let icon_id = eye_s.icon(eye_uv, eye_col, 16.0);
+                        eye_s.set_hover_texture_tint(icon_id, Color::WHITE);
+                    },
+                );
+            });
         },
     )
-}
-
-/// Computes the horizontal branch line tip X position and row content start X position.
-///
-/// Ensures the architectural invariant that child entity icons sit strictly 4.0px beyond
-/// the tip of horizontal connector lines, guaranteeing that connector lines never penetrate
-/// or occlude icon glyphs or textures.
-///
-/// Returns `(line_tip_x, content_start_x)` in physical pixels.
-#[inline]
-pub fn compute_tree_connector_geometry(depth: u16) -> (f32, f32) {
-    if depth == 0 {
-        (0.0, 6.0)
-    } else {
-        let last_d = (depth - 1) as f32;
-        let stem_x = 12.0 + last_d * 18.0;
-        let line_tip = stem_x + 8.0;
-        let content_start = line_tip + 4.0;
-        (line_tip, content_start)
-    }
 }
 
 #[cfg(test)]
@@ -539,14 +443,15 @@ mod tests {
 
     #[test]
     fn test_tree_connector_geometry_spacing_invariants() {
+        let config = TreeIndentConfig::default();
         // Root entities have 6px padding and no connector arm
-        let (root_tip, root_start) = compute_tree_connector_geometry(0);
+        let (root_tip, root_start) = compute_tree_connector_geometry(0, &config);
         assert_eq!(root_tip, 0.0);
         assert_eq!(root_start, 6.0);
 
         // Child entities (depth 1..=5) must have content starting precisely 4.0px beyond line tip
         for depth in 1..=5 {
-            let (line_tip, content_start) = compute_tree_connector_geometry(depth);
+            let (line_tip, content_start) = compute_tree_connector_geometry(depth, &config);
             let gap = content_start - line_tip;
             assert!(
                 (gap - 4.0).abs() < f32::EPSILON,
@@ -582,9 +487,9 @@ mod tests {
             ae_core::ecs::UiPanel::default(),
         ));
 
-        let collapsed = HashSet::new();
+        let tree_state = TreeState::expanded_by_default();
         let mut rows = Vec::new();
-        sync_hierarchy_rows(&world, &collapsed, &mut rows);
+        sync_hierarchy_rows(&world, &tree_state, &mut rows);
 
         assert_eq!(rows.len(), 4);
         for row in &rows {
@@ -608,7 +513,7 @@ mod tests {
             active_context_menu: None,
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
-            collapsed_entities: &collapsed,
+            tree_state: &TreeState::expanded_by_default(),
             is_scrollbar_dragging: false,
             is_search_focused: false,
             cursor_byte_idx: 0,

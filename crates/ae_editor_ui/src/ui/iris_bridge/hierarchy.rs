@@ -15,6 +15,8 @@ pub mod panel;
 pub mod rows;
 #[cfg(test)]
 pub mod tests;
+#[cfg(test)]
+pub mod tests_navigation;
 pub mod types;
 
 pub use panel::{build_hierarchy_overlays, build_hierarchy_panel};

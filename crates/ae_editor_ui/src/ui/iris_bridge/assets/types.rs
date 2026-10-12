@@ -9,7 +9,7 @@
 
 use super::events::AssetClickTracker;
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-use irisui::prelude::{Point, Rect};
+use irisui::prelude::{Point, Rect, TreeState};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -18,6 +18,8 @@ use std::path::PathBuf;
 pub enum AssetsPanelAction {
     /// Navigates the active folder path to the specified directory.
     NavigateFolder(PathBuf),
+    /// Toggles the expanded/collapsed state of a folder branch in the sidebar tree.
+    ToggleFolder(PathBuf),
     /// Selects an asset item by path, or clears active selection.
     SelectAsset(Option<PathBuf>),
     /// Changes the active category filter chip.
@@ -517,6 +519,8 @@ pub struct AssetsPanelParams<'a> {
     pub scroll_y: f32,
     /// Vertical scroll offset of the left folder tree sidebar.
     pub tree_scroll_y: f32,
+    /// Active hierarchical folder tree state managing directory expansion and selection.
+    pub tree_state: &'a TreeState<PathBuf>,
     /// Current mouse cursor coordinates for hover evaluation.
     pub cursor_pos: Point,
     /// Whether the blinking caret cursor should be drawn (500ms cycle).
@@ -594,10 +598,14 @@ pub struct AssetsPanelState {
     pub subfolders_cache: Vec<PathBuf>,
     /// Last recorded directory items count for detecting file additions or deletions.
     pub last_cached_items_count: usize,
+    /// Active hierarchical folder tree state managing directory expansion and selection.
+    pub tree_state: TreeState<PathBuf>,
 }
 
 impl Default for AssetsPanelState {
     fn default() -> Self {
+        let mut tree_state = TreeState::default();
+        tree_state.set_expanded(PathBuf::from("assets"), true);
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             panel_rect: None,
@@ -616,6 +624,7 @@ impl Default for AssetsPanelState {
             filtered_items_cache: Vec::new(),
             subfolders_cache: Vec::new(),
             last_cached_items_count: 0,
+            tree_state,
         }
     }
 }

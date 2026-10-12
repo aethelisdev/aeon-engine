@@ -328,8 +328,8 @@ pub struct HierarchyPanelParams<'a> {
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Set of currently collapsed entity identifiers.
-    pub collapsed_entities: &'a std::collections::HashSet<hecs::Entity>,
+    /// Active tree state managing expanded, collapsed, and selected entities.
+    pub tree_state: &'a TreeState<hecs::Entity>,
     /// Whether the Hierarchy scrollbar thumb is actively being dragged.
     pub is_scrollbar_dragging: bool,
     /// Whether the search input currently possesses active keyboard focus.
@@ -339,7 +339,7 @@ pub struct HierarchyPanelParams<'a> {
 }
 
 /// Persistent interactive state for the Scene Hierarchy panel overlay.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct HierarchyPanelState {
     /// Common panel interaction state (scroll_y, search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>,
@@ -349,8 +349,8 @@ pub struct HierarchyPanelState {
     pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Persistent pre-allocated row cache to eliminate per-frame allocations.
     pub rows_cache: Vec<HierarchyRow>,
-    /// Set of currently collapsed entity identifiers.
-    pub collapsed_entities: std::collections::HashSet<hecs::Entity>,
+    /// Unified TreeState managing expanded and selected entity nodes.
+    pub tree_state: TreeState<hecs::Entity>,
     /// Whether the `➕` Add Menu is open in Scene Hierarchy.
     pub is_add_menu_open: bool,
     /// Currently open cascading submenu in Scene Hierarchy Add Menu.
@@ -365,6 +365,26 @@ pub struct HierarchyPanelState {
     pub last_selected_entity: Option<hecs::Entity>,
     /// Last recorded entity count in ECS world for detecting hierarchy additions/deletions.
     pub last_entity_count: usize,
+}
+
+impl Default for HierarchyPanelState {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            interactions: Default::default(),
+            max_scroll: 0.0,
+            scroll_state: Default::default(),
+            rows_cache: Vec::new(),
+            tree_state: TreeState::expanded_by_default(),
+            is_add_menu_open: false,
+            active_submenu: None,
+            active_sub_submenu: None,
+            active_context_menu: None,
+            last_rect: None,
+            last_selected_entity: None,
+            last_entity_count: 0,
+        }
+    }
 }
 
 /// Semantic alias for [`HierarchyPanelState`].

@@ -257,13 +257,20 @@ where
 }
 
 /// Generic state container managing expanded and selected nodes in a tree view.
+///
+/// Supports both collapsed-by-default (e.g. directory trees) and expanded-by-default
+/// (e.g. scene hierarchies) modes with sparse $O(1)$ set lookups.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TreeState<Id>
 where
     Id: Eq + Hash + Clone,
 {
-    /// Set of item identifiers currently in an expanded branch state.
+    /// Set of item identifiers currently in an expanded branch state when `default_expanded` is false.
     pub expanded_nodes: HashSet<Id>,
+    /// Set of item identifiers currently in a collapsed branch state when `default_expanded` is true.
+    pub collapsed_nodes: HashSet<Id>,
+    /// Whether tree branches default to expanded state unless present in [`Self::collapsed_nodes`].
+    pub default_expanded: bool,
     /// Set of item identifiers currently selected by the user.
     pub selected_nodes: HashSet<Id>,
     /// Primary or active item receiving keyboard focus / primary cursor.
@@ -278,6 +285,8 @@ where
     fn default() -> Self {
         Self {
             expanded_nodes: HashSet::new(),
+            collapsed_nodes: HashSet::new(),
+            default_expanded: false,
             selected_nodes: HashSet::new(),
             primary_selected: None,
         }
@@ -288,10 +297,22 @@ impl<Id> TreeState<Id>
 where
     Id: Eq + Hash + Clone,
 {
-    /// Creates an empty tree state with no expanded or selected nodes.
+    /// Creates an empty tree state where nodes are collapsed by default.
     #[inline]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates an empty tree state where nodes are expanded by default unless collapsed.
+    #[inline]
+    pub fn expanded_by_default() -> Self {
+        Self {
+            expanded_nodes: HashSet::new(),
+            collapsed_nodes: HashSet::new(),
+            default_expanded: true,
+            selected_nodes: HashSet::new(),
+            primary_selected: None,
+        }
     }
 
     /// Initializes a tree state with pre-expanded items.
@@ -299,6 +320,8 @@ where
     pub fn with_expanded(items: impl IntoIterator<Item = Id>) -> Self {
         Self {
             expanded_nodes: items.into_iter().collect(),
+            collapsed_nodes: HashSet::new(),
+            default_expanded: false,
             selected_nodes: HashSet::new(),
             primary_selected: None,
         }
@@ -307,14 +330,24 @@ where
     /// Checks whether an item with identifier `id` is currently expanded.
     #[inline]
     pub fn is_expanded(&self, id: &Id) -> bool {
-        self.expanded_nodes.contains(id)
+        if self.default_expanded {
+            !self.collapsed_nodes.contains(id)
+        } else {
+            self.expanded_nodes.contains(id)
+        }
     }
 
     /// Sets the expanded status of an item with identifier `id`.
     ///
     /// Returns `true` if the state changed, or `false` if it was already in that state.
     pub fn set_expanded(&mut self, id: Id, expanded: bool) -> bool {
-        if expanded {
+        if self.default_expanded {
+            if expanded {
+                self.collapsed_nodes.remove(&id)
+            } else {
+                self.collapsed_nodes.insert(id)
+            }
+        } else if expanded {
             self.expanded_nodes.insert(id)
         } else {
             self.expanded_nodes.remove(&id)
@@ -325,7 +358,15 @@ where
     ///
     /// Returns the new expansion status (`true` if now expanded, `false` if collapsed).
     pub fn toggle_expanded(&mut self, id: &Id) -> bool {
-        if self.expanded_nodes.contains(id) {
+        if self.default_expanded {
+            if self.collapsed_nodes.contains(id) {
+                self.collapsed_nodes.remove(id);
+                true
+            } else {
+                self.collapsed_nodes.insert(id.clone());
+                false
+            }
+        } else if self.expanded_nodes.contains(id) {
             self.expanded_nodes.remove(id);
             false
         } else {
@@ -336,15 +377,25 @@ where
 
     /// Expands all nodes in the given sequence.
     pub fn expand_all(&mut self, ids: impl IntoIterator<Item = Id>) {
-        for id in ids {
-            self.expanded_nodes.insert(id);
+        if self.default_expanded {
+            for id in ids {
+                self.collapsed_nodes.remove(&id);
+            }
+        } else {
+            for id in ids {
+                self.expanded_nodes.insert(id);
+            }
         }
     }
 
     /// Collapses all currently expanded nodes.
     #[inline]
     pub fn collapse_all(&mut self) {
-        self.expanded_nodes.clear();
+        if self.default_expanded {
+            self.collapsed_nodes.clear();
+        } else {
+            self.expanded_nodes.clear();
+        }
     }
 
     /// Checks whether an item with identifier `id` is currently selected.
@@ -575,5 +626,28 @@ mod tests {
         // Depth 3 has 3 vertical stems and exactly 1 horizontal connector arm
         assert_eq!(vertical_count, 3);
         assert_eq!(horizontal_count, 1);
+    }
+
+    #[test]
+    fn test_tree_state_expanded_by_default() {
+        let mut state: TreeState<u64> = TreeState::expanded_by_default();
+        assert!(state.default_expanded);
+        assert!(state.is_expanded(&1));
+        assert!(state.is_expanded(&999));
+
+        // Collapsing item 1
+        assert!(!state.toggle_expanded(&1));
+        assert!(!state.is_expanded(&1));
+        assert!(state.is_expanded(&999));
+
+        // Re-expanding item 1
+        assert!(state.toggle_expanded(&1));
+        assert!(state.is_expanded(&1));
+
+        // Explicit set_expanded
+        state.set_expanded(50, false);
+        assert!(!state.is_expanded(&50));
+        state.set_expanded(50, true);
+        assert!(state.is_expanded(&50));
     }
 }

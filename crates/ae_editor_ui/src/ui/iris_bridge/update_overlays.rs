@@ -259,7 +259,7 @@ impl IrisEditorOverlay {
                 active_context_menu: self.hierarchy.active_context_menu,
                 cursor_pos: cursor,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                collapsed_entities: &self.hierarchy.collapsed_entities,
+                tree_state: &self.hierarchy.tree_state,
                 is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
                 is_search_focused: self
                     .focus_manager
