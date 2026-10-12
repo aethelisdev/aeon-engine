@@ -621,24 +621,56 @@ pub struct InspectorPanelParams<'a> {
 }
 
 /// Active horizontal mouse drag state for interactive Inspector numeric inputs.
-#[derive(Debug, Clone, Copy)]
+///
+/// Wraps the framework-level [`NumericDragState`] to provide autonomous scrubber
+/// dragging, pointer capture, speed multipliers, and in-place click detection.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InspectorNumberDragState {
     /// Inspected target ECS entity.
     pub entity: hecs::Entity,
     /// Target numeric input identifier.
     pub id: InspectorNumberInputId,
-    /// Starting X coordinate of the cursor when mouse was pressed.
-    pub start_x: f32,
-    /// Starting value of the numeric field before dragging began.
-    pub start_val: f32,
-    /// Lower clamp bound.
-    pub min_val: f32,
-    /// Upper clamp bound.
-    pub max_val: f32,
-    /// Value delta per dragged pixel.
-    pub sensitivity: f32,
-    /// Whether mouse has dragged beyond threshold.
-    pub has_dragged: bool,
+    /// Autonomous framework scrubber drag tracking state.
+    pub drag: NumericDragState,
+}
+
+impl InspectorNumberDragState {
+    /// Creates a new Inspector numeric drag session wrapping [`NumericDragState`].
+    pub fn new(
+        entity: hecs::Entity,
+        id: InspectorNumberInputId,
+        start_x: f32,
+        start_val: f32,
+        min_val: f32,
+        max_val: f32,
+        sensitivity: f32,
+    ) -> Self {
+        Self {
+            entity,
+            id,
+            drag: NumericDragState::new(
+                start_x,
+                start_val as f64,
+                sensitivity as f64,
+                min_val as f64,
+                max_val as f64,
+            ),
+        }
+    }
+
+    /// Returns the initial starting value as an `f32`.
+    #[must_use]
+    #[inline]
+    pub fn start_val(&self) -> f32 {
+        self.drag.start_val as f32
+    }
+
+    /// Sets the initial starting value (e.g. from live world snapshot).
+    #[inline]
+    pub fn set_start_val(&mut self, val: f32) {
+        self.drag.start_val = val as f64;
+        self.drag.current_val = val as f64;
+    }
 }
 
 /// Dragging mode on the 2D HSV color picker.

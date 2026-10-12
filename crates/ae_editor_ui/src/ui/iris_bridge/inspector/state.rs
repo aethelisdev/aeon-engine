@@ -58,6 +58,8 @@ pub struct InspectorPanelState {
     pub inspected_entity: Option<hecs::Entity>,
     /// Current display name of the inspected entity.
     pub inspected_entity_name: String,
+    /// Authoritative inspector Euler angles [rx, ry, rz] in degrees.
+    pub inspector_euler: [f32; 3],
     /// Local cache of saved palette colors for swatch interactions.
     pub saved_swatches: Vec<[f32; 4]>,
 }

@@ -86,11 +86,25 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
         .map(|p| [p.x, p.y, p.z])
         .unwrap_or([0.0, 0.0, 0.0]);
 
-    let mut rot = ctx
-        .world
-        .get::<&ae_core::ecs::Rotation>(ctx.entity)
-        .map(|r| crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&r))
-        .unwrap_or([0.0, 0.0, 0.0]);
+    let mut rot = if let Ok(world_rot) = ctx.world.get::<&ae_core::ecs::Rotation>(ctx.entity) {
+        let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
+            ctx.params.inspector_euler[0],
+            ctx.params.inspector_euler[1],
+            ctx.params.inspector_euler[2],
+        );
+        let dot = (cached_quat.x * world_rot.x
+            + cached_quat.y * world_rot.y
+            + cached_quat.z * world_rot.z
+            + cached_quat.w * world_rot.w)
+            .abs();
+        if ctx.params.selected_entity == Some(ctx.entity) && dot > 0.999 {
+            *ctx.params.inspector_euler
+        } else {
+            crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&world_rot)
+        }
+    } else {
+        [0.0, 0.0, 0.0]
+    };
 
     let mut scale = ctx
         .world
@@ -433,5 +447,69 @@ mod tests {
         );
         assert_eq!(rot_x_wide.x, rot_x_narrow.x);
         assert_eq!(scale_x_wide.x, scale_x_narrow.x);
+    }
+
+    #[test]
+    fn test_transform_card_rotation_euler_displays_angles_past_90_degrees() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let mut world = hecs::World::new();
+
+        let entity = world.spawn((
+            Name("Dynamic Cube".to_string()),
+            Position::new(0.0, 5.0, 0.0),
+            crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(-34.0, 120.0, 0.0),
+            Scale::one(),
+        ));
+
+        let euler = [-34.0, 120.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            scroll_y: 0.0,
+            active_dropdown: None,
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
+        let mut scope = UiScope::new(&mut tree, root);
+        build_transform_card(&mut scope, &mut ctx);
+
+        // Find NumText_Rotation_X, Y, Z and verify text does not flip to 180
+        let rot_x_node = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("NumText_Rotation_X"))
+            .map(|(_, n)| n)
+            .expect("NumText_Rotation_X must exist");
+        assert_eq!(rot_x_node.text.as_deref(), Some("X: -34.0"));
+
+        let rot_y_node = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("NumText_Rotation_Y"))
+            .map(|(_, n)| n)
+            .expect("NumText_Rotation_Y must exist");
+        assert_eq!(rot_y_node.text.as_deref(), Some("Y: 120.0"));
+
+        let rot_z_node = tree
+            .iter()
+            .find(|(_, n)| n.name.as_deref() == Some("NumText_Rotation_Z"))
+            .map(|(_, n)| n)
+            .expect("NumText_Rotation_Z must exist");
+        assert_eq!(rot_z_node.text.as_deref(), Some("Z: 0.0"));
     }
 }

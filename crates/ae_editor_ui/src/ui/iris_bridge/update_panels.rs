@@ -168,6 +168,7 @@ impl IrisEditorOverlay {
 
             super::inspector::build_inspector_panel(tree, root, &insp_params);
             self.inspector.inspected_entity = params.scene.selected_entity;
+            self.inspector.inspector_euler = *params.panel_data.inspector_euler;
             if let Some(entity) = params.scene.selected_entity {
                 if let Ok(name) = params.scene.world.get::<&ae_core::ecs::Name>(entity) {
                     self.inspector.inspected_entity_name.clear();

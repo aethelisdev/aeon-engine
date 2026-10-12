@@ -130,6 +130,69 @@ impl EngineUi {
             }
         }
 
+        // Synchronize inspector Euler angles on entity selection change
+        let selected_ent = self
+            .selected_entity
+            .or_else(|| params.editor_state.selected_entities.first().copied());
+        self.selected_entity = selected_ent;
+        if selected_ent != self.last_selected_entity {
+            self.last_selected_entity = selected_ent;
+            if let Some(ent) = selected_ent
+                && let Ok(rot) = params.world.get::<&ae_core::ecs::Rotation>(ent)
+            {
+                self.inspector_euler =
+                    crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&rot);
+            } else {
+                self.inspector_euler = [0.0; 3];
+            }
+        } else if let Some(ent) = selected_ent
+            && let Ok(world_rot) = params.world.get::<&ae_core::ecs::Rotation>(ent)
+        {
+            let is_editing_rotation = self
+                .iris_overlay
+                .inspector
+                .drag_number
+                .as_ref()
+                .is_some_and(|d| {
+                    matches!(
+                        d.id,
+                        crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotX
+                            | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotY
+                            | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotZ
+                    )
+                })
+                || self
+                    .iris_overlay
+                    .inspector
+                    .active_number_input
+                    .as_ref()
+                    .is_some_and(|s| {
+                        matches!(
+                            s.id,
+                            crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotX
+                                | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotY
+                                | crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotZ
+                        )
+                    });
+
+            if !is_editing_rotation {
+                let cached_quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
+                    self.inspector_euler[0],
+                    self.inspector_euler[1],
+                    self.inspector_euler[2],
+                );
+                let dot = (cached_quat.x * world_rot.x
+                    + cached_quat.y * world_rot.y
+                    + cached_quat.z * world_rot.z
+                    + cached_quat.w * world_rot.w)
+                    .abs();
+                if dot < 0.999 {
+                    self.inspector_euler =
+                        crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&world_rot);
+                }
+            }
+        }
+
         // 2. Process Iris UI Overlay & Inspector Actions
         let mut cur_gs = (*params.graphics_settings).clone();
         let mut cur_snap = *params.snapping;

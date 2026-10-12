@@ -19,12 +19,34 @@ impl IrisEditorOverlay {
         &mut self,
         event: &WindowEvent,
     ) -> Option<IrisOverlayEventResult> {
-        // 1. Continuous Mouse Motion (Numeric drag and HSV color picker drag)
+        // 1. Escape key cancellation for active numeric dragging
+        if let WindowEvent::KeyboardInput { event, .. } = event
+            && event.state == ElementState::Pressed
+            && event.logical_key == winit::keyboard::Key::Named(winit::keyboard::NamedKey::Escape)
+            && let Some(mut drag_state) = self.inspector.drag_number.take()
+        {
+            let res = drag_state.drag.cancel();
+            if let Some(val) = res.value {
+                let entity = drag_state.entity;
+                let id = drag_state.id;
+                let clamped_val = id.clamp_value(val as f32);
+                self.inspector
+                    .interactions
+                    .actions
+                    .push(InspectorAction::SetNumberValue(entity, id, clamped_val));
+            }
+            return Some(IrisOverlayEventResult {
+                consumed: true,
+                ..Default::default()
+            });
+        }
+
+        // 2. Continuous Mouse Motion (Numeric drag and HSV color picker drag)
         if let Some(motion_res) = self.handle_inspector_drag_motion(event) {
             return Some(motion_res);
         }
 
-        // 2. Mouse Release (Commit or transition numeric / color dragging)
+        // 3. Mouse Release (Commit or transition numeric / color dragging)
         if let Some(release_res) = self.handle_inspector_mouse_release(event) {
             return Some(release_res);
         }
@@ -64,30 +86,37 @@ impl IrisEditorOverlay {
 
         let cursor_x = self.cursor_pos().x;
         let shift_held = self.chrome.shift_held;
-        let alt_held = self.chrome.alt_held;
 
         // Continuous horizontal mouse drag for Inspector numeric fields
-        if let Some(ref mut drag) = self.inspector.drag_number {
-            let delta = cursor_x - drag.start_x;
-            if delta.abs() > 2.0 {
-                drag.has_dragged = true;
-                let speed_mult = if shift_held {
-                    5.0
-                } else if alt_held {
-                    0.1
-                } else {
-                    1.0
-                };
-                let new_val = (drag.start_val + delta * drag.sensitivity * speed_mult)
-                    .clamp(drag.min_val, drag.max_val);
-                let entity = drag.entity;
-                let id = drag.id;
+        if let Some(ref mut drag_state) = self.inspector.drag_number {
+            let res = drag_state
+                .drag
+                .update(cursor_x, shift_held, self.chrome.ctrl_held);
+            if res.has_dragged
+                && let Some(new_val) = res.value
+            {
+                let entity = drag_state.entity;
+                let id = drag_state.id;
+                let clamped_val = id.clamp_value(new_val as f32);
+
+                match id {
+                    inspector::InspectorNumberInputId::RotX => {
+                        self.inspector.inspector_euler[0] = clamped_val;
+                    }
+                    inspector::InspectorNumberInputId::RotY => {
+                        self.inspector.inspector_euler[1] = clamped_val;
+                    }
+                    inspector::InspectorNumberInputId::RotZ => {
+                        self.inspector.inspector_euler[2] = clamped_val;
+                    }
+                    _ => {}
+                }
 
                 self.inspector.active_number_input = None;
                 self.inspector
                     .interactions
                     .actions
-                    .push(InspectorAction::SetNumberValue(entity, id, new_val));
+                    .push(InspectorAction::SetNumberValue(entity, id, clamped_val));
                 result.consumed = true;
                 return Some(result);
             }
@@ -174,29 +203,34 @@ impl IrisEditorOverlay {
             result.consumed = true;
             return Some(result);
         }
-        if let Some(drag) = self.inspector.drag_number.take() {
-            if !drag.has_dragged {
+        if let Some(mut drag_state) = self.inspector.drag_number.take() {
+            let res = drag_state.drag.finish();
+            if res.is_click_in_place {
                 // Click in-place without dragging -> activate direct numeric text editing with Select All
-                let initial_str = if drag.start_val.fract().abs() < 1e-4 {
-                    format!("{:.1}", drag.start_val)
+                let start_val = drag_state.start_val();
+                let initial_str = if start_val.fract().abs() < 1e-4 {
+                    format!("{:.1}", start_val)
                 } else {
-                    format!("{:.3}", drag.start_val)
+                    format!("{:.3}", start_val)
                 };
                 let cursor_idx = initial_str.len();
                 self.inspector.active_number_input = Some(InspectorNumberInputSession {
-                    entity: drag.entity,
-                    id: drag.id,
+                    entity: drag_state.entity,
+                    id: drag_state.id,
                     buffer: initial_str,
                     cursor_idx,
                     is_all_selected: true,
-                    initial_val: drag.start_val,
-                    min_val: drag.min_val,
-                    max_val: drag.max_val,
+                    initial_val: start_val,
+                    min_val: drag_state.drag.min_val as f32,
+                    max_val: drag_state.drag.max_val as f32,
                 });
             } else {
                 self.inspector
                     .actions
-                    .push(InspectorAction::CommitNumberEdit(drag.entity, drag.id));
+                    .push(InspectorAction::CommitNumberEdit(
+                        drag_state.entity,
+                        drag_state.id,
+                    ));
             }
             result.consumed = true;
             return Some(result);
@@ -516,24 +550,34 @@ impl IrisEditorOverlay {
                 }
 
                 if let Some(entity) = entity_opt {
-                    let cur_val = world
-                        .map(|w| read_inspector_number_value(w, entity, num_id))
-                        .unwrap_or(0.0);
+                    let cur_val = match num_id {
+                        inspector::InspectorNumberInputId::RotX => {
+                            self.inspector.inspector_euler[0]
+                        }
+                        inspector::InspectorNumberInputId::RotY => {
+                            self.inspector.inspector_euler[1]
+                        }
+                        inspector::InspectorNumberInputId::RotZ => {
+                            self.inspector.inspector_euler[2]
+                        }
+                        _ => world
+                            .map(|w| read_inspector_number_value(w, entity, num_id))
+                            .unwrap_or(0.0),
+                    };
 
                     self.inspector
                         .interactions
                         .actions
                         .push(InspectorAction::StartNumberEdit(entity, num_id));
-                    self.inspector.drag_number = Some(InspectorNumberDragState {
+                    self.inspector.drag_number = Some(InspectorNumberDragState::new(
                         entity,
-                        id: num_id,
-                        start_x: click_point.x,
-                        start_val: cur_val,
+                        num_id,
+                        click_point.x,
+                        cur_val,
                         min_val,
                         max_val,
                         sensitivity,
-                        has_dragged: false,
-                    });
+                    ));
                 }
                 result.consumed = true;
                 return Some(result);

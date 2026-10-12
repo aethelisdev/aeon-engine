@@ -117,7 +117,19 @@ impl EngineUi {
                         && drag.entity == entity
                         && drag.id == num_id
                     {
-                        drag.start_val = read_inspector_number_value(world, entity, num_id);
+                        let start_val = match num_id {
+                            crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotX => {
+                                self.inspector_euler[0]
+                            }
+                            crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotY => {
+                                self.inspector_euler[1]
+                            }
+                            crate::ui::iris_bridge::inspector::InspectorNumberInputId::RotZ => {
+                                self.inspector_euler[2]
+                            }
+                            _ => read_inspector_number_value(world, entity, num_id),
+                        };
+                        drag.set_start_val(start_val);
                     }
                 }
                 InspectorAction::SetNumberValue(entity, num_id, val) => {

@@ -29,6 +29,8 @@ pub mod ui_transform;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_drag;
+#[cfg(test)]
 mod tests_popups;
 
 pub use appearance::{

@@ -40,42 +40,33 @@ pub(crate) fn handle_set_number_value(
             }
         }
         InspectorNumberInputId::RotX => {
-            let mut euler = world
-                .get::<&ae_core::ecs::Rotation>(entity)
-                .map(|r| crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&r))
-                .unwrap_or([0.0, 0.0, 0.0]);
-            euler[0] = val;
-            *inspector_euler = euler;
+            inspector_euler[0] = val;
             let quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
-                euler[0], euler[1], euler[2],
+                inspector_euler[0],
+                inspector_euler[1],
+                inspector_euler[2],
             );
             if let Ok(mut r) = world.get::<&mut ae_core::ecs::Rotation>(entity) {
                 *r = quat;
             }
         }
         InspectorNumberInputId::RotY => {
-            let mut euler = world
-                .get::<&ae_core::ecs::Rotation>(entity)
-                .map(|r| crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&r))
-                .unwrap_or([0.0, 0.0, 0.0]);
-            euler[1] = val;
-            *inspector_euler = euler;
+            inspector_euler[1] = val;
             let quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
-                euler[0], euler[1], euler[2],
+                inspector_euler[0],
+                inspector_euler[1],
+                inspector_euler[2],
             );
             if let Ok(mut r) = world.get::<&mut ae_core::ecs::Rotation>(entity) {
                 *r = quat;
             }
         }
         InspectorNumberInputId::RotZ => {
-            let mut euler = world
-                .get::<&ae_core::ecs::Rotation>(entity)
-                .map(|r| crate::ui::iris_bridge::inspector::quaternion_to_euler_deg(&r))
-                .unwrap_or([0.0, 0.0, 0.0]);
-            euler[2] = val;
-            *inspector_euler = euler;
+            inspector_euler[2] = val;
             let quat = crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(
-                euler[0], euler[1], euler[2],
+                inspector_euler[0],
+                inspector_euler[1],
+                inspector_euler[2],
             );
             if let Ok(mut r) = world.get::<&mut ae_core::ecs::Rotation>(entity) {
                 *r = quat;
