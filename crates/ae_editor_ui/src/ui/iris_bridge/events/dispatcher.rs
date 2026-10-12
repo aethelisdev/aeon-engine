@@ -23,7 +23,29 @@ impl IrisEditorOverlay {
         event: &WindowEvent,
         world: Option<&hecs::World>,
     ) -> IrisOverlayEventResult {
+        // Track real-time cursor position for accurate dispatch hit-testing
+        if let WindowEvent::CursorMoved { position, .. } = event {
+            self.chrome.cursor_pos = Point::new(position.x as f32, position.y as f32);
+        }
+        let current_cursor = self.chrome.cursor_pos;
+
+        // 0. Autonomous Iris UI hierarchical tree dispatch (Phase 4 Foundation)
+        // If the autonomous retained tree consumed the event, immediately trigger reactive
+        // invalidation and return early to completely prevent double-dispatch in legacy panel handlers.
+        if let Some(ui_event) = irisui::winit::winit_to_ui_event(event, current_cursor) {
+            let tree_dispatch = self.tree.dispatch_event(&ui_event);
+            if tree_dispatch.is_consumed() {
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
+                return IrisOverlayEventResult {
+                    consumed: true,
+                    ..Default::default()
+                };
+            }
+        }
+
         let result = self.dispatch_window_event_internal(event, world);
+
         // Reactive Event Invalidation: If any UI element consumed this event, produced
         // an action result, or queued typed actions in its PanelInteractionState, immediately
         // flag the UI tree as dirty so the next frame reflects the change instantly, even

@@ -12,6 +12,15 @@ disallowed-methods = [
     { path = "iris_core::tree::UiTree::set_node_layout", reason = "Manual layout override is forbidden. Rely strictly on Taffy layout engine via UiScope.", allow-invalid = true },
     { path = "iris_core::layout::layout_subtree", reason = "Manual subtree layout calculation in editor layer is forbidden. Use scope.finish_layout() or standard scope containers.", allow-invalid = true },
     { path = "iris_core::tree::UiTree::traverse_depth_first_mut", reason = "Bypassing declarative abstraction via tree traversal mutations is forbidden in editor UI. Use UiScope." },
+
+    # Strict Autonomous Event Shield:
+    { path = "iris_widgets::scroll_area::events::handle_scroll_area_event", reason = "Panels must NOT call scroll handlers manually! UiTree::dispatch_event handles scrolling autonomously." },
+    { path = "iris_widgets::tree_view::selection::handle_tree_foldout_click", reason = "Manual tree foldout calls are forbidden! Use declarative scope.tree_row(...).clicked()." },
+    { path = "iris_widgets::controls::numeric_drag::handle_numeric_drag_event", reason = "Manual numeric scrubber calls are forbidden! Use declarative scope.numeric_drag(...).changed()." },
+    { path = "iris_widgets::controls::focus::handle_focus_event", reason = "Manual focus event handling is forbidden! Focus is managed autonomously by UiTree." },
+    { path = "ae_editor_ui::ui::iris_bridge::events::adapter::winit_to_ui_event", reason = "Converting winit events inside panel modules is forbidden. Dispatch once at window root!" },
 ]
 
-
+disallowed-types = [
+    { path = "winit::event::WindowEvent", reason = "Raw WindowEvent must NOT leak into panel event modules. Use UiTree declarative response standard." },
+]

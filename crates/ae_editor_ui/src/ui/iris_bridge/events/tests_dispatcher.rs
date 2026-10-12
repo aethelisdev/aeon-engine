@@ -385,3 +385,55 @@ fn test_stats_and_inspector_scroll_delta_math_and_clamping() {
     insp_scroll_y = (insp_scroll_y - (-1000.0)).max(0.0);
     assert_eq!(insp_scroll_y, 1000.0);
 }
+
+#[test]
+fn test_iris_editor_overlay_winit_autonomous_dispatch_integration() {
+    use irisui::prelude::{Point, Rect, UiScope, UiTree};
+    use irisui::winit::winit_to_ui_event;
+    use winit::event::{DeviceId, ElementState, MouseButton, WindowEvent};
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node creation");
+    let btn_tag = 9999u64;
+
+    // 1. Initial build: Emit button in tree using declarative finish_layout
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.button_tagged("AutonomousBtn", btn_tag);
+        assert!(!resp.clicked());
+        scope.finish_layout(Rect::new(0.0, 0.0, 800.0, 600.0));
+    }
+
+    let click_pos = Point::new(10.0, 10.0);
+
+    // 2. Winit MouseDown at (60, 60)
+    let winit_down = WindowEvent::MouseInput {
+        device_id: DeviceId::dummy(),
+        state: ElementState::Pressed,
+        button: MouseButton::Left,
+    };
+    let ui_down = winit_to_ui_event(&winit_down, click_pos).expect("Translated UiEvent");
+    let res_down = tree.dispatch_event(&ui_down);
+    assert!(res_down.is_consumed());
+
+    // 3. Winit MouseUp at (60, 60) -> Triggers CLICKED
+    let winit_up = WindowEvent::MouseInput {
+        device_id: DeviceId::dummy(),
+        state: ElementState::Released,
+        button: MouseButton::Left,
+    };
+    let ui_up = winit_to_ui_event(&winit_up, click_pos).expect("Translated UiEvent");
+    let res_up = tree.dispatch_event(&ui_up);
+    assert!(res_up.is_consumed());
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(btn_tag));
+
+    // 4. Next frame: scope.button_tagged reports clicked() autonomously
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.button_tagged("AutonomousBtn", btn_tag);
+        assert!(
+            resp.clicked(),
+            "Declarative button MUST autonomously report clicked() from window root dispatch"
+        );
+    }
+}
