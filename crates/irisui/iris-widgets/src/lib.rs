@@ -14,6 +14,7 @@ pub mod canvas;
 pub mod cascading_menu;
 pub mod color_picker;
 pub mod context_menu;
+pub mod controls;
 pub mod declarative;
 pub mod grid_view;
 pub mod input;
@@ -33,6 +34,10 @@ pub use cascading_menu::{
 pub use color_picker::{ColorPickerDragMode, HsvColorPickerState, hsv_to_rgb, rgb_to_hsv};
 pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
+};
+pub use controls::{
+    NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER, NUMERIC_DRAG_THRESHOLD,
+    NumericDragResponse, NumericDragState, handle_numeric_drag_event,
 };
 pub use declarative::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
