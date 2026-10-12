@@ -294,3 +294,151 @@ fn test_declarative_numeric_drag_changed_response() {
         assert_eq!(scale, 4.0, "Scale must retain its updated value");
     }
 }
+
+#[test]
+fn test_declarative_text_input_autonomous_focus_and_text() {
+    use iris_core::event::KeyCode;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node should be created");
+
+    let mut search_query = String::new();
+
+    // 1. Initial build: render text input in tree with empty buffer
+    let input_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(!resp.focused(), "Clean text input must not report focused");
+        assert!(!resp.changed(), "Clean text input must not report changed");
+        assert!(!resp.clicked(), "Clean text input must not report clicked");
+        resp.id()
+    };
+
+    // Assign computed rect for spatial hit-testing
+    let input_rect = Rect::new(10.0, 10.0, 200.0, 24.0);
+    if let Some(node) = tree.get_mut(input_id) {
+        node.computed_rect = input_rect;
+    }
+
+    let click_pt = Point::new(20.0, 20.0);
+
+    // 2. MouseMove over input -> Hovered state
+    tree.dispatch_event(&UiEvent::MouseMove { point: click_pt });
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(resp.hovered(), "Text input must report hovered == true");
+        assert!(!resp.focused());
+    }
+
+    // 3. Click input: MouseDown + MouseUp on input -> Gains keyboard focus
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_pt,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: click_pt,
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(resp.clicked(), "Text input must report clicked == true");
+        assert!(
+            resp.focused(),
+            "Text input must report focused == true after click"
+        );
+        assert!(!resp.changed());
+    }
+
+    // 4. Typing character 'A' while focused -> In-place buffer update and changed flag
+    let key_res = tree.dispatch_event(&UiEvent::KeyboardInput {
+        key: KeyCode::Character('A'),
+        text: Some("A".to_string()),
+        is_pressed: true,
+    });
+    assert!(key_res.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(
+            resp.changed(),
+            "Text input must report changed == true upon typing"
+        );
+        assert!(resp.focused());
+        assert_eq!(search_query, "A");
+    }
+
+    // 5. Typing second character 'e'
+    tree.dispatch_event(&UiEvent::KeyboardInput {
+        key: KeyCode::Character('e'),
+        text: Some("e".to_string()),
+        is_pressed: true,
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(resp.changed());
+        assert_eq!(search_query, "Ae");
+    }
+
+    // 6. Backspace key -> Pop last character in-place and report changed
+    let backspace_res = tree.dispatch_event(&UiEvent::KeyboardInput {
+        key: KeyCode::Backspace,
+        text: None,
+        is_pressed: true,
+    });
+    assert!(backspace_res.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(
+            resp.changed(),
+            "Text input must report changed == true on Backspace"
+        );
+        assert_eq!(search_query, "A");
+    }
+
+    // 7. Clicking outside input on empty screen area -> Clears focus
+    let outside_pt = Point::new(400.0, 400.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: outside_pt,
+    });
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(
+            !resp.focused(),
+            "Text input must clear focus when clicking outside"
+        );
+        assert!(!resp.changed());
+        assert_eq!(search_query, "A");
+    }
+
+    // 8. Key press while unfocused -> Must NOT update buffer or report changed
+    let unfocused_res = tree.dispatch_event(&UiEvent::KeyboardInput {
+        key: KeyCode::Character('z'),
+        text: Some("z".to_string()),
+        is_pressed: true,
+    });
+    assert!(
+        !unfocused_res.is_consumed(),
+        "Unfocused keyboard event must be ignored"
+    );
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(!resp.changed());
+        assert_eq!(
+            search_query, "A",
+            "Buffer must not be mutated when unfocused"
+        );
+    }
+}

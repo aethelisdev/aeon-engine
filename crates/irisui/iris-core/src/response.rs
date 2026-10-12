@@ -262,6 +262,14 @@ impl WidgetResponse {
         self.flags.contains(ResponseFlags::FOCUSED)
     }
 
+    /// Returns `true` if the widget currently holds keyboard/input focus.
+    ///
+    /// Alias for [`Self::is_focused`] conforming to standard fluent property query conventions.
+    #[inline]
+    pub const fn focused(&self) -> bool {
+        self.is_focused()
+    }
+
     /// Sets the focused state flag and returns updated response.
     #[inline]
     pub const fn with_focused(mut self, focused: bool) -> Self {

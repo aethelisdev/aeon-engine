@@ -57,6 +57,12 @@ pub struct EventState {
     pub frame_drag_delta: Option<Point>,
     /// Previous cursor screen position recorded during dragging to calculate incremental frame deltas.
     pub last_pointer_pos: Option<Point>,
+    /// Last keyboard key received during the current dispatch cycle.
+    pub frame_key: Option<KeyCode>,
+    /// Last committed textual input string received during the current dispatch cycle.
+    pub frame_text_input: Option<String>,
+    /// Whether [`Self::frame_key`] was pressed (`true`) or released (`false`).
+    pub frame_key_pressed: bool,
 }
 
 impl EventState {
@@ -79,6 +85,9 @@ impl EventState {
             frame_clicked_tag: None,
             frame_drag_delta: None,
             last_pointer_pos: None,
+            frame_key: None,
+            frame_text_input: None,
+            frame_key_pressed: false,
         }
     }
 
@@ -98,6 +107,9 @@ impl EventState {
         self.frame_clicked_tag = None;
         self.frame_drag_delta = None;
         self.last_pointer_pos = None;
+        self.frame_key = None;
+        self.frame_text_input = None;
+        self.frame_key_pressed = false;
     }
 
     /// Clears any confirmed click state recorded for the current frame.
@@ -106,6 +118,9 @@ impl EventState {
         self.frame_clicked_id = None;
         self.frame_clicked_tag = None;
         self.frame_drag_delta = None;
+        self.frame_key = None;
+        self.frame_text_input = None;
+        self.frame_key_pressed = false;
     }
 
     /// Clears active keyboard and semantic tag focus.

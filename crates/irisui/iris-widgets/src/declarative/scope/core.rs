@@ -312,11 +312,44 @@ impl<'a> UiScope<'a> {
                     .is_some_and(|n| n.tag == tag))
     }
 
+    /// Checks whether the specified widget node or semantic tag currently holds keyboard focus.
+    ///
+    /// Inspects both direct node ID equality and 64-bit semantic tag identity against [`UiTree::event_state`].
+    pub fn is_focused(&self, id: WidgetId) -> bool {
+        let tag = self.tree.get(id).map_or(0, |n| n.tag);
+        self.tree.event_state.focused == Some(id)
+            || (tag != 0
+                && self
+                    .tree
+                    .event_state
+                    .focused
+                    .and_then(|fid| self.tree.get(fid))
+                    .is_some_and(|n| n.tag == tag))
+            || (tag != 0 && self.tree.event_state.focused_tag == Some(tag))
+    }
+
     /// Checks if a committed text input interaction occurred for the given widget node or semantic tag.
     ///
-    /// Resolves against both local widget allocations and tagged event records in the active frame stream.
+    /// Resolves against autonomous event dispatch states in [`UiTree::event_state`]
+    /// as well as tagged event records in the active frame stream.
     pub fn check_interaction_text(&self, id: WidgetId) -> Option<&str> {
         let tag = self.tree.get(id).map_or(0, |n| n.tag);
+
+        // 1. Autonomous dispatch keyboard integration from UiTree::event_state
+        let matches_focus = self.tree.event_state.focused == Some(id)
+            || (tag != 0 && self.tree.event_state.focused_tag == Some(tag))
+            || (tag != 0
+                && self
+                    .tree
+                    .event_state
+                    .focused
+                    .and_then(|fid| self.tree.get(fid))
+                    .is_some_and(|n| n.tag == tag));
+        if matches_focus && let Some(ref text) = self.tree.event_state.frame_text_input {
+            return Some(text.as_str());
+        }
+
+        // 2. Compatibility check for explicitly supplied frame interaction events
         for (ev_id, ev) in self.events {
             let matches_id = *ev_id == id;
             let matches_tag = tag != 0 && self.tree.get(*ev_id).is_some_and(|n| n.tag == tag);

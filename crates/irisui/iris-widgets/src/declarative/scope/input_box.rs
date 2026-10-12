@@ -8,6 +8,8 @@
 //!
 
 use super::core::UiScope;
+use crate::declarative::types::WidgetResponse;
+use iris_core::event::KeyCode;
 use iris_core::{
     AlignItems, Color, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
 };
@@ -15,6 +17,227 @@ use iris_core::{
 pub use iris_text::measure_text_advance;
 
 impl<'a> UiScope<'a> {
+    /// Emits a single-line declarative text input field bound to a mutable string buffer in-place.
+    ///
+    /// Automatically manages keyboard focus, text insertion, backspace deletion,
+    /// and cursor rendering. Generates a deterministic persistent tag from `placeholder`.
+    ///
+    /// # Arguments
+    /// * `placeholder` - Prompt string displayed when `*text` is empty.
+    /// * `text` - Mutable reference to the underlying string buffer.
+    ///
+    /// # Returns
+    /// A [`WidgetResponse`] reflecting hovered, clicked, focused, and changed state flags.
+    pub fn text_input(
+        &mut self,
+        placeholder: impl Into<String>,
+        text: &mut String,
+    ) -> WidgetResponse {
+        self.text_input_with_width(placeholder, 0.0, text)
+    }
+
+    /// Emits a single-line declarative text input field constrained to an explicit width.
+    ///
+    /// Generates a deterministic persistent tag from `placeholder` and delegates to [`Self::text_input_with_width_tagged`].
+    ///
+    /// # Arguments
+    /// * `placeholder` - Prompt string displayed when `*text` is empty.
+    /// * `width` - Explicit width constraint in physical pixels (uses `flex_grow = 1.0` if `<= 0.0`).
+    /// * `text` - Mutable reference to the underlying string buffer.
+    ///
+    /// # Returns
+    /// A [`WidgetResponse`] reflecting hovered, clicked, focused, and changed state flags.
+    pub fn text_input_with_width(
+        &mut self,
+        placeholder: impl Into<String>,
+        width: f32,
+        text: &mut String,
+    ) -> WidgetResponse {
+        let placeholder_str = placeholder.into();
+        let (visible, _) = crate::declarative::types::split_label_id(&placeholder_str);
+        let tag = self.tag_for(&placeholder_str);
+        self.text_input_with_width_tagged(visible, tag, width, text)
+    }
+
+    /// Emits a single-line declarative text input field with an explicit semantic tag.
+    ///
+    /// # Arguments
+    /// * `placeholder` - Prompt string displayed when `*text` is empty.
+    /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
+    /// * `text` - Mutable reference to the underlying string buffer.
+    ///
+    /// # Returns
+    /// A [`WidgetResponse`] reflecting hovered, clicked, focused, and changed state flags.
+    pub fn text_input_tagged(
+        &mut self,
+        placeholder: impl Into<String>,
+        tag: u64,
+        text: &mut String,
+    ) -> WidgetResponse {
+        self.text_input_with_width_tagged(placeholder, tag, 0.0, text)
+    }
+
+    /// Emits a single-line declarative text input field with an explicit semantic tag and fixed width.
+    ///
+    /// Tracks click interactions to gain focus, processes incoming keyboard characters
+    /// and Backspace/Delete events when focused, updates `*text` in-place, and renders
+    /// an interactive text input with focus outline and blinking caret.
+    ///
+    /// # Arguments
+    /// * `placeholder` - Prompt string displayed when `*text` is empty.
+    /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
+    /// * `width` - Explicit width constraint in physical pixels (uses `flex_grow = 1.0` if `<= 0.0`).
+    /// * `text` - Mutable reference to the underlying string buffer.
+    ///
+    /// # Returns
+    /// A [`WidgetResponse`] reflecting hovered, clicked, focused, and changed state flags.
+    pub fn text_input_with_width_tagged(
+        &mut self,
+        placeholder: impl Into<String>,
+        tag: u64,
+        width: f32,
+        text: &mut String,
+    ) -> WidgetResponse {
+        let node_id = self.tree.create_node();
+        let placeholder_str = placeholder.into();
+
+        let _ = self.tree.add_child(self.parent, node_id);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name("TextInput");
+            node.tag = tag;
+        }
+
+        let (clicked, hovered, _) = self.check_interaction(node_id);
+        if clicked {
+            self.tree.event_state.focused = Some(node_id);
+            self.tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+        }
+
+        let is_focused = self.is_focused(node_id);
+        let mut changed = false;
+
+        if is_focused {
+            if let Some(ref incoming) = self.tree.event_state.frame_text_input {
+                text.push_str(incoming);
+                changed = true;
+            } else if let Some(key) = self.tree.event_state.frame_key
+                && self.tree.event_state.frame_key_pressed
+            {
+                match key {
+                    KeyCode::Backspace => {
+                        if text.pop().is_some() {
+                            changed = true;
+                        }
+                    }
+                    KeyCode::Escape => {
+                        self.tree.event_state.clear_focus();
+                    }
+                    _ => {}
+                }
+            }
+
+            if !changed && let Some(incoming) = self.check_interaction_text(node_id) {
+                text.push_str(incoming);
+                changed = true;
+            }
+        }
+
+        let border_color = if is_focused {
+            Color::rgba(0.0, 0.90, 1.0, 0.95)
+        } else if hovered {
+            Color::rgba(0.35, 0.40, 0.52, 0.95)
+        } else {
+            Color::rgba(0.20, 0.23, 0.30, 0.60)
+        };
+
+        let bg_color = if hovered || is_focused {
+            Color::rgba(0.08, 0.09, 0.12, 0.98)
+        } else {
+            Color::rgba(0.06, 0.07, 0.09, 0.95)
+        };
+
+        let mut box_style = Style::new()
+            .height(24.0)
+            .border_radius(4.0)
+            .border(1.0, border_color)
+            .hover_border(1.0, Color::rgba(0.35, 0.40, 0.52, 0.95))
+            .focus_border(1.0, Color::rgba(0.0, 0.90, 1.0, 0.95))
+            .background(bg_color)
+            .hover_background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+            .focus_background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+            .clip_children(true);
+
+        if width > 0.0 {
+            box_style = box_style.width(width);
+        } else {
+            box_style = box_style.flex_grow(1.0);
+        }
+
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.role = WidgetRole::TextInput;
+            node.interactive = true;
+            node.cursor = Some(WidgetCursor::Text);
+            node.set_style(box_style);
+        }
+
+        let font_size = 11.0;
+        let text_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(text_id) {
+            node.role = WidgetRole::Default;
+            node.tag = tag;
+            let display_str = if text.is_empty() {
+                placeholder_str.as_str()
+            } else {
+                text.as_str()
+            };
+            node.set_text(display_str);
+            node.font_size = font_size;
+            node.line_height = 24.0;
+            node.text_align = TextAlign::Left;
+            node.text_color = if text.is_empty() {
+                Color::rgba(0.42, 0.45, 0.55, 1.0)
+            } else {
+                Color::rgba(0.92, 0.94, 0.98, 1.0)
+            };
+            node.focus_text_color = Some(Color::rgba(0.92, 0.94, 0.98, 1.0));
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(8.0)
+                    .top(0.0)
+                    .height(24.0),
+            );
+        }
+        let _ = self.tree.add_child(node_id, text_id);
+
+        if is_focused {
+            let text_w = iris_text::measure_text_advance(text, font_size);
+            let caret_x = 8.0 + text_w;
+            let caret_id = self.tree.create_node();
+            if let Some(node) = self.tree.get_mut(caret_id) {
+                node.set_name("TextInputCaret");
+                node.role = WidgetRole::TextInputCaret;
+                node.interactive = false;
+                node.set_style(
+                    Style::new()
+                        .position_absolute()
+                        .left(caret_x)
+                        .top(5.0)
+                        .width(1.5)
+                        .height(14.0)
+                        .background(Color::rgba(0.0, 0.90, 1.0, 0.95))
+                        .border_radius(0.75),
+                );
+            }
+            let _ = self.tree.add_child(node_id, caret_id);
+        }
+
+        let mut resp = WidgetResponse::new(node_id, clicked, hovered, changed);
+        if is_focused {
+            resp = resp.with_focused(true);
+        }
+        resp
+    }
     /// Emits a styled text input display box with placeholder support and an optional blinking caret.
     ///
     /// # Arguments

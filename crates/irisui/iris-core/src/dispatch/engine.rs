@@ -407,12 +407,20 @@ fn handle_mouse_scroll(
 
 /// Routes keyboard navigation and text inputs to the currently focused widget.
 fn handle_keyboard(
-    tree: &UiTree,
+    tree: &mut UiTree,
     key: KeyCode,
     text: Option<String>,
     is_pressed: bool,
 ) -> DispatchResult {
+    tree.event_state.frame_clicked_id = None;
+    tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_drag_delta = None;
+
     if let Some(focused_id) = tree.event_state.focused {
+        tree.event_state.frame_key = Some(key);
+        tree.event_state.frame_text_input = text.clone();
+        tree.event_state.frame_key_pressed = is_pressed;
+
         let tag = tree.event_state.focused_tag.unwrap_or(0);
         let rect = tree
             .get(focused_id)
@@ -442,24 +450,35 @@ fn handle_keyboard(
             text_input: text,
         }
     } else {
+        tree.event_state.frame_key = None;
+        tree.event_state.frame_text_input = None;
+        tree.event_state.frame_key_pressed = false;
         DispatchResult::ignored()
     }
 }
 
 /// Routes IME preedit and commit events to the currently focused widget.
-fn handle_ime(tree: &UiTree, ime_event: ImeEvent) -> DispatchResult {
-    if let Some(focused_id) = tree.event_state.focused {
-        let tag = tree.event_state.focused_tag.unwrap_or(0);
-        let rect = tree
-            .get(focused_id)
-            .map(|n| n.computed_rect)
-            .unwrap_or(crate::geometry::Rect::ZERO);
+fn handle_ime(tree: &mut UiTree, ime_event: ImeEvent) -> DispatchResult {
+    tree.event_state.frame_clicked_id = None;
+    tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_drag_delta = None;
 
+    if let Some(focused_id) = tree.event_state.focused {
         let committed_text = match ime_event {
             ImeEvent::Commit(ref s) => Some(s.clone()),
             ImeEvent::Preedit(ref s, _) => Some(s.clone()),
             _ => None,
         };
+
+        tree.event_state.frame_key = None;
+        tree.event_state.frame_text_input = committed_text.clone();
+        tree.event_state.frame_key_pressed = true;
+
+        let tag = tree.event_state.focused_tag.unwrap_or(0);
+        let rect = tree
+            .get(focused_id)
+            .map(|n| n.computed_rect)
+            .unwrap_or(crate::geometry::Rect::ZERO);
 
         let mut flags = ResponseFlags::FOCUSED;
         if committed_text.is_some() {
@@ -478,6 +497,9 @@ fn handle_ime(tree: &UiTree, ime_event: ImeEvent) -> DispatchResult {
             text_input: committed_text,
         }
     } else {
+        tree.event_state.frame_key = None;
+        tree.event_state.frame_text_input = None;
+        tree.event_state.frame_key_pressed = false;
         DispatchResult::ignored()
     }
 }
