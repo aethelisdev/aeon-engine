@@ -4,7 +4,9 @@
 //! Generational arena-based UI tree manager guaranteeing 100% safe memory operations.
 
 use crate::dirty::DirtyFlags;
+use crate::dispatch::{DispatchResult, EventState, dispatch_ui_event};
 use crate::error::IrisCoreError;
+use crate::event::UiEvent;
 use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
 use crate::node::{UiLayer, WidgetCursor, WidgetNode, WidgetRole};
@@ -20,6 +22,8 @@ pub struct UiTree {
     nodes: SlotMap<WidgetId, WidgetNode>,
     /// The root widget node ID of the tree.
     root: Option<WidgetId>,
+    /// Persistent user interaction and event dispatching state.
+    pub event_state: EventState,
 }
 
 impl UiTree {
@@ -29,6 +33,7 @@ impl UiTree {
         Self {
             nodes: SlotMap::with_key(),
             root: None,
+            event_state: EventState::new(),
         }
     }
 
@@ -37,6 +42,27 @@ impl UiTree {
     pub fn clear(&mut self) {
         self.nodes.clear();
         self.root = None;
+        self.event_state.reset_transient_pointer();
+    }
+
+    /// Dispatches an incoming windowing event hierarchically through the tree.
+    ///
+    /// Evaluates pointer capture, layered z-order hit-testing, and event bubbling.
+    #[inline]
+    pub fn dispatch_event(&mut self, event: &UiEvent) -> DispatchResult {
+        dispatch_ui_event(self, event)
+    }
+
+    /// Sets or releases active pointer capture for a widget node.
+    #[inline]
+    pub fn set_pointer_capture(&mut self, capture: Option<WidgetId>) {
+        self.event_state.pointer_capture = capture;
+    }
+
+    /// Returns the widget node currently capturing pointer events, if any.
+    #[inline]
+    pub fn pointer_capture(&self) -> Option<WidgetId> {
+        self.event_state.pointer_capture
     }
 
     /// Returns the root node key of the tree, if set.

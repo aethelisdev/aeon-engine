@@ -13,6 +13,7 @@
 
 pub mod color;
 pub mod dirty;
+pub mod dispatch;
 pub mod error;
 pub mod event;
 pub mod geometry;
@@ -25,6 +26,7 @@ pub mod tree;
 
 pub use color::Color;
 pub use dirty::DirtyFlags;
+pub use dispatch::{DispatchResult, EventState};
 pub use error::IrisCoreError;
 pub use event::{
     EventDispatcher, FocusManager, HitTestResult, ImeEvent, InteractionEvent, KeyCode, MouseButton,

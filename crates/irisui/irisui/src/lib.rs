@@ -30,11 +30,12 @@ pub use iris_winit as winit;
 /// Designed to be imported as `use irisui::prelude::*;` for , idiomatic engine UI development.
 pub mod prelude {
     pub use iris_core::{
-        AlignItems, Border, BoxShadow, Color, CornerRadii, DirtyFlags, EventDispatcher,
-        ExternalTextureId, FlexDirection, FlexWrap, FocusManager, HitTargetInfo, HitTestResult,
-        ImeEvent, Insets, InteractionEvent, IrisCoreError, JustifyContent, KeyCode, MouseButton,
-        Point, Position, Rect, ResponseFlags, Size, Style, TextAlign, TextWrap, UiEvent, UiLayer,
-        UiTree, WidgetCursor, WidgetId, WidgetNode, WidgetRole, WidgetState,
+        AlignItems, Border, BoxShadow, Color, CornerRadii, DirtyFlags, DispatchResult,
+        EventDispatcher, EventState, ExternalTextureId, FlexDirection, FlexWrap, FocusManager,
+        HitTargetInfo, HitTestResult, ImeEvent, Insets, InteractionEvent, IrisCoreError,
+        JustifyContent, KeyCode, MouseButton, Point, Position, Rect, ResponseFlags, Size, Style,
+        TextAlign, TextWrap, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId, WidgetNode,
+        WidgetRole, WidgetState,
     };
     pub use iris_dock::{
         ActiveSplitterDrag, ComputedDockLayout, ComputedFloatingLayout, DEFAULT_FLOATING_PANE_SIZE,
