@@ -442,3 +442,198 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         );
     }
 }
+
+#[test]
+fn test_declarative_tree_row_autonomous_interaction() {
+    use crate::declarative::scope::{TreeRowProps, TreeViewConfig};
+    use crate::tree_view::TreeState;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node should be created");
+    let config = TreeViewConfig::default();
+
+    // -------------------------------------------------------------
+    // Part A: tree_row_toggle in-place boolean expansion & click isolation
+    // -------------------------------------------------------------
+    let mut is_expanded = false;
+
+    // 1. Initial build: clean state
+    let (row_id, foldout_id) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let props = TreeRowProps::new(0, true, is_expanded, false, 100, 101);
+        let resp = scope.tree_row_toggle("RowToggle", props, &mut is_expanded, &config, |_| {});
+        assert!(!resp.clicked(), "Clean tree row must not report clicked");
+        assert!(
+            !resp.foldout_clicked(),
+            "Clean foldout chevron must not report foldout_clicked"
+        );
+        assert!(!resp.is_expanded);
+        assert!(!resp.is_selected);
+        (
+            resp.id(),
+            resp.foldout_id()
+                .expect("Foldout chevron must be present for parent row"),
+        )
+    };
+
+    // Assign computed rects for spatial hit-testing
+    // Row bounds: [0, 0, 200, 24], Foldout bounds: [0, 0, 20, 24]
+    if let Some(node) = tree.get_mut(row_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 200.0, 24.0);
+    }
+    if let Some(node) = tree.get_mut(foldout_id) {
+        node.computed_rect = Rect::new(0.0, 0.0, 20.0, 24.0);
+    }
+
+    // 2. Click on foldout chevron (x = 10.0, y = 12.0)
+    let chevron_pt = Point::new(10.0, 12.0);
+    let down_chevron = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: chevron_pt,
+    });
+    assert!(down_chevron.is_consumed());
+    assert_eq!(down_chevron.target, Some(foldout_id));
+
+    let up_chevron = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: chevron_pt,
+    });
+    assert!(up_chevron.is_consumed());
+
+    // Next frame: verify foldout_clicked toggled is_expanded in-place without triggering row.clicked
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let props = TreeRowProps::new(0, true, is_expanded, false, 100, 101);
+        let resp = scope.tree_row_toggle("RowToggle", props, &mut is_expanded, &config, |_| {});
+        assert!(
+            resp.foldout_clicked(),
+            "Foldout click must report foldout_clicked() == true"
+        );
+        assert!(
+            !resp.clicked(),
+            "Chevron click must NOT trigger body clicked() == true"
+        );
+        assert!(
+            is_expanded,
+            "tree_row_toggle MUST autonomously toggle is_expanded to true"
+        );
+    }
+
+    // 3. Click on row body outside foldout (x = 80.0, y = 12.0)
+    let body_pt = Point::new(80.0, 12.0);
+    let down_body = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: body_pt,
+    });
+    assert!(down_body.is_consumed());
+    assert_eq!(down_body.target, Some(row_id));
+
+    let up_body = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: body_pt,
+    });
+    assert!(up_body.is_consumed());
+
+    // Next frame: verify row body clicked without mutating chevron expansion
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let props = TreeRowProps::new(0, true, is_expanded, false, 100, 101);
+        let resp = scope.tree_row_toggle("RowToggle", props, &mut is_expanded, &config, |_| {});
+        assert!(
+            resp.clicked(),
+            "Body click must report row clicked() == true"
+        );
+        assert!(
+            !resp.foldout_clicked(),
+            "Body click must NOT report foldout_clicked() == true"
+        );
+        assert!(is_expanded, "Body click must NOT toggle expansion state");
+    }
+
+    // -------------------------------------------------------------
+    // Part B: tree_node high-level autonomous TreeState synchronization
+    // -------------------------------------------------------------
+    use crate::declarative::scope::TreeNodeProps;
+    let mut state = TreeState::<u64>::new();
+    let node_id = 42u64;
+
+    assert!(!state.is_expanded(&node_id));
+    assert!(!state.is_selected(&node_id));
+
+    let node_props = TreeNodeProps::new("Entity42", 0, true, &config);
+
+    // 1. Initial build: tree_node emits row and foldout
+    let (node_row_id, node_foldout_id) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.tree_node(&mut state, &node_id, node_props, |_| {});
+        assert!(!resp.clicked());
+        assert!(!resp.foldout_clicked());
+        (
+            resp.id(),
+            resp.foldout_id()
+                .expect("Foldout chevron must be present for parent node"),
+        )
+    };
+
+    // Assign computed rects for Entity42
+    if let Some(node) = tree.get_mut(node_row_id) {
+        node.computed_rect = Rect::new(0.0, 30.0, 200.0, 24.0);
+    }
+    if let Some(node) = tree.get_mut(node_foldout_id) {
+        node.computed_rect = Rect::new(0.0, 30.0, 20.0, 24.0);
+    }
+
+    // 2. Click chevron for Entity42 (x = 10.0, y = 42.0)
+    let chevron_node_pt = Point::new(10.0, 42.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: chevron_node_pt,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: chevron_node_pt,
+    });
+
+    // Next frame: verify state.toggle_expanded was called autonomously
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.tree_node(&mut state, &node_id, node_props, |_| {});
+        assert!(resp.foldout_clicked());
+        assert!(!resp.clicked());
+        assert!(
+            state.is_expanded(&node_id),
+            "TreeState MUST reflect expansion toggle autonomously"
+        );
+        assert!(
+            !state.is_selected(&node_id),
+            "Chevron click MUST NOT select the node in TreeState"
+        );
+    }
+
+    // 3. Click body for Entity42 (x = 70.0, y = 42.0)
+    let body_node_pt = Point::new(70.0, 42.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: body_node_pt,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: body_node_pt,
+    });
+
+    // Next frame: verify state.select_single was called autonomously
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.tree_node(&mut state, &node_id, node_props, |_| {});
+        assert!(resp.clicked());
+        assert!(!resp.foldout_clicked());
+        assert!(
+            state.is_selected(&node_id),
+            "TreeState MUST autonomously mark item as selected on body click"
+        );
+        assert!(
+            state.is_expanded(&node_id),
+            "Body click MUST preserve existing expansion state"
+        );
+    }
+}

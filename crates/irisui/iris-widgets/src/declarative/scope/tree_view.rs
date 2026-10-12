@@ -141,6 +141,110 @@ impl TreeRowProps {
     }
 }
 
+/// Descriptor parameter bundle configuring a high-level tree node synchronized with [`TreeState`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TreeNodeProps<'a> {
+    /// Debug name assigned to the row container.
+    pub name: &'static str,
+    /// Nesting depth level (0 = root).
+    pub depth: u16,
+    /// True if the item contains child branches.
+    pub has_children: bool,
+    /// Visual styling and indentation configuration.
+    pub config: &'a TreeViewConfig,
+}
+
+impl<'a> TreeNodeProps<'a> {
+    /// Creates a new tree node descriptor bundle.
+    #[inline]
+    pub const fn new(
+        name: &'static str,
+        depth: u16,
+        has_children: bool,
+        config: &'a TreeViewConfig,
+    ) -> Self {
+        Self {
+            name,
+            depth,
+            has_children,
+            config,
+        }
+    }
+}
+
+/// Comprehensive interaction response produced by emitting a [`UiScope::tree_row`].
+///
+/// Encapsulates separate click/hover states for both the row body and the foldout chevron button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeRowResponse {
+    /// Allocated widget node ID for the row container.
+    pub id: WidgetId,
+    /// Allocated widget node ID for the foldout chevron button, if present.
+    pub foldout_id: Option<WidgetId>,
+    /// Whether the row container itself was clicked during this frame.
+    pub clicked: bool,
+    /// Whether the foldout chevron button was clicked during this frame.
+    pub foldout_clicked: bool,
+    /// Whether the row container is currently hovered by the pointer.
+    pub hovered: bool,
+    /// Whether the foldout chevron button is currently hovered.
+    pub foldout_hovered: bool,
+    /// Whether the row is currently marked as selected.
+    pub is_selected: bool,
+    /// Whether the branch is currently marked as expanded.
+    pub is_expanded: bool,
+}
+
+impl TreeRowResponse {
+    /// Returns the allocated widget node ID of the row container.
+    #[inline]
+    pub const fn id(&self) -> WidgetId {
+        self.id
+    }
+
+    /// Returns the allocated widget node ID of the foldout chevron button, if present.
+    #[inline]
+    pub const fn foldout_id(&self) -> Option<WidgetId> {
+        self.foldout_id
+    }
+
+    /// Returns `true` if the row body was clicked during this frame.
+    #[inline]
+    pub const fn clicked(&self) -> bool {
+        self.clicked
+    }
+
+    /// Returns `true` if the foldout chevron button was clicked during this frame.
+    #[inline]
+    pub const fn foldout_clicked(&self) -> bool {
+        self.foldout_clicked
+    }
+
+    /// Returns `true` if the pointer is currently hovering over the foldout chevron button.
+    #[inline]
+    pub const fn foldout_hovered(&self) -> bool {
+        self.foldout_hovered
+    }
+
+    /// Returns `true` if the pointer is currently hovering over the row body.
+    #[inline]
+    pub const fn hovered(&self) -> bool {
+        self.hovered
+    }
+
+    /// Returns `true` if this tree item is currently marked as selected.
+    #[inline]
+    pub const fn selected(&self) -> bool {
+        self.is_selected
+    }
+
+    /// Returns `true` if this tree branch is currently expanded.
+    #[inline]
+    pub const fn expanded(&self) -> bool {
+        self.is_expanded
+    }
+}
+
 /// Options bundle configuring a declarative virtualized tree view viewport.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TreeViewProps {
@@ -168,6 +272,9 @@ impl<'a> UiScope<'a> {
     /// Emits a single hierarchical tree row with branch connector lines, optional foldout chevron,
     /// selection capsule styling, and custom content.
     ///
+    /// Evaluates autonomous click and hover states on both the row container and the foldout button,
+    /// returning a [`TreeRowResponse`].
+    ///
     /// # Arguments
     /// - `name`: Debug name assigned to the row container.
     /// - `props`: Grouped row properties (depth, children, expansion, selection, tags).
@@ -179,7 +286,7 @@ impl<'a> UiScope<'a> {
         props: TreeRowProps,
         config: &TreeViewConfig,
         content: F,
-    ) -> WidgetId
+    ) -> TreeRowResponse
     where
         F: FnOnce(&mut UiScope<'_>),
     {
@@ -209,68 +316,162 @@ impl<'a> UiScope<'a> {
                 .hover_border(config.style.border_width, config.style.hover_border);
         }
 
-        self.container_tagged(name, row_style, WidgetRole::Button, props.tag, |row_s| {
-            // 0. Hierarchy Connector Lines (when depth > 0)
-            if depth > 0 {
-                let line_color = config.indent.line_color;
-                for_each_tree_connector_line(depth, &config.indent, |v_line, h_line| {
-                    let rel_x = v_line.x - padding_left;
+        let mut foldout_id = None;
 
-                    let v_style = Style::new()
-                        .position_absolute()
-                        .left(rel_x)
-                        .top(0.0)
-                        .width(v_line.thickness)
-                        .height(v_line.height)
-                        .background(line_color);
-                    row_s.empty_box(v_style);
+        let row_id =
+            self.container_tagged(name, row_style, WidgetRole::Button, props.tag, |row_s| {
+                // 0. Hierarchy Connector Lines (when depth > 0)
+                if depth > 0 {
+                    let line_color = config.indent.line_color;
+                    for_each_tree_connector_line(depth, &config.indent, |v_line, h_line| {
+                        let rel_x = v_line.x - padding_left;
 
-                    if let Some(h) = h_line {
-                        let h_style = Style::new()
+                        let v_style = Style::new()
                             .position_absolute()
                             .left(rel_x)
-                            .top(h.y)
-                            .width(h.width)
-                            .height(h.thickness)
+                            .top(0.0)
+                            .width(v_line.thickness)
+                            .height(v_line.height)
                             .background(line_color);
-                        row_s.empty_box(h_style);
-                    }
-                });
-            }
+                        row_s.empty_box(v_style);
 
-            // 1. Foldout Chevron Button (if item has children)
-            if props.has_children {
-                let chevron_glyph = tree_chevron_arrow_glyph(props.is_expanded);
-                let chevron_col = config.style.resolve_chevron_color(is_selected, false);
+                        if let Some(h) = h_line {
+                            let h_style = Style::new()
+                                .position_absolute()
+                                .left(rel_x)
+                                .top(h.y)
+                                .width(h.width)
+                                .height(h.thickness)
+                                .background(line_color);
+                            row_s.empty_box(h_style);
+                        }
+                    });
+                }
 
-                let fold_style = Style::new()
-                    .flex_row()
-                    .width(12.0)
-                    .height(config.row_height)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center);
+                // 1. Foldout Chevron Button (if item has children)
+                if props.has_children {
+                    let chevron_glyph = tree_chevron_arrow_glyph(props.is_expanded);
+                    let chevron_col = config.style.resolve_chevron_color(is_selected, false);
 
-                row_s.container_tagged(
-                    "TreeFoldoutButton",
-                    fold_style,
-                    WidgetRole::Button,
-                    props.foldout_tag,
-                    |fold_s| {
-                        let txt_id = fold_s.label_with_width(
-                            chevron_glyph,
-                            12.0,
-                            9.0,
-                            chevron_col,
-                            TextAlign::Center,
-                        );
-                        fold_s.set_hover_text_color(txt_id, config.style.chevron_hover_color);
-                    },
-                );
-            }
+                    let fold_style = Style::new()
+                        .flex_row()
+                        .width(12.0)
+                        .height(config.row_height)
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center);
 
-            // 2. Custom Row Content (Icon, Label, Actions)
-            content(row_s);
-        })
+                    let fid = row_s.container_tagged(
+                        "TreeFoldoutButton",
+                        fold_style,
+                        WidgetRole::Button,
+                        props.foldout_tag,
+                        |fold_s| {
+                            let txt_id = fold_s.label_with_width(
+                                chevron_glyph,
+                                12.0,
+                                9.0,
+                                chevron_col,
+                                TextAlign::Center,
+                            );
+                            fold_s.set_hover_text_color(txt_id, config.style.chevron_hover_color);
+                        },
+                    );
+                    foldout_id = Some(fid);
+                }
+
+                // 2. Custom Row Content (Icon, Label, Actions)
+                content(row_s);
+            });
+
+        let (row_clicked, row_hovered, _) = self.check_interaction(row_id);
+        let (foldout_clicked, foldout_hovered) = if let Some(fid) = foldout_id {
+            let (fc, fh, _) = self.check_interaction(fid);
+            (fc, fh)
+        } else {
+            (false, false)
+        };
+
+        TreeRowResponse {
+            id: row_id,
+            foldout_id,
+            clicked: row_clicked,
+            foldout_clicked,
+            hovered: row_hovered,
+            foldout_hovered,
+            is_selected: props.is_selected,
+            is_expanded: props.is_expanded,
+        }
+    }
+
+    /// Emits a hierarchical tree row and mutates the `is_expanded` state boolean in-place
+    /// when the foldout chevron button is clicked.
+    ///
+    /// # Arguments
+    /// - `name`: Debug name assigned to the row container.
+    /// - `props`: Grouped row properties.
+    /// - `is_expanded`: Mutable reference to the boolean state toggled upon chevron click.
+    /// - `config`: Visual styling and indentation configuration.
+    /// - `content`: Custom content closure.
+    pub fn tree_row_toggle<F>(
+        &mut self,
+        name: &'static str,
+        mut props: TreeRowProps,
+        is_expanded: &mut bool,
+        config: &TreeViewConfig,
+        content: F,
+    ) -> TreeRowResponse
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        props.is_expanded = *is_expanded;
+        let resp = self.tree_row(name, props, config, content);
+        if resp.foldout_clicked {
+            *is_expanded = !*is_expanded;
+        }
+        resp
+    }
+
+    /// Emits a hierarchical tree node fully integrated with [`TreeState`].
+    ///
+    /// Automatically inspects and synchronizes expansion and selection states in [`TreeState`],
+    /// toggling expansion upon chevron click and selecting the item upon row click.
+    ///
+    /// # Arguments
+    /// - `state`: Mutable reference to the active [`TreeState`] manager.
+    /// - `id`: Reference to the item's domain identifier.
+    /// - `props`: Node descriptor specifying name, depth, child presence, and configuration.
+    /// - `content`: Custom content closure.
+    pub fn tree_node<Id, F>(
+        &mut self,
+        state: &mut TreeState<Id>,
+        id: &Id,
+        props: TreeNodeProps<'_>,
+        content: F,
+    ) -> TreeRowResponse
+    where
+        Id: Eq + Hash + Clone,
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let is_expanded = state.is_expanded(id);
+        let is_selected = state.is_selected(id);
+        let tag = self.tag_for(props.name);
+        let foldout_tag = tag.wrapping_add(1);
+        let row_props = TreeRowProps::new(
+            props.depth,
+            props.has_children,
+            is_expanded,
+            is_selected,
+            tag,
+            foldout_tag,
+        );
+        let resp = self.tree_row(props.name, row_props, props.config, content);
+        if resp.foldout_clicked {
+            state.toggle_expanded(id);
+        }
+        if resp.clicked {
+            state.select_single(id.clone());
+        }
+        resp
     }
 
     /// Emits a virtualized, frustum-culled tree view rendering a slice of visible nodes.

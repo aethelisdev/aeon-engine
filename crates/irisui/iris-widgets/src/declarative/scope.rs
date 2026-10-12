@@ -23,7 +23,7 @@ pub mod scroll_area;
 pub mod tree_view;
 
 pub use scroll_area::ScrollAreaConfig;
-pub use tree_view::{TreeRowProps, TreeViewConfig, TreeViewProps};
+pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
 
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
