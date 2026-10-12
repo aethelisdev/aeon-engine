@@ -36,8 +36,10 @@ pub use context_menu::{
     ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
 };
 pub use controls::{
+    FocusEventResponse, FocusModifiers, FocusPolicy, FocusState, FocusTarget, FocusableArea,
     NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER, NUMERIC_DRAG_THRESHOLD,
-    NumericDragResponse, NumericDragState, handle_numeric_drag_event,
+    NumericDragResponse, NumericDragState, handle_focus_event, handle_focus_event_with_modifiers,
+    handle_numeric_drag_event,
 };
 pub use declarative::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
