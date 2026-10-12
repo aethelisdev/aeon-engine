@@ -36,10 +36,11 @@ pub use context_menu::{
 };
 pub use declarative::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, ScopeId, ScrollAreaConfig, UiScope, WidgetResponse,
-    WrappedLabelDescriptor, calculate_visible_slice_and_caret, combine_seeds, hash_label,
-    hash_label_with_seed, layout_subtree, measure_content_height, measure_height,
-    measure_height_constrained, measure_text_advance, measure_width, split_label_id,
+    PropertyVec3Options, PropertyVec3Response, ScopeId, ScrollAreaConfig, TreeRowProps,
+    TreeViewConfig, TreeViewProps, UiScope, WidgetResponse, WrappedLabelDescriptor,
+    calculate_visible_slice_and_caret, combine_seeds, hash_label, hash_label_with_seed,
+    layout_subtree, measure_content_height, measure_height, measure_height_constrained,
+    measure_text_advance, measure_width, split_label_id,
 };
 pub use grid_view::ResponsiveGrid;
 pub use input::{TextInputState, copy_to_clipboard, get_clipboard_text};
@@ -64,10 +65,11 @@ pub use tree_view::{
     DEFAULT_TREE_BASE_PADDING, DEFAULT_TREE_INDENT_STEP, DEFAULT_TREE_LINE_ARM_GAP,
     DEFAULT_TREE_LINE_ARM_LENGTH, DEFAULT_TREE_LINE_THICKNESS, DEFAULT_TREE_ROW_HEIGHT,
     TREE_CHEVRON_ARROW_COLLAPSED, TREE_CHEVRON_ARROW_EXPANDED, TREE_CHEVRON_COLLAPSED,
-    TREE_CHEVRON_EXPANDED, TreeClickTarget, TreeConnectorGeometry, TreeIndentConfig,
-    TreeLineHorizontal, TreeLineVertical, TreeRowStyle, TreeSelectionModifiers,
-    TreeSelectionResponse, TreeState, compute_tree_connector_geometry, evaluate_tree_click,
-    handle_tree_foldout_click, handle_tree_row_click, handle_tree_selection_event,
+    TREE_CHEVRON_EXPANDED, TreeClickTarget, TreeConnectorGeometry, TreeIndentConfig, TreeItemInfo,
+    TreeLineHorizontal, TreeLineVertical, TreeNavResponse, TreeRowStyle, TreeSelectionModifiers,
+    TreeSelectionResponse, TreeState, compute_tree_connector_geometry, compute_tree_scroll_to_view,
+    evaluate_tree_click, handle_tree_arrow_navigation, handle_tree_foldout_click,
+    handle_tree_navigation_event, handle_tree_row_click, handle_tree_selection_event,
     tree_chevron_arrow_glyph, tree_chevron_glyph,
 };
 

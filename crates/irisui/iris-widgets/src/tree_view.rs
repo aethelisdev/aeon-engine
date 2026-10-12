@@ -8,6 +8,7 @@
 //!
 
 pub mod model;
+pub mod navigation;
 pub mod selection;
 
 pub use model::{
@@ -15,6 +16,11 @@ pub use model::{
     DEFAULT_TREE_LINE_ARM_LENGTH, DEFAULT_TREE_LINE_THICKNESS, DEFAULT_TREE_ROW_HEIGHT,
     TreeConnectorGeometry, TreeIndentConfig, TreeLineHorizontal, TreeLineVertical, TreeState,
     compute_tree_connector_geometry,
+};
+
+pub use navigation::{
+    TreeItemInfo, TreeNavResponse, compute_tree_scroll_to_view, handle_tree_arrow_navigation,
+    handle_tree_navigation_event,
 };
 
 pub use selection::{
