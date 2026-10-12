@@ -479,7 +479,9 @@ impl IrisEditorOverlay {
         let cursor = self.cursor_pos();
         let is_pointer = matches!(
             event,
-            WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. }
+            WindowEvent::MouseInput { .. }
+                | WindowEvent::CursorMoved { .. }
+                | WindowEvent::MouseWheel { .. }
         );
         let captured = self.chrome.pointer_capture;
 
@@ -523,8 +525,6 @@ impl IrisEditorOverlay {
             && let Some(ui_res) = self.handle_ui_designer_window_event(event)
         {
             res = Some(ui_res);
-        } else if let Some(scroll_res) = self.handle_panel_mouse_wheel(event) {
-            res = Some(scroll_res);
         } else if (!is_pointer || is_in(&self.panels, PanelId::Inspector))
             && let Some(insp_res) = self.handle_inspector_window_event(event, world)
         {

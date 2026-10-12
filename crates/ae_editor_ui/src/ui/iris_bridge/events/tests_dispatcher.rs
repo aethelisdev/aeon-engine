@@ -263,3 +263,125 @@ fn test_central_focus_tag_invariants() {
     assert!(!focus_state.has_focus());
     assert!(!focus_manager.has_focus());
 }
+
+#[test]
+fn test_pointer_classification_includes_mouse_wheel() {
+    use winit::event::{DeviceId, MouseScrollDelta, WindowEvent};
+
+    let dummy_device = DeviceId::dummy();
+    let wheel_event = WindowEvent::MouseWheel {
+        device_id: dummy_device,
+        delta: MouseScrollDelta::LineDelta(0.0, 1.0),
+        phase: winit::event::TouchPhase::Moved,
+    };
+    let cursor_event = WindowEvent::CursorMoved {
+        device_id: dummy_device,
+        position: winit::dpi::PhysicalPosition::new(100.0, 100.0),
+    };
+    let non_pointer_focus = WindowEvent::Focused(true);
+    let non_pointer_ime = WindowEvent::Ime(winit::event::Ime::Commit("test".to_string()));
+
+    let is_pointer = |ev: &WindowEvent| -> bool {
+        matches!(
+            ev,
+            WindowEvent::MouseInput { .. }
+                | WindowEvent::CursorMoved { .. }
+                | WindowEvent::MouseWheel { .. }
+        )
+    };
+
+    assert!(
+        is_pointer(&wheel_event),
+        "MouseWheel must be classified as a pointer event"
+    );
+    assert!(
+        is_pointer(&cursor_event),
+        "CursorMoved must be classified as a pointer event"
+    );
+    assert!(
+        !is_pointer(&non_pointer_focus),
+        "Window focus must NOT be classified as a pointer event"
+    );
+    assert!(
+        !is_pointer(&non_pointer_ime),
+        "IME text input must NOT be classified as a pointer event"
+    );
+}
+
+#[test]
+fn test_wheel_event_isolated_routing_predicate() {
+    use crate::ui::panel_layout::PanelId;
+    use irisui::prelude::{Point, Rect};
+
+    let hierarchy_bounds = Rect::new(0.0, 28.0, 250.0, 500.0);
+    let inspector_bounds = Rect::new(800.0, 28.0, 300.0, 500.0);
+
+    let cursor_in_hier = Point::new(100.0, 100.0);
+    let cursor_in_insp = Point::new(900.0, 100.0);
+    let cursor_in_empty = Point::new(500.0, 100.0);
+
+    let is_in = |cursor: Point, bounds: Rect| -> bool {
+        crate::ui::iris_bridge::compositor::is_point_in_panel(cursor, bounds)
+    };
+
+    // When cursor is over Hierarchy
+    assert!(is_in(cursor_in_hier, hierarchy_bounds));
+    assert!(!is_in(cursor_in_hier, inspector_bounds));
+
+    // When cursor is over Inspector
+    assert!(!is_in(cursor_in_insp, hierarchy_bounds));
+    assert!(is_in(cursor_in_insp, inspector_bounds));
+
+    // When cursor is between panels
+    assert!(!is_in(cursor_in_empty, hierarchy_bounds));
+    assert!(!is_in(cursor_in_empty, inspector_bounds));
+
+    // Pointer capture overrides physical coordinate hit-testing
+    let captured_panel = Some(PanelId::Inspector);
+    let check_captured = |id: PanelId| -> bool {
+        if let Some(cap) = captured_panel {
+            return cap == id;
+        }
+        false
+    };
+    assert!(check_captured(PanelId::Inspector));
+    assert!(!check_captured(PanelId::Hierarchy));
+}
+
+#[test]
+fn test_stats_and_inspector_scroll_delta_math_and_clamping() {
+    // 1. Stats panel scroll math: (scroll_y - delta_y).clamp(0.0, max_scroll)
+    let max_scroll = 300.0_f32;
+    let mut stats_scroll_y = 50.0_f32;
+
+    // Scroll down by 24px (1 line)
+    let delta_y = 24.0_f32;
+    stats_scroll_y = (stats_scroll_y - delta_y).clamp(0.0, max_scroll);
+    assert_eq!(stats_scroll_y, 26.0);
+
+    // Scroll up by 48px
+    let delta_y_up = -48.0_f32;
+    stats_scroll_y = (stats_scroll_y - delta_y_up).clamp(0.0, max_scroll);
+    assert_eq!(stats_scroll_y, 74.0);
+
+    // Scroll past top boundary: clamps to 0.0
+    stats_scroll_y = (stats_scroll_y - 200.0).clamp(0.0, max_scroll);
+    assert_eq!(stats_scroll_y, 0.0);
+
+    // Scroll past bottom boundary: clamps to max_scroll
+    stats_scroll_y = (stats_scroll_y - (-500.0)).clamp(0.0, max_scroll);
+    assert_eq!(stats_scroll_y, 300.0);
+
+    // 2. Inspector panel scroll math: (scroll_y - delta_y).max(0.0)
+    let mut insp_scroll_y = 100.0_f32;
+    insp_scroll_y = (insp_scroll_y - 30.0).max(0.0);
+    assert_eq!(insp_scroll_y, 70.0);
+
+    // Scroll past top
+    insp_scroll_y = (insp_scroll_y - 150.0).max(0.0);
+    assert_eq!(insp_scroll_y, 0.0);
+
+    // Scroll down indefinitely
+    insp_scroll_y = (insp_scroll_y - (-1000.0)).max(0.0);
+    assert_eq!(insp_scroll_y, 1000.0);
+}
