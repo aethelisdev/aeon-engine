@@ -547,6 +547,7 @@ impl IrisEditorOverlay {
                 Some(PanelId::Console) => self.console.scroll_state.is_dragging(),
                 Some(PanelId::MaterialEditor) => self.material.scroll_state.is_dragging(),
                 Some(PanelId::Hierarchy) => self.hierarchy.scroll_state.is_dragging(),
+                Some(PanelId::Stats) => self.stats.scroll_state.is_dragging(),
                 _ => false,
             };
             if !still_dragging {

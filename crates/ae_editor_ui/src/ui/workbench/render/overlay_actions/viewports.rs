@@ -120,7 +120,6 @@ impl EngineUi {
                 iris_bridge::StatsPanelAction::ToggleGrid => {
                     self.grid_enabled = !self.grid_enabled;
                 }
-                iris_bridge::StatsPanelAction::Scroll(_) => {}
             }
         }
     }

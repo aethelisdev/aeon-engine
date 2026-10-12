@@ -52,8 +52,6 @@ pub enum StatsPanelAction {
     ToggleWireframe,
     /// Toggles world grid visibility.
     ToggleGrid,
-    /// Vertical scrolling delta in pixels.
-    Scroll(f32),
 }
 
 /// Parameter context bundle passed into the declarative Stats & Profiler builder.
@@ -101,6 +99,8 @@ pub struct StatsPanelParams<'a> {
 pub struct StatsPanelState {
     /// Common panel interaction state (scroll_y, search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>,
+    /// Autonomous framework scroll state managing thumb dragging and mouse wheel offsets.
+    pub scroll_state: ScrollAreaState,
     /// Maximum computed vertical scrollable overflow extent.
     pub max_scroll: f32,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
@@ -119,6 +119,7 @@ impl Default for StatsPanelState {
     fn default() -> Self {
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
+            scroll_state: ScrollAreaState::default(),
             max_scroll: 0.0,
             last_rect: None,
             frame_counter: 0,
@@ -146,6 +147,11 @@ impl std::ops::DerefMut for StatsPanelState {
 }
 
 impl StatsPanelState {
+    /// Synchronizes current vertical scroll offset from the autonomous [`ScrollAreaState`] into panel interaction state.
+    #[inline]
+    pub fn sync_scroll_y(&mut self) {
+        self.interactions.scroll_y = self.scroll_state.scroll_y;
+    }
     /// Evaluates whether the Performance Stats & Telemetry panel requires an in-place repaint.
     ///
     /// Returns `true` whenever the docked stats panel rectangle is visible.

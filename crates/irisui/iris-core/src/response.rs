@@ -1,0 +1,382 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Declarative Widget Interaction Response (`iris-core::response`)
+//!
+//! Provides the canonical [`WidgetResponse`] and [`ResponseFlags`] types representing
+//! immediate-mode interaction outcomes (clicks, drags, hover, focus transitions, value changes)
+//! emitted by declarative UI scopes and retained UI tree event dispatching.
+//!
+
+use bitflags::bitflags;
+
+use crate::geometry::Rect;
+use crate::id::WidgetId;
+
+bitflags! {
+    /// Fine-grained bitflags representing user interaction states on an emitted widget.
+    ///
+    /// Evaluated during tree hit-testing and event bubbling passes, enabling immediate-mode
+    /// querying like `if response.clicked() { ... }` or `if response.changed() { ... }`.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+    pub struct ResponseFlags: u16 {
+        /// Pointer cursor is physically within the visible bounding rectangle of the widget.
+        const HOVERED = 1 << 0;
+        /// Primary mouse button is actively held down over the widget.
+        const PRESSED = 1 << 1;
+        /// Primary mouse button was pressed and released within the same widget bounds during this frame.
+        const CLICKED = 1 << 2;
+        /// Rapid successive click detected within double-click duration threshold.
+        const DOUBLE_CLICKED = 1 << 3;
+        /// Secondary (right-click) mouse button was pressed on the widget (context menu trigger).
+        const SECONDARY_CLICKED = 1 << 4;
+        /// Active pointer drag gesture is occurring over or captured by this widget.
+        const DRAGGED = 1 << 5;
+        /// The widget's bound value or text model was mutated during this interaction pass.
+        const CHANGED = 1 << 6;
+        /// Widget currently holds active keyboard navigation or text input focus.
+        const FOCUSED = 1 << 7;
+        /// Widget transitioned into focused state during this frame.
+        const GAINED_FOCUS = 1 << 8;
+        /// Widget transitioned out of focused state during this frame.
+        const LOST_FOCUS = 1 << 9;
+    }
+}
+
+/// Interaction response returned by declarative widget emissions in Iris UI.
+///
+/// Designed to emulate immediate-mode ergonomics (`if ui.button("Save").clicked() { ... }`)
+/// while remaining backed by the high-performance generational arena of `iris-core`.
+///
+/// Stack-allocated, lightweight `Copy` struct with zero heap allocation overhead.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct WidgetResponse {
+    /// Unique generational arena identifier of the emitted widget node.
+    pub id: WidgetId,
+    /// Absolute layout bounding box of the widget in screen pixels.
+    pub rect: Rect,
+    /// Detailed interaction bitflags.
+    pub flags: ResponseFlags,
+    /// Direct boolean cached mirror of `flags.contains(ResponseFlags::CLICKED)`.
+    pub clicked: bool,
+    /// Direct boolean cached mirror of `flags.contains(ResponseFlags::HOVERED)`.
+    pub hovered: bool,
+    /// Direct boolean cached mirror of `flags.contains(ResponseFlags::CHANGED)`.
+    pub changed: bool,
+}
+
+impl WidgetResponse {
+    /// Constructs a basic widget response with direct state flags (maintaining backwards compatibility).
+    #[inline]
+    pub const fn new(id: WidgetId, clicked: bool, hovered: bool, changed: bool) -> Self {
+        let mut flags = ResponseFlags::empty();
+        if clicked {
+            flags = flags.union(ResponseFlags::CLICKED);
+        }
+        if hovered {
+            flags = flags.union(ResponseFlags::HOVERED);
+        }
+        if changed {
+            flags = flags.union(ResponseFlags::CHANGED);
+        }
+
+        Self {
+            id,
+            rect: Rect::ZERO,
+            flags,
+            clicked,
+            hovered,
+            changed,
+        }
+    }
+
+    /// Constructs a rich widget response with explicit bounding box and interaction flags.
+    #[inline]
+    pub const fn from_flags(id: WidgetId, rect: Rect, flags: ResponseFlags) -> Self {
+        let clicked = flags.contains(ResponseFlags::CLICKED);
+        let hovered = flags.contains(ResponseFlags::HOVERED);
+        let changed = flags.contains(ResponseFlags::CHANGED);
+
+        Self {
+            id,
+            rect,
+            flags,
+            clicked,
+            hovered,
+            changed,
+        }
+    }
+
+    /// Constructs an un-interacted empty response for a widget node.
+    #[inline]
+    pub const fn empty(id: WidgetId) -> Self {
+        Self {
+            id,
+            rect: Rect::ZERO,
+            flags: ResponseFlags::empty(),
+            clicked: false,
+            hovered: false,
+            changed: false,
+        }
+    }
+
+    /// Returns the unique generational identifier of the widget node.
+    #[inline]
+    pub const fn id(&self) -> WidgetId {
+        self.id
+    }
+
+    /// Returns the absolute layout bounding box of the widget.
+    #[inline]
+    pub const fn rect(&self) -> Rect {
+        self.rect
+    }
+
+    /// Sets the layout bounding box and returns updated response.
+    #[inline]
+    pub const fn with_rect(mut self, rect: Rect) -> Self {
+        self.rect = rect;
+        self
+    }
+
+    /// Returns `true` if primary mouse button clicked the widget during this frame.
+    #[inline]
+    pub const fn clicked(&self) -> bool {
+        self.clicked
+    }
+
+    /// Sets the clicked state flag and returns updated response.
+    #[inline]
+    pub const fn with_clicked(mut self, clicked: bool) -> Self {
+        self.clicked = clicked;
+        if clicked {
+            self.flags = self.flags.union(ResponseFlags::CLICKED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::CLICKED);
+        }
+        self
+    }
+
+    /// Returns `true` if double-click was detected on the widget during this frame.
+    #[inline]
+    pub const fn double_clicked(&self) -> bool {
+        self.flags.contains(ResponseFlags::DOUBLE_CLICKED)
+    }
+
+    /// Sets the double-clicked state flag and returns updated response.
+    #[inline]
+    pub const fn with_double_clicked(mut self, double_clicked: bool) -> Self {
+        if double_clicked {
+            self.flags = self.flags.union(ResponseFlags::DOUBLE_CLICKED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::DOUBLE_CLICKED);
+        }
+        self
+    }
+
+    /// Returns `true` if secondary (right-click) occurred on this widget.
+    #[inline]
+    pub const fn secondary_clicked(&self) -> bool {
+        self.flags.contains(ResponseFlags::SECONDARY_CLICKED)
+    }
+
+    /// Sets the secondary clicked state flag and returns updated response.
+    #[inline]
+    pub const fn with_secondary_clicked(mut self, secondary_clicked: bool) -> Self {
+        if secondary_clicked {
+            self.flags = self.flags.union(ResponseFlags::SECONDARY_CLICKED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::SECONDARY_CLICKED);
+        }
+        self
+    }
+
+    /// Returns `true` if the pointer is currently hovering over the widget.
+    #[inline]
+    pub const fn hovered(&self) -> bool {
+        self.hovered
+    }
+
+    /// Sets the hovered state flag and returns updated response.
+    #[inline]
+    pub const fn with_hovered(mut self, hovered: bool) -> Self {
+        self.hovered = hovered;
+        if hovered {
+            self.flags = self.flags.union(ResponseFlags::HOVERED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::HOVERED);
+        }
+        self
+    }
+
+    /// Returns `true` if primary mouse button is actively held down over this widget.
+    #[inline]
+    pub const fn pressed(&self) -> bool {
+        self.flags.contains(ResponseFlags::PRESSED)
+    }
+
+    /// Sets the pressed state flag and returns updated response.
+    #[inline]
+    pub const fn with_pressed(mut self, pressed: bool) -> Self {
+        if pressed {
+            self.flags = self.flags.union(ResponseFlags::PRESSED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::PRESSED);
+        }
+        self
+    }
+
+    /// Returns `true` if the underlying model property was mutated during this frame.
+    #[inline]
+    pub const fn changed(&self) -> bool {
+        self.changed
+    }
+
+    /// Sets the changed state flag and returns updated response.
+    #[inline]
+    pub const fn with_changed(mut self, changed: bool) -> Self {
+        self.changed = changed;
+        if changed {
+            self.flags = self.flags.union(ResponseFlags::CHANGED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::CHANGED);
+        }
+        self
+    }
+
+    /// Returns `true` if an active drag gesture is occurring on this widget.
+    #[inline]
+    pub const fn dragged(&self) -> bool {
+        self.flags.contains(ResponseFlags::DRAGGED)
+    }
+
+    /// Sets the dragged state flag and returns updated response.
+    #[inline]
+    pub const fn with_dragged(mut self, dragged: bool) -> Self {
+        if dragged {
+            self.flags = self.flags.union(ResponseFlags::DRAGGED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::DRAGGED);
+        }
+        self
+    }
+
+    /// Returns `true` if the widget currently holds keyboard/input focus.
+    #[inline]
+    pub const fn is_focused(&self) -> bool {
+        self.flags.contains(ResponseFlags::FOCUSED)
+    }
+
+    /// Sets the focused state flag and returns updated response.
+    #[inline]
+    pub const fn with_focused(mut self, focused: bool) -> Self {
+        if focused {
+            self.flags = self.flags.union(ResponseFlags::FOCUSED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::FOCUSED);
+        }
+        self
+    }
+
+    /// Returns `true` if the widget gained focus during this interaction pass.
+    #[inline]
+    pub const fn gained_focus(&self) -> bool {
+        self.flags.contains(ResponseFlags::GAINED_FOCUS)
+    }
+
+    /// Sets the gained_focus state flag and returns updated response.
+    #[inline]
+    pub const fn with_gained_focus(mut self, gained: bool) -> Self {
+        if gained {
+            self.flags = self.flags.union(ResponseFlags::GAINED_FOCUS);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::GAINED_FOCUS);
+        }
+        self
+    }
+
+    /// Returns `true` if the widget lost focus during this interaction pass.
+    #[inline]
+    pub const fn lost_focus(&self) -> bool {
+        self.flags.contains(ResponseFlags::LOST_FOCUS)
+    }
+
+    /// Sets the lost_focus state flag and returns updated response.
+    #[inline]
+    pub const fn with_lost_focus(mut self, lost: bool) -> Self {
+        if lost {
+            self.flags = self.flags.union(ResponseFlags::LOST_FOCUS);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::LOST_FOCUS);
+        }
+        self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_widget_response_flags_and_helpers() {
+        let id = WidgetId::default();
+        let rect = Rect::new(10.0, 20.0, 100.0, 30.0);
+        let resp = WidgetResponse::from_flags(
+            id,
+            rect,
+            ResponseFlags::CLICKED | ResponseFlags::HOVERED | ResponseFlags::DOUBLE_CLICKED,
+        );
+
+        assert_eq!(resp.id(), id);
+        assert_eq!(resp.rect(), rect);
+        assert!(resp.clicked());
+        assert!(resp.hovered());
+        assert!(resp.double_clicked());
+        assert!(!resp.changed());
+        assert!(!resp.dragged());
+        assert!(!resp.is_focused());
+    }
+
+    #[test]
+    fn test_widget_response_builder_pattern() {
+        let id = WidgetId::default();
+        let rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+        let resp = WidgetResponse::empty(id)
+            .with_rect(rect)
+            .with_clicked(true)
+            .with_hovered(true)
+            .with_pressed(true)
+            .with_changed(true)
+            .with_dragged(true)
+            .with_secondary_clicked(true);
+
+        assert!(resp.clicked());
+        assert!(resp.hovered());
+        assert!(resp.pressed());
+        assert!(resp.changed());
+        assert!(resp.dragged());
+        assert!(resp.secondary_clicked());
+        assert_eq!(resp.rect(), rect);
+
+        let cleared = resp.with_clicked(false).with_dragged(false);
+        assert!(!cleared.clicked());
+        assert!(!cleared.dragged());
+        assert!(cleared.changed());
+    }
+
+    #[test]
+    fn test_widget_response_focus_transitions() {
+        let id = WidgetId::default();
+        let resp = WidgetResponse::empty(id)
+            .with_focused(true)
+            .with_gained_focus(true);
+
+        assert!(resp.is_focused());
+        assert!(resp.gained_focus());
+        assert!(!resp.lost_focus());
+
+        let lost = resp.with_focused(false).with_lost_focus(true);
+        assert!(!lost.is_focused());
+        assert!(lost.lost_focus());
+    }
+}
