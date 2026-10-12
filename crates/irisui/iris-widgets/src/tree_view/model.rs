@@ -383,6 +383,71 @@ where
         }
     }
 
+    /// Extends selection as a continuous range between the current primary anchor and `target_id` (Shift-click).
+    ///
+    /// Clears any prior selection outside the contiguous range. If no anchor exists or if items are
+    /// not found in `visible_order`, falls back to [`Self::select_single`].
+    ///
+    /// Returns `true` if the selection changed.
+    pub fn select_range(&mut self, target_id: Id, visible_order: &[Id]) -> bool {
+        let Some(ref anchor) = self.primary_selected else {
+            self.select_single(target_id);
+            return true;
+        };
+
+        let start_pos = visible_order.iter().position(|item| item == anchor);
+        let end_pos = visible_order.iter().position(|item| item == &target_id);
+
+        match (start_pos, end_pos) {
+            (Some(start), Some(end)) => {
+                let (min, max) = if start <= end {
+                    (start, end)
+                } else {
+                    (end, start)
+                };
+                self.selected_nodes.clear();
+                for item in &visible_order[min..=max] {
+                    self.selected_nodes.insert(item.clone());
+                }
+                true
+            }
+            _ => {
+                self.select_single(target_id);
+                true
+            }
+        }
+    }
+
+    /// Additively expands selection across the range between anchor and `target_id` without clearing prior selections (Ctrl-Shift-click).
+    ///
+    /// Returns `true` if any new items were selected.
+    pub fn select_range_additive(&mut self, target_id: Id, visible_order: &[Id]) -> bool {
+        let Some(ref anchor) = self.primary_selected else {
+            self.selected_nodes.insert(target_id.clone());
+            self.primary_selected = Some(target_id);
+            return true;
+        };
+
+        let start_pos = visible_order.iter().position(|item| item == anchor);
+        let end_pos = visible_order.iter().position(|item| item == &target_id);
+
+        match (start_pos, end_pos) {
+            (Some(start), Some(end)) => {
+                let (min, max) = if start <= end {
+                    (start, end)
+                } else {
+                    (end, start)
+                };
+                let mut changed = false;
+                for item in &visible_order[min..=max] {
+                    changed |= self.selected_nodes.insert(item.clone());
+                }
+                changed
+            }
+            _ => self.selected_nodes.insert(target_id),
+        }
+    }
+
     /// Clears all selected nodes and primary selection.
     pub fn clear_selection(&mut self) {
         self.selected_nodes.clear();
