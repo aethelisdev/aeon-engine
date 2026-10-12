@@ -70,11 +70,15 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             update_scrollbar_drag(tree, captured_id, delta_y, initial_scroll);
         }
 
-        let delta = tree
-            .event_state
-            .press_origin
-            .map(|origin| Point::new(point.x - origin.x, point.y - origin.y));
-        tree.event_state.frame_drag_delta = delta;
+        let delta = if let Some(last_pos) = tree.event_state.last_pointer_pos {
+            Point::new(point.x - last_pos.x, point.y - last_pos.y)
+        } else if let Some(origin) = tree.event_state.press_origin {
+            Point::new(point.x - origin.x, point.y - origin.y)
+        } else {
+            Point::ZERO
+        };
+        tree.event_state.frame_drag_delta = Some(delta);
+        tree.event_state.last_pointer_pos = Some(point);
 
         let node = tree.get(captured_id).unwrap();
         let cursor = node.cursor.or_else(|| node.role.default_cursor());
@@ -138,6 +142,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     tree.event_state.pressed = hit_id;
     tree.event_state.pressed_button = Some(button);
     tree.event_state.press_origin = Some(point);
+    tree.event_state.last_pointer_pos = Some(point);
 
     if let Some(target_id) = hit_id {
         // Synchronize keyboard focus with the newly clicked interactive target
@@ -169,6 +174,9 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                     .map(|v| v.style.scroll_offset_y)
                     .unwrap_or(0.0);
             }
+        } else if role == WidgetRole::NumericInput && button == MouseButton::Left {
+            // Autonomous NumericInput pointer capture inception for drag scrubbers
+            tree.event_state.pointer_capture = Some(target_id);
         }
 
         let rect = tree
@@ -206,7 +214,9 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         tree.event_state.pressed = None;
         tree.event_state.pressed_button = None;
         tree.event_state.press_origin = None;
+        tree.event_state.last_pointer_pos = None;
         tree.event_state.initial_scroll_y = 0.0;
+        tree.event_state.frame_drag_delta = None;
 
         let (tag, rect, cursor) = tree
             .get(captured_id)
@@ -243,6 +253,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
     tree.event_state.pressed = None;
     tree.event_state.pressed_button = None;
     tree.event_state.press_origin = None;
+    tree.event_state.last_pointer_pos = None;
     tree.event_state.initial_scroll_y = 0.0;
 
     if let Some(target_id) = hit_id {

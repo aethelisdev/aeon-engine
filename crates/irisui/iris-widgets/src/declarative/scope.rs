@@ -14,6 +14,7 @@ pub mod containers;
 pub mod core;
 pub mod display;
 pub mod input;
+pub mod input_box;
 pub mod menu;
 pub mod modal;
 pub mod progress;
@@ -29,7 +30,7 @@ pub use super::types::{
 };
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
-pub use input::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
+pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use properties::{
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
     PropertyVec3Response,

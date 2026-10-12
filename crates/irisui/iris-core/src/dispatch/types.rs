@@ -55,6 +55,8 @@ pub struct EventState {
     pub frame_clicked_tag: Option<u64>,
     /// Pointer delta movement vector accumulated during active dragging gestures in the current frame.
     pub frame_drag_delta: Option<Point>,
+    /// Previous cursor screen position recorded during dragging to calculate incremental frame deltas.
+    pub last_pointer_pos: Option<Point>,
 }
 
 impl EventState {
@@ -76,6 +78,7 @@ impl EventState {
             frame_clicked_id: None,
             frame_clicked_tag: None,
             frame_drag_delta: None,
+            last_pointer_pos: None,
         }
     }
 
@@ -94,6 +97,7 @@ impl EventState {
         self.frame_clicked_id = None;
         self.frame_clicked_tag = None;
         self.frame_drag_delta = None;
+        self.last_pointer_pos = None;
     }
 
     /// Clears any confirmed click state recorded for the current frame.

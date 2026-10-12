@@ -180,3 +180,117 @@ fn test_declarative_checkbox_click_and_toggle_response() {
         );
     }
 }
+
+#[test]
+fn test_declarative_numeric_drag_changed_response() {
+    use iris_core::WidgetCursor;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node should be created");
+
+    let mut scale = 1.0f32;
+
+    // 1. Initial build: render numeric scrubber in tree without interaction
+    let drag_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.numeric_drag("Scale", &mut scale);
+        assert!(
+            !resp.changed(),
+            "Clean drag scrubber must not report changed"
+        );
+        assert!(
+            !resp.dragged(),
+            "Clean drag scrubber must not report dragged"
+        );
+        assert!(
+            !resp.hovered(),
+            "Clean drag scrubber must not report hovered"
+        );
+        assert_eq!(scale, 1.0);
+        resp.id()
+    };
+
+    // Assign computed rect for spatial hit-testing
+    let drag_rect = Rect::new(20.0, 20.0, 100.0, 30.0);
+    if let Some(node) = tree.get_mut(drag_id) {
+        node.computed_rect = drag_rect;
+    }
+
+    let start_pt = Point::new(30.0, 25.0);
+
+    // 2. MouseMove over scrubber -> Hovered and EwResize cursor
+    let move_res = tree.dispatch_event(&UiEvent::MouseMove { point: start_pt });
+    assert_eq!(move_res.target, Some(drag_id));
+    assert_eq!(move_res.cursor, Some(WidgetCursor::EwResize));
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.numeric_drag("Scale", &mut scale);
+        assert!(resp.hovered(), "Scrubber must report hovered == true");
+        assert!(!resp.dragged());
+        assert!(!resp.changed());
+        assert_eq!(scale, 1.0);
+    }
+
+    // 3. MouseDown on scrubber -> Initiates pointer capture for  scrubbing
+    let down_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: start_pt,
+    });
+    assert!(down_res.is_consumed());
+    assert_eq!(
+        tree.event_state.pointer_capture,
+        Some(drag_id),
+        "Numeric scrubber must capture pointer on MouseDown"
+    );
+
+    // 4. MouseMove displacing pointer horizontally by +30.0px
+    let moved_pt = Point::new(60.0, 25.0);
+    let drag_move_res = tree.dispatch_event(&UiEvent::MouseMove { point: moved_pt });
+    assert!(drag_move_res.is_consumed());
+    assert_eq!(drag_move_res.cursor, Some(WidgetCursor::EwResize));
+
+    // Next frame declarative rendering: scope.numeric_drag must mutate scale and report changed()
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.numeric_drag("Scale", &mut scale);
+        assert!(
+            resp.dragged(),
+            "Numeric scrubber must report dragged() == true while active"
+        );
+        assert!(
+            resp.changed(),
+            "Numeric scrubber must report changed() == true upon pointer displacement"
+        );
+        // Default speed is 0.1: delta_x = 30.0 * 0.1 = +3.0 -> scale becomes 4.0
+        assert!(
+            (scale - 4.0).abs() < 1e-4,
+            "Scale value should have incremented by delta_x * speed (expected 4.0, got {})",
+            scale
+        );
+    }
+
+    // 5. MouseUp releasing pointer capture and finalizing scrubber interaction
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: moved_pt,
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(
+        tree.event_state.pointer_capture, None,
+        "Pointer capture must be released on MouseUp"
+    );
+    assert_eq!(
+        tree.event_state.last_pointer_pos, None,
+        "Last pointer position must be reset on MouseUp"
+    );
+
+    // Frame after release: no longer dragging or changing
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.numeric_drag("Scale", &mut scale);
+        assert!(!resp.dragged(), "Should no longer be dragged after MouseUp");
+        assert!(!resp.changed(), "Should not report changed without delta");
+        assert_eq!(scale, 4.0, "Scale must retain its updated value");
+    }
+}
