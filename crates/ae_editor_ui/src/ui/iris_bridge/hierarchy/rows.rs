@@ -17,14 +17,6 @@ use crate::ui::iris_bridge::icons::*;
 use irisui::prelude::*;
 use std::collections::HashMap;
 
-/// Legacy aliases for Scene Hierarchy icons in `editor_atlas.png`.
-pub use crate::ui::iris_bridge::icons::{
-    ICON_CAMERA as HIERARCHY_ICON_CAMERA, ICON_CUBE as HIERARCHY_ICON_CUBE,
-    ICON_EYE_CLOSED as HIERARCHY_ICON_EYE_CLOSED, ICON_EYE_OPEN as HIERARCHY_ICON_EYE_OPEN,
-    ICON_FOLDER as HIERARCHY_ICON_FOLDER, ICON_LIGHT as HIERARCHY_ICON_LIGHT,
-    ICON_PLUS as HIERARCHY_ICON_PLUS, ICON_SPHERE as HIERARCHY_ICON_SPHERE,
-};
-
 /// Physical height in pixels for an individual Scene Hierarchy tree row.
 pub const HIERARCHY_ROW_HEIGHT: f32 = 24.0;
 
@@ -442,26 +434,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tree_connector_geometry_spacing_invariants() {
-        let config = TreeIndentConfig::default();
-        // Root entities have 6px padding and no connector arm
-        let (root_tip, root_start) = compute_tree_connector_geometry(0, &config);
-        assert_eq!(root_tip, 0.0);
-        assert_eq!(root_start, 6.0);
+    fn test_hierarchy_tree_depth_and_expansion_invariants() {
+        let mut world = hecs::World::new();
+        let parent = world.spawn((ae_core::ecs::Name("Root_Parent".into()),));
+        let child_1 = world.spawn((
+            ae_core::ecs::Name("Child_1".into()),
+            ae_core::ecs::Parent(parent),
+        ));
+        let _grandchild = world.spawn((
+            ae_core::ecs::Name("Grandchild".into()),
+            ae_core::ecs::Parent(child_1),
+        ));
 
-        // Child entities (depth 1..=5) must have content starting precisely 4.0px beyond line tip
-        for depth in 1..=5 {
-            let (line_tip, content_start) = compute_tree_connector_geometry(depth, &config);
-            let gap = content_start - line_tip;
-            assert!(
-                (gap - 4.0).abs() < f32::EPSILON,
-                "Content start must be precisely 4.0px beyond connector line tip at depth {depth}"
-            );
-            assert!(
-                content_start > line_tip,
-                "Line must never penetrate or occlude icon at depth {depth}"
-            );
-        }
+        // 1. Fully expanded
+        let tree_state = TreeState::expanded_by_default();
+        let mut rows = Vec::new();
+        sync_hierarchy_rows(&world, &tree_state, &mut rows);
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].depth, 0);
+        assert!(rows[0].has_children);
+        assert!(rows[0].is_expanded);
+        assert_eq!(rows[1].depth, 1);
+        assert!(rows[1].has_children);
+        assert_eq!(rows[2].depth, 2);
+        assert!(!rows[2].has_children);
+
+        // 2. Collapse child_1: only grandchild hidden
+        let mut collapsed_state = TreeState::expanded_by_default();
+        collapsed_state.set_expanded(child_1, false);
+        rows.clear();
+        sync_hierarchy_rows(&world, &collapsed_state, &mut rows);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].depth, 0);
+        assert_eq!(rows[1].depth, 1);
+        assert!(!rows[1].is_expanded);
     }
 
     #[test]

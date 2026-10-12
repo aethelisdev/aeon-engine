@@ -151,7 +151,7 @@ pub struct FolderTreeItemParams<'a> {
     /// Directory display name.
     pub name: &'a str,
     /// Tree hierarchy nesting depth.
-    pub depth: usize,
+    pub depth: u16,
     /// Whether this folder contains subdirectories.
     pub has_children: bool,
     /// Whether this folder branch is expanded.
@@ -166,7 +166,7 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
     let chev_tag = encode_tree_chevron_tag(params.node_idx);
 
     let row_props = TreeRowProps::new(
-        params.depth as u16,
+        params.depth,
         params.has_children,
         params.is_expanded,
         params.is_selected,

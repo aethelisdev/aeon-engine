@@ -17,9 +17,6 @@ use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
 use std::path::{Path, PathBuf};
 
-/// Height of an individual folder tree node row in pixels.
-pub const FOLDER_ROW_HEIGHT: f32 = 24.0;
-
 /// Header height for the "FOLDERS" label and new subfolder button.
 pub const FOLDER_HEADER_HEIGHT: f32 = 28.0;
 
@@ -96,46 +93,22 @@ pub fn build_folder_tree_sidebar_scope(
             );
 
             // 3. Scrollable Tree Viewport
-            let vp_rect = Rect::new(
-                sidebar_rect.x,
-                sidebar_rect.y + FOLDER_HEADER_HEIGHT,
-                sidebar_rect.width,
-                sidebar_rect.height - FOLDER_HEADER_HEIGHT,
-            );
-
             sidebar.container_named(
                 "FolderTreeViewport",
                 Style::new()
                     .flex_col()
                     .clip_children(true)
                     .flex_grow(1.0)
+                    .scroll_offset_y(params.tree_scroll_y)
                     .width(sidebar_rect.width)
                     .padding_insets(Insets::new(4.0, 0.0, 0.0, 0.0)),
                 |viewport| {
                     let root_path = PathBuf::from("assets");
-                    let mut cur_y = vp_rect.y + 4.0 - params.tree_scroll_y;
-                    let mut tree_idx = 0;
-                    let mut ctx = FolderTreeContext { vp_rect, params };
-                    render_folder_recursive(
-                        viewport,
-                        &root_path,
-                        0,
-                        &mut cur_y,
-                        &mut tree_idx,
-                        &mut ctx,
-                    );
+                    render_folder_recursive(viewport, &root_path, 0, params);
                 },
             );
         },
     );
-}
-
-/// Context descriptor bundling tree traversal layout parameters.
-struct FolderTreeContext<'a, 'p> {
-    /// Scissor-clipped scrollable viewport bounding box.
-    pub vp_rect: Rect,
-    /// Read-only panel rendering parameters.
-    pub params: &'a AssetsPanelParams<'p>,
 }
 
 /// Recursively builds folder tree rows using declarative [`asset_folder_tree_item`].
@@ -144,10 +117,8 @@ struct FolderTreeContext<'a, 'p> {
 fn render_folder_recursive(
     scope: &mut UiScope<'_>,
     path: &Path,
-    depth: usize,
-    cur_y: &mut f32,
-    tree_idx: &mut usize,
-    ctx: &mut FolderTreeContext<'_, '_>,
+    depth: u16,
+    params: &AssetsPanelParams<'_>,
 ) {
     let folder_name = path
         .file_name()
@@ -155,44 +126,21 @@ fn render_folder_recursive(
         .unwrap_or("assets");
 
     // Discover child directories from pre-cached engine state (ZERO DISK I/O)
-    let has_children = ctx
-        .params
-        .subfolders
-        .iter()
-        .any(|p| p.parent() == Some(path));
+    let has_children = params.subfolders.iter().any(|p| p.parent() == Some(path));
 
-    let is_selected = ctx.params.current_folder == path;
-    let is_expanded = ctx.params.tree_state.is_expanded(&path.to_path_buf());
-
-    let row_y = *cur_y;
-    *cur_y += FOLDER_ROW_HEIGHT;
+    let is_selected = params.current_folder == path;
+    let is_expanded = params.tree_state.is_expanded(&path.to_path_buf());
 
     let node_idx = if path == Path::new("assets") {
         0
     } else {
-        ctx.params
+        params
             .subfolders
             .iter()
             .position(|p| p == path)
             .map(|i| (i + 1) as u32)
             .unwrap_or(0)
     };
-    *tree_idx += 1;
-
-    // Viewport scissor cull: skip generating node if completely outside viewport
-    if row_y + FOLDER_ROW_HEIGHT < ctx.vp_rect.y || row_y > ctx.vp_rect.bottom() {
-        if is_expanded {
-            for child in ctx
-                .params
-                .subfolders
-                .iter()
-                .filter(|p| p.parent() == Some(path))
-            {
-                render_folder_recursive(scope, child, depth + 1, cur_y, tree_idx, ctx);
-            }
-        }
-        return;
-    }
 
     // Render pure declarative tree item (Zero Target Collections, Zero Allocations)
     let item_params = FolderTreeItemParams {
@@ -207,13 +155,12 @@ fn render_folder_recursive(
 
     // Recurse children if expanded
     if is_expanded {
-        for child in ctx
-            .params
+        for child in params
             .subfolders
             .iter()
             .filter(|p| p.parent() == Some(path))
         {
-            render_folder_recursive(scope, child, depth + 1, cur_y, tree_idx, ctx);
+            render_folder_recursive(scope, child, depth + 1, params);
         }
     }
 }
