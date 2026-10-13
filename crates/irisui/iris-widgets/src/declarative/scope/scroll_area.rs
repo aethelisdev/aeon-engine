@@ -143,7 +143,7 @@ impl<'a> UiScope<'a> {
             .flex_grow(1.0)
             .clip_children(true)
             .background(bg);
-        self.container_tagged(name, style, WidgetRole::Default, tag, f)
+        self.container_tagged(name, style, WidgetRole::ScrollAreaViewport, tag, f)
     }
 
     /// Emits a high-performance virtualized scrollable container that renders only the visible slice of items.

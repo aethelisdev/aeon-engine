@@ -12,7 +12,7 @@ use super::gpu_breakdown::build_gpu_breakdown_content;
 use super::graph::build_frame_pacing_content;
 use super::metrics::{build_scene_geometry_content, build_vram_breakdown_content};
 use super::overlays::build_viewport_overlays_content;
-use super::types::{STATS_TAG_PANEL_ROOT, StatsPanelParams};
+use super::types::{STATS_TAG_PANEL_ROOT, StatsPanelAction, StatsPanelParams};
 use irisui::prelude::*;
 
 /// Builds the complete Performance Stats & Telemetry panel tree purely using [`UiScope`].
@@ -22,6 +22,7 @@ pub fn build_stats_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &StatsPanelParams<'_>,
+    actions: &mut Vec<StatsPanelAction>,
 ) -> f32 {
     let mut scope = UiScope::new(tree, parent_id);
 
@@ -54,7 +55,7 @@ pub fn build_stats_panel(
             let vp_id = panel_scope.container_tagged(
                 "StatsViewport",
                 vp_style,
-                WidgetRole::Default,
+                WidgetRole::ScrollAreaViewport,
                 super::types::STATS_TAG_VIEWPORT,
                 |vp_scope| {
                     // 1. Frame Pacing & Stutter Analyzer Card
@@ -108,7 +109,7 @@ pub fn build_stats_panel(
 
                     // 6. Viewport Overlays Card
                     build_stats_card(vp_scope, "🎛", "Viewport Overlays", card_w, |card_scope| {
-                        build_viewport_overlays_content(card_scope, params);
+                        build_viewport_overlays_content(card_scope, params, actions);
                     });
                 },
             );

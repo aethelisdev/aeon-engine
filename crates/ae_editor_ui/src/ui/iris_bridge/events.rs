@@ -5,7 +5,6 @@
 
 pub mod adapter;
 pub mod assets;
-pub mod console;
 
 pub use adapter::winit_to_ui_event;
 pub mod cursor;
@@ -19,7 +18,6 @@ pub mod material;
 pub mod menubar;
 pub mod modals;
 pub mod preferences;
-pub mod stats;
 pub mod text_input;
 pub mod timeline;
 pub mod ui_designer;

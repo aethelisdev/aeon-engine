@@ -83,7 +83,8 @@ fn test_build_stats_panel_declarative_structure() {
         selected_entity: None,
     };
 
-    let max_scroll = build_stats_panel(&mut tree, root, &params);
+    let mut actions = Vec::new();
+    let max_scroll = build_stats_panel(&mut tree, root, &params, &mut actions);
     assert!(max_scroll >= 0.0);
 
     // Verify root node exists and contains semantic panel root tag
@@ -159,9 +160,10 @@ fn test_checkbox_children_resolve_ancestor_tag() {
         selected_entity: None,
     };
 
-    build_stats_panel(&mut tree, root, &params);
+    let mut actions = Vec::new();
+    build_stats_panel(&mut tree, root, &params, &mut actions);
 
-    // Find the wireframe checkbox container and verify its box child also carries the tag
+    // Find the wireframe checkbox and verify it carries the semantic tag and role
     let mut box_nodes_with_tag = 0;
     for (_wid, node) in tree.iter() {
         if node.tag == STATS_TAG_TOGGLE_WIREFRAME && node.role == WidgetRole::Checkbox {
@@ -169,10 +171,9 @@ fn test_checkbox_children_resolve_ancestor_tag() {
         }
     }
 
-    // Both the row and the inner box container should be tagged
-    assert!(
-        box_nodes_with_tag >= 2,
-        "Both row and inner box must be tagged with STATS_TAG_TOGGLE_WIREFRAME"
+    assert_eq!(
+        box_nodes_with_tag, 1,
+        "Declarative checkbox must emit a single tagged checkbox node"
     );
 }
 
@@ -189,4 +190,57 @@ fn test_stats_panel_state_ring_buffer_snapshot() {
     assert!(state.frame_ring_buffer.is_some());
     let copied = state.frame_ring_buffer.unwrap();
     assert_eq!(copied.count(), 2);
+}
+
+#[test]
+fn test_stats_panel_declarative_action_generation() {
+    let mut tree = UiTree::new();
+    let root = {
+        let mut scope = UiScope::new(&mut tree, WidgetId::default());
+        scope.empty_box(Style::new())
+    };
+
+    let ring = FrameRingBuffer::<240>::new();
+    let pacing_stats = FramePacingStats::default();
+    let cpu_timings = CpuSyncTimings::default();
+    let gpu_timings = GpuPassTimings::default();
+    let draw_calls = DrawCallBreakdown::default();
+    let vram_stats = VramStats::default();
+
+    let panel_rect = Rect::new(0.0, 0.0, 320.0, 600.0);
+    let params = StatsPanelParams {
+        panel_rect,
+        scroll_y: 0.0,
+        cursor_pos: Point::new(100.0, 100.0),
+        wireframe_enabled: true,
+        grid_enabled: false,
+        fps: 60.0,
+        frame_pacing: &ring,
+        frame_pacing_stats: &pacing_stats,
+        cpu_timings: &cpu_timings,
+        gpu_pass_timings: &gpu_timings,
+        draw_call_stats: &draw_calls,
+        vram_stats: &vram_stats,
+        render_triangles: 5000,
+        render_vertices: 3000,
+        gpu_adapter_name: "MockGPU",
+        gpu_backend: "Vulkan",
+        active_entities_count: 10,
+        selected_entity: None,
+    };
+
+    let mut actions = Vec::new();
+    build_stats_panel(&mut tree, root, &params, &mut actions);
+
+    // Initial build without clicks produces zero actions
+    assert!(actions.is_empty());
+
+    // When clicked via event state, actions are collected
+    tree.event_state.frame_clicked_tag = Some(STATS_TAG_TOGGLE_WIREFRAME);
+
+    let mut clicked_actions = Vec::new();
+    build_stats_panel(&mut tree, root, &params, &mut clicked_actions);
+
+    assert_eq!(clicked_actions.len(), 1);
+    assert_eq!(clicked_actions[0], StatsPanelAction::ToggleWireframe);
 }

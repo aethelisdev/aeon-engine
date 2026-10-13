@@ -43,7 +43,8 @@ impl IrisEditorOverlay {
                 selected_entity: params.scene.selected_entity,
             };
 
-            let max_scroll = stats::build_stats_panel(tree, root, &stats_params);
+            let max_scroll =
+                stats::build_stats_panel(tree, root, &stats_params, &mut self.stats.actions);
             self.stats.max_scroll = max_scroll;
             self.stats.last_rect = Some(stats_rect);
             self.stats.frame_ring_buffer = Some(*params.telemetry.frame_pacing);
@@ -212,8 +213,37 @@ impl IrisEditorOverlay {
                 cursor_byte_idx: self.console.search_input.cursor_byte_idx,
             };
 
-            let max_scroll = super::console::build_console_panel(tree, root, &console_params);
+            let mut actions = Vec::new();
+            let max_scroll =
+                super::console::build_console_panel(tree, root, &console_params, &mut actions);
             self.console.max_scroll_y = max_scroll;
+
+            for action in actions {
+                match action {
+                    super::console::ConsoleAction::ClearLogs => {
+                        if let Ok(mut lock) = ae_editor::editor_logger::LOGGER.logs.lock() {
+                            lock.clear();
+                        }
+                        ae_editor::editor_logger::LOGGER
+                            .log_count
+                            .store(0, std::sync::atomic::Ordering::Relaxed);
+                        self.console.interactions.scroll_y = 0.0;
+                    }
+                    super::console::ConsoleAction::SetFilter(level) => {
+                        self.console.filter = level;
+                    }
+                    super::console::ConsoleAction::ToggleAutoScroll => {
+                        self.console.auto_scroll = !self.console.auto_scroll;
+                    }
+                    super::console::ConsoleAction::FocusSearch => {
+                        self.set_focus_tag(super::console::CONSOLE_TAG_SEARCH_INPUT);
+                    }
+                    super::console::ConsoleAction::ClearSearch => {
+                        self.console.search_input.clear();
+                    }
+                    super::console::ConsoleAction::CopyLog(_) => {}
+                }
+            }
         } else {
             self.console.panel_rect = None;
         }

@@ -182,6 +182,49 @@ fn test_declarative_checkbox_click_and_toggle_response() {
 }
 
 #[test]
+fn test_declarative_checkbox_val_response() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node should be created");
+
+    let is_active = false;
+
+    // 1. Initial build: read-only checkbox
+    let chk_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.checkbox_val("Read Only Checkbox", is_active);
+        assert!(!resp.clicked());
+        assert!(!is_active);
+        resp.id()
+    };
+
+    let chk_rect = Rect::new(10.0, 10.0, 140.0, 24.0);
+    if let Some(node) = tree.get_mut(chk_id) {
+        node.computed_rect = chk_rect;
+    }
+
+    let click_pt = Point::new(20.0, 20.0);
+
+    // 2. Perform click sequence on checkbox: MouseDown -> MouseUp
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_pt,
+    });
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: click_pt,
+    });
+    assert!(up_res.is_consumed());
+
+    // 3. Render scope with checkbox_val: reports clicked without mutating any dummy variable
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.checkbox_val("Read Only Checkbox", is_active);
+        assert!(resp.clicked(), "Checkbox_val must report clicked() == true");
+        assert!(!is_active, "Underlying value must remain unchanged");
+    }
+}
+
+#[test]
 fn test_declarative_numeric_drag_changed_response() {
     use iris_core::WidgetCursor;
 

@@ -476,12 +476,6 @@ impl IrisEditorOverlay {
         if let Some(assets_res) = self.handle_assets_window_event(event) {
             return Some(assets_res);
         }
-        if let Some(con_res) = self.handle_console_window_event(event) {
-            return Some(con_res);
-        }
-        if let Some(stats_res) = self.handle_stats_window_event(event) {
-            return Some(stats_res);
-        }
         if let Some(mat_res) = self.handle_material_window_event(event) {
             return Some(mat_res);
         }
@@ -523,14 +517,6 @@ impl IrisEditorOverlay {
             && let Some(hier_res) = self.handle_hierarchy_window_event(event)
         {
             res = Some(hier_res);
-        } else if (!is_pointer || is_in(&self.panels, PanelId::Stats))
-            && let Some(stats_res) = self.handle_stats_window_event(event)
-        {
-            res = Some(stats_res);
-        } else if (!is_pointer || is_in(&self.panels, PanelId::Console))
-            && let Some(console_res) = self.handle_console_window_event(event)
-        {
-            res = Some(console_res);
         } else if (!is_pointer || is_in(&self.panels, PanelId::Assets))
             && let Some(assets_res) = self.handle_assets_window_event(event)
         {
@@ -566,10 +552,8 @@ impl IrisEditorOverlay {
                 Some(PanelId::AnimationTimeline) => self.timeline.is_dragging,
                 Some(PanelId::Assets) => self.assets.click_tracker.is_dragging_asset,
                 Some(PanelId::Inspector) => self.inspector.active_number_input.is_some(),
-                Some(PanelId::Console) => self.console.scroll_state.is_dragging(),
                 Some(PanelId::MaterialEditor) => self.material.scroll_state.is_dragging(),
                 Some(PanelId::Hierarchy) => self.hierarchy.scroll_state.is_dragging(),
-                Some(PanelId::Stats) => self.stats.scroll_state.is_dragging(),
                 _ => false,
             };
             if !still_dragging {

@@ -29,23 +29,40 @@ impl<'a> UiScope<'a> {
         self.checkbox_tagged(visible, tag, checked)
     }
 
-    /// Emits an interactive boolean checkbox with an explicit semantic tag.
+    /// Emits a read-only boolean checkbox evaluating interaction events without in-place mutation.
     ///
-    /// Automatically applies hover highlighting, pointer cursor, and toggles `*checked` state upon click.
+    /// Ideal for unidirectional data flow, Action-Dispatcher, and Redux-style architectures
+    /// where application state is governed by external action queues rather than direct UI mutation.
+    /// Generates a deterministic persistent tag from `label`.
+    ///
+    /// # Arguments
+    /// * `label` - Display text beside the checkbox indicator.
+    /// * `checked` - Read-only boolean state reflecting the current value.
+    pub fn checkbox_val(&mut self, label: impl Into<String>, checked: bool) -> WidgetResponse {
+        let label_str = label.into();
+        let (visible, _) = crate::declarative::types::split_label_id(&label_str);
+        let tag = self.tag_for(&label_str);
+        self.checkbox_val_tagged(visible, tag, checked)
+    }
+
+    /// Emits an interactive boolean checkbox with an explicit semantic tag without in-place mutation.
+    ///
+    /// Evaluates hover highlighting, active pointer clicking, and press states without mutating
+    /// a dummy local variable. Returns a [`WidgetResponse`] where `.clicked()` signals state toggle intent.
     ///
     /// # Arguments
     /// * `label` - Display text beside the checkbox indicator.
     /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
-    /// * `checked` - Mutable reference to the underlying boolean value.
-    pub fn checkbox_tagged(
+    /// * `checked` - Read-only boolean state reflecting the current value.
+    pub fn checkbox_val_tagged(
         &mut self,
         label: impl Into<String>,
         tag: u64,
-        checked: &mut bool,
+        checked: bool,
     ) -> WidgetResponse {
         let node_id = self.tree.create_node();
         let label_str = label.into();
-        let indicator = if *checked { "[x]" } else { "[ ]" };
+        let indicator = if checked { "[x]" } else { "[ ]" };
         let full_text = format!("{} {}", indicator, label_str);
 
         let _ = self.tree.add_child(self.parent, node_id);
@@ -56,11 +73,6 @@ impl<'a> UiScope<'a> {
 
         let (clicked, hovered, _) = self.check_interaction(node_id);
         let pressed = self.is_pressed(node_id);
-        let mut changed = false;
-        if clicked {
-            *checked = !*checked;
-            changed = true;
-        }
 
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = true;
@@ -70,7 +82,7 @@ impl<'a> UiScope<'a> {
             node.font_size = 11.0;
             node.line_height = 14.0;
             node.text_align = TextAlign::Left;
-            node.text_color = if *checked {
+            node.text_color = if checked {
                 Color::rgba(0.2, 0.85, 0.65, 1.0)
             } else if hovered || pressed {
                 Color::WHITE
@@ -91,9 +103,30 @@ impl<'a> UiScope<'a> {
             node.set_style(style);
         }
 
-        let mut resp = WidgetResponse::new(node_id, clicked, hovered, changed);
+        let mut resp = WidgetResponse::new(node_id, clicked, hovered, clicked);
         if pressed {
             resp = resp.with_pressed(true);
+        }
+        resp
+    }
+
+    /// Emits an interactive boolean checkbox with an explicit semantic tag.
+    ///
+    /// Automatically applies hover highlighting, pointer cursor, and toggles `*checked` state upon click.
+    ///
+    /// # Arguments
+    /// * `label` - Display text beside the checkbox indicator.
+    /// * `tag` - Unique semantic identifier inspected during interaction event dispatching.
+    /// * `checked` - Mutable reference to the underlying boolean value.
+    pub fn checkbox_tagged(
+        &mut self,
+        label: impl Into<String>,
+        tag: u64,
+        checked: &mut bool,
+    ) -> WidgetResponse {
+        let resp = self.checkbox_val_tagged(label, tag, *checked);
+        if resp.clicked() {
+            *checked = !*checked;
         }
         resp
     }

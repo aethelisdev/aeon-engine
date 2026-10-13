@@ -12,8 +12,8 @@ use super::types::{
     CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
     CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK,
-    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_TOOLBAR, ConsoleFilterLevel,
-    ConsoleLogCounts, ConsolePanelParams,
+    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_TOOLBAR, ConsoleAction,
+    ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams,
 };
 use irisui::prelude::*;
 
@@ -28,6 +28,7 @@ pub fn build_console_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &ConsolePanelParams<'_>,
+    actions: &mut Vec<ConsoleAction>,
 ) -> f32 {
     // 1. Count metrics for toolbar badges
     let mut count_err = 0;
@@ -67,7 +68,10 @@ pub fn build_console_panel(
                 CONSOLE_TAG_TOOLBAR,
                 Color::rgba(0.02, 0.02, 0.03, 0.98),
                 |tb| {
-                    tb.toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR);
+                    let clear_resp = tb.toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR);
+                    if clear_resp.clicked() {
+                        actions.push(ConsoleAction::ClearLogs);
+                    }
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 
                     let is_search_focused =
@@ -125,7 +129,11 @@ pub fn build_console_panel(
                     ];
                     for (filter_lvl, label, width, color, tag) in &filters {
                         let is_active = params.filter == *filter_lvl;
-                        tb.filter_pill_tagged(label, is_active, *color, *width, *tag);
+                        let pill_resp =
+                            tb.filter_pill_tagged(label, is_active, *color, *width, *tag);
+                        if pill_resp.clicked() {
+                            actions.push(ConsoleAction::SetFilter(*filter_lvl));
+                        }
                     }
 
                     // Spacer pushes Auto-Scroll and log count to the right edge
@@ -144,11 +152,14 @@ pub fn build_console_panel(
                     } else {
                         "⏸ Auto-Scroll"
                     };
-                    tb.toggle_pill_tagged(
+                    let auto_resp = tb.toggle_pill_tagged(
                         auto_scroll_label,
                         params.auto_scroll,
                         CONSOLE_TAG_AUTOSCROLL,
                     );
+                    if auto_resp.clicked() {
+                        actions.push(ConsoleAction::ToggleAutoScroll);
+                    }
                 },
             );
 
