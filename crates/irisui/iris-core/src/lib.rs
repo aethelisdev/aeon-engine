@@ -26,7 +26,7 @@ pub mod tree;
 
 pub use color::Color;
 pub use dirty::DirtyFlags;
-pub use dispatch::{DispatchResult, EventState};
+pub use dispatch::{DispatchResult, EventState, PopupMenuState};
 pub use error::IrisCoreError;
 pub use event::{
     EventDispatcher, FocusManager, HitTestResult, ImeEvent, InteractionEvent, KeyCode, MouseButton,

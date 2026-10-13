@@ -11,6 +11,7 @@
 pub mod buttons;
 pub mod compass;
 pub mod containers;
+pub mod context_menu;
 pub mod core;
 pub mod display;
 pub mod input;
@@ -28,6 +29,7 @@ pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
+pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};

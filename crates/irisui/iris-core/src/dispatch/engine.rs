@@ -148,6 +148,20 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     tree.event_state.frame_drag_delta = None;
 
     let hit_id = tree.hit_test_layered(point);
+
+    // Autonomous context menu dismiss when clicking outside its bounds
+    if let Some(active) = tree.event_state.active_context_menu {
+        let is_inside_menu = if let Some(menu_cid) = active.container_id {
+            hit_id == Some(menu_cid)
+                || hit_id.is_some_and(|hid| tree.is_descendant_of(hid, menu_cid))
+        } else {
+            false
+        };
+        if !is_inside_menu {
+            tree.event_state.active_context_menu = None;
+        }
+    }
+
     tree.event_state.pressed = hit_id;
     tree.event_state.pressed_button = Some(button);
     tree.event_state.press_origin = Some(point);
@@ -477,6 +491,16 @@ fn handle_keyboard(
     tree.event_state.frame_clicked_id = None;
     tree.event_state.frame_clicked_tag = None;
     tree.event_state.frame_drag_delta = None;
+
+    if is_pressed && key == KeyCode::Escape && tree.event_state.active_context_menu.is_some() {
+        tree.event_state.active_context_menu = None;
+        return DispatchResult {
+            consumed: true,
+            key: Some(key),
+            is_key_pressed: true,
+            ..Default::default()
+        };
+    }
 
     if let Some(focused_id) = tree.event_state.focused {
         tree.event_state.frame_key = Some(key);

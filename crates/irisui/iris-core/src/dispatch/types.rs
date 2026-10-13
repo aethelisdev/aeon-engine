@@ -21,6 +21,20 @@ pub const DOUBLE_CLICK_MAX_DELAY_MS: u128 = 400;
 /// Maximum allowable squared Euclidean distance in pixels between consecutive clicks for double-click.
 pub const DOUBLE_CLICK_MAX_DISTANCE_SQ: f32 = 25.0;
 
+/// Persistent state tracking the currently open popup or context menu.
+///
+/// Maintained across frames to support retained popup flyouts, contextual actions,
+/// and dismissive outside-click gesture cancellation without leaking into application state.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PopupMenuState {
+    /// Widget node identifier owning this context menu.
+    pub owner_id: WidgetId,
+    /// Absolute anchor screen position where the context menu was triggered.
+    pub anchor_pos: Point,
+    /// Allocated container WidgetId in the active UI tree during rendering, if known.
+    pub container_id: Option<WidgetId>,
+}
+
 /// Persistent tracking state of active user interaction within a [`crate::tree::UiTree`].
 ///
 /// Maintained across frames to orchestrate pointer capture during drags,
@@ -73,6 +87,8 @@ pub struct EventState {
     pub frame_text_input: Option<String>,
     /// Whether [`Self::frame_key`] was pressed (`true`) or released (`false`).
     pub frame_key_pressed: bool,
+    /// Active context menu or popup anchor state, if one is currently opened.
+    pub active_context_menu: Option<PopupMenuState>,
 }
 
 impl EventState {
@@ -103,6 +119,7 @@ impl EventState {
             frame_key: None,
             frame_text_input: None,
             frame_key_pressed: false,
+            active_context_menu: None,
         }
     }
 
@@ -153,6 +170,21 @@ impl EventState {
     pub fn clear_focus(&mut self) {
         self.focused = None;
         self.focused_tag = None;
+    }
+
+    /// Closes the active context menu popup, if one is currently opened.
+    #[inline]
+    pub fn close_context_menu(&mut self) {
+        self.active_context_menu = None;
+    }
+
+    /// Returns `true` if an autonomous context menu is currently open for the given owner identifier.
+    #[inline]
+    pub fn is_context_menu_open(&self, owner_id: WidgetId) -> bool {
+        match self.active_context_menu {
+            Some(menu) => menu.owner_id == owner_id,
+            None => false,
+        }
     }
 }
 

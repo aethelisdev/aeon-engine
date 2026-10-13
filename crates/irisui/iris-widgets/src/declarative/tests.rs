@@ -740,6 +740,7 @@ fn test_declarative_flex_wrap_row_layout() {
     assert_eq!(r4.y, 44.0); // 22.0 + 22.0 = 44.0
 }
 
+mod context_menu_tests;
 mod input_box_tests;
 mod property_tests;
 mod response_tests;
