@@ -215,7 +215,6 @@ impl IrisEditorOverlay {
                         | super::overlay_tree::ActiveOverlay::InspectorDropdown
                         | super::overlay_tree::ActiveOverlay::InspectorColorPicker
                         | super::overlay_tree::ActiveOverlay::HierarchyContextMenu
-                        | super::overlay_tree::ActiveOverlay::AssetsContextMenu
                         | super::overlay_tree::ActiveOverlay::Modal(_)
                         | super::overlay_tree::ActiveOverlay::UiDesignerAddElement
                         | super::overlay_tree::ActiveOverlay::UiDesignerAspectRatio

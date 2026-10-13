@@ -599,6 +599,21 @@ impl UiTree {
             return true;
         }
 
+        // If the descendant itself is tagged or intrinsically interactive,
+        // it consumed the interaction directly; parent containers must not bubble or steal it.
+        if let Some(desc_node) = self.nodes.get(descendant) {
+            if desc_node.tag != 0 || desc_node.role.is_interactive() || desc_node.interactive {
+                return false;
+            }
+            // Floating popup layers never bubble interactions to lower-layer containers
+            if desc_node.layer == UiLayer::Popup
+                && let Some(anc_node) = self.nodes.get(ancestor)
+                && anc_node.layer < UiLayer::Popup
+            {
+                return false;
+            }
+        }
+
         // Viewports and passive panel containers never claim clicks originating from child widgets
         if let Some(anc_node) = self.nodes.get(ancestor)
             && anc_node.role == crate::node::WidgetRole::ScrollAreaViewport

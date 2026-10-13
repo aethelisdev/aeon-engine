@@ -123,7 +123,6 @@ pub fn build_folder_tree_sidebar_scope(
                         0,
                         params.subfolders,
                         params.current_folder,
-                        params.cursor_pos,
                         tree_state,
                         actions,
                     );
@@ -143,7 +142,6 @@ fn render_folder_recursive(
     depth: u16,
     subfolders: &[PathBuf],
     current_folder: &Path,
-    cursor_pos: Point,
     tree_state: &mut TreeState<PathBuf>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
@@ -181,13 +179,10 @@ fn render_folder_recursive(
     if row_resp.foldout_clicked() {
         tree_state.toggle_expanded(&path.to_path_buf());
     }
-    if row_resp.secondary_clicked() {
-        let click_pos = row_resp.interact_pointer_pos().unwrap_or(cursor_pos);
-        actions.push(AssetsPanelAction::OpenContextMenu(
-            super::types::AssetsContextMenuTarget::Folder(path.to_path_buf()),
-            click_pos,
-        ));
-    } else if row_resp.clicked() {
+    row_resp.context_menu(scope, |menu| {
+        super::context_menu::render_folder_context_menu_items(menu, path, actions);
+    });
+    if row_resp.clicked() {
         actions.push(AssetsPanelAction::NavigateFolder(path.to_path_buf()));
     }
 
@@ -200,7 +195,6 @@ fn render_folder_recursive(
                 depth + 1,
                 subfolders,
                 current_folder,
-                cursor_pos,
                 tree_state,
                 actions,
             );

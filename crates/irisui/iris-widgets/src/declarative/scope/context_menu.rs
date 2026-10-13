@@ -47,6 +47,8 @@ impl<'a> UiScope<'a> {
     ) where
         F: FnOnce(&mut UiScope<'_>),
     {
+        let target_tag = self.tree.get(target_id).map_or(0, |n| n.tag);
+
         // 1. Activation trigger on secondary click
         if is_secondary_clicked {
             let pos = pointer_pos
@@ -56,6 +58,7 @@ impl<'a> UiScope<'a> {
 
             self.tree.event_state.active_context_menu = Some(PopupMenuState {
                 owner_id: target_id,
+                owner_tag: target_tag,
                 anchor_pos: pos,
                 container_id: None,
             });
@@ -63,7 +66,7 @@ impl<'a> UiScope<'a> {
 
         // 2. Active render pass if this target currently owns the open menu
         let active_anchor = self.tree.event_state.active_context_menu.and_then(|menu| {
-            if menu.owner_id == target_id {
+            if menu.owner_id == target_id || (target_tag != 0 && menu.owner_tag == target_tag) {
                 Some(menu.anchor_pos)
             } else {
                 None
@@ -127,7 +130,8 @@ impl<'a> UiScope<'a> {
             node.computed_rect.y = y;
             node.computed_rect.width = width;
         }
-        let _ = self.tree.add_child(self.parent, container_id);
+        let popup_parent = self.tree.root().unwrap_or(self.parent);
+        let _ = self.tree.add_child(popup_parent, container_id);
 
         // Store container ID on active state for outside-click dismiss hit testing
         if let Some(active) = self.tree.event_state.active_context_menu.as_mut() {
@@ -178,11 +182,13 @@ impl<'a> UiScope<'a> {
         shortcut: Option<&str>,
     ) -> WidgetResponse {
         let label_str = label.into();
+        let tag = self.tag_for(&label_str);
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("ContextMenuItem");
             node.set_role(WidgetRole::Button);
             node.set_layer(UiLayer::Popup);
+            node.tag = tag;
             node.interactive = true;
             node.cursor = Some(WidgetCursor::Pointer);
         }

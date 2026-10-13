@@ -75,7 +75,7 @@ pub mod prelude {
     };
     pub use iris_widgets::{
         CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
-        CascadingMenuStyle, ChartDrawer, ColorPickerDragMode, ContextMenuBuilder,
+        CascadingMenuStyle, ChartDrawer, ColorPickerDragMode, ContextMenuBuilder, ContextMenuExt,
         ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle, DEFAULT_SCROLL_STEP,
         FocusEventResponse, FocusModifiers, FocusPolicy, FocusState, FocusTarget, FocusableArea,
         HsvColorPickerState, InputBoxProps, MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM,

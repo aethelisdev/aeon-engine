@@ -377,8 +377,10 @@ pub fn asset_grid_card(
 }
 
 /// Response model capturing interaction states on a detailed asset table list row.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct AssetListRowResponse {
+    /// Underlying WidgetResponse of the row container.
+    pub row_response: WidgetResponse,
     /// Whether the main row container was clicked to select the asset item.
     pub row_clicked: bool,
     /// Whether the main row container was secondary (right) clicked to open context menu.
@@ -577,6 +579,7 @@ pub fn asset_list_row(
 
     let row_resp = scope.response(row_id);
     AssetListRowResponse {
+        row_response: row_resp,
         row_clicked: row_resp.clicked() && !spawn_clicked && !inspect_clicked,
         row_secondary_clicked: row_resp.secondary_clicked() && !spawn_clicked && !inspect_clicked,
         spawn_clicked,

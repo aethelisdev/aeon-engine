@@ -29,6 +29,8 @@ pub const DOUBLE_CLICK_MAX_DISTANCE_SQ: f32 = 25.0;
 pub struct PopupMenuState {
     /// Widget node identifier owning this context menu.
     pub owner_id: WidgetId,
+    /// Semantic 64-bit tag of the owner widget, if assigned.
+    pub owner_tag: u64,
     /// Absolute anchor screen position where the context menu was triggered.
     pub anchor_pos: Point,
     /// Allocated container WidgetId in the active UI tree during rendering, if known.

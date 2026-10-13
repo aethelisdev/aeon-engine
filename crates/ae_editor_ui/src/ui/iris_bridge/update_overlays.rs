@@ -407,31 +407,6 @@ impl IrisEditorOverlay {
             );
         }
 
-        // 10b. Assets Right-Click Context Menu (Layer 2 Floating Overlay)
-        if let Some((target, click_pos)) = self.assets.context_menu.as_ref() {
-            let overlay_root = self
-                .overlay_tree
-                .tree_mut()
-                .root()
-                .unwrap_or_else(|| self.overlay_tree.tree_mut().create_root().unwrap_or(root));
-
-            let card_rect = super::assets::build_assets_context_menu_overlay(
-                self.overlay_tree.tree_mut(),
-                overlay_root,
-                target,
-                *click_pos,
-                cursor,
-                Some(Rect::new(0.0, 0.0, screen_width, screen_height)),
-            );
-
-            self.assets.context_menu_card_rect = Some(card_rect);
-            self.overlay_tree.open(
-                super::overlay_tree::ActiveOverlay::AssetsContextMenu,
-                super::overlay_tree::OverlayDismissPolicy::ClickOutside,
-            );
-            self.overlay_tree.set_overlay_bounds(card_rect);
-        }
-
         // 11. Top Menubar Dropdown Popup
         if let Some(active) = self.menubar.active_menu {
             let anchor_x = self

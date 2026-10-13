@@ -376,18 +376,7 @@ impl IrisEditorOverlay {
                         self.assets.actions.push(action);
                         self.notifier.tag_all();
                     }
-                    super::assets::AssetsPanelAction::OpenContextMenu(target, pos) => {
-                        self.assets.context_menu = Some((target.clone(), pos));
-                        self.assets.actions.push(
-                            super::assets::AssetsPanelAction::OpenContextMenu(target, pos),
-                        );
-                        self.notifier.tag_all();
-                    }
-                    super::assets::AssetsPanelAction::CloseContextMenu => {
-                        self.assets.context_menu = None;
-                        self.overlay_tree.close();
-                        self.notifier.tag_all();
-                    }
+
                     other => {
                         self.assets.actions.push(other);
                         self.notifier.tag_all();

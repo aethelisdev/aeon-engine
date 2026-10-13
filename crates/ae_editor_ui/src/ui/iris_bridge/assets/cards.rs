@@ -90,22 +90,16 @@ pub fn build_asset_grid_cards_scope(
                     is_selected,
                     rel_pos,
                 );
+                card_resp.context_menu(grid_scope, |menu| {
+                    super::context_menu::render_asset_context_menu_items(menu, item, actions);
+                });
                 if card_resp.double_clicked() {
                     actions.push(AssetsPanelAction::SpawnAsset(
                         item.path.clone(),
                         item.category,
                     ));
                 } else if card_resp.secondary_clicked() {
-                    let click_pos = card_resp
-                        .interact_pointer_pos()
-                        .unwrap_or(params.cursor_pos);
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
-                    actions.push(AssetsPanelAction::OpenContextMenu(
-                        crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(
-                            item.clone(),
-                        ),
-                        click_pos,
-                    ));
                 } else if card_resp.clicked() {
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
                 }
@@ -114,17 +108,13 @@ pub fn build_asset_grid_cards_scope(
     );
 
     let container_resp = scope.response(container_id);
-    if container_resp.secondary_clicked() {
-        let click_pos = container_resp
-            .interact_pointer_pos()
-            .unwrap_or(params.cursor_pos);
-        actions.push(AssetsPanelAction::OpenContextMenu(
-            crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(
-                params.current_folder.to_path_buf(),
-            ),
-            click_pos,
-        ));
-    }
+    container_resp.context_menu(scope, |menu| {
+        super::context_menu::render_folder_context_menu_items(
+            menu,
+            &params.current_folder,
+            actions,
+        );
+    });
 }
 
 #[cfg(test)]

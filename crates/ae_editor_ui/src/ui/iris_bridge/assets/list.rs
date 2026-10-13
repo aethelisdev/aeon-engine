@@ -129,6 +129,9 @@ pub fn build_asset_list_table_scope(
                 let is_selected = params.selected_asset == Some(&item.path);
 
                 let row_resp = asset_list_row(rows_scope, row_idx as u32, item, is_selected);
+                row_resp.row_response.context_menu(rows_scope, |menu| {
+                    super::context_menu::render_asset_context_menu_items(menu, item, actions);
+                });
                 if row_resp.spawn_clicked {
                     actions.push(AssetsPanelAction::SpawnAsset(
                         item.path.clone(),
@@ -137,14 +140,7 @@ pub fn build_asset_list_table_scope(
                 } else if row_resp.inspect_clicked {
                     actions.push(AssetsPanelAction::InspectAsset(item.clone()));
                 } else if row_resp.row_secondary_clicked {
-                    let click_pos = row_resp.pointer_pos.unwrap_or(params.cursor_pos);
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
-                    actions.push(AssetsPanelAction::OpenContextMenu(
-                        crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(
-                            item.clone(),
-                        ),
-                        click_pos,
-                    ));
                 } else if row_resp.row_clicked {
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
                 }
@@ -153,17 +149,13 @@ pub fn build_asset_list_table_scope(
     );
 
     let container_resp = scope.response(container_id);
-    if container_resp.secondary_clicked() {
-        let click_pos = container_resp
-            .interact_pointer_pos()
-            .unwrap_or(params.cursor_pos);
-        actions.push(AssetsPanelAction::OpenContextMenu(
-            crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(
-                params.current_folder.to_path_buf(),
-            ),
-            click_pos,
-        ));
-    }
+    container_resp.context_menu(scope, |menu| {
+        super::context_menu::render_folder_context_menu_items(
+            menu,
+            &params.current_folder,
+            actions,
+        );
+    });
 }
 
 #[cfg(test)]

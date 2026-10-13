@@ -11,14 +11,101 @@
 use super::types::{
     ASSET_CTX_COPY_PATH, ASSET_CTX_DELETE, ASSET_CTX_INSPECT, ASSET_CTX_NEW_FOLDER,
     ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuTarget,
-    AssetsPanelParams, truncate_display_name,
+    AssetsPanelAction, AssetsPanelParams, truncate_display_name,
 };
-use crate::assets::types::AssetCategory;
+use crate::assets::types::{AssetCategory, AssetItem};
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use irisui::prelude::*;
 
 /// Width of the floating context menu popup card in logical pixels.
 pub const CONTEXT_MENU_WIDTH: f32 = 190.0;
+
+/// Declaratively renders right-click context menu items for an asset card or list row.
+///
+/// Dispatches semantic actions into `actions` when clicked, closing the context menu
+/// automatically via internal framework bindings.
+pub fn render_asset_context_menu_items(
+    menu: &mut UiScope,
+    item: &AssetItem,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
+    if menu.context_menu_item("Quick Inspect (Space)").clicked() {
+        actions.push(AssetsPanelAction::OpenInspectModal(item.clone()));
+    }
+
+    let spawn_label = match item.category {
+        AssetCategory::Models3D => "Spawn in Viewport",
+        AssetCategory::Textures2D => "Apply / Spawn Sprite",
+        AssetCategory::Shaders => "Open Shader Editor",
+        AssetCategory::Materials => "Edit Material",
+        AssetCategory::Audio => "Add Sound to Scene",
+        AssetCategory::Scenes => "Load Scene",
+        AssetCategory::All => "Spawn / Load",
+    };
+    if menu.context_menu_item(spawn_label).clicked() {
+        actions.push(AssetsPanelAction::SpawnAsset(
+            item.path.clone(),
+            item.category,
+        ));
+    }
+
+    menu.context_menu_separator();
+    if menu.context_menu_item("Rename").clicked() {
+        actions.push(AssetsPanelAction::OpenRename(
+            item.path.clone(),
+            item.name.clone(),
+            false,
+        ));
+    }
+    if menu.context_menu_item("Delete").clicked() {
+        actions.push(AssetsPanelAction::OpenDelete(item.path.clone()));
+    }
+
+    menu.context_menu_separator();
+    if menu.context_menu_item("Copy File Path").clicked() {
+        actions.push(AssetsPanelAction::CopyPath(item.path.clone()));
+    }
+    if menu.context_menu_item("Reveal in Explorer").clicked() {
+        actions.push(AssetsPanelAction::RevealFolder(item.path.clone()));
+    }
+}
+
+/// Declaratively renders right-click context menu items for a folder or container area.
+///
+/// Dispatches semantic folder management actions directly into `actions`.
+pub fn render_folder_context_menu_items(
+    menu: &mut UiScope,
+    folder: &std::path::Path,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
+    let is_folder_root = folder == std::path::Path::new("assets") || folder.as_os_str().is_empty();
+    let name = folder
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("assets");
+
+    if menu.context_menu_item("New Subfolder").clicked() {
+        actions.push(AssetsPanelAction::OpenCreateSubfolder(folder.to_path_buf()));
+    }
+
+    if !is_folder_root {
+        if menu.context_menu_item("Rename").clicked() {
+            actions.push(AssetsPanelAction::OpenRename(
+                folder.to_path_buf(),
+                name.to_string(),
+                true,
+            ));
+        }
+        if menu.context_menu_item("Delete Folder").clicked() {
+            actions.push(AssetsPanelAction::OpenDelete(folder.to_path_buf()));
+        }
+    }
+
+    menu.context_menu_separator();
+    if menu.context_menu_item("Reveal in Explorer").clicked() {
+        actions.push(AssetsPanelAction::RevealFolder(folder.to_path_buf()));
+    }
+}
 
 /// Builds the floating right-click context menu into the `UiTree` if currently open.
 ///

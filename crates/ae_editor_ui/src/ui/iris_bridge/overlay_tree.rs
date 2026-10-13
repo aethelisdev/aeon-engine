@@ -36,8 +36,6 @@ pub enum ActiveOverlay {
     MenubarDropdown(ActiveMenu),
     /// Hierarchy panel context menu or add entity menu.
     HierarchyContextMenu,
-    /// Assets browser item or folder context menu.
-    AssetsContextMenu,
     /// Inspector color picker popup.
     InspectorColorPicker,
     /// Inspector cascading add-component menu.

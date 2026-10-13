@@ -212,7 +212,148 @@ fn test_assets_panel_declarative_card_selection_action() {
     );
     assert_eq!(
         select_actions,
-        vec![AssetsPanelAction::SelectAsset(Some(test_item.path))],
+        vec![AssetsPanelAction::SelectAsset(Some(test_item.path.clone()))],
         "Asset card single-click must emit SelectAsset(Some(path))"
+    );
+}
+
+/// Verifies that right-clicking an asset card declaratively opens the context menu,
+/// and clicking a menu item dispatches the corresponding [`AssetsPanelAction`]
+/// while autonomously closing the popup.
+#[test]
+fn test_assets_card_declarative_context_menu_interaction() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let test_item = AssetItem {
+        name: "character.glb".to_string(),
+        path: PathBuf::from("assets/models/character.glb"),
+        relative_path: "models/character.glb".to_string(),
+        category: AssetCategory::Models3D,
+        source: AssetSource::Project,
+        file_size_bytes: 4096,
+        metadata_badge: "4.2 MB".to_string(),
+        is_loaded_in_memory: true,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: true,
+    };
+    let items = [test_item.clone()];
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+
+    // 1. Initial build: render card
+    let mut actions = Vec::new();
+    let mut tree_state = TreeState::default();
+    build_assets_panel(&mut tree, root_id, &params, &mut tree_state, &mut actions);
+
+    let card_tag = encode_item_tag(0);
+    let mut card_rect = None;
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.tag == card_tag {
+            card_rect = Some(node.computed_rect);
+        }
+    });
+    let rect = card_rect.expect("Card 0 must exist");
+
+    let click_pos = Point::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+
+    // 2. Secondary (Right) click on card
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: click_pos,
+        button: MouseButton::Right,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: click_pos,
+        button: MouseButton::Right,
+    });
+
+    // 3. Rebuild: context menu should be open and rendered in UiLayer::Popup
+    let mut right_click_actions = Vec::new();
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut tree_state,
+        &mut right_click_actions,
+    );
+    assert_eq!(
+        right_click_actions,
+        vec![AssetsPanelAction::SelectAsset(Some(test_item.path.clone()))],
+        "Right clicking a card selects it"
+    );
+
+    // Popup card must exist in the UI tree
+    let popup_node = tree
+        .iter()
+        .find(|(_, n)| n.layer == UiLayer::Popup && n.role == WidgetRole::DropdownPopup);
+    assert!(
+        popup_node.is_some(),
+        "Context menu popup card must be emitted in UiLayer::Popup"
+    );
+
+    // Find "Quick Inspect" item (first ContextMenuItem in popup)
+    let inspect_node = tree
+        .iter()
+        .find(|(_, n)| n.layer == UiLayer::Popup && n.name.as_deref() == Some("ContextMenuItem"));
+    assert!(
+        inspect_node.is_some(),
+        "Quick Inspect context menu item must be present"
+    );
+
+    let inspect_rect = inspect_node.unwrap().1.computed_rect;
+    let inspect_click = Point::new(
+        inspect_rect.x + inspect_rect.width * 0.5,
+        inspect_rect.y + inspect_rect.height * 0.5,
+    );
+
+    // 4. Click Quick Inspect item
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: inspect_click,
+        button: MouseButton::Left,
+    });
+    let _up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        point: inspect_click,
+        button: MouseButton::Left,
+    });
+
+    // 5. Rebuild: must emit OpenInspectModal action
+    let mut inspect_actions = Vec::new();
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut tree_state,
+        &mut inspect_actions,
+    );
+    assert!(
+        inspect_actions.contains(&AssetsPanelAction::OpenInspectModal(test_item)),
+        "Clicking inspect context menu item must emit OpenInspectModal action: {:?}",
+        inspect_actions
     );
 }
