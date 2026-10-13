@@ -182,9 +182,10 @@ fn render_folder_recursive(
         tree_state.toggle_expanded(&path.to_path_buf());
     }
     if row_resp.secondary_clicked() {
+        let click_pos = row_resp.interact_pointer_pos().unwrap_or(cursor_pos);
         actions.push(AssetsPanelAction::OpenContextMenu(
             super::types::AssetsContextMenuTarget::Folder(path.to_path_buf()),
-            cursor_pos,
+            click_pos,
         ));
     } else if row_resp.clicked() {
         actions.push(AssetsPanelAction::NavigateFolder(path.to_path_buf()));

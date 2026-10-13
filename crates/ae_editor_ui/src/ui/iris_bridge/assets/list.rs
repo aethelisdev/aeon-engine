@@ -137,12 +137,13 @@ pub fn build_asset_list_table_scope(
                 } else if row_resp.inspect_clicked {
                     actions.push(AssetsPanelAction::InspectAsset(item.clone()));
                 } else if row_resp.row_secondary_clicked {
+                    let click_pos = row_resp.pointer_pos.unwrap_or(params.cursor_pos);
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
                     actions.push(AssetsPanelAction::OpenContextMenu(
                         crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(
                             item.clone(),
                         ),
-                        params.cursor_pos,
+                        click_pos,
                     ));
                 } else if row_resp.row_clicked {
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
@@ -151,12 +152,16 @@ pub fn build_asset_list_table_scope(
         },
     );
 
-    if scope.response(container_id).secondary_clicked() {
+    let container_resp = scope.response(container_id);
+    if container_resp.secondary_clicked() {
+        let click_pos = container_resp
+            .interact_pointer_pos()
+            .unwrap_or(params.cursor_pos);
         actions.push(AssetsPanelAction::OpenContextMenu(
             crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(
                 params.current_folder.to_path_buf(),
             ),
-            params.cursor_pos,
+            click_pos,
         ));
     }
 }

@@ -600,10 +600,10 @@ impl UiTree {
         }
 
         // Viewports and passive panel containers never claim clicks originating from child widgets
-        if let Some(anc_node) = self.nodes.get(ancestor) {
-            if anc_node.role == crate::node::WidgetRole::ScrollAreaViewport {
-                return false;
-            }
+        if let Some(anc_node) = self.nodes.get(ancestor)
+            && anc_node.role == crate::node::WidgetRole::ScrollAreaViewport
+        {
+            return false;
         }
 
         let mut curr = self.nodes.get(descendant).and_then(|n| n.parent);

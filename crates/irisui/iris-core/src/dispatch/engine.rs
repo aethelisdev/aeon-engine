@@ -144,6 +144,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     tree.event_state.frame_double_clicked_tag = None;
     tree.event_state.frame_secondary_clicked_id = None;
     tree.event_state.frame_secondary_clicked_tag = None;
+    tree.event_state.frame_clicked_pos = None;
     tree.event_state.frame_drag_delta = None;
 
     let hit_id = tree.hit_test_layered(point);
@@ -289,6 +290,8 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             } else {
                 tree.resolve_ancestor_tag(target_id)
             };
+
+            tree.event_state.frame_clicked_pos = Some(point);
 
             match button {
                 MouseButton::Left => {

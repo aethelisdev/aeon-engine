@@ -436,3 +436,36 @@ fn test_child_event_consumption_and_parent_isolation() {
     assert_eq!(empty_hit, container);
     assert!(tree.is_direct_interaction_ancestor(empty_hit, container));
 }
+
+#[test]
+fn test_dispatch_frame_clicked_pos_recording() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let child = tree.create_node();
+    tree.add_child(root, child).unwrap();
+
+    let child_node = tree.get_mut(child).unwrap();
+    child_node.visible = true;
+    child_node.interactive = true;
+    child_node.computed_rect = Rect::new(50.0, 50.0, 100.0, 100.0);
+
+    let click_point = Point::new(75.0, 80.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Right,
+        point: click_point,
+    });
+    // MouseDown clears transient clicked pos
+    assert_eq!(tree.event_state.frame_clicked_pos, None);
+
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Right,
+        point: click_point,
+    });
+
+    // MouseUp saves clicked pos
+    assert_eq!(tree.event_state.frame_clicked_pos, Some(click_point));
+
+    // Clear frame clicks resets it
+    tree.event_state.clear_frame_clicks();
+    assert_eq!(tree.event_state.frame_clicked_pos, None);
+}

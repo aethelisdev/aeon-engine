@@ -10,7 +10,7 @@
 
 use bitflags::bitflags;
 
-use crate::geometry::Rect;
+use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
 
 bitflags! {
@@ -59,6 +59,8 @@ pub struct WidgetResponse {
     pub rect: Rect,
     /// Detailed interaction bitflags representing the single source of truth (SSOT).
     pub flags: ResponseFlags,
+    /// Absolute cursor screen position when this interaction occurred, if captured.
+    pub pointer_pos: Option<Point>,
 }
 
 impl WidgetResponse {
@@ -80,13 +82,19 @@ impl WidgetResponse {
             id,
             rect: Rect::ZERO,
             flags,
+            pointer_pos: None,
         }
     }
 
     /// Constructs a rich widget response with explicit bounding box and interaction flags.
     #[inline]
     pub const fn from_flags(id: WidgetId, rect: Rect, flags: ResponseFlags) -> Self {
-        Self { id, rect, flags }
+        Self {
+            id,
+            rect,
+            flags,
+            pointer_pos: None,
+        }
     }
 
     /// Constructs an un-interacted empty response for a widget node.
@@ -96,7 +104,23 @@ impl WidgetResponse {
             id,
             rect: Rect::ZERO,
             flags: ResponseFlags::empty(),
+            pointer_pos: None,
         }
+    }
+
+    /// Attaches the cursor screen position recorded during this interaction.
+    #[inline]
+    pub const fn with_pointer_pos(mut self, pos: Option<Point>) -> Self {
+        self.pointer_pos = pos;
+        self
+    }
+
+    /// Returns the absolute screen position of the cursor when this interaction occurred, if any.
+    ///
+    /// Useful for anchoring context menus, popups, and dragging gestures without manual state tracking.
+    #[inline]
+    pub const fn interact_pointer_pos(&self) -> Option<Point> {
+        self.pointer_pos
     }
 
     /// Returns the unique generational identifier of the widget node.
@@ -383,5 +407,16 @@ mod tests {
         let lost = resp.with_focused(false).with_lost_focus(true);
         assert!(!lost.is_focused());
         assert!(lost.lost_focus());
+    }
+
+    #[test]
+    fn test_widget_response_pointer_pos() {
+        let id = WidgetId::default();
+        let resp = WidgetResponse::empty(id);
+        assert_eq!(resp.interact_pointer_pos(), None);
+
+        let pos = Point::new(142.5, 87.0);
+        let resp_with_pos = resp.with_pointer_pos(Some(pos));
+        assert_eq!(resp_with_pos.interact_pointer_pos(), Some(pos));
     }
 }

@@ -96,12 +96,15 @@ pub fn build_asset_grid_cards_scope(
                         item.category,
                     ));
                 } else if card_resp.secondary_clicked() {
+                    let click_pos = card_resp
+                        .interact_pointer_pos()
+                        .unwrap_or(params.cursor_pos);
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
                     actions.push(AssetsPanelAction::OpenContextMenu(
                         crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(
                             item.clone(),
                         ),
-                        params.cursor_pos,
+                        click_pos,
                     ));
                 } else if card_resp.clicked() {
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
@@ -110,12 +113,16 @@ pub fn build_asset_grid_cards_scope(
         },
     );
 
-    if scope.response(container_id).secondary_clicked() {
+    let container_resp = scope.response(container_id);
+    if container_resp.secondary_clicked() {
+        let click_pos = container_resp
+            .interact_pointer_pos()
+            .unwrap_or(params.cursor_pos);
         actions.push(AssetsPanelAction::OpenContextMenu(
             crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(
                 params.current_folder.to_path_buf(),
             ),
-            params.cursor_pos,
+            click_pos,
         ));
     }
 }

@@ -377,7 +377,7 @@ pub fn asset_grid_card(
 }
 
 /// Response model capturing interaction states on a detailed asset table list row.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct AssetListRowResponse {
     /// Whether the main row container was clicked to select the asset item.
     pub row_clicked: bool,
@@ -387,6 +387,8 @@ pub struct AssetListRowResponse {
     pub spawn_clicked: bool,
     /// Whether the embedded "Inspect" 3D preview modal button was clicked.
     pub inspect_clicked: bool,
+    /// Absolute cursor screen position when this row interaction occurred, if captured.
+    pub pointer_pos: Option<Point>,
 }
 
 /// Emits an individual table list row with multi-column metrics and action buttons.
@@ -579,6 +581,7 @@ pub fn asset_list_row(
         row_secondary_clicked: row_resp.secondary_clicked() && !spawn_clicked && !inspect_clicked,
         spawn_clicked,
         inspect_clicked,
+        pointer_pos: row_resp.interact_pointer_pos(),
     }
 }
 

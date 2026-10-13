@@ -342,7 +342,18 @@ impl<'a> UiScope<'a> {
         if secondary_clicked {
             flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
         }
-        WidgetResponse::from_flags(id, Rect::ZERO, flags)
+
+        let pointer_pos = if clicked || double_clicked || secondary_clicked {
+            self.tree
+                .event_state
+                .frame_clicked_pos
+                .or(self.tree.event_state.last_pointer_pos)
+        } else if hovered {
+            self.tree.event_state.last_pointer_pos
+        } else {
+            None
+        };
+        WidgetResponse::from_flags(id, Rect::ZERO, flags).with_pointer_pos(pointer_pos)
     }
 
     /// Checks whether the given widget node or its semantic tag is actively in a pressed state.

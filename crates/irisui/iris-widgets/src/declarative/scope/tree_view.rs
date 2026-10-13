@@ -19,7 +19,7 @@ use crate::tree_view::model::{TreeIndentConfig, TreeState, for_each_tree_connect
 use crate::tree_view::navigation::TreeItemInfo;
 use crate::tree_view::selection::{TreeRowStyle, tree_chevron_arrow_glyph};
 use iris_core::Color;
-use iris_core::geometry::Insets;
+use iris_core::geometry::{Insets, Point};
 use iris_core::id::WidgetId;
 use iris_core::node::WidgetRole;
 use iris_core::style::{AlignItems, JustifyContent, Style, TextAlign};
@@ -175,7 +175,7 @@ impl<'a> TreeNodeProps<'a> {
 /// Comprehensive interaction response produced by emitting a [`UiScope::tree_row`].
 ///
 /// Encapsulates separate click/hover states for both the row body and the foldout chevron button.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TreeRowResponse {
     /// Allocated widget node ID for the row container.
     pub id: WidgetId,
@@ -195,6 +195,8 @@ pub struct TreeRowResponse {
     pub is_selected: bool,
     /// Whether the branch is currently marked as expanded.
     pub is_expanded: bool,
+    /// Absolute cursor screen position when this row interaction occurred, if captured.
+    pub pointer_pos: Option<Point>,
 }
 
 impl TreeRowResponse {
@@ -250,6 +252,14 @@ impl TreeRowResponse {
     #[inline]
     pub const fn expanded(&self) -> bool {
         self.is_expanded
+    }
+
+    /// Returns the absolute screen position of the cursor when this interaction occurred, if any.
+    ///
+    /// Useful for anchoring context menus and popups without manual engine coordinate propagation.
+    #[inline]
+    pub const fn interact_pointer_pos(&self) -> Option<Point> {
+        self.pointer_pos
     }
 }
 
@@ -391,8 +401,12 @@ impl<'a> UiScope<'a> {
                 content(row_s);
             });
 
-        let (row_clicked, row_hovered, _) = self.check_interaction(row_id);
-        let row_secondary_clicked = self.response(row_id).secondary_clicked();
+        let row_resp = self.response(row_id);
+        let row_clicked = row_resp.clicked();
+        let row_secondary_clicked = row_resp.secondary_clicked();
+        let row_hovered = row_resp.hovered();
+        let pointer_pos = row_resp.interact_pointer_pos();
+
         let (foldout_clicked, foldout_hovered) = if let Some(fid) = foldout_id {
             let (fc, fh, _) = self.check_interaction(fid);
             (fc, fh)
@@ -410,6 +424,7 @@ impl<'a> UiScope<'a> {
             foldout_hovered,
             is_selected: props.is_selected,
             is_expanded: props.is_expanded,
+            pointer_pos,
         }
     }
 
