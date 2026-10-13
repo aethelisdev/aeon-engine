@@ -14,7 +14,7 @@
 use super::components::{
     ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, asset_empty_notice, asset_grid_card,
 };
-use super::types::AssetsPanelParams;
+use super::types::{ASSETS_TAG_CONTENT_VIEWPORT, AssetsPanelAction, AssetsPanelParams};
 use irisui::prelude::*;
 
 /// Standard width of an asset grid card in logical pixels.
@@ -37,18 +37,22 @@ pub fn build_asset_grid_cards(
     parent_id: WidgetId,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let mut scope = UiScope::new(tree, parent_id);
-    build_asset_grid_cards_scope(&mut scope, vp_rect, params);
+    build_asset_grid_cards_scope(&mut scope, vp_rect, params, actions);
 }
 
 /// Constructs the responsive grid cards directly via a declarative [`UiScope`].
 ///
 /// Uses 100% declarative UI scope widgets with zero imperative node allocations.
+/// Handles autonomous scrolling via [`WidgetRole::ScrollAreaViewport`], asset selection
+/// via single click, and instantiation into the active scene via double-click.
 pub fn build_asset_grid_cards_scope(
     scope: &mut UiScope<'_>,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     if params.filtered_items.is_empty() {
         asset_empty_notice(scope, vp_rect, params.search_query);
@@ -62,13 +66,15 @@ pub fn build_asset_grid_cards_scope(
 
     let visible_cells = grid.compute_visible_cells(vp_rect, items.len(), params.scroll_y);
 
-    scope.container_named(
+    let container_id = scope.container_tagged(
         "AssetGridContainer",
         Style::new()
             .flex_col()
             .width(vp_rect.width)
             .height(vp_rect.height)
             .clip_children(true),
+        WidgetRole::ScrollAreaViewport,
+        ASSETS_TAG_CONTENT_VIEWPORT,
         |grid_scope| {
             for (item_idx, card_rect) in visible_cells {
                 let item = &items[item_idx];
@@ -76,7 +82,7 @@ pub fn build_asset_grid_cards_scope(
                 let is_selected = params.selected_asset == Some(&item.path);
                 let rel_pos = Point::new(card_rect.x - vp_rect.x, card_rect.y - vp_rect.y);
 
-                asset_grid_card(
+                let card_resp = asset_grid_card(
                     grid_scope,
                     item_idx as u32,
                     item,
@@ -84,9 +90,34 @@ pub fn build_asset_grid_cards_scope(
                     is_selected,
                     rel_pos,
                 );
+                if card_resp.double_clicked() {
+                    actions.push(AssetsPanelAction::SpawnAsset(
+                        item.path.clone(),
+                        item.category,
+                    ));
+                } else if card_resp.secondary_clicked() {
+                    actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+                    actions.push(AssetsPanelAction::OpenContextMenu(
+                        crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(
+                            item.clone(),
+                        ),
+                        params.cursor_pos,
+                    ));
+                } else if card_resp.clicked() {
+                    actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+                }
             }
         },
     );
+
+    if scope.response(container_id).secondary_clicked() {
+        actions.push(AssetsPanelAction::OpenContextMenu(
+            crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(
+                params.current_folder.to_path_buf(),
+            ),
+            params.cursor_pos,
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -121,7 +152,6 @@ mod tests {
             sidebar_collapsed: false,
             scroll_y: 0.0,
             tree_scroll_y: 0.0,
-            tree_state: &TreeState::default(),
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
@@ -132,11 +162,13 @@ mod tests {
             cursor_byte_idx: 0,
         };
 
+        let mut actions = Vec::new();
         build_asset_grid_cards(
             &mut tree,
             root_id,
             Rect::new(0.0, 0.0, 600.0, 400.0),
             &params_empty,
+            &mut actions,
         );
 
         let found_empty_notice = tree
@@ -183,11 +215,13 @@ mod tests {
             ..params_empty
         };
 
+        let mut actions_populated = Vec::new();
         build_asset_grid_cards(
             &mut tree,
             root_id,
             Rect::new(0.0, 0.0, 600.0, 400.0),
             &params_populated,
+            &mut actions_populated,
         );
 
         let grid_cards: Vec<_> = tree

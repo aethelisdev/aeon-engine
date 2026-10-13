@@ -315,12 +315,17 @@ impl IrisEditorOverlay {
             self.assets.filtered_items_cache = filtered_items.clone();
             self.assets.subfolders_cache = params.panel_data.asset_browser.subfolders.clone();
 
+            let cursor_pos = self.cursor_pos();
+            let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
+            let screen_size = (self.screen_width, self.screen_height);
+            let focus_state = &self.focus_state;
+
             let local_assets_rect = Rect::new(0.0, 0.0, assets_rect.width, assets_rect.height);
             let assets_params = super::assets::AssetsPanelParams {
                 panel_rect: local_assets_rect,
-                screen_size: (self.screen_width, self.screen_height),
+                screen_size,
                 current_folder: &self.assets.current_folder,
-                search_query: self.assets.search_input.text(),
+                search_query: self.assets.interactions.search_input.text(),
                 active_category: params.panel_data.asset_browser.active_category,
                 view_mode: params.panel_data.asset_browser.view_mode,
                 selected_asset: params.panel_data.asset_browser.selected_asset.as_deref(),
@@ -330,20 +335,66 @@ impl IrisEditorOverlay {
                 show_engine_content: params.panel_data.asset_browser.show_engine_content,
                 sidebar_width: params.panel_data.asset_browser.sidebar_width,
                 sidebar_collapsed: params.panel_data.asset_browser.sidebar_collapsed,
-                scroll_y: self.assets.scroll_y,
+                scroll_y: self.assets.interactions.scroll_y,
                 tree_scroll_y: self.assets.tree_scroll_y,
-                tree_state: &self.assets.tree_state,
-                cursor_pos: self.cursor_pos(),
-                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
+                cursor_pos,
+                blink_caret,
                 active_context_menu: self.assets.context_menu.as_ref(),
                 active_preview_modal: self.assets.preview_modal.as_ref(),
                 subfolders: &params.panel_data.asset_browser.subfolders,
                 thumbnail_layers: &self.assets.thumbnail_layers,
-                focus_state: &self.focus_state,
-                cursor_byte_idx: self.assets.search_input.cursor_byte_idx,
+                focus_state,
+                cursor_byte_idx: self.assets.interactions.search_input.cursor_byte_idx,
             };
 
-            let metrics = super::assets::build_assets_panel(tree, root, &assets_params);
+            let mut actions = Vec::new();
+            let metrics = super::assets::build_assets_panel(
+                tree,
+                root,
+                &assets_params,
+                &mut self.assets.tree_state,
+                &mut actions,
+            );
+
+            for action in actions {
+                match action {
+                    super::assets::AssetsPanelAction::NavigateFolder(ref path) => {
+                        self.assets.tree_state.select_single(path.clone());
+                        let mut curr = path.as_path();
+                        while let Some(parent) = curr.parent() {
+                            self.assets
+                                .tree_state
+                                .set_expanded(parent.to_path_buf(), true);
+                            curr = parent;
+                        }
+                        self.assets.current_folder = path.clone();
+                        self.assets.actions.push(action);
+                        self.notifier.tag_all();
+                    }
+                    super::assets::AssetsPanelAction::SelectAsset(ref opt) => {
+                        self.assets.selected_asset = opt.clone();
+                        self.assets.actions.push(action);
+                        self.notifier.tag_all();
+                    }
+                    super::assets::AssetsPanelAction::OpenContextMenu(target, pos) => {
+                        self.assets.context_menu = Some((target.clone(), pos));
+                        self.assets.actions.push(
+                            super::assets::AssetsPanelAction::OpenContextMenu(target, pos),
+                        );
+                        self.notifier.tag_all();
+                    }
+                    super::assets::AssetsPanelAction::CloseContextMenu => {
+                        self.assets.context_menu = None;
+                        self.overlay_tree.close();
+                        self.notifier.tag_all();
+                    }
+                    other => {
+                        self.assets.actions.push(other);
+                        self.notifier.tag_all();
+                    }
+                }
+            }
+
             self.assets.panel_rect = Some(assets_rect);
             self.assets.sidebar_rect = metrics
                 .sidebar_rect
@@ -651,119 +702,6 @@ impl IrisEditorOverlay {
 
 pub use super::dock_panel::{EditorDockPanel, PanelLifecycleResult, create_default_panel_registry};
 
+#[path = "update_panels_tests.rs"]
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_render_custom_panel_dispatch() {
-        struct DynamicPluginPanel {
-            rendered: bool,
-        }
-
-        impl DockPanel for DynamicPluginPanel {
-            fn id(&self) -> &str {
-                "dynamic_plugin"
-            }
-            fn title(&self) -> &str {
-                "Plugin"
-            }
-            fn render(&mut self, _tree: &mut UiTree, _parent: WidgetId, _bounds: Rect) {
-                self.rendered = true;
-            }
-            fn as_any(&self) -> &dyn std::any::Any {
-                self
-            }
-            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-                self
-            }
-        }
-
-        let mut registry = PanelRegistry::default();
-        registry.register(DynamicPluginPanel { rendered: false });
-
-        let mut tree = UiTree::new();
-        let root = tree.create_root().expect("root widget");
-
-        let panel = registry.get_downcast_mut::<DynamicPluginPanel>("dynamic_plugin");
-        assert!(panel.is_some());
-        let p = panel.unwrap();
-        p.render(&mut tree, root, Rect::new(0.0, 0.0, 200.0, 200.0));
-        assert!(p.rendered);
-    }
-
-    #[test]
-    fn test_stats_visual_sampling_cadence() {
-        let mut last_fps_refresh = std::time::Instant::now();
-        let mut stats_displayed_fps = 60.0;
-        let mut stats_frame_counter: u32 = 0;
-
-        // Simulate 30 frames within an interval before 250ms
-        for _ in 0..30 {
-            stats_frame_counter += 1;
-        }
-
-        // Before 250ms elapses, visual snapshot remains stable
-        assert!(last_fps_refresh.elapsed().as_secs_f32() < 0.25);
-        assert_eq!(stats_displayed_fps, 60.0);
-
-        // Advance visual sampling manually past 250ms (e.g. 300ms) to verify threshold invariant
-        let fake_past = std::time::Instant::now()
-            .checked_sub(std::time::Duration::from_millis(300))
-            .unwrap_or(last_fps_refresh);
-        last_fps_refresh = fake_past;
-
-        let elapsed = std::time::Instant::now()
-            .duration_since(last_fps_refresh)
-            .as_secs_f32();
-        assert!(elapsed >= 0.25);
-
-        if elapsed >= 0.25 {
-            stats_displayed_fps = stats_frame_counter as f32 / elapsed;
-            stats_frame_counter = 0;
-        }
-        // 30 frames over ~0.30s = ~100 FPS
-        assert!(stats_displayed_fps > 90.0 && stats_displayed_fps < 110.0);
-        assert_eq!(stats_frame_counter, 0);
-    }
-
-    #[test]
-    fn test_sync_panel_lifecycle_relayout_on_resize() {
-        use crate::ui::panel_layout::PanelId;
-        use irisui::prelude::{LayoutEngine, UiNotifier};
-
-        let mut registry = create_default_panel_registry();
-        let mut layout_engine = LayoutEngine::new();
-        let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
-
-        let initial_bounds = Rect::new(0.0, 0.0, 300.0, 200.0);
-        let resized_bounds = Rect::new(0.0, 0.0, 500.0, 350.0);
-
-        // 1. Initial build when marked dirty
-        let panel = registry
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Console.id_str())
-            .expect("Console panel exists");
-        panel.mark_dirty();
-        let initial_res = panel.update_lifecycle(&mut layout_engine, initial_bounds);
-        assert_eq!(initial_res, PanelLifecycleResult::Rebuilt);
-        assert_eq!(panel.last_bounds(), Some(initial_bounds));
-
-        // Simulate successful render by render_dock_panel_into_tree
-        let _ = panel.tree_mut().create_root();
-        panel.clear_dirty();
-
-        // 2. Simulate resize: without premature set_last_bounds, update_lifecycle detects delta
-        let resize_res = panel.update_lifecycle(&mut layout_engine, resized_bounds);
-        assert_eq!(resize_res, PanelLifecycleResult::RelayoutInPlace);
-        assert_eq!(panel.last_bounds(), Some(resized_bounds));
-
-        if resize_res == PanelLifecycleResult::RelayoutInPlace {
-            notifier.tag_redraw(PanelId::Console);
-        }
-        assert!(notifier.is_dirty(PanelId::Console));
-
-        // 3. Repeated call with identical bounds yields Unchanged
-        let stable_res = panel.update_lifecycle(&mut layout_engine, resized_bounds);
-        assert_eq!(stable_res, PanelLifecycleResult::Unchanged);
-    }
-}
+mod tests;

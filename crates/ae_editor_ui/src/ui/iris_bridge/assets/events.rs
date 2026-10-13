@@ -257,9 +257,7 @@ pub fn handle_assets_click(
                 } else {
                     PathBuf::from("assets")
                 };
-                if is_chevron {
-                    out_actions.push(AssetsPanelAction::ToggleFolder(target_path));
-                } else {
+                if !is_chevron {
                     out_actions.push(AssetsPanelAction::NavigateFolder(target_path));
                 }
                 return true;

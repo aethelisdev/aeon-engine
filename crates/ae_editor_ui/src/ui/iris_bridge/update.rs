@@ -599,5 +599,6 @@ impl IrisEditorOverlay {
         self.chrome.needs_layout_rebuild = false;
         self.chrome.needs_scroll_sync = false;
         self.notifier.clear_all();
+        self.tree.clear_frame_clicks();
     }
 }

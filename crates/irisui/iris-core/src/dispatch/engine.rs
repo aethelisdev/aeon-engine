@@ -33,6 +33,10 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
     if !matches!(event, UiEvent::MouseUp { .. }) {
         tree.event_state.frame_clicked_id = None;
         tree.event_state.frame_clicked_tag = None;
+        tree.event_state.frame_double_clicked_id = None;
+        tree.event_state.frame_double_clicked_tag = None;
+        tree.event_state.frame_secondary_clicked_id = None;
+        tree.event_state.frame_secondary_clicked_tag = None;
     }
 
     match event {
@@ -136,6 +140,10 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
 fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> DispatchResult {
     tree.event_state.frame_clicked_id = None;
     tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_double_clicked_id = None;
+    tree.event_state.frame_double_clicked_tag = None;
+    tree.event_state.frame_secondary_clicked_id = None;
+    tree.event_state.frame_secondary_clicked_tag = None;
     tree.event_state.frame_drag_delta = None;
 
     let hit_id = tree.hit_test_layered(point);
@@ -185,11 +193,20 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .unwrap_or(crate::geometry::Rect::ZERO);
         let cursor = resolve_effective_cursor(tree, target_id);
 
+        let effective_tag = if tag != 0 {
+            tag
+        } else {
+            tree.resolve_ancestor_tag(target_id)
+        };
+        let is_interactive = role.is_interactive()
+            || effective_tag != 0
+            || tree.event_state.pointer_capture.is_some();
+
         // A mouse press is strictly a down state (HOVERED | PRESSED), NEVER a click
         let flags = ResponseFlags::HOVERED | ResponseFlags::PRESSED;
 
         DispatchResult {
-            consumed: true,
+            consumed: is_interactive,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -267,11 +284,21 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         if original_pressed == Some(target_id) && original_button == Some(button) {
             let mut flags = ResponseFlags::HOVERED;
 
+            let effective_tag = if tag != 0 {
+                tag
+            } else {
+                tree.resolve_ancestor_tag(target_id)
+            };
+
             match button {
                 MouseButton::Left => {
                     flags = flags.union(ResponseFlags::CLICKED);
                     tree.event_state.frame_clicked_id = Some(target_id);
-                    tree.event_state.frame_clicked_tag = if tag != 0 { Some(tag) } else { None };
+                    tree.event_state.frame_clicked_tag = if effective_tag != 0 {
+                        Some(effective_tag)
+                    } else {
+                        None
+                    };
 
                     let is_double_click = if let (Some(last_id), Some(last_pos), Some(last_time)) = (
                         tree.event_state.last_click_id,
@@ -291,10 +318,18 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
 
                     if is_double_click {
                         flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
+                        tree.event_state.frame_double_clicked_id = Some(target_id);
+                        tree.event_state.frame_double_clicked_tag = if effective_tag != 0 {
+                            Some(effective_tag)
+                        } else {
+                            None
+                        };
                         tree.event_state.last_click_id = None;
                         tree.event_state.last_click_pos = None;
                         tree.event_state.last_click_time = None;
                     } else {
+                        tree.event_state.frame_double_clicked_id = None;
+                        tree.event_state.frame_double_clicked_tag = None;
                         tree.event_state.last_click_id = Some(target_id);
                         tree.event_state.last_click_pos = Some(point);
                         tree.event_state.last_click_time = Some(Instant::now());
@@ -302,6 +337,12 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 }
                 MouseButton::Right => {
                     flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
+                    tree.event_state.frame_secondary_clicked_id = Some(target_id);
+                    tree.event_state.frame_secondary_clicked_tag = if effective_tag != 0 {
+                        Some(effective_tag)
+                    } else {
+                        None
+                    };
                 }
                 MouseButton::Middle => {
                     flags = flags.union(ResponseFlags::MIDDLE_CLICKED);
@@ -309,8 +350,14 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 MouseButton::Other(_) => {}
             }
 
+            let role = tree
+                .get(target_id)
+                .map(|n| n.role)
+                .unwrap_or(WidgetRole::Default);
+            let is_interactive = role.is_interactive() || effective_tag != 0;
+
             DispatchResult {
-                consumed: true,
+                consumed: is_interactive,
                 target: Some(target_id),
                 target_tag: tag,
                 cursor,
@@ -356,19 +403,31 @@ fn handle_mouse_scroll(
         return DispatchResult::ignored();
     };
 
-    // Bubble upward to find the nearest scroll-handling ancestor (container with clip_children).
+    // Bubble upward to find the nearest scroll-handling ancestor.
     // Interactive children (buttons, sliders, inputs) must NOT stop this bubbling.
     let mut current = Some(hit_id);
     while let Some(curr_id) = current {
         if let Some(node) = tree.get(curr_id) {
-            if node.style.clip_children || node.role == WidgetRole::ScrollAreaViewport {
+            let is_scroll_container =
+                node.role == WidgetRole::ScrollAreaViewport || node.style.clip_children;
+
+            let has_overflow = if node.content_size.height > 0.0 {
+                node.content_size.height > node.computed_rect.height + 0.5
+                    || node.style.scroll_offset_y > 0.0
+            } else {
+                // If content_size is unmeasured (e.g. unit test), respect explicit scroll containers
+                is_scroll_container
+            };
+
+            if is_scroll_container && has_overflow {
                 let tag = node.tag;
                 let rect = node.computed_rect;
-
                 let max_scroll = if node.content_size.height > node.computed_rect.height {
                     node.content_size.height - node.computed_rect.height
-                } else {
+                } else if node.content_size.height == 0.0 {
                     f32::MAX
+                } else {
+                    node.style.scroll_offset_y
                 };
 
                 // Directly update the container's vertical scroll offset in the tree

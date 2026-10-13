@@ -62,7 +62,12 @@ pub fn resolve_category_icon(category: AssetCategory) -> ([f32; 4], Color) {
 /// Emits a declarative interactive breadcrumb navigation bar showing the active directory hierarchy.
 ///
 /// Emits a cyan folder icon at the root, followed by interactive button segments separated by chevrons.
-pub fn asset_breadcrumb_bar(scope: &mut UiScope<'_>, current_folder: &Path) {
+/// Clicking a segment appends [`super::types::AssetsPanelAction::NavigateFolder`] to the action stream.
+pub fn asset_breadcrumb_bar(
+    scope: &mut UiScope<'_>,
+    current_folder: &Path,
+    actions: &mut Vec<super::types::AssetsPanelAction>,
+) {
     scope.container_named(
         "AssetBreadcrumbBar",
         Style::new()
@@ -110,7 +115,7 @@ pub fn asset_breadcrumb_bar(scope: &mut UiScope<'_>, current_folder: &Path) {
                     .hover_background(Color::rgba(0.18, 0.22, 0.30, 0.80))
                     .border_radius(3.0);
 
-                bar.container_tagged(
+                let crumb_id = bar.container_tagged(
                     "BreadcrumbButton",
                     style,
                     WidgetRole::Button,
@@ -127,6 +132,11 @@ pub fn asset_breadcrumb_bar(scope: &mut UiScope<'_>, current_folder: &Path) {
                         crumb.set_hover_text_color(txt_id, Color::rgba(0.0, 0.90, 1.0, 1.0));
                     },
                 );
+                if bar.response(crumb_id).clicked() {
+                    let target_path: std::path::PathBuf =
+                        current_folder.components().take(i + 1).collect();
+                    actions.push(super::types::AssetsPanelAction::NavigateFolder(target_path));
+                }
             }
 
             if !has_segments {
@@ -161,7 +171,12 @@ pub struct FolderTreeItemParams<'a> {
 }
 
 /// Emits an individual directory row in the folder tree sidebar using declarative [`UiScope::tree_row`].
-pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemParams<'_>) {
+///
+/// Returns [`TreeRowResponse`] containing click and foldout toggle interaction states.
+pub fn asset_folder_tree_item(
+    scope: &mut UiScope<'_>,
+    params: &FolderTreeItemParams<'_>,
+) -> TreeRowResponse {
     let row_tag = encode_tree_row_tag(params.node_idx);
     let chev_tag = encode_tree_chevron_tag(params.node_idx);
 
@@ -208,13 +223,14 @@ pub fn asset_folder_tree_item(scope: &mut UiScope<'_>, params: &FolderTreeItemPa
         if !params.is_selected {
             row.set_hover_text_color(txt_id, Color::rgba(0.90, 0.92, 0.96, 1.0));
         }
-    });
+    })
 }
 
 /// Emits an individual grid asset card.
 ///
 /// Features category badge, VRAM resident status dot, thumbnail preview/atlas vector icon,
 /// truncated display title, and human-readable metadata badge.
+/// Returns [`UiResponse`] enabling autonomous click and double-click detection.
 pub fn asset_grid_card(
     scope: &mut UiScope<'_>,
     item_idx: u32,
@@ -222,7 +238,7 @@ pub fn asset_grid_card(
     thumbnail_layer: Option<u32>,
     is_selected: bool,
     rel_pos: Point,
-) {
+) -> WidgetResponse {
     let tag = encode_item_tag(item_idx);
     let cat_color = resolve_category_color(item.category);
 
@@ -260,7 +276,7 @@ pub fn asset_grid_card(
             .hover_border(1.0, cat_color.with_alpha(0.60));
     }
 
-    scope.container_tagged(
+    let card_id = scope.container_tagged(
         "AssetGridCard",
         card_style,
         WidgetRole::Button,
@@ -357,10 +373,31 @@ pub fn asset_grid_card(
             );
         },
     );
+    scope.response(card_id)
+}
+
+/// Response model capturing interaction states on a detailed asset table list row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct AssetListRowResponse {
+    /// Whether the main row container was clicked to select the asset item.
+    pub row_clicked: bool,
+    /// Whether the main row container was secondary (right) clicked to open context menu.
+    pub row_secondary_clicked: bool,
+    /// Whether the embedded "+ Spawn" quick action button was clicked.
+    pub spawn_clicked: bool,
+    /// Whether the embedded "Inspect" 3D preview modal button was clicked.
+    pub inspect_clicked: bool,
 }
 
 /// Emits an individual table list row with multi-column metrics and action buttons.
-pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, is_selected: bool) {
+///
+/// Returns [`AssetListRowResponse`] capturing row selection, spawn, and inspect actions.
+pub fn asset_list_row(
+    scope: &mut UiScope<'_>,
+    item_idx: u32,
+    item: &AssetItem,
+    is_selected: bool,
+) -> AssetListRowResponse {
     let row_tag = encode_item_tag(item_idx);
     let spawn_tag = encode_item_spawn_tag(item_idx);
     let inspect_tag = encode_item_inspect_tag(item_idx);
@@ -387,7 +424,10 @@ pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, 
         row_style = row_style.hover_background(Color::rgba(0.14, 0.16, 0.22, 0.60));
     }
 
-    scope.container_tagged(
+    let mut spawn_clicked = false;
+    let mut inspect_clicked = false;
+
+    let row_id = scope.container_tagged(
         "AssetListRow",
         row_style,
         WidgetRole::Button,
@@ -477,7 +517,7 @@ pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, 
                 .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
                 .hover_background(Color::rgba(0.0, 0.70, 0.90, 0.25));
 
-            row.container_tagged(
+            let spawn_id = row.container_tagged(
                 "ListSpawnBtn",
                 spawn_style,
                 WidgetRole::Button,
@@ -495,6 +535,9 @@ pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, 
                     );
                 },
             );
+            if row.response(spawn_id).clicked() {
+                spawn_clicked = true;
+            }
 
             // Direct Action: Inspect Button ("Inspect")
             let inspect_style = Style::new()
@@ -508,7 +551,7 @@ pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, 
                 .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
                 .hover_background(Color::rgba(0.25, 0.28, 0.38, 0.60));
 
-            row.container_tagged(
+            let inspect_id = row.container_tagged(
                 "ListInspectBtn",
                 inspect_style,
                 WidgetRole::Button,
@@ -524,8 +567,19 @@ pub fn asset_list_row(scope: &mut UiScope<'_>, item_idx: u32, item: &AssetItem, 
                     );
                 },
             );
+            if row.response(inspect_id).clicked() {
+                inspect_clicked = true;
+            }
         },
     );
+
+    let row_resp = scope.response(row_id);
+    AssetListRowResponse {
+        row_clicked: row_resp.clicked() && !spawn_clicked && !inspect_clicked,
+        row_secondary_clicked: row_resp.secondary_clicked() && !spawn_clicked && !inspect_clicked,
+        spawn_clicked,
+        inspect_clicked,
+    }
 }
 
 /// Emits an empty state notice when no matching assets are found.
@@ -621,8 +675,9 @@ mod tests {
 
         {
             let mut scope = UiScope::new(&mut tree, root_id);
+            let mut actions = Vec::new();
             // 1. Breadcrumbs
-            asset_breadcrumb_bar(&mut scope, Path::new("assets/models"));
+            asset_breadcrumb_bar(&mut scope, Path::new("assets/models"), &mut actions);
 
             // 2. Tree Item
             let tree_params = FolderTreeItemParams {

@@ -38,11 +38,20 @@ impl UiTree {
     }
 
     /// Clears all nodes from the tree and resets the root pointer.
+    ///
+    /// Preserves confirmed frame interaction state on [`EventState`] so that subsequent
+    /// declarative scopes constructed during the current frame can observe clicks, keypresses,
+    /// and drags without state dropping.
     #[inline]
     pub fn clear(&mut self) {
         self.nodes.clear();
         self.root = None;
-        self.event_state.reset_transient_pointer();
+    }
+
+    /// Clears transient frame click and gesture records recorded for the current frame.
+    #[inline]
+    pub fn clear_frame_clicks(&mut self) {
+        self.event_state.clear_frame_clicks();
     }
 
     /// Dispatches an incoming windowing event hierarchically through the tree.
@@ -566,13 +575,51 @@ impl UiTree {
     }
 
     /// Checks if `potential_descendant` is a descendant of `ancestor`.
-    fn is_descendant_of(&self, potential_descendant: WidgetId, ancestor: WidgetId) -> bool {
+    ///
+    /// Climbs the parent pointer chain from `potential_descendant` towards the root.
+    /// Returns `true` if `ancestor` is encountered at any level, `false` otherwise.
+    pub fn is_descendant_of(&self, potential_descendant: WidgetId, ancestor: WidgetId) -> bool {
         let mut current = Some(potential_descendant);
         while let Some(curr_id) = current {
             if curr_id == ancestor {
                 return true;
             }
             current = self.nodes.get(curr_id).and_then(|n| n.parent);
+        }
+        false
+    }
+
+    /// Checks whether `ancestor` is the direct consuming target for interactions originating at `descendant`.
+    ///
+    /// An `ancestor` only inherits interaction events from a `descendant` if there are no intermediate
+    /// tagged or intrinsically interactive widgets between `descendant` and `ancestor`.
+    /// Furthermore, containers serving strictly as scroll viewports do not inherit interactions from their children.
+    pub fn is_direct_interaction_ancestor(&self, descendant: WidgetId, ancestor: WidgetId) -> bool {
+        if descendant == ancestor {
+            return true;
+        }
+
+        // Viewports and passive panel containers never claim clicks originating from child widgets
+        if let Some(anc_node) = self.nodes.get(ancestor) {
+            if anc_node.role == crate::node::WidgetRole::ScrollAreaViewport {
+                return false;
+            }
+        }
+
+        let mut curr = self.nodes.get(descendant).and_then(|n| n.parent);
+        while let Some(id) = curr {
+            if id == ancestor {
+                return true;
+            }
+            if let Some(node) = self.nodes.get(id) {
+                // If an intermediate ancestor is tagged or intrinsically interactive, it consumed the event
+                if node.tag != 0 || node.role.is_interactive() {
+                    return false;
+                }
+                curr = node.parent;
+            } else {
+                break;
+            }
         }
         false
     }

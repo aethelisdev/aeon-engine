@@ -10,14 +10,18 @@
 //!
 
 use super::panel::ASSETS_FOOTER_HEIGHT;
-use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelParams};
+use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelAction, AssetsPanelParams};
 use crate::assets::types::AssetBrowserState;
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use irisui::prelude::*;
 use std::fmt::Write;
 
 /// Declarative construction of the Asset Browser bottom status bar and telemetry footer.
-pub fn build_asset_footer_scope(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
+pub fn build_asset_footer_scope(
+    scope: &mut UiScope<'_>,
+    params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
     scope.container_named(
         "AssetsFooter",
         Style::new()
@@ -50,12 +54,15 @@ pub fn build_asset_footer_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPar
                         .hover_background(Color::rgba(0.20, 0.24, 0.32, 1.0))
                         .border_radius(3.0);
 
-                    left.button_named_styled_tagged(
+                    let tog_resp = left.button_named_styled_tagged(
                         "SidebarToggleButton",
                         tog_text,
                         tog_style,
                         ASSETS_TAG_TOGGLE_SIDEBAR,
                     );
+                    if tog_resp.clicked() {
+                        actions.push(AssetsPanelAction::ToggleSidebar);
+                    }
 
                     // Folder Logo (`ICON_FOLDER`) + Path
                     left.icon_named(

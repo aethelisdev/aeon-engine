@@ -3,10 +3,16 @@
 
 //! Top-level event orchestration and interaction routing for Iris UI editor overlays.
 
-use crate::ui::iris_bridge::assets::{ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT};
+use crate::ui::iris_bridge::assets::{
+    ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT,
+    ASSETS_TAG_TREE_VIEWPORT,
+};
 use crate::ui::iris_bridge::compositor;
-use crate::ui::iris_bridge::console::{CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT};
+use crate::ui::iris_bridge::console::{
+    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_VIEWPORT,
+};
 use crate::ui::iris_bridge::hierarchy::{HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT};
+use crate::ui::iris_bridge::stats::STATS_TAG_VIEWPORT;
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use crate::ui::iris_bridge::{ActiveOverlay, ModalKind};
 use crate::ui::panel_layout::PanelId;
@@ -30,21 +36,41 @@ impl IrisEditorOverlay {
         let current_cursor = self.chrome.cursor_pos;
 
         // 0. Autonomous Iris UI hierarchical tree dispatch (Phase 4 Foundation)
-        // If the autonomous retained tree consumed the event, immediately trigger reactive
-        // invalidation and return early to completely prevent double-dispatch in legacy panel handlers.
-        if let Some(ui_event) = irisui::winit::winit_to_ui_event(event, current_cursor) {
-            let tree_dispatch = self.tree.dispatch_event(&ui_event);
-            if tree_dispatch.is_consumed() {
-                self.notifier.tag_all();
-                self.chrome.needs_layout_rebuild = true;
-                return IrisOverlayEventResult {
-                    consumed: true,
-                    ..Default::default()
-                };
-            }
-        }
+        // Dispatches events through the retained tree hierarchy (hover, reactive clicks, scroll bubbling).
+        let tree_consumed =
+            if let Some(ui_event) = irisui::winit::winit_to_ui_event(event, current_cursor) {
+                let tree_dispatch = self.tree.dispatch_event(&ui_event);
+                if tree_dispatch.is_consumed() {
+                    if let Some(target_id) = tree_dispatch.target {
+                        let scroll_y = self
+                            .tree
+                            .get(target_id)
+                            .map_or(0.0, |n| n.style.scroll_offset_y);
+                        let tag = tree_dispatch.target_tag;
+                        if tag == CONSOLE_TAG_VIEWPORT {
+                            self.console.scroll_y = scroll_y;
+                            self.console.interactions.scroll_y = scroll_y;
+                        } else if tag == ASSETS_TAG_CONTENT_VIEWPORT {
+                            self.assets.scroll_y = scroll_y;
+                            self.assets.interactions.scroll_y = scroll_y;
+                        } else if tag == ASSETS_TAG_TREE_VIEWPORT {
+                            self.assets.tree_scroll_y = scroll_y;
+                        } else if tag == STATS_TAG_VIEWPORT {
+                            self.stats.scroll_y = scroll_y;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
 
-        let result = self.dispatch_window_event_internal(event, world);
+        let mut result = self.dispatch_window_event_internal(event, world);
+        if tree_consumed {
+            result.consumed = true;
+        }
 
         // Reactive Event Invalidation: If any UI element consumed this event, produced
         // an action result, or queued typed actions in its PanelInteractionState, immediately
@@ -169,7 +195,7 @@ impl IrisEditorOverlay {
                         }
                     }
                     Some(ActiveOverlay::AssetsContextMenu) => {
-                        if let Some(assets_res) = self.handle_assets_window_event(event) {
+                        if let Some(assets_res) = self.handle_assets_context_menu_event(event) {
                             return assets_res;
                         }
                     }
@@ -423,11 +449,6 @@ impl IrisEditorOverlay {
             return Some(pref_drag_res);
         }
 
-        // Active Asset Drag Interaction (Global mouse release and Escape cancellation)
-        if let Some(asset_drag_res) = self.handle_asset_drag_events(event) {
-            return Some(asset_drag_res);
-        }
-
         None
     }
 
@@ -439,9 +460,6 @@ impl IrisEditorOverlay {
     ) -> Option<IrisOverlayEventResult> {
         if let Some(hud_res) = self.handle_viewport_hud_window_event(event) {
             return Some(hud_res);
-        }
-        if let Some(assets_res) = self.handle_assets_window_event(event) {
-            return Some(assets_res);
         }
         if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
             return Some(hier_res);
@@ -472,9 +490,6 @@ impl IrisEditorOverlay {
         }
         if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
             return Some(hier_res);
-        }
-        if let Some(assets_res) = self.handle_assets_window_event(event) {
-            return Some(assets_res);
         }
         if let Some(mat_res) = self.handle_material_window_event(event) {
             return Some(mat_res);
@@ -517,10 +532,6 @@ impl IrisEditorOverlay {
             && let Some(hier_res) = self.handle_hierarchy_window_event(event)
         {
             res = Some(hier_res);
-        } else if (!is_pointer || is_in(&self.panels, PanelId::Assets))
-            && let Some(assets_res) = self.handle_assets_window_event(event)
-        {
-            res = Some(assets_res);
         } else if (!is_pointer || is_in(&self.panels, PanelId::AnimationTimeline))
             && let Some(timeline_res) = self.handle_timeline_window_event(event)
         {
@@ -579,5 +590,134 @@ impl IrisEditorOverlay {
         self.ui_designer.is_add_menu_open = false;
         self.ui_designer.is_aspect_open = false;
         self.overlay_tree.close();
+    }
+
+    /// Handles click interactions targeted at the active Assets panel right-click context menu.
+    ///
+    /// Evaluates menu item hit-testing directly against [`OverlayTree`] using semantic action tags.
+    pub(crate) fn handle_assets_context_menu_event(
+        &mut self,
+        event: &WindowEvent,
+    ) -> Option<IrisOverlayEventResult> {
+        let WindowEvent::MouseInput {
+            state: winit::event::ElementState::Pressed,
+            button: winit::event::MouseButton::Left,
+            ..
+        } = event
+        else {
+            return None;
+        };
+
+        let cursor = self.cursor_pos();
+        let hit = self.overlay_tree.tree().hit_test_target(cursor)?;
+        let action = crate::ui::iris_bridge::assets::resolve_assets_ctx_action(hit.tag)?;
+        let target = self.assets.context_menu.as_ref().map(|(t, _)| t.clone())?;
+
+        let result = IrisOverlayEventResult {
+            consumed: true,
+            ..Default::default()
+        };
+
+        match (action, target) {
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::NewFolder,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(folder),
+            ) => {
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::OpenCreateSubfolder(folder),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Rename,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(folder),
+            ) => {
+                let name = folder
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("")
+                    .to_string();
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::OpenRename(
+                        folder, name, true,
+                    ),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Rename,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(item),
+            ) => {
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::OpenRename(
+                        item.path, item.name, false,
+                    ),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Delete,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(folder),
+            ) => {
+                self.assets
+                    .actions
+                    .push(crate::ui::iris_bridge::assets::AssetsPanelAction::OpenDelete(folder));
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Delete,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(item),
+            ) => {
+                self.assets
+                    .actions
+                    .push(crate::ui::iris_bridge::assets::AssetsPanelAction::OpenDelete(item.path));
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Inspect,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(item),
+            ) => {
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::OpenInspectModal(item),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Spawn,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(item),
+            ) => {
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::SpawnAsset(
+                        item.path,
+                        item.category,
+                    ),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::CopyPath,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(item),
+            ) => {
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::CopyPath(item.path),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Reveal,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(item),
+            ) => {
+                self.assets.actions.push(
+                    crate::ui::iris_bridge::assets::AssetsPanelAction::RevealFolder(item.path),
+                );
+            }
+            (
+                crate::ui::iris_bridge::assets::AssetsContextMenuAction::Reveal,
+                crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(folder),
+            ) => {
+                self.assets
+                    .actions
+                    .push(crate::ui::iris_bridge::assets::AssetsPanelAction::RevealFolder(folder));
+            }
+            _ => {}
+        }
+
+        self.assets.context_menu = None;
+        self.overlay_tree.close();
+        self.chrome.needs_layout_rebuild = true;
+        self.notifier.tag_all();
+        Some(result)
     }
 }

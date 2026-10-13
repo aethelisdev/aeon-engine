@@ -11,7 +11,10 @@ use crate::declarative::layout::layout_subtree;
 use crate::modal::{
     MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
 };
-use iris_core::{Color, InteractionEvent, Point, Rect, UiTree, WidgetId, WidgetRole};
+use iris_core::{
+    Color, InteractionEvent, Point, Rect, ResponseFlags, UiTree, WidgetId, WidgetResponse,
+    WidgetRole,
+};
 
 /// Declarative UI hierarchical builder scope.
 ///
@@ -235,6 +238,11 @@ impl<'a> UiScope<'a> {
         // 1. Autonomous dispatch event integration from UiTree::event_state
         if self.tree.event_state.frame_clicked_id == Some(id)
             || (tag != 0 && self.tree.event_state.frame_clicked_tag == Some(tag))
+            || self
+                .tree
+                .event_state
+                .frame_clicked_id
+                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id))
         {
             clicked = true;
         }
@@ -290,9 +298,51 @@ impl<'a> UiScope<'a> {
                     .event_state
                     .hovered
                     .and_then(|hid| self.tree.get(hid))
-                    .is_some_and(|n| n.tag == tag));
+                    .is_some_and(|n| n.tag == tag))
+            || self
+                .tree
+                .event_state
+                .hovered
+                .is_some_and(|hid| self.tree.is_descendant_of(hid, id));
 
         (clicked, hovered, drag_delta)
+    }
+
+    /// Returns a [`WidgetResponse`] describing the interaction state of the given widget node.
+    ///
+    /// Evaluates clicks, hovers, double-clicks, and drag interactions against [`UiTree::event_state`].
+    pub fn response(&self, id: WidgetId) -> WidgetResponse {
+        let tag = self.tree.get(id).map_or(0, |n| n.tag);
+        let (clicked, hovered, _) = self.check_interaction(id);
+        let double_clicked = self.tree.event_state.frame_double_clicked_id == Some(id)
+            || (tag != 0 && self.tree.event_state.frame_double_clicked_tag == Some(tag))
+            || self
+                .tree
+                .event_state
+                .frame_double_clicked_id
+                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+        let secondary_clicked = self.tree.event_state.frame_secondary_clicked_id == Some(id)
+            || (tag != 0 && self.tree.event_state.frame_secondary_clicked_tag == Some(tag))
+            || self
+                .tree
+                .event_state
+                .frame_secondary_clicked_id
+                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+
+        let mut flags = ResponseFlags::empty();
+        if clicked {
+            flags = flags.union(ResponseFlags::CLICKED);
+        }
+        if hovered {
+            flags = flags.union(ResponseFlags::HOVERED);
+        }
+        if double_clicked {
+            flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
+        }
+        if secondary_clicked {
+            flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
+        }
+        WidgetResponse::from_flags(id, Rect::ZERO, flags)
     }
 
     /// Checks whether the given widget node or its semantic tag is actively in a pressed state.

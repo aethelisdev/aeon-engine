@@ -14,6 +14,8 @@ pub mod cards;
 pub mod chips;
 pub mod components;
 pub mod context_menu;
+#[cfg(test)]
+mod declarative_tests;
 pub mod drag_overlay;
 pub mod events;
 pub mod footer;
@@ -45,10 +47,11 @@ pub use events::{
 };
 pub use panel::build_assets_panel;
 pub use types::{
-    ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_DOMAIN, ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT,
-    ASSETS_TAG_PANEL_ROOT, ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK,
-    ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_TOGGLE_SIDEBAR,
-    ASSETS_TAG_TREE_SCROLLBAR_THUMB, ASSETS_TAG_TREE_SCROLLBAR_TRACK, ASSETS_TAG_VIEW_GRID,
+    ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_DOMAIN,
+    ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT, ASSETS_TAG_PANEL_ROOT,
+    ASSETS_TAG_SCROLLBAR_THUMB, ASSETS_TAG_SCROLLBAR_TRACK, ASSETS_TAG_SEARCH_CLEAR,
+    ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_TOGGLE_SIDEBAR, ASSETS_TAG_TREE_SCROLLBAR_THUMB,
+    ASSETS_TAG_TREE_SCROLLBAR_TRACK, ASSETS_TAG_TREE_VIEWPORT, ASSETS_TAG_VIEW_GRID,
     ASSETS_TAG_VIEW_LIST, AssetItemAction, AssetPreviewModalState, AssetsContextMenuAction,
     AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
     AssetsPanelState, AssetsState, AssetsTagTarget, encode_breadcrumb_tag, encode_chip_tag,

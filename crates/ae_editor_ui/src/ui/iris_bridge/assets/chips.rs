@@ -7,7 +7,7 @@
 //! and synchronized selection state.
 //!
 
-use super::types::{AssetsPanelParams, encode_chip_tag};
+use super::types::{AssetsPanelAction, AssetsPanelParams, encode_chip_tag};
 use crate::assets::types::{AssetCategory, AssetSource};
 use irisui::prelude::*;
 
@@ -15,10 +15,12 @@ use irisui::prelude::*;
 ///
 /// Features dynamic item counters, category accent borders, and 64-bit semantic tags
 /// (`encode_chip_tag`) for zero-allocation $O(1)$ hit-testing.
+/// Clicking a chip appends [`AssetsPanelAction::SelectCategory`] to the action stream.
 pub fn build_category_chips_scope(
     scope: &mut UiScope<'_>,
     chips_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let categories = [
         (AssetCategory::All, "All Assets"),
@@ -100,7 +102,7 @@ pub fn build_category_chips_scope(
                         .hover_border(1.0, Color::rgba(0.28, 0.32, 0.42, 0.70));
                 }
 
-                row.container_tagged(
+                let chip_id = row.container_tagged(
                     "CategoryChip",
                     chip_style,
                     WidgetRole::Button,
@@ -119,6 +121,9 @@ pub fn build_category_chips_scope(
                         }
                     },
                 );
+                if row.response(chip_id).clicked() {
+                    actions.push(AssetsPanelAction::SelectCategory(cat));
+                }
             }
         },
     );
@@ -130,9 +135,10 @@ pub fn build_category_chips(
     parent_id: WidgetId,
     chips_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let mut scope = UiScope::new(tree, parent_id);
-    build_category_chips_scope(&mut scope, chips_rect, params);
+    build_category_chips_scope(&mut scope, chips_rect, params, actions);
 }
 
 #[cfg(test)]

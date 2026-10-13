@@ -53,6 +53,14 @@ pub struct EventState {
     pub frame_clicked_id: Option<WidgetId>,
     /// Persistent 64-bit semantic tag confirmed as clicked during the current dispatch cycle, if any.
     pub frame_clicked_tag: Option<u64>,
+    /// Widget node confirmed as double-clicked during the current dispatch cycle, if any.
+    pub frame_double_clicked_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag confirmed as double-clicked during the current dispatch cycle, if any.
+    pub frame_double_clicked_tag: Option<u64>,
+    /// Widget node confirmed as secondary (right) clicked during the current dispatch cycle, if any.
+    pub frame_secondary_clicked_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag confirmed as secondary (right) clicked during the current dispatch cycle, if any.
+    pub frame_secondary_clicked_tag: Option<u64>,
     /// Pointer delta movement vector accumulated during active dragging gestures in the current frame.
     pub frame_drag_delta: Option<Point>,
     /// Previous cursor screen position recorded during dragging to calculate incremental frame deltas.
@@ -83,6 +91,10 @@ impl EventState {
             last_click_time: None,
             frame_clicked_id: None,
             frame_clicked_tag: None,
+            frame_double_clicked_id: None,
+            frame_double_clicked_tag: None,
+            frame_secondary_clicked_id: None,
+            frame_secondary_clicked_tag: None,
             frame_drag_delta: None,
             last_pointer_pos: None,
             frame_key: None,
@@ -105,6 +117,10 @@ impl EventState {
         self.last_click_time = None;
         self.frame_clicked_id = None;
         self.frame_clicked_tag = None;
+        self.frame_double_clicked_id = None;
+        self.frame_double_clicked_tag = None;
+        self.frame_secondary_clicked_id = None;
+        self.frame_secondary_clicked_tag = None;
         self.frame_drag_delta = None;
         self.last_pointer_pos = None;
         self.frame_key = None;
@@ -117,6 +133,10 @@ impl EventState {
     pub fn clear_frame_clicks(&mut self) {
         self.frame_clicked_id = None;
         self.frame_clicked_tag = None;
+        self.frame_double_clicked_id = None;
+        self.frame_double_clicked_tag = None;
+        self.frame_secondary_clicked_id = None;
+        self.frame_secondary_clicked_tag = None;
         self.frame_drag_delta = None;
         self.frame_key = None;
         self.frame_text_input = None;

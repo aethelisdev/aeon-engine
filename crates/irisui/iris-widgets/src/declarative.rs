@@ -21,9 +21,9 @@ pub use layout::{
 };
 pub use scope::{
     InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, ScrollAreaConfig, TreeRowProps, TreeViewConfig,
-    TreeViewProps, UiScope, WrappedLabelDescriptor, calculate_visible_slice_and_caret,
-    measure_text_advance,
+    PropertyVec3Options, PropertyVec3Response, ScrollAreaConfig, TreeNodeProps, TreeRowProps,
+    TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope, WrappedLabelDescriptor,
+    calculate_visible_slice_and_caret, measure_text_advance,
 };
 pub use types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,

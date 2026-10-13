@@ -1,0 +1,218 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Unit Tests for Autonomous Declarative Assets Panel Interactions
+//!
+//! Verifies that [`build_assets_panel`] correctly reads widget responses
+//! from autonomous tree interactions and emits canonical [`AssetsPanelAction`]
+//! variants without routing through legacy event interceptors.
+//!
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use irisui::prelude::*;
+
+use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+use crate::ui::iris_bridge::assets::panel::build_assets_panel;
+use crate::ui::iris_bridge::assets::types::{
+    ASSETS_TAG_IMPORT, AssetsPanelAction, AssetsPanelParams, encode_item_tag,
+};
+
+/// Verifies that clicking declarative toolbar buttons and category filter chips
+/// synchronously generates the corresponding [`AssetsPanelAction`] actions.
+#[test]
+fn test_assets_panel_declarative_toolbar_and_chip_actions() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &[],
+        filtered_items: &[],
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(10.0, 10.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+
+    // 1. Initial build: constructs the tree and registers tags
+    let mut actions = Vec::new();
+    let _metrics = build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
+    assert!(
+        actions.is_empty(),
+        "Initial idle build must emit zero actions"
+    );
+
+    // 2. Find Import button node
+    let mut import_node_info = None;
+    tree.traverse_depth_first(root_id, &mut |id, node| {
+        if node.tag == ASSETS_TAG_IMPORT {
+            import_node_info = Some((id, node.computed_rect));
+        }
+    });
+
+    let (import_id, import_rect) = import_node_info.expect("Import button must exist in UI tree");
+    assert!(import_rect.width > 0.0 && import_rect.height > 0.0);
+
+    let click_pos = Point::new(import_rect.x + 2.0, import_rect.y + 2.0);
+
+    // 3. Dispatch MouseDown and MouseUp to simulate click on the Import button
+    let down_event = UiEvent::MouseDown {
+        point: click_pos,
+        button: MouseButton::Left,
+    };
+    tree.dispatch_event(&down_event);
+
+    let up_event = UiEvent::MouseUp {
+        point: click_pos,
+        button: MouseButton::Left,
+    };
+    let dispatch_res = tree.dispatch_event(&up_event);
+    assert!(
+        dispatch_res.consumed,
+        "Click event must be consumed by tree"
+    );
+    assert_eq!(tree.event_state.frame_clicked_id, Some(import_id));
+
+    // 4. Rebuild assets panel with updated event state: must emit AssetsPanelAction::Import
+    let mut click_actions = Vec::new();
+    let mut params_clicked = params;
+    params_clicked.cursor_pos = click_pos;
+
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params_clicked,
+        &mut TreeState::default(),
+        &mut click_actions,
+    );
+    assert!(
+        click_actions.contains(&AssetsPanelAction::OpenImportDialog),
+        "Import button click must emit AssetsPanelAction::OpenImportDialog, got: {:?}",
+        click_actions
+    );
+}
+
+/// Verifies that clicking an asset card emits [`AssetsPanelAction::SelectAsset`].
+#[test]
+fn test_assets_panel_declarative_card_selection_action() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let test_item = AssetItem {
+        name: "hero.png".to_string(),
+        path: PathBuf::from("assets/textures/hero.png"),
+        relative_path: "textures/hero.png".to_string(),
+        category: AssetCategory::Textures2D,
+        source: AssetSource::Project,
+        file_size_bytes: 2048,
+        metadata_badge: "2.0 KB".to_string(),
+        is_loaded_in_memory: false,
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: false,
+    };
+
+    let items = [test_item.clone()];
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        scroll_y: 0.0,
+        tree_scroll_y: 0.0,
+        cursor_pos: Point::new(10.0, 10.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+
+    // 1. Initial build: constructs the card
+    let mut actions = Vec::new();
+    let _metrics = build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
+
+    // 2. Find asset card tag
+    let card_tag = encode_item_tag(0);
+    let mut card_rect = None;
+    tree.traverse_depth_first(root_id, &mut |_id, node| {
+        if node.tag == card_tag {
+            card_rect = Some(node.computed_rect);
+        }
+    });
+
+    let rect = card_rect.expect("Asset card 0 must exist in UI tree");
+    let click_pos = Point::new(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+
+    // 3. Dispatch click
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: click_pos,
+        button: MouseButton::Left,
+    });
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        point: click_pos,
+        button: MouseButton::Left,
+    });
+    assert!(up_res.consumed, "Card click event must be consumed by tree");
+
+    // 4. Rebuild: must emit SelectAsset(Some(path))
+    let mut select_actions = Vec::new();
+    let mut params_clicked = params;
+    params_clicked.cursor_pos = click_pos;
+
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params_clicked,
+        &mut TreeState::default(),
+        &mut select_actions,
+    );
+    assert_eq!(
+        select_actions,
+        vec![AssetsPanelAction::SelectAsset(Some(test_item.path))],
+        "Asset card single-click must emit SelectAsset(Some(path))"
+    );
+}

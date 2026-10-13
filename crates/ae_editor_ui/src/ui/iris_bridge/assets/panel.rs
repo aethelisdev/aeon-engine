@@ -7,6 +7,7 @@
 //! left folder tree sidebar, scrollable card/table views, and telemetry footer
 //! using a pure declarative Taffy flexbox layout hierarchy without manual pixel math.
 //!
+use std::path::PathBuf;
 
 use super::cards::build_asset_grid_cards_scope;
 use super::chips::build_category_chips_scope;
@@ -14,7 +15,9 @@ use super::footer::build_asset_footer_scope;
 use super::list::build_asset_list_table_scope;
 use super::toolbar::build_asset_toolbar_scope;
 use super::tree::build_folder_tree_sidebar_scope;
-use super::types::{ASSETS_TAG_PANEL_ROOT, AssetsPanelLayoutMetrics, AssetsPanelParams};
+use super::types::{
+    ASSETS_TAG_PANEL_ROOT, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
+};
 use crate::assets::types::AssetViewMode;
 use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
@@ -32,6 +35,7 @@ pub const ASSETS_FOOTER_HEIGHT: f32 = 24.0;
 ///
 /// Uses an idiomatic nested `UiScope` closure tree adhering strictly to modern Taffy flexbox
 /// standards with zero imperative node allocations, zero target collections, and zero per-frame clones.
+/// Gathers user interaction events into `actions` for Redux/Action-driven state updates.
 ///
 /// Returns [`AssetsPanelLayoutMetrics`] describing the outer panel bounds, sidebar geometry,
 /// asset content viewport, and optional floating context menu card bounds.
@@ -39,6 +43,8 @@ pub fn build_assets_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &AssetsPanelParams<'_>,
+    tree_state: &mut TreeState<PathBuf>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) -> AssetsPanelLayoutMetrics {
     let mut resolved_sidebar_rect = None;
     let mut resolved_content_rect = Rect::default();
@@ -52,7 +58,7 @@ pub fn build_assets_panel(
         ELEVATION_1_PANEL,
         |panel_scope| {
             // 2. Top Header Toolbar (Pure Flexbox Breadcrumbs + Controls)
-            build_asset_toolbar_scope(panel_scope, params);
+            build_asset_toolbar_scope(panel_scope, params, actions);
 
             // 3. Category Filter Chips Row (Fixed height, horizontal flex row)
             let chips_rect = Rect::new(
@@ -61,7 +67,7 @@ pub fn build_assets_panel(
                 params.panel_rect.width,
                 ASSETS_CHIPS_BAR_HEIGHT,
             );
-            build_category_chips_scope(panel_scope, chips_rect, params);
+            build_category_chips_scope(panel_scope, chips_rect, params, actions);
 
             // 4. Middle Body (Pure Taffy flex_row with flex_grow(1.0) taking all available space)
             panel_scope.container_named(
@@ -87,7 +93,9 @@ pub fn build_assets_panel(
                             body_h,
                         );
                         resolved_sidebar_rect = Some(sb_rect);
-                        build_folder_tree_sidebar_scope(body_scope, sb_rect, params);
+                        build_folder_tree_sidebar_scope(
+                            body_scope, sb_rect, params, tree_state, actions,
+                        );
                     }
 
                     // Right Side: Content Viewport (flex_col with flex_grow(1.0))
@@ -120,10 +128,20 @@ pub fn build_assets_panel(
                         super::types::ASSETS_TAG_CONTENT_VIEWPORT,
                         |content_scope| match params.view_mode {
                             AssetViewMode::Grid => {
-                                build_asset_grid_cards_scope(content_scope, content_rect, params);
+                                build_asset_grid_cards_scope(
+                                    content_scope,
+                                    content_rect,
+                                    params,
+                                    actions,
+                                );
                             }
                             AssetViewMode::List => {
-                                build_asset_list_table_scope(content_scope, content_rect, params);
+                                build_asset_list_table_scope(
+                                    content_scope,
+                                    content_rect,
+                                    params,
+                                    actions,
+                                );
                             }
                         },
                     );
@@ -131,7 +149,7 @@ pub fn build_assets_panel(
             );
 
             // 5. Bottom Status Footer (Pure Flexbox Telemetry + Sidebar Toggle)
-            build_asset_footer_scope(panel_scope, params);
+            build_asset_footer_scope(panel_scope, params, actions);
         },
     );
 

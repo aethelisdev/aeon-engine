@@ -189,6 +189,8 @@ pub struct TreeRowResponse {
     pub hovered: bool,
     /// Whether the foldout chevron button is currently hovered.
     pub foldout_hovered: bool,
+    /// Whether the row container was secondary (right) clicked during this frame.
+    pub secondary_clicked: bool,
     /// Whether the row is currently marked as selected.
     pub is_selected: bool,
     /// Whether the branch is currently marked as expanded.
@@ -212,6 +214,12 @@ impl TreeRowResponse {
     #[inline]
     pub const fn clicked(&self) -> bool {
         self.clicked
+    }
+
+    /// Returns `true` if the row body was secondary (right) clicked during this frame.
+    #[inline]
+    pub const fn secondary_clicked(&self) -> bool {
+        self.secondary_clicked
     }
 
     /// Returns `true` if the foldout chevron button was clicked during this frame.
@@ -384,6 +392,7 @@ impl<'a> UiScope<'a> {
             });
 
         let (row_clicked, row_hovered, _) = self.check_interaction(row_id);
+        let row_secondary_clicked = self.response(row_id).secondary_clicked();
         let (foldout_clicked, foldout_hovered) = if let Some(fid) = foldout_id {
             let (fc, fh, _) = self.check_interaction(fid);
             (fc, fh)
@@ -395,6 +404,7 @@ impl<'a> UiScope<'a> {
             id: row_id,
             foldout_id,
             clicked: row_clicked,
+            secondary_clicked: row_secondary_clicked,
             foldout_clicked,
             hovered: row_hovered,
             foldout_hovered,

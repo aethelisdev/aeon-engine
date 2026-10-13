@@ -12,7 +12,7 @@
 //!
 
 use super::components::{ASSET_LIST_ROW_HEIGHT, asset_list_row};
-use super::types::AssetsPanelParams;
+use super::types::{ASSETS_TAG_CONTENT_VIEWPORT, AssetsPanelAction, AssetsPanelParams};
 use irisui::prelude::*;
 
 /// Height of an individual table row in pixels.
@@ -27,9 +27,10 @@ pub fn build_asset_list_table(
     parent_id: WidgetId,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let mut scope = UiScope::new(tree, parent_id);
-    build_asset_list_table_scope(&mut scope, vp_rect, params);
+    build_asset_list_table_scope(&mut scope, vp_rect, params, actions);
 }
 
 /// Constructs the multi-column table rows directly via a declarative [`UiScope`].
@@ -37,6 +38,7 @@ pub fn build_asset_list_table_scope(
     scope: &mut UiScope<'_>,
     vp_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let total_w = vp_rect.width - 16.0;
     let col_name_w = (total_w * 0.40).max(140.0);
@@ -107,7 +109,7 @@ pub fn build_asset_list_table_scope(
     let vlist = VirtualList::new(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0);
     let slice = vlist.compute_slice(available_table_h, params.scroll_y);
 
-    scope.container_named(
+    let container_id = scope.container_tagged(
         "AssetListRowsContainer",
         Style::new()
             .flex_col()
@@ -116,6 +118,8 @@ pub fn build_asset_list_table_scope(
             .margin_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
             .gap(2.0)
             .scroll_offset_y(-(params.scroll_y % (LIST_ROW_HEIGHT + 2.0))),
+        WidgetRole::ScrollAreaViewport,
+        ASSETS_TAG_CONTENT_VIEWPORT,
         |rows_scope| {
             for (offset, item) in params.filtered_items[slice.start_idx..slice.end_idx]
                 .iter()
@@ -124,11 +128,37 @@ pub fn build_asset_list_table_scope(
                 let row_idx = slice.start_idx + offset;
                 let is_selected = params.selected_asset == Some(&item.path);
 
-                // Zero heap allocation: no item clones, no target list pushes
-                asset_list_row(rows_scope, row_idx as u32, item, is_selected);
+                let row_resp = asset_list_row(rows_scope, row_idx as u32, item, is_selected);
+                if row_resp.spawn_clicked {
+                    actions.push(AssetsPanelAction::SpawnAsset(
+                        item.path.clone(),
+                        item.category,
+                    ));
+                } else if row_resp.inspect_clicked {
+                    actions.push(AssetsPanelAction::InspectAsset(item.clone()));
+                } else if row_resp.row_secondary_clicked {
+                    actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+                    actions.push(AssetsPanelAction::OpenContextMenu(
+                        crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Asset(
+                            item.clone(),
+                        ),
+                        params.cursor_pos,
+                    ));
+                } else if row_resp.row_clicked {
+                    actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+                }
             }
         },
     );
+
+    if scope.response(container_id).secondary_clicked() {
+        actions.push(AssetsPanelAction::OpenContextMenu(
+            crate::ui::iris_bridge::assets::AssetsContextMenuTarget::Folder(
+                params.current_folder.to_path_buf(),
+            ),
+            params.cursor_pos,
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -177,7 +207,6 @@ mod tests {
             sidebar_collapsed: false,
             scroll_y: 0.0,
             tree_scroll_y: 0.0,
-            tree_state: &TreeState::default(),
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
@@ -188,11 +217,13 @@ mod tests {
             cursor_byte_idx: 0,
         };
 
+        let mut actions = Vec::new();
         build_asset_list_table(
             &mut tree,
             root_id,
             Rect::new(0.0, 0.0, 600.0, 400.0),
             &params,
+            &mut actions,
         );
 
         let found_header = tree

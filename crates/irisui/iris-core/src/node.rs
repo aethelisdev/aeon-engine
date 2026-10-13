@@ -193,6 +193,31 @@ impl WidgetRole {
             _ => None,
         }
     }
+
+    /// Returns `true` if this role represents an intrinsically interactive control capable of consuming pointer clicks.
+    ///
+    /// Passive background containers, layout flexboxes, and non-actionable decoration elements return `false`
+    /// to ensure unhandled pointer interactions fall through cleanly to underlying layers or 3D viewports.
+    #[inline]
+    pub const fn is_interactive(&self) -> bool {
+        matches!(
+            self,
+            WidgetRole::Button
+                | WidgetRole::MenuBarItem
+                | WidgetRole::DropdownItem
+                | WidgetRole::Checkbox
+                | WidgetRole::TextInput
+                | WidgetRole::NumericInput
+                | WidgetRole::ColorSwatch
+                | WidgetRole::DockTab
+                | WidgetRole::DockSplitterHorizontal
+                | WidgetRole::DockSplitterVertical
+                | WidgetRole::ScrollBarThumb
+                | WidgetRole::ScrollBarTrack
+                | WidgetRole::ModalWindow
+                | WidgetRole::FloatingWindow
+        )
+    }
 }
 
 /// A single node in the Retained-Mode UI tree stored in the central arena.

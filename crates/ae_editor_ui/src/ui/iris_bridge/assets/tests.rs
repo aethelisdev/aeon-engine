@@ -56,7 +56,6 @@ fn test_assets_panel_structure_and_no_emojis() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -66,7 +65,14 @@ fn test_assets_panel_structure_and_no_emojis() {
         cursor_byte_idx: 0,
     };
 
-    let metrics = build_assets_panel(&mut tree, root_id, &params);
+    let mut actions = Vec::new();
+    let metrics = build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
 
     assert_eq!(metrics.panel_rect, panel_rect);
     assert!(has_tag_recursive(&tree, root_id, encode_breadcrumb_tag(0)));
@@ -281,12 +287,9 @@ fn test_assets_folder_tree_click_and_toggle_dispatch() {
 
     let consumed = events::handle_assets_click(&ctx_chev, &mut tracker, &mut actions);
     assert!(consumed, "Click on chevron must be consumed");
-    assert_eq!(
-        actions,
-        vec![AssetsPanelAction::ToggleFolder(PathBuf::from(
-            "assets/models"
-        ))],
-        "Chevron click must dispatch ToggleFolder action"
+    assert!(
+        actions.is_empty(),
+        "Chevron click is handled autonomously in-place and dispatches zero external actions"
     );
 
     // 2. Click on folder row item body (is_chevron = false)
@@ -360,7 +363,6 @@ fn test_preview_modal_build_and_actions() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(500.0, 300.0),
         blink_caret: true,
         active_context_menu: None,
@@ -370,7 +372,14 @@ fn test_preview_modal_build_and_actions() {
         cursor_byte_idx: 0,
     };
 
-    let metrics = build_assets_panel(&mut tree, root_id, &params);
+    let mut actions_build = Vec::new();
+    let metrics = build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions_build,
+    );
 
     // Test clicking the close button on the preview modal via semantic hit target
     let mut close_pos = Point::new(0.0, 0.0);
@@ -450,7 +459,6 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         active_context_menu: None,
@@ -460,7 +468,14 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
         cursor_byte_idx: 0,
     };
 
-    build_assets_panel(&mut tree, root_id, &params_idle);
+    let mut actions_idle = Vec::new();
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params_idle,
+        &mut TreeState::default(),
+        &mut actions_idle,
+    );
 
     let mut has_test_level_title = false;
     let mut close_rect = Rect::ZERO;
@@ -509,7 +524,14 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     let mut params_hover = params_idle;
     params_hover.cursor_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
 
-    build_assets_panel(&mut tree_hover, root_hover, &params_hover);
+    let mut actions_hover = Vec::new();
+    build_assets_panel(
+        &mut tree_hover,
+        root_hover,
+        &params_hover,
+        &mut TreeState::default(),
+        &mut actions_hover,
+    );
 
     let mut close_node_hover_bg = None;
     tree_hover.traverse_depth_first(root_hover, &mut |_id, node| {
@@ -585,7 +607,6 @@ fn test_assets_card_rendering_with_unicode_filenames() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -596,7 +617,14 @@ fn test_assets_card_rendering_with_unicode_filenames() {
     };
 
     // Should build cards with Turkish/Unicode filenames without any panic
-    build_assets_panel(&mut tree, root_id, &params);
+    let mut actions = Vec::new();
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
     assert!(has_tag_recursive(&tree, root_id, encode_item_tag(0)));
 }
 
@@ -886,7 +914,6 @@ fn test_engine_and_sidebar_vector_icons() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -896,7 +923,14 @@ fn test_engine_and_sidebar_vector_icons() {
         cursor_byte_idx: 0,
     };
 
-    build_assets_panel(&mut tree, root_id, &params);
+    let mut actions = Vec::new();
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
 
     fn find_node_by_name<'a>(
         tree: &'a UiTree,
@@ -1095,7 +1129,6 @@ fn test_assets_context_menu_builder_and_hit_testing() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(210.0, 160.0),
         blink_caret: false,
         active_context_menu: Some(&ctx_menu_data),
@@ -1265,7 +1298,6 @@ fn test_assets_toolbar_width_and_search_ux() {
         sidebar_collapsed: false,
         scroll_y: 0.0,
         tree_scroll_y: 0.0,
-        tree_state: &TreeState::default(),
         cursor_pos: Point::new(100.0, 100.0),
         blink_caret: true,
         active_context_menu: None,
@@ -1275,7 +1307,14 @@ fn test_assets_toolbar_width_and_search_ux() {
         cursor_byte_idx: 0,
     };
 
-    build_assets_panel(&mut tree, root_id, &params);
+    let mut actions = Vec::new();
+    build_assets_panel(
+        &mut tree,
+        root_id,
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
 
     // Verify search input container is registered with ASSETS_TAG_SEARCH_INPUT
     assert!(has_tag_recursive(&tree, root_id, ASSETS_TAG_SEARCH_INPUT));

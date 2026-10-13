@@ -12,7 +12,9 @@
 //!
 
 use super::components::{FolderTreeItemParams, asset_folder_tree_item};
-use super::types::{ASSETS_TAG_NEW_SUBFOLDER, AssetsPanelParams};
+use super::types::{
+    ASSETS_TAG_NEW_SUBFOLDER, ASSETS_TAG_TREE_VIEWPORT, AssetsPanelAction, AssetsPanelParams,
+};
 use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
 use std::path::{Path, PathBuf};
@@ -26,9 +28,11 @@ pub fn build_folder_tree_sidebar(
     parent_id: WidgetId,
     sidebar_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    tree_state: &mut TreeState<PathBuf>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let mut scope = UiScope::new(tree, parent_id);
-    build_folder_tree_sidebar_scope(&mut scope, sidebar_rect, params);
+    build_folder_tree_sidebar_scope(&mut scope, sidebar_rect, params, tree_state, actions);
 }
 
 /// Constructs the complete hierarchical folder tree sidebar directly via a declarative [`UiScope`].
@@ -36,6 +40,8 @@ pub fn build_folder_tree_sidebar_scope(
     scope: &mut UiScope<'_>,
     sidebar_rect: Rect,
     params: &AssetsPanelParams<'_>,
+    tree_state: &mut TreeState<PathBuf>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     // 1. Sidebar Container with Hardware Scissor Clipping
     scope.container_named(
@@ -69,7 +75,7 @@ pub fn build_folder_tree_sidebar_scope(
                         Style::new(),
                     );
 
-                    hdr.container_tagged(
+                    let new_subfolder_id = hdr.container_tagged(
                         "NewSubfolderBtn",
                         Style::new()
                             .width(20.0)
@@ -89,11 +95,16 @@ pub fn build_folder_tree_sidebar_scope(
                             btn.set_hover_texture_tint(icon_id, Color::WHITE);
                         },
                     );
+                    if hdr.response(new_subfolder_id).clicked() {
+                        actions.push(AssetsPanelAction::OpenCreateSubfolder(
+                            params.current_folder.to_path_buf(),
+                        ));
+                    }
                 },
             );
 
             // 3. Scrollable Tree Viewport
-            sidebar.container_named(
+            sidebar.container_tagged(
                 "FolderTreeViewport",
                 Style::new()
                     .flex_col()
@@ -102,9 +113,20 @@ pub fn build_folder_tree_sidebar_scope(
                     .scroll_offset_y(params.tree_scroll_y)
                     .width(sidebar_rect.width)
                     .padding_insets(Insets::new(4.0, 0.0, 0.0, 0.0)),
+                WidgetRole::ScrollAreaViewport,
+                ASSETS_TAG_TREE_VIEWPORT,
                 |viewport| {
                     let root_path = PathBuf::from("assets");
-                    render_folder_recursive(viewport, &root_path, 0, params);
+                    render_folder_recursive(
+                        viewport,
+                        &root_path,
+                        0,
+                        params.subfolders,
+                        params.current_folder,
+                        params.cursor_pos,
+                        tree_state,
+                        actions,
+                    );
                 },
             );
         },
@@ -114,11 +136,16 @@ pub fn build_folder_tree_sidebar_scope(
 /// Recursively builds folder tree rows using declarative [`asset_folder_tree_item`].
 ///
 /// Pure zero-allocation traversal referencing engine pre-cached subfolders.
+/// Toggles expansion states autonomously in-place upon foldout chevron interactions.
 fn render_folder_recursive(
     scope: &mut UiScope<'_>,
     path: &Path,
     depth: u16,
-    params: &AssetsPanelParams<'_>,
+    subfolders: &[PathBuf],
+    current_folder: &Path,
+    cursor_pos: Point,
+    tree_state: &mut TreeState<PathBuf>,
+    actions: &mut Vec<AssetsPanelAction>,
 ) {
     let folder_name = path
         .file_name()
@@ -126,16 +153,15 @@ fn render_folder_recursive(
         .unwrap_or("assets");
 
     // Discover child directories from pre-cached engine state (ZERO DISK I/O)
-    let has_children = params.subfolders.iter().any(|p| p.parent() == Some(path));
+    let has_children = subfolders.iter().any(|p| p.parent() == Some(path));
 
-    let is_selected = params.current_folder == path;
-    let is_expanded = params.tree_state.is_expanded(&path.to_path_buf());
+    let is_selected = current_folder == path;
+    let is_expanded = tree_state.is_expanded(&path.to_path_buf());
 
     let node_idx = if path == Path::new("assets") {
         0
     } else {
-        params
-            .subfolders
+        subfolders
             .iter()
             .position(|p| p == path)
             .map(|i| (i + 1) as u32)
@@ -151,16 +177,32 @@ fn render_folder_recursive(
         is_expanded,
         is_selected,
     };
-    asset_folder_tree_item(scope, &item_params);
+    let row_resp = asset_folder_tree_item(scope, &item_params);
+    if row_resp.foldout_clicked() {
+        tree_state.toggle_expanded(&path.to_path_buf());
+    }
+    if row_resp.secondary_clicked() {
+        actions.push(AssetsPanelAction::OpenContextMenu(
+            super::types::AssetsContextMenuTarget::Folder(path.to_path_buf()),
+            cursor_pos,
+        ));
+    } else if row_resp.clicked() {
+        actions.push(AssetsPanelAction::NavigateFolder(path.to_path_buf()));
+    }
 
     // Recurse children if expanded
     if is_expanded {
-        for child in params
-            .subfolders
-            .iter()
-            .filter(|p| p.parent() == Some(path))
-        {
-            render_folder_recursive(scope, child, depth + 1, params);
+        for child in subfolders.iter().filter(|p| p.parent() == Some(path)) {
+            render_folder_recursive(
+                scope,
+                child,
+                depth + 1,
+                subfolders,
+                current_folder,
+                cursor_pos,
+                tree_state,
+                actions,
+            );
         }
     }
 }
@@ -200,7 +242,6 @@ mod tests {
             sidebar_collapsed: false,
             scroll_y: 0.0,
             tree_scroll_y: 0.0,
-            tree_state: &tree_state,
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
@@ -211,11 +252,14 @@ mod tests {
             cursor_byte_idx: 0,
         };
 
+        let mut actions = Vec::new();
         build_folder_tree_sidebar(
             &mut tree,
             root_id,
             Rect::new(0.0, 0.0, 180.0, 500.0),
             &params,
+            &mut tree_state,
+            &mut actions,
         );
 
         let found_sidebar = tree
@@ -269,7 +313,6 @@ mod tests {
                 sidebar_collapsed: false,
                 scroll_y: 0.0,
                 tree_scroll_y: 0.0,
-                tree_state: &tree_state,
                 cursor_pos: Point::new(0.0, 0.0),
                 blink_caret: false,
                 active_context_menu: None,
@@ -280,11 +323,14 @@ mod tests {
                 cursor_byte_idx: 0,
             };
 
+            let mut actions = Vec::new();
             build_folder_tree_sidebar(
                 &mut tree,
                 root_id,
                 Rect::new(0.0, 0.0, 180.0, 500.0),
                 &params,
+                &mut tree_state,
+                &mut actions,
             );
         }
 
@@ -298,13 +344,9 @@ mod tests {
             "When 'assets/models' is collapsed, characters subfolder must not be rendered"
         );
 
-        // 2. Toggle "assets/models" via handle_tree_foldout_click
+        // 2. Toggle "assets/models" autonomously in-place via tree_state
         let models_path = PathBuf::from("assets/models");
-        let foldout_res = handle_tree_foldout_click(&mut tree_state, &models_path);
-        assert!(
-            foldout_res.layout_changed,
-            "Toggling folder must flag layout_changed"
-        );
+        tree_state.toggle_expanded(&models_path);
         assert!(
             tree_state.is_expanded(&models_path),
             "Folder must now be expanded"
@@ -327,7 +369,6 @@ mod tests {
             sidebar_collapsed: false,
             scroll_y: 0.0,
             tree_scroll_y: 0.0,
-            tree_state: &tree_state,
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
@@ -339,11 +380,14 @@ mod tests {
         };
         let mut tree_expanded = UiTree::new();
         let root_exp_id = tree_expanded.create_root().expect("Root creation failed");
+        let mut actions_expanded = Vec::new();
         build_folder_tree_sidebar(
             &mut tree_expanded,
             root_exp_id,
             Rect::new(0.0, 0.0, 180.0, 500.0),
             &params_expanded,
+            &mut tree_state,
+            &mut actions_expanded,
         );
 
         let row_count_expanded = tree_expanded
@@ -356,17 +400,8 @@ mod tests {
             "When 'assets/models' is expanded, characters subfolder must be rendered"
         );
 
-        // 4. Test row selection via handle_tree_row_click
-        let sel_res = handle_tree_row_click(
-            &mut tree_state,
-            models_path.clone(),
-            TreeSelectionModifiers::new(),
-            None,
-        );
-        assert!(
-            sel_res.selection_changed,
-            "Selecting folder must flag selection_changed"
-        );
+        // 4. Test row selection directly via tree_state
+        tree_state.select_single(models_path.clone());
         assert_eq!(tree_state.primary_selected, Some(models_path));
     }
 }

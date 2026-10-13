@@ -368,3 +368,71 @@ fn test_scroll_area_autonomous_dispatch_integration() {
     let th_jumped = tree.get(thumb).unwrap();
     assert_eq!(th_jumped.computed_rect.y, 150.0);
 }
+
+#[test]
+fn test_child_event_consumption_and_parent_isolation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // 1. Container serving as scroll viewport
+    let container = tree.create_node();
+    tree.add_child(root, container).unwrap();
+    let container_node = tree.get_mut(container).unwrap();
+    container_node.role = WidgetRole::ScrollAreaViewport;
+    container_node.tag = 1000;
+    container_node.interactive = true;
+    container_node.computed_rect = Rect::new(0.0, 0.0, 500.0, 500.0);
+
+    // 2. Child card item inside container
+    let card = tree.create_node();
+    tree.add_child(container, card).unwrap();
+    let card_node = tree.get_mut(card).unwrap();
+    card_node.role = WidgetRole::Button;
+    card_node.tag = 2000;
+    card_node.interactive = true;
+    card_node.computed_rect = Rect::new(10.0, 10.0, 100.0, 100.0);
+
+    // 3. Grandchild label inside card
+    let label = tree.create_node();
+    tree.add_child(card, label).unwrap();
+    let label_node = tree.get_mut(label).unwrap();
+    label_node.role = WidgetRole::Default;
+    label_node.tag = 0;
+    label_node.interactive = false;
+    label_node.computed_rect = Rect::new(20.0, 20.0, 50.0, 20.0);
+
+    // Click on grandchild label
+    let click_point = Point::new(30.0, 25.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Right,
+        point: click_point,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Right,
+        point: click_point,
+    });
+
+    let hit = tree.event_state.frame_secondary_clicked_id.unwrap();
+    assert_eq!(hit, card);
+
+    // Verification: Card owns the click
+    assert!(tree.is_direct_interaction_ancestor(hit, card));
+
+    // Verification: Container does NOT claim the click because card consumed it
+    assert!(!tree.is_direct_interaction_ancestor(hit, container));
+
+    // Direct click on container empty area (e.g. x = 300, y = 300)
+    let empty_point = Point::new(300.0, 300.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Right,
+        point: empty_point,
+    });
+    tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Right,
+        point: empty_point,
+    });
+
+    let empty_hit = tree.event_state.frame_secondary_clicked_id.unwrap();
+    assert_eq!(empty_hit, container);
+    assert!(tree.is_direct_interaction_ancestor(empty_hit, container));
+}

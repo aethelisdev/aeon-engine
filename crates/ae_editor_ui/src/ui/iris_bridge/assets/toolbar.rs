@@ -16,7 +16,7 @@ use super::panel::ASSETS_TOP_BAR_HEIGHT;
 use super::types::{
     ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT, ASSETS_TAG_REVEAL,
     ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, ASSETS_TAG_VIEW_GRID, ASSETS_TAG_VIEW_LIST,
-    AssetsPanelParams,
+    AssetsPanelAction, AssetsPanelParams,
 };
 use crate::assets::types::AssetViewMode;
 use crate::ui::iris_bridge::icons::{ICON_GEAR, ICON_PLUS};
@@ -26,7 +26,11 @@ use irisui::prelude::*;
 ///
 /// Divides the toolbar into a left breadcrumb group and a right control group using pure
 /// Taffy flexbox alignment with zero manual pixel offsets or absolute coordinates.
-pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
+pub fn build_asset_toolbar_scope(
+    scope: &mut UiScope<'_>,
+    params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
     scope.container_named(
         "AssetsTopToolbar",
         Style::new()
@@ -39,7 +43,7 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
             .height(ASSETS_TOP_BAR_HEIGHT),
         |toolbar| {
             // 1. Left Group: Breadcrumb navigation hierarchy
-            asset_breadcrumb_bar(toolbar, params.current_folder);
+            asset_breadcrumb_bar(toolbar, params.current_folder, actions);
 
             // 2. Right Group: Engine toggle, action buttons, view mode selectors, search box
             toolbar.container_named(
@@ -51,16 +55,30 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
                     .gap(6.0),
                 |right| {
                     // "Engine" Content Visibility Toggle Button
-                    build_engine_toggle_btn(right, params.show_engine_content);
+                    build_engine_toggle_btn(right, params.show_engine_content, actions);
 
                     // "+ Import" Action Button
-                    build_import_btn(right);
+                    build_import_btn(right, actions);
 
                     // "Reveal" Action Button
-                    build_action_btn(right, "Reveal", 60.0, ASSETS_TAG_REVEAL);
+                    build_action_btn(
+                        right,
+                        "Reveal",
+                        60.0,
+                        ASSETS_TAG_REVEAL,
+                        actions,
+                        AssetsPanelAction::RevealFolder(params.current_folder.to_path_buf()),
+                    );
 
                     // "Clean" Action Button
-                    build_action_btn(right, "Clean", 56.0, ASSETS_TAG_CLEAN_VRAM);
+                    build_action_btn(
+                        right,
+                        "Clean",
+                        56.0,
+                        ASSETS_TAG_CLEAN_VRAM,
+                        actions,
+                        AssetsPanelAction::CleanVram,
+                    );
 
                     // View Mode Toggles: Grid vs List
                     build_mode_toggle_btn(
@@ -69,6 +87,8 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
                         46.0,
                         params.view_mode == AssetViewMode::List,
                         ASSETS_TAG_VIEW_LIST,
+                        actions,
+                        AssetsPanelAction::SetViewMode(AssetViewMode::List),
                     );
                     build_mode_toggle_btn(
                         right,
@@ -76,10 +96,12 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
                         46.0,
                         params.view_mode == AssetViewMode::Grid,
                         ASSETS_TAG_VIEW_GRID,
+                        actions,
+                        AssetsPanelAction::SetViewMode(AssetViewMode::Grid),
                     );
 
                     // Search Input Box
-                    build_search_box(right, params);
+                    build_search_box(right, params, actions);
                 },
             );
         },
@@ -87,7 +109,11 @@ pub fn build_asset_toolbar_scope(scope: &mut UiScope<'_>, params: &AssetsPanelPa
 }
 
 /// Helper to render the search input box inside the flex toolbar matching Hierarchy Search UX.
-fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
+fn build_search_box(
+    scope: &mut UiScope<'_>,
+    params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
     let is_search_focused = params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT);
     let search_props = InputBoxProps::new(
         params.search_query,
@@ -99,11 +125,21 @@ fn build_search_box(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
     .with_icon("🔍")
     .with_cursor_byte_idx(params.cursor_byte_idx)
     .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR);
-    scope.input_box_tagged(&search_props, ASSETS_TAG_SEARCH_INPUT);
+    let input_id = scope.input_box_tagged(&search_props, ASSETS_TAG_SEARCH_INPUT);
+    if scope.response(input_id).clicked() {
+        actions.push(AssetsPanelAction::FocusSearch);
+    }
 }
 
 /// Helper to render an action button in the toolbar.
-fn build_action_btn(scope: &mut UiScope<'_>, label: &'static str, width: f32, tag: u64) {
+fn build_action_btn(
+    scope: &mut UiScope<'_>,
+    label: &'static str,
+    width: f32,
+    tag: u64,
+    actions: &mut Vec<AssetsPanelAction>,
+    action_to_emit: AssetsPanelAction,
+) {
     let style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -118,7 +154,7 @@ fn build_action_btn(scope: &mut UiScope<'_>, label: &'static str, width: f32, ta
 
     let text_c = Color::rgba(0.0, 0.85, 1.0, 0.95);
 
-    scope.container_tagged("ActionBtn", style, WidgetRole::Button, tag, |btn| {
+    let btn_id = scope.container_tagged("ActionBtn", style, WidgetRole::Button, tag, |btn| {
         let txt_id = btn.label_styled_passive(
             "ActionBtnText",
             label,
@@ -129,10 +165,13 @@ fn build_action_btn(scope: &mut UiScope<'_>, label: &'static str, width: f32, ta
         );
         btn.set_hover_text_color(txt_id, Color::WHITE);
     });
+    if scope.response(btn_id).clicked() {
+        actions.push(action_to_emit);
+    }
 }
 
 /// Helper to render the "+ Import" button with vector plus icon.
-fn build_import_btn(scope: &mut UiScope<'_>) {
+fn build_import_btn(scope: &mut UiScope<'_>, actions: &mut Vec<AssetsPanelAction>) {
     let style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -146,7 +185,7 @@ fn build_import_btn(scope: &mut UiScope<'_>) {
         .border(1.0, Color::rgba(0.0, 0.75, 0.90, 0.80))
         .hover_border(1.0, Color::rgba(0.0, 0.90, 1.0, 1.0));
 
-    scope.container_tagged(
+    let btn_id = scope.container_tagged(
         "ImportBtn",
         style,
         WidgetRole::Button,
@@ -163,6 +202,9 @@ fn build_import_btn(scope: &mut UiScope<'_>) {
             );
         },
     );
+    if scope.response(btn_id).clicked() {
+        actions.push(AssetsPanelAction::OpenImportDialog);
+    }
 }
 
 /// Helper to render a selectable view mode toggle button.
@@ -172,6 +214,8 @@ fn build_mode_toggle_btn(
     width: f32,
     is_active: bool,
     tag: u64,
+    actions: &mut Vec<AssetsPanelAction>,
+    action_to_emit: AssetsPanelAction,
 ) {
     let mut style = Style::new()
         .flex_row()
@@ -199,7 +243,7 @@ fn build_mode_toggle_btn(
         Color::rgba(0.65, 0.70, 0.80, 1.0)
     };
 
-    scope.container_tagged("ModeToggleBtn", style, WidgetRole::Button, tag, |btn| {
+    let btn_id = scope.container_tagged("ModeToggleBtn", style, WidgetRole::Button, tag, |btn| {
         let txt_id = btn.label_styled_passive(
             "ModeToggleText",
             label,
@@ -212,10 +256,17 @@ fn build_mode_toggle_btn(
             btn.set_hover_text_color(txt_id, Color::WHITE);
         }
     });
+    if scope.response(btn_id).clicked() {
+        actions.push(action_to_emit);
+    }
 }
 
 /// Helper to render the "Engine" content toggle button featuring a vector gear icon.
-fn build_engine_toggle_btn(scope: &mut UiScope<'_>, is_active: bool) {
+fn build_engine_toggle_btn(
+    scope: &mut UiScope<'_>,
+    is_active: bool,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
     let mut style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -237,7 +288,7 @@ fn build_engine_toggle_btn(scope: &mut UiScope<'_>, is_active: bool) {
             .hover_border(1.0, Color::rgba(0.30, 0.35, 0.45, 0.60));
     }
 
-    scope.container_tagged(
+    let btn_id = scope.container_tagged(
         "EngineToggleBtn",
         style,
         WidgetRole::Button,
@@ -271,4 +322,7 @@ fn build_engine_toggle_btn(scope: &mut UiScope<'_>, is_active: bool) {
             }
         },
     );
+    if scope.response(btn_id).clicked() {
+        actions.push(AssetsPanelAction::ToggleEngineContent);
+    }
 }

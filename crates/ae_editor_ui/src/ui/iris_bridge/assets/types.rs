@@ -18,8 +18,6 @@ use std::path::PathBuf;
 pub enum AssetsPanelAction {
     /// Navigates the active folder path to the specified directory.
     NavigateFolder(PathBuf),
-    /// Toggles the expanded/collapsed state of a folder branch in the sidebar tree.
-    ToggleFolder(PathBuf),
     /// Selects an asset item by path, or clears active selection.
     SelectAsset(Option<PathBuf>),
     /// Changes the active category filter chip.
@@ -167,6 +165,8 @@ pub const ASSETS_TAG_ENGINE_CONTENT: u64 = ASSETS_TAG_DOMAIN | 0x0007;
 pub const ASSETS_TAG_SEARCH_INPUT: u64 = ASSETS_TAG_DOMAIN | 0x0008;
 /// Semantic tag for clearing the active search filter query.
 pub const ASSETS_TAG_SEARCH_CLEAR: u64 = ASSETS_TAG_DOMAIN | 0x0009;
+/// Semantic tag for the folder tree sidebar scrollable viewport.
+pub const ASSETS_TAG_TREE_VIEWPORT: u64 = ASSETS_TAG_DOMAIN | 0x0014;
 /// Semantic tag for the primary assets scrollable content area viewport.
 pub const ASSETS_TAG_CONTENT_VIEWPORT: u64 = ASSETS_TAG_DOMAIN | 0x000E;
 /// Semantic tag for primary content scrollbar track.
@@ -519,8 +519,6 @@ pub struct AssetsPanelParams<'a> {
     pub scroll_y: f32,
     /// Vertical scroll offset of the left folder tree sidebar.
     pub tree_scroll_y: f32,
-    /// Active hierarchical folder tree state managing directory expansion and selection.
-    pub tree_state: &'a TreeState<PathBuf>,
     /// Current mouse cursor coordinates for hover evaluation.
     pub cursor_pos: Point,
     /// Whether the blinking caret cursor should be drawn (500ms cycle).
