@@ -62,9 +62,6 @@ impl<'a> UiScope<'a> {
     ) -> WidgetResponse {
         let node_id = self.tree.create_node();
         let label_str = label.into();
-        let indicator = if checked { "[x]" } else { "[ ]" };
-        let full_text = format!("{} {}", indicator, label_str);
-
         let _ = self.tree.add_child(self.parent, node_id);
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("Checkbox");
@@ -73,6 +70,9 @@ impl<'a> UiScope<'a> {
 
         let (clicked, hovered, _) = self.check_interaction(node_id);
         let pressed = self.is_pressed(node_id);
+        let is_effective_checked = checked ^ clicked;
+        let indicator = if is_effective_checked { "[x]" } else { "[ ]" };
+        let full_text = format!("{} {}", indicator, label_str);
 
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = true;
@@ -82,7 +82,7 @@ impl<'a> UiScope<'a> {
             node.font_size = 11.0;
             node.line_height = 14.0;
             node.text_align = TextAlign::Left;
-            node.text_color = if checked {
+            node.text_color = if is_effective_checked {
                 Color::rgba(0.2, 0.85, 0.65, 1.0)
             } else if hovered || pressed {
                 Color::WHITE

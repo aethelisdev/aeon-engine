@@ -469,3 +469,323 @@ fn test_dispatch_frame_clicked_pos_recording() {
     tree.event_state.clear_frame_clicks();
     assert_eq!(tree.event_state.frame_clicked_pos, None);
 }
+
+#[test]
+fn test_dispatch_cross_frame_tag_click_with_tree_clear() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let child = tree.create_node();
+    tree.add_child(root, child).unwrap();
+
+    let child_node = tree.get_mut(child).unwrap();
+    child_node.visible = true;
+    child_node.interactive = true;
+    child_node.tag = 0xABCD;
+    child_node.computed_rect = Rect::new(10.0, 10.0, 50.0, 50.0);
+
+    let click_point = Point::new(25.0, 25.0);
+    let down_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: click_point,
+    });
+    assert!(down_res.is_consumed());
+    assert_eq!(tree.event_state.pressed_tag, Some(0xABCD));
+
+    // Simulate render frame: tree is cleared and reconstructed with new generational WidgetIds!
+    tree.clear();
+    let new_root = tree.create_root().unwrap();
+    let new_child = tree.create_node();
+    assert_ne!(child, new_child); // Generational key difference verified
+    tree.add_child(new_root, new_child).unwrap();
+
+    let new_child_node = tree.get_mut(new_child).unwrap();
+    new_child_node.visible = true;
+    new_child_node.interactive = true;
+    new_child_node.tag = 0xABCD;
+    new_child_node.computed_rect = Rect::new(10.0, 10.0, 50.0, 50.0);
+
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: click_point,
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(0xABCD));
+    assert_eq!(tree.event_state.frame_clicked_id, Some(new_child));
+}
+
+#[test]
+fn test_dispatch_cross_frame_secondary_click_with_tree_clear() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let child = tree.create_node();
+    tree.add_child(root, child).unwrap();
+
+    let child_node = tree.get_mut(child).unwrap();
+    child_node.visible = true;
+    child_node.interactive = true;
+    child_node.tag = 0x9999;
+    child_node.computed_rect = Rect::new(10.0, 10.0, 50.0, 50.0);
+
+    let click_point = Point::new(25.0, 25.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Right,
+        point: click_point,
+    });
+    assert_eq!(tree.event_state.pressed_tag, Some(0x9999));
+
+    // Rebuild tree
+    tree.clear();
+    let new_root = tree.create_root().unwrap();
+    let new_child = tree.create_node();
+    tree.add_child(new_root, new_child).unwrap();
+
+    let new_child_node = tree.get_mut(new_child).unwrap();
+    new_child_node.visible = true;
+    new_child_node.interactive = true;
+    new_child_node.tag = 0x9999;
+    new_child_node.computed_rect = Rect::new(10.0, 10.0, 50.0, 50.0);
+
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Right,
+        point: click_point,
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(tree.event_state.frame_secondary_clicked_tag, Some(0x9999));
+    assert_eq!(tree.event_state.frame_secondary_clicked_id, Some(new_child));
+}
+
+#[test]
+fn test_dispatch_cross_frame_bounds_click_untagged_widget() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let child = tree.create_node();
+    tree.add_child(root, child).unwrap();
+
+    let child_node = tree.get_mut(child).unwrap();
+    child_node.visible = true;
+    child_node.interactive = true;
+    child_node.role = crate::node::WidgetRole::Button;
+    child_node.computed_rect = Rect::new(40.0, 40.0, 80.0, 30.0);
+
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(50.0, 50.0),
+    });
+
+    // Rebuild tree
+    tree.clear();
+    let new_root = tree.create_root().unwrap();
+    let new_child = tree.create_node();
+    tree.add_child(new_root, new_child).unwrap();
+
+    let new_child_node = tree.get_mut(new_child).unwrap();
+    new_child_node.visible = true;
+    new_child_node.interactive = true;
+    new_child_node.role = crate::node::WidgetRole::Button;
+    new_child_node.computed_rect = Rect::new(40.0, 40.0, 80.0, 30.0);
+
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(60.0, 55.0),
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(tree.event_state.frame_clicked_id, Some(new_child));
+}
+
+/// Verifies that scrolling over an interactive clipped child card (`WidgetRole::Button` with `clip_children: true`)
+/// does not trap the scroll event, correctly bubbling to the enclosing `WidgetRole::ScrollAreaViewport`.
+#[test]
+fn test_scroll_bubbling_past_clipped_button_card_to_viewport() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let viewport = tree.create_node();
+    tree.add_child(root, viewport).unwrap();
+    {
+        let vp = tree.get_mut(viewport).unwrap();
+        vp.visible = true;
+        vp.role = crate::node::WidgetRole::ScrollAreaViewport;
+        vp.style.clip_children = true;
+        vp.style.scroll_offset_y = 50.0;
+        vp.computed_rect = Rect::new(0.0, 0.0, 500.0, 500.0);
+        vp.tag = 0x1111;
+    }
+
+    let card = tree.create_node();
+    tree.add_child(viewport, card).unwrap();
+    {
+        let c = tree.get_mut(card).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Button;
+        c.style.clip_children = true; // Simulates rounded border clipping on asset cards
+        c.computed_rect = Rect::new(20.0, 20.0, 100.0, 120.0);
+        c.tag = 0x2222;
+    }
+
+    // Scroll over the card
+    let res = tree.dispatch_event(&UiEvent::MouseScroll {
+        delta_x: 0.0,
+        delta_y: 20.0,
+        point: Point::new(40.0, 40.0),
+    });
+
+    assert!(
+        res.is_consumed(),
+        "Scroll event must be consumed by parent viewport"
+    );
+    assert_eq!(res.target, Some(viewport));
+    assert_eq!(res.target_tag, 0x1111);
+    assert_eq!(res.scroll_delta, (0.0, 20.0));
+
+    let vp = tree.get(viewport).unwrap();
+    assert_eq!(vp.style.scroll_offset_y, 30.0);
+
+    let c = tree.get(card).unwrap();
+    assert_eq!(c.style.scroll_offset_y, 0.0);
+}
+
+/// Verifies that mouse movement occurring right after a click does not prematurely clear transient click state.
+#[test]
+fn test_transient_clicks_preserved_across_mouse_move() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let button = tree.create_node();
+    tree.add_child(root, button).unwrap();
+    {
+        let btn = tree.get_mut(button).unwrap();
+        btn.visible = true;
+        btn.interactive = true;
+        btn.role = crate::node::WidgetRole::Button;
+        btn.computed_rect = Rect::new(10.0, 10.0, 80.0, 30.0);
+        btn.tag = 0x3333;
+    }
+
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    });
+
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(0x3333));
+
+    // Subsequent micro mouse movement before next render frame must NOT clear click state
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(21.0, 20.0),
+    });
+    assert_eq!(
+        tree.event_state.frame_clicked_tag,
+        Some(0x3333),
+        "Click state must be preserved across mouse movement"
+    );
+}
+
+/// Verifies that clicking on an untagged, passive child container inside a card button
+/// correctly delegates the click to the enclosing card button.
+#[test]
+fn test_click_on_child_container_bubbles_to_parent_card_button() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let card = tree.create_node();
+    tree.add_child(root, card).unwrap();
+    {
+        let c = tree.get_mut(card).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Button;
+        c.computed_rect = Rect::new(50.0, 50.0, 120.0, 120.0);
+        c.tag = 0x5555;
+    }
+
+    // Passive untagged child container (like CardPreviewBox)
+    let child_box = tree.create_node();
+    tree.add_child(card, child_box).unwrap();
+    {
+        let b = tree.get_mut(child_box).unwrap();
+        b.visible = true;
+        b.interactive = true;
+        b.role = crate::node::WidgetRole::Default;
+        b.computed_rect = Rect::new(60.0, 60.0, 54.0, 54.0);
+        b.tag = 0;
+    }
+
+    assert!(
+        tree.is_direct_interaction_ancestor(child_box, card),
+        "Card must be direct interaction ancestor of untagged child box"
+    );
+
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(70.0, 70.0),
+    });
+
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(70.0, 70.0),
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(0x5555));
+}
+
+/// Verifies that mouse wheel scrolling directly over nested card elements (e.g. preview box, icons)
+/// reliably bubbles up and scrolls the enclosing viewport container.
+#[test]
+fn test_scroll_over_nested_card_elements_bubbles_to_viewport() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let viewport = tree.create_node();
+    tree.add_child(root, viewport).unwrap();
+    {
+        let vp = tree.get_mut(viewport).unwrap();
+        vp.visible = true;
+        vp.role = crate::node::WidgetRole::ScrollAreaViewport;
+        vp.style.clip_children = true;
+        vp.style.scroll_offset_y = 0.0;
+        vp.computed_rect = Rect::new(0.0, 0.0, 400.0, 400.0);
+        vp.content_size = Size::new(400.0, 1200.0);
+        vp.tag = 0x9000;
+    }
+
+    let card = tree.create_node();
+    tree.add_child(viewport, card).unwrap();
+    {
+        let c = tree.get_mut(card).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Button;
+        c.style.clip_children = true;
+        c.computed_rect = Rect::new(10.0, 10.0, 120.0, 120.0);
+        c.tag = 0x9001;
+    }
+
+    let preview_box = tree.create_node();
+    tree.add_child(card, preview_box).unwrap();
+    {
+        let pb = tree.get_mut(preview_box).unwrap();
+        pb.visible = true;
+        pb.interactive = true;
+        pb.role = crate::node::WidgetRole::Default;
+        pb.computed_rect = Rect::new(20.0, 20.0, 54.0, 54.0);
+        pb.tag = 0;
+    }
+
+    // Scroll directly over preview_box inside the card
+    let scroll_res = tree.dispatch_event(&UiEvent::MouseScroll {
+        delta_x: 0.0,
+        delta_y: -40.0,
+        point: Point::new(30.0, 30.0),
+    });
+    assert!(scroll_res.is_consumed());
+    assert_eq!(scroll_res.target, Some(viewport));
+    assert_eq!(scroll_res.target_tag, 0x9000);
+
+    let vp = tree.get(viewport).unwrap();
+    assert_eq!(vp.style.scroll_offset_y, 40.0);
+}

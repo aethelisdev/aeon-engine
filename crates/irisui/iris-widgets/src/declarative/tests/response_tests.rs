@@ -680,3 +680,81 @@ fn test_declarative_tree_row_autonomous_interaction() {
         );
     }
 }
+
+#[test]
+fn test_declarative_instant_effective_state_on_click_frame() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node should be created");
+
+    let tag_pill = 0x9001;
+    let tag_toggle = 0x9002;
+    let tag_check = 0x9003;
+
+    // 1. Initial build: render elements with inactive state
+    let (_pill_id, _toggle_id, check_id) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let pill_resp = scope.filter_pill_tagged(
+            "Errors (0)",
+            false,
+            iris_core::Color::rgba(0.95, 0.3, 0.3, 1.0),
+            70.0,
+            tag_pill,
+        );
+        let toggle_resp = scope.toggle_pill_tagged("Auto-Scroll", false, tag_toggle);
+        let check_resp = scope.checkbox_val_tagged("Wireframe", tag_check, false);
+        (pill_resp.id(), toggle_resp.id(), check_resp.id())
+    };
+
+    // Verify initial inactive checkbox text
+    assert_eq!(
+        tree.get(check_id).unwrap().text.as_deref(),
+        Some("[ ] Wireframe")
+    );
+
+    // 2. Simulate click on pill, toggle, and checkbox via frame_clicked_tag
+    tree.event_state.frame_clicked_tag = Some(tag_check);
+
+    // Rebuild frame with check clicked: verify [x] appears on the SAME frame!
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let check_resp = scope.checkbox_val_tagged("Wireframe", tag_check, false);
+        assert!(
+            check_resp.clicked(),
+            "Checkbox must report clicked() == true"
+        );
+        let node = scope.tree().get(check_resp.id()).unwrap();
+        assert_eq!(
+            node.text.as_deref(),
+            Some("[x] Wireframe"),
+            "Checkbox MUST reflect [x] on click frame even if passed checked=false"
+        );
+        assert_eq!(
+            node.text_color,
+            iris_core::Color::rgba(0.2, 0.85, 0.65, 1.0),
+            "Checkbox MUST use active green text color on click frame"
+        );
+    }
+
+    // 3. Simulate click on filter pill: verify active white text on the SAME frame!
+    tree.event_state.frame_clicked_tag = Some(tag_pill);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let pill_resp = scope.filter_pill_tagged(
+            "Errors (0)",
+            false,
+            iris_core::Color::rgba(0.95, 0.3, 0.3, 1.0),
+            70.0,
+            tag_pill,
+        );
+        assert!(
+            pill_resp.clicked(),
+            "Filter pill must report clicked() == true"
+        );
+        let node = scope.tree().get(pill_resp.id()).unwrap();
+        assert_eq!(
+            node.text_color,
+            iris_core::Color::WHITE,
+            "Filter pill MUST use active white text on click frame even if passed is_active=false"
+        );
+    }
+}

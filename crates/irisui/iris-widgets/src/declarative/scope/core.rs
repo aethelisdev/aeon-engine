@@ -313,7 +313,7 @@ impl<'a> UiScope<'a> {
     /// Evaluates clicks, hovers, double-clicks, and drag interactions against [`UiTree::event_state`].
     pub fn response(&self, id: WidgetId) -> WidgetResponse {
         let tag = self.tree.get(id).map_or(0, |n| n.tag);
-        let (clicked, hovered, _) = self.check_interaction(id);
+        let (clicked, hovered, drag_delta) = self.check_interaction(id);
         let double_clicked = self.tree.event_state.frame_double_clicked_id == Some(id)
             || (tag != 0 && self.tree.event_state.frame_double_clicked_tag == Some(tag))
             || self
@@ -328,6 +328,15 @@ impl<'a> UiScope<'a> {
                 .event_state
                 .frame_secondary_clicked_id
                 .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+        let is_dragged = drag_delta.is_some()
+            || self.tree.event_state.pointer_capture == Some(id)
+            || (tag != 0
+                && self
+                    .tree
+                    .event_state
+                    .pointer_capture
+                    .and_then(|cid| self.tree.get(cid))
+                    .is_some_and(|n| n.tag == tag));
 
         let mut flags = ResponseFlags::empty();
         if clicked {
@@ -341,6 +350,9 @@ impl<'a> UiScope<'a> {
         }
         if secondary_clicked {
             flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
+        }
+        if is_dragged {
+            flags = flags.union(ResponseFlags::DRAGGED);
         }
 
         let pointer_pos = if clicked || double_clicked || secondary_clicked {

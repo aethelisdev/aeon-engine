@@ -218,6 +218,7 @@ impl IrisEditorOverlay {
                 super::console::build_console_panel(tree, root, &console_params, &mut actions);
             self.console.max_scroll_y = max_scroll;
 
+            let has_console_actions = !actions.is_empty();
             for action in actions {
                 match action {
                     super::console::ConsoleAction::ClearLogs => {
@@ -243,6 +244,10 @@ impl IrisEditorOverlay {
                     }
                     super::console::ConsoleAction::CopyLog(_) => {}
                 }
+            }
+            if has_console_actions {
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
             }
         } else {
             self.console.panel_rect = None;
@@ -373,6 +378,14 @@ impl IrisEditorOverlay {
                     }
                     super::assets::AssetsPanelAction::SelectAsset(ref opt) => {
                         self.assets.selected_asset = opt.clone();
+                        self.assets.actions.push(action);
+                        self.notifier.tag_all();
+                    }
+                    super::assets::AssetsPanelAction::FocusSearch => {
+                        self.set_focus_tag(super::assets::ASSETS_TAG_SEARCH_INPUT);
+                    }
+                    super::assets::AssetsPanelAction::ClearSearch => {
+                        self.assets.interactions.search_input.clear();
                         self.assets.actions.push(action);
                         self.notifier.tag_all();
                     }

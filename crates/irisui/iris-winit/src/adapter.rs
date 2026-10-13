@@ -47,8 +47,8 @@ pub fn winit_to_ui_event(event: &WindowEvent, cursor_pos: Point) -> Option<UiEve
         }
         WindowEvent::MouseWheel { delta, .. } => {
             let (dx, dy) = match delta {
-                MouseScrollDelta::LineDelta(x, y) => (*x, *y),
-                MouseScrollDelta::PixelDelta(pos) => (pos.x as f32 / 24.0, pos.y as f32 / 24.0),
+                MouseScrollDelta::LineDelta(x, y) => (*x * 28.0, *y * 28.0),
+                MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
             };
             Some(UiEvent::MouseScroll {
                 delta_x: dx,

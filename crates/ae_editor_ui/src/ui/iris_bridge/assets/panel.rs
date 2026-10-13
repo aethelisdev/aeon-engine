@@ -75,8 +75,7 @@ pub fn build_assets_panel(
                 Style::new()
                     .flex_row()
                     .flex_grow(1.0)
-                    .width(params.panel_rect.width)
-                    .clip_children(true),
+                    .width(params.panel_rect.width),
                 |body_scope| {
                     let body_h = (params.panel_rect.height
                         - ASSETS_TOP_BAR_HEIGHT
@@ -117,15 +116,12 @@ pub fn build_assets_panel(
                     );
                     resolved_content_rect = content_rect;
 
-                    body_scope.container_tagged(
-                        "AssetsContentViewport",
+                    body_scope.container_named(
+                        "AssetsContentArea",
                         Style::new()
                             .flex_col()
                             .flex_grow(1.0)
-                            .background(Color::rgba(0.04, 0.05, 0.07, 0.98))
-                            .clip_children(true),
-                        WidgetRole::Default,
-                        super::types::ASSETS_TAG_CONTENT_VIEWPORT,
+                            .background(Color::rgba(0.04, 0.05, 0.07, 0.98)),
                         |content_scope| match params.view_mode {
                             AssetViewMode::Grid => {
                                 build_asset_grid_cards_scope(

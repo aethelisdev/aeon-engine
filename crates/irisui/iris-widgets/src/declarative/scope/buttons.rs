@@ -370,7 +370,8 @@ impl<'a> UiScope<'a> {
             node.font_size = 11.0;
             node.line_height = 24.0;
             node.text_align = TextAlign::Center;
-            let (bg, border, text_color) = if is_active {
+            let is_effective_active = is_active ^ clicked;
+            let (bg, border, text_color) = if is_effective_active {
                 (
                     Color::rgba(0.06, 0.22, 0.32, 0.75),
                     Color::rgba(0.14, 0.65, 0.95, 0.65),
@@ -397,7 +398,7 @@ impl<'a> UiScope<'a> {
                 .border_radius(4.0)
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
-            if !is_active {
+            if !is_effective_active {
                 style = style
                     .hover_background(Color::rgba(0.18, 0.21, 0.28, 0.85))
                     .hover_border(1.0, Color::rgba(0.35, 0.40, 0.50, 0.65));
@@ -449,7 +450,8 @@ impl<'a> UiScope<'a> {
             node.line_height = 24.0;
             node.text_align = TextAlign::Center;
 
-            let (bg, border_c, border_w, text_color) = if is_active {
+            let is_effective_active = is_active || clicked;
+            let (bg, border_c, border_w, text_color) = if is_effective_active {
                 let bg_c = Color::rgba(
                     (accent_color.r * 0.45).clamp(0.08, 0.50),
                     (accent_color.g * 0.45).clamp(0.08, 0.50),
@@ -501,7 +503,7 @@ impl<'a> UiScope<'a> {
                 .border_radius(4.0)
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
-            if !is_active {
+            if !is_effective_active {
                 let hover_bg_c = Color::rgba(
                     (accent_color.r * 0.28).clamp(0.05, 0.35),
                     (accent_color.g * 0.28).clamp(0.05, 0.35),
@@ -604,7 +606,8 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, btn_id);
         let (clicked, hovered, _) = self.check_interaction(btn_id);
 
-        let (bg, border_color) = if is_active {
+        let is_effective_active = is_active ^ clicked;
+        let (bg, border_color) = if is_effective_active {
             (
                 Color::rgba(0.06, 0.46, 0.92, 1.0),
                 Color::rgba(0.25, 0.60, 1.0, 0.95),
@@ -634,7 +637,7 @@ impl<'a> UiScope<'a> {
                 .border(1.0, border_color)
                 .border_radius(4.0)
                 .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
-            if !is_active {
+            if !is_effective_active {
                 style = style
                     .hover_background(Color::rgba(0.20, 0.23, 0.30, 0.95))
                     .hover_border(1.0, Color::rgba(0.35, 0.40, 0.50, 0.90));
@@ -647,7 +650,7 @@ impl<'a> UiScope<'a> {
             node.interactive = false;
             node.set_name("ToolbarIcon");
             node.set_texture_uv(icon_uv);
-            let tint = if is_active {
+            let tint = if is_effective_active {
                 Color::rgba(1.0, 1.0, 1.0, 1.0)
             } else if hovered {
                 Color::rgba(0.95, 0.98, 1.0, 1.0)
@@ -691,7 +694,7 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, btn_id);
         let (clicked, hovered, _) = self.check_interaction(btn_id);
 
-        let is_highlighted = is_open || hovered;
+        let is_highlighted = is_open || hovered || clicked;
         let bg = if is_highlighted {
             Color::rgba(0.20, 0.23, 0.30, 0.90)
         } else {

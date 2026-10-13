@@ -19,14 +19,11 @@ pub mod render_pass;
 pub mod sandbox_builder;
 pub mod scene;
 pub mod update;
-use ae_core::modules::EngineMode;
-use ae_editor_ui::ui::EngineUiAction;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
-    event::{ElementState, KeyEvent, WindowEvent},
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
-    keyboard::PhysicalKey,
     window::{WindowAttributes, WindowId},
 };
 
@@ -130,28 +127,7 @@ impl ApplicationHandler for AeApp {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let engine = match self.engine.as_mut() {
-            Some(e) => e,
-            None => return,
-        };
-
-        let window = &engine.render_state.window;
-
-        // Event processing: In Play mode with cursor grabbed, isolate mouse events from UI so gameplay shooting doesn't click the Stop button
-        let consumed = if engine.mode == EngineMode::Play && engine.is_cursor_grabbed {
-            match &event {
-                WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } => false,
-                _ => engine
-                    .ui
-                    .handle_event(window, &event, Some(&engine.ecs.world)),
-            }
-        } else {
-            engine
-                .ui
-                .handle_event(window, &event, Some(&engine.ecs.world))
-        };
-
-        match &event {
+        match event {
             WindowEvent::CloseRequested => {
                 // Drop the engine BEFORE exiting to release WGPU surface/device.
                 // On Linux/Vulkan, winit sends extra redraws after exit() which
@@ -159,102 +135,15 @@ impl ApplicationHandler for AeApp {
                 self.engine = None;
                 event_loop.exit();
             }
-            WindowEvent::Resized(physical_size) => engine.resize(*physical_size),
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        physical_key: PhysicalKey::Code(key),
-                        state,
-                        ..
-                    },
-                ..
-            } => {
-                // F5: Toggle between Edit and Play mode
-                if *key == winit::keyboard::KeyCode::F5 && *state == ElementState::Pressed {
-                    let next_mode = if engine.mode == EngineMode::Play {
-                        EngineMode::Edit
-                    } else {
-                        EngineMode::Play
-                    };
-                    engine.process_ui_actions(vec![EngineUiAction::ChangeMode(next_mode)]);
-                }
-
-                // Escape: In Play mode, cleanly return to Edit mode
-                if *key == winit::keyboard::KeyCode::Escape
-                    && *state == ElementState::Pressed
-                    && engine.mode == EngineMode::Play
-                {
-                    engine.process_ui_actions(vec![EngineUiAction::ChangeMode(EngineMode::Edit)]);
-                }
-
-                // Deliver key events to 3D engine / gameplay unless user is actively typing in a UI TextEdit
-                if *key == winit::keyboard::KeyCode::Escape
-                    || engine.mode == EngineMode::Play
-                    || !engine.ui.wants_keyboard_input()
-                {
-                    engine.input.process_key_event(*key, *state);
-                }
-            }
-
-            WindowEvent::MouseWheel { delta, .. } => {
-                if consumed {
-                    return;
-                }
-                let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
-                let scale = engine.ui.scale_factor();
-                let logical_pos = [cursor_x as f32 / scale, cursor_y as f32 / scale];
-
-                // Only scroll 3D camera if in Play mode (with cursor grabbed) or cursor is strictly inside the 3D viewport in Edit mode
-                if engine.mode == EngineMode::Play || !engine.ui.is_point_over_ui_rects(logical_pos)
-                {
-                    engine.handle_mouse_scroll(delta, cursor_x, cursor_y);
-                }
-            }
-
-            WindowEvent::MouseInput { state, button, .. } => {
-                if consumed {
-                    if *state == ElementState::Pressed {
-                        engine.editor.left_mouse_pressed = false;
-                        engine.editor.right_mouse_pressed = false;
-                    }
-                    return;
-                }
-                let (cursor_x, cursor_y) = engine.editor.last_cursor_pos;
-                let scale = engine.ui.scale_factor();
-                let logical_pos = [cursor_x as f32 / scale, cursor_y as f32 / scale];
-
-                // In Play mode, all clicks when cursor is grabbed (or releasing) go to gameplay.
-                // If in Edit mode, only pass mouse input when releasing or when cursor is not over UI panels.
-                let should_handle = if engine.mode == EngineMode::Play {
-                    engine.is_cursor_grabbed
-                        || *state == ElementState::Released
-                        || !engine.ui.is_point_over_ui_rects(logical_pos)
-                } else {
-                    *state == ElementState::Released
-                        || !engine.ui.is_point_over_ui_rects(logical_pos)
-                };
-
-                if should_handle {
-                    engine.handle_mouse_click(*button, *state);
-                } else if *state == ElementState::Pressed {
-                    engine.editor.left_mouse_pressed = false;
-                    engine.editor.right_mouse_pressed = false;
-                }
-            }
-
-            WindowEvent::Focused(focused) => {
-                engine.handle_focus_change(*focused);
-            }
-
             WindowEvent::RedrawRequested => {
                 // Handles OS-initiated draw events (e.g. during window resizing or dragging on Win32 modal loops).
                 // Ensures reliable window repainting and immediate Win32 client area validation, preventing UI freezing.
                 self.update_and_render(event_loop);
             }
-
-            // All other events pass through normally
-            other_event => {
-                engine.handle_window_event(other_event, consumed);
+            ref other_event => {
+                if let Some(engine) = self.engine.as_mut() {
+                    engine.process_window_event(other_event);
+                }
             }
         }
     }

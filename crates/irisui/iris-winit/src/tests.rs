@@ -122,8 +122,8 @@ fn test_mouse_scroll_translation() {
     assert_eq!(
         winit_to_ui_event(&line_scroll, p),
         Some(UiEvent::MouseScroll {
-            delta_x: 2.0,
-            delta_y: -3.0,
+            delta_x: 56.0,
+            delta_y: -84.0,
             point: p,
         })
     );
@@ -136,8 +136,8 @@ fn test_mouse_scroll_translation() {
     assert_eq!(
         winit_to_ui_event(&pixel_scroll, p),
         Some(UiEvent::MouseScroll {
-            delta_x: 2.0,
-            delta_y: -3.0,
+            delta_x: 48.0,
+            delta_y: -72.0,
             point: p,
         })
     );

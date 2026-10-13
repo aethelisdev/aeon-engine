@@ -234,6 +234,7 @@ pub fn evaluate_console_toolbar_cursor(
 }
 
 /// Parameters passed to the Developer Console layout builder.
+#[derive(Clone, Copy)]
 pub struct ConsolePanelParams<'a> {
     /// Bounding rectangle allocated for the docked console panel.
     pub panel_rect: Rect,

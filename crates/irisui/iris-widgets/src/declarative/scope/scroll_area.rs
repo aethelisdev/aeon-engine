@@ -177,14 +177,26 @@ impl<'a> UiScope<'a> {
         let max_scroll = vlist.max_scroll_y(viewport_height);
         let safe_scroll = scroll_y.clamp(0.0, max_scroll);
         let slice = vlist.compute_slice(viewport_height, safe_scroll);
-        let scroll_offset = vlist.compute_scroll_offset(safe_scroll, slice.start_idx);
 
-        self.scroll_area_tagged(name, tag, config.bg, |vp| {
-            vp.set_scroll_offset_y(scroll_offset);
+        let vp_id = self.scroll_area_tagged(name, tag, config.bg, |vp| {
+            vp.set_scroll_offset_y(safe_scroll);
+            if slice.start_idx > 0 {
+                let top_spacer_h = slice.start_idx as f32 * stride;
+                vp.empty_box(Style::new().height(top_spacer_h));
+            }
             for idx in slice.start_idx..slice.end_idx {
                 item_renderer(vp, idx);
             }
+            let remaining = config.total_items.saturating_sub(slice.end_idx);
+            if remaining > 0 {
+                let bottom_spacer_h = remaining as f32 * stride;
+                vp.empty_box(Style::new().height(bottom_spacer_h));
+            }
         });
+
+        if let Some(node) = self.tree.get_mut(vp_id) {
+            node.content_size = iris_core::geometry::Size::new(0.0, vlist.total_content_height());
+        }
 
         max_scroll
     }

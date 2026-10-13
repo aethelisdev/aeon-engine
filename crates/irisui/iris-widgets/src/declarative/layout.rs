@@ -119,9 +119,7 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
                         inner.y
                     };
                     let child_rect = Rect::new(x, y, w, h);
-                    if let Some(n) = tree.get_mut(cid) {
-                        n.computed_rect = child_rect;
-                    }
+                    layout_subtree(tree, cid, child_rect);
                 }
                 continue;
             }

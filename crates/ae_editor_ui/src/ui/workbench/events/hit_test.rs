@@ -5,17 +5,29 @@
 //!
 //! Determines whether screen-space coordinates land over active UI panels,
 //! floating modal windows, top menu bars, or within the interactive 3D viewport canvas.
+//!
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::workbench::state::EngineUi;
 use irisui::prelude::{Point, Rect};
 
 impl EngineUi {
+    /// Returns whether the UI currently captures the pointer or if the pointer is over any active UI element.
+    ///
+    /// Evaluates active panels, floating windows, modal dialogs, and top menubars.
+    /// Returns `false` if the pointer is positioned directly over the interactive 3D viewport canvas.
+    #[must_use]
+    pub fn wants_pointer_input(&self) -> bool {
+        let point = self.iris_overlay.cursor_pos();
+        self.wants_pointer_at([point.x, point.y])
+    }
+
     /// Returns true if the point is over any UI panel, floating modal dialog, or outside the 3D viewport.
     ///
     /// # Arguments
     /// * `pos` - `[x, y]` screen-space coordinates in logical points.
-    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
+    #[must_use]
+    pub fn wants_pointer_at(&self, pos: [f32; 2]) -> bool {
         let point = Point::new(pos[0], pos[1]);
         let in_rect = |r: Rect| {
             point.x >= r.x && point.x <= r.right() && point.y >= r.y && point.y <= r.bottom()
@@ -51,9 +63,7 @@ impl EngineUi {
             if self.iris_overlay.is_point_over_popup(point) {
                 return true;
             }
-            if let Some(hit) = self.iris_overlay.tree.hit_test_target(point)
-                && (hit.role == irisui::prelude::WidgetRole::Button || hit.tag > 0)
-            {
+            if self.iris_overlay.tree.wants_pointer_at(point) {
                 return true;
             }
 
@@ -85,5 +95,12 @@ impl EngineUi {
 
         // 3. Point is outside 3D viewport canvas -> belongs to UI panels
         true
+    }
+
+    /// Compatibility alias forwarding to [`Self::wants_pointer_at`].
+    #[must_use]
+    #[inline]
+    pub fn is_point_over_ui_rects(&self, pos: [f32; 2]) -> bool {
+        self.wants_pointer_at(pos)
     }
 }

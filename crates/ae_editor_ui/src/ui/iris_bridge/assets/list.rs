@@ -109,6 +109,7 @@ pub fn build_asset_list_table_scope(
     let vlist = VirtualList::new(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0);
     let slice = vlist.compute_slice(available_table_h, params.scroll_y);
 
+    let total_content_h = vlist.total_content_height();
     let container_id = scope.container_tagged(
         "AssetListRowsContainer",
         Style::new()
@@ -117,10 +118,15 @@ pub fn build_asset_list_table_scope(
             .clip_children(true)
             .margin_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
             .gap(2.0)
-            .scroll_offset_y(-(params.scroll_y % (LIST_ROW_HEIGHT + 2.0))),
+            .scroll_offset_y(params.scroll_y),
         WidgetRole::ScrollAreaViewport,
         ASSETS_TAG_CONTENT_VIEWPORT,
         |rows_scope| {
+            let row_stride = LIST_ROW_HEIGHT + 2.0;
+            if slice.start_idx > 0 {
+                let top_spacer = slice.start_idx as f32 * row_stride;
+                rows_scope.empty_box(Style::new().height(top_spacer));
+            }
             for (offset, item) in params.filtered_items[slice.start_idx..slice.end_idx]
                 .iter()
                 .enumerate()
@@ -132,7 +138,9 @@ pub fn build_asset_list_table_scope(
                 row_resp.row_response.context_menu(rows_scope, |menu| {
                     super::context_menu::render_asset_context_menu_items(menu, item, actions);
                 });
-                if row_resp.spawn_clicked {
+                if row_resp.row_response.dragged() {
+                    actions.push(AssetsPanelAction::StartAssetDrag(item.clone()));
+                } else if row_resp.spawn_clicked {
                     actions.push(AssetsPanelAction::SpawnAsset(
                         item.path.clone(),
                         item.category,
@@ -145,8 +153,17 @@ pub fn build_asset_list_table_scope(
                     actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
                 }
             }
+            let remaining = params.filtered_items.len().saturating_sub(slice.end_idx);
+            if remaining > 0 {
+                let bottom_spacer = remaining as f32 * row_stride;
+                rows_scope.empty_box(Style::new().height(bottom_spacer));
+            }
         },
     );
+
+    if let Some(c_node) = scope.tree_mut().get_mut(container_id) {
+        c_node.content_size = Size::new(total_w, total_content_h);
+    }
 
     let container_resp = scope.response(container_id);
     container_resp.context_menu(scope, |menu| {

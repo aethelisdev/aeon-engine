@@ -51,6 +51,8 @@ pub struct EventState {
     pub pressed: Option<WidgetId>,
     /// Mouse button variant (Left, Right, Middle) that initiated the current press gesture.
     pub pressed_button: Option<MouseButton>,
+    /// Persistent 64-bit semantic tag of the widget where the mouse button was originally pressed down, if assigned.
+    pub pressed_tag: Option<u64>,
     /// Widget node currently holding active keyboard navigation or text input focus.
     pub focused: Option<WidgetId>,
     /// Persistent 64-bit semantic tag currently holding keyboard focus, if assigned.
@@ -102,6 +104,7 @@ impl EventState {
             hovered: None,
             pressed: None,
             pressed_button: None,
+            pressed_tag: None,
             focused: None,
             focused_tag: None,
             press_origin: None,
@@ -132,6 +135,7 @@ impl EventState {
         self.hovered = None;
         self.pressed = None;
         self.pressed_button = None;
+        self.pressed_tag = None;
         self.press_origin = None;
         self.initial_scroll_y = 0.0;
         self.last_click_id = None;
@@ -165,6 +169,20 @@ impl EventState {
         self.frame_key = None;
         self.frame_text_input = None;
         self.frame_key_pressed = false;
+    }
+
+    /// Returns `true` if any confirmed clicks, double clicks, secondary clicks, or drag gestures
+    /// are currently pending consumption within the current frame.
+    #[inline]
+    #[must_use]
+    pub fn has_frame_interactions(&self) -> bool {
+        self.frame_clicked_id.is_some()
+            || self.frame_clicked_tag.is_some()
+            || self.frame_double_clicked_id.is_some()
+            || self.frame_double_clicked_tag.is_some()
+            || self.frame_secondary_clicked_id.is_some()
+            || self.frame_secondary_clicked_tag.is_some()
+            || self.frame_drag_delta.is_some()
     }
 
     /// Clears active keyboard and semantic tag focus.

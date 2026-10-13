@@ -480,7 +480,11 @@ impl<'a> UiScope<'a> {
             node.tag = tag;
         }
         let _ = self.tree.add_child(self.parent, box_id);
-        let (_, hovered, _) = self.check_interaction(box_id);
+        let (clicked, hovered, _) = self.check_interaction(box_id);
+        if clicked {
+            self.tree.event_state.focused = Some(box_id);
+            self.tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+        }
 
         let border_color = if props.is_focused {
             Color::rgba(0.0, 0.90, 1.0, 0.95)
@@ -624,6 +628,7 @@ impl<'a> UiScope<'a> {
         let text_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(text_id) {
             node.role = WidgetRole::Default;
+            node.interactive = false;
             node.tag = tag;
             node.set_text(display_text);
             node.font_size = font_size;

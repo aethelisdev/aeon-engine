@@ -74,6 +74,8 @@ pub struct AeEngine {
         ae_2d::renderer::Sprite2DPipeline,
         ae_2d::renderer::SpriteBatcher,
     )>,
+    /// Window event and pointer capture arbitration state machine.
+    pub input_arbiter: crate::events::InputArbiter,
 }
 
 impl AeEngine {
@@ -302,6 +304,7 @@ impl AeEngine {
             in_game_hud: crate::hud::InGameHudState::new(),
             dimension_mode,
             sprite_2d_system,
+            input_arbiter: crate::events::InputArbiter::new(),
         };
 
         let is_2d = dimension_mode.is_2d();

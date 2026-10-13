@@ -32,6 +32,17 @@ pub fn build_category_chips_scope(
         (AssetCategory::Audio, "Audio"),
     ];
 
+    let active_cat = if let Some(clicked_tag) = scope.tree().event_state.frame_clicked_tag {
+        categories
+            .iter()
+            .enumerate()
+            .find(|(idx, _)| encode_chip_tag(*idx as u8) == clicked_tag)
+            .map(|(_, (cat, _))| *cat)
+            .unwrap_or(params.active_category)
+    } else {
+        params.active_category
+    };
+
     scope.container_named(
         "AssetsCategoryChipsRow",
         Style::new()
@@ -63,7 +74,7 @@ pub fn build_category_chips_scope(
 
                 let chip_text = format!("{} ({})", label, count);
                 let tag = encode_chip_tag(idx as u8);
-                let is_selected = params.active_category == cat;
+                let is_selected = active_cat == cat;
                 let cat_color = super::cards::resolve_category_color(cat);
                 let border_color = if is_selected {
                     cat_color

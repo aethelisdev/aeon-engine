@@ -92,6 +92,13 @@ impl WinitState {
         self.cursor_pos
     }
 
+    /// Returns true if an active mouse cursor coordinate is tracked within the window bounds.
+    #[must_use]
+    #[inline]
+    pub const fn has_pointer(&self) -> bool {
+        self.cursor_pos.is_some()
+    }
+
     /// Explicitly updates or clears the active cursor position.
     #[inline]
     pub fn set_cursor_pos(&mut self, cursor_pos: Option<Point>) {

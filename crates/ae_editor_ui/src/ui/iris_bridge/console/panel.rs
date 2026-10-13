@@ -55,6 +55,7 @@ pub fn build_console_panel(
 
     // 2. Panel Base Container via declarative UiScope
     let mut scope = UiScope::new(tree, parent_id);
+
     scope.panel_tagged(
         "ConsolePanelRoot",
         params.panel_rect,
@@ -86,7 +87,10 @@ pub fn build_console_panel(
                     .with_icon("🔍")
                     .with_cursor_byte_idx(params.cursor_byte_idx)
                     .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
-                    tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
+                    let input_id = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
+                    if tb.response(input_id).clicked() {
+                        actions.push(ConsoleAction::FocusSearch);
+                    }
 
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
 

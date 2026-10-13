@@ -306,6 +306,13 @@ impl EngineUi {
                 .push(EngineUiAction::UpdateEditorConfig(cur_cfg.clone()));
         }
 
+        // 3c. Immediate post-pass action drain for declarative overlay actions produced during render
+        self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode);
+        if self.iris_overlay.has_pending_panel_actions() {
+            self.iris_overlay.notifier.tag_all();
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+        }
+
         // 4. Viewport Texture Re-registration Check
         let mut new_rect = viewport_rect;
         if new_rect.width <= 0.0

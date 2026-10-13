@@ -13,7 +13,7 @@ use super::types::{DOUBLE_CLICK_MAX_DELAY_MS, DOUBLE_CLICK_MAX_DISTANCE_SQ, Disp
 use crate::event::{ImeEvent, KeyCode, MouseButton, UiEvent};
 use crate::geometry::Point;
 use crate::id::WidgetId;
-use crate::node::{WidgetCursor, WidgetRole};
+use crate::node::{UiLayer, WidgetCursor, WidgetRole};
 use crate::response::{ResponseFlags, WidgetResponse};
 use crate::tree::UiTree;
 
@@ -29,8 +29,12 @@ use crate::tree::UiTree;
 /// 4. **State Machine Transitions**: Synchronizes hover, pressed, click, double-click,
 ///    and keyboard focus transitions on [`super::types::EventState`].
 pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
-    // Clear transient frame click markers when processing non-MouseUp events
-    if !matches!(event, UiEvent::MouseUp { .. }) {
+    // Clear transient frame click markers when starting new gestures or non-pointer events,
+    // preserving clicks across immediate micro-motion until the frame finishes or a new press occurs
+    if matches!(
+        event,
+        UiEvent::MouseDown { .. } | UiEvent::MouseScroll { .. }
+    ) {
         tree.event_state.frame_clicked_id = None;
         tree.event_state.frame_clicked_tag = None;
         tree.event_state.frame_double_clicked_id = None;
@@ -153,9 +157,12 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     if let Some(active) = tree.event_state.active_context_menu {
         let is_inside_menu = if let Some(menu_cid) = active.container_id {
             hit_id == Some(menu_cid)
-                || hit_id.is_some_and(|hid| tree.is_descendant_of(hid, menu_cid))
+                || hit_id.is_some_and(|hid| {
+                    tree.is_descendant_of(hid, menu_cid)
+                        || tree.get(hid).is_some_and(|n| n.layer == UiLayer::Popup)
+                })
         } else {
-            false
+            hit_id.is_some_and(|hid| tree.get(hid).is_some_and(|n| n.layer == UiLayer::Popup))
         };
         if !is_inside_menu {
             tree.event_state.active_context_menu = None;
@@ -170,8 +177,22 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     if let Some(target_id) = hit_id {
         // Synchronize keyboard focus with the newly clicked interactive target
         let tag = tree.get(target_id).map(|n| n.tag).unwrap_or(0);
+        let effective_tag = if tag != 0 {
+            tag
+        } else {
+            tree.resolve_ancestor_tag(target_id)
+        };
+        tree.event_state.pressed_tag = if effective_tag != 0 {
+            Some(effective_tag)
+        } else {
+            None
+        };
         tree.event_state.focused = Some(target_id);
-        tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+        tree.event_state.focused_tag = if effective_tag != 0 {
+            Some(effective_tag)
+        } else {
+            None
+        };
 
         let role = tree
             .get(target_id)
@@ -208,11 +229,6 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .unwrap_or(crate::geometry::Rect::ZERO);
         let cursor = resolve_effective_cursor(tree, target_id);
 
-        let effective_tag = if tag != 0 {
-            tag
-        } else {
-            tree.resolve_ancestor_tag(target_id)
-        };
         let is_interactive = role.is_interactive()
             || effective_tag != 0
             || tree.event_state.pointer_capture.is_some();
@@ -281,8 +297,11 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
     // 2. Normal click detection: pressed and released on identical widget with identical button
     let hit_id = tree.hit_test_layered(point);
     let original_pressed = tree.event_state.pressed;
+    let original_pressed_tag = tree.event_state.pressed_tag;
     let original_button = tree.event_state.pressed_button;
+    let original_press_origin = tree.event_state.press_origin;
     tree.event_state.pressed = None;
+    tree.event_state.pressed_tag = None;
     tree.event_state.pressed_button = None;
     tree.event_state.press_origin = None;
     tree.event_state.last_pointer_pos = None;
@@ -295,15 +314,31 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             .unwrap_or((0, crate::geometry::Rect::ZERO));
         let cursor = resolve_effective_cursor(tree, target_id);
 
-        // Click confirmed if release target and button match initial press
-        if original_pressed == Some(target_id) && original_button == Some(button) {
-            let mut flags = ResponseFlags::HOVERED;
+        let effective_tag = if tag != 0 {
+            tag
+        } else {
+            tree.resolve_ancestor_tag(target_id)
+        };
 
-            let effective_tag = if tag != 0 {
-                tag
-            } else {
-                tree.resolve_ancestor_tag(target_id)
-            };
+        let role = tree
+            .get(target_id)
+            .map(|n| n.role)
+            .unwrap_or(WidgetRole::Default);
+        let is_interactive = role.is_interactive()
+            || effective_tag != 0
+            || tree.event_state.pointer_capture.is_some();
+
+        // Click confirmed if release target and button match initial press across frames:
+        // 1. Direct WidgetId match (same generation/frame)
+        // 2. Persistent semantic tag match (across tree rebuilds)
+        // 3. Coordinate bounds match (press_origin and release point both inside widget computed_rect)
+        let matches_pressed = original_pressed == Some(target_id)
+            || (original_pressed_tag.is_some() && original_pressed_tag == Some(effective_tag))
+            || (original_press_origin.is_some_and(|origin| rect.contains_point(origin))
+                && rect.contains_point(point));
+
+        if matches_pressed && original_button == Some(button) {
+            let mut flags = ResponseFlags::HOVERED;
 
             tree.event_state.frame_clicked_pos = Some(point);
 
@@ -326,7 +361,11 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                         let dx = point.x - last_pos.x;
                         let dy = point.y - last_pos.y;
                         let dist_sq = dx * dx + dy * dy;
-                        last_id == target_id
+                        let id_or_tag_matches = last_id == target_id
+                            || (effective_tag != 0
+                                && tree.get(last_id).map_or(0, |n| n.tag) == effective_tag)
+                            || rect.contains_point(last_pos);
+                        id_or_tag_matches
                             && elapsed <= DOUBLE_CLICK_MAX_DELAY_MS
                             && dist_sq <= DOUBLE_CLICK_MAX_DISTANCE_SQ
                     } else {
@@ -367,16 +406,10 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 MouseButton::Other(_) => {}
             }
 
-            let role = tree
-                .get(target_id)
-                .map(|n| n.role)
-                .unwrap_or(WidgetRole::Default);
-            let is_interactive = role.is_interactive() || effective_tag != 0;
-
             DispatchResult {
                 consumed: is_interactive,
                 target: Some(target_id),
-                target_tag: tag,
+                target_tag: effective_tag,
                 cursor,
                 response: Some(WidgetResponse::from_flags(target_id, rect, flags)),
                 scroll_delta: (0.0, 0.0),
@@ -425,52 +458,77 @@ fn handle_mouse_scroll(
     let mut current = Some(hit_id);
     while let Some(curr_id) = current {
         if let Some(node) = tree.get(curr_id) {
-            let is_scroll_container =
-                node.role == WidgetRole::ScrollAreaViewport || node.style.clip_children;
+            let is_explicit_viewport = node.role == WidgetRole::ScrollAreaViewport;
+            let is_generic_scrollable = node.role != WidgetRole::Button
+                && node.role != WidgetRole::TextInput
+                && (node.style.clip_children && node.tag != 0);
 
-            let has_overflow = if node.content_size.height > 0.0 {
-                node.content_size.height > node.computed_rect.height + 0.5
-                    || node.style.scroll_offset_y > 0.0
+            let is_scroll_container = is_explicit_viewport || is_generic_scrollable;
+
+            let has_overflow = if is_scroll_container {
+                if node.content_size.height > 0.0 {
+                    node.content_size.height > node.computed_rect.height + 0.5
+                        || node.style.scroll_offset_y > 0.0
+                } else {
+                    true
+                }
             } else {
-                // If content_size is unmeasured (e.g. unit test), respect explicit scroll containers
-                is_scroll_container
+                false
             };
 
-            if is_scroll_container && has_overflow {
-                let tag = node.tag;
-                let rect = node.computed_rect;
-                let max_scroll = if node.content_size.height > node.computed_rect.height {
-                    node.content_size.height - node.computed_rect.height
-                } else if node.content_size.height == 0.0 {
-                    f32::MAX
+            if is_scroll_container {
+                if has_overflow {
+                    let tag = node.tag;
+                    let rect = node.computed_rect;
+                    let max_scroll = if node.content_size.height > node.computed_rect.height {
+                        node.content_size.height - node.computed_rect.height
+                    } else if node.content_size.height == 0.0 {
+                        f32::MAX
+                    } else {
+                        node.style.scroll_offset_y
+                    };
+
+                    // Directly update the container's vertical scroll offset in the tree
+                    if let Some(mut_node) = tree.get_mut(curr_id) {
+                        mut_node.style.scroll_offset_y =
+                            (mut_node.style.scroll_offset_y - delta_y).clamp(0.0, max_scroll);
+                    }
+
+                    // Autonomous synchronization of attached scrollbar thumb geometry
+                    sync_scrollbar_thumb_geometry(tree, curr_id);
+
+                    return DispatchResult {
+                        consumed: true,
+                        target: Some(curr_id),
+                        target_tag: tag,
+                        cursor: None,
+                        response: Some(WidgetResponse::from_flags(
+                            curr_id,
+                            rect,
+                            ResponseFlags::CHANGED,
+                        )),
+                        scroll_delta: (delta_x, delta_y),
+                        key: None,
+                        is_key_pressed: false,
+                        text_input: None,
+                    };
                 } else {
-                    node.style.scroll_offset_y
-                };
-
-                // Directly update the container's vertical scroll offset in the tree
-                if let Some(mut_node) = tree.get_mut(curr_id) {
-                    mut_node.style.scroll_offset_y =
-                        (mut_node.style.scroll_offset_y - delta_y).clamp(0.0, max_scroll);
+                    return DispatchResult {
+                        consumed: true,
+                        target: Some(curr_id),
+                        target_tag: node.tag,
+                        cursor: None,
+                        response: Some(WidgetResponse::from_flags(
+                            curr_id,
+                            node.computed_rect,
+                            ResponseFlags::HOVERED,
+                        )),
+                        scroll_delta: (0.0, 0.0),
+                        key: None,
+                        is_key_pressed: false,
+                        text_input: None,
+                    };
                 }
-
-                // Autonomous synchronization of attached scrollbar thumb geometry
-                sync_scrollbar_thumb_geometry(tree, curr_id);
-
-                return DispatchResult {
-                    consumed: true,
-                    target: Some(curr_id),
-                    target_tag: tag,
-                    cursor: None,
-                    response: Some(WidgetResponse::from_flags(
-                        curr_id,
-                        rect,
-                        ResponseFlags::CHANGED,
-                    )),
-                    scroll_delta: (delta_x, delta_y),
-                    key: None,
-                    is_key_pressed: false,
-                    text_input: None,
-                };
             }
             current = node.parent;
         } else {

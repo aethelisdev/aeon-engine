@@ -50,6 +50,9 @@ impl IrisEditorOverlay {
                         if tag == CONSOLE_TAG_VIEWPORT {
                             self.console.scroll_y = scroll_y;
                             self.console.interactions.scroll_y = scroll_y;
+                            if tree_dispatch.scroll_delta.1 > 0.0 {
+                                self.console.auto_scroll = false;
+                            }
                         } else if tag == ASSETS_TAG_CONTENT_VIEWPORT {
                             self.assets.scroll_y = scroll_y;
                             self.assets.interactions.scroll_y = scroll_y;
@@ -106,8 +109,10 @@ impl IrisEditorOverlay {
         self.hierarchy.interactions.has_pending_actions()
             || self.stats.interactions.has_pending_actions()
             || self.console.interactions.has_pending_actions()
+            || !self.console.actions.is_empty()
             || self.material.interactions.has_pending_actions()
             || self.assets.interactions.has_pending_actions()
+            || !self.assets.actions.is_empty()
             || self.preferences.interactions.has_pending_actions()
             || self.inspector.interactions.has_pending_actions()
             || self.timeline.interactions.has_pending_actions()
@@ -350,7 +355,6 @@ impl IrisEditorOverlay {
             };
             if !is_hit_focused {
                 self.clear_focus();
-                self.chrome.needs_layout_rebuild = true;
                 self.notifier.tag_all();
             }
         }

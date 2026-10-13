@@ -54,6 +54,14 @@ impl UiTree {
         self.event_state.clear_frame_clicks();
     }
 
+    /// Returns `true` if any confirmed clicks, double clicks, secondary clicks, or drag gestures
+    /// are currently pending consumption within the active frame.
+    #[inline]
+    #[must_use]
+    pub fn has_frame_interactions(&self) -> bool {
+        self.event_state.has_frame_interactions()
+    }
+
     /// Dispatches an incoming windowing event hierarchically through the tree.
     ///
     /// Evaluates pointer capture, layered z-order hit-testing, and event bubbling.
@@ -602,7 +610,7 @@ impl UiTree {
         // If the descendant itself is tagged or intrinsically interactive,
         // it consumed the interaction directly; parent containers must not bubble or steal it.
         if let Some(desc_node) = self.nodes.get(descendant) {
-            if desc_node.tag != 0 || desc_node.role.is_interactive() || desc_node.interactive {
+            if desc_node.tag != 0 || desc_node.role.is_interactive() {
                 return false;
             }
             // Floating popup layers never bubble interactions to lower-layer containers
@@ -685,6 +693,39 @@ impl UiTree {
             rect: node.computed_rect,
             name: node.name.clone(),
         })
+    }
+
+    /// Returns true if the specified screen coordinate intersects an interactive widget,
+    /// a tagged component, an active popup/context menu, or an active modal overlay.
+    ///
+    /// Enables host applications to determine whether the UI captures pointer input
+    /// without manual coordinate calculations or widget role filtering.
+    #[must_use]
+    pub fn wants_pointer_at(&self, point: Point) -> bool {
+        if self.event_state.pointer_capture.is_some()
+            || self.event_state.active_context_menu.is_some()
+        {
+            return true;
+        }
+
+        let Some(hit_id) = self.hit_test_layered(point) else {
+            return false;
+        };
+
+        let Some(node) = self.nodes.get(hit_id) else {
+            return false;
+        };
+
+        let layer = self.effective_layer(hit_id);
+        if layer == UiLayer::Modal || layer == UiLayer::Popup || layer == UiLayer::Tooltip {
+            return true;
+        }
+
+        if node.role.is_interactive() || node.tag != 0 {
+            return true;
+        }
+
+        self.resolve_ancestor_tag(hit_id) != 0
     }
 
     /// Evaluates the active hardware mouse cursor shape for the widget currently under `point`.
@@ -939,5 +980,28 @@ mod tests {
             .expect("Child label must be hit");
         assert_eq!(hit.id, child_label);
         assert_eq!(hit.tag, 0x4849_4552_0000_0003);
+    }
+
+    #[test]
+    fn test_wants_pointer_at_evaluation() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+        }
+
+        let button = tree.create_node();
+        if let Some(node) = tree.get_mut(button) {
+            node.computed_rect = Rect::new(50.0, 50.0, 100.0, 30.0);
+            node.role = WidgetRole::Button;
+            node.layer = UiLayer::Content;
+            node.tag = 42;
+        }
+        tree.add_child(root, button).unwrap();
+
+        // Over button -> wants pointer
+        assert!(tree.wants_pointer_at(Point::new(60.0, 60.0)));
+        // Empty root background -> does not want pointer
+        assert!(!tree.wants_pointer_at(Point::new(10.0, 10.0)));
     }
 }

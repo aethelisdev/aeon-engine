@@ -64,6 +64,7 @@ pub fn build_asset_grid_cards_scope(
         .spacing(CARD_SPACING, CARD_SPACING)
         .padding(10.0, 10.0);
 
+    let total_content_h = grid.compute_content_height(items.len(), vp_rect.width);
     let visible_cells = grid.compute_visible_cells(vp_rect, items.len(), params.scroll_y);
 
     let container_id = scope.container_tagged(
@@ -72,6 +73,7 @@ pub fn build_asset_grid_cards_scope(
             .flex_col()
             .width(vp_rect.width)
             .height(vp_rect.height)
+            .scroll_offset_y(params.scroll_y)
             .clip_children(true),
         WidgetRole::ScrollAreaViewport,
         ASSETS_TAG_CONTENT_VIEWPORT,
@@ -80,7 +82,10 @@ pub fn build_asset_grid_cards_scope(
                 let item = &items[item_idx];
                 let layer = params.thumbnail_layers.get(&item.path).copied();
                 let is_selected = params.selected_asset == Some(&item.path);
-                let rel_pos = Point::new(card_rect.x - vp_rect.x, card_rect.y - vp_rect.y);
+                let rel_pos = Point::new(
+                    card_rect.x - vp_rect.x,
+                    card_rect.y - vp_rect.y + params.scroll_y,
+                );
 
                 let card_resp = asset_grid_card(
                     grid_scope,
@@ -93,7 +98,9 @@ pub fn build_asset_grid_cards_scope(
                 card_resp.context_menu(grid_scope, |menu| {
                     super::context_menu::render_asset_context_menu_items(menu, item, actions);
                 });
-                if card_resp.double_clicked() {
+                if card_resp.dragged() {
+                    actions.push(AssetsPanelAction::StartAssetDrag(item.clone()));
+                } else if card_resp.double_clicked() {
                     actions.push(AssetsPanelAction::SpawnAsset(
                         item.path.clone(),
                         item.category,
@@ -106,6 +113,10 @@ pub fn build_asset_grid_cards_scope(
             }
         },
     );
+
+    if let Some(c_node) = scope.tree_mut().get_mut(container_id) {
+        c_node.content_size = Size::new(vp_rect.width, total_content_h);
+    }
 
     let container_resp = scope.response(container_id);
     container_resp.context_menu(scope, |menu| {
