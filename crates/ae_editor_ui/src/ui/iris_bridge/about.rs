@@ -70,36 +70,27 @@ pub fn build_about_dialog(
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::SpaceBetween),
                 |header| {
-                    header.label(
-                        "ℹ  About Aeon Engine",
-                        12.5,
-                        Color::rgba(0.88, 0.88, 0.92, 1.0),
-                        TextAlign::Left,
-                    );
+                    header.subheading("ℹ  About Aeon Engine");
                     header.modal_close_button();
                 },
             );
 
             // 2. Body Column: Engine identity, copyright, license link, and warranty
             card.column(|col| {
-                col.label(
+                col.label_custom(
                     "Aeon Engine",
                     20.0,
                     Color::rgba(0.0, 0.90, 1.0, 1.0),
                     TextAlign::Center,
                 );
-                col.label(
-                    "Copyright (C) 2026 AethelisDEV / Aeon Engine",
-                    11.5,
+                col.colored_label(
                     Color::rgba(0.65, 0.65, 0.70, 1.0),
-                    TextAlign::Center,
+                    "Copyright (C) 2026 AethelisDEV / Aeon Engine",
                 );
                 col.separator();
-                col.label(
-                    "This Source Code Form is subject to the terms of the Mozilla Public",
-                    11.0,
+                col.colored_label(
                     Color::rgba(0.72, 0.72, 0.78, 1.0),
-                    TextAlign::Center,
+                    "This Source Code Form is subject to the terms of the Mozilla Public",
                 );
                 if col
                     .link(
@@ -110,11 +101,9 @@ pub fn build_about_dialog(
                 {
                     open_url("https://mozilla.org/MPL/2.0/");
                 }
-                col.label(
-                    "This program comes with ABSOLUTELY NO WARRANTY.",
-                    11.5,
+                col.colored_label(
                     Color::rgba(1.0, 0.40, 0.40, 1.0),
-                    TextAlign::Center,
+                    "This program comes with ABSOLUTELY NO WARRANTY.",
                 );
             });
 

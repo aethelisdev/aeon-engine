@@ -51,8 +51,8 @@ use iris_widgets::UiScope;
 ///     }
 ///     fn ui(&mut self, scope: &mut UiScope<'_>, tab: &Panel) {
 ///         match tab {
-///             Panel::Hierarchy => { scope.label("Entities", 12.0, iris_core::Color::WHITE, iris_core::TextAlign::Left); }
-///             Panel::Inspector => { scope.label("Properties", 12.0, iris_core::Color::WHITE, iris_core::TextAlign::Left); }
+///             Panel::Hierarchy => { scope.label("Entities"); }
+///             Panel::Inspector => { scope.label("Properties"); }
 ///         }
 ///     }
 /// }
@@ -499,7 +499,7 @@ impl Default for DockInteractionConfig {
 mod tests {
     use super::*;
     use crate::tree::{DockTree, SplitDirection};
-    use iris_core::{Color, UiTree};
+    use iris_core::UiTree;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum TestPanel {
@@ -527,30 +527,15 @@ mod tests {
             match tab {
                 TestPanel::Hierarchy => {
                     self.rendered_hierarchy = true;
-                    scope.label(
-                        "Entities List",
-                        11.0,
-                        Color::WHITE,
-                        iris_core::TextAlign::Left,
-                    );
+                    scope.label("Entities List");
                 }
                 TestPanel::Inspector => {
                     self.rendered_inspector = true;
-                    scope.label(
-                        "Component Fields",
-                        11.0,
-                        Color::WHITE,
-                        iris_core::TextAlign::Left,
-                    );
+                    scope.label("Component Fields");
                 }
                 TestPanel::Console => {
                     self.rendered_console = true;
-                    scope.label(
-                        "System Logs",
-                        11.0,
-                        Color::WHITE,
-                        iris_core::TextAlign::Left,
-                    );
+                    scope.label("System Logs");
                 }
             }
         }

@@ -32,23 +32,14 @@ pub fn build_no_entity_selected(scope: &mut UiScope<'_>, panel_width: f32) {
         card.container(icon_row, |r| {
             r.icon(ICON_WORLD, Color::rgba(0.0, 0.85, 1.0, 0.65), 28.0);
         });
-        card.label(
-            "No Entity Selected",
-            12.0,
-            Color::rgba(0.90, 0.92, 0.95, 1.0),
-            TextAlign::Center,
-        );
-        card.label(
+        card.subheading("No Entity Selected");
+        card.colored_label(
+            Color::rgba(0.55, 0.58, 0.64, 1.0),
             "Select a 3D model or 2D sprite in the",
-            10.5,
-            Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Center,
         );
-        card.label(
-            "viewport or hierarchy to edit materials.",
-            10.5,
+        card.colored_label(
             Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Center,
+            "viewport or hierarchy to edit materials.",
         );
     });
 }
@@ -74,23 +65,14 @@ pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>, panel_width: f32) {
         card.container(icon_row, |r| {
             r.icon(ICON_CUBE, Color::rgba(0.95, 0.65, 0.25, 0.75), 28.0);
         });
-        card.label(
-            "No Renderable Geometry",
-            12.0,
-            Color::rgba(0.90, 0.92, 0.95, 1.0),
-            TextAlign::Center,
-        );
-        card.label(
+        card.subheading("No Renderable Geometry");
+        card.colored_label(
+            Color::rgba(0.55, 0.58, 0.64, 1.0),
             "Selected entity does not have a",
-            10.5,
-            Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Center,
         );
-        card.label(
-            "3D Model or 2D Sprite component attached.",
-            10.5,
+        card.colored_label(
             Color::rgba(0.55, 0.58, 0.64, 1.0),
-            TextAlign::Center,
+            "3D Model or 2D Sprite component attached.",
         );
         let btn_row = Style::new()
             .flex_row()

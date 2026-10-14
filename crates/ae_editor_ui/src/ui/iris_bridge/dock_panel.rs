@@ -266,7 +266,7 @@ impl DockPanel for EditorDockPanel {
         } else {
             let mut scope = UiScope::new(tree, parent);
             scope.container(Style::default(), |inner| {
-                inner.label(&self.title, 13.0, Color::WHITE, TextAlign::Left);
+                inner.label(&self.title);
             });
         }
     }
@@ -375,7 +375,7 @@ mod tests {
                 scope.container(
                     Style::new().width(bounds.width).height(bounds.height),
                     |c| {
-                        c.label("Inspector", 12.0, Color::WHITE, TextAlign::Left);
+                        c.label("Inspector");
                     },
                 );
             },
@@ -424,7 +424,7 @@ mod tests {
                 scope.container(
                     Style::new().width(bounds.width).height(bounds.height),
                     |c| {
-                        c.label("Hierarchy Node", 12.0, Color::WHITE, TextAlign::Left);
+                        c.label("Hierarchy Node");
                     },
                 );
             },
@@ -466,7 +466,7 @@ mod tests {
                 scope.container(
                     Style::new().width(bounds.width).height(bounds.height),
                     |c| {
-                        c.label("Console Output", 12.0, Color::WHITE, TextAlign::Left);
+                        c.label("Console Output");
                     },
                 );
             });

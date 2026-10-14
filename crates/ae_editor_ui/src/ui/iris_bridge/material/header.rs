@@ -31,12 +31,7 @@ pub fn build_material_header(
         // Left: icon + title
         hdr.row(|left| {
             left.icon(ICON_WORLD, Color::rgba(0.0, 0.85, 1.0, 0.95), 16.0);
-            left.label(
-                "Material & Surface Studio",
-                11.5,
-                Color::rgba(0.92, 0.93, 0.95, 1.0),
-                TextAlign::Left,
-            );
+            left.label("Material & Surface Studio");
         });
 
         // Right-aligned Entity Geometry Badge
@@ -63,7 +58,7 @@ pub fn build_material_header(
 
                 hdr.container(badge_style, |badge| {
                     badge.icon(badge_icon, badge_color, 12.0);
-                    badge.label(badge_text, 10.0, badge_color, TextAlign::Left);
+                    badge.colored_label(badge_color, badge_text);
                 });
             }
         }

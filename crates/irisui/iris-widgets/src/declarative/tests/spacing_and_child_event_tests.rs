@@ -13,7 +13,7 @@ use crate::declarative::UiScope;
 use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
 use iris_core::tree::UiTree;
-use iris_core::{FlexDirection, Style, WidgetRole};
+use iris_core::{Style, WidgetRole};
 
 #[test]
 fn test_declarative_spacing_and_separators() {
@@ -34,7 +34,7 @@ fn test_declarative_spacing_and_separators() {
 
     let sp_node = tree.get(spacing_id).expect("Spacing node must exist");
     assert_eq!(sp_node.style.width, Some(12.0));
-    assert_eq!(sp_node.interactive, false);
+    assert!(!sp_node.interactive);
 
     let sep_node = tree.get(sep_id).expect("Separator node must exist");
     assert_eq!(sep_node.role, WidgetRole::Separator);
@@ -124,7 +124,7 @@ fn test_child_event_consumption_prevents_parent_click_or_drag() {
 
     // 3. Re-evaluate responses in a declarative scope cycle
     {
-        let mut scope = UiScope::new(&mut tree, root);
+        let scope = UiScope::new(&mut tree, root);
         scope
             .response(row_id)
             .on_click(|| row_clicked = true)

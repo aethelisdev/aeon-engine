@@ -175,7 +175,7 @@ pub(crate) fn render_info_box(
             .height(height),
         |col| {
             for line in lines {
-                col.label(line, 11.5, text_color, TextAlign::Left);
+                col.colored_label(text_color, line);
             }
         },
     );

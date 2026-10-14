@@ -230,7 +230,7 @@ pub fn render_clip_badge(
         .flex_shrink(0.0);
 
     scope.container_named("TimelineClipBadge", badge_style, |b| {
-        b.label(text, 10.0, style.clip_badge_text, TextAlign::Center);
+        b.label_custom(text, 10.0, style.clip_badge_text, TextAlign::Center);
     })
 }
 
@@ -270,7 +270,7 @@ pub fn render_time_readout(
         .flex_shrink(0.0);
 
     scope.container_named("TimelineTimeReadout", readout_style, |r| {
-        r.label(text, 9.5, style.time_readout_color, TextAlign::Center);
+        r.label_custom(text, 9.5, style.time_readout_color, TextAlign::Center);
     })
 }
 

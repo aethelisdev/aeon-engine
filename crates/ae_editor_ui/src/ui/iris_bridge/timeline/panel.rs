@@ -118,18 +118,11 @@ fn render_empty_placeholder(
                 .gap(4.0);
 
             center_col.container_named("TimelineEmptyCard", card_style, |card_scope| {
-                card_scope.label(
-                    format!("{}  {}", icon, title),
-                    13.0,
+                card_scope.colored_label(
                     Color::rgba(0.70, 0.75, 0.85, 1.0),
-                    TextAlign::Center,
+                    format!("{}  {}", icon, title),
                 );
-                card_scope.label(
-                    subtitle,
-                    10.5,
-                    Color::rgba(0.48, 0.52, 0.62, 1.0),
-                    TextAlign::Center,
-                );
+                card_scope.colored_label(Color::rgba(0.48, 0.52, 0.62, 1.0), subtitle);
             });
         },
     );
@@ -164,11 +157,9 @@ fn render_missing_player_card(
                 .gap(8.0);
 
             center_col.container_named("TimelineMissingPlayerCard", card_style, |card_scope| {
-                card_scope.label(
-                    "Selected entity does not have an AnimationPlayer component.",
-                    11.5,
+                card_scope.colored_label(
                     Color::rgba(0.72, 0.76, 0.86, 1.0),
-                    TextAlign::Center,
+                    "Selected entity does not have an AnimationPlayer component.",
                 );
 
                 if card_scope.button("➕ Add AnimationPlayer").clicked() {

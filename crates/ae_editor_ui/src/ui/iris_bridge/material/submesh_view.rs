@@ -54,27 +54,18 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
         |header| {
             header.row(|row| {
                 row.icon(ICON_CUBE, Color::rgba(0.0, 0.85, 1.0, 0.95), 14.0);
-                row.label(
-                    format!("3D Model: {}", file_name),
-                    11.0,
+                row.colored_label(
                     Color::rgba(0.88, 0.90, 0.94, 1.0),
-                    TextAlign::Left,
+                    format!("3D Model: {}", file_name),
                 );
             });
         },
         |card| {
             card.divider(Color::rgba(0.16, 0.17, 0.20, 0.85));
-            card.label(
-                stats_text,
-                10.5,
-                Color::rgba(0.35, 0.82, 0.50, 1.0),
-                TextAlign::Left,
-            );
-            card.label(
-                "Configure alpha blending and textures per submesh slot below:",
-                9.5,
+            card.colored_label(Color::rgba(0.35, 0.82, 0.50, 1.0), stats_text);
+            card.colored_label(
                 Color::rgba(0.55, 0.58, 0.64, 1.0),
-                TextAlign::Left,
+                "Configure alpha blending and textures per submesh slot below:",
             );
         },
     );
@@ -109,22 +100,12 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
 
         scope.card_custom(
             |header| {
-                header.label(
-                    card_title,
-                    11.0,
-                    Color::rgba(0.95, 0.82, 0.35, 1.0),
-                    TextAlign::Left,
-                );
+                header.colored_label(Color::rgba(0.95, 0.82, 0.35, 1.0), card_title);
                 header.color_swatch(swatch_color, 20.0, 16.0);
             },
             |card| {
                 // Alpha Mode: Dedicated label and responsive flex-grow pills dividing width equally
-                card.label(
-                    "Alpha Mode:",
-                    10.5,
-                    Color::rgba(0.65, 0.68, 0.75, 1.0),
-                    TextAlign::Left,
-                );
+                card.label("Alpha Mode:");
                 card.row(|row| {
                     for (mode, label) in &alpha_modes {
                         let pill_tag = make_submesh_alpha_tag(idx, *mode);
@@ -135,12 +116,7 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
 
                 // Texture Assignment: Label, flex-expanding name badge, and content-sized button
                 card.row(|row| {
-                    row.label(
-                        "Texture:",
-                        10.5,
-                        Color::rgba(0.65, 0.68, 0.75, 1.0),
-                        TextAlign::Left,
-                    );
+                    row.label("Texture:");
 
                     let badge_style = Style::new()
                         .flex_row()
@@ -156,12 +132,7 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
 
                     row.container(badge_style, |badge| {
                         badge.icon(ICON_WORLD, Color::rgba(0.0, 0.85, 1.0, 0.85), 12.0);
-                        badge.label(
-                            &current_tex_name,
-                            10.0,
-                            Color::rgba(0.35, 0.75, 0.98, 1.0),
-                            TextAlign::Left,
-                        );
+                        badge.colored_label(Color::rgba(0.35, 0.75, 0.98, 1.0), &current_tex_name);
                     });
 
                     let chg_tag = make_submesh_texture_tag(idx);

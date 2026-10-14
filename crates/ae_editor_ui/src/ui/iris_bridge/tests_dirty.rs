@@ -375,12 +375,7 @@ fn test_panel_registry_poll_flow_and_targeted_redraw() {
             custom_called_clone.store(true, std::sync::atomic::Ordering::Relaxed);
             let mut scope = irisui::prelude::UiScope::new(tree_ref, parent_ref);
             scope.container(irisui::prelude::Style::default(), |inner| {
-                inner.label(
-                    "Custom Inspector",
-                    13.0,
-                    irisui::prelude::Color::WHITE,
-                    irisui::prelude::TextAlign::Left,
-                );
+                inner.label("Custom Inspector");
             });
         },
     );

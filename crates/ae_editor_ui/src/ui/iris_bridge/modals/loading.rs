@@ -62,13 +62,13 @@ pub fn build_loading_overlay(tree: &mut UiTree, params: LoadingOverlayParams) ->
                     .justify_content(JustifyContent::Center)
                     .gap(8.0),
                 |col| {
-                    col.label(
+                    col.label_custom(
                         format!("🚀  Loading Assets{}", dots),
                         14.5,
                         Color::rgba(0.0, 0.90, 1.0, 1.0),
                         TextAlign::Center,
                     );
-                    col.label(
+                    col.label_custom(
                         "Processing geometry, materials & textures",
                         11.5,
                         Color::rgba(0.65, 0.68, 0.76, 1.0),

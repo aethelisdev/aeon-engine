@@ -40,7 +40,7 @@ pub fn build_camera_hud(tree: &mut UiTree, parent_id: WidgetId, params: &Viewpor
 
     let mut scope = UiScope::new(tree, parent_id);
     scope.container_named("CameraHudPill", pill_style, |pill| {
-        pill.label(
+        pill.label_custom(
             full_text,
             10.0,
             Color::rgba(0.80, 0.83, 0.90, 0.90),

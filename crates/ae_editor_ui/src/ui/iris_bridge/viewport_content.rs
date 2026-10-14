@@ -51,7 +51,7 @@ impl IrisEditorOverlay {
                     .justify_content(JustifyContent::Center)
                     .align_items(AlignItems::Center);
                 vp_scope.container_passive(ph_style, |ph| {
-                    ph.label(
+                    ph.label_custom(
                         "Rendering viewport...",
                         14.0,
                         Color::hex("#888888"),

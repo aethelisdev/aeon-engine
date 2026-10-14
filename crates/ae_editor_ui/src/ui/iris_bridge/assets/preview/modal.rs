@@ -72,15 +72,10 @@ pub fn build_asset_preview_modal(
                                         .align_items(AlignItems::Center)
                                         .justify_content(JustifyContent::Center),
                                     |badge| {
-                                        badge.label(
-                                            modal.item.category.badge(),
-                                            9.5,
-                                            cat_col,
-                                            TextAlign::Center,
-                                        );
+                                        badge.colored_label(cat_col, modal.item.category.badge());
                                     },
                                 );
-                                left.label(&modal.item.name, 12.5, Color::WHITE, TextAlign::Left);
+                                left.label(&modal.item.name);
                             },
                         );
 
@@ -93,11 +88,9 @@ pub fn build_asset_preview_modal(
                                 .gap(10.0)
                                 .width(130.0),
                             |right| {
-                                right.label(
-                                    AssetBrowserState::format_file_size(modal.item.file_size_bytes),
-                                    10.5,
+                                right.colored_label(
                                     Color::rgba(0.65, 0.70, 0.80, 1.0),
-                                    TextAlign::Right,
+                                    AssetBrowserState::format_file_size(modal.item.file_size_bytes),
                                 );
                                 right.modal_close_button();
                             },
@@ -147,12 +140,7 @@ pub fn build_asset_preview_modal(
                         crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL,
                     );
 
-                    footer.label(
-                        "Press Esc to Close",
-                        10.5,
-                        Color::rgba(0.50, 0.54, 0.64, 1.0),
-                        TextAlign::Right,
-                    );
+                    footer.colored_label(Color::rgba(0.50, 0.54, 0.64, 1.0), "Press Esc to Close");
                 },
             );
         });

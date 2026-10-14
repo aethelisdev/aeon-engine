@@ -11,9 +11,7 @@
 
 use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
-use irisui::prelude::{
-    AlignItems, Color, Insets, Point, Rect, Style, TextAlign, UiScope, UiTree, WidgetId,
-};
+use irisui::prelude::{AlignItems, Color, Insets, Point, Rect, Style, UiScope, UiTree, WidgetId};
 
 /// Constructs topmost floating overlays for an active asset drag operation into the `UiTree`.
 pub fn build_asset_drag_overlays(
@@ -76,13 +74,8 @@ pub fn build_asset_drag_overlays_scope(
         Point::new(cursor_pos.x + 14.0, cursor_pos.y + 14.0),
         24.0,
         |capsule| {
-            capsule.label(
-                payload.category.badge(),
-                11.0,
-                payload.category.badge_color(),
-                TextAlign::Left,
-            );
-            capsule.label(&payload.name, 11.0, Color::WHITE, TextAlign::Left);
+            capsule.colored_label(payload.category.badge_color(), payload.category.badge());
+            capsule.label(&payload.name);
         },
     );
 }

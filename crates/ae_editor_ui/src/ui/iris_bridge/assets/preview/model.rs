@@ -24,11 +24,9 @@ pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, _modal: &AssetP
             .justify_content(JustifyContent::SpaceBetween)
             .height(28.0),
         |row| {
-            row.label(
-                "Left Drag: 3D Orbit | Wheel: Zoom Distance",
-                11.0,
+            row.colored_label(
                 Color::rgba(0.55, 0.60, 0.72, 1.0),
-                TextAlign::Left,
+                "Left Drag: 3D Orbit | Wheel: Zoom Distance",
             );
             row.modal_confirm_button("Spawn into Scene", 140.0);
         },
@@ -49,11 +47,9 @@ pub(crate) fn render_model_preview_content(ui: &mut UiScope<'_>, _modal: &AssetP
     );
 
     // 3. Model Metrics Summary Row
-    ui.label(
-        "Format: 3D glTF / GLB • Mesh Pipeline: Indexed PBR • Bounding Box: Normalized [-1.0 .. 1.0]",
-        10.5,
+    ui.colored_label(
         Color::rgba(0.60, 0.65, 0.75, 1.0),
-        TextAlign::Left,
+        "Format: 3D glTF / GLB • Mesh Pipeline: Indexed PBR • Bounding Box: Normalized [-1.0 .. 1.0]",
     );
 }
 

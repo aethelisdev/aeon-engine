@@ -56,10 +56,10 @@ pub fn build_bottom_status_bar(
                 && !spans.is_empty()
             {
                 for (text, color) in spans {
-                    left.label(text, 11.0, *color, TextAlign::Left);
+                    left.colored_label(*color, text);
                 }
             } else {
-                left.label("● Ready", 11.0, Color::hex("#46be78"), TextAlign::Left);
+                left.colored_label(Color::hex("#46be78"), "● Ready");
             }
         });
 
@@ -71,7 +71,7 @@ pub fn build_bottom_status_bar(
 
         bar.container(right_style, |right| {
             let version_text = format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION"));
-            right.label(version_text, 10.5, Color::hex("#646470"), TextAlign::Right);
+            right.colored_label(Color::hex("#646470"), version_text);
         });
     })
 }

@@ -283,12 +283,7 @@ pub fn build_hierarchy_rows(
         };
 
         scope.container(empty_style, |e| {
-            e.label(
-                msg_text,
-                11.0,
-                Color::rgba(0.45, 0.48, 0.58, 1.0),
-                TextAlign::Center,
-            );
+            e.colored_label(Color::rgba(0.45, 0.48, 0.58, 1.0), msg_text);
         });
         return 0.0;
     }
@@ -396,7 +391,7 @@ pub fn build_hierarchy_rows(
                     .align_items(AlignItems::Center);
 
                 row_s.container(name_container_style, |nc| {
-                    nc.label(entity_name, 11.5, text_color, TextAlign::Left);
+                    nc.colored_label(text_color, entity_name);
                 });
 
                 // 3. Eye Visibility Toggle Button

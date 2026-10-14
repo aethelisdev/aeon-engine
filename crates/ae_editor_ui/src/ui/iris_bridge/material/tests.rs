@@ -177,7 +177,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
                 .width(1920.0)
                 .height(28.0),
             |sub| {
-                sub.label("Top Menu", 12.0, Color::WHITE, TextAlign::Left);
+                sub.label("Top Menu");
             },
         );
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));

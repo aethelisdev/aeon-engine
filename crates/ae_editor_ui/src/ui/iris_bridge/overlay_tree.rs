@@ -367,12 +367,7 @@ mod tests {
         let mut tree = OverlayTree::new();
         let root = tree.tree_mut().create_root().expect("root widget");
         let mut scope = irisui::prelude::UiScope::new(tree.tree_mut(), root);
-        scope.label(
-            "Overlay Test Item",
-            12.0,
-            irisui::prelude::Color::WHITE,
-            irisui::prelude::TextAlign::Left,
-        );
+        scope.label("Overlay Test Item");
 
         assert_eq!(tree.tree().iter().count(), 2);
         tree.open(

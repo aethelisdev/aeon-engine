@@ -112,7 +112,7 @@ pub fn build_play_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportH
         .box_shadow(0.0, 4.0, 12.0, Color::rgba(0.0, 0.0, 0.0, 0.60));
 
     scope.container_named("PlayGuideBadge", badge_style, |badge| {
-        badge.label(
+        badge.label_custom(
             guide_text,
             11.0,
             Color::rgba(0.90, 0.93, 0.98, 1.0),
@@ -233,7 +233,7 @@ fn build_pause_card(scope: &mut UiScope, card_rect: Rect) {
 
     scope.container_named("InGamePauseCard", card_style, |card| {
         card.container_named("InGamePauseTitle", Style::new(), |title| {
-            title.label(
+            title.label_custom(
                 "GAME PAUSED",
                 20.0,
                 Color::rgba(1.0, 1.0, 1.0, 1.0),
@@ -241,7 +241,7 @@ fn build_pause_card(scope: &mut UiScope, card_rect: Rect) {
             );
         });
 
-        card.label(
+        card.label_custom(
             "Press P or choose an option below",
             11.0,
             Color::rgba(0.60, 0.68, 0.78, 1.0),
@@ -372,7 +372,7 @@ fn render_ingame_ecs_ui(scope: &mut UiScope, params: &ViewportHudParams<'_>) {
                     .width(approx_w)
                     .height(approx_h);
                 scope.container(style, |tc| {
-                    tc.label(
+                    tc.label_custom(
                         text,
                         *font_size,
                         Color::rgba(color[0], color[1], color[2], color[3]),

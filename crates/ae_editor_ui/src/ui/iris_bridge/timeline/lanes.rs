@@ -105,18 +105,11 @@ fn render_lanes_header(scope: &mut UiScope<'_>, params: &TimelinePanelParams<'_>
         .border_radius(3.0);
 
     scope.container_named("TimelineLanesHeader", header_style, |header| {
-        header.label(
-            "✦ Dope Sheet Channels",
-            9.5,
-            Color::rgba(0.65, 0.70, 0.82, 1.0),
-            TextAlign::Left,
-        );
+        header.colored_label(Color::rgba(0.65, 0.70, 0.82, 1.0), "✦ Dope Sheet Channels");
 
-        header.label(
-            format!("{} Active Channels", channel_count),
-            9.0,
+        header.colored_label(
             Color::rgba(0.45, 0.50, 0.62, 1.0),
-            TextAlign::Right,
+            format!("{} Active Channels", channel_count),
         );
     });
 }
@@ -193,12 +186,10 @@ fn render_channel_lane(
             .border_radius(3.0);
 
         lane.container_named("TimelineChannelBadge", badge_style, |badge| {
-            badge.label(prop_name, 8.5, prop_color, TextAlign::Left);
-            badge.label(
-                format!("Joint #{}", channel.joint_index),
-                8.5,
+            badge.colored_label(prop_color, prop_name);
+            badge.colored_label(
                 Color::rgba(0.70, 0.74, 0.84, 1.0),
-                TextAlign::Left,
+                format!("Joint #{}", channel.joint_index),
             );
         });
 
@@ -254,17 +245,13 @@ fn render_empty_lanes_placeholder(scope: &mut UiScope<'_>, width: f32) {
         "TimelineEmptyLanesPlaceholder",
         placeholder_style,
         |holder| {
-            holder.label(
-                "✦ Dope Sheet — No Recorded Channels in Active Clip",
-                10.0,
+            holder.colored_label(
                 Color::rgba(0.48, 0.52, 0.64, 1.0),
-                TextAlign::Center,
+                "✦ Dope Sheet — No Recorded Channels in Active Clip",
             );
-            holder.label(
-                "Keyframe markers and joint tracks will be displayed here during animation playback.",
-                9.0,
+            holder.colored_label(
                 Color::rgba(0.35, 0.38, 0.48, 1.0),
-                TextAlign::Center,
+                "Keyframe markers and joint tracks will be displayed here during animation playback.",
             );
         },
     );

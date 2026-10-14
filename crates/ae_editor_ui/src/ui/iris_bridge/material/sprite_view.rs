@@ -53,18 +53,11 @@ pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>)
 
     // ── 1. Active Texture Asset Card ──────────────────────────────────────────
     scope.card("Active Texture Asset", |card| {
-        card.label(
-            format!("File: {}", file_name),
-            11.0,
+        card.colored_label(
             Color::rgba(0.35, 0.75, 0.98, 1.0),
-            TextAlign::Left,
+            format!("File: {}", file_name),
         );
-        card.label(
-            info_text,
-            10.5,
-            Color::rgba(0.30, 0.82, 0.45, 1.0),
-            TextAlign::Left,
-        );
+        card.colored_label(Color::rgba(0.30, 0.82, 0.45, 1.0), info_text);
         card.row(|row| {
             row.button_with_icon_styled_tagged(
                 ICON_FOLDER,
@@ -80,10 +73,10 @@ pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>)
     // ── 2. Surface Tiling & Sampler Settings Card ──────────────────────────────
     scope.card("Surface Tiling & Sampler Settings", |card| {
         card.row(|row| {
-            row.badge("Wrap U:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
-            row.badge("Wrap V:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
+            row.key_value_badge("Wrap U:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
+            row.key_value_badge("Wrap V:", "Repeat", Color::rgba(0.35, 0.85, 0.50, 1.0));
         });
-        card.badge(
+        card.key_value_badge(
             "Hardware Filtering:",
             "16x Anisotropic",
             Color::rgba(0.98, 0.78, 0.25, 1.0),
@@ -100,23 +93,13 @@ pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>)
                 (color_ref.b * 255.0).clamp(0.0, 255.0) as u8,
             );
             card.row(|row| {
-                row.label(
-                    "Color Swatch:",
-                    11.0,
-                    Color::rgba(0.70, 0.72, 0.78, 1.0),
-                    TextAlign::Left,
-                );
+                row.label("Color Swatch:");
                 row.color_swatch(
                     Color::rgba(color_ref.r, color_ref.g, color_ref.b, color_ref.a),
                     36.0,
                     20.0,
                 );
-                row.label(
-                    hex_str,
-                    11.0,
-                    Color::rgba(0.85, 0.88, 0.92, 1.0),
-                    TextAlign::Left,
-                );
+                row.colored_label(Color::rgba(0.85, 0.88, 0.92, 1.0), hex_str);
             });
         } else {
             card.button_with_icon_styled_tagged(

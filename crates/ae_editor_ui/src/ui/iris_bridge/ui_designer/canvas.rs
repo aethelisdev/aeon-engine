@@ -202,7 +202,7 @@ pub fn build_designer_canvas(
                                     .height(approx_h);
 
                                 canvas_scope.container_passive(text_style, |ts| {
-                                    ts.label(
+                                    ts.label_custom(
                                         text.as_str(),
                                         scaled_font_size,
                                         Color::rgba(color[0], color[1], color[2], color[3]),
@@ -354,7 +354,7 @@ pub fn build_designer_canvas(
                         .width(100.0)
                         .height(16.0);
                     canvas_scope.container_passive(dim_style, |ds| {
-                        ds.label(
+                        ds.label_custom(
                             dim_text.as_str(),
                             10.0,
                             Color::rgba(0.0, 0.706, 0.941, 0.75),

@@ -37,11 +37,6 @@ pub fn build_hierarchy_footer(
         .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0));
 
     scope.container_named("HierarchyFooterBar", footer_style, |f| {
-        f.label(
-            footer_text,
-            10.5,
-            Color::rgba(0.55, 0.58, 0.68, 1.0),
-            TextAlign::Left,
-        );
+        f.colored_label(Color::rgba(0.55, 0.58, 0.68, 1.0), footer_text);
     });
 }

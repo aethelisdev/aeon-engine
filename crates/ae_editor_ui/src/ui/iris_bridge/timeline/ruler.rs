@@ -125,7 +125,7 @@ pub fn render_ruler_bar(
             .align_items(AlignItems::Center)
             .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0));
         ruler.container_named("TimelineRulerHeader", header_style, |hdr| {
-            hdr.label(
+            hdr.label_custom(
                 "⏱ TIME (s)",
                 8.5,
                 Color::rgba(0.55, 0.60, 0.72, 0.90),
@@ -245,7 +245,7 @@ pub fn render_scrubber_track(
                 .border(1.0, Color::rgba(0.22, 0.25, 0.34, 0.60))
                 .border_radius(3.0);
             track.container_named("TimelineMasterTrackBadge", master_badge_style, |badge| {
-                badge.label(
+                badge.label_custom(
                     "✦ MASTER",
                     8.5,
                     style.playhead_needle_color,
@@ -319,7 +319,7 @@ pub fn render_scrubber_track(
                 WidgetRole::Button,
                 TIMELINE_TAG_PLAYHEAD_CAP,
                 |cap| {
-                    cap.label("▼", 9.0, style.playhead_cap_color, TextAlign::Center);
+                    cap.label_custom("▼", 9.0, style.playhead_cap_color, TextAlign::Center);
                 },
             );
         },

@@ -44,29 +44,20 @@ pub fn build_delete_modal(
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::SpaceBetween),
                 |header| {
-                    header.label(
-                        "⚠️  Confirm Deletion",
-                        12.5,
-                        Color::rgba(0.95, 0.95, 0.98, 1.0),
-                        TextAlign::Left,
-                    );
+                    header.subheading("⚠️  Confirm Deletion");
                     header.modal_close_button();
                 },
             );
 
             // 2. Body Column: Description warning and target file path
             card.column(|col| {
-                col.label(
-                    "Are you sure you want to permanently delete this item?",
-                    12.0,
+                col.colored_label(
                     Color::rgba(1.0, 0.45, 0.45, 1.0),
-                    TextAlign::Left,
+                    "Are you sure you want to permanently delete this item?",
                 );
-                col.label(
-                    target_path.display().to_string(),
-                    11.5,
+                col.colored_label(
                     Color::rgba(0.70, 0.72, 0.78, 1.0),
-                    TextAlign::Left,
+                    target_path.display().to_string(),
                 );
             });
 
@@ -155,12 +146,7 @@ pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) 
                                 Color::rgba(0.95, 0.76, 0.28, 1.0),
                                 14.0,
                             );
-                            title_row.label(
-                                "Create New Folder",
-                                12.5,
-                                Color::rgba(0.95, 0.95, 0.98, 1.0),
-                                TextAlign::Left,
-                            );
+                            title_row.subheading("Create New Folder");
                         },
                     );
                     header.modal_close_button();
@@ -169,11 +155,9 @@ pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) 
 
             // 2. Body Column: Parent directory path and text input box
             card.column(|col| {
-                col.label(
-                    format!("Location: {}", params.parent_path.display()),
-                    11.0,
+                col.colored_label(
                     Color::rgba(0.60, 0.62, 0.70, 1.0),
-                    TextAlign::Left,
+                    format!("Location: {}", params.parent_path.display()),
                 );
                 col.input_box(
                     params.input_text,
@@ -227,23 +211,16 @@ pub fn build_rename_modal(tree: &mut UiTree, params: RenameModalParams<'_>) -> W
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::SpaceBetween),
                 |header| {
-                    header.label(
-                        title,
-                        12.5,
-                        Color::rgba(0.95, 0.95, 0.98, 1.0),
-                        TextAlign::Left,
-                    );
+                    header.subheading(title);
                     header.modal_close_button();
                 },
             );
 
             // 2. Body Column: Target file path and text input box
             card.column(|col| {
-                col.label(
-                    format!("Target: {}", params.target_path.display()),
-                    11.0,
+                col.colored_label(
                     Color::rgba(0.60, 0.62, 0.70, 1.0),
-                    TextAlign::Left,
+                    format!("Target: {}", params.target_path.display()),
                 );
                 col.input_box(
                     params.input_text,

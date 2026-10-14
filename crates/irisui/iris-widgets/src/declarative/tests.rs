@@ -165,18 +165,30 @@ fn test_declarative_label_customization() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut scope = UiScope::new(&mut tree, root);
-    let label_id = scope.label(
+    let custom_id = scope.label_custom(
         "Custom Title",
         20.0,
         iris_core::Color::rgba(0.0, 0.9, 1.0, 1.0),
         iris_core::TextAlign::Center,
     );
 
-    let node = tree.get(label_id).expect("Label node exists");
+    let standard_id = scope.label("Standard Label");
+    let heading_id = scope.heading("Heading Title");
+
+    let node = tree.get(custom_id).expect("Custom label exists");
     assert_eq!(node.font_size, 20.0);
     assert_eq!(node.text_align, iris_core::TextAlign::Center);
     assert_eq!(node.text.as_deref(), Some("Custom Title"));
     assert_eq!(node.line_height, 26.0);
+
+    let std_node = tree.get(standard_id).expect("Standard label exists");
+    assert_eq!(std_node.font_size, 11.5);
+    assert_eq!(std_node.text_align, iris_core::TextAlign::Left);
+    assert_eq!(std_node.text.as_deref(), Some("Standard Label"));
+
+    let head_node = tree.get(heading_id).expect("Heading exists");
+    assert_eq!(head_node.font_size, 13.5);
+    assert_eq!(head_node.text_color, iris_core::Color::WHITE);
 }
 
 #[test]
@@ -443,12 +455,7 @@ fn test_panel_tagged_declarative_layout_and_flex_grow() {
                 0x500b,
                 iris_core::Color::BLACK,
                 |vp| {
-                    vp.label(
-                        "No entries",
-                        12.0,
-                        iris_core::Color::WHITE,
-                        iris_core::TextAlign::Center,
-                    );
+                    vp.label("No entries");
                 },
             );
             vp_id_opt = Some(vp_id);
@@ -531,23 +538,13 @@ fn test_declarative_row_flex_badge_and_button_fits_bounds() {
     let row_id = {
         let mut scope = UiScope::new(&mut tree, root);
         scope.row(|row| {
-            let _ = row.label(
-                "Texture:",
-                10.5,
-                iris_core::Color::WHITE,
-                iris_core::TextAlign::Left,
-            );
+            let _ = row.label("Texture:");
             let badge_style = iris_core::Style::new()
                 .flex_row()
                 .flex_grow(1.0)
                 .clip_children(true);
             row.container(badge_style, |badge| {
-                let _ = badge.label(
-                    "stylized_ww1_plane.glb_tex_0",
-                    10.0,
-                    iris_core::Color::WHITE,
-                    iris_core::TextAlign::Left,
-                );
+                let _ = badge.label("stylized_ww1_plane.glb_tex_0");
             });
             let _ = row.button_with_icon_styled_tagged(
                 [0.0, 0.0, 1.0, 1.0],

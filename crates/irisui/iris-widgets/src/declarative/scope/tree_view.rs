@@ -619,12 +619,7 @@ mod tests {
             &config,
             |id, idx| (*id as u64 * 10, idx as u64 + 1),
             |row_s, item, _idx, is_sel| {
-                row_s.label(
-                    if is_sel { "Selected" } else { "Normal" },
-                    12.0,
-                    Color::WHITE,
-                    TextAlign::Left,
-                );
+                row_s.label(if is_sel { "Selected" } else { "Normal" });
                 assert!(item.depth <= 1);
             },
         );
