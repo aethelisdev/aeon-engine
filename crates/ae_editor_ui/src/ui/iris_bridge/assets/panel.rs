@@ -40,13 +40,14 @@ pub fn build_assets_panel(
     actions: &mut Vec<AssetsPanelAction>,
 ) -> AssetsPanelLayoutMetrics {
     let metrics = params.layout_metrics();
+    tree.set_cursor_position(params.cursor_pos);
 
-    UiScope::new(tree, parent_id).panel_tagged(
-        "AssetsPanelRoot",
-        params.panel_rect,
-        ASSETS_TAG_PANEL_ROOT,
-        ELEVATION_1_PANEL,
-        |panel_scope| {
+    UiScope::new(tree, parent_id)
+        .panel("AssetsPanelRoot")
+        .tagged(ASSETS_TAG_PANEL_ROOT)
+        .background(ELEVATION_1_PANEL)
+        .bounds(params.panel_rect)
+        .show(|panel_scope| {
             // 2. Top Header Toolbar (Pure Flexbox Breadcrumbs + Controls)
             build_asset_toolbar_scope(panel_scope, params, actions);
 
@@ -107,8 +108,7 @@ pub fn build_assets_panel(
 
             // 5. Bottom Status Footer (Pure Flexbox Telemetry + Sidebar Toggle)
             build_asset_footer_scope(panel_scope, params, actions);
-        },
-    );
+        });
 
     // 6. Right-Click Floating Context Menu is rendered on top-level OverlayTree (Layer 2)
     // to prevent clipping and preserve precise absolute screen coordinates.

@@ -13,51 +13,6 @@ use iris_core::{
 };
 
 impl<'a> UiScope<'a> {
-    /// Emits a tagged dockable panel root container with absolute bounding geometry and vertical flex flow.
-    ///
-    /// # Arguments
-    /// * `name` - Descriptive debug identifier assigned to the panel root node.
-    /// * `rect` - Bounding rectangle in physical pixels allocated for the panel.
-    /// * `tag` - Semantic tag for tracking interactions and event routing.
-    /// * `bg` - Background fill color.
-    /// * `f` - Closure executing within the panel root scope.
-    pub fn panel_tagged<F>(
-        &mut self,
-        name: &'static str,
-        rect: Rect,
-        tag: u64,
-        bg: Color,
-        f: F,
-    ) -> WidgetId
-    where
-        F: FnOnce(&mut UiScope<'_>),
-    {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
-            node.tag = tag;
-            node.computed_rect = rect;
-            node.interactive = true;
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(rect.x)
-                    .top(rect.y)
-                    .width(rect.width)
-                    .height(rect.height)
-                    .flex_col()
-                    .background(bg)
-                    .clip_children(true),
-            );
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-
-        let mut child_scope = self.child_scope(node_id);
-        f(&mut child_scope);
-        crate::declarative::layout_subtree(self.tree, node_id, rect);
-        node_id
-    }
-
     /// Emits a horizontal toolbar container with a fixed height and centered flex alignment.
     ///
     /// # Arguments

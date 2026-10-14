@@ -37,7 +37,7 @@ pub fn build_viewport_hud(tree: &mut UiTree, parent_id: WidgetId, params: &Viewp
 
         // 4. Resolve complete HUD layout and hover reconciliation across viewport bounds
         let mut scope = UiScope::new(tree, parent_id);
-        scope.finish_layout_with_hover(params.viewport_rect, params.cursor_pos);
+        scope.finish_layout(params.viewport_rect);
 
         // 5. Active dropdown popup if open
         if let Some(active_dd) = params.active_dropdown {
@@ -48,7 +48,7 @@ pub fn build_viewport_hud(tree: &mut UiTree, parent_id: WidgetId, params: &Viewp
         play_hud::build_play_hud(tree, parent_id, params);
 
         let mut scope = UiScope::new(tree, parent_id);
-        scope.finish_layout_with_hover(params.viewport_rect, params.cursor_pos);
+        scope.finish_layout(params.viewport_rect);
     }
 }
 

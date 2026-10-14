@@ -42,13 +42,14 @@ pub use controls::{
     handle_numeric_drag_event,
 };
 pub use declarative::{
-    CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContainerResponseExt, ContextMenuExt,
-    InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, ScopeId, ScrollAreaConfig, TreeNodeProps,
-    TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope, WidgetResponse,
-    WrappedLabelDescriptor, calculate_visible_slice_and_caret, combine_seeds, hash_label,
-    hash_label_with_seed, layout_subtree, measure_content_height, measure_height,
-    measure_height_constrained, measure_text_advance, measure_width, split_label_id,
+    CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, CollapsingBuilder, CollapsingResponse,
+    ContainerResponseExt, ContextMenuExt, InputBoxProps, PropertySliderOptions,
+    PropertyTextOptions, PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, ScopeId,
+    ScrollAreaConfig, TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps,
+    UiScope, WidgetResponse, WrappedLabelDescriptor, calculate_visible_slice_and_caret,
+    combine_seeds, hash_label, hash_label_with_seed, layout_subtree, measure_content_height,
+    measure_height, measure_height_constrained, measure_text_advance, measure_width,
+    split_label_id,
 };
 pub use grid_view::ResponsiveGrid;
 pub use input::{TextInputState, copy_to_clipboard, get_clipboard_text};
@@ -59,11 +60,11 @@ pub use modal::{
 pub use numeric_input::{NumericInputEditState, NumericInputStyle};
 pub use panel::PanelBuilder;
 pub use scroll_area::{
-    DEFAULT_SCROLL_STEP, ScrollArea, ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaState,
-    ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit, ScrollBarVisibility, ScrollDirection,
-    ScrollResponse, ScrollbarDragState, VirtualItemHeight, VirtualList, VirtualScrollConfig,
-    VirtualSlice, WheelScrollConfig, WheelScrollResponse, evaluate_wheel_scroll,
-    handle_scroll_area_event, handle_scrollbar_event,
+    DEFAULT_SCROLL_STEP, ScrollArea, ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaResponse,
+    ScrollAreaState, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit, ScrollBarVisibility,
+    ScrollDirection, ScrollResponse, ScrollbarDragState, VirtualItemHeight, VirtualList,
+    VirtualScrollConfig, VirtualScrollResponse, VirtualSlice, WheelScrollConfig,
+    WheelScrollResponse, evaluate_wheel_scroll, handle_scroll_area_event, handle_scrollbar_event,
 };
 pub use settings::{
     SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,

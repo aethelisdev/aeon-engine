@@ -71,36 +71,92 @@ impl<'a> UiScope<'a> {
         let (clicked, hovered, _) = self.check_interaction(node_id);
         let pressed = self.is_pressed(node_id);
         let is_effective_checked = checked ^ clicked;
-        let indicator = if is_effective_checked { "[x]" } else { "[ ]" };
-        let full_text = format!("{} {}", indicator, label_str);
 
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = true;
             node.role = WidgetRole::Checkbox;
             node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(full_text);
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_align = TextAlign::Left;
-            node.text_color = if is_effective_checked {
-                Color::rgba(0.2, 0.85, 0.65, 1.0)
-            } else if hovered || pressed {
-                Color::WHITE
-            } else {
-                Color::rgba(0.70, 0.72, 0.78, 1.0)
-            };
-            node.hover_text_color = Some(Color::WHITE);
 
             let mut style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .gap(6.0)
                 .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
-                .align_items(AlignItems::Center);
-            style.hover_background = Some(Color::rgba(0.25, 0.28, 0.35, 0.40));
+                .border_radius(4.0);
+            style.hover_background = Some(Color::rgba(0.25, 0.28, 0.35, 0.30));
             if pressed {
-                style.background_color = Color::rgba(0.20, 0.22, 0.28, 0.60);
+                style.background_color = Color::rgba(0.20, 0.22, 0.28, 0.50);
             } else if hovered && let Some(hbg) = style.hover_background {
                 style.background_color = hbg;
             }
             node.set_style(style);
+        }
+
+        // Child 1: Vector/SDF Indicator Box (14x14px rounded box with checkmark)
+        let box_id = self.tree.create_node();
+        let _ = self.tree.add_child(node_id, box_id);
+        if let Some(box_node) = self.tree.get_mut(box_id) {
+            box_node.set_name("CheckboxBox");
+            box_node.interactive = false;
+            box_node.role = WidgetRole::Default;
+            box_node.font_size = 11.0;
+            box_node.line_height = 14.0;
+            box_node.text_align = TextAlign::Center;
+
+            let (bg_color, border_color) = if is_effective_checked {
+                box_node.set_text("✓");
+                box_node.text_color = Color::WHITE;
+                (
+                    Color::rgba(0.18, 0.52, 0.88, 1.0),
+                    Color::rgba(0.28, 0.62, 0.98, 1.0),
+                )
+            } else {
+                box_node.set_text("");
+                box_node.text_color = Color::TRANSPARENT;
+                (
+                    Color::rgba(0.12, 0.13, 0.16, 0.90),
+                    if hovered || pressed {
+                        Color::rgba(0.50, 0.55, 0.65, 1.0)
+                    } else {
+                        Color::rgba(0.28, 0.30, 0.36, 1.0)
+                    },
+                )
+            };
+
+            box_node.set_style(
+                Style::new()
+                    .width(14.0)
+                    .height(14.0)
+                    .border_radius(3.0)
+                    .border(1.0, border_color)
+                    .background(bg_color)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center),
+            );
+        }
+
+        // Child 2: Autonomous Label node
+        if !label_str.is_empty() {
+            let label_id = self.tree.create_node();
+            let _ = self.tree.add_child(node_id, label_id);
+            if let Some(lbl_node) = self.tree.get_mut(label_id) {
+                lbl_node.set_name("CheckboxLabel");
+                lbl_node.interactive = false;
+                lbl_node.role = WidgetRole::Default;
+                lbl_node.font_size = 11.5;
+                lbl_node.line_height = 14.0;
+                lbl_node.text_align = TextAlign::Left;
+                lbl_node.text_color = if is_effective_checked {
+                    Color::rgba(0.92, 0.94, 0.98, 1.0)
+                } else if hovered || pressed {
+                    Color::WHITE
+                } else {
+                    Color::rgba(0.72, 0.75, 0.82, 1.0)
+                };
+                lbl_node.hover_text_color = Some(Color::WHITE);
+                lbl_node.set_text(label_str);
+                lbl_node.set_style(Style::new());
+            }
         }
 
         let mut resp = WidgetResponse::new(node_id, clicked, hovered, clicked);

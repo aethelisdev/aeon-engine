@@ -11,9 +11,8 @@ use super::rows::build_console_rows;
 use super::types::{
     CONSOLE_TAG_AUTOSCROLL, CONSOLE_TAG_CLEAR, CONSOLE_TAG_FILTER_ALL, CONSOLE_TAG_FILTER_DEBUG,
     CONSOLE_TAG_FILTER_ERROR, CONSOLE_TAG_FILTER_INFO, CONSOLE_TAG_FILTER_WARN,
-    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK,
-    CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_TOOLBAR, ConsoleAction,
-    ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams,
+    CONSOLE_TAG_PANEL_ROOT, CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT,
+    CONSOLE_TAG_TOOLBAR, ConsoleAction, ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams,
 };
 use irisui::prelude::*;
 
@@ -23,13 +22,12 @@ pub const CONSOLE_TOOLBAR_HEIGHT: f32 = 34.0;
 /// Constructs the complete Developer Console panel widget hierarchy into the Iris `UiTree`.
 ///
 /// Uses pure declarative [`UiScope`] containers (`panel_tagged`, `toolbar_tagged`, `scroll_area_tagged`).
-/// Returns the computed maximum vertical scroll limit in physical pixels.
 pub fn build_console_panel(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &ConsolePanelParams<'_>,
     actions: &mut Vec<ConsoleAction>,
-) -> f32 {
+) {
     // 1. Count metrics for toolbar badges
     let mut count_err = 0;
     let mut count_warn = 0;
@@ -51,17 +49,15 @@ pub fn build_console_panel(
         count_debug,
     );
 
-    let mut max_scroll = 0.0_f32;
-
     // 2. Panel Base Container via declarative UiScope
     let mut scope = UiScope::new(tree, parent_id);
 
-    scope.panel_tagged(
-        "ConsolePanelRoot",
-        params.panel_rect,
-        CONSOLE_TAG_PANEL_ROOT,
-        Color::rgba(0.05, 0.06, 0.08, 1.0),
-        |panel_scope| {
+    scope
+        .panel("ConsolePanelRoot")
+        .tagged(CONSOLE_TAG_PANEL_ROOT)
+        .bounds(params.panel_rect)
+        .background(Color::rgba(0.05, 0.06, 0.08, 1.0))
+        .show(|panel_scope| {
             // 3. Declarative Toolbar Header Bar
             panel_scope.toolbar_tagged(
                 "ConsoleToolbar",
@@ -175,42 +171,6 @@ pub fn build_console_panel(
             );
 
             // 4. Scrollable Log Rows Viewport via declarative virtual_scroll_area
-            max_scroll = build_console_rows(panel_scope, params);
-
-            // 5. Scrollbar overlay indicator when content overflows viewport
-            let vp_h = (params.panel_rect.height - CONSOLE_TOOLBAR_HEIGHT).max(10.0);
-            if max_scroll > 0.0 {
-                let content_h = vp_h + max_scroll;
-                let effective_scroll_y = if params.auto_scroll {
-                    max_scroll
-                } else {
-                    params.scroll_y.clamp(0.0, max_scroll)
-                };
-                let vp_rect = Rect::new(
-                    params.panel_rect.x,
-                    params.panel_rect.y + CONSOLE_TOOLBAR_HEIGHT,
-                    params.panel_rect.width,
-                    vp_h,
-                );
-                let scroll_style = ScrollAreaStyle::dark_default();
-                if let Some(geom) = ScrollBarGeometry::compute_vertical(
-                    vp_rect,
-                    content_h,
-                    effective_scroll_y,
-                    &scroll_style,
-                ) {
-                    panel_scope.scrollbar_vertical(
-                        geom,
-                        params.panel_rect,
-                        params.is_scrollbar_dragging,
-                        Some(params.cursor_pos),
-                        CONSOLE_TAG_SCROLLBAR_TRACK,
-                        CONSOLE_TAG_SCROLLBAR_THUMB,
-                    );
-                }
-            }
-        },
-    );
-
-    max_scroll
+            build_console_rows(panel_scope, params);
+        });
 }

@@ -7,10 +7,12 @@ use crate::dirty::DirtyFlags;
 use crate::dispatch::{DispatchResult, EventState, dispatch_ui_event};
 use crate::error::IrisCoreError;
 use crate::event::UiEvent;
-use crate::geometry::{Point, Rect};
+use crate::geometry::{Point, Rect, Size};
 use crate::id::WidgetId;
 use crate::node::{UiLayer, WidgetCursor, WidgetNode, WidgetRole};
 use slotmap::SlotMap;
+
+use std::collections::HashMap;
 
 /// The central hierarchical arena storing all UI nodes.
 ///
@@ -24,6 +26,14 @@ pub struct UiTree {
     root: Option<WidgetId>,
     /// Persistent user interaction and event dispatching state.
     pub event_state: EventState,
+    /// Persistent state map tracking open/closed states for collapsing headers and accordions, keyed by 64-bit tag.
+    pub collapsing_state: HashMap<u64, bool>,
+    /// Persistent state map tracking vertical scroll positions, keyed by 64-bit semantic tag.
+    pub scroll_offsets: HashMap<u64, f32>,
+    /// Persistent state map tracking resolved viewport sizes from layout passes, keyed by 64-bit semantic tag.
+    pub viewport_sizes: HashMap<u64, Size>,
+    /// Persistent state map tracking maximum vertical scroll extents, keyed by 64-bit semantic tag.
+    pub max_scrolls: HashMap<u64, f32>,
 }
 
 impl UiTree {
@@ -34,6 +44,10 @@ impl UiTree {
             nodes: SlotMap::with_key(),
             root: None,
             event_state: EventState::new(),
+            collapsing_state: HashMap::new(),
+            scroll_offsets: HashMap::new(),
+            viewport_sizes: HashMap::new(),
+            max_scrolls: HashMap::new(),
         }
     }
 
@@ -62,6 +76,76 @@ impl UiTree {
         self.event_state.has_frame_interactions()
     }
 
+    /// Returns whether the collapsing section with the given `tag` is currently expanded.
+    ///
+    /// If the tag has never been toggled by the user, returns `default_open`.
+    #[inline]
+    #[must_use]
+    pub fn is_collapsing_open(&self, tag: u64, default_open: bool) -> bool {
+        self.collapsing_state
+            .get(&tag)
+            .copied()
+            .unwrap_or(default_open)
+    }
+
+    /// Sets the persistent expansion state of a collapsing section identified by `tag`.
+    #[inline]
+    pub fn set_collapsing_open(&mut self, tag: u64, open: bool) {
+        self.collapsing_state.insert(tag, open);
+    }
+
+    /// Toggles the persistent expansion state of a collapsing section and returns the new state.
+    #[inline]
+    pub fn toggle_collapsing_open(&mut self, tag: u64, default_open: bool) -> bool {
+        let current = self.is_collapsing_open(tag, default_open);
+        let new_state = !current;
+        self.collapsing_state.insert(tag, new_state);
+        new_state
+    }
+
+    /// Returns the persistent vertical scroll position for the given semantic `tag`.
+    ///
+    /// Defaults to `0.0` if this tag has never been scrolled.
+    #[inline]
+    #[must_use]
+    pub fn scroll_offset(&self, tag: u64) -> f32 {
+        self.scroll_offsets.get(&tag).copied().unwrap_or(0.0)
+    }
+
+    /// Sets the persistent vertical scroll position for the given semantic `tag`.
+    #[inline]
+    pub fn set_scroll_offset(&mut self, tag: u64, offset: f32) {
+        self.scroll_offsets.insert(tag, offset.max(0.0));
+    }
+
+    /// Returns the resolved viewport size for the given semantic `tag` computed by layout.
+    #[inline]
+    #[must_use]
+    pub fn viewport_size(&self, tag: u64) -> Option<Size> {
+        self.viewport_sizes.get(&tag).copied()
+    }
+
+    /// Sets the resolved viewport size for the given semantic `tag`.
+    #[inline]
+    pub fn set_viewport_size(&mut self, tag: u64, size: Size) {
+        self.viewport_sizes.insert(tag, size);
+    }
+
+    /// Returns the maximum vertical scroll extent for the given semantic `tag`.
+    ///
+    /// Defaults to `0.0` if this tag has no measured scrollable overflow content.
+    #[inline]
+    #[must_use]
+    pub fn max_scroll(&self, tag: u64) -> f32 {
+        self.max_scrolls.get(&tag).copied().unwrap_or(0.0)
+    }
+
+    /// Sets the maximum vertical scroll extent for the given semantic `tag`.
+    #[inline]
+    pub fn set_max_scroll(&mut self, tag: u64, max_scroll: f32) {
+        self.max_scrolls.insert(tag, max_scroll.max(0.0));
+    }
+
     /// Dispatches an incoming windowing event hierarchically through the tree.
     ///
     /// Evaluates pointer capture, layered z-order hit-testing, and event bubbling.
@@ -80,6 +164,19 @@ impl UiTree {
     #[inline]
     pub fn pointer_capture(&self) -> Option<WidgetId> {
         self.event_state.pointer_capture
+    }
+
+    /// Returns the most recently recorded cursor pointer position in physical screen coordinates, if known.
+    #[inline]
+    #[must_use]
+    pub fn cursor_position(&self) -> Option<Point> {
+        self.event_state.last_pointer_pos
+    }
+
+    /// Sets or updates the active hardware cursor pointer position in physical screen coordinates.
+    #[inline]
+    pub fn set_cursor_position(&mut self, pos: Point) {
+        self.event_state.last_pointer_pos = Some(pos);
     }
 
     /// Returns the root node key of the tree, if set.

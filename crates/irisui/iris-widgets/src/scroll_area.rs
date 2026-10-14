@@ -23,8 +23,8 @@ pub use events::{
 pub use scroll_bar::ScrollBarGeometry;
 pub use style::ScrollAreaStyle;
 pub use types::{
-    ScrollBarHit, ScrollBarVisibility, ScrollDirection, VirtualItemHeight, VirtualScrollConfig,
-    VirtualSlice,
+    ScrollAreaResponse, ScrollBarHit, ScrollBarVisibility, ScrollDirection, VirtualItemHeight,
+    VirtualScrollConfig, VirtualScrollResponse, VirtualSlice,
 };
 pub use virtual_list::VirtualList;
 pub use wheel::{

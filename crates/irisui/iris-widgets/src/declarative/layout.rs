@@ -18,8 +18,14 @@ use iris_core::{
 /// rectangle and each node's `flex_direction`, `padding`, `gap`, and `line_height`.
 /// This ensures all children receive non-zero geometry when rendered without top-level Taffy passes.
 pub fn layout_subtree(tree: &mut UiTree, root_id: WidgetId, bounds: Rect) {
-    if let Some(node) = tree.get_mut(root_id) {
+    let node_tag = if let Some(node) = tree.get_mut(root_id) {
         node.computed_rect = bounds;
+        node.tag
+    } else {
+        0
+    };
+    if node_tag != 0 {
+        tree.set_viewport_size(node_tag, bounds.size());
     }
     let pad = tree.get(root_id).map_or(Insets::ZERO, |n| n.style.padding);
     let scroll_offset_y = tree.get(root_id).map_or(0.0, |n| n.style.scroll_offset_y);

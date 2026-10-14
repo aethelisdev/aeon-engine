@@ -14,8 +14,8 @@ use crate::modal::{
     MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
 };
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, UiLayer, WidgetCursor, WidgetId,
-    WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiLayer, WidgetCursor,
+    WidgetId, WidgetRole,
 };
 
 impl<'a> UiScope<'a> {
@@ -54,6 +54,27 @@ impl<'a> UiScope<'a> {
 
         let mut child_scope = self.child_scope(node_id);
         f(&mut child_scope);
+        node_id
+    }
+
+    /// Emits a full-screen backdrop modal scrim container elevating its subtree to [`UiLayer::Modal`]
+    /// and autonomously computing subtree layout across `bounds`.
+    ///
+    /// Eliminates manual calls to `scrim.finish_layout(bounds)` in consumer dialog builders.
+    ///
+    /// # Arguments
+    /// * `bounds` - Physical screen bounding rectangle allocated for the modal backdrop.
+    /// * `color` - RGBA fill color of the semi-transparent backdrop blocker.
+    /// * `f` - Child builder closure receiving the scoped context of the scrim container.
+    pub fn modal_scrim_sized<F>(&mut self, bounds: Rect, color: Color, f: F) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let node_id = self.modal_scrim(color, f);
+        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        if let Some(cursor) = self.tree.cursor_position() {
+            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
+        }
         node_id
     }
 

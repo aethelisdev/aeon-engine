@@ -230,6 +230,9 @@ impl<'a> UiScope<'a> {
             node.computed_rect = bounds;
             node.style.height = Some(height);
         }
+        if let Some(cursor) = self.tree.cursor_position() {
+            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
+        }
         node_id
     }
 

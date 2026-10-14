@@ -8,7 +8,8 @@
 //!
 
 use super::types::{
-    CONSOLE_TAG_ROW, CONSOLE_TAG_VIEWPORT, ConsoleFilterExt, ConsoleLogLevel, ConsolePanelParams,
+    CONSOLE_TAG_ROW, CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK,
+    CONSOLE_TAG_VIEWPORT, ConsoleFilterExt, ConsoleLogLevel, ConsolePanelParams,
 };
 use irisui::prelude::*;
 
@@ -21,8 +22,7 @@ pub const CONSOLE_ROW_LINE_HEIGHT: f32 = 18.0;
 /// Renders the virtualized slice of filtered log rows into the widget tree via declarative [`UiScope::virtual_scroll_area`].
 ///
 /// Automatically manages frustum culling, overscan buffer margins, and sub-pixel scroll offset.
-/// Returns the computed maximum scroll limit `max_scroll_y` in physical pixels.
-pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelParams<'_>) -> f32 {
+pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelParams<'_>) {
     let query_lower = params.search_query.to_lowercase();
     let has_query = !query_lower.is_empty();
 
@@ -43,7 +43,6 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
     }
 
     let total_filtered = matching_indices.len();
-    let vp_height = (params.panel_rect.height - super::panel::CONSOLE_TOOLBAR_HEIGHT).max(10.0);
 
     if total_filtered == 0 {
         panel_scope.scroll_area_tagged(
@@ -59,7 +58,7 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
                 render_console_empty_notice(vp, msg);
             },
         );
-        return 0.0;
+        return;
     }
 
     // 2. Delegate windowing, overscan, and sub-pixel scrolling to pure declarative virtual_scroll_area
@@ -71,13 +70,13 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
 
     let config = VirtualScrollConfig::fixed(total_filtered, CONSOLE_ROW_HEIGHT)
         .with_overscan(2)
-        .with_bg(Color::rgba(0.05, 0.06, 0.08, 0.98));
+        .with_bg(Color::rgba(0.05, 0.06, 0.08, 0.98))
+        .with_scrollbar_tags(CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SCROLLBAR_THUMB)
+        .with_scroll_y(effective_scroll_y);
 
     panel_scope.virtual_scroll_area(
         "ConsoleViewport",
         CONSOLE_TAG_VIEWPORT,
-        vp_height,
-        effective_scroll_y,
         config,
         |row_scope, filtered_idx| {
             let entry_idx = matching_indices[filtered_idx];
@@ -94,7 +93,7 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
                 is_striped,
             );
         },
-    )
+    );
 }
 
 /// Renders a single console log row inside the virtualized scroll viewport.

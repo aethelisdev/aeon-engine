@@ -705,16 +705,18 @@ fn test_declarative_instant_effective_state_on_click_frame() {
         (pill_resp.id(), toggle_resp.id(), check_resp.id())
     };
 
-    // Verify initial inactive checkbox text
-    assert_eq!(
-        tree.get(check_id).unwrap().text.as_deref(),
-        Some("[ ] Wireframe")
-    );
+    // Verify initial inactive checkbox indicator and label
+    let chk_node = tree.get(check_id).unwrap();
+    assert_eq!(chk_node.children.len(), 2);
+    let box_node = tree.get(chk_node.children[0]).unwrap();
+    assert_eq!(box_node.text.as_deref(), Some(""));
+    let lbl_node = tree.get(chk_node.children[1]).unwrap();
+    assert_eq!(lbl_node.text.as_deref(), Some("Wireframe"));
 
     // 2. Simulate click on pill, toggle, and checkbox via frame_clicked_tag
     tree.event_state.frame_clicked_tag = Some(tag_check);
 
-    // Rebuild frame with check clicked: verify [x] appears on the SAME frame!
+    // Rebuild frame with check clicked: verify checkmark appears on the SAME frame!
     {
         let mut scope = UiScope::new(&mut tree, root);
         let check_resp = scope.checkbox_val_tagged("Wireframe", tag_check, false);
@@ -722,17 +724,21 @@ fn test_declarative_instant_effective_state_on_click_frame() {
             check_resp.clicked(),
             "Checkbox must report clicked() == true"
         );
-        let node = scope.tree().get(check_resp.id()).unwrap();
+        let chk_node = scope.tree().get(check_resp.id()).unwrap();
+        assert_eq!(chk_node.children.len(), 2);
+        let box_node = scope.tree().get(chk_node.children[0]).unwrap();
         assert_eq!(
-            node.text.as_deref(),
-            Some("[x] Wireframe"),
-            "Checkbox MUST reflect [x] on click frame even if passed checked=false"
+            box_node.text.as_deref(),
+            Some("✓"),
+            "Checkbox indicator MUST reflect checkmark on click frame even if passed checked=false"
         );
         assert_eq!(
-            node.text_color,
-            iris_core::Color::rgba(0.2, 0.85, 0.65, 1.0),
-            "Checkbox MUST use active green text color on click frame"
+            box_node.style.background_color,
+            iris_core::Color::rgba(0.18, 0.52, 0.88, 1.0),
+            "Checkbox indicator MUST use active accent background color on click frame"
         );
+        let lbl_node = scope.tree().get(chk_node.children[1]).unwrap();
+        assert_eq!(lbl_node.text.as_deref(), Some("Wireframe"));
     }
 
     // 3. Simulate click on filter pill: verify active white text on the SAME frame!

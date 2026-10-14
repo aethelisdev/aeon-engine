@@ -116,6 +116,12 @@ pub struct VirtualScrollConfig {
     pub overscan: usize,
     /// Background color applied to the scroll viewport container.
     pub bg: Color,
+    /// Optional vertical scroll position override. If `None`, uses persistent scroll state from `UiTree`.
+    pub scroll_y: Option<f32>,
+    /// Optional explicit viewport height override in physical pixels. If `None`, autonomously resolves height.
+    pub viewport_height: Option<f32>,
+    /// Optional semantic tags `(track_tag, thumb_tag)` enabling autonomous scrollbar rendering.
+    pub scrollbar_tags: Option<(u64, u64)>,
 }
 
 impl VirtualScrollConfig {
@@ -130,6 +136,9 @@ impl VirtualScrollConfig {
             item_height: VirtualItemHeight::Fixed(row_height),
             overscan: 2,
             bg: Color::TRANSPARENT,
+            scroll_y: None,
+            viewport_height: None,
+            scrollbar_tags: None,
         }
     }
 
@@ -144,6 +153,9 @@ impl VirtualScrollConfig {
             item_height: VirtualItemHeight::Estimated(estimated_row_height),
             overscan: 2,
             bg: Color::TRANSPARENT,
+            scroll_y: None,
+            viewport_height: None,
+            scrollbar_tags: None,
         }
     }
 
@@ -161,12 +173,107 @@ impl VirtualScrollConfig {
         self
     }
 
+    /// Configures an explicit vertical scroll position override.
+    #[must_use]
+    pub const fn with_scroll_y(mut self, scroll_y: f32) -> Self {
+        self.scroll_y = Some(scroll_y);
+        self
+    }
+
+    /// Configures an explicit visible viewport height in physical pixels, bypassing autonomous resolution.
+    #[must_use]
+    pub const fn with_viewport_height(mut self, height: f32) -> Self {
+        self.viewport_height = Some(height);
+        self
+    }
+
+    /// Configures semantic tags for autonomous scrollbar indicator rendering.
+    #[must_use]
+    pub const fn with_scrollbar_tags(mut self, track: u64, thumb: u64) -> Self {
+        self.scrollbar_tags = Some((track, thumb));
+        self
+    }
+
     /// Returns the effective item stride height in physical pixels.
     #[must_use]
     pub const fn stride(&self) -> f32 {
         match self.item_height {
             VirtualItemHeight::Fixed(h) | VirtualItemHeight::Estimated(h) => h,
         }
+    }
+}
+
+/// Comprehensive result returned by [`crate::declarative::UiScope::virtual_scroll_area`].
+///
+/// Encapsulates maximum scroll limit, active clamped scroll offset,
+/// resolved visible index range, and allocated container identifier.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VirtualScrollResponse {
+    /// Maximum vertical scroll limit before reaching content bottom edge.
+    pub max_scroll_y: f32,
+    /// Clamped vertical scroll offset applied to the container node.
+    pub current_scroll_y: f32,
+    /// Effective visible viewport height in physical pixels.
+    pub viewport_height: f32,
+    /// Total virtual height of all collection items.
+    pub content_height: f32,
+    /// Zero-based index of the first rendered item.
+    pub visible_start: usize,
+    /// Zero-based non-inclusive index of the last rendered item.
+    pub visible_end: usize,
+    /// Allocated widget node ID for the viewport container.
+    pub container_id: iris_core::WidgetId,
+}
+
+impl VirtualScrollResponse {
+    /// Returns the maximum vertical scroll limit in physical pixels.
+    #[inline]
+    #[must_use]
+    pub fn max_scroll(&self) -> f32 {
+        self.max_scroll_y
+    }
+
+    /// Returns `true` if the viewport is scrolled to the bottom edge.
+    #[inline]
+    #[must_use]
+    pub fn is_at_bottom(&self) -> bool {
+        (self.current_scroll_y - self.max_scroll_y).abs() < 1.0
+    }
+}
+
+impl From<VirtualScrollResponse> for f32 {
+    #[inline]
+    fn from(resp: VirtualScrollResponse) -> Self {
+        resp.max_scroll_y
+    }
+}
+
+/// Response returned by an autonomous declarative [`scroll_area`] call.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollAreaResponse {
+    /// Allocated widget node ID for the viewport container.
+    pub container_id: iris_core::WidgetId,
+    /// Maximum vertical scroll limit in physical pixels (`(content_height - viewport_height).max(0.0)`).
+    pub max_scroll_y: f32,
+    /// Total measured or estimated vertical content height in physical pixels.
+    pub content_height: f32,
+    /// Autonomously resolved visible viewport height in physical pixels.
+    pub viewport_height: f32,
+}
+
+impl ScrollAreaResponse {
+    /// Returns the maximum vertical scroll limit in physical pixels.
+    #[inline]
+    #[must_use]
+    pub fn max_scroll(&self) -> f32 {
+        self.max_scroll_y
+    }
+}
+
+impl From<ScrollAreaResponse> for f32 {
+    #[inline]
+    fn from(resp: ScrollAreaResponse) -> Self {
+        resp.max_scroll_y
     }
 }
 

@@ -312,7 +312,7 @@ pub fn build_preferences_dialog(
             );
 
             // Calculate and assign layout geometry to the entire preferences dialog hierarchy
-            card.finish_layout_with_hover(card_rect, params.cursor_pos);
+            card.finish_layout(card_rect);
         },
     );
 
@@ -432,7 +432,7 @@ pub fn build_preferences_dialog(
                         },
                     );
                 }
-                menu.finish_layout_with_hover(popup_rect, params.cursor_pos);
+                menu.finish_layout(popup_rect);
             },
         );
     }

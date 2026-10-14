@@ -99,7 +99,8 @@ fn test_console_virtualized_empty_and_matching() {
     };
 
     let mut scope = UiScope::new(&mut tree, root);
-    let max_scroll = build_console_rows(&mut scope, &params);
+    build_console_rows(&mut scope, &params);
+    let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
 
     // Only 1 log matches Error filter
     assert_eq!(max_scroll, 0.0);
@@ -177,7 +178,8 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
     };
 
     let mut actions = Vec::new();
-    let max_scroll = build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut tree, root, &params, &mut actions);
+    let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
     assert!(
         max_scroll > 0.0,
         "max_scroll must be positive when content overflows"

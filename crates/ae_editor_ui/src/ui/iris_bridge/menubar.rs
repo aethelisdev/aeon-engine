@@ -54,7 +54,7 @@ pub fn build_top_menu_bar(
     screen_width: f32,
     active_menu: Option<ActiveMenu>,
     is_editing: bool,
-    cursor_pos: Point,
+    _cursor_pos: Point,
 ) -> TopMenuBarOutput {
     let mut scope = UiScope::new(tree, parent_id);
     let mut btn_file = WidgetId::default();
@@ -129,10 +129,7 @@ pub fn build_top_menu_bar(
 
     // Reconcile 0ms hover styling across top menu items natively
     let mut bar_scope = UiScope::new(tree, root_id);
-    bar_scope.finish_layout_with_hover(
-        Rect::new(0.0, 0.0, screen_width, MENUBAR_HEIGHT),
-        cursor_pos,
-    );
+    bar_scope.finish_layout(Rect::new(0.0, 0.0, screen_width, MENUBAR_HEIGHT));
 
     TopMenuBarOutput {
         root_id,
@@ -338,13 +335,8 @@ pub fn build_floating_dropdown(
         }
     });
 
-    let dd_h = irisui::prelude::measure_height(tree, dropdown_id);
-    let mut dd_scope = UiScope::new(tree, dropdown_id);
-    let dd_bounds = Rect::new(params.anchor_x, MENUBAR_HEIGHT, width, dd_h);
-    dd_scope.finish_layout_with_hover(dd_bounds, params.cursor_pos);
-
     let dd_rect = tree.get(dropdown_id).map_or(
-        Rect::new(params.anchor_x, MENUBAR_HEIGHT, width, dd_h),
+        Rect::new(params.anchor_x, MENUBAR_HEIGHT, width, 0.0),
         |n| n.computed_rect,
     );
 

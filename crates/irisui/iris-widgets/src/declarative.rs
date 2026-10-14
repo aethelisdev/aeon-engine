@@ -20,11 +20,11 @@ pub use layout::{
     measure_height_constrained, measure_width,
 };
 pub use scope::{
-    CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContainerResponseExt, ContextMenuExt,
-    InputBoxProps, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, ScrollAreaConfig, TreeNodeProps, TreeRowProps,
-    TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope, WrappedLabelDescriptor,
-    calculate_visible_slice_and_caret, measure_text_advance,
+    CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, CollapsingBuilder, CollapsingResponse,
+    ContainerResponseExt, ContextMenuExt, InputBoxProps, PropertySliderOptions,
+    PropertyTextOptions, PropertyTextResponse, PropertyVec3Options, PropertyVec3Response,
+    ScrollAreaConfig, TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps,
+    UiScope, WrappedLabelDescriptor, calculate_visible_slice_and_caret, measure_text_advance,
 };
 pub use types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,

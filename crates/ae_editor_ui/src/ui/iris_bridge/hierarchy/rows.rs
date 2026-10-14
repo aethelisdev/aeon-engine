@@ -10,8 +10,8 @@
 //!
 
 use super::types::{
-    HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, HierarchyRow, make_eye_tag, make_foldout_tag,
-    make_row_tag,
+    HIERARCHY_TAG_SCROLLBAR_THUMB, HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_VIEWPORT,
+    HierarchyPanelParams, HierarchyRow, make_eye_tag, make_foldout_tag, make_row_tag,
 };
 use crate::ui::iris_bridge::icons::*;
 use irisui::prelude::*;
@@ -238,13 +238,11 @@ fn resolve_entity_icon(world: &hecs::World, entity: hecs::Entity, is_selected: b
 ///
 /// Automatically prunes off-screen entity rows from the UI tree, keeping node generation and layout cost
 /// strictly $O(1)$ regardless of whether the scene contains 10 or 100,000 entities.
-///
-/// Returns the computed maximum scroll limit `max_scroll_y` in physical pixels.
 pub fn build_hierarchy_rows(
     scope: &mut UiScope<'_>,
     rows: &[HierarchyRow],
     params: &HierarchyPanelParams<'_>,
-) -> f32 {
+) {
     let query_lower = params.search_query.trim().to_lowercase();
 
     // 1. Collect indices of matching entities
@@ -285,16 +283,17 @@ pub fn build_hierarchy_rows(
         scope.container(empty_style, |e| {
             e.colored_label(Color::rgba(0.45, 0.48, 0.58, 1.0), msg_text);
         });
-        return 0.0;
+        return;
     }
 
     // 3. Delegate frustum culling, overscan buffers, and sub-pixel scrolling to virtual_scroll_area
     let total_filtered = matching_indices.len();
-    let vp_height = (params.panel_rect.height - 63.0).max(40.0);
 
     let config = VirtualScrollConfig::fixed(total_filtered, HIERARCHY_ROW_STRIDE)
         .with_overscan(2)
-        .with_bg(Color::TRANSPARENT);
+        .with_bg(Color::TRANSPARENT)
+        .with_scrollbar_tags(HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_SCROLLBAR_THUMB)
+        .with_scroll_y(params.scroll_y);
 
     let tree_config = TreeViewConfig::default()
         .with_name("HierarchyEntityRow")
@@ -320,8 +319,6 @@ pub fn build_hierarchy_rows(
     scope.virtual_scroll_area(
         "HierarchyRowsViewport",
         HIERARCHY_TAG_VIEWPORT,
-        vp_height,
-        params.scroll_y,
         config,
         |row_scope, filtered_idx| {
             let master_idx = matching_indices[filtered_idx];
@@ -421,7 +418,7 @@ pub fn build_hierarchy_rows(
                 );
             });
         },
-    )
+    );
 }
 
 #[cfg(test)]

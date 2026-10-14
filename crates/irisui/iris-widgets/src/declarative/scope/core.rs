@@ -8,12 +8,8 @@
 //!
 
 use crate::declarative::layout::layout_subtree;
-use crate::modal::{
-    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
-};
 use iris_core::{
-    Color, InteractionEvent, Point, Rect, ResponseFlags, Size, UiTree, WidgetId, WidgetResponse,
-    WidgetRole,
+    InteractionEvent, Point, Rect, ResponseFlags, Size, UiTree, WidgetId, WidgetResponse,
 };
 
 /// Declarative UI hierarchical builder scope.
@@ -467,22 +463,36 @@ impl<'a> UiScope<'a> {
     }
 
     /// Calculates and applies recursive flow layout for this scope's subtree across `bounds`.
+    /// Automatically reconciles visual hover styling on interactive descendants if a pointer
+    /// position is registered in the UI tree, eliminating manual pointer coordinate plumbing.
     pub fn finish_layout(&mut self, bounds: Rect) {
         layout_subtree(self.tree, self.parent, bounds);
+        if let Some(cursor) = self.tree.cursor_position() {
+            super::hover::update_hover_styles_recursive(self.tree, self.parent, cursor);
+        }
     }
 
-    /// Calculates and applies recursive flow layout across `bounds`, then immediately updates
-    /// visual hover styling on interactive descendants based on the real-time `cursor_pos`.
+    /// Executes a declarative UI builder closure within a scoped hierarchy on `parent`,
+    /// automatically executing recursive layout finalization across `bounds` upon closure exit.
     ///
-    /// Ensures 0ms hover latency on newly built declarative modal hierarchies without
-    /// waiting for subsequent frame reconciliation cycles.
+    /// Eliminates boilerplate manual calls to `finish_layout(bounds)` across panels and viewports.
     ///
     /// # Arguments
-    /// * `bounds` - Bounding rectangle constraining the subtree layout.
-    /// * `cursor_pos` - Current hardware mouse pointer position in physical screen coordinates.
-    pub fn finish_layout_with_hover(&mut self, bounds: Rect, cursor_pos: Point) {
-        layout_subtree(self.tree, self.parent, bounds);
-        update_hover_styles_recursive(self.tree, self.parent, cursor_pos);
+    /// * `tree` - Mutable reference to the UI node hierarchy.
+    /// * `parent` - Target parent widget under which nodes are constructed.
+    /// * `bounds` - Bounding layout rectangle constraining the subtree.
+    /// * `f` - Declarative builder closure.
+    pub fn scoped<F, R>(tree: &mut UiTree, parent: WidgetId, bounds: Rect, f: F) -> R
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let mut scope = UiScope::new(tree, parent);
+        let result = f(&mut scope);
+        layout_subtree(tree, parent, bounds);
+        if let Some(cursor) = tree.cursor_position() {
+            super::hover::update_hover_styles_recursive(tree, parent, cursor);
+        }
+        result
     }
 
     /// Sets the vertical scroll offset in pixels on the active parent container node.
@@ -529,214 +539,42 @@ impl<'a> UiScope<'a> {
             node.set_style(style);
         }
     }
-}
 
-/// Recursively updates hover styling for interactive modal buttons and links in a computed subtree.
-///
-/// Evaluates `computed_rect.contains_point(cursor_pos)` against known semantic tags and roles,
-/// applying clean ~10% background brightness lifts without neon glows or shadow halos.
-fn update_hover_styles_recursive(tree: &mut UiTree, current: WidgetId, cursor_pos: Point) {
-    let (is_hovered, tag, role, interactive, children) = {
-        let Some(node) = tree.get(current) else {
-            return;
-        };
-        (
-            node.computed_rect.contains_point(cursor_pos),
-            node.tag,
-            node.role,
-            node.interactive,
-            node.children.clone(),
-        )
-    };
+    /// Returns the available bounding layout rectangle of the active parent container.
+    ///
+    /// Evaluates `computed_rect`, `style` width/height constraints, or cached `viewport_sizes`.
+    pub fn available_rect(&self) -> Rect {
+        if let Some(node) = self.tree.get(self.parent) {
+            let w = if node.computed_rect.width > 0.0 {
+                node.computed_rect.width
+            } else if let Some(sw) = node.style.width {
+                sw
+            } else if node.tag != 0 {
+                self.tree
+                    .viewport_size(node.tag)
+                    .map(|s| s.width)
+                    .unwrap_or(0.0)
+            } else {
+                0.0
+            };
 
-    if let Some(node) = tree.get_mut(current) {
-        if tag == MODAL_TAG_CLOSE {
-            node.text_color = if is_hovered {
-                Color::WHITE
+            let h = if node.computed_rect.height > 0.0 {
+                node.computed_rect.height
+            } else if let Some(sh) = node.style.height {
+                sh
+            } else if node.tag != 0 {
+                self.tree
+                    .viewport_size(node.tag)
+                    .map(|s| s.height)
+                    .unwrap_or(0.0)
             } else {
-                Color::rgba(0.60, 0.64, 0.72, 0.85)
+                0.0
             };
-            node.style = node
-                .style
-                .background(if is_hovered {
-                    Color::rgba(0.85, 0.22, 0.22, 0.28)
-                } else {
-                    Color::TRANSPARENT
-                })
-                .border(0.0, Color::TRANSPARENT);
-            node.style.box_shadow = None;
-        } else if tag == MODAL_TAG_CONFIRM {
-            node.text_color = if is_hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.92, 0.96, 1.0, 1.0)
-            };
-            node.style = node
-                .style
-                .background(if is_hovered {
-                    Color::rgba(0.18, 0.48, 0.68, 1.0)
-                } else {
-                    Color::rgba(0.14, 0.40, 0.58, 1.0)
-                })
-                .border(
-                    1.0,
-                    if is_hovered {
-                        Color::rgba(1.0, 1.0, 1.0, 0.25)
-                    } else {
-                        Color::rgba(1.0, 1.0, 1.0, 0.15)
-                    },
-                );
-            node.style.box_shadow = None;
-        } else if tag == MODAL_TAG_DANGER {
-            node.text_color = Color::WHITE;
-            node.style = node
-                .style
-                .background(if is_hovered {
-                    Color::rgba(0.75, 0.20, 0.20, 1.0)
-                } else {
-                    Color::rgba(0.63, 0.14, 0.14, 1.0)
-                })
-                .border(
-                    1.0,
-                    if is_hovered {
-                        Color::rgba(1.0, 1.0, 1.0, 0.25)
-                    } else {
-                        Color::rgba(1.0, 1.0, 1.0, 0.15)
-                    },
-                );
-            node.style.box_shadow = None;
-        } else if tag == MODAL_TAG_CANCEL {
-            node.text_color = if is_hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.75, 0.78, 0.84, 1.0)
-            };
-            node.style = node
-                .style
-                .background(if is_hovered {
-                    Color::rgba(0.20, 0.22, 0.26, 1.0)
-                } else {
-                    Color::rgba(0.14, 0.15, 0.18, 1.0)
-                })
-                .border(
-                    1.0,
-                    if is_hovered {
-                        Color::rgba(1.0, 1.0, 1.0, 0.18)
-                    } else {
-                        Color::rgba(1.0, 1.0, 1.0, 0.10)
-                    },
-                );
-            node.style.box_shadow = None;
-        } else if role == WidgetRole::MenuBarItem {
-            if node.text_color != Color::hex("#00e5ff") {
-                node.text_color = if is_hovered {
-                    Color::WHITE
-                } else {
-                    Color::hex("#dcdce2")
-                };
-                node.style = node.style.background(if is_hovered {
-                    Color::hex("#222634")
-                } else {
-                    Color::TRANSPARENT
-                });
-            }
-        } else if role == WidgetRole::DropdownItem && interactive {
-            node.style = node.style.background(if is_hovered {
-                Color::hex("#222634")
-            } else {
-                Color::TRANSPARENT
-            });
-        } else if role == WidgetRole::Button && (2010..=2025).contains(&tag) {
-            let is_active = node.style.background_color == Color::rgba(0.06, 0.46, 0.92, 1.0);
-            if !is_active {
-                let (bg, border) = if is_hovered {
-                    (
-                        Color::rgba(0.20, 0.23, 0.30, 0.95),
-                        Color::rgba(0.35, 0.40, 0.50, 0.90),
-                    )
-                } else {
-                    (
-                        Color::rgba(0.12, 0.13, 0.16, 0.92),
-                        Color::rgba(0.24, 0.26, 0.32, 0.85),
-                    )
-                };
-                node.style = node.style.background(bg).border(1.0, border);
-                for cid in &children {
-                    if let Some(child) = tree.get_mut(*cid) {
-                        child.set_texture_tint(if is_hovered {
-                            Color::rgba(0.95, 0.98, 1.0, 1.0)
-                        } else {
-                            Color::rgba(0.80, 0.84, 0.90, 0.90)
-                        });
-                    }
-                }
-            }
-        } else if role == WidgetRole::Button && (tag == 2001 || tag == 2002) {
-            let is_open = node.style.background_color == Color::rgba(0.20, 0.23, 0.30, 0.90);
-            if !is_open {
-                node.style = node.style.background(if is_hovered {
-                    Color::rgba(0.20, 0.23, 0.30, 0.90)
-                } else {
-                    Color::TRANSPARENT
-                });
-                let tc = if is_hovered {
-                    Color::rgba(1.0, 1.0, 1.0, 1.0)
-                } else {
-                    Color::rgba(0.85, 0.88, 0.94, 1.0)
-                };
-                for cid in &children {
-                    if let Some(child) = tree.get_mut(*cid) {
-                        if child.text.is_some() {
-                            child.text_color = tc;
-                        } else {
-                            child.set_texture_tint(tc);
-                        }
-                    }
-                }
-            }
-        } else if role == WidgetRole::Button && (2030..=2035).contains(&tag) {
-            let (bg, text_col) = super::compass::resolve_compass_hover_colors(tag, is_hovered);
-            node.style = node.style.background(bg);
-            if let Some(tc) = text_col {
-                for cid in &children {
-                    if let Some(child) = tree.get_mut(*cid) {
-                        child.text_color = tc;
-                    }
-                }
-            }
-        } else if role == WidgetRole::Button && tag != 0 && tag != MODAL_TAG_SCRIM {
-            node.text_color = if is_hovered {
-                Color::rgba(0.25, 0.88, 1.0, 1.0)
-            } else {
-                Color::rgba(0.0, 0.80, 0.95, 1.0)
-            };
-        }
-    }
 
-    if role == WidgetRole::DropdownItem && interactive {
-        for cid in &children {
-            if let Some(child) = tree.get_mut(*cid) {
-                if child.role == WidgetRole::DropdownLabel || child.role == WidgetRole::DropdownIcon
-                {
-                    child.text_color = if is_hovered {
-                        Color::WHITE
-                    } else {
-                        Color::hex("#dcdce2")
-                    };
-                } else if child.role == WidgetRole::DropdownShortcut
-                    && child.text.as_deref() != Some("✓")
-                {
-                    child.text_color = if is_hovered {
-                        Color::hex("#b0b0be")
-                    } else {
-                        Color::hex("#828292")
-                    };
-                }
+            if w > 0.0 && h > 0.0 {
+                return Rect::new(0.0, 0.0, w, h);
             }
         }
-    }
-
-    for child_id in children {
-        update_hover_styles_recursive(tree, child_id, cursor_pos);
+        Rect::new(0.0, 0.0, 800.0, 600.0)
     }
 }

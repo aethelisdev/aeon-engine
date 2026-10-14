@@ -125,15 +125,14 @@ mod tests {
         let tree = panel.tree_mut();
         let root = tree.create_root().expect("root node");
         let mut scope = UiScope::new(tree, root);
-        scope.panel_tagged(
-            "ConsoleTestRoot",
-            Rect::new(0.0, 0.0, 300.0, 200.0),
-            0xCC00_0001,
-            Color::BLACK,
-            |s| {
+        scope
+            .panel("ConsoleTestRoot")
+            .bounds(Rect::new(0.0, 0.0, 300.0, 200.0))
+            .tagged(0xCC00_0001)
+            .background(Color::BLACK)
+            .show(|s| {
                 s.button_named_tagged("TestBtn", "Btn", 0xCC00_0002);
-            },
-        );
+            });
 
         // Hit-test local query with coordinate transformation: (150.0, 70.0) -> local (50.0, 20.0)
         let screen_point = Point::new(150.0, 70.0);

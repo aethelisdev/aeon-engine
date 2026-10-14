@@ -11,8 +11,8 @@ use super::add_menu::build_add_menu;
 use super::types::{
     AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_EYE_PREFIX,
     HIERARCHY_TAG_PANEL_ROOT, HIERARCHY_TAG_ROW_PREFIX, HIERARCHY_TAG_SEARCH_CLEAR,
-    HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams, is_hierarchy_tag, make_eye_tag, make_row_tag,
-    parse_eye_tag, parse_row_tag,
+    HIERARCHY_TAG_SEARCH_INPUT, HIERARCHY_TAG_VIEWPORT, HierarchyPanelParams, is_hierarchy_tag,
+    make_eye_tag, make_row_tag, parse_eye_tag, parse_row_tag,
 };
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use hecs::World;
@@ -594,8 +594,8 @@ fn test_hierarchy_panel_declarative_scope_build() {
     };
 
     let mut rows_cache = Vec::new();
-    let max_scroll =
-        super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT);
 
     assert_eq!(rows_cache.len(), 2);
     assert!(max_scroll >= 0.0);
@@ -662,8 +662,8 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
     };
 
     let mut rows_cache = Vec::new();
-    let max_scroll =
-        super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT);
 
     assert_eq!(
         rows_cache.len(),

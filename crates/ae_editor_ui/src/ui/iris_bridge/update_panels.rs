@@ -87,13 +87,13 @@ impl IrisEditorOverlay {
                 cursor_byte_idx: self.hierarchy.interactions.search_input.cursor_byte_idx,
             };
 
-            let max_scroll = hierarchy::build_hierarchy_panel(
+            hierarchy::build_hierarchy_panel(
                 tree,
                 root,
                 &hier_params,
                 &mut self.hierarchy.rows_cache,
             );
-            self.hierarchy.max_scroll = max_scroll;
+            self.hierarchy.max_scroll = tree.max_scroll(hierarchy::HIERARCHY_TAG_VIEWPORT);
             self.hierarchy.last_rect = Some(hierarchy_rect);
         } else {
             self.hierarchy.last_rect = None;
@@ -214,9 +214,8 @@ impl IrisEditorOverlay {
             };
 
             let mut actions = Vec::new();
-            let max_scroll =
-                super::console::build_console_panel(tree, root, &console_params, &mut actions);
-            self.console.max_scroll_y = max_scroll;
+            super::console::build_console_panel(tree, root, &console_params, &mut actions);
+            self.console.max_scroll_y = tree.max_scroll(super::console::CONSOLE_TAG_VIEWPORT);
 
             let has_console_actions = !actions.is_empty();
             for action in actions {
@@ -485,8 +484,8 @@ impl IrisEditorOverlay {
                 is_scrollbar_dragging,
             };
 
-            let max_scroll = super::material::build_material_panel(tree, root, &material_params);
-            self.material.max_scroll_y = max_scroll;
+            super::material::build_material_panel(tree, root, &material_params);
+            self.material.max_scroll_y = tree.max_scroll(super::material::MATERIAL_TAG_VIEWPORT);
             self.material.panel_rect = Some(material_rect);
             self.material.active_model = params
                 .scene

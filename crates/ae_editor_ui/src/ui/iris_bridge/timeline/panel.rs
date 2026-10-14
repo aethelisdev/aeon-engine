@@ -31,25 +31,12 @@ pub fn build_timeline_panel(
 
     let mut scope = UiScope::with_tagged_interactions(tree, parent_id, params.events, None);
 
-    let root_style = Style::new()
-        .position_absolute()
-        .left(params.panel_rect.x)
-        .top(params.panel_rect.y)
-        .width(params.panel_rect.width)
-        .height(params.panel_rect.height)
-        .flex_col()
+    scope
+        .panel("AnimationTimelinePanelRoot")
+        .tagged(TIMELINE_TAG_PANEL_ROOT)
         .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
         .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
-        .clip_children(true);
-
-    scope.container_tagged(
-        "AnimationTimelinePanelRoot",
-        root_style,
-        WidgetRole::Default,
-        TIMELINE_TAG_PANEL_ROOT,
-        |panel_scope| {
-            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
-
+        .show(|panel_scope| {
             // ── Case A: No Entity Selected ──
             let Some(entity) = params.entity else {
                 render_empty_placeholder(
@@ -59,14 +46,12 @@ pub fn build_timeline_panel(
                     "Animation Timeline Studio",
                     "No entity selected. Select an animated 3D model in the viewport or hierarchy.",
                 );
-                panel_scope.finish_layout(local_rect);
                 return;
             };
 
             // ── Case B: Selected Entity Missing AnimationPlayer Component ──
             let Some(player) = params.animation_player else {
                 render_missing_player_card(panel_scope, params.panel_rect.height, actions, entity);
-                panel_scope.finish_layout(local_rect);
                 return;
             };
 
@@ -80,10 +65,7 @@ pub fn build_timeline_panel(
             build_transport_toolbar(panel_scope, params, duration);
             build_ruler_and_scrubber(panel_scope, params, duration);
             build_dope_sheet_lanes(panel_scope, params, duration);
-
-            panel_scope.finish_layout(local_rect);
-        },
-    );
+        });
 
     resolved_duration
 }

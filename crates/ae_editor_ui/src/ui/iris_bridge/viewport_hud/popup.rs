@@ -82,18 +82,13 @@ pub fn render_viewport_hud_dropdown_popup(
     let popup_y = params.viewport_rect.y + 6.0 + 32.0 + 2.0;
 
     let mut scope = UiScope::new(tree, parent_id);
-    let dropdown_id = scope.dropdown_menu_card(popup_x, popup_y, popup_w, |menu| {
+    scope.dropdown_menu_card(popup_x, popup_y, popup_w, |menu| {
         for (idx, (icon, label)) in items.into_iter().enumerate() {
             let is_selected = selected_index == Some(idx);
             let indicator = if is_selected { Some("✓") } else { None };
             menu.dropdown_item(idx as u64, icon, label, indicator, true);
         }
     });
-
-    let dd_h = irisui::prelude::measure_height(tree, dropdown_id);
-    let mut dd_scope = UiScope::new(tree, dropdown_id);
-    let dd_bounds = Rect::new(popup_x, popup_y, popup_w, dd_h);
-    dd_scope.finish_layout_with_hover(dd_bounds, params.cursor_pos);
 }
 
 /// Resolves a dispatched [`ViewportHudAction`] from a selected dropdown option index.

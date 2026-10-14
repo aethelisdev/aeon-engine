@@ -28,25 +28,14 @@ pub fn build_inspector_panel(
 
     let mut scope = UiScope::new(tree, parent_id);
 
-    let panel_style = Style::new()
-        .flex_col()
-        .width(params.panel_rect.width)
-        .height(params.panel_rect.height)
+    scope
+        .panel("InspectorPanelRoot")
+        .tagged(super::tags::TAG_INSPECTOR_PANEL_ROOT)
         .background(ELEVATION_1_PANEL)
-        .clip_children(true);
-
-    scope.container_tagged(
-        "InspectorPanelRoot",
-        panel_style,
-        WidgetRole::Default,
-        super::tags::TAG_INSPECTOR_PANEL_ROOT,
-        |panel_scope| {
-            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
-
+        .show(|panel_scope| {
             // 1. Check if an entity is selected
             let Some(entity) = params.selected_entity.filter(|e| params.world.contains(*e)) else {
                 render_empty_selection_view(panel_scope, params);
-                panel_scope.finish_layout(local_rect);
                 return;
             };
 
@@ -96,11 +85,7 @@ pub fn build_inspector_panel(
 
             // 6. Bottom Action Bar (Fixed at bottom)
             footer::build_inspector_footer(panel_scope, params);
-
-            // 7. Single unified layout pass for the entire inspector panel in local coordinates
-            panel_scope.finish_layout(local_rect);
-        },
-    );
+        });
 }
 
 /// Builds top-level floating overlays (Color Picker, Add Component, and ComboBox Dropdowns)

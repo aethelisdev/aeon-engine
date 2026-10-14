@@ -28,32 +28,21 @@ pub fn build_ui_designer_panel(
 
     let mut scope = UiScope::new(tree, parent_id);
 
-    let root_style = Style::new()
-        .flex_col()
-        .width(params.panel_rect.width)
-        .height(params.panel_rect.height)
+    let canvas_metrics = scope
+        .panel("UiDesignerPanelRoot")
+        .tagged(UI_DESIGNER_TAG_PANEL_ROOT)
+        .bounds(params.panel_rect)
         .background(Color::rgba(0.065, 0.070, 0.082, 1.0))
         .border(1.0, Color::rgba(0.14, 0.15, 0.18, 0.70))
-        .clip_children(true);
-
-    let mut canvas_metrics = UiDesignerCanvasMetrics::default();
-
-    scope.container_tagged(
-        "UiDesignerPanelRoot",
-        root_style,
-        WidgetRole::Default,
-        UI_DESIGNER_TAG_PANEL_ROOT,
-        |panel_scope| {
+        .show_inner(|panel_scope| {
             // ── 1. Virtual Canvas & Elements Viewport ──────────────────────────
-            canvas_metrics = build_designer_canvas(panel_scope, params, out_contexts);
+            let metrics = build_designer_canvas(panel_scope, params, out_contexts);
 
             // ── 2. Elevated 34px Top Control Bar ──────────────────────────────
             build_designer_toolbar(panel_scope, params);
-
-            // ── 3. Finalize Subtree Flow Layout to Assign Computed Rects ────────
-            panel_scope.finish_layout(params.panel_rect);
-        },
-    );
+            metrics
+        })
+        .1;
 
     // ── 4. Dropdown Popups (Rendered on top in UiLayer::Popup via UiScope) ────
     build_ui_designer_overlays(&mut scope, params);

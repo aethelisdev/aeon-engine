@@ -53,32 +53,34 @@ pub fn build_loading_overlay(tree: &mut UiTree, params: LoadingOverlayParams) ->
     let parent = tree.root().unwrap_or_default();
     let mut scope = UiScope::new(tree, parent);
 
-    scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.60), |scrim| {
-        scrim.modal_card(LOADING_CARD_WIDTH, LOADING_CARD_HEIGHT, |card| {
-            card.container(
-                Style::new()
-                    .flex_col()
-                    .align_items(AlignItems::Stretch)
-                    .justify_content(JustifyContent::Center)
-                    .gap(8.0),
-                |col| {
-                    col.label_custom(
-                        format!("🚀  Loading Assets{}", dots),
-                        14.5,
-                        Color::rgba(0.0, 0.90, 1.0, 1.0),
-                        TextAlign::Center,
-                    );
-                    col.label_custom(
-                        "Processing geometry, materials & textures",
-                        11.5,
-                        Color::rgba(0.65, 0.68, 0.76, 1.0),
-                        TextAlign::Center,
-                    );
-                    col.indeterminate_progress(slide_t);
-                },
-            );
-        });
-
-        scrim.finish_layout(Rect::new(0.0, 0.0, screen_width, screen_height));
-    })
+    scope.modal_scrim_sized(
+        Rect::new(0.0, 0.0, screen_width, screen_height),
+        Color::rgba(0.0, 0.0, 0.0, 0.60),
+        |scrim| {
+            scrim.modal_card(LOADING_CARD_WIDTH, LOADING_CARD_HEIGHT, |card| {
+                card.container(
+                    Style::new()
+                        .flex_col()
+                        .align_items(AlignItems::Stretch)
+                        .justify_content(JustifyContent::Center)
+                        .gap(8.0),
+                    |col| {
+                        col.label_custom(
+                            format!("🚀  Loading Assets{}", dots),
+                            14.5,
+                            Color::rgba(0.0, 0.90, 1.0, 1.0),
+                            TextAlign::Center,
+                        );
+                        col.label_custom(
+                            "Processing geometry, materials & textures",
+                            11.5,
+                            Color::rgba(0.65, 0.68, 0.76, 1.0),
+                            TextAlign::Center,
+                        );
+                        col.indeterminate_progress(slide_t);
+                    },
+                );
+            });
+        },
+    )
 }

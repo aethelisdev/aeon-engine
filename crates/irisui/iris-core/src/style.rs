@@ -496,6 +496,17 @@ impl Style {
     }
 }
 
+impl From<Color> for Style {
+    /// Constructs a default [`Style`] populated with the specified solid background color.
+    ///
+    /// Enables ergonomic passing of raw [`Color`] values into container and panel builders
+    /// that accept `impl Into<Style>`.
+    #[inline]
+    fn from(color: Color) -> Self {
+        Self::new().background(color)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

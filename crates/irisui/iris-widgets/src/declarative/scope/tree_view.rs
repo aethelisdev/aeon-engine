@@ -557,15 +557,18 @@ impl<'a> UiScope<'a> {
         }
 
         let stride = config.row_stride();
-        let scroll_config = VirtualScrollConfig::fixed(items.len(), stride)
+        let mut scroll_config = VirtualScrollConfig::fixed(items.len(), stride)
             .with_overscan(2)
-            .with_bg(Color::TRANSPARENT);
+            .with_bg(Color::TRANSPARENT)
+            .with_scroll_y(props.scroll_y);
 
-        self.virtual_scroll_area(
+        if props.viewport_height > 0.0 {
+            scroll_config = scroll_config.with_viewport_height(props.viewport_height);
+        }
+
+        let resp = self.virtual_scroll_area(
             config.name,
             props.tag,
-            props.viewport_height,
-            props.scroll_y,
             scroll_config,
             |row_scope, item_idx| {
                 let item = &items[item_idx];
@@ -586,7 +589,9 @@ impl<'a> UiScope<'a> {
                     row_content(content_s, item, item_idx, is_selected);
                 });
             },
-        )
+        );
+
+        resp.max_scroll_y
     }
 }
 

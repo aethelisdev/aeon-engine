@@ -26,23 +26,14 @@ pub fn build_stats_panel(
 ) -> f32 {
     let mut scope = UiScope::new(tree, parent_id);
 
-    let root_style = Style::new()
-        .flex_col()
-        .width(params.panel_rect.width)
-        .height(params.panel_rect.height)
-        .background(Color::rgba(0.06, 0.07, 0.09, 1.0))
-        .border(1.0, Color::rgba(0.12, 0.13, 0.16, 0.90))
-        .clip_children(true);
-
-    let mut max_scroll = 0.0;
     let card_w = (params.panel_rect.width - 12.0).max(10.0);
+    let mut vp_id = WidgetId::default();
 
-    scope.container_tagged(
-        "StatsPanelRoot",
-        root_style,
-        WidgetRole::Default,
-        STATS_TAG_PANEL_ROOT,
-        |panel_scope| {
+    scope
+        .panel("StatsPanelRoot")
+        .tagged(STATS_TAG_PANEL_ROOT)
+        .background(Color::rgba(0.06, 0.07, 0.09, 1.0))
+        .show(|panel_scope| {
             // Scrollable telemetry viewport container
             let mut vp_style = Style::new()
                 .clip_children(true)
@@ -52,7 +43,7 @@ pub fn build_stats_panel(
                 .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
             vp_style.scroll_offset_y = params.scroll_y;
 
-            let vp_id = panel_scope.container_tagged(
+            vp_id = panel_scope.container_tagged(
                 "StatsViewport",
                 vp_style,
                 WidgetRole::ScrollAreaViewport,
@@ -113,16 +104,10 @@ pub fn build_stats_panel(
                     });
                 },
             );
+        });
 
-            let local_rect = Rect::new(0.0, 0.0, params.panel_rect.width, params.panel_rect.height);
-            panel_scope.finish_layout(local_rect);
-
-            let content_h = measure_content_height(panel_scope.tree(), vp_id);
-            max_scroll = (content_h - params.panel_rect.height).max(0.0);
-        },
-    );
-
-    max_scroll
+    let content_h = measure_content_height(scope.tree(), vp_id);
+    (content_h - params.panel_rect.height).max(0.0)
 }
 
 /// Helper function building a dark styled card container with an icon, title header, and content slot.

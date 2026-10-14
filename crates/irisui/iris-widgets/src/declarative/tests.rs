@@ -432,12 +432,12 @@ fn test_panel_tagged_declarative_layout_and_flex_grow() {
     let mut btn_id_opt = None;
 
     let mut scope = UiScope::new(&mut tree, root);
-    let panel_id = scope.panel_tagged(
-        "TestPanelRoot",
-        panel_rect,
-        0x5000,
-        iris_core::Color::BLACK,
-        |panel_scope| {
+    let panel_id = scope
+        .panel("TestPanelRoot")
+        .tagged(0x5000)
+        .bounds(panel_rect)
+        .background(iris_core::Color::BLACK)
+        .show(|panel_scope| {
             let tb_id = panel_scope.toolbar_tagged(
                 "TestToolbar",
                 34.0,
@@ -459,8 +459,7 @@ fn test_panel_tagged_declarative_layout_and_flex_grow() {
                 },
             );
             vp_id_opt = Some(vp_id);
-        },
-    );
+        });
 
     let panel_node = tree.get(panel_id).expect("Panel node exists");
     assert_eq!(panel_node.computed_rect, panel_rect);
@@ -737,6 +736,8 @@ fn test_declarative_flex_wrap_row_layout() {
     assert_eq!(r4.y, 44.0); // 22.0 + 22.0 = 44.0
 }
 
+mod autonomous_layout_tests;
+mod collapsing_tests;
 mod context_menu_tests;
 mod input_box_tests;
 mod property_tests;

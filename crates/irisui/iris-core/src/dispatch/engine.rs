@@ -489,9 +489,15 @@ fn handle_mouse_scroll(
                     };
 
                     // Directly update the container's vertical scroll offset in the tree
-                    if let Some(mut_node) = tree.get_mut(curr_id) {
-                        mut_node.style.scroll_offset_y =
-                            (mut_node.style.scroll_offset_y - delta_y).clamp(0.0, max_scroll);
+                    let new_scroll = if let Some(mut_node) = tree.get_mut(curr_id) {
+                        let ns = (mut_node.style.scroll_offset_y - delta_y).clamp(0.0, max_scroll);
+                        mut_node.style.scroll_offset_y = ns;
+                        ns
+                    } else {
+                        0.0
+                    };
+                    if tag != 0 {
+                        tree.set_scroll_offset(tag, new_scroll);
                     }
 
                     // Autonomous synchronization of attached scrollbar thumb geometry
@@ -679,8 +685,12 @@ fn update_scrollbar_drag(tree: &mut UiTree, thumb_id: WidgetId, delta_y: f32, in
     let delta_scroll = (delta_y / travel) * max_scroll_y;
     let new_scroll = (initial_scroll + delta_scroll).clamp(0.0, max_scroll_y);
 
+    let vp_tag = tree.get(vp_id).map_or(0, |n| n.tag);
     if let Some(vp) = tree.get_mut(vp_id) {
         vp.style.scroll_offset_y = new_scroll;
+    }
+    if vp_tag != 0 {
+        tree.set_scroll_offset(vp_tag, new_scroll);
     }
 
     let ratio = (new_scroll / max_scroll_y).clamp(0.0, 1.0);
@@ -724,8 +734,12 @@ fn perform_track_jump_scroll(
     let ratio = (click_offset_y / travel).clamp(0.0, 1.0);
     let new_scroll = ratio * max_scroll_y;
 
+    let vp_tag = tree.get(vp_id).map_or(0, |n| n.tag);
     if let Some(vp) = tree.get_mut(vp_id) {
         vp.style.scroll_offset_y = new_scroll;
+    }
+    if vp_tag != 0 {
+        tree.set_scroll_offset(vp_tag, new_scroll);
     }
 
     let new_thumb_y = track_rect.y + ratio * travel;

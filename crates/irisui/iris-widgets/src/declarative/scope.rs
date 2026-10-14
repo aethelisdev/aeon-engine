@@ -9,21 +9,26 @@
 //!
 
 pub mod buttons;
+pub mod collapsing;
 pub mod compass;
 pub mod containers;
 pub mod context_menu;
 pub mod core;
 pub mod display;
+pub mod hover;
 pub mod input;
 pub mod input_box;
 pub mod menu;
 pub mod modal;
+pub mod panel;
 pub mod progress;
 pub mod properties;
 pub mod scroll_area;
 pub mod spacing;
 pub mod tree_view;
 
+pub use collapsing::{CollapsingBuilder, CollapsingResponse};
+pub use panel::PanelBuilder;
 pub use scroll_area::ScrollAreaConfig;
 pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
 
