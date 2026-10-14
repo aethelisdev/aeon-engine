@@ -39,8 +39,7 @@ pub fn build_asset_grid_cards(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let mut scope = UiScope::new(tree, parent_id);
-    build_asset_grid_cards_scope(&mut scope, vp_rect, params, actions);
+    build_asset_grid_cards_scope(&mut UiScope::new(tree, parent_id), vp_rect, params, actions);
 }
 
 /// Constructs the responsive grid cards directly via a declarative [`UiScope`].
@@ -59,72 +58,84 @@ pub fn build_asset_grid_cards_scope(
         return;
     }
 
-    let items = params.filtered_items;
-    let grid = ResponsiveGrid::new(CARD_WIDTH, CARD_HEIGHT)
-        .spacing(CARD_SPACING, CARD_SPACING)
-        .padding(10.0, 10.0);
-
-    let total_content_h = grid.compute_content_height(items.len(), vp_rect.width);
-    let visible_cells = grid.compute_visible_cells(vp_rect, items.len(), params.scroll_y);
-
-    let container_id = scope.container_tagged(
-        "AssetGridContainer",
-        Style::new()
-            .flex_col()
-            .width(vp_rect.width)
-            .height(vp_rect.height)
-            .scroll_offset_y(params.scroll_y)
-            .clip_children(true),
-        WidgetRole::ScrollAreaViewport,
-        ASSETS_TAG_CONTENT_VIEWPORT,
-        |grid_scope| {
-            for (item_idx, card_rect) in visible_cells {
-                let item = &items[item_idx];
-                let layer = params.thumbnail_layers.get(&item.path).copied();
-                let is_selected = params.selected_asset == Some(&item.path);
-                let rel_pos = Point::new(
-                    card_rect.x - vp_rect.x,
-                    card_rect.y - vp_rect.y + params.scroll_y,
-                );
-
-                let card_resp = asset_grid_card(
-                    grid_scope,
-                    item_idx as u32,
-                    item,
-                    layer,
-                    is_selected,
-                    rel_pos,
-                );
-                card_resp.context_menu(grid_scope, |menu| {
-                    super::context_menu::render_asset_context_menu_items(menu, item, actions);
-                });
-                if card_resp.dragged() {
-                    actions.push(AssetsPanelAction::StartAssetDrag(item.clone()));
-                } else if card_resp.double_clicked() {
-                    actions.push(AssetsPanelAction::SpawnAsset(
-                        item.path.clone(),
-                        item.category,
-                    ));
-                } else if card_resp.secondary_clicked() {
-                    actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
-                } else if card_resp.clicked() {
-                    actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+    scope
+        .container_tagged_resp(
+            "AssetGridContainer",
+            Style::new()
+                .flex_col()
+                .width(vp_rect.width)
+                .height(vp_rect.height)
+                .scroll_offset_y(params.scroll_y)
+                .clip_children(true),
+            WidgetRole::ScrollAreaViewport,
+            ASSETS_TAG_CONTENT_VIEWPORT,
+            |grid_scope| {
+                for (item_idx, card_rect) in asset_responsive_grid().compute_visible_cells(
+                    vp_rect,
+                    params.filtered_items.len(),
+                    params.scroll_y,
+                ) {
+                    render_grid_card(
+                        grid_scope,
+                        item_idx as u32,
+                        &params.filtered_items[item_idx],
+                        card_rect,
+                        vp_rect,
+                        params,
+                        actions,
+                    );
                 }
-            }
-        },
-    );
+            },
+        )
+        .content_size(
+            scope,
+            Size::new(
+                vp_rect.width,
+                asset_responsive_grid()
+                    .compute_content_height(params.filtered_items.len(), vp_rect.width),
+            ),
+        )
+        .context_menu(scope, |menu| {
+            super::context_menu::render_folder_context_menu_items(
+                menu,
+                params.current_folder,
+                actions,
+            );
+        });
+}
 
-    if let Some(c_node) = scope.tree_mut().get_mut(container_id) {
-        c_node.content_size = Size::new(vp_rect.width, total_content_h);
-    }
+/// Constructs the canonical responsive layout grid for asset browser cards.
+#[inline]
+fn asset_responsive_grid() -> ResponsiveGrid {
+    ResponsiveGrid::new(CARD_WIDTH, CARD_HEIGHT)
+        .spacing(CARD_SPACING, CARD_SPACING)
+        .padding(10.0, 10.0)
+}
 
-    let container_resp = scope.response(container_id);
-    container_resp.context_menu(scope, |menu| {
-        super::context_menu::render_folder_context_menu_items(
-            menu,
-            &params.current_folder,
-            actions,
-        );
+/// Renders an individual asset grid card with its context menu into the active scope.
+fn render_grid_card(
+    scope: &mut UiScope<'_>,
+    item_idx: u32,
+    item: &crate::assets::types::AssetItem,
+    card_rect: Rect,
+    vp_rect: Rect,
+    params: &AssetsPanelParams<'_>,
+    actions: &mut Vec<AssetsPanelAction>,
+) {
+    asset_grid_card(
+        scope,
+        item_idx,
+        item,
+        params.thumbnail_layers.get(&item.path).copied(),
+        params.selected_asset == Some(&item.path),
+        Point::new(
+            card_rect.x - vp_rect.x,
+            card_rect.y - vp_rect.y + params.scroll_y,
+        ),
+        actions,
+    )
+    .context_menu(scope, |menu| {
+        super::context_menu::render_asset_context_menu_items(menu, item, actions);
     });
 }
 
@@ -135,25 +146,21 @@ mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
 
-    #[test]
-    fn test_cards_grid_and_empty_notice_declarative_build() {
-        let mut tree = UiTree::new();
-        let root_id = tree.create_root().expect("Root node creation failed");
-        let current_folder = PathBuf::from("assets");
-        let subfolders = Vec::new();
-
-        // 1. Empty items case -> triggers asset_empty_notice
-        let empty_items: Vec<AssetItem> = Vec::new();
-        let params_empty = AssetsPanelParams {
+    fn test_assets_params<'a>(
+        items: &'a [AssetItem],
+        layers: &'a HashMap<PathBuf, u32>,
+        focus: &'a FocusState<FocusTarget>,
+    ) -> AssetsPanelParams<'a> {
+        AssetsPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
             screen_size: (1280.0, 720.0),
-            current_folder: &current_folder,
+            current_folder: std::path::Path::new("assets"),
             search_query: "nonexistent",
             active_category: AssetCategory::All,
             view_mode: AssetViewMode::Grid,
             selected_asset: None,
-            cached_items: &empty_items,
-            filtered_items: &empty_items,
+            cached_items: items,
+            filtered_items: items,
             is_2d_mode: false,
             show_engine_content: false,
             sidebar_width: 180.0,
@@ -164,72 +171,64 @@ mod tests {
             blink_caret: false,
             active_context_menu: None,
             active_preview_modal: None,
-            subfolders: &subfolders,
-            thumbnail_layers: &HashMap::new(),
-            focus_state: &FocusState::new(),
+            subfolders: &[],
+            thumbnail_layers: layers,
+            focus_state: focus,
             cursor_byte_idx: 0,
-        };
+        }
+    }
 
+    fn test_asset_item(name: &str, file_size_bytes: u64, is_loaded: bool) -> AssetItem {
+        AssetItem {
+            name: name.to_string(),
+            path: PathBuf::from(format!("assets/models/{name}")),
+            relative_path: format!("models/{name}"),
+            category: AssetCategory::Models3D,
+            source: AssetSource::Project,
+            file_size_bytes,
+            metadata_badge: format!("{} KB", file_size_bytes / 1024),
+            is_loaded_in_memory: is_loaded,
+            model_handle: None,
+            texture_handle: None,
+            shader_handle: None,
+            is_3d: true,
+        }
+    }
+
+    #[test]
+    fn test_cards_grid_and_empty_notice_declarative_build() {
+        let mut tree = UiTree::new();
+        let root_id = tree.create_root().expect("Root node creation failed");
+        let layers = HashMap::new();
+        let focus = FocusState::new();
         let mut actions = Vec::new();
+
+        // 1. Empty items case -> triggers asset_empty_notice
         build_asset_grid_cards(
             &mut tree,
             root_id,
             Rect::new(0.0, 0.0, 600.0, 400.0),
-            &params_empty,
+            &test_assets_params(&[], &layers, &focus),
             &mut actions,
         );
 
-        let found_empty_notice = tree
-            .iter()
-            .any(|(_, n)| n.name.as_deref() == Some("EmptyAssetsNotice"));
         assert!(
-            found_empty_notice,
+            tree.iter()
+                .any(|(_, n)| n.name.as_deref() == Some("EmptyAssetsNotice")),
             "Empty notice container should be emitted when items are empty"
         );
 
         // 2. Populated items case -> triggers asset_grid_card placed side-by-side
-        let item1 = AssetItem {
-            name: "hero.gltf".to_string(),
-            path: PathBuf::from("assets/models/hero.gltf"),
-            relative_path: "models/hero.gltf".to_string(),
-            category: AssetCategory::Models3D,
-            source: AssetSource::Project,
-            file_size_bytes: 4096,
-            metadata_badge: "4.0 KB".to_string(),
-            is_loaded_in_memory: true,
-            model_handle: None,
-            texture_handle: None,
-            shader_handle: None,
-            is_3d: true,
-        };
-        let item2 = AssetItem {
-            name: "sword.gltf".to_string(),
-            path: PathBuf::from("assets/models/sword.gltf"),
-            relative_path: "models/sword.gltf".to_string(),
-            category: AssetCategory::Models3D,
-            source: AssetSource::Project,
-            file_size_bytes: 2048,
-            metadata_badge: "2.0 KB".to_string(),
-            is_loaded_in_memory: false,
-            model_handle: None,
-            texture_handle: None,
-            shader_handle: None,
-            is_3d: true,
-        };
-        let items = vec![item1, item2];
-        let params_populated = AssetsPanelParams {
-            filtered_items: &items,
-            cached_items: &items,
-            ..params_empty
-        };
-
-        let mut actions_populated = Vec::new();
+        let items = [
+            test_asset_item("hero.gltf", 4096, true),
+            test_asset_item("sword.gltf", 2048, false),
+        ];
         build_asset_grid_cards(
             &mut tree,
             root_id,
             Rect::new(0.0, 0.0, 600.0, 400.0),
-            &params_populated,
-            &mut actions_populated,
+            &test_assets_params(&items, &layers, &focus),
+            &mut actions,
         );
 
         let grid_cards: Vec<_> = tree
@@ -237,15 +236,9 @@ mod tests {
             .filter(|(_, n)| n.name.as_deref() == Some("AssetGridCard"))
             .collect();
         assert_eq!(grid_cards.len(), 2, "Both cards must be emitted");
-
-        // Verify side-by-side placement (card 1 is to the right of card 0)
-        let left0 = grid_cards[0].1.style.inset_left;
-        let left1 = grid_cards[1].1.style.inset_left;
         assert!(
-            left1 > left0,
-            "Second grid card must be placed to the right of first card (side-by-side): left0={:?}, left1={:?}",
-            left0,
-            left1
+            grid_cards[1].1.style.inset_left > grid_cards[0].1.style.inset_left,
+            "Second grid card must be placed to the right of first card (side-by-side)"
         );
     }
 }

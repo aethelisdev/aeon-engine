@@ -7,11 +7,30 @@
 //! 100% native Iris UI GPU SDF Asset Browser panel.
 //!
 
-use super::events::AssetClickTracker;
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::{FocusState, FocusTarget, Point, Rect, TreeState};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Instant;
+
+/// State tracking for double-click asset spawning detection and 3D preview orbital dragging.
+#[derive(Debug, Clone, Default)]
+pub struct AssetClickTracker {
+    /// Last clicked asset path.
+    pub last_path: Option<PathBuf>,
+    /// Instant of the previous click.
+    pub last_instant: Option<Instant>,
+    /// Whether the user is actively dragging the 3D model preview canvas.
+    pub is_orbit_dragging: bool,
+    /// Last cursor position recorded during orbit dragging.
+    pub last_drag_pos: Option<Point>,
+    /// Candidate asset item queued for potential drag and drop upon cursor move threshold.
+    pub potential_drag_item: Option<AssetItem>,
+    /// Initial screen coordinates where the candidate asset item was clicked.
+    pub drag_start_pos: Option<Point>,
+    /// Whether an asset item is actively being dragged across the editor.
+    pub is_dragging_asset: bool,
+}
 
 /// High-level interaction actions emitted by the Iris UI Asset Browser panel.
 #[derive(Debug, Clone, PartialEq)]
@@ -74,68 +93,16 @@ pub enum AssetsPanelAction {
     ToggleEngineContent,
 }
 
-/// Target subject of an active asset browser context menu.
-#[derive(Debug, Clone, PartialEq)]
-pub enum AssetsContextMenuTarget {
-    /// Context menu opened on an asset item (card or list row).
-    Asset(AssetItem),
-    /// Context menu opened on a folder node or blank area.
-    Folder(PathBuf),
-}
-
-/// Numerical tags assigned to items within the Asset Browser right-click context menu.
-pub const ASSET_CTX_INSPECT: u64 = 0;
-/// Numerical tag for spawning an asset into the active scene.
-pub const ASSET_CTX_SPAWN: u64 = 1;
-/// Numerical tag for creating a new subfolder.
-pub const ASSET_CTX_NEW_FOLDER: u64 = 2;
-/// Numerical tag for renaming an asset or folder.
-pub const ASSET_CTX_RENAME: u64 = 3;
-/// Numerical tag for deleting an asset or folder.
-pub const ASSET_CTX_DELETE: u64 = 4;
-/// Numerical tag for copying an asset's file path to the system clipboard.
-pub const ASSET_CTX_COPY_PATH: u64 = 5;
-/// Numerical tag for revealing an asset or folder in the OS file manager.
-pub const ASSET_CTX_REVEAL: u64 = 6;
+pub use super::context_menu::{
+    ASSET_CTX_COPY_PATH, ASSET_CTX_DELETE, ASSET_CTX_INSPECT, ASSET_CTX_NEW_FOLDER,
+    ASSET_CTX_RENAME, ASSET_CTX_REVEAL, ASSET_CTX_SPAWN, AssetsContextMenuAction,
+    AssetsContextMenuTarget, resolve_assets_ctx_action,
+};
 
 /// Semantic interaction tag for the asset preview modal "Reveal in Explorer" button.
 pub const ASSET_PREVIEW_TAG_REVEAL: u64 = 0xF010;
 /// Semantic interaction tag for the asset preview 3D model orbit canvas.
 pub const ASSET_PREVIEW_TAG_ORBIT: u64 = 0xF011;
-
-/// Actions selectable from the Asset Browser right-click context menu.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssetsContextMenuAction {
-    /// Opens the 3D orbital inspection preview modal for the asset.
-    Inspect,
-    /// Instantiates the asset into the active 3D scene.
-    Spawn,
-    /// Prompts creation of a new subfolder in the directory.
-    NewFolder,
-    /// Opens the inline renaming modal or text prompt.
-    Rename,
-    /// Prompts deletion confirmation for the file or folder.
-    Delete,
-    /// Copies the file system path to the OS clipboard.
-    CopyPath,
-    /// Reveals the file or directory in the native OS desktop file manager.
-    Reveal,
-}
-
-/// Resolves a context menu numeric tag into a typed [`AssetsContextMenuAction`].
-#[inline]
-pub fn resolve_assets_ctx_action(tag: u64) -> Option<AssetsContextMenuAction> {
-    match tag {
-        ASSET_CTX_INSPECT => Some(AssetsContextMenuAction::Inspect),
-        ASSET_CTX_SPAWN => Some(AssetsContextMenuAction::Spawn),
-        ASSET_CTX_NEW_FOLDER => Some(AssetsContextMenuAction::NewFolder),
-        ASSET_CTX_RENAME => Some(AssetsContextMenuAction::Rename),
-        ASSET_CTX_DELETE => Some(AssetsContextMenuAction::Delete),
-        ASSET_CTX_COPY_PATH => Some(AssetsContextMenuAction::CopyPath),
-        ASSET_CTX_REVEAL => Some(AssetsContextMenuAction::Reveal),
-        _ => None,
-    }
-}
 
 // ============================================================================
 // 64-BIT DOMAIN SEMANTIC TAGS & BITMASKING RULES (O(1) HIT TESTING)
@@ -302,14 +269,10 @@ pub fn encode_tree_chevron_tag(node_idx: u32) -> u64 {
 /// Returns `Some((node_idx, is_chevron))`.
 #[inline]
 pub fn parse_tree_tag(tag: u64) -> Option<(u32, bool)> {
-    let prefix = tag & ASSETS_TAG_TREE_PREFIX_MASK;
-    let idx = (tag & ASSETS_TAG_PAYLOAD_MASK) as u32;
-    if prefix == ASSETS_TAG_TREE_ROW_BASE {
-        Some((idx, false))
-    } else if prefix == ASSETS_TAG_TREE_CHEVRON_BASE {
-        Some((idx, true))
-    } else {
-        None
+    match tag & ASSETS_TAG_TREE_PREFIX_MASK {
+        ASSETS_TAG_TREE_ROW_BASE => Some(((tag & ASSETS_TAG_PAYLOAD_MASK) as u32, false)),
+        ASSETS_TAG_TREE_CHEVRON_BASE => Some(((tag & ASSETS_TAG_PAYLOAD_MASK) as u32, true)),
+        _ => None,
     }
 }
 
@@ -336,16 +299,14 @@ pub fn encode_item_inspect_tag(item_idx: u32) -> u64 {
 /// Returns `Some((item_idx, action))`.
 #[inline]
 pub fn parse_item_tag(tag: u64) -> Option<(u32, AssetItemAction)> {
-    let prefix = tag & ASSETS_TAG_ITEM_PREFIX_MASK;
-    let idx = (tag & ASSETS_TAG_PAYLOAD_MASK) as u32;
-    if prefix == ASSETS_TAG_ITEM_BASE {
-        Some((idx, AssetItemAction::SelectOrOpen))
-    } else if prefix == ASSETS_TAG_ITEM_SPAWN_BASE {
-        Some((idx, AssetItemAction::Spawn))
-    } else if prefix == ASSETS_TAG_ITEM_INSPECT_BASE {
-        Some((idx, AssetItemAction::Inspect))
-    } else {
-        None
+    match (
+        tag & ASSETS_TAG_ITEM_PREFIX_MASK,
+        (tag & ASSETS_TAG_PAYLOAD_MASK) as u32,
+    ) {
+        (ASSETS_TAG_ITEM_BASE, idx) => Some((idx, AssetItemAction::SelectOrOpen)),
+        (ASSETS_TAG_ITEM_SPAWN_BASE, idx) => Some((idx, AssetItemAction::Spawn)),
+        (ASSETS_TAG_ITEM_INSPECT_BASE, idx) => Some((idx, AssetItemAction::Inspect)),
+        _ => None,
     }
 }
 
@@ -487,6 +448,54 @@ pub struct AssetsPanelLayoutMetrics {
     pub context_menu_card_rect: Option<Rect>,
 }
 
+/// Height of the top navigation header toolbar in physical pixels.
+pub const ASSETS_TOP_BAR_HEIGHT: f32 = 34.0;
+/// Height of the category filter chips toolbar in physical pixels.
+pub const ASSETS_CHIPS_BAR_HEIGHT: f32 = 28.0;
+/// Height of the bottom telemetry status footer in physical pixels.
+pub const ASSETS_FOOTER_HEIGHT: f32 = 24.0;
+
+impl AssetsPanelLayoutMetrics {
+    /// Computes layout metrics for the asset browser panel directly without intermediate bindings.
+    #[inline]
+    pub fn compute(params: &AssetsPanelParams<'_>) -> Self {
+        Self {
+            panel_rect: params.panel_rect,
+            sidebar_rect: (!params.sidebar_collapsed).then(|| {
+                Rect::new(
+                    params.panel_rect.x,
+                    params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT + ASSETS_CHIPS_BAR_HEIGHT,
+                    params.sidebar_width,
+                    (params.panel_rect.height
+                        - ASSETS_TOP_BAR_HEIGHT
+                        - ASSETS_CHIPS_BAR_HEIGHT
+                        - ASSETS_FOOTER_HEIGHT)
+                        .max(40.0),
+                )
+            }),
+            content_viewport_rect: Rect::new(
+                if params.sidebar_collapsed {
+                    params.panel_rect.x
+                } else {
+                    params.panel_rect.x + params.sidebar_width
+                },
+                params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT + ASSETS_CHIPS_BAR_HEIGHT,
+                if params.sidebar_collapsed {
+                    params.panel_rect.width
+                } else {
+                    (params.panel_rect.width - params.sidebar_width).max(60.0)
+                },
+                (params.panel_rect.height
+                    - ASSETS_TOP_BAR_HEIGHT
+                    - ASSETS_CHIPS_BAR_HEIGHT
+                    - ASSETS_FOOTER_HEIGHT)
+                    .max(40.0),
+            ),
+            context_menu_card_rect: None,
+        }
+    }
+}
+
 /// Rendering parameters supplied to `build_assets_panel`.
 pub struct AssetsPanelParams<'a> {
     /// Bounding rectangle assigned to the panel by the docking manager.
@@ -537,6 +546,14 @@ pub struct AssetsPanelParams<'a> {
     pub cursor_byte_idx: usize,
 }
 
+impl<'a> AssetsPanelParams<'a> {
+    /// Computes the layout metrics for this panel.
+    #[inline]
+    pub fn layout_metrics(&self) -> AssetsPanelLayoutMetrics {
+        AssetsPanelLayoutMetrics::compute(self)
+    }
+}
+
 /// Truncates a UTF-8 string safely at Unicode code point boundaries.
 ///
 /// If the character count exceeds `max_chars`, the string is sliced at the `keep_chars`-th
@@ -546,14 +563,14 @@ pub struct AssetsPanelParams<'a> {
 /// This prevents byte index panics on multi-byte characters such as Turkish (`ğ`, `ü`, `ş`, `ı`, `ö`, `ç`),
 /// Cyrillic, CJK ideographs, or emojis.
 pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) -> String {
-    let char_count = text.chars().count();
-    if char_count > max_chars {
-        let split_idx = text
-            .char_indices()
-            .nth(keep_chars)
-            .map(|(idx, _)| idx)
-            .unwrap_or(text.len());
-        format!("{}...", &text[..split_idx])
+    if text.chars().count() > max_chars {
+        format!(
+            "{}...",
+            &text[..text
+                .char_indices()
+                .nth(keep_chars)
+                .map_or(text.len(), |(idx, _)| idx)]
+        )
     } else {
         text.to_string()
     }
@@ -602,8 +619,6 @@ pub struct AssetsPanelState {
 
 impl Default for AssetsPanelState {
     fn default() -> Self {
-        let mut tree_state = TreeState::default();
-        tree_state.set_expanded(PathBuf::from("assets"), true);
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             panel_rect: None,
@@ -622,7 +637,11 @@ impl Default for AssetsPanelState {
             filtered_items_cache: Vec::new(),
             subfolders_cache: Vec::new(),
             last_cached_items_count: 0,
-            tree_state,
+            tree_state: {
+                let mut ts = TreeState::default();
+                ts.set_expanded(PathBuf::from("assets"), true);
+                ts
+            },
         }
     }
 }
@@ -648,6 +667,7 @@ impl AssetsPanelState {
     ///
     /// Inspects current folder changes, selected asset changes, item count changes,
     /// active context menu popups, quick preview modals, or active asset drag-and-drop payloads.
+    #[inline]
     pub fn is_dirty(
         &self,
         params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
@@ -674,10 +694,8 @@ impl AssetsPanelState {
         &mut self,
         params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
     ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
+        self.is_dirty(params)
+            .then(|| self.sync_dirty(params))
+            .is_some()
     }
 }

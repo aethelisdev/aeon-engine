@@ -338,6 +338,87 @@ impl WidgetResponse {
         }
         self
     }
+
+    /// Executes the provided closure if this widget was clicked with the primary mouse button
+    /// without being a double-click or active drag gesture.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_click(self, f: impl FnOnce()) -> Self {
+        if self.clicked() && !self.double_clicked() && !self.dragged() {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if this widget was clicked with the secondary (right) mouse button
+    /// without an active drag gesture.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_secondary_click(self, f: impl FnOnce()) -> Self {
+        if self.secondary_clicked() && !self.dragged() {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if this widget was clicked with either primary or secondary mouse button
+    /// without being a double-click or active drag gesture.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_any_click(self, f: impl FnOnce()) -> Self {
+        if (self.secondary_clicked() || self.clicked()) && !self.double_clicked() && !self.dragged()
+        {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if this widget was double-clicked.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_double_click(self, f: impl FnOnce()) -> Self {
+        if self.double_clicked() && !self.dragged() {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if an active drag gesture is occurring on this widget.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_drag(self, f: impl FnOnce()) -> Self {
+        if self.dragged() {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if this widget's value or interactive state changed.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_change(self, f: impl FnOnce()) -> Self {
+        if self.changed() {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if this widget was hovered during this frame.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_hover(self, f: impl FnOnce()) -> Self {
+        if self.hovered() {
+            f();
+        }
+        self
+    }
 }
 
 #[cfg(test)]
@@ -418,5 +499,34 @@ mod tests {
         let pos = Point::new(142.5, 87.0);
         let resp_with_pos = resp.with_pointer_pos(Some(pos));
         assert_eq!(resp_with_pos.interact_pointer_pos(), Some(pos));
+    }
+
+    #[test]
+    fn test_widget_response_fluent_handlers() {
+        let id = WidgetId::default();
+        let mut clicked = false;
+        let mut double_clicked = false;
+        let mut dragged = false;
+        let mut changed = false;
+        let mut hovered = false;
+        let mut any_clicked = false;
+
+        let resp = WidgetResponse::empty(id)
+            .with_clicked(true)
+            .with_hovered(true)
+            .on_click(|| clicked = true)
+            .on_any_click(|| any_clicked = true)
+            .on_double_click(|| double_clicked = true)
+            .on_drag(|| dragged = true)
+            .on_change(|| changed = true)
+            .on_hover(|| hovered = true);
+
+        assert!(clicked);
+        assert!(any_clicked);
+        assert!(!double_clicked);
+        assert!(!dragged);
+        assert!(!changed);
+        assert!(hovered);
+        assert_eq!(resp.id(), id);
     }
 }

@@ -8,7 +8,9 @@
 //!
 
 use super::core::UiScope;
-use iris_core::{Color, Insets, Rect, Style, WidgetCursor, WidgetId, WidgetRole};
+use iris_core::{
+    Color, Insets, Point, Rect, Size, Style, WidgetCursor, WidgetId, WidgetResponse, WidgetRole,
+};
 
 impl<'a> UiScope<'a> {
     /// Emits a tagged dockable panel root container with absolute bounding geometry and vertical flex flow.
@@ -254,6 +256,32 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
+    /// Emits a tagged container widget, returning [`WidgetResponse`] directly for fluent method chaining.
+    ///
+    /// Eliminates the two-step `let id = ...; scope.response(id)...` pattern, enabling immediate
+    /// `.on_click(...)`, `.on_drag(...)`, or `.context_menu(...)` chaining on container widgets.
+    ///
+    /// # Arguments
+    /// * `name` - Debug node name.
+    /// * `style` - Visual presentation and layout metrics.
+    /// * `role` - Semantic accessibility and widget role.
+    /// * `tag` - Persistent 64-bit semantic tag.
+    /// * `f` - Child scope closure emitting contained items.
+    pub fn container_tagged_resp<F>(
+        &mut self,
+        name: impl Into<String>,
+        style: Style,
+        role: WidgetRole,
+        tag: u64,
+        f: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let id = self.container_tagged(name, style, role, tag, f);
+        self.response(id)
+    }
+
     /// Emits a horizontal flexbox container (`flex_direction: Row`) with standard item centering.
     ///
     /// # Arguments
@@ -377,120 +405,6 @@ impl<'a> UiScope<'a> {
         })
     }
 
-    /// Emits a horizontal divider separator line.
-    pub fn separator(&mut self) -> WidgetId {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.role = WidgetRole::Separator;
-            node.set_style(
-                Style::new()
-                    .height(1.0)
-                    .background(Color::rgba(0.24, 0.25, 0.30, 0.6)),
-            );
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        node_id
-    }
-
-    /// Emits a styled leaf element (empty container node without child scopes, e.g. solid box or backdrop).
-    ///
-    /// # Arguments
-    /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    pub fn empty_box(&mut self, style: Style) -> WidgetId {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_style(style);
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        node_id
-    }
-
-    /// Emits a styled leaf element with `interactive = false` so it does not intercept hit-testing.
-    ///
-    /// Used for background grids, visual outlines, guide lines, and purely decorative graphics.
-    ///
-    /// # Arguments
-    /// * `style` - Visual bounds and styling properties applied to the passive leaf node.
-    pub fn empty_box_passive(&mut self, style: Style) -> WidgetId {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.interactive = false;
-            node.set_style(style);
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        node_id
-    }
-
-    /// Emits a named, non-interactive leaf box node with custom styling.
-    ///
-    /// Ideal for decorative lines, pins, markers, and visual outlines that should not block
-    /// mouse events or register in hit-testing.
-    ///
-    /// # Arguments
-    /// * `name` - Descriptive name of the widget node for tree debugging.
-    /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    pub fn empty_box_passive_named(&mut self, name: impl Into<String>, style: Style) -> WidgetId {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name);
-            node.interactive = false;
-            node.set_style(style);
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        node_id
-    }
-
-    /// Emits a non-container leaf node with custom styling, widget role, and 64-bit semantic tag.
-    ///
-    /// # Arguments
-    /// * `name` - Descriptive name of the widget node for tree debugging.
-    /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    /// * `role` - Accessibility and interaction role for the widget.
-    /// * `tag` - 64-bit semantic identifier for hardware hit-testing and event routing.
-    pub fn empty_box_tagged(
-        &mut self,
-        name: impl Into<String>,
-        style: Style,
-        role: WidgetRole,
-        tag: u64,
-    ) -> WidgetId {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name.into());
-            node.tag = tag;
-            node.role = role;
-            node.interactive = true;
-            node.cursor = role.default_cursor();
-            node.set_style(style);
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        node_id
-    }
-
-    /// Emits a 1-pixel horizontal rule divider container with a custom color.
-    ///
-    /// # Arguments
-    /// * `color` - RGBA color of the divider line.
-    pub fn divider(&mut self, color: Color) -> WidgetId {
-        let div_style = Style::new().background(color).height(1.0);
-        self.empty_box(div_style)
-    }
-
-    /// Emits a 1-pixel vertical divider container with custom height and color.
-    ///
-    /// # Arguments
-    /// * `height` - Explicit vertical height of the divider line.
-    /// * `color` - RGBA color of the divider line.
-    pub fn vertical_divider(&mut self, height: f32, color: Color) -> WidgetId {
-        let div_style = Style::new().background(color).width(1.0).height(height);
-        self.empty_box(div_style)
-    }
-
-    /// Emits an empty flex-grow spacer node to expand and push subsequent items.
-    pub fn spacer(&mut self) -> WidgetId {
-        self.empty_box(Style::new().flex_grow(1.0))
-    }
-
     /// Emits an interactive or custom-rendered canvas container node with specified role, tag, and cursor.
     ///
     /// # Arguments
@@ -544,5 +458,147 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
         node_id
+    }
+
+    /// Measures the content bounding extents of a widget subtree and executes layout positioning in-place.
+    ///
+    /// Eliminates intermediate borrow-checker `let` measurements and layout boilerplate outside of the scope.
+    ///
+    /// # Arguments
+    /// * `node_id` - Target widget node to layout.
+    /// * `origin` - Top-left origin coordinates `(x, y)` for the positioned subtree.
+    /// * `min_height` - Minimum height clamping applied to the measured container.
+    pub fn layout_subtree_measured(
+        &mut self,
+        node_id: WidgetId,
+        origin: Point,
+        min_height: f32,
+    ) -> Rect {
+        let w = crate::declarative::measure_width(self.tree, node_id);
+        let h = crate::declarative::measure_height(self.tree, node_id).max(min_height);
+        let rect = Rect::new(origin.x, origin.y, w, h);
+        crate::declarative::layout_subtree(self.tree, node_id, rect);
+        rect
+    }
+
+    /// Emits a positioned container and performs immediate layout measurement on its subtree.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive debug identifier.
+    /// * `style` - Base layout styling applied to the container.
+    /// * `origin` - Top-left origin coordinates `(x, y)` for positioning.
+    /// * `min_height` - Minimum height clamping applied to the measured container.
+    /// * `f` - Children construction closure.
+    pub fn container_measured<F>(
+        &mut self,
+        name: &'static str,
+        style: Style,
+        origin: Point,
+        min_height: f32,
+        f: F,
+    ) -> WidgetId
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        let node_id = self.container_named(name, style, f);
+        self.layout_subtree_measured(node_id, origin, min_height);
+        node_id
+    }
+
+    /// Emits a concentric circular viewport landing drop target with an outer glowing ring and inner dot.
+    ///
+    /// # Arguments
+    /// * `center` - Center coordinate on the viewport canvas.
+    /// * `ring_radius` - Radius of the outer boundary ring.
+    /// * `dot_radius` - Radius of the inner targeting center dot.
+    /// * `color` - Color applied to both outer ring border and inner dot fill.
+    pub fn landing_indicator(
+        &mut self,
+        center: Point,
+        ring_radius: f32,
+        dot_radius: f32,
+        color: Color,
+    ) {
+        let ring_id = self.empty_box_passive_named(
+            "ViewportDropLandingRing",
+            Style::new()
+                .position_absolute()
+                .left(center.x - ring_radius)
+                .top(center.y - ring_radius)
+                .width(ring_radius * 2.0)
+                .height(ring_radius * 2.0)
+                .border(2.0, color)
+                .border_radius(ring_radius),
+        );
+        crate::declarative::layout_subtree(
+            self.tree,
+            ring_id,
+            Rect::new(
+                center.x - ring_radius,
+                center.y - ring_radius,
+                ring_radius * 2.0,
+                ring_radius * 2.0,
+            ),
+        );
+
+        let dot_id = self.empty_box_passive_named(
+            "ViewportDropLandingDot",
+            Style::new()
+                .position_absolute()
+                .left(center.x - dot_radius)
+                .top(center.y - dot_radius)
+                .width(dot_radius * 2.0)
+                .height(dot_radius * 2.0)
+                .background(color)
+                .border_radius(dot_radius),
+        );
+        crate::declarative::layout_subtree(
+            self.tree,
+            dot_id,
+            Rect::new(
+                center.x - dot_radius,
+                center.y - dot_radius,
+                dot_radius * 2.0,
+                dot_radius * 2.0,
+            ),
+        );
+    }
+}
+
+/// Extension trait adding fluent layout and interaction chaining to container responses.
+///
+/// Enables configuring virtual scroll sizes directly on container [`WidgetResponse`]
+/// instances without declaring imperative intermediate `let` variables.
+pub trait ContainerResponseExt {
+    /// Configures the virtual scrollable content extent size of this container node.
+    ///
+    /// Enables  method chaining directly on container responses without
+    /// declaring intermediate `let` variables.
+    ///
+    /// # Arguments
+    /// * `scope` - Active UI construction scope owning the node tree.
+    /// * `size` - Total virtual content size in physical pixels.
+    fn content_size(self, scope: &mut UiScope<'_>, size: Size) -> Self;
+
+    /// Configures the virtual scrollable content extent size using discrete width and height.
+    ///
+    /// # Arguments
+    /// * `scope` - Active UI construction scope owning the node tree.
+    /// * `width` - Virtual content width in physical pixels.
+    /// * `height` - Virtual content height in physical pixels.
+    fn content_size_wh(self, scope: &mut UiScope<'_>, width: f32, height: f32) -> Self;
+}
+
+impl ContainerResponseExt for WidgetResponse {
+    #[inline]
+    fn content_size(self, scope: &mut UiScope<'_>, size: Size) -> Self {
+        scope.set_content_size(self.id, size);
+        self
+    }
+
+    #[inline]
+    fn content_size_wh(self, scope: &mut UiScope<'_>, width: f32, height: f32) -> Self {
+        scope.set_content_size(self.id, Size::new(width, height));
+        self
     }
 }

@@ -8,9 +8,9 @@
 //!
 
 use crate::declarative::types::WidgetResponse;
-use crate::declarative::{ContextMenuExt, UiScope};
+use crate::declarative::{ContainerResponseExt, ContextMenuExt, UiScope};
 use iris_core::event::{KeyCode, MouseButton, UiEvent};
-use iris_core::geometry::{Point, Rect};
+use iris_core::geometry::{Point, Rect, Size};
 use iris_core::node::{UiLayer, WidgetRole};
 use iris_core::tree::UiTree;
 
@@ -187,4 +187,33 @@ fn test_declarative_context_menu_escape_key_dismiss() {
         tree.event_state.active_context_menu.is_none(),
         "Pressing Escape must automatically close the active context menu"
     );
+}
+
+#[test]
+fn test_declarative_container_response_ext_fluent_chaining() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node creation failed");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    let container_resp = scope
+        .container_tagged_resp(
+            "TestChainedContainer",
+            iris_core::Style::new(),
+            WidgetRole::ScrollAreaViewport,
+            42,
+            |child_scope| {
+                child_scope.text("Child");
+            },
+        )
+        .content_size(&mut scope, Size::new(800.0, 1200.0))
+        .content_size_wh(&mut scope, 900.0, 1500.0)
+        .context_menu(&mut scope, |menu| {
+            let _ = menu.context_menu_item("Action");
+        });
+
+    assert_eq!(container_resp.id, tree.get(container_resp.id).unwrap().id);
+    let node = tree.get(container_resp.id).expect("Container node exists");
+    assert_eq!(node.content_size, Size::new(900.0, 1500.0));
+    assert_eq!(node.tag, 42);
+    assert_eq!(node.role, WidgetRole::ScrollAreaViewport);
 }

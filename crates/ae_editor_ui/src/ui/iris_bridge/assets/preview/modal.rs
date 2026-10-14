@@ -35,18 +35,13 @@ pub fn build_asset_preview_modal(
         return;
     };
 
-    let (screen_w, screen_h) = params.screen_size;
-
-    let modal_w = PREVIEW_MODAL_WIDTH.min(screen_w - 40.0).max(360.0);
-    let modal_h = PREVIEW_MODAL_HEIGHT.min(screen_h - 40.0).max(320.0);
-
+    let (modal_w, modal_h) = compute_modal_dimensions(params.screen_size);
     let cat_col = resolve_category_color(modal.item.category);
-    let size_text = AssetBrowserState::format_file_size(modal.item.file_size_bytes);
 
     let mut scope = UiScope::new(tree, parent_id);
 
     scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.65), |scrim| {
-        let _card_id = scrim.modal_card(modal_w, modal_h, |card| {
+        scrim.modal_card(modal_w, modal_h, |card| {
             // 1. Unified Header Section (Height: 36px = 34px row + 1px divider + 1px spacing)
             card.container(Style::new().flex_col().height(36.0), |header_group| {
                 header_group.container(
@@ -99,12 +94,12 @@ pub fn build_asset_preview_modal(
                                 .width(130.0),
                             |right| {
                                 right.label(
-                                    &size_text,
+                                    AssetBrowserState::format_file_size(modal.item.file_size_bytes),
                                     10.5,
                                     Color::rgba(0.65, 0.70, 0.80, 1.0),
                                     TextAlign::Right,
                                 );
-                                let _close_resp = right.modal_close_button();
+                                right.modal_close_button();
                             },
                         );
                     },
@@ -162,6 +157,18 @@ pub fn build_asset_preview_modal(
             );
         });
 
-        scrim.finish_layout_with_hover(Rect::new(0.0, 0.0, screen_w, screen_h), params.cursor_pos);
+        scrim.finish_layout_with_hover(
+            Rect::new(0.0, 0.0, params.screen_size.0, params.screen_size.1),
+            params.cursor_pos,
+        );
     });
+}
+
+/// Computes the clamped modal dimensions based on available screen viewport extents.
+#[inline]
+fn compute_modal_dimensions((screen_w, screen_h): (f32, f32)) -> (f32, f32) {
+    (
+        PREVIEW_MODAL_WIDTH.min(screen_w - 40.0).max(360.0),
+        PREVIEW_MODAL_HEIGHT.min(screen_h - 40.0).max(320.0),
+    )
 }

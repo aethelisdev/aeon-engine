@@ -127,3 +127,31 @@ impl<'a> UiScope<'a> {
         WidgetResponse::new(dot_id, clicked, hovered, false)
     }
 }
+
+/// Resolves background and text colors for compass navigator knobs and dots.
+pub(crate) fn resolve_compass_hover_colors(tag: u64, is_hovered: bool) -> (Color, Option<Color>) {
+    if (2030..=2032).contains(&tag) {
+        let base_color = match tag {
+            2030 => Color::rgba(0.92, 0.22, 0.22, 1.0),
+            2031 => Color::rgba(0.22, 0.82, 0.32, 1.0),
+            2032 => Color::rgba(0.24, 0.52, 0.95, 1.0),
+            _ => Color::WHITE,
+        };
+        (
+            if is_hovered { Color::WHITE } else { base_color },
+            Some(if is_hovered {
+                Color::BLACK
+            } else {
+                Color::WHITE
+            }),
+        )
+    } else {
+        let base_color = match tag {
+            2033 => Color::rgba(0.92 * 0.45, 0.22 * 0.45, 0.22 * 0.45, 0.75),
+            2034 => Color::rgba(0.22 * 0.45, 0.82 * 0.45, 0.32 * 0.45, 0.75),
+            2035 => Color::rgba(0.24 * 0.45, 0.52 * 0.45, 0.95 * 0.45, 0.75),
+            _ => Color::rgba(0.5, 0.5, 0.5, 0.75),
+        };
+        (if is_hovered { Color::WHITE } else { base_color }, None)
+    }
+}

@@ -295,214 +295,233 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Compiles the asset card into the target `UiTree` under `parent_id` via a declarative scope.
     pub fn build(self, tree: &mut UiTree, parent_id: WidgetId) -> AssetCardFrame {
-        let mut scope = UiScope::new(tree, parent_id);
-        self.build_scope(&mut scope)
+        self.build_scope(&mut UiScope::new(tree, parent_id))
     }
 
     /// Compiles the asset card directly into an active declarative [`UiScope`].
     ///
     /// Uses 100% declarative UI scope primitives with zero imperative node allocations.
     pub fn build_scope(self, scope: &mut UiScope<'_>) -> AssetCardFrame {
-        let card_w = self.rect.width;
-        let card_h = self.rect.height;
-        let p_rect = self
-            .parent_rect
-            .or_else(|| scope.tree().get(scope.parent()).map(|p| p.computed_rect))
-            .unwrap_or(Rect::ZERO);
-        let rel_x = self.rect.x - p_rect.x;
-        let rel_y = self.rect.y - p_rect.y;
+        AssetCardFrame {
+            preview_rect: self.preview_rect(),
+            card_rect: self.rect,
+            card_id: match self.tag {
+                Some(tag) => scope.container_tagged(
+                    self.name.unwrap_or("AssetCard"),
+                    self.compute_card_style(scope),
+                    WidgetRole::Button,
+                    tag,
+                    |card_scope| self.render_body(card_scope),
+                ),
+                None => scope.container_named(
+                    self.name.unwrap_or("AssetCard"),
+                    self.compute_card_style(scope),
+                    |card_scope| self.render_body(card_scope),
+                ),
+            },
+        }
+    }
 
-        let bg_color = if self.is_selected {
+    /// Computes the absolute bounding box of the central thumbnail/preview icon box.
+    #[inline]
+    pub fn preview_rect(&self) -> Rect {
+        Rect::new(
+            self.rect.x + (self.rect.width - self.style.preview_box_size) * 0.5,
+            self.rect.y + 26.0,
+            self.style.preview_box_size,
+            self.style.preview_box_size,
+        )
+    }
+
+    /// Resolves the parent container's computed rectangle for relative positioning.
+    #[inline]
+    fn resolve_parent_rect(&self, scope: &UiScope<'_>) -> Rect {
+        self.parent_rect
+            .or_else(|| scope.tree().get(scope.parent()).map(|p| p.computed_rect))
+            .unwrap_or(Rect::ZERO)
+    }
+
+    /// Computes the card's active background color based on selection and hover flags.
+    #[inline]
+    fn background_color(&self) -> Color {
+        if self.is_selected {
             self.style.bg_selected
         } else if self.is_hovered {
             self.style.bg_hover
         } else {
             self.style.bg_idle
-        };
+        }
+    }
 
-        let border_color = if self.is_selected {
+    /// Computes the card's active border color based on selection, hover, and custom overrides.
+    #[inline]
+    fn border_color(&self) -> Color {
+        if self.is_selected {
             self.style.border_selected
         } else if self.is_hovered {
             self.hover_border_color.unwrap_or(self.style.border_hover)
         } else {
             self.style.border_idle
-        };
+        }
+    }
 
-        let border_width = if self.is_selected {
+    /// Computes the card's active border stroke width in logical pixels.
+    #[inline]
+    fn border_width(&self) -> f32 {
+        if self.is_selected {
             self.style.border_width_selected
         } else {
             self.style.border_width_idle
-        };
+        }
+    }
 
-        let card_style = Style::new()
+    /// Computes the card's primary title label text color based on interaction state.
+    #[inline]
+    fn title_color(&self) -> Color {
+        if self.is_selected {
+            self.style.title_color_selected
+        } else if self.is_hovered {
+            self.style.title_color_hover
+        } else {
+            self.style.title_color_idle
+        }
+    }
+
+    /// Assembles the declarative flexbox container style for the outer card.
+    fn compute_card_style(&self, scope: &UiScope<'_>) -> Style {
+        Style::new()
             .position_absolute()
-            .left(rel_x)
-            .top(rel_y)
-            .width(card_w)
-            .height(card_h)
+            .left(self.rect.x - self.resolve_parent_rect(scope).x)
+            .top(self.rect.y - self.resolve_parent_rect(scope).y)
+            .width(self.rect.width)
+            .height(self.rect.height)
             .flex_col()
             .align_items(AlignItems::Center)
             .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0))
             .gap(3.0)
-            .background(bg_color)
+            .background(self.background_color())
             .border_radius(self.style.border_radius)
-            .border(border_width, border_color)
-            .clip_children(true);
+            .border(self.border_width(), self.border_color())
+            .clip_children(true)
+    }
 
-        let name_str = self.name.unwrap_or("AssetCard");
-
-        let box_size = self.style.preview_box_size;
-        let box_rel_x = (self.rect.width - box_size) * 0.5;
-        let box_x = self.rect.x + box_rel_x;
-        let box_y = self.rect.y + 26.0;
-        let preview_rect = Rect::new(box_x, box_y, box_size, box_size);
-
-        let badge = self.badge;
-        let status_dot = self.status_dot;
-        let preview = self.preview;
-        let title = self.title;
-        let metadata = self.metadata;
-        let style = self.style;
-        let is_selected = self.is_selected;
-        let is_hovered = self.is_hovered;
-
-        let card_body = |card_scope: &mut UiScope<'_>| {
-            // 1. Top Header Row (flex_row, justify_content(SpaceBetween))
-            let has_header = badge.is_some() || status_dot.is_some();
-            if has_header {
-                card_scope.container_named(
-                    "CardHeaderRow",
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::SpaceBetween)
-                        .width(card_w - 12.0)
-                        .height(16.0),
-                    |hdr_scope| {
-                        if let Some(b) = badge {
-                            hdr_scope.container_named(
-                                "CategoryBadge",
-                                Style::new()
-                                    .flex_row()
-                                    .align_items(AlignItems::Center)
-                                    .justify_content(JustifyContent::Center)
-                                    .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
-                                    .background(Color::rgba(
-                                        b.color.r,
-                                        b.color.g,
-                                        b.color.b,
-                                        style.badge_bg_alpha,
-                                    ))
-                                    .border_radius(style.badge_radius),
-                                |b_scope| {
-                                    b_scope.label_styled_passive(
-                                        "BadgeText",
-                                        b.text,
-                                        style.badge_font_size,
-                                        b.color,
-                                        TextAlign::Center,
-                                        Style::new(),
-                                    );
-                                },
-                            );
-                        } else {
-                            hdr_scope.empty_box_passive(Style::new().width(1.0).height(1.0));
-                        }
-
-                        if let Some(dot_col) = status_dot {
-                            let dot_size = style.status_dot_size;
-                            hdr_scope.empty_box_passive_named(
-                                "StatusIndicatorDot",
-                                Style::new()
-                                    .width(dot_size)
-                                    .height(dot_size)
-                                    .background(dot_col)
-                                    .border_radius(dot_size * 0.5),
-                            );
-                        }
-                    },
-                );
-            }
-
-            // 2. Middle Thumbnail / Preview Box (Centered flex container)
+    /// Renders the interior sections of the asset card into the child scope.
+    fn render_body(&self, card_scope: &mut UiScope<'_>) {
+        // 1. Top Header Row (Badge + Status Dot)
+        if self.badge.is_some() || self.status_dot.is_some() {
             card_scope.container_named(
-                "ThumbnailBox",
+                "CardHeaderRow",
                 Style::new()
                     .flex_row()
                     .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .width(box_size)
-                    .height(box_size)
-                    .background(style.preview_box_bg)
-                    .border_radius(style.preview_box_radius)
-                    .border(1.0, style.preview_box_border),
-                |prev_scope| {
-                    if let Some(p) = preview {
-                        match p {
-                            AssetCardPreview::Texture { uv, tint } => {
-                                prev_scope.icon_named("CardRealThumbnail", uv, tint, box_size);
-                            }
-                            AssetCardPreview::VectorIcon { uv, tint, size } => {
-                                prev_scope.icon_named("CardVectorIcon", uv, tint, size);
-                            }
-                            AssetCardPreview::TextGlyph { text, color, size } => {
-                                prev_scope.label_styled_passive(
-                                    "CardGlyphIcon",
-                                    text,
-                                    size,
-                                    color,
+                    .justify_content(JustifyContent::SpaceBetween)
+                    .width(self.rect.width - 12.0)
+                    .height(16.0),
+                |hdr_scope| {
+                    if let Some(b) = self.badge {
+                        hdr_scope.container_named(
+                            "CategoryBadge",
+                            Style::new()
+                                .flex_row()
+                                .align_items(AlignItems::Center)
+                                .justify_content(JustifyContent::Center)
+                                .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
+                                .background(Color::rgba(
+                                    b.color.r,
+                                    b.color.g,
+                                    b.color.b,
+                                    self.style.badge_bg_alpha,
+                                ))
+                                .border_radius(self.style.badge_radius),
+                            |b_scope| {
+                                b_scope.label_styled_passive(
+                                    "BadgeText",
+                                    b.text,
+                                    self.style.badge_font_size,
+                                    b.color,
                                     TextAlign::Center,
                                     Style::new(),
                                 );
-                            }
-                        }
+                            },
+                        );
+                    } else {
+                        hdr_scope.empty_box_passive(Style::new().width(1.0).height(1.0));
+                    }
+
+                    if let Some(dot_col) = self.status_dot {
+                        hdr_scope.empty_box_passive_named(
+                            "StatusIndicatorDot",
+                            Style::new()
+                                .width(self.style.status_dot_size)
+                                .height(self.style.status_dot_size)
+                                .background(dot_col)
+                                .border_radius(self.style.status_dot_size * 0.5),
+                        );
                     }
                 },
             );
+        }
 
-            // 3. Truncated Asset Name Label (Centered)
-            let title_color = if is_selected {
-                style.title_color_selected
-            } else if is_hovered {
-                style.title_color_hover
-            } else {
-                style.title_color_idle
-            };
+        // 2. Middle Thumbnail / Preview Box
+        card_scope.container_named(
+            "ThumbnailBox",
+            Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .width(self.style.preview_box_size)
+                .height(self.style.preview_box_size)
+                .background(self.style.preview_box_bg)
+                .border_radius(self.style.preview_box_radius)
+                .border(1.0, self.style.preview_box_border),
+            |prev_scope| match self.preview {
+                Some(AssetCardPreview::Texture { uv, tint }) => {
+                    prev_scope.icon_named(
+                        "CardRealThumbnail",
+                        uv,
+                        tint,
+                        self.style.preview_box_size,
+                    );
+                }
+                Some(AssetCardPreview::VectorIcon { uv, tint, size }) => {
+                    prev_scope.icon_named("CardVectorIcon", uv, tint, size);
+                }
+                Some(AssetCardPreview::TextGlyph { text, color, size }) => {
+                    prev_scope.label_styled_passive(
+                        "CardGlyphIcon",
+                        text,
+                        size,
+                        color,
+                        TextAlign::Center,
+                        Style::new(),
+                    );
+                }
+                None => {}
+            },
+        );
 
-            if let Some(t) = title {
-                card_scope.label_styled_passive(
-                    "CardAssetName",
-                    t,
-                    style.title_font_size,
-                    title_color,
-                    TextAlign::Center,
-                    Style::new().width(card_w - 8.0).height(16.0),
-                );
-            }
+        // 3. Asset Name Label
+        if let Some(t) = self.title {
+            card_scope.label_styled_passive(
+                "CardAssetName",
+                t,
+                self.style.title_font_size,
+                self.title_color(),
+                TextAlign::Center,
+                Style::new().width(self.rect.width - 8.0).height(16.0),
+            );
+        }
 
-            // 4. Metadata Badge / Size Label (Centered)
-            if let Some(m) = metadata {
-                card_scope.label_styled_passive(
-                    "CardMetadata",
-                    m,
-                    style.meta_font_size,
-                    style.meta_color,
-                    TextAlign::Center,
-                    Style::new().width(card_w - 8.0).height(14.0),
-                );
-            }
-        };
-
-        let card_id = if let Some(tag) = self.tag {
-            scope.container_tagged(name_str, card_style, WidgetRole::Button, tag, card_body)
-        } else {
-            scope.container_named(name_str, card_style, card_body)
-        };
-
-        AssetCardFrame {
-            card_id,
-            card_rect: self.rect,
-            preview_rect,
+        // 4. Metadata Badge / Size Label
+        if let Some(m) = self.metadata {
+            card_scope.label_styled_passive(
+                "CardMetadata",
+                m,
+                self.style.meta_font_size,
+                self.style.meta_color,
+                TextAlign::Center,
+                Style::new().width(self.rect.width - 8.0).height(14.0),
+            );
         }
     }
 }
@@ -515,9 +534,7 @@ mod tests {
     fn test_asset_card_builder_with_texture() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
-
-        let card_rect = Rect::new(10.0, 10.0, 115.0, 125.0);
-        let frame = AssetCardBuilder::new(card_rect)
+        let frame = AssetCardBuilder::new(Rect::new(10.0, 10.0, 115.0, 125.0))
             .name("Card_model")
             .badge(Some(AssetCardBadge::new("3D", Color::CYAN)))
             .status_dot(Some(Color::GREEN))
@@ -530,20 +547,28 @@ mod tests {
             .is_selected(true)
             .build(&mut tree, root);
 
-        assert_eq!(frame.card_rect, card_rect);
-        let card_node = tree.get(frame.card_id).expect("Card node must exist");
-        assert_eq!(card_node.children.len(), 4); // CardHeaderRow, ThumbnailBox, title, metadata
-        let header_node = tree.get(card_node.children[0]).expect("Header exists");
-        assert_eq!(header_node.children.len(), 2); // badge, dot
+        assert_eq!(frame.card_rect, Rect::new(10.0, 10.0, 115.0, 125.0));
+        assert_eq!(
+            tree.get(frame.card_id)
+                .expect("Card node must exist")
+                .children
+                .len(),
+            4
+        );
+        assert_eq!(
+            tree.get(tree.get(frame.card_id).expect("Card node").children[0])
+                .expect("Header exists")
+                .children
+                .len(),
+            2
+        );
     }
 
     #[test]
     fn test_asset_card_builder_with_vector_icon() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node creation failed");
-
-        let card_rect = Rect::new(0.0, 0.0, 100.0, 120.0);
-        let frame = AssetCardBuilder::new(card_rect)
+        let frame = AssetCardBuilder::new(Rect::new(0.0, 0.0, 100.0, 120.0))
             .preview(Some(AssetCardPreview::VectorIcon {
                 uv: [0.0, 0.0, 1.0, 1.0],
                 tint: Color::YELLOW,
@@ -553,8 +578,13 @@ mod tests {
             .is_hovered(true)
             .build(&mut tree, root);
 
-        assert_eq!(frame.card_rect, card_rect);
-        let card_node = tree.get(frame.card_id).expect("Card node must exist");
-        assert_eq!(card_node.children.len(), 2); // ThumbnailBox + title
+        assert_eq!(frame.card_rect, Rect::new(0.0, 0.0, 100.0, 120.0));
+        assert_eq!(
+            tree.get(frame.card_id)
+                .expect("Card node must exist")
+                .children
+                .len(),
+            2
+        );
     }
 }

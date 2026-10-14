@@ -114,21 +114,36 @@ fn build_search_box(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let is_search_focused = params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT);
-    let search_props = InputBoxProps::new(
-        params.search_query,
-        "Search assets...",
-        180.0,
-        is_search_focused,
-        is_search_focused && params.blink_caret,
-    )
-    .with_icon("🔍")
-    .with_cursor_byte_idx(params.cursor_byte_idx)
-    .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR);
-    let input_id = scope.input_box_tagged(&search_props, ASSETS_TAG_SEARCH_INPUT);
-    if scope.response(input_id).clicked() {
-        actions.push(AssetsPanelAction::FocusSearch);
-    }
+    scope
+        .input_box_tagged(
+            &InputBoxProps::new(
+                params.search_query,
+                "Search assets...",
+                180.0,
+                params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT),
+                params.focus_state.is_tag_focused(ASSETS_TAG_SEARCH_INPUT) && params.blink_caret,
+            )
+            .with_icon("🔍")
+            .with_cursor_byte_idx(params.cursor_byte_idx)
+            .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR),
+            ASSETS_TAG_SEARCH_INPUT,
+        )
+        .on_click(|| actions.push(AssetsPanelAction::FocusSearch));
+}
+
+#[inline]
+fn action_btn_style(width: f32) -> Style {
+    Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::Center)
+        .width(width)
+        .height(24.0)
+        .background(Color::rgba(0.10, 0.12, 0.16, 0.90))
+        .hover_background(Color::rgba(0.18, 0.22, 0.30, 1.0))
+        .border_radius(4.0)
+        .border(1.0, Color::rgba(0.18, 0.22, 0.30, 0.60))
+        .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.70))
 }
 
 /// Helper to render an action button in the toolbar.
@@ -140,39 +155,31 @@ fn build_action_btn(
     actions: &mut Vec<AssetsPanelAction>,
     action_to_emit: AssetsPanelAction,
 ) {
-    let style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center)
-        .width(width)
-        .height(24.0)
-        .background(Color::rgba(0.10, 0.12, 0.16, 0.90))
-        .hover_background(Color::rgba(0.18, 0.22, 0.30, 1.0))
-        .border_radius(4.0)
-        .border(1.0, Color::rgba(0.18, 0.22, 0.30, 0.60))
-        .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.70));
-
-    let text_c = Color::rgba(0.0, 0.85, 1.0, 0.95);
-
-    let btn_id = scope.container_tagged("ActionBtn", style, WidgetRole::Button, tag, |btn| {
-        let txt_id = btn.label_styled_passive(
-            "ActionBtnText",
-            label,
-            11.0,
-            text_c,
-            TextAlign::Center,
-            Style::new(),
-        );
-        btn.set_hover_text_color(txt_id, Color::WHITE);
-    });
-    if scope.response(btn_id).clicked() {
-        actions.push(action_to_emit);
-    }
+    scope
+        .container_tagged_resp(
+            "ActionBtn",
+            action_btn_style(width),
+            WidgetRole::Button,
+            tag,
+            |btn| {
+                btn.label_styled_hover_passive(
+                    "ActionBtnText",
+                    label,
+                    11.0,
+                    (Color::rgba(0.0, 0.85, 1.0, 0.95), Color::WHITE),
+                    TextAlign::Center,
+                    Style::new(),
+                );
+            },
+        )
+        .on_click(move || {
+            actions.push(action_to_emit);
+        });
 }
 
-/// Helper to render the "+ Import" button with vector plus icon.
-fn build_import_btn(scope: &mut UiScope<'_>, actions: &mut Vec<AssetsPanelAction>) {
-    let style = Style::new()
+#[inline]
+fn import_btn_style() -> Style {
+    Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .justify_content(JustifyContent::Center)
@@ -183,28 +190,69 @@ fn build_import_btn(scope: &mut UiScope<'_>, actions: &mut Vec<AssetsPanelAction
         .hover_background(Color::rgba(0.0, 0.65, 0.78, 1.0))
         .border_radius(4.0)
         .border(1.0, Color::rgba(0.0, 0.75, 0.90, 0.80))
-        .hover_border(1.0, Color::rgba(0.0, 0.90, 1.0, 1.0));
+        .hover_border(1.0, Color::rgba(0.0, 0.90, 1.0, 1.0))
+}
 
-    let btn_id = scope.container_tagged(
-        "ImportBtn",
-        style,
-        WidgetRole::Button,
-        ASSETS_TAG_IMPORT,
-        |btn| {
-            btn.icon(ICON_PLUS, Color::WHITE, 12.0);
-            btn.label_styled_passive(
-                "ImportBtnText",
-                "Import",
-                11.0,
-                Color::WHITE,
-                TextAlign::Left,
-                Style::new(),
-            );
-        },
-    );
-    if scope.response(btn_id).clicked() {
-        actions.push(AssetsPanelAction::OpenImportDialog);
-    }
+/// Helper to render the "+ Import" button with vector plus icon.
+fn build_import_btn(scope: &mut UiScope<'_>, actions: &mut Vec<AssetsPanelAction>) {
+    scope
+        .container_tagged_resp(
+            "ImportBtn",
+            import_btn_style(),
+            WidgetRole::Button,
+            ASSETS_TAG_IMPORT,
+            |btn| {
+                btn.icon(ICON_PLUS, Color::WHITE, 12.0);
+                btn.label_styled_passive(
+                    "ImportBtnText",
+                    "Import",
+                    11.0,
+                    Color::WHITE,
+                    TextAlign::Left,
+                    Style::new(),
+                );
+            },
+        )
+        .on_click(|| {
+            actions.push(AssetsPanelAction::OpenImportDialog);
+        });
+}
+
+#[inline]
+fn mode_toggle_style(width: f32, is_active: bool) -> Style {
+    Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::Center)
+        .width(width)
+        .height(24.0)
+        .border_radius(4.0)
+        .background(if is_active {
+            Color::rgba(0.08, 0.15, 0.22, 0.95)
+        } else {
+            Color::rgba(0.08, 0.09, 0.12, 0.60)
+        })
+        .hover_background(if is_active {
+            Color::rgba(0.08, 0.15, 0.22, 0.95)
+        } else {
+            Color::rgba(0.14, 0.16, 0.22, 0.80)
+        })
+        .border(
+            1.0,
+            if is_active {
+                Color::rgba(0.0, 0.85, 1.0, 0.90)
+            } else {
+                Color::rgba(0.16, 0.18, 0.24, 0.40)
+            },
+        )
+        .hover_border(
+            1.0,
+            if is_active {
+                Color::rgba(0.0, 0.85, 1.0, 0.90)
+            } else {
+                Color::rgba(0.30, 0.35, 0.45, 0.60)
+            },
+        )
 }
 
 /// Helper to render a selectable view mode toggle button.
@@ -217,48 +265,75 @@ fn build_mode_toggle_btn(
     actions: &mut Vec<AssetsPanelAction>,
     action_to_emit: AssetsPanelAction,
 ) {
-    let mut style = Style::new()
+    scope
+        .container_tagged_resp(
+            "ModeToggleBtn",
+            mode_toggle_style(width, is_active),
+            WidgetRole::Button,
+            tag,
+            |btn| {
+                if is_active {
+                    btn.label_styled_passive(
+                        "ModeToggleText",
+                        label,
+                        11.0,
+                        Color::rgba(0.0, 0.90, 1.0, 1.0),
+                        TextAlign::Center,
+                        Style::new(),
+                    );
+                } else {
+                    btn.label_styled_hover_passive(
+                        "ModeToggleText",
+                        label,
+                        11.0,
+                        (Color::rgba(0.65, 0.70, 0.80, 1.0), Color::WHITE),
+                        TextAlign::Center,
+                        Style::new(),
+                    );
+                }
+            },
+        )
+        .on_click(move || {
+            actions.push(action_to_emit);
+        });
+}
+
+#[inline]
+fn engine_toggle_style(is_active: bool) -> Style {
+    Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .justify_content(JustifyContent::Center)
-        .width(width)
+        .gap(5.0)
+        .width(74.0)
         .height(24.0)
-        .border_radius(4.0);
-
-    if is_active {
-        style = style
-            .background(Color::rgba(0.08, 0.15, 0.22, 0.95))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.90));
-    } else {
-        style = style
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.60))
-            .hover_background(Color::rgba(0.14, 0.16, 0.22, 0.80))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.40))
-            .hover_border(1.0, Color::rgba(0.30, 0.35, 0.45, 0.60));
-    }
-
-    let text_c = if is_active {
-        Color::rgba(0.0, 0.90, 1.0, 1.0)
-    } else {
-        Color::rgba(0.65, 0.70, 0.80, 1.0)
-    };
-
-    let btn_id = scope.container_tagged("ModeToggleBtn", style, WidgetRole::Button, tag, |btn| {
-        let txt_id = btn.label_styled_passive(
-            "ModeToggleText",
-            label,
-            11.0,
-            text_c,
-            TextAlign::Center,
-            Style::new(),
-        );
-        if !is_active {
-            btn.set_hover_text_color(txt_id, Color::WHITE);
-        }
-    });
-    if scope.response(btn_id).clicked() {
-        actions.push(action_to_emit);
-    }
+        .border_radius(4.0)
+        .background(if is_active {
+            Color::rgba(0.12, 0.18, 0.26, 0.95)
+        } else {
+            Color::rgba(0.08, 0.09, 0.12, 0.60)
+        })
+        .hover_background(if is_active {
+            Color::rgba(0.12, 0.18, 0.26, 0.95)
+        } else {
+            Color::rgba(0.14, 0.16, 0.22, 0.80)
+        })
+        .border(
+            1.0,
+            if is_active {
+                Color::rgba(0.0, 0.85, 1.0, 0.85)
+            } else {
+                Color::rgba(0.16, 0.18, 0.24, 0.40)
+            },
+        )
+        .hover_border(
+            1.0,
+            if is_active {
+                Color::rgba(0.0, 0.85, 1.0, 0.85)
+            } else {
+                Color::rgba(0.30, 0.35, 0.45, 0.60)
+            },
+        )
 }
 
 /// Helper to render the "Engine" content toggle button featuring a vector gear icon.
@@ -267,62 +342,48 @@ fn build_engine_toggle_btn(
     is_active: bool,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let mut style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center)
-        .gap(5.0)
-        .width(74.0)
-        .height(24.0)
-        .border_radius(4.0);
-
-    if is_active {
-        style = style
-            .background(Color::rgba(0.12, 0.18, 0.26, 0.95))
-            .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
-    } else {
-        style = style
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.60))
-            .hover_background(Color::rgba(0.14, 0.16, 0.22, 0.80))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.40))
-            .hover_border(1.0, Color::rgba(0.30, 0.35, 0.45, 0.60));
-    }
-
-    let btn_id = scope.container_tagged(
-        "EngineToggleBtn",
-        style,
-        WidgetRole::Button,
-        ASSETS_TAG_ENGINE_CONTENT,
-        |btn| {
-            let tint = if is_active {
-                Color::rgba(0.0, 0.95, 1.0, 1.0)
-            } else {
-                Color::rgba(0.65, 0.70, 0.80, 1.0)
-            };
-            let icon_id = btn.icon_named("EngineGearIcon", ICON_GEAR, tint, 14.0);
-            if !is_active {
-                btn.set_hover_texture_tint(icon_id, Color::WHITE);
-            }
-
-            let text_c = if is_active {
-                Color::rgba(0.0, 0.95, 1.0, 1.0)
-            } else {
-                Color::rgba(0.70, 0.75, 0.85, 1.0)
-            };
-            let txt_id = btn.label_styled_passive(
-                "EngineBtnText",
-                "Engine",
-                11.0,
-                text_c,
-                TextAlign::Left,
-                Style::new(),
-            );
-            if !is_active {
-                btn.set_hover_text_color(txt_id, Color::WHITE);
-            }
-        },
-    );
-    if scope.response(btn_id).clicked() {
-        actions.push(AssetsPanelAction::ToggleEngineContent);
-    }
+    scope
+        .container_tagged_resp(
+            "EngineToggleBtn",
+            engine_toggle_style(is_active),
+            WidgetRole::Button,
+            ASSETS_TAG_ENGINE_CONTENT,
+            |btn| {
+                if is_active {
+                    btn.icon_named(
+                        "EngineGearIcon",
+                        ICON_GEAR,
+                        Color::rgba(0.0, 0.95, 1.0, 1.0),
+                        14.0,
+                    );
+                    btn.label_styled_passive(
+                        "EngineBtnText",
+                        "Engine",
+                        11.0,
+                        Color::rgba(0.0, 0.95, 1.0, 1.0),
+                        TextAlign::Left,
+                        Style::new(),
+                    );
+                } else {
+                    btn.icon_hover_named(
+                        "EngineGearIcon",
+                        ICON_GEAR,
+                        Color::rgba(0.65, 0.70, 0.80, 1.0),
+                        Color::WHITE,
+                        14.0,
+                    );
+                    btn.label_styled_hover_passive(
+                        "EngineBtnText",
+                        "Engine",
+                        11.0,
+                        (Color::rgba(0.70, 0.75, 0.85, 1.0), Color::WHITE),
+                        TextAlign::Left,
+                        Style::new(),
+                    );
+                }
+            },
+        )
+        .on_click(|| {
+            actions.push(AssetsPanelAction::ToggleEngineContent);
+        });
 }

@@ -22,14 +22,7 @@ use crate::assets::types::AssetViewMode;
 use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
-/// Height of the top navigation header toolbar in physical pixels.
-pub const ASSETS_TOP_BAR_HEIGHT: f32 = 34.0;
-
-/// Height of the category filter chips toolbar in physical pixels.
-pub const ASSETS_CHIPS_BAR_HEIGHT: f32 = 28.0;
-
-/// Height of the bottom telemetry status footer in physical pixels.
-pub const ASSETS_FOOTER_HEIGHT: f32 = 24.0;
+pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP_BAR_HEIGHT};
 
 /// Constructs the complete Content / Asset Browser panel widget hierarchy into the Iris `UiTree`.
 ///
@@ -46,12 +39,9 @@ pub fn build_assets_panel(
     tree_state: &mut TreeState<PathBuf>,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> AssetsPanelLayoutMetrics {
-    let mut resolved_sidebar_rect = None;
-    let mut resolved_content_rect = Rect::default();
+    let metrics = params.layout_metrics();
 
-    // 1. Panel Root Container (Taffy flex_col layout with clipping)
-    let mut root_scope = UiScope::new(tree, parent_id);
-    let _root_node_id = root_scope.panel_tagged(
+    UiScope::new(tree, parent_id).panel_tagged(
         "AssetsPanelRoot",
         params.panel_rect,
         ASSETS_TAG_PANEL_ROOT,
@@ -61,13 +51,17 @@ pub fn build_assets_panel(
             build_asset_toolbar_scope(panel_scope, params, actions);
 
             // 3. Category Filter Chips Row (Fixed height, horizontal flex row)
-            let chips_rect = Rect::new(
-                params.panel_rect.x,
-                params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT,
-                params.panel_rect.width,
-                ASSETS_CHIPS_BAR_HEIGHT,
+            build_category_chips_scope(
+                panel_scope,
+                Rect::new(
+                    params.panel_rect.x,
+                    params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT,
+                    params.panel_rect.width,
+                    ASSETS_CHIPS_BAR_HEIGHT,
+                ),
+                params,
+                actions,
             );
-            build_category_chips_scope(panel_scope, chips_rect, params, actions);
 
             // 4. Middle Body (Pure Taffy flex_row with flex_grow(1.0) taking all available space)
             panel_scope.container_named(
@@ -77,44 +71,11 @@ pub fn build_assets_panel(
                     .flex_grow(1.0)
                     .width(params.panel_rect.width),
                 |body_scope| {
-                    let body_h = (params.panel_rect.height
-                        - ASSETS_TOP_BAR_HEIGHT
-                        - ASSETS_CHIPS_BAR_HEIGHT
-                        - ASSETS_FOOTER_HEIGHT)
-                        .max(40.0);
-
-                    // Left Side: Folder Tree Sidebar
-                    if !params.sidebar_collapsed {
-                        let sb_rect = Rect::new(
-                            params.panel_rect.x,
-                            params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT + ASSETS_CHIPS_BAR_HEIGHT,
-                            params.sidebar_width,
-                            body_h,
-                        );
-                        resolved_sidebar_rect = Some(sb_rect);
+                    if let Some(sb_rect) = metrics.sidebar_rect {
                         build_folder_tree_sidebar_scope(
                             body_scope, sb_rect, params, tree_state, actions,
                         );
                     }
-
-                    // Right Side: Content Viewport (flex_col with flex_grow(1.0))
-                    let content_w = if !params.sidebar_collapsed {
-                        (params.panel_rect.width - params.sidebar_width).max(60.0)
-                    } else {
-                        params.panel_rect.width
-                    };
-                    let content_x = if !params.sidebar_collapsed {
-                        params.panel_rect.x + params.sidebar_width
-                    } else {
-                        params.panel_rect.x
-                    };
-                    let content_rect = Rect::new(
-                        content_x,
-                        params.panel_rect.y + ASSETS_TOP_BAR_HEIGHT + ASSETS_CHIPS_BAR_HEIGHT,
-                        content_w,
-                        body_h,
-                    );
-                    resolved_content_rect = content_rect;
 
                     body_scope.container_named(
                         "AssetsContentArea",
@@ -126,7 +87,7 @@ pub fn build_assets_panel(
                             AssetViewMode::Grid => {
                                 build_asset_grid_cards_scope(
                                     content_scope,
-                                    content_rect,
+                                    metrics.content_viewport_rect,
                                     params,
                                     actions,
                                 );
@@ -134,7 +95,7 @@ pub fn build_assets_panel(
                             AssetViewMode::List => {
                                 build_asset_list_table_scope(
                                     content_scope,
-                                    content_rect,
+                                    metrics.content_viewport_rect,
                                     params,
                                     actions,
                                 );
@@ -155,10 +116,5 @@ pub fn build_assets_panel(
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
     super::preview::build_asset_preview_modal(tree, parent_id, params);
 
-    AssetsPanelLayoutMetrics {
-        panel_rect: params.panel_rect,
-        sidebar_rect: resolved_sidebar_rect,
-        content_viewport_rect: resolved_content_rect,
-        context_menu_card_rect: None,
-    }
+    metrics
 }

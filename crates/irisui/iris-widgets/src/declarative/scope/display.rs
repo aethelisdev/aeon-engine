@@ -203,6 +203,33 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
+    /// Emits a non-interactive, styled text label with reactive hover text coloring.
+    ///
+    /// Combines label emission and parent hover reactivity in a single fluent call,
+    /// eliminating intermediate [`WidgetId`] tracking bindings.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive identifier assigned to the label node.
+    /// * `text` - Display string content.
+    /// * `font_size` - Font size in logical points.
+    /// * `color` - Default foreground text color.
+    /// * `hover_color` - Foreground text color when the parent container is hovered.
+    /// * `align` - Horizontal text alignment (`Left`, `Center`, `Right`).
+    /// * `style` - Explicit layout style applied to the label.
+    pub fn label_styled_hover_passive(
+        &mut self,
+        name: impl Into<String>,
+        text: impl Into<String>,
+        font_size: f32,
+        (color, hover_color): (Color, Color),
+        align: TextAlign,
+        style: Style,
+    ) -> WidgetId {
+        let node_id = self.label_styled_passive(name, text, font_size, color, align, style);
+        self.set_hover_text_color(node_id, hover_color);
+        node_id
+    }
+
     /// Emits a non-interactive, styled text label with explicit text wrapping and layout styling.
     ///
     /// Ideal for multi-line description paragraphs, form hints, and responsive dialog subtitles.
@@ -354,6 +381,84 @@ impl<'a> UiScope<'a> {
             node.interactive = false;
             node.set_texture_uv(icon_uv);
             node.set_texture_tint(tint);
+            node.set_style(Style::new().width(size).height(size));
+        }
+        let _ = self.tree.add_child(self.parent, icon_id);
+        icon_id
+    }
+
+    /// Emits an icon quad from an atlas UV and tint pair without intermediate let bindings.
+    #[inline]
+    pub fn icon_pair(&mut self, (icon_uv, tint): ([f32; 4], Color), size: f32) -> WidgetId {
+        self.icon(icon_uv, tint, size)
+    }
+
+    /// Emits a named icon quad from an atlas UV and tint pair with a debug identifier.
+    #[inline]
+    pub fn icon_pair_named(
+        &mut self,
+        name: &'static str,
+        (icon_uv, tint): ([f32; 4], Color),
+        size: f32,
+    ) -> WidgetId {
+        self.icon_named(name, icon_uv, tint, size)
+    }
+
+    /// Emits an icon quad with reactive parent hover texture tinting.
+    ///
+    /// Combines icon quad creation and hover tint reactivity in a single fluent call,
+    /// eliminating intermediate [`WidgetId`] tracking bindings.
+    ///
+    /// # Arguments
+    /// * `icon_uv` - Normalized atlas UV bounds `[u_min, v_min, u_max, v_max]`.
+    /// * `tint` - Default color tint applied across the icon quad.
+    /// * `hover_tint` - Dynamic color tint applied while the parent container is hovered.
+    /// * `size` - Width and height of the icon quad in physical pixels.
+    pub fn icon_hover(
+        &mut self,
+        icon_uv: [f32; 4],
+        tint: Color,
+        hover_tint: Color,
+        size: f32,
+    ) -> WidgetId {
+        let icon_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(icon_id) {
+            node.interactive = false;
+            node.set_texture_uv(icon_uv);
+            node.set_texture_tint(tint);
+            node.set_hover_texture_tint(hover_tint);
+            node.set_style(Style::new().width(size).height(size));
+        }
+        let _ = self.tree.add_child(self.parent, icon_id);
+        icon_id
+    }
+
+    /// Emits a named icon quad with reactive parent hover texture tinting and a debug identifier.
+    ///
+    /// Combines icon quad creation and hover tint reactivity in a single fluent call,
+    /// eliminating intermediate [`WidgetId`] tracking bindings.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug identifier assigned to the UI node.
+    /// * `icon_uv` - Normalized atlas UV bounds `[u_min, v_min, u_max, v_max]`.
+    /// * `tint` - Default color tint applied across the icon quad.
+    /// * `hover_tint` - Dynamic color tint applied while the parent container is hovered.
+    /// * `size` - Width and height of the icon quad in physical pixels.
+    pub fn icon_hover_named(
+        &mut self,
+        name: &'static str,
+        icon_uv: [f32; 4],
+        tint: Color,
+        hover_tint: Color,
+        size: f32,
+    ) -> WidgetId {
+        let icon_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(icon_id) {
+            node.set_name(name);
+            node.interactive = false;
+            node.set_texture_uv(icon_uv);
+            node.set_texture_tint(tint);
+            node.set_hover_texture_tint(hover_tint);
             node.set_style(Style::new().width(size).height(size));
         }
         let _ = self.tree.add_child(self.parent, icon_id);

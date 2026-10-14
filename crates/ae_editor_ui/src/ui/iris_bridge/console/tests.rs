@@ -53,69 +53,15 @@ fn test_console_click_target_routing() {
     let mut actions = Vec::new();
     build_console_panel(&mut tree, root, &params, &mut actions);
 
-    // Verify Clear button is hit-tested via tag
-    let mut clear_node_rect = None;
+    // Verify Clear button exists in tree with correct tag
+    let mut clear_node_found = false;
     tree.traverse_depth_first(root, &mut |_id, node| {
         if node.tag == CONSOLE_TAG_CLEAR {
-            clear_node_rect = Some(node.computed_rect);
+            clear_node_found = true;
+            assert_eq!(node.role, WidgetRole::Button);
         }
     });
-
-    if let Some(r) = clear_node_rect {
-        let center = Point::new(r.x + r.width * 0.5, r.y + r.height * 0.5);
-        assert_eq!(
-            handle_console_click(&tree, center),
-            Some(ConsoleAction::ClearLogs)
-        );
-    }
-}
-
-#[test]
-fn test_console_scroll_clamping_and_autoscroll() {
-    let mut scroll_y = 200.0;
-    let mut auto_scroll = true;
-
-    // User scrolls up (delta > 0)
-    let handled = handle_console_scroll(
-        2.0, // scroll up 2 ticks = 48px
-        200.0,
-        &mut scroll_y,
-        &mut auto_scroll,
-    );
-
-    assert!(handled);
-    assert_eq!(scroll_y, 152.0);
-    assert!(!auto_scroll); // auto-scroll disabled when scrolled up
-
-    // User scrolls back down to bottom
-    let handled = handle_console_scroll(
-        -5.0, // scroll down 5 ticks = 120px
-        200.0,
-        &mut scroll_y,
-        &mut auto_scroll,
-    );
-
-    assert!(handled);
-    assert_eq!(scroll_y, 200.0); // clamped to max_scroll_y
-    assert!(auto_scroll); // auto-scroll re-enabled at bottom
-}
-
-#[test]
-fn test_console_scroll_from_autoscroll_with_zero_initial_scroll() {
-    let mut scroll_y = 0.0;
-    let mut auto_scroll = true;
-
-    // When auto_scroll is active and scroll_y is 0.0, scrolling up should offset from max_scroll_y
-    let handled = handle_console_scroll(
-        1.0, // scroll up 1 tick = 24px
-        500.0,
-        &mut scroll_y,
-        &mut auto_scroll,
-    );
-
-    assert!(handled);
-    assert_eq!(scroll_y, 476.0); // 500.0 - 24.0
-    assert!(!auto_scroll);
+    assert!(clear_node_found);
 }
 
 #[test]
@@ -389,12 +335,6 @@ fn test_console_toolbar_action_unification() {
     assert_eq!(
         evaluate_console_toolbar_click(&tree, Point::new(9999.0, 9999.0)),
         None
-    );
-
-    // Also verify handle_console_click delegates identically
-    assert_eq!(
-        handle_console_click(&tree, get_center(CONSOLE_TAG_CLEAR)),
-        Some(ConsoleAction::ClearLogs)
     );
 }
 

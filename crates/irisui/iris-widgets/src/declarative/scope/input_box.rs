@@ -474,7 +474,7 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `props` - Text, sizing, focus, and caret visual properties.
     /// * `tag` - Semantic hit-testing tag for focus and typing events.
-    pub fn input_box_tagged(&mut self, props: &InputBoxProps<'_>, tag: u64) -> WidgetId {
+    pub fn input_box_tagged(&mut self, props: &InputBoxProps<'_>, tag: u64) -> WidgetResponse {
         let box_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(box_id) {
             node.tag = tag;
@@ -703,6 +703,6 @@ impl<'a> UiScope<'a> {
             let _ = self.tree.add_child(box_id, clear_id);
         }
 
-        box_id
+        self.response(box_id)
     }
 }

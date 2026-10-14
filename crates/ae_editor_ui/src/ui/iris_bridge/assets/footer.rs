@@ -14,7 +14,6 @@ use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelAction, AssetsPanelPara
 use crate::assets::types::AssetBrowserState;
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use irisui::prelude::*;
-use std::fmt::Write;
 
 /// Declarative construction of the Asset Browser bottom status bar and telemetry footer.
 pub fn build_asset_footer_scope(
@@ -41,28 +40,19 @@ pub fn build_asset_footer_scope(
                     .align_items(AlignItems::Center)
                     .gap(8.0),
                 |left| {
-                    // Sidebar Toggle Button ("◀" / "▶")
-                    let tog_text = if params.sidebar_collapsed {
-                        "▶"
-                    } else {
-                        "◀"
-                    };
-                    let tog_style = Style::new()
-                        .width(26.0)
-                        .height(20.0)
-                        .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
-                        .hover_background(Color::rgba(0.20, 0.24, 0.32, 1.0))
-                        .border_radius(3.0);
-
-                    let tog_resp = left.button_named_styled_tagged(
+                    left.button_named_styled_tagged(
                         "SidebarToggleButton",
-                        tog_text,
-                        tog_style,
+                        if params.sidebar_collapsed {
+                            "▶"
+                        } else {
+                            "◀"
+                        },
+                        sidebar_toggle_button_style(),
                         ASSETS_TAG_TOGGLE_SIDEBAR,
-                    );
-                    if tog_resp.clicked() {
+                    )
+                    .on_click(|| {
                         actions.push(AssetsPanelAction::ToggleSidebar);
-                    }
+                    });
 
                     // Folder Logo (`ICON_FOLDER`) + Path
                     left.icon_named(
@@ -72,10 +62,9 @@ pub fn build_asset_footer_scope(
                         14.0,
                     );
 
-                    let path_str = params.current_folder.display().to_string();
                     left.label_styled_passive(
                         "FooterFolderPath",
-                        path_str,
+                        params.current_folder.display().to_string(),
                         10.5,
                         Color::rgba(0.55, 0.60, 0.70, 1.0),
                         TextAlign::Left,
@@ -85,35 +74,9 @@ pub fn build_asset_footer_scope(
             );
 
             // 2. Right Group: Real-time Telemetry (Single-pass zero-allocation iterator)
-            let mut total_count = 0usize;
-            let mut in_memory_count = 0usize;
-            let mut total_size = 0u64;
-
-            for item in params.cached_items {
-                if params.show_engine_content
-                    || item.source != crate::assets::types::AssetSource::Engine
-                {
-                    total_count += 1;
-                    total_size += item.file_size_bytes;
-                    if item.is_loaded_in_memory {
-                        in_memory_count += 1;
-                    }
-                }
-            }
-
-            let mut tele_str = String::with_capacity(96);
-            let _ = write!(
-                tele_str,
-                "{} Items in Scope ({} Total, {} in VRAM)  •  Disk: {}",
-                params.filtered_items.len(),
-                total_count,
-                in_memory_count,
-                AssetBrowserState::format_file_size(total_size)
-            );
-
             footer.label_styled_passive(
                 "FooterTelemetry",
-                tele_str,
+                format_footer_telemetry(params),
                 10.5,
                 Color::rgba(0.50, 0.54, 0.64, 1.0),
                 TextAlign::Right,
@@ -121,4 +84,43 @@ pub fn build_asset_footer_scope(
             );
         },
     );
+}
+
+/// Computes the visual style for the sidebar collapse/expand toggle button.
+#[inline]
+fn sidebar_toggle_button_style() -> Style {
+    Style::new()
+        .width(26.0)
+        .height(20.0)
+        .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
+        .hover_background(Color::rgba(0.20, 0.24, 0.32, 1.0))
+        .border_radius(3.0)
+}
+
+/// Computes the telemetry summary text for the asset browser footer.
+///
+/// Single-pass fold iterator referencing pre-cached item buffers with zero heap allocations.
+#[inline]
+fn format_footer_telemetry(params: &AssetsPanelParams<'_>) -> String {
+    let (total_count, in_memory_count, total_size) = params
+        .cached_items
+        .iter()
+        .filter(|item| {
+            params.show_engine_content || item.source != crate::assets::types::AssetSource::Engine
+        })
+        .fold((0usize, 0usize, 0u64), |(count, mem, size), item| {
+            (
+                count + 1,
+                mem + usize::from(item.is_loaded_in_memory),
+                size + item.file_size_bytes,
+            )
+        });
+
+    format!(
+        "{} Items in Scope ({} Total, {} in VRAM)  •  Disk: {}",
+        params.filtered_items.len(),
+        total_count,
+        in_memory_count,
+        AssetBrowserState::format_file_size(total_size)
+    )
 }

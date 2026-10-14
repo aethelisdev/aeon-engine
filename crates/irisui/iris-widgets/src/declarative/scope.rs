@@ -21,6 +21,7 @@ pub mod modal;
 pub mod progress;
 pub mod properties;
 pub mod scroll_area;
+pub mod spacing;
 pub mod tree_view;
 
 pub use scroll_area::ScrollAreaConfig;
@@ -29,6 +30,7 @@ pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
+pub use containers::ContainerResponseExt;
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;

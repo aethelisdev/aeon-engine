@@ -31,8 +31,13 @@ pub fn build_folder_tree_sidebar(
     tree_state: &mut TreeState<PathBuf>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let mut scope = UiScope::new(tree, parent_id);
-    build_folder_tree_sidebar_scope(&mut scope, sidebar_rect, params, tree_state, actions);
+    build_folder_tree_sidebar_scope(
+        &mut UiScope::new(tree, parent_id),
+        sidebar_rect,
+        params,
+        tree_state,
+        actions,
+    );
 }
 
 /// Constructs the complete hierarchical folder tree sidebar directly via a declarative [`UiScope`].
@@ -75,7 +80,7 @@ pub fn build_folder_tree_sidebar_scope(
                         Style::new(),
                     );
 
-                    let new_subfolder_id = hdr.container_tagged(
+                    hdr.container_tagged_resp(
                         "NewSubfolderBtn",
                         Style::new()
                             .width(20.0)
@@ -90,16 +95,19 @@ pub fn build_folder_tree_sidebar_scope(
                         WidgetRole::Button,
                         ASSETS_TAG_NEW_SUBFOLDER,
                         |btn| {
-                            let icon_id =
-                                btn.icon(ICON_PLUS, Color::rgba(0.70, 0.75, 0.85, 1.0), 12.0);
-                            btn.set_hover_texture_tint(icon_id, Color::WHITE);
+                            btn.icon_hover(
+                                ICON_PLUS,
+                                Color::rgba(0.70, 0.75, 0.85, 1.0),
+                                Color::WHITE,
+                                12.0,
+                            );
                         },
-                    );
-                    if hdr.response(new_subfolder_id).clicked() {
+                    )
+                    .on_click(|| {
                         actions.push(AssetsPanelAction::OpenCreateSubfolder(
                             params.current_folder.to_path_buf(),
                         ));
-                    }
+                    });
                 },
             );
 
@@ -116,10 +124,9 @@ pub fn build_folder_tree_sidebar_scope(
                 WidgetRole::ScrollAreaViewport,
                 ASSETS_TAG_TREE_VIEWPORT,
                 |viewport| {
-                    let root_path = PathBuf::from("assets");
                     render_folder_recursive(
                         viewport,
-                        &root_path,
+                        Path::new("assets"),
                         0,
                         params.subfolders,
                         params.current_folder,
@@ -130,6 +137,20 @@ pub fn build_folder_tree_sidebar_scope(
             );
         },
     );
+}
+
+/// Computes the unique deterministic integer index for a folder tree item node.
+#[inline]
+fn folder_node_index(path: &Path, subfolders: &[PathBuf]) -> u32 {
+    if path == Path::new("assets") {
+        0
+    } else {
+        subfolders
+            .iter()
+            .position(|p| p == path)
+            .map(|i| (i + 1) as u32)
+            .unwrap_or(0)
+    }
 }
 
 /// Recursively builds folder tree rows using declarative [`asset_folder_tree_item`].
@@ -145,49 +166,31 @@ fn render_folder_recursive(
     tree_state: &mut TreeState<PathBuf>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let folder_name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("assets");
-
-    // Discover child directories from pre-cached engine state (ZERO DISK I/O)
-    let has_children = subfolders.iter().any(|p| p.parent() == Some(path));
-
-    let is_selected = current_folder == path;
-    let is_expanded = tree_state.is_expanded(&path.to_path_buf());
-
-    let node_idx = if path == Path::new("assets") {
-        0
-    } else {
-        subfolders
-            .iter()
-            .position(|p| p == path)
-            .map(|i| (i + 1) as u32)
-            .unwrap_or(0)
-    };
-
     // Render pure declarative tree item (Zero Target Collections, Zero Allocations)
-    let item_params = FolderTreeItemParams {
-        node_idx,
-        name: folder_name,
-        depth,
-        has_children,
-        is_expanded,
-        is_selected,
-    };
-    let row_resp = asset_folder_tree_item(scope, &item_params);
-    if row_resp.foldout_clicked() {
+    asset_folder_tree_item(
+        scope,
+        &FolderTreeItemParams {
+            node_idx: folder_node_index(path, subfolders),
+            name: path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("assets"),
+            depth,
+            has_children: subfolders.iter().any(|p| p.parent() == Some(path)),
+            is_expanded: tree_state.is_expanded(&path.to_path_buf()),
+            is_selected: current_folder == path,
+        },
+    )
+    .on_foldout(|| {
         tree_state.toggle_expanded(&path.to_path_buf());
-    }
-    row_resp.context_menu(scope, |menu| {
+    })
+    .on_click(|| actions.push(AssetsPanelAction::NavigateFolder(path.to_path_buf())))
+    .context_menu(scope, |menu| {
         super::context_menu::render_folder_context_menu_items(menu, path, actions);
     });
-    if row_resp.clicked() {
-        actions.push(AssetsPanelAction::NavigateFolder(path.to_path_buf()));
-    }
 
     // Recurse children if expanded
-    if is_expanded {
+    if tree_state.is_expanded(&path.to_path_buf()) {
         for child in subfolders.iter().filter(|p| p.parent() == Some(path)) {
             render_folder_recursive(
                 scope,

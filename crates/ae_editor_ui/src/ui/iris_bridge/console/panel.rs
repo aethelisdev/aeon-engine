@@ -69,8 +69,10 @@ pub fn build_console_panel(
                 CONSOLE_TAG_TOOLBAR,
                 Color::rgba(0.02, 0.02, 0.03, 0.98),
                 |tb| {
-                    let clear_resp = tb.toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR);
-                    if clear_resp.clicked() {
+                    if tb
+                        .toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR)
+                        .clicked()
+                    {
                         actions.push(ConsoleAction::ClearLogs);
                     }
                     tb.vertical_divider(18.0, Color::rgba(1.0, 1.0, 1.0, 0.12));
@@ -87,8 +89,10 @@ pub fn build_console_panel(
                     .with_icon("🔍")
                     .with_cursor_byte_idx(params.cursor_byte_idx)
                     .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
-                    let input_id = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
-                    if tb.response(input_id).clicked() {
+                    if tb
+                        .input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT)
+                        .clicked()
+                    {
                         actions.push(ConsoleAction::FocusSearch);
                     }
 
@@ -133,9 +137,10 @@ pub fn build_console_panel(
                     ];
                     for (filter_lvl, label, width, color, tag) in &filters {
                         let is_active = params.filter == *filter_lvl;
-                        let pill_resp =
-                            tb.filter_pill_tagged(label, is_active, *color, *width, *tag);
-                        if pill_resp.clicked() {
+                        if tb
+                            .filter_pill_tagged(label, is_active, *color, *width, *tag)
+                            .clicked()
+                        {
                             actions.push(ConsoleAction::SetFilter(*filter_lvl));
                         }
                     }
@@ -156,12 +161,14 @@ pub fn build_console_panel(
                     } else {
                         "⏸ Auto-Scroll"
                     };
-                    let auto_resp = tb.toggle_pill_tagged(
-                        auto_scroll_label,
-                        params.auto_scroll,
-                        CONSOLE_TAG_AUTOSCROLL,
-                    );
-                    if auto_resp.clicked() {
+                    if tb
+                        .toggle_pill_tagged(
+                            auto_scroll_label,
+                            params.auto_scroll,
+                            CONSOLE_TAG_AUTOSCROLL,
+                        )
+                        .clicked()
+                    {
                         actions.push(ConsoleAction::ToggleAutoScroll);
                     }
                 },

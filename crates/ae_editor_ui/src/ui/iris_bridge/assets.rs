@@ -17,7 +17,6 @@ pub mod context_menu;
 #[cfg(test)]
 mod declarative_tests;
 pub mod drag_overlay;
-pub mod events;
 pub mod footer;
 pub mod list;
 pub mod panel;
@@ -44,11 +43,8 @@ pub use context_menu::{
     render_folder_context_menu_items,
 };
 pub use drag_overlay::build_asset_drag_overlays;
-pub use events::{
-    AssetClickTracker, AssetsEventContext, handle_assets_click, handle_assets_panel_event,
-    handle_assets_right_click, handle_assets_scroll,
-};
 pub use panel::build_assets_panel;
+pub use types::AssetClickTracker;
 pub use types::{
     ASSETS_TAG_CLEAN_VRAM, ASSETS_TAG_CONTENT_VIEWPORT, ASSETS_TAG_DOMAIN,
     ASSETS_TAG_ENGINE_CONTENT, ASSETS_TAG_IMPORT, ASSETS_TAG_PANEL_ROOT,

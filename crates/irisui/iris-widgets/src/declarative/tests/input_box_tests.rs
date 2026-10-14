@@ -18,7 +18,7 @@ fn test_input_box_tagged_with_icon_and_caret_layout() {
         let props =
             crate::declarative::scope::InputBoxProps::new("", "Search logs...", 210.0, true, true)
                 .with_icon("🔍");
-        let id = tb.input_box_tagged(&props, tag);
+        let id = tb.input_box_tagged(&props, tag).id();
         box_id_opt = Some(id);
     });
 
@@ -68,7 +68,7 @@ fn test_input_box_tagged_cursor_byte_idx_caret_positioning() {
         )
         .with_icon("🔍")
         .with_cursor_byte_idx(5);
-        let id = tb.input_box_tagged(&props, tag);
+        let id = tb.input_box_tagged(&props, tag).id();
         box_id_opt = Some(id);
     });
 
@@ -104,7 +104,7 @@ fn test_input_box_tagged_long_text_clipping_and_visible_slice() {
         )
         .with_icon("🔍")
         .with_clear_tag(0x9999);
-        let id = tb.input_box_tagged(&props, tag);
+        let id = tb.input_box_tagged(&props, tag).id();
         box_id_opt = Some(id);
     });
 

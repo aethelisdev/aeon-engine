@@ -12,7 +12,7 @@ use crate::modal::{
     MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
 };
 use iris_core::{
-    Color, InteractionEvent, Point, Rect, ResponseFlags, UiTree, WidgetId, WidgetResponse,
+    Color, InteractionEvent, Point, Rect, ResponseFlags, Size, UiTree, WidgetId, WidgetResponse,
     WidgetRole,
 };
 
@@ -493,6 +493,20 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    /// Sets the scrollable content extent size in physical pixels on the specified container node.
+    ///
+    /// Configures virtual scrolling boundaries without leaking direct [`iris_core::UiNode`] mutable access.
+    ///
+    /// # Arguments
+    /// * `widget_id` - Identifier of the container node whose content size is configured.
+    /// * `size` - Content extent size in physical pixels.
+    #[inline]
+    pub fn set_content_size(&mut self, widget_id: WidgetId, size: Size) {
+        if let Some(node) = self.tree.get_mut(widget_id) {
+            node.content_size = size;
+        }
+    }
+
     /// Configures the active parent container's debug name, layout style, and interactivity.
     ///
     /// Provides declarative setup for root nodes and container scopes without
@@ -681,36 +695,14 @@ fn update_hover_styles_recursive(tree: &mut UiTree, current: WidgetId, cursor_po
                 }
             }
         } else if role == WidgetRole::Button && (2030..=2035).contains(&tag) {
-            let is_knob = (2030..=2032).contains(&tag);
-            if is_knob {
-                let base_color = match tag {
-                    2030 => Color::rgba(0.92, 0.22, 0.22, 1.0),
-                    2031 => Color::rgba(0.22, 0.82, 0.32, 1.0),
-                    2032 => Color::rgba(0.24, 0.52, 0.95, 1.0),
-                    _ => Color::WHITE,
-                };
-                node.style =
-                    node.style
-                        .background(if is_hovered { Color::WHITE } else { base_color });
+            let (bg, text_col) = super::compass::resolve_compass_hover_colors(tag, is_hovered);
+            node.style = node.style.background(bg);
+            if let Some(tc) = text_col {
                 for cid in &children {
                     if let Some(child) = tree.get_mut(*cid) {
-                        child.text_color = if is_hovered {
-                            Color::BLACK
-                        } else {
-                            Color::WHITE
-                        };
+                        child.text_color = tc;
                     }
                 }
-            } else {
-                let base_color = match tag {
-                    2033 => Color::rgba(0.92 * 0.45, 0.22 * 0.45, 0.22 * 0.45, 0.75),
-                    2034 => Color::rgba(0.22 * 0.45, 0.82 * 0.45, 0.32 * 0.45, 0.75),
-                    2035 => Color::rgba(0.24 * 0.45, 0.52 * 0.45, 0.95 * 0.45, 0.75),
-                    _ => Color::rgba(0.5, 0.5, 0.5, 0.75),
-                };
-                node.style =
-                    node.style
-                        .background(if is_hovered { Color::WHITE } else { base_color });
             }
         } else if role == WidgetRole::Button && tag != 0 && tag != MODAL_TAG_SCRIM {
             node.text_color = if is_hovered {

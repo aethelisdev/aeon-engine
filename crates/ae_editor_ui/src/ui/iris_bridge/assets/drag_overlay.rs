@@ -13,7 +13,6 @@ use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
 use irisui::prelude::{
     AlignItems, Color, Insets, Point, Rect, Style, TextAlign, UiScope, UiTree, WidgetId,
-    layout_subtree, measure_height, measure_width,
 };
 
 /// Constructs topmost floating overlays for an active asset drag operation into the `UiTree`.
@@ -26,9 +25,8 @@ pub fn build_asset_drag_overlays(
     camera: &Camera,
     is_2d_mode: bool,
 ) {
-    let mut scope = UiScope::new(tree, parent_id);
     build_asset_drag_overlays_scope(
-        &mut scope,
+        &mut UiScope::new(tree, parent_id),
         payload,
         cursor_pos,
         viewport_rect,
@@ -50,101 +48,24 @@ pub fn build_asset_drag_overlays_scope(
     is_2d_mode: bool,
 ) {
     // 1. 3D / 2D Viewport Landing Indicator
-    let in_viewport = cursor_pos.x >= viewport_rect.x
-        && cursor_pos.x <= viewport_rect.x + viewport_rect.width
-        && cursor_pos.y >= viewport_rect.y
-        && cursor_pos.y <= viewport_rect.y + viewport_rect.height;
-    if in_viewport && viewport_rect.width > 20.0 && viewport_rect.height > 20.0 {
-        let center_opt = if !is_2d_mode {
-            // 3D Mode: Raycast against horizontal ground plane Y = 0
-            if let Some(world_pos) = crate::assets::drag_drop::compute_ground_intersection(
-                [cursor_pos.x, cursor_pos.y],
-                viewport_rect,
-                camera,
-            ) {
-                let vp_matrix = camera.build_view_projection_matrix();
-                let pos_v4 = cgmath::Vector4::new(world_pos[0], world_pos[1], world_pos[2], 1.0);
-                let clip_v4 = vp_matrix * pos_v4;
-
-                if clip_v4.w > 0.001 {
-                    let ndc_x = clip_v4.x / clip_v4.w;
-                    let ndc_y = clip_v4.y / clip_v4.w;
-
-                    if (-1.2..=1.2).contains(&ndc_x) && (-1.2..=1.2).contains(&ndc_y) {
-                        let screen_x = viewport_rect.x + (ndc_x + 1.0) * 0.5 * viewport_rect.width;
-                        let screen_y = viewport_rect.y + (1.0 - ndc_y) * 0.5 * viewport_rect.height;
-                        Some((screen_x, screen_y))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            // 2D Mode: Directly position landing ring under cursor
-            Some((cursor_pos.x, cursor_pos.y))
-        };
-
-        if let Some((center_x, center_y)) = center_opt {
-            // Outer glowing landing ring (Radius = 18.0 px)
-            let ring_radius = 18.0;
-            let ring_rect = Rect::new(
-                center_x - ring_radius,
-                center_y - ring_radius,
-                ring_radius * 2.0,
-                ring_radius * 2.0,
-            );
-            let ring_id = scope.empty_box_passive_named(
-                "ViewportDropLandingRing",
-                Style::new()
-                    .position_absolute()
-                    .left(ring_rect.x)
-                    .top(ring_rect.y)
-                    .width(ring_rect.width)
-                    .height(ring_rect.height)
-                    .border(2.0, Color::from_u8(0, 229, 255, 255))
-                    .border_radius(ring_radius),
-            );
-            layout_subtree(scope.tree_mut(), ring_id, ring_rect);
-
-            // Inner landing target dot (Radius = 4.0 px)
-            let dot_radius = 4.0;
-            let dot_rect = Rect::new(
-                center_x - dot_radius,
-                center_y - dot_radius,
-                dot_radius * 2.0,
-                dot_radius * 2.0,
-            );
-            let dot_id = scope.empty_box_passive_named(
-                "ViewportDropLandingDot",
-                Style::new()
-                    .position_absolute()
-                    .left(dot_rect.x)
-                    .top(dot_rect.y)
-                    .width(dot_rect.width)
-                    .height(dot_rect.height)
-                    .background(Color::from_u8(0, 229, 255, 255))
-                    .border_radius(dot_radius),
-            );
-            layout_subtree(scope.tree_mut(), dot_id, dot_rect);
-        }
+    if let Some((center_x, center_y)) =
+        compute_landing_center(cursor_pos, viewport_rect, camera, is_2d_mode)
+    {
+        scope.landing_indicator(
+            Point::new(center_x, center_y),
+            18.0,
+            4.0,
+            Color::from_u8(0, 229, 255, 255),
+        );
     }
 
     // 2. Floating Cursor Drag Tooltip Capsule
-    let tip_x = cursor_pos.x + 14.0;
-    let tip_y = cursor_pos.y + 14.0;
-    let badge_str = payload.category.badge();
-    let name_str = &payload.name;
-
-    let capsule_id = scope.container_named(
+    scope.container_measured(
         "AssetDragCapsule",
         Style::new()
             .position_absolute()
-            .left(tip_x)
-            .top(tip_y)
+            .left(cursor_pos.x + 14.0)
+            .top(cursor_pos.y + 14.0)
             .flex_row()
             .align_items(AlignItems::Center)
             .padding_insets(Insets::new(4.0, 8.0, 4.0, 8.0))
@@ -152,22 +73,65 @@ pub fn build_asset_drag_overlays_scope(
             .background(Color::from_u8(18, 22, 32, 230))
             .border(1.0, Color::from_u8(0, 229, 255, 220))
             .border_radius(6.0),
+        Point::new(cursor_pos.x + 14.0, cursor_pos.y + 14.0),
+        24.0,
         |capsule| {
             capsule.label(
-                badge_str,
+                payload.category.badge(),
                 11.0,
                 payload.category.badge_color(),
                 TextAlign::Left,
             );
-            capsule.label(name_str, 11.0, Color::WHITE, TextAlign::Left);
+            capsule.label(&payload.name, 11.0, Color::WHITE, TextAlign::Left);
         },
     );
+}
 
-    let measured_w = measure_width(scope.tree(), capsule_id);
-    let measured_h = measure_height(scope.tree(), capsule_id).max(24.0);
-    layout_subtree(
-        scope.tree_mut(),
-        capsule_id,
-        Rect::new(tip_x, tip_y, measured_w, measured_h),
-    );
+/// Computes the 2D screen coordinate center for the viewport landing drop target.
+#[inline]
+fn compute_landing_center(
+    cursor_pos: Point,
+    viewport_rect: Rect,
+    camera: &Camera,
+    is_2d_mode: bool,
+) -> Option<(f32, f32)> {
+    let in_viewport = cursor_pos.x >= viewport_rect.x
+        && cursor_pos.x <= viewport_rect.x + viewport_rect.width
+        && cursor_pos.y >= viewport_rect.y
+        && cursor_pos.y <= viewport_rect.y + viewport_rect.height;
+
+    if !in_viewport || viewport_rect.width <= 20.0 || viewport_rect.height <= 20.0 {
+        return None;
+    }
+
+    if is_2d_mode {
+        Some((cursor_pos.x, cursor_pos.y))
+    } else {
+        crate::assets::drag_drop::compute_ground_intersection(
+            [cursor_pos.x, cursor_pos.y],
+            viewport_rect,
+            camera,
+        )
+        .and_then(|world_pos| {
+            let vp_matrix = camera.build_view_projection_matrix();
+            let pos_v4 = cgmath::Vector4::new(world_pos[0], world_pos[1], world_pos[2], 1.0);
+            let clip_v4 = vp_matrix * pos_v4;
+
+            if clip_v4.w > 0.001 {
+                let ndc_x = clip_v4.x / clip_v4.w;
+                let ndc_y = clip_v4.y / clip_v4.w;
+
+                if (-1.2..=1.2).contains(&ndc_x) && (-1.2..=1.2).contains(&ndc_y) {
+                    Some((
+                        viewport_rect.x + (ndc_x + 1.0) * 0.5 * viewport_rect.width,
+                        viewport_rect.y + (1.0 - ndc_y) * 0.5 * viewport_rect.height,
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+    }
 }

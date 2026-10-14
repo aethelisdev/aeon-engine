@@ -4,12 +4,11 @@
 //! Unit tests for the Native Iris UI Asset / Content Browser Subsystem.
 //!
 
-use super::events::{self, AssetClickTracker, AssetsEventContext};
 use super::panel::build_assets_panel;
 use super::types::{
-    ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetPreviewModalState,
-    AssetsContextMenuTarget, AssetsPanelAction, AssetsPanelParams, encode_breadcrumb_tag,
-    encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag, truncate_display_name,
+    ASSETS_TAG_SEARCH_CLEAR, ASSETS_TAG_SEARCH_INPUT, AssetClickTracker, AssetPreviewModalState,
+    AssetsContextMenuTarget, AssetsPanelParams, encode_breadcrumb_tag, encode_item_tag,
+    truncate_display_name,
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
@@ -148,177 +147,6 @@ fn assert_no_emojis_recursive(tree: &UiTree, current: WidgetId) {
 }
 
 #[test]
-fn test_assets_actions_dispatch() {
-    let mut tracker = AssetClickTracker::default();
-    let mut actions = Vec::new();
-    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-
-    let ctx = AssetsEventContext {
-        cursor_pos: Point::new(510.0, 10.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: None,
-        context_menu_card_rect: None,
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(HitTargetInfo {
-            id: WidgetId::default(),
-            layer: UiLayer::Content,
-            role: WidgetRole::Button,
-            cursor: Some(WidgetCursor::Pointer),
-            tag: super::types::ASSETS_TAG_VIEW_GRID,
-            rect: Rect::new(500.0, 5.0, 46.0, 24.0),
-            name: Some("GridToggleBtn".to_string()),
-        }),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-
-    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
-
-    assert!(consumed);
-    assert_eq!(
-        actions,
-        vec![AssetsPanelAction::SetViewMode(AssetViewMode::Grid)]
-    );
-}
-
-#[test]
-fn test_assets_right_click_context_menu_dispatch() {
-    let mut actions = Vec::new();
-    let item = AssetItem {
-        name: "test.png".to_string(),
-        path: PathBuf::from("assets/test.png"),
-        relative_path: "test.png".to_string(),
-        category: AssetCategory::Textures2D,
-        source: AssetSource::Project,
-        file_size_bytes: 1024,
-        metadata_badge: "1.0 KB".to_string(),
-        is_loaded_in_memory: false,
-        model_handle: None,
-        texture_handle: None,
-        shader_handle: None,
-        is_3d: false,
-    };
-
-    let mut tree = UiTree::new();
-    let root_id = tree.create_root().expect("Root node creation failed");
-    let items = vec![item.clone()];
-    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-
-    let ctx = AssetsEventContext {
-        cursor_pos: Point::new(220.0, 70.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: None,
-        context_menu_card_rect: None,
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(HitTargetInfo {
-            id: root_id,
-            layer: UiLayer::Content,
-            role: WidgetRole::Button,
-            cursor: None,
-            rect: Rect::new(200.0, 50.0, 116.0, 134.0),
-            tag: encode_item_tag(0),
-            name: None,
-        }),
-        filtered_items: &items,
-        subfolders: &[],
-    };
-
-    let consumed = events::handle_assets_right_click(&ctx, &mut actions);
-
-    assert!(consumed);
-    assert_eq!(actions.len(), 2);
-    assert_eq!(
-        actions[0],
-        AssetsPanelAction::SelectAsset(Some(PathBuf::from("assets/test.png")))
-    );
-    assert_eq!(
-        actions[1],
-        AssetsPanelAction::OpenContextMenu(
-            AssetsContextMenuTarget::Asset(item),
-            Point::new(220.0, 70.0)
-        )
-    );
-}
-
-#[test]
-fn test_assets_folder_tree_click_and_toggle_dispatch() {
-    let mut tracker = AssetClickTracker::default();
-    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-    let subfolders = vec![PathBuf::from("assets/models")];
-
-    // 1. Click on folder chevron button (is_chevron = true)
-    let mut actions = Vec::new();
-    let ctx_chev = AssetsEventContext {
-        cursor_pos: Point::new(20.0, 50.0),
-        panel_rect,
-        sidebar_rect: Some(Rect::new(0.0, 0.0, 180.0, 400.0)),
-        content_viewport_rect: panel_rect,
-        context_menu: None,
-        context_menu_card_rect: None,
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(HitTargetInfo {
-            id: WidgetId::default(),
-            layer: UiLayer::Content,
-            role: WidgetRole::Button,
-            cursor: Some(WidgetCursor::Pointer),
-            tag: encode_tree_chevron_tag(1),
-            rect: Rect::new(10.0, 45.0, 14.0, 18.0),
-            name: Some("TreeChevronBtn".to_string()),
-        }),
-        filtered_items: &[],
-        subfolders: &subfolders,
-    };
-
-    let consumed = events::handle_assets_click(&ctx_chev, &mut tracker, &mut actions);
-    assert!(consumed, "Click on chevron must be consumed");
-    assert!(
-        actions.is_empty(),
-        "Chevron click is handled autonomously in-place and dispatches zero external actions"
-    );
-
-    // 2. Click on folder row item body (is_chevron = false)
-    let mut actions_row = Vec::new();
-    let ctx_row = AssetsEventContext {
-        hit_target: Some(HitTargetInfo {
-            id: WidgetId::default(),
-            layer: UiLayer::Content,
-            role: WidgetRole::Button,
-            cursor: Some(WidgetCursor::Pointer),
-            tag: encode_tree_row_tag(1),
-            rect: Rect::new(10.0, 45.0, 160.0, 22.0),
-            name: Some("FolderTreeRow".to_string()),
-        }),
-        ..ctx_chev
-    };
-
-    let consumed_row = events::handle_assets_click(&ctx_row, &mut tracker, &mut actions_row);
-    assert!(consumed_row, "Click on folder row must be consumed");
-    assert_eq!(
-        actions_row,
-        vec![AssetsPanelAction::NavigateFolder(PathBuf::from(
-            "assets/models"
-        ))],
-        "Folder row click must dispatch NavigateFolder action"
-    );
-}
-
-#[test]
 fn test_preview_modal_build_and_actions() {
     let mut tree = UiTree::new();
     let root_id = tree.create_root().expect("Root node creation failed");
@@ -373,7 +201,7 @@ fn test_preview_modal_build_and_actions() {
     };
 
     let mut actions_build = Vec::new();
-    let metrics = build_assets_panel(
+    let _metrics = build_assets_panel(
         &mut tree,
         root_id,
         &params,
@@ -381,36 +209,14 @@ fn test_preview_modal_build_and_actions() {
         &mut actions_build,
     );
 
-    // Test clicking the close button on the preview modal via semantic hit target
-    let mut close_pos = Point::new(0.0, 0.0);
+    // Test close button on the preview modal exists in UiTree via semantic tag
+    let mut close_button_found = false;
     tree.traverse_depth_first(root_id, &mut |_id, node| {
         if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
-            close_pos = Point::new(node.computed_rect.x + 2.0, node.computed_rect.y + 2.0);
+            close_button_found = true;
         }
     });
-
-    let mut tracker = AssetClickTracker::default();
-    let mut actions = Vec::new();
-    let ctx = AssetsEventContext {
-        cursor_pos: close_pos,
-        panel_rect: metrics.panel_rect,
-        sidebar_rect: metrics.sidebar_rect,
-        content_viewport_rect: metrics.content_viewport_rect,
-        context_menu: None,
-        context_menu_card_rect: None,
-        preview_modal: Some(&preview_state),
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: tree.hit_test_target(close_pos),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-
-    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
-    assert!(consumed);
-    assert_eq!(actions, vec![AssetsPanelAction::CloseInspectModal]);
+    assert!(close_button_found, "Preview modal close button must exist");
 }
 
 #[test]
@@ -844,42 +650,6 @@ fn test_engine_content_visibility_filtering() {
 }
 
 #[test]
-fn test_engine_toggle_action_dispatch() {
-    let mut actions = Vec::new();
-    let panel_rect = Rect::new(0.0, 0.0, 800.0, 400.0);
-
-    let ctx = AssetsEventContext {
-        cursor_pos: Point::new(510.0, 15.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: None,
-        context_menu_card_rect: None,
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(HitTargetInfo {
-            id: WidgetId::default(),
-            layer: UiLayer::Content,
-            role: WidgetRole::Button,
-            cursor: Some(WidgetCursor::Pointer),
-            tag: super::types::ASSETS_TAG_ENGINE_CONTENT,
-            rect: Rect::new(510.0, 15.0, 74.0, 24.0),
-            name: Some("EngineToggleBtn".to_string()),
-        }),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-
-    let mut tracker = AssetClickTracker::default();
-    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
-    assert!(consumed);
-    assert_eq!(actions, vec![AssetsPanelAction::ToggleEngineContent]);
-}
-
-#[test]
 fn test_engine_and_sidebar_vector_icons() {
     use crate::ui::iris_bridge::icons::{
         FIRST_THUMBNAIL_LAYER, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_GEAR, ICON_SPARKLE,
@@ -1166,112 +936,6 @@ fn test_assets_context_menu_builder_and_hit_testing() {
     assert_eq!(hit_delete.layer, UiLayer::Popup);
     assert_eq!(hit_delete.role, WidgetRole::DropdownItem);
     assert_eq!(hit_delete.tag, super::types::ASSET_CTX_DELETE);
-
-    // Test event dispatch with hit target
-    let mut tracker = AssetClickTracker::default();
-    let mut actions = Vec::new();
-    let ctx = AssetsEventContext {
-        cursor_pos: Point::new(220.0, 195.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: Some(&ctx_menu_data),
-        context_menu_card_rect: Some(card_rect),
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(hit_inspect),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-
-    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
-    assert!(consumed);
-    assert!(actions.contains(&AssetsPanelAction::CloseContextMenu));
-    assert!(
-        actions
-            .iter()
-            .any(|a| matches!(a, AssetsPanelAction::OpenInspectModal(_)))
-    );
-
-    // Test Rename click dispatch
-    let mut rename_actions = Vec::new();
-    let rename_ctx = AssetsEventContext {
-        cursor_pos: Point::new(220.0, 250.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: Some(&ctx_menu_data),
-        context_menu_card_rect: Some(card_rect),
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(hit_rename),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-    let consumed_rename =
-        events::handle_assets_click(&rename_ctx, &mut tracker, &mut rename_actions);
-    assert!(consumed_rename);
-    assert!(rename_actions.contains(&AssetsPanelAction::CloseContextMenu));
-    assert!(
-        rename_actions
-            .iter()
-            .any(|a| matches!(a, AssetsPanelAction::OpenRename(_, _, _)))
-    );
-
-    // Test Delete click dispatch
-    let mut delete_actions = Vec::new();
-    let delete_ctx = AssetsEventContext {
-        cursor_pos: Point::new(220.0, 275.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: Some(&ctx_menu_data),
-        context_menu_card_rect: Some(card_rect),
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(hit_delete),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-    let consumed_delete =
-        events::handle_assets_click(&delete_ctx, &mut tracker, &mut delete_actions);
-    assert!(consumed_delete);
-    assert!(delete_actions.contains(&AssetsPanelAction::CloseContextMenu));
-    assert!(
-        delete_actions
-            .iter()
-            .any(|a| matches!(a, AssetsPanelAction::OpenDelete(_)))
-    );
-
-    // Test Outside click dismisses context menu
-    let mut outside_actions = Vec::new();
-    let outside_ctx = AssetsEventContext {
-        cursor_pos: Point::new(50.0, 50.0),
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: Some(&ctx_menu_data),
-        context_menu_card_rect: Some(card_rect),
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: None,
-        filtered_items: &[],
-        subfolders: &[],
-    };
-    let _ = events::handle_assets_click(&outside_ctx, &mut tracker, &mut outside_actions);
-    assert!(outside_actions.contains(&AssetsPanelAction::CloseContextMenu));
 }
 
 #[test]
@@ -1331,43 +995,4 @@ fn test_assets_toolbar_width_and_search_ux() {
         }
     });
     assert!(toolbar_found, "AssetsTopToolbar node must exist in UiTree");
-}
-
-#[test]
-fn test_assets_click_outside_panel_rect_does_not_consume_even_with_hit_target() {
-    let mut tracker = AssetClickTracker::default();
-    let mut actions = Vec::new();
-    let panel_rect = Rect::new(0.0, 500.0, 800.0, 300.0);
-
-    let ctx = AssetsEventContext {
-        cursor_pos: Point::new(900.0, 100.0), // outside panel_rect, in inspector area
-        panel_rect,
-        sidebar_rect: None,
-        content_viewport_rect: panel_rect,
-        context_menu: None,
-        context_menu_card_rect: None,
-        preview_modal: None,
-        current_folder: Path::new("assets"),
-        search_query: "",
-        focus_state: &FocusState::new(),
-        selected_asset: None,
-        hit_target: Some(HitTargetInfo {
-            id: WidgetId::default(),
-            layer: UiLayer::Content,
-            role: WidgetRole::Button,
-            cursor: Some(WidgetCursor::Pointer),
-            tag: 9999, // some non-asset tag, e.g. inspector tag
-            rect: Rect::new(900.0, 90.0, 100.0, 30.0),
-            name: Some("InspectorButton".to_string()),
-        }),
-        filtered_items: &[],
-        subfolders: &[],
-    };
-
-    let consumed = events::handle_assets_click(&ctx, &mut tracker, &mut actions);
-    assert!(
-        !consumed,
-        "Click outside assets panel rect must NEVER be consumed by assets panel!"
-    );
-    assert!(actions.is_empty());
 }

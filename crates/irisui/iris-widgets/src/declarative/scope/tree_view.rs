@@ -261,6 +261,39 @@ impl TreeRowResponse {
     pub const fn interact_pointer_pos(&self) -> Option<Point> {
         self.pointer_pos
     }
+
+    /// Executes the provided closure if the foldout chevron button was clicked during this frame.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_foldout(self, f: impl FnOnce()) -> Self {
+        if self.foldout_clicked {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if the tree row body was clicked during this frame.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_click(self, f: impl FnOnce()) -> Self {
+        if self.clicked {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if the tree row body was secondary (right) clicked during this frame.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_secondary_click(self, f: impl FnOnce()) -> Self {
+        if self.secondary_clicked {
+            f();
+        }
+        self
+    }
 }
 
 /// Options bundle configuring a declarative virtualized tree view viewport.

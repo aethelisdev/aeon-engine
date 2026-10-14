@@ -7,14 +7,12 @@
 //! and logging telemetry viewer for the Aeon Engine Editor.
 //!
 
-pub mod events;
 pub mod panel;
 pub mod rows;
 #[cfg(test)]
 mod tests;
 pub mod types;
 
-pub use events::{handle_console_click, handle_console_scroll};
 pub use panel::{CONSOLE_TOOLBAR_HEIGHT, build_console_panel};
 pub use rows::{
     CONSOLE_ROW_HEIGHT, CONSOLE_ROW_LINE_HEIGHT, build_console_rows, render_console_empty_notice,

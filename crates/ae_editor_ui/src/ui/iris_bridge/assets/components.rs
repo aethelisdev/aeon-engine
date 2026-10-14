@@ -9,8 +9,8 @@
 //!
 
 use super::types::{
-    encode_breadcrumb_tag, encode_item_inspect_tag, encode_item_spawn_tag, encode_item_tag,
-    encode_tree_chevron_tag, encode_tree_row_tag, truncate_display_name,
+    AssetsPanelAction, encode_breadcrumb_tag, encode_item_inspect_tag, encode_item_spawn_tag,
+    encode_item_tag, encode_tree_chevron_tag, encode_tree_row_tag, truncate_display_name,
 };
 use crate::assets::types::{AssetCategory, AssetItem};
 use crate::ui::iris_bridge::icons::{
@@ -63,6 +63,19 @@ pub fn resolve_category_icon(category: AssetCategory) -> ([f32; 4], Color) {
 ///
 /// Emits a cyan folder icon at the root, followed by interactive button segments separated by chevrons.
 /// Clicking a segment appends [`super::types::AssetsPanelAction::NavigateFolder`] to the action stream.
+#[inline]
+fn breadcrumb_button_style() -> Style {
+    Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .justify_content(JustifyContent::Center)
+        .padding_insets(Insets::symmetric(0.0, 6.0))
+        .height(22.0)
+        .background(Color::TRANSPARENT)
+        .hover_background(Color::rgba(0.18, 0.22, 0.30, 0.80))
+        .border_radius(3.0)
+}
+
 pub fn asset_breadcrumb_bar(
     scope: &mut UiScope<'_>,
     current_folder: &Path,
@@ -78,20 +91,13 @@ pub fn asset_breadcrumb_bar(
         |bar| {
             // Root Folder Atlas Logo (Layer 6: ICON_FOLDER)
             bar.icon(ICON_FOLDER, Color::rgba(0.0, 0.90, 1.0, 1.0), 16.0);
+            bar.spacing(4.0);
 
-            bar.empty_box_passive_named(
-                "BreadcrumbLogoSpacer",
-                Style::new().width(4.0).height(1.0),
-            );
-
-            let mut has_segments = false;
-            for (i, comp) in current_folder.components().enumerate() {
-                let segment = comp.as_os_str().to_str().unwrap_or("");
-                if segment.is_empty() {
-                    continue;
-                }
-                has_segments = true;
-
+            for (i, segment) in current_folder
+                .components()
+                .filter_map(|comp| comp.as_os_str().to_str().filter(|s| !s.is_empty()))
+                .enumerate()
+            {
                 if i > 0 {
                     bar.label_styled_passive(
                         "BreadcrumbSeparator",
@@ -103,43 +109,33 @@ pub fn asset_breadcrumb_bar(
                     );
                 }
 
-                let tag = encode_breadcrumb_tag(i as u8);
-
-                let style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .padding_insets(Insets::symmetric(0.0, 6.0))
-                    .height(22.0)
-                    .background(Color::TRANSPARENT)
-                    .hover_background(Color::rgba(0.18, 0.22, 0.30, 0.80))
-                    .border_radius(3.0);
-
-                let crumb_id = bar.container_tagged(
+                bar.container_tagged_resp(
                     "BreadcrumbButton",
-                    style,
+                    breadcrumb_button_style(),
                     WidgetRole::Button,
-                    tag,
+                    encode_breadcrumb_tag(i as u8),
                     |crumb| {
-                        let txt_id = crumb.label_styled_passive(
+                        crumb.label_styled_hover_passive(
                             "BreadcrumbText",
                             segment,
                             11.5,
-                            Color::rgba(0.70, 0.74, 0.84, 1.0),
+                            (
+                                Color::rgba(0.70, 0.74, 0.84, 1.0),
+                                Color::rgba(0.0, 0.90, 1.0, 1.0),
+                            ),
                             TextAlign::Center,
                             Style::new(),
                         );
-                        crumb.set_hover_text_color(txt_id, Color::rgba(0.0, 0.90, 1.0, 1.0));
                     },
-                );
-                if bar.response(crumb_id).clicked() {
-                    let target_path: std::path::PathBuf =
-                        current_folder.components().take(i + 1).collect();
-                    actions.push(super::types::AssetsPanelAction::NavigateFolder(target_path));
-                }
+                )
+                .on_click(|| {
+                    actions.push(super::types::AssetsPanelAction::NavigateFolder(
+                        current_folder.components().take(i + 1).collect(),
+                    ));
+                });
             }
 
-            if !has_segments {
+            if current_folder.as_os_str().is_empty() {
                 bar.label_styled_passive(
                     "BreadcrumbRootLabel",
                     "assets",
@@ -177,86 +173,61 @@ pub fn asset_folder_tree_item(
     scope: &mut UiScope<'_>,
     params: &FolderTreeItemParams<'_>,
 ) -> TreeRowResponse {
-    let row_tag = encode_tree_row_tag(params.node_idx);
-    let chev_tag = encode_tree_chevron_tag(params.node_idx);
+    scope.tree_row(
+        "FolderTreeRow",
+        TreeRowProps::new(
+            params.depth,
+            params.has_children,
+            params.is_expanded,
+            params.is_selected,
+            encode_tree_row_tag(params.node_idx),
+            encode_tree_chevron_tag(params.node_idx),
+        ),
+        &TreeViewConfig::new()
+            .with_row_height(FOLDER_TREE_ROW_HEIGHT)
+            .with_row_gap(0.0),
+        |row| {
+            row.icon(
+                ICON_FOLDER,
+                if params.is_selected {
+                    Color::rgba(0.0, 0.90, 1.0, 1.0)
+                } else {
+                    Color::rgba(0.95, 0.76, 0.28, 1.0)
+                },
+                16.0,
+            );
 
-    let row_props = TreeRowProps::new(
-        params.depth,
-        params.has_children,
-        params.is_expanded,
-        params.is_selected,
-        row_tag,
-        chev_tag,
-    );
+            row.spacing(6.0);
 
-    let tree_config = TreeViewConfig::new()
-        .with_row_height(FOLDER_TREE_ROW_HEIGHT)
-        .with_row_gap(0.0);
-
-    scope.tree_row("FolderTreeRow", row_props, &tree_config, |row| {
-        let folder_tint = if params.is_selected {
-            Color::rgba(0.0, 0.90, 1.0, 1.0) // Cyan when selected
-        } else {
-            Color::rgba(0.95, 0.76, 0.28, 1.0) // Warm folder amber
-        };
-
-        // Folder Atlas Icon (Layer 6: ICON_FOLDER)
-        row.icon(ICON_FOLDER, folder_tint, 16.0);
-
-        row.empty_box_passive_named("TreeFolderGap", Style::new().width(6.0).height(1.0));
-
-        let text_color = if params.is_selected {
-            Color::WHITE
-        } else {
-            Color::rgba(0.75, 0.78, 0.85, 1.0)
-        };
-
-        // Folder Name Label
-        let txt_id = row.label_styled_passive(
-            "TreeFolderName",
-            params.name,
-            11.5,
-            text_color,
-            TextAlign::Left,
-            Style::new().flex_grow(1.0),
-        );
-        if !params.is_selected {
-            row.set_hover_text_color(txt_id, Color::rgba(0.90, 0.92, 0.96, 1.0));
-        }
-    })
+            if params.is_selected {
+                row.label_styled_passive(
+                    "TreeFolderName",
+                    params.name,
+                    11.5,
+                    Color::WHITE,
+                    TextAlign::Left,
+                    Style::new().flex_grow(1.0),
+                );
+            } else {
+                row.label_styled_hover_passive(
+                    "TreeFolderName",
+                    params.name,
+                    11.5,
+                    (
+                        Color::rgba(0.75, 0.78, 0.85, 1.0),
+                        Color::rgba(0.90, 0.92, 0.96, 1.0),
+                    ),
+                    TextAlign::Left,
+                    Style::new().flex_grow(1.0),
+                );
+            }
+        },
+    )
 }
 
-/// Emits an individual grid asset card.
-///
-/// Features category badge, VRAM resident status dot, thumbnail preview/atlas vector icon,
-/// truncated display title, and human-readable metadata badge.
-/// Returns [`UiResponse`] enabling autonomous click and double-click detection.
-pub fn asset_grid_card(
-    scope: &mut UiScope<'_>,
-    item_idx: u32,
-    item: &AssetItem,
-    thumbnail_layer: Option<u32>,
-    is_selected: bool,
-    rel_pos: Point,
-) -> WidgetResponse {
-    let tag = encode_item_tag(item_idx);
-    let cat_color = resolve_category_color(item.category);
-
-    let border_color = if is_selected {
-        Color::rgba(0.0, 0.90, 1.0, 1.0)
-    } else {
-        Color::rgba(0.18, 0.20, 0.26, 0.75)
-    };
-
-    let border_w = if is_selected { 1.5 } else { 1.0 };
-
-    let bg_color = if is_selected {
-        Color::rgba(0.0, 0.65, 0.85, 0.12)
-    } else {
-        Color::rgba(0.08, 0.09, 0.12, 0.90)
-    };
-
-    let mut card_style = Style::new()
+#[inline]
+fn asset_card_container_style(rel_pos: Point, is_selected: bool, cat_color: Color) -> Style {
+    Style::new()
         .position_absolute()
         .left(rel_pos.x)
         .top(rel_pos.y)
@@ -265,327 +236,295 @@ pub fn asset_grid_card(
         .flex_col()
         .align_items(AlignItems::Center)
         .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0))
-        .background(bg_color)
-        .border(border_w, border_color)
         .border_radius(6.0)
-        .clip_children(true);
-
-    if !is_selected {
-        card_style = card_style
-            .hover_background(Color::rgba(0.14, 0.16, 0.22, 0.90))
-            .hover_border(1.0, cat_color.with_alpha(0.60));
-    }
-
-    let card_id = scope.container_tagged(
-        "AssetGridCard",
-        card_style,
-        WidgetRole::Button,
-        tag,
-        |card| {
-            // Header Row: Category Badge + Status Dot
-            card.container_named(
-                "CardHeader",
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::SpaceBetween)
-                    .width(ASSET_CARD_WIDTH - 12.0)
-                    .height(14.0)
-                    .margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
-                |hdr| {
-                    // Category Badge Pill
-                    hdr.container_named(
-                        "CardCatBadge",
-                        Style::new()
-                            .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
-                            .border_radius(3.0)
-                            .background(cat_color.with_alpha(0.20)),
-                        |b| {
-                            b.label_styled_passive(
-                                "CardCatText",
-                                item.category.badge(),
-                                8.5,
-                                cat_color,
-                                TextAlign::Center,
-                                Style::new(),
-                            );
-                        },
-                    );
-
-                    // Memory Status Dot (Cyan if loaded in RAM/VRAM)
-                    if item.is_loaded_in_memory {
-                        hdr.empty_box_passive_named(
-                            "CardMemoryDot",
-                            Style::new()
-                                .width(5.0)
-                                .height(5.0)
-                                .border_radius(2.5)
-                                .background(Color::rgba(0.0, 0.90, 1.0, 1.0)),
-                        );
-                    }
-                },
-            );
-
-            // Preview Box (54x54 px): Texture Thumbnail or Vector Atlas Icon
-            card.container_named(
-                "CardPreviewBox",
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .width(54.0)
-                    .height(54.0)
-                    .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
-                    .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
-                    .border_radius(4.0)
-                    .margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
-                |box_scope| {
-                    if let Some(layer) = thumbnail_layer {
-                        // Render hardware texture layer thumbnail
-                        box_scope.icon([0.0, 0.0, 1.0, layer as f32], Color::WHITE, 54.0);
-                    } else {
-                        // Fallback to canonical category vector icon
-                        let (icon_uv, icon_tint) = resolve_category_icon(item.category);
-                        box_scope.icon(icon_uv, icon_tint, 28.0);
-                    }
-                },
-            );
-
-            // Truncated Display Name
-            let display_name = truncate_display_name(&item.name, 14, 11);
-            card.label_styled_passive(
-                "CardName",
-                display_name,
-                11.0,
-                Color::rgba(0.92, 0.94, 0.98, 1.0),
-                TextAlign::Center,
-                Style::new().width(ASSET_CARD_WIDTH - 8.0),
-            );
-
-            // Metadata / Size Label
-            card.label_styled_passive(
-                "CardMetadata",
-                &item.metadata_badge,
-                9.5,
-                Color::rgba(0.50, 0.54, 0.64, 1.0),
-                TextAlign::Center,
-                Style::new().width(ASSET_CARD_WIDTH - 8.0),
-            );
-        },
-    );
-    scope.response(card_id)
+        .clip_children(true)
+        .background(if is_selected {
+            Color::rgba(0.0, 0.65, 0.85, 0.12)
+        } else {
+            Color::rgba(0.08, 0.09, 0.12, 0.90)
+        })
+        .border(
+            if is_selected { 1.5 } else { 1.0 },
+            if is_selected {
+                Color::rgba(0.0, 0.90, 1.0, 1.0)
+            } else {
+                Color::rgba(0.18, 0.20, 0.26, 0.75)
+            },
+        )
+        .hover_background(if is_selected {
+            Color::rgba(0.0, 0.65, 0.85, 0.12)
+        } else {
+            Color::rgba(0.14, 0.16, 0.22, 0.90)
+        })
+        .hover_border(
+            1.0,
+            if is_selected {
+                Color::rgba(0.0, 0.90, 1.0, 1.0)
+            } else {
+                cat_color.with_alpha(0.60)
+            },
+        )
 }
 
-/// Response model capturing interaction states on a detailed asset table list row.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct AssetListRowResponse {
-    /// Underlying WidgetResponse of the row container.
-    pub row_response: WidgetResponse,
-    /// Whether the main row container was clicked to select the asset item.
-    pub row_clicked: bool,
-    /// Whether the main row container was secondary (right) clicked to open context menu.
-    pub row_secondary_clicked: bool,
-    /// Whether the embedded "+ Spawn" quick action button was clicked.
-    pub spawn_clicked: bool,
-    /// Whether the embedded "Inspect" 3D preview modal button was clicked.
-    pub inspect_clicked: bool,
-    /// Absolute cursor screen position when this row interaction occurred, if captured.
-    pub pointer_pos: Option<Point>,
+/// Emits an individual grid asset card.
+///
+/// Features category badge, VRAM resident status dot, thumbnail preview/atlas vector icon,
+/// truncated display title, and human-readable metadata badge.
+/// Dispatches drag, spawn (double click), and selection directly into the provided `actions` buffer,
+/// returning [`WidgetResponse`] for declarative chaining (e.g. `.context_menu(...)`).
+pub fn asset_grid_card(
+    scope: &mut UiScope<'_>,
+    item_idx: u32,
+    item: &AssetItem,
+    thumbnail_layer: Option<u32>,
+    is_selected: bool,
+    rel_pos: Point,
+    actions: &mut Vec<AssetsPanelAction>,
+) -> WidgetResponse {
+    scope
+        .container_tagged_resp(
+            "AssetGridCard",
+            asset_card_container_style(rel_pos, is_selected, resolve_category_color(item.category)),
+            WidgetRole::Button,
+            encode_item_tag(item_idx),
+            |card| {
+                // Header Row: Category Badge + Status Dot
+                card.container_named(
+                    "CardHeader",
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween)
+                        .width(ASSET_CARD_WIDTH - 12.0)
+                        .height(14.0)
+                        .margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
+                    |hdr| {
+                        // Category Badge Pill
+                        hdr.container_named(
+                            "CardCatBadge",
+                            Style::new()
+                                .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
+                                .border_radius(3.0)
+                                .background(resolve_category_color(item.category).with_alpha(0.20)),
+                            |b| {
+                                b.label_styled_passive(
+                                    "CardCatText",
+                                    item.category.badge(),
+                                    8.5,
+                                    resolve_category_color(item.category),
+                                    TextAlign::Center,
+                                    Style::new(),
+                                );
+                            },
+                        );
+
+                        // Memory Status Dot (Cyan if loaded in RAM/VRAM)
+                        if item.is_loaded_in_memory {
+                            hdr.empty_box_passive_named(
+                                "CardMemoryDot",
+                                Style::new()
+                                    .width(5.0)
+                                    .height(5.0)
+                                    .border_radius(2.5)
+                                    .background(Color::rgba(0.0, 0.90, 1.0, 1.0)),
+                            );
+                        }
+                    },
+                );
+
+                // Preview Box (54x54 px): Texture Thumbnail or Vector Atlas Icon
+                card.container_named(
+                    "CardPreviewBox",
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center)
+                        .width(54.0)
+                        .height(54.0)
+                        .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
+                        .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
+                        .border_radius(4.0)
+                        .margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
+                    |box_scope| match thumbnail_layer {
+                        Some(layer) => {
+                            box_scope.icon([0.0, 0.0, 1.0, layer as f32], Color::WHITE, 54.0);
+                        }
+                        None => {
+                            box_scope.icon_pair(resolve_category_icon(item.category), 28.0);
+                        }
+                    },
+                );
+
+                // Truncated Display Name
+                card.label_styled_passive(
+                    "CardName",
+                    truncate_display_name(&item.name, 14, 11),
+                    11.0,
+                    Color::rgba(0.92, 0.94, 0.98, 1.0),
+                    TextAlign::Center,
+                    Style::new().width(ASSET_CARD_WIDTH - 8.0),
+                );
+
+                // Metadata / Size Label
+                card.label_styled_passive(
+                    "CardMetadata",
+                    &item.metadata_badge,
+                    9.5,
+                    Color::rgba(0.50, 0.54, 0.64, 1.0),
+                    TextAlign::Center,
+                    Style::new().width(ASSET_CARD_WIDTH - 8.0),
+                );
+            },
+        )
+        .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
+        .on_double_click(|| {
+            actions.push(AssetsPanelAction::SpawnAsset(
+                item.path.clone(),
+                item.category,
+            ))
+        })
+        .on_any_click(|| actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone()))))
 }
 
 /// Emits an individual table list row with multi-column metrics and action buttons.
 ///
-/// Returns [`AssetListRowResponse`] capturing row selection, spawn, and inspect actions.
+/// Dispatches quick actions (`+ Spawn`, `Inspect`), drag tracking, and row selection
+/// directly into the provided `actions` buffer, returning the row container's [`WidgetResponse`]
+/// for fluent declarative chaining (e.g. `.context_menu(...)`).
 pub fn asset_list_row(
     scope: &mut UiScope<'_>,
     item_idx: u32,
     item: &AssetItem,
     is_selected: bool,
-) -> AssetListRowResponse {
-    let row_tag = encode_item_tag(item_idx);
-    let spawn_tag = encode_item_spawn_tag(item_idx);
-    let inspect_tag = encode_item_inspect_tag(item_idx);
+    actions: &mut Vec<AssetsPanelAction>,
+) -> WidgetResponse {
+    scope
+        .container_tagged_resp(
+            "AssetListRow",
+            asset_list_row_style(is_selected),
+            WidgetRole::Button,
+            encode_item_tag(item_idx),
+            |row| {
+                // Category Icon (14px)
+                row.icon_pair(resolve_category_icon(item.category), 14.0);
 
-    let cat_color = resolve_category_color(item.category);
-    let (icon_uv, icon_tint) = resolve_category_icon(item.category);
+                row.spacing(6.0);
 
-    let bg_color = if is_selected {
-        Color::rgba(0.0, 0.65, 0.85, 0.14)
-    } else {
-        Color::TRANSPARENT
-    };
+                // Name (flex grow)
+                row.label_styled_passive(
+                    "ListName",
+                    &item.name,
+                    11.5,
+                    if is_selected {
+                        Color::rgba(0.0, 0.90, 1.0, 1.0)
+                    } else {
+                        Color::rgba(0.90, 0.92, 0.96, 1.0)
+                    },
+                    TextAlign::Left,
+                    Style::new().flex_grow(1.0),
+                );
 
-    let mut row_style = Style::new()
+                // Category Badge
+                row.container_named(
+                    "ListBadge",
+                    Style::new()
+                        .width(60.0)
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center),
+                    |b| {
+                        b.label_styled_passive(
+                            "ListBadgeText",
+                            item.category.badge(),
+                            9.0,
+                            resolve_category_color(item.category),
+                            TextAlign::Center,
+                            Style::new(),
+                        );
+                    },
+                );
+
+                // File Size / Metadata
+                row.label_styled_passive(
+                    "ListSize",
+                    &item.metadata_badge,
+                    10.5,
+                    Color::rgba(0.60, 0.64, 0.74, 1.0),
+                    TextAlign::Right,
+                    Style::new().width(70.0),
+                );
+
+                // Status Indicator (VRAM / Memory)
+                row.container_named(
+                    "ListStatus",
+                    Style::new()
+                        .width(64.0)
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center),
+                    |st| {
+                        st.label_styled_passive(
+                            "ListStatusText",
+                            if item.is_loaded_in_memory {
+                                "Loaded"
+                            } else {
+                                "Disk"
+                            },
+                            9.5,
+                            if item.is_loaded_in_memory {
+                                Color::rgba(0.0, 0.90, 1.0, 1.0)
+                            } else {
+                                Color::rgba(0.50, 0.53, 0.62, 1.0)
+                            },
+                            TextAlign::Center,
+                            Style::new(),
+                        );
+                    },
+                );
+
+                // Direct Action: Spawn Button ("+ Spawn")
+                row.small_button_with_icon_tagged(
+                    ICON_PLUS,
+                    "Spawn",
+                    encode_item_spawn_tag(item_idx),
+                )
+                .on_click(|| {
+                    actions.push(AssetsPanelAction::SpawnAsset(
+                        item.path.clone(),
+                        item.category,
+                    ));
+                });
+
+                row.spacing(4.0);
+
+                // Direct Action: Inspect Button ("Inspect")
+                row.small_button_tagged("Inspect", encode_item_inspect_tag(item_idx))
+                    .on_click(|| {
+                        actions.push(AssetsPanelAction::InspectAsset(item.clone()));
+                    });
+            },
+        )
+        .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
+        .on_any_click(|| actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone()))))
+}
+
+#[inline]
+fn asset_list_row_style(is_selected: bool) -> Style {
+    Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .height(ASSET_LIST_ROW_HEIGHT)
         .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
         .margin_insets(Insets::new(0.0, 0.0, 1.0, 0.0))
         .border_radius(4.0)
-        .background(bg_color);
-
-    if !is_selected {
-        row_style = row_style.hover_background(Color::rgba(0.14, 0.16, 0.22, 0.60));
-    }
-
-    let mut spawn_clicked = false;
-    let mut inspect_clicked = false;
-
-    let row_id = scope.container_tagged(
-        "AssetListRow",
-        row_style,
-        WidgetRole::Button,
-        row_tag,
-        |row| {
-            // Category Icon (14px)
-            row.icon(icon_uv, icon_tint, 14.0);
-
-            row.empty_box_passive_named("ListIconGap", Style::new().width(6.0).height(1.0));
-
-            // Name (flex grow)
-            row.label_styled_passive(
-                "ListName",
-                &item.name,
-                11.5,
-                if is_selected {
-                    Color::rgba(0.0, 0.90, 1.0, 1.0)
-                } else {
-                    Color::rgba(0.90, 0.92, 0.96, 1.0)
-                },
-                TextAlign::Left,
-                Style::new().flex_grow(1.0),
-            );
-
-            // Category Badge
-            row.container_named(
-                "ListBadge",
-                Style::new()
-                    .width(60.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-                |b| {
-                    b.label_styled_passive(
-                        "ListBadgeText",
-                        item.category.badge(),
-                        9.0,
-                        cat_color,
-                        TextAlign::Center,
-                        Style::new(),
-                    );
-                },
-            );
-
-            // File Size / Metadata
-            row.label_styled_passive(
-                "ListSize",
-                &item.metadata_badge,
-                10.5,
-                Color::rgba(0.60, 0.64, 0.74, 1.0),
-                TextAlign::Right,
-                Style::new().width(70.0),
-            );
-
-            // Status Indicator (VRAM / Memory)
-            row.container_named(
-                "ListStatus",
-                Style::new()
-                    .width(64.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-                |st| {
-                    let (status_text, status_col) = if item.is_loaded_in_memory {
-                        ("Loaded", Color::rgba(0.0, 0.90, 1.0, 1.0))
-                    } else {
-                        ("Disk", Color::rgba(0.50, 0.53, 0.62, 1.0))
-                    };
-                    st.label_styled_passive(
-                        "ListStatusText",
-                        status_text,
-                        9.5,
-                        status_col,
-                        TextAlign::Center,
-                        Style::new(),
-                    );
-                },
-            );
-
-            // Direct Action: Spawn Button ("+ Spawn")
-            let spawn_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center)
-                .height(20.0)
-                .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-                .margin_insets(Insets::new(0.0, 4.0, 0.0, 0.0))
-                .border_radius(3.0)
-                .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
-                .hover_background(Color::rgba(0.0, 0.70, 0.90, 0.25));
-
-            let spawn_id = row.container_tagged(
-                "ListSpawnBtn",
-                spawn_style,
-                WidgetRole::Button,
-                spawn_tag,
-                |btn| {
-                    btn.icon(ICON_PLUS, Color::rgba(0.0, 0.90, 1.0, 1.0), 9.0);
-                    btn.empty_box_passive_named("SpawnGap", Style::new().width(3.0).height(1.0));
-                    btn.label_styled_passive(
-                        "ListSpawnText",
-                        "Spawn",
-                        9.5,
-                        Color::rgba(0.85, 0.92, 1.0, 1.0),
-                        TextAlign::Center,
-                        Style::new(),
-                    );
-                },
-            );
-            if row.response(spawn_id).clicked() {
-                spawn_clicked = true;
-            }
-
-            // Direct Action: Inspect Button ("Inspect")
-            let inspect_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center)
-                .height(20.0)
-                .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
-                .margin_insets(Insets::new(0.0, 4.0, 0.0, 0.0))
-                .border_radius(3.0)
-                .background(Color::rgba(0.12, 0.14, 0.18, 0.80))
-                .hover_background(Color::rgba(0.25, 0.28, 0.38, 0.60));
-
-            let inspect_id = row.container_tagged(
-                "ListInspectBtn",
-                inspect_style,
-                WidgetRole::Button,
-                inspect_tag,
-                |btn| {
-                    btn.label_styled_passive(
-                        "ListInspectText",
-                        "Inspect",
-                        9.5,
-                        Color::rgba(0.80, 0.84, 0.92, 1.0),
-                        TextAlign::Center,
-                        Style::new(),
-                    );
-                },
-            );
-            if row.response(inspect_id).clicked() {
-                inspect_clicked = true;
-            }
-        },
-    );
-
-    let row_resp = scope.response(row_id);
-    AssetListRowResponse {
-        row_response: row_resp,
-        row_clicked: row_resp.clicked() && !spawn_clicked && !inspect_clicked,
-        row_secondary_clicked: row_resp.secondary_clicked() && !spawn_clicked && !inspect_clicked,
-        spawn_clicked,
-        inspect_clicked,
-        pointer_pos: row_resp.interact_pointer_pos(),
-    }
+        .background(if is_selected {
+            Color::rgba(0.0, 0.65, 0.85, 0.14)
+        } else {
+            Color::TRANSPARENT
+        })
+        .hover_background(if is_selected {
+            Color::rgba(0.0, 0.65, 0.85, 0.14)
+        } else {
+            Color::rgba(0.14, 0.16, 0.22, 0.60)
+        })
 }
 
 /// Emits an empty state notice when no matching assets are found.
@@ -620,15 +559,13 @@ pub fn asset_empty_notice(scope: &mut UiScope<'_>, vp_rect: Rect, query: &str) {
 
                     notice.empty_box_passive_named("EmptyLogoGap", Style::new().height(8.0));
 
-                    let title_text = if !query.is_empty() {
-                        format!("No assets matching \"{}\"", query)
-                    } else {
-                        "No Assets Found in Active Directory".to_string()
-                    };
-
                     notice.label_styled_passive(
                         "EmptyTitle",
-                        title_text,
+                        if query.is_empty() {
+                            "No Assets Found in Active Directory".to_string()
+                        } else {
+                            format!("No assets matching \"{}\"", query)
+                        },
                         12.5,
                         Color::WHITE,
                         TextAlign::Center,
@@ -704,10 +641,11 @@ mod tests {
                 Some(32),
                 false,
                 Point::new(10.0, 10.0),
+                &mut actions,
             );
 
             // 4. List Row
-            asset_list_row(&mut scope, 0, &item, true);
+            asset_list_row(&mut scope, 0, &item, true, &mut actions);
 
             // 5. Empty Notice
             asset_empty_notice(&mut scope, Rect::new(0.0, 0.0, 600.0, 400.0), "search_term");

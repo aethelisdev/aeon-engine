@@ -314,14 +314,16 @@ pub trait ContextMenuExt {
     /// When secondary (right) clicked, activates the menu at the captured click position.
     /// While open, renders the elevated popup card on [`UiLayer::Popup`] and executes `add_contents`.
     /// Automatically closes when an action item is clicked or when clicking outside.
-    fn context_menu<F>(&self, scope: &mut UiScope<'_>, add_contents: F)
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    fn context_menu<F>(self, scope: &mut UiScope<'_>, add_contents: F) -> Self
     where
         F: FnOnce(&mut UiScope<'_>);
 }
 
 impl ContextMenuExt for WidgetResponse {
     #[inline]
-    fn context_menu<F>(&self, scope: &mut UiScope<'_>, add_contents: F)
+    fn context_menu<F>(self, scope: &mut UiScope<'_>, add_contents: F) -> Self
     where
         F: FnOnce(&mut UiScope<'_>),
     {
@@ -331,12 +333,13 @@ impl ContextMenuExt for WidgetResponse {
             self.pointer_pos,
             add_contents,
         );
+        self
     }
 }
 
 impl ContextMenuExt for TreeRowResponse {
     #[inline]
-    fn context_menu<F>(&self, scope: &mut UiScope<'_>, add_contents: F)
+    fn context_menu<F>(self, scope: &mut UiScope<'_>, add_contents: F) -> Self
     where
         F: FnOnce(&mut UiScope<'_>),
     {
@@ -346,5 +349,6 @@ impl ContextMenuExt for TreeRowResponse {
             self.pointer_pos,
             add_contents,
         );
+        self
     }
 }

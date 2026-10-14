@@ -52,7 +52,7 @@ pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 pub use about::build_about_dialog;
 pub use assets::{
     AssetClickTracker, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
-    build_assets_panel, handle_assets_panel_event,
+    build_assets_panel,
 };
 pub use console::{ConsoleAction, ConsoleFilterLevel, ConsolePanelParams, build_console_panel};
 pub use hierarchy::{
