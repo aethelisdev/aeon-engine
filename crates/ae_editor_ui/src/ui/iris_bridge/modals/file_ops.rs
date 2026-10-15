@@ -36,50 +36,53 @@ pub fn build_delete_modal(
         .unwrap_or_default();
     let mut scope = UiScope::new(tree, parent);
 
-    scope.modal_scrim_sized(
-        Rect::new(0.0, 0.0, screen_width, screen_height),
-        Color::rgba(0.0, 0.0, 0.0, 0.60),
-        |scrim| {
-            scrim.modal_card(DELETE_MODAL_WIDTH, DELETE_MODAL_HEIGHT, |card| {
-                // 1. Header Bar: Title and '✕' close button
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::SpaceBetween),
-                    |header| {
-                        header.subheading("⚠️  Confirm Deletion");
-                        header.modal_close_button();
-                    },
-                );
-
-                // 2. Body Column: Description warning and target file path
-                card.column(|col| {
-                    col.colored_label(
-                        Color::rgba(1.0, 0.45, 0.45, 1.0),
-                        "Are you sure you want to permanently delete this item?",
+    scope
+        .modal_scrim_sized(
+            Rect::new(0.0, 0.0, screen_width, screen_height),
+            Color::rgba(0.0, 0.0, 0.0, 0.60),
+            |scrim| {
+                scrim.modal_card(DELETE_MODAL_WIDTH, DELETE_MODAL_HEIGHT, |card| {
+                    // 1. Header Bar: Title and '✕' close button
+                    card.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::SpaceBetween),
+                        |header| {
+                            header.subheading("⚠️  Confirm Deletion");
+                            header.modal_close_button();
+                        },
                     );
-                    col.colored_label(
-                        Color::rgba(0.70, 0.72, 0.78, 1.0),
-                        target_path.display().to_string(),
+
+                    // 2. Body Column: Description warning and target file path
+                    card.column(|col| {
+                        col.colored_label(
+                            Color::rgba(1.0, 0.45, 0.45, 1.0),
+                            "Are you sure you want to permanently delete this item?",
+                        );
+                        col.colored_label(
+                            Color::rgba(0.70, 0.72, 0.78, 1.0),
+                            target_path.display().to_string(),
+                        );
+                    });
+
+                    // 3. Footer Bar: Cancel and Danger Delete buttons
+                    card.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::FlexEnd)
+                            .gap(12.0),
+                        |footer| {
+                            footer.modal_cancel_button("Cancel", 75.0);
+                            footer.modal_danger_button("🗑 Delete Permanently", 150.0);
+                        },
                     );
                 });
-
-                // 3. Footer Bar: Cancel and Danger Delete buttons
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::FlexEnd)
-                        .gap(12.0),
-                    |footer| {
-                        footer.modal_cancel_button("Cancel", 75.0);
-                        footer.modal_danger_button("🗑 Delete Permanently", 150.0);
-                    },
-                );
-            });
-        },
-    )
+            },
+        )
+        .response
+        .id
 }
 
 /// Parameters for constructing the 'Create New Folder' modal.
@@ -129,65 +132,68 @@ pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) 
         .unwrap_or_default();
     let mut scope = UiScope::new(tree, parent);
 
-    scope.modal_scrim_sized(
-        Rect::new(0.0, 0.0, params.screen_width, params.screen_height),
-        Color::rgba(0.0, 0.0, 0.0, 0.60),
-        |scrim| {
-            scrim.modal_card(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT, |card| {
-                // 1. Header Bar: Folder icon + Title on left, '✕' close button on right
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::SpaceBetween),
-                    |header| {
-                        header.container(
-                            Style::new()
-                                .flex_row()
-                                .align_items(AlignItems::Center)
-                                .gap(8.0),
-                            |title_row| {
-                                title_row.icon(
-                                    crate::ui::iris_bridge::icons::ICON_FOLDER,
-                                    Color::rgba(0.95, 0.76, 0.28, 1.0),
-                                    14.0,
-                                );
-                                title_row.subheading("Create New Folder");
-                            },
-                        );
-                        header.modal_close_button();
-                    },
-                );
-
-                // 2. Body Column: Parent directory path and text input box
-                card.column(|col| {
-                    col.colored_label(
-                        Color::rgba(0.60, 0.62, 0.70, 1.0),
-                        format!("Location: {}", params.parent_path.display()),
+    scope
+        .modal_scrim_sized(
+            Rect::new(0.0, 0.0, params.screen_width, params.screen_height),
+            Color::rgba(0.0, 0.0, 0.0, 0.60),
+            |scrim| {
+                scrim.modal_card(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT, |card| {
+                    // 1. Header Bar: Folder icon + Title on left, '✕' close button on right
+                    card.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::SpaceBetween),
+                        |header| {
+                            header.container(
+                                Style::new()
+                                    .flex_row()
+                                    .align_items(AlignItems::Center)
+                                    .gap(8.0),
+                                |title_row| {
+                                    title_row.icon(
+                                        crate::ui::iris_bridge::icons::ICON_FOLDER,
+                                        Color::rgba(0.95, 0.76, 0.28, 1.0),
+                                        14.0,
+                                    );
+                                    title_row.subheading("Create New Folder");
+                                },
+                            );
+                            header.modal_close_button();
+                        },
                     );
-                    col.input_box(
-                        params.input_text,
-                        "Enter folder name...",
-                        params.text_width,
-                        params.cursor_blink_visible,
+
+                    // 2. Body Column: Parent directory path and text input box
+                    card.column(|col| {
+                        col.colored_label(
+                            Color::rgba(0.60, 0.62, 0.70, 1.0),
+                            format!("Location: {}", params.parent_path.display()),
+                        );
+                        col.input_box(
+                            params.input_text,
+                            "Enter folder name...",
+                            params.text_width,
+                            params.cursor_blink_visible,
+                        );
+                    });
+
+                    // 3. Footer Bar: Cancel and Confirm action buttons
+                    card.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::FlexEnd)
+                            .gap(12.0),
+                        |footer| {
+                            footer.modal_cancel_button("Cancel", 75.0);
+                            footer.modal_confirm_button("Create Folder", 112.0);
+                        },
                     );
                 });
-
-                // 3. Footer Bar: Cancel and Confirm action buttons
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::FlexEnd)
-                        .gap(12.0),
-                    |footer| {
-                        footer.modal_cancel_button("Cancel", 75.0);
-                        footer.modal_confirm_button("Create Folder", 112.0);
-                    },
-                );
-            });
-        },
-    )
+            },
+        )
+        .response
+        .id
 }
 
 /// Constructs the centered 'Rename Asset / Folder' modal in the UI tree using declarative [`UiScope`].
@@ -205,50 +211,53 @@ pub fn build_rename_modal(tree: &mut UiTree, params: RenameModalParams<'_>) -> W
         "🔄  Rename Asset"
     };
 
-    scope.modal_scrim_sized(
-        Rect::new(0.0, 0.0, params.screen_width, params.screen_height),
-        Color::rgba(0.0, 0.0, 0.0, 0.60),
-        |scrim| {
-            scrim.modal_card(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT, |card| {
-                // 1. Header Bar: Title on left, '✕' close button on right
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::SpaceBetween),
-                    |header| {
-                        header.subheading(title);
-                        header.modal_close_button();
-                    },
-                );
-
-                // 2. Body Column: Target file path and text input box
-                card.column(|col| {
-                    col.colored_label(
-                        Color::rgba(0.60, 0.62, 0.70, 1.0),
-                        format!("Target: {}", params.target_path.display()),
+    scope
+        .modal_scrim_sized(
+            Rect::new(0.0, 0.0, params.screen_width, params.screen_height),
+            Color::rgba(0.0, 0.0, 0.0, 0.60),
+            |scrim| {
+                scrim.modal_card(INPUT_MODAL_WIDTH, INPUT_MODAL_HEIGHT, |card| {
+                    // 1. Header Bar: Title on left, '✕' close button on right
+                    card.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::SpaceBetween),
+                        |header| {
+                            header.subheading(title);
+                            header.modal_close_button();
+                        },
                     );
-                    col.input_box(
-                        params.input_text,
-                        "Enter new name...",
-                        params.text_width,
-                        params.cursor_blink_visible,
+
+                    // 2. Body Column: Target file path and text input box
+                    card.column(|col| {
+                        col.colored_label(
+                            Color::rgba(0.60, 0.62, 0.70, 1.0),
+                            format!("Target: {}", params.target_path.display()),
+                        );
+                        col.input_box(
+                            params.input_text,
+                            "Enter new name...",
+                            params.text_width,
+                            params.cursor_blink_visible,
+                        );
+                    });
+
+                    // 3. Footer Bar: Cancel and Confirm action buttons
+                    card.container(
+                        Style::new()
+                            .flex_row()
+                            .align_items(AlignItems::Center)
+                            .justify_content(JustifyContent::FlexEnd)
+                            .gap(12.0),
+                        |footer| {
+                            footer.modal_cancel_button("Cancel", 75.0);
+                            footer.modal_confirm_button("Apply Rename", 112.0);
+                        },
                     );
                 });
-
-                // 3. Footer Bar: Cancel and Confirm action buttons
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::FlexEnd)
-                        .gap(12.0),
-                    |footer| {
-                        footer.modal_cancel_button("Cancel", 75.0);
-                        footer.modal_confirm_button("Apply Rename", 112.0);
-                    },
-                );
-            });
-        },
-    )
+            },
+        )
+        .response
+        .id
 }

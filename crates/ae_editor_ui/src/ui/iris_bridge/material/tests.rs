@@ -182,7 +182,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
             },
         );
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
-        menubar_id
+        menubar_id.response.id
     };
 
     let world = hecs::World::new();

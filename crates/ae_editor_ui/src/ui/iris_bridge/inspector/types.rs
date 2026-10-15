@@ -620,6 +620,23 @@ pub struct InspectorPanelParams<'a> {
     pub blink_caret: bool,
 }
 
+impl<'a> InspectorPanelParams<'a> {
+    /// Resolves the human-readable display name for the inspected entity,
+    /// giving precedence to the live rename buffer if active, followed by the
+    /// ECS [`ae_core::ecs::Name`] component, and falling back to a formatted entity ID.
+    pub fn entity_display_name(&self, entity: hecs::Entity) -> String {
+        self.active_rename_buffer
+            .map(String::from)
+            .or_else(|| {
+                self.world
+                    .get::<&ae_core::ecs::Name>(entity)
+                    .ok()
+                    .map(|n| n.0.clone())
+            })
+            .unwrap_or_else(|| format!("Entity ({:?})", entity))
+    }
+}
+
 /// Active horizontal mouse drag state for interactive Inspector numeric inputs.
 ///
 /// Wraps the framework-level [`NumericDragState`] to provide autonomous scrubber

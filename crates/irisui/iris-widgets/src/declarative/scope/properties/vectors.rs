@@ -79,6 +79,71 @@ impl<'a> PropertyVec3Options<'a> {
     }
 }
 
+/// Target sub-element inside a 3-channel vector property row (`property_vec3`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PropertyVec3Target {
+    /// Numeric input editor for axis index (0 for X, 1 for Y, 2 for Z).
+    Axis(usize),
+    /// Dedicated reset button returning vector components to defaults.
+    Reset,
+}
+
+/// Derives the semantic tag for an individual axis input in a 3-channel vector row.
+#[inline]
+pub const fn property_vec3_axis_tag(base_tag: u64, axis_idx: usize) -> u64 {
+    base_tag.wrapping_add((axis_idx as u64) + 1)
+}
+
+/// Derives the semantic tag for the reset button in a 3-channel vector row.
+#[inline]
+pub const fn property_vec3_reset_tag(base_tag: u64) -> u64 {
+    base_tag.wrapping_add(4)
+}
+
+/// Resolves an interactive tag against a base vector row tag in $O(1)$ arithmetic without heap allocations.
+///
+/// Returns `Some(PropertyVec3Target::Axis(0..=2))` for axis inputs,
+/// `Some(PropertyVec3Target::Reset)` for the reset button, or `None` if unrelated.
+#[inline]
+pub const fn resolve_property_vec3_tag(tag: u64, base_tag: u64) -> Option<PropertyVec3Target> {
+    match tag.wrapping_sub(base_tag) {
+        1 => Some(PropertyVec3Target::Axis(0)),
+        2 => Some(PropertyVec3Target::Axis(1)),
+        3 => Some(PropertyVec3Target::Axis(2)),
+        4 => Some(PropertyVec3Target::Reset),
+        _ => None,
+    }
+}
+
+/// Resolves an interactive tag against a vector row property label and scope seed.
+#[inline]
+pub fn resolve_property_vec3_for_seed(
+    tag: u64,
+    label: &str,
+    seed: u64,
+) -> Option<PropertyVec3Target> {
+    let base_tag = crate::declarative::types::hash_label_with_seed(seed, label);
+    resolve_property_vec3_tag(tag, base_tag)
+}
+
+/// Resolves an interactive tag against a vector row property label across candidate hierarchical seeds.
+///
+/// Enables robust tag resolution in compound UI panels where scopes may inherit either root seed
+/// or named parent container seeds.
+#[inline]
+pub fn resolve_property_vec3_for_seeds(
+    tag: u64,
+    label: &str,
+    seeds: &[u64],
+) -> Option<PropertyVec3Target> {
+    for &seed in seeds {
+        if let Some(target) = resolve_property_vec3_for_seed(tag, label, seed) {
+            return Some(target);
+        }
+    }
+    None
+}
+
 /// Detailed response returned from a 3-channel vector property row.
 ///
 /// Encapsulates change/interaction status as well as allocated widget identifiers
@@ -91,6 +156,10 @@ pub struct PropertyVec3Response {
     pub axes: [WidgetId; 3],
     /// Allocated widget identifier for the axis reset button, if enabled.
     pub reset_btn: Option<WidgetId>,
+    /// Index of the axis that changed during this frame (0 for X, 1 for Y, 2 for Z).
+    pub changed_axis: Option<usize>,
+    /// Whether the reset button was clicked during this frame.
+    pub reset_clicked: bool,
 }
 
 impl std::ops::Deref for PropertyVec3Response {
@@ -142,6 +211,8 @@ impl<'a> UiScope<'a> {
         let mut widget_response = WidgetResponse::default();
         let mut axes_out = [WidgetId::default(); 3];
         let mut reset_btn_out = None;
+        let mut changed_axis_out = None;
+        let mut reset_clicked_out = false;
 
         let row_id = self.property_row_styled(label, Some(options.label_width), |slot| {
             let axes_meta = [
@@ -155,7 +226,7 @@ impl<'a> UiScope<'a> {
             let mut any_hovered = false;
 
             for (prefix, _col, idx) in axes_meta {
-                let axis_tag = base_tag.wrapping_add((idx as u64) + 1);
+                let axis_tag = property_vec3_axis_tag(base_tag, idx);
                 let edit_state = options.edit_states[idx];
                 let is_editing = edit_state.is_some();
 
@@ -211,38 +282,41 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center);
 
-                let axis_box_id = slot.container_named(box_name, pill_style, |pill_scope| {
-                    if let Some(s) = edit_state.filter(|s| s.is_all_selected) {
-                        let approx_char_w = 6.2;
-                        let val_w = (s.buffer.len() as f32 * approx_char_w).max(12.0);
-                        let prefix_w = prefix.len() as f32 * approx_char_w;
-                        let tot_w = (prefix.len() + s.buffer.len()) as f32 * approx_char_w;
-                        let cx = 54.0 * 0.5;
-                        let text_start_x = cx - tot_w * 0.5;
-                        let val_start_x = text_start_x + prefix_w;
-                        let sel_x = (val_start_x - 2.0).clamp(2.0, 54.0 - 6.0);
-                        let sel_w = (val_w + 4.0).min(54.0 - 2.0 - sel_x);
+                let axis_box_id = slot
+                    .container_named(box_name, pill_style, |pill_scope| {
+                        if let Some(s) = edit_state.filter(|s| s.is_all_selected) {
+                            let approx_char_w = 6.2;
+                            let val_w = (s.buffer.len() as f32 * approx_char_w).max(12.0);
+                            let prefix_w = prefix.len() as f32 * approx_char_w;
+                            let tot_w = (prefix.len() + s.buffer.len()) as f32 * approx_char_w;
+                            let cx = 54.0 * 0.5;
+                            let text_start_x = cx - tot_w * 0.5;
+                            let val_start_x = text_start_x + prefix_w;
+                            let sel_x = (val_start_x - 2.0).clamp(2.0, 54.0 - 6.0);
+                            let sel_w = (val_w + 4.0).min(54.0 - 2.0 - sel_x);
 
-                        let sel_style = Style::new()
-                            .position_absolute()
-                            .left(sel_x)
-                            .top(2.5)
-                            .width(sel_w)
-                            .height(15.0)
-                            .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                            .border_radius(3.0);
-                        pill_scope.empty_box_passive_named(sel_name, sel_style);
-                    }
+                            let sel_style = Style::new()
+                                .position_absolute()
+                                .left(sel_x)
+                                .top(2.5)
+                                .width(sel_w)
+                                .height(15.0)
+                                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                                .border_radius(3.0);
+                            pill_scope.empty_box_passive_named(sel_name, sel_style);
+                        }
 
-                    pill_scope.label_styled_passive(
-                        txt_name,
-                        display_str,
-                        10.5,
-                        txt_col,
-                        TextAlign::Center,
-                        Style::new().width(54.0).height(20.0),
-                    );
-                });
+                        pill_scope.label_styled_passive(
+                            txt_name,
+                            display_str,
+                            10.5,
+                            txt_col,
+                            TextAlign::Center,
+                            Style::new().width(54.0).height(20.0),
+                        );
+                    })
+                    .response
+                    .id;
 
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
                     node.interactive = true;
@@ -263,6 +337,7 @@ impl<'a> UiScope<'a> {
                     if (next - values[idx]).abs() > f32::EPSILON {
                         values[idx] = next;
                         any_changed = true;
+                        changed_axis_out = Some(idx);
                     }
                 }
                 if let Some(text) = slot.check_interaction_text(axis_box_id) {
@@ -270,6 +345,7 @@ impl<'a> UiScope<'a> {
                     if let Ok(num) = clean.parse::<f32>() {
                         values[idx] = num;
                         any_changed = true;
+                        changed_axis_out = Some(idx);
                     }
                 }
                 any_clicked |= clicked;
@@ -278,7 +354,7 @@ impl<'a> UiScope<'a> {
 
             // Optional Reset Button
             if let Some(reset_val) = options.reset_value {
-                let reset_tag = base_tag.wrapping_add(4);
+                let reset_tag = property_vec3_reset_tag(base_tag);
                 let is_reset_hovered = slot.hovered_tag == Some(reset_tag);
 
                 let reset_style = Style::new()
@@ -302,20 +378,23 @@ impl<'a> UiScope<'a> {
                     .justify_content(JustifyContent::Center);
 
                 let reset_name = format!("ResetBtn_{}", visible_label);
-                let reset_btn_id = slot.container_named(reset_name, reset_style, |btn_scope| {
-                    btn_scope.label_styled_passive(
-                        "ResetBtnText",
-                        "🔄",
-                        10.0,
-                        if is_reset_hovered {
-                            Color::WHITE
-                        } else {
-                            Color::rgba(0.70, 0.73, 0.80, 0.90)
-                        },
-                        TextAlign::Center,
-                        Style::new().width(18.0).height(18.0),
-                    );
-                });
+                let reset_btn_id = slot
+                    .container_named(reset_name, reset_style, |btn_scope| {
+                        btn_scope.label_styled_passive(
+                            "ResetBtnText",
+                            "🔄",
+                            10.0,
+                            if is_reset_hovered {
+                                Color::WHITE
+                            } else {
+                                Color::rgba(0.70, 0.73, 0.80, 0.90)
+                            },
+                            TextAlign::Center,
+                            Style::new().width(18.0).height(18.0),
+                        );
+                    })
+                    .response
+                    .id;
 
                 if let Some(node) = slot.tree.get_mut(reset_btn_id) {
                     node.interactive = true;
@@ -330,6 +409,7 @@ impl<'a> UiScope<'a> {
                 if reset_clicked {
                     *values = reset_val;
                     any_changed = true;
+                    reset_clicked_out = true;
                 }
                 any_clicked |= reset_clicked;
                 any_hovered |= reset_hovered;
@@ -347,6 +427,8 @@ impl<'a> UiScope<'a> {
             response: widget_response,
             axes: axes_out,
             reset_btn: reset_btn_out,
+            changed_axis: changed_axis_out,
+            reset_clicked: reset_clicked_out,
         }
     }
 
@@ -394,22 +476,25 @@ impl<'a> UiScope<'a> {
 
                 let text_val = format!("{} {:.2}", prefix, values[idx]);
 
-                let axis_box_id = slot.container_tagged(
-                    box_name,
-                    box_style,
-                    WidgetRole::NumericInput,
-                    axis_tag,
-                    |pill_scope| {
-                        pill_scope.label_styled_passive(
-                            txt_name,
-                            text_val,
-                            10.5,
-                            col,
-                            TextAlign::Center,
-                            Style::new().width(72.0).height(16.0),
-                        );
-                    },
-                );
+                let axis_box_id = slot
+                    .container_tagged(
+                        box_name,
+                        box_style,
+                        WidgetRole::NumericInput,
+                        axis_tag,
+                        |pill_scope| {
+                            pill_scope.label_styled_passive(
+                                txt_name,
+                                text_val,
+                                10.5,
+                                col,
+                                TextAlign::Center,
+                                Style::new().width(72.0).height(16.0),
+                            );
+                        },
+                    )
+                    .response
+                    .id;
 
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
                     node.cursor = Some(WidgetCursor::EwResize);
@@ -480,22 +565,25 @@ impl<'a> UiScope<'a> {
 
                 let text_val = format!("{} {:.2}", prefix, rgb[idx]);
 
-                let axis_box_id = slot.container_tagged(
-                    box_name,
-                    box_style,
-                    WidgetRole::NumericInput,
-                    axis_tag,
-                    |pill_scope| {
-                        pill_scope.label_styled_passive(
-                            txt_name,
-                            text_val,
-                            10.5,
-                            col,
-                            TextAlign::Center,
-                            Style::new().width(50.0).height(16.0),
-                        );
-                    },
-                );
+                let axis_box_id = slot
+                    .container_tagged(
+                        box_name,
+                        box_style,
+                        WidgetRole::NumericInput,
+                        axis_tag,
+                        |pill_scope| {
+                            pill_scope.label_styled_passive(
+                                txt_name,
+                                text_val,
+                                10.5,
+                                col,
+                                TextAlign::Center,
+                                Style::new().width(50.0).height(16.0),
+                            );
+                        },
+                    )
+                    .response
+                    .id;
 
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
                     node.cursor = Some(WidgetCursor::EwResize);

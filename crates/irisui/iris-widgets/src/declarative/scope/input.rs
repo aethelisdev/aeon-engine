@@ -404,22 +404,21 @@ impl<'a> UiScope<'a> {
     /// * `values` - Mutable slice containing `[x, y, z]` vector coordinates.
     /// * `speed` - Multiplier applied to drag displacement.
     pub fn drag_vec3(&mut self, label: &str, values: &mut [f32; 3], speed: f32) -> WidgetResponse {
-        let mut any_changed = false;
-        let mut any_clicked = false;
-        let mut any_hovered = false;
-
-        let row_id = self.row(|row| {
+        let resp = self.row(|row| {
             row.text(label);
             let rx = row.drag_float("X", &mut values[0], speed, -10_000.0, 10_000.0);
             let ry = row.drag_float("Y", &mut values[1], speed, -10_000.0, 10_000.0);
             let rz = row.drag_float("Z", &mut values[2], speed, -10_000.0, 10_000.0);
 
-            any_changed = rx.changed() || ry.changed() || rz.changed();
-            any_clicked = rx.clicked() || ry.clicked() || rz.clicked();
-            any_hovered = rx.hovered() || ry.hovered() || rz.hovered();
+            (
+                rx.clicked() || ry.clicked() || rz.clicked(),
+                rx.hovered() || ry.hovered() || rz.hovered(),
+                rx.changed() || ry.changed() || rz.changed(),
+            )
         });
 
-        WidgetResponse::new(row_id, any_clicked, any_hovered, any_changed)
+        let (clicked, hovered, changed) = resp.inner;
+        WidgetResponse::new(resp.response.id, clicked, hovered, changed)
     }
 }
 

@@ -229,9 +229,12 @@ pub fn render_clip_badge(
         .justify_content(JustifyContent::Center)
         .flex_shrink(0.0);
 
-    scope.container_named("TimelineClipBadge", badge_style, |b| {
-        b.label_custom(text, 10.0, style.clip_badge_text, TextAlign::Center);
-    })
+    scope
+        .container_named("TimelineClipBadge", badge_style, |b| {
+            b.label_custom(text, 10.0, style.clip_badge_text, TextAlign::Center);
+        })
+        .response
+        .id
 }
 
 /// Emits a timestamp and frame index readout display badge using declarative scope nesting.
@@ -269,9 +272,12 @@ pub fn render_time_readout(
         .justify_content(JustifyContent::Center)
         .flex_shrink(0.0);
 
-    scope.container_named("TimelineTimeReadout", readout_style, |r| {
-        r.label_custom(text, 9.5, style.time_readout_color, TextAlign::Center);
-    })
+    scope
+        .container_named("TimelineTimeReadout", readout_style, |r| {
+            r.label_custom(text, 9.5, style.time_readout_color, TextAlign::Center);
+        })
+        .response
+        .id
 }
 
 #[cfg(test)]

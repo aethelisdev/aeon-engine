@@ -46,15 +46,13 @@ pub fn build_declarative_card_header(
     scope: &mut UiScope<'_>,
     props: ComponentHeaderProps,
     is_delete_hovered: bool,
-) -> WidgetId {
+) {
     let header_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .justify_content(JustifyContent::SpaceBetween)
         .height(20.0)
         .padding_insets(Insets::new(0.0, 2.0, 2.0, 2.0));
-
-    let mut del_btn_id = WidgetId::default();
 
     scope.container_named("CardHeader", header_style, |header| {
         let title_group_style = Style::new()
@@ -99,12 +97,11 @@ pub fn build_declarative_card_header(
                 Color::rgba(0.12, 0.13, 0.16, 0.5)
             });
 
-        let del_tag = encode_component_delete_tag(props.component_name);
-        del_btn_id = header.container_tagged(
+        header.container_tagged(
             "ComponentDeleteBtn",
             del_style,
             WidgetRole::Button,
-            del_tag,
+            encode_component_delete_tag(props.component_name),
             |btn| {
                 btn.label_styled_passive(
                     "DeleteGlyph",
@@ -121,8 +118,6 @@ pub fn build_declarative_card_header(
             },
         );
     });
-
-    del_btn_id
 }
 
 /// Parameter descriptor for rendering a declarative combobox property row.
@@ -158,14 +153,12 @@ pub struct DeclarativeComboboxRowParams {
 pub fn render_declarative_combobox_row(
     scope: &mut UiScope<'_>,
     params: DeclarativeComboboxRowParams,
-) -> WidgetId {
+) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .height(22.0)
         .gap(6.0);
-
-    let mut combo_id = WidgetId::default();
 
     scope.container_named("ComboboxRow", row_style, |row| {
         if let Some(lbl) = params.label {
@@ -207,12 +200,11 @@ pub fn render_declarative_combobox_row(
             .border(1.0, border)
             .border_radius(5.0);
 
-        let combo_tag = encode_inspector_dropdown_tag(params.dropdown_id);
-        combo_id = row.container_tagged(
+        row.container_tagged(
             "ComboPill",
             pill_style,
             WidgetRole::Button,
-            combo_tag,
+            encode_inspector_dropdown_tag(params.dropdown_id),
             |pill| {
                 pill.label_styled_passive(
                     "ComboText",
@@ -241,8 +233,6 @@ pub fn render_declarative_combobox_row(
             },
         );
     });
-
-    combo_id
 }
 
 /// Parameter descriptor for rendering a declarative numeric property row.
@@ -282,14 +272,12 @@ pub fn render_declarative_numeric_row_custom(
     scope: &mut UiScope<'_>,
     params: DeclarativeNumericRowParams<'_>,
     custom_text: Option<&str>,
-) -> WidgetId {
+) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .height(22.0)
         .gap(4.0);
-
-    let mut box_id = WidgetId::default();
 
     scope.container_named("NumericRow", row_style, |row| {
         row.label_styled_passive(
@@ -346,12 +334,11 @@ pub fn render_declarative_numeric_row_custom(
             format!("{:.2}", params.val)
         };
 
-        let input_tag = encode_inspector_number_input_tag(params.input_id);
-        box_id = row.container_tagged(
+        row.container_tagged(
             "NumPillBox",
             pill_style,
             WidgetRole::TextInput,
-            input_tag,
+            encode_inspector_number_input_tag(params.input_id),
             |pill| {
                 pill.label_styled_passive(
                     "NumVal",
@@ -381,8 +368,6 @@ pub fn render_declarative_numeric_row_custom(
             );
         }
     });
-
-    box_id
 }
 
 /// Renders a compact numeric property input row in a declarative [`UiScope`].
@@ -398,7 +383,7 @@ pub fn render_declarative_numeric_row_custom(
 pub fn render_declarative_numeric_row(
     scope: &mut UiScope<'_>,
     params: DeclarativeNumericRowParams<'_>,
-) -> WidgetId {
+) {
     render_declarative_numeric_row_custom(scope, params, None)
 }
 
@@ -422,14 +407,12 @@ pub fn render_declarative_checkbox_row(
     label: &'static str,
     is_checked: bool,
     is_hovered: bool,
-) -> WidgetId {
+) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .height(20.0)
         .gap(8.0);
-
-    let mut box_id = WidgetId::default();
 
     scope.container_named("CheckboxRow", row_style, |row| {
         let (bg, border) = if is_checked {
@@ -459,12 +442,11 @@ pub fn render_declarative_checkbox_row(
             .border(1.0, border)
             .border_radius(3.0);
 
-        let cb_tag = encode_component_checkbox_tag(cb_id);
-        box_id = row.container_tagged(
+        row.container_tagged(
             "CheckboxBox",
             box_style,
             WidgetRole::Checkbox,
-            cb_tag,
+            encode_component_checkbox_tag(cb_id),
             |box_scope| {
                 if is_checked {
                     box_scope.label_styled_passive(
@@ -488,6 +470,4 @@ pub fn render_declarative_checkbox_row(
             Style::new().flex_grow(1.0),
         );
     });
-
-    box_id
 }

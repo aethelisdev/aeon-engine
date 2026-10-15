@@ -7,6 +7,7 @@
 //! scrollable containers and $O(1)$ virtualized lists into the retainable UI tree.
 //!
 
+use super::containers::InnerResponse;
 use super::core::UiScope;
 use crate::scroll_area::area::{ScrollAreaBuilder, ScrollAreaFrame};
 use crate::scroll_area::style::ScrollAreaStyle;
@@ -17,7 +18,6 @@ use crate::scroll_area::types::{
 use crate::scroll_area::virtual_list::VirtualList;
 use iris_core::color::Color;
 use iris_core::geometry::{Point, Rect};
-use iris_core::id::WidgetId;
 use iris_core::node::WidgetRole;
 use iris_core::style::Style;
 
@@ -113,15 +113,15 @@ impl<'a> UiScope<'a> {
     /// * `tag` - Semantic tag for tracking interactions and event routing.
     /// * `bg` - Background fill color.
     /// * `f` - Closure executing within the scroll viewport scope.
-    pub fn scroll_area_tagged<F>(
+    pub fn scroll_area_tagged<R, F>(
         &mut self,
         name: &'static str,
         tag: u64,
         bg: Color,
         f: F,
-    ) -> WidgetId
+    ) -> InnerResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let style = Style::new()
             .flex_col()
@@ -144,30 +144,30 @@ impl<'a> UiScope<'a> {
     /// * `tag` - Semantic tag for tracking interactions, scroll offsets, and viewport size.
     /// * `scrollbar_tags` - Optional `(track_tag, thumb_tag)` for autonomous scrollbar rendering.
     /// * `f` - Closure executing within the scroll viewport scope.
-    pub fn scroll_area<F>(
+    pub fn scroll_area<R, F>(
         &mut self,
         name: &'static str,
         tag: u64,
         scrollbar_tags: Option<(u64, u64)>,
         f: F,
-    ) -> ScrollAreaResponse
+    ) -> ScrollAreaResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         self.scroll_area_with_offset(name, tag, None, scrollbar_tags, f)
     }
 
     /// Emits an autonomous declarative scroll container with an optional explicit vertical scroll offset override.
-    pub fn scroll_area_with_offset<F>(
+    pub fn scroll_area_with_offset<R, F>(
         &mut self,
         name: &'static str,
         tag: u64,
         explicit_scroll_y: Option<f32>,
         scrollbar_tags: Option<(u64, u64)>,
         f: F,
-    ) -> ScrollAreaResponse
+    ) -> ScrollAreaResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let scroll_y = explicit_scroll_y.unwrap_or_else(|| {
             if tag != 0 {
@@ -180,7 +180,9 @@ impl<'a> UiScope<'a> {
         let mut style = Style::new().flex_col().flex_grow(1.0).clip_children(true);
         style.scroll_offset_y = scroll_y;
 
-        let vp_id = self.container_tagged(name, style, WidgetRole::ScrollAreaViewport, tag, f);
+        let vp_resp = self.container_tagged(name, style, WidgetRole::ScrollAreaViewport, tag, f);
+        let vp_id = vp_resp.response.id;
+        let inner = vp_resp.inner;
 
         let vp_h = self.resolve_available_height(tag);
         let content_h = crate::declarative::measure_content_height(self.tree, vp_id);
@@ -242,6 +244,7 @@ impl<'a> UiScope<'a> {
         }
 
         ScrollAreaResponse {
+            inner,
             container_id: vp_id,
             max_scroll_y: max_scroll,
             content_height: content_h,
@@ -347,21 +350,24 @@ impl<'a> UiScope<'a> {
             self.tree.set_max_scroll(tag, max_scroll);
         }
 
-        let vp_id = self.scroll_area_tagged(name, tag, config.bg, |vp| {
-            vp.set_scroll_offset_y(safe_scroll);
-            if slice.start_idx > 0 {
-                let top_spacer_h = slice.start_idx as f32 * stride;
-                vp.empty_box(Style::new().height(top_spacer_h));
-            }
-            for idx in slice.start_idx..slice.end_idx {
-                item_renderer(vp, idx);
-            }
-            let remaining = config.total_items.saturating_sub(slice.end_idx);
-            if remaining > 0 {
-                let bottom_spacer_h = remaining as f32 * stride;
-                vp.empty_box(Style::new().height(bottom_spacer_h));
-            }
-        });
+        let vp_id = self
+            .scroll_area_tagged(name, tag, config.bg, |vp| {
+                vp.set_scroll_offset_y(safe_scroll);
+                if slice.start_idx > 0 {
+                    let top_spacer_h = slice.start_idx as f32 * stride;
+                    vp.empty_box(Style::new().height(top_spacer_h));
+                }
+                for idx in slice.start_idx..slice.end_idx {
+                    item_renderer(vp, idx);
+                }
+                let remaining = config.total_items.saturating_sub(slice.end_idx);
+                if remaining > 0 {
+                    let bottom_spacer_h = remaining as f32 * stride;
+                    vp.empty_box(Style::new().height(bottom_spacer_h));
+                }
+            })
+            .response
+            .id;
 
         if let Some(node) = self.tree.get_mut(vp_id) {
             node.content_size = iris_core::geometry::Size::new(0.0, vlist.total_content_height());

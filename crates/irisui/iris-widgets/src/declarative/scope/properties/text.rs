@@ -174,9 +174,7 @@ impl<'a> UiScope<'a> {
                 Color::rgba(0.886, 0.894, 0.918, 1.0)
             };
 
-            let mut captured_text_id = WidgetId::default();
-
-            let box_id = slot.container_tagged(
+            let box_resp = slot.container_tagged(
                 box_name,
                 box_style,
                 WidgetRole::TextInput,
@@ -212,16 +210,19 @@ impl<'a> UiScope<'a> {
                         box_scope.empty_box_passive_named(sel_name, sel_style);
                     }
 
-                    captured_text_id = box_scope.label_styled_passive(
+                    box_scope.label_styled_passive(
                         text_name,
                         display_text,
                         11.5,
                         text_color,
                         TextAlign::Left,
                         Style::new().flex_grow(1.0),
-                    );
+                    )
                 },
             );
+
+            let box_id = box_resp.response.id;
+            let captured_text_id = box_resp.inner;
 
             if let Some(node) = slot.tree.get_mut(box_id) {
                 node.cursor = Some(WidgetCursor::Text);

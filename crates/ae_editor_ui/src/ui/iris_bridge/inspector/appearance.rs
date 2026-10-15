@@ -133,15 +133,12 @@ fn render_object_color_row(
     active_hex_buffer: Option<&str>,
     blink_caret: bool,
     _cursor_pos: Point,
-) -> (WidgetId, WidgetId) {
+) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .height(22.0)
         .gap(8.0);
-
-    let mut captured_swatch_id = WidgetId::default();
-    let mut captured_hex_id = WidgetId::default();
 
     scope.container_named("ObjectColorRow", row_style, |row| {
         row.label_styled_passive(
@@ -166,7 +163,7 @@ fn render_object_color_row(
             .background(obj_color)
             .border(1.0, swatch_border)
             .border_radius(5.0);
-        captured_swatch_id = row.empty_box_tagged(
+        row.empty_box_tagged(
             "ColorSwatchBox",
             swatch_style,
             WidgetRole::Button,
@@ -225,7 +222,7 @@ fn render_object_color_row(
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center);
 
-        captured_hex_id = row.container_tagged(
+        row.container_tagged(
             "HexInputBox",
             hex_box_style,
             WidgetRole::TextInput,
@@ -247,20 +244,15 @@ fn render_object_color_row(
             },
         );
     });
-
-    (captured_swatch_id, captured_hex_id)
 }
 
 /// Renders Row 2: Add to palette (+) and clear custom palette (🗑) action buttons.
-fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) -> (WidgetId, WidgetId) {
+fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .height(22.0)
         .gap(6.0);
-
-    let mut captured_add_id = WidgetId::default();
-    let mut captured_clr_id = WidgetId::default();
 
     scope.container_named("AddPaletteRow", row_style, |row| {
         row.label_styled_passive(
@@ -298,7 +290,7 @@ fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) -> (Wi
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center);
-        captured_add_id = row.container_tagged(
+        row.container_tagged(
             "AddPaletteBtn",
             add_style,
             WidgetRole::Button,
@@ -339,7 +331,7 @@ fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) -> (Wi
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center);
-        captured_clr_id = row.container_tagged(
+        row.container_tagged(
             "ClearPaletteBtn",
             clr_style,
             WidgetRole::Button,
@@ -356,8 +348,6 @@ fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) -> (Wi
             },
         );
     });
-
-    (captured_add_id, captured_clr_id)
 }
 
 /// Renders Row 3+: Palette swatches inside a multi-line wrapping flex container.
@@ -497,7 +487,11 @@ mod tests {
                 build_appearance_card(card_scope, &mut ctx);
             },
         );
-        layout_subtree(&mut tree, root, Rect::new(10.0, 20.0, 280.0, 300.0));
+        layout_subtree(
+            &mut tree,
+            root.response.id,
+            Rect::new(10.0, 20.0, 280.0, 300.0),
+        );
 
         let has_swatch = tree
             .iter()

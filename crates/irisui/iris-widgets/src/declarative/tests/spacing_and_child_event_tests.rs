@@ -71,18 +71,14 @@ fn test_child_event_consumption_prevents_parent_click_or_drag() {
     // 1. Build an interactive container with a nested child button
     let (row_id, btn_id) = {
         let mut scope = UiScope::new(&mut tree, root);
-        let mut b_id = None;
-        let row_resp = scope.container_tagged_resp(
+        let row_resp = scope.container_tagged(
             "ClickableRow",
             Style::new().width(400.0).height(40.0),
             WidgetRole::Button,
             tag_row,
-            |row_scope| {
-                let resp = row_scope.small_button_tagged("Action", tag_btn);
-                b_id = Some(resp.id());
-            },
+            |row_scope| row_scope.small_button_tagged("Action", tag_btn).id(),
         );
-        (row_resp.id(), b_id.unwrap())
+        (row_resp.response.id, row_resp.inner)
     };
 
     // Assign computed layout rectangles

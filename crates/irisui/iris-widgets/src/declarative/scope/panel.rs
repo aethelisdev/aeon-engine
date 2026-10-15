@@ -9,8 +9,9 @@
 //! consumer coordinates or manual layout finalization calls.
 //!
 
+use super::containers::InnerResponse;
 use super::core::UiScope;
-use iris_core::{Color, Rect, Style, WidgetId};
+use iris_core::{Color, Rect, Style};
 
 /// Canonical default dark theme background fill color for panel containers.
 pub const DEFAULT_PANEL_BACKGROUND: Color = Color::rgba(0.08, 0.09, 0.11, 0.98);
@@ -84,23 +85,7 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
     ///
     /// # Arguments
     /// * `f` - Child builder closure receiving the panel's interior [`UiScope`].
-    pub fn show<F>(self, f: F) -> WidgetId
-    where
-        F: FnOnce(&mut UiScope<'_>),
-    {
-        self.show_inner(|scope| {
-            f(scope);
-        })
-        .0
-    }
-
-    /// Finalizes the panel container, executes the child builder closure within the panel scope,
-    /// and autonomously recalculates recursive subtree layout upon exit, returning both the panel's
-    /// [`WidgetId`] and the closure's inner return value.
-    ///
-    /// # Arguments
-    /// * `f` - Child builder closure receiving the panel's interior [`UiScope`].
-    pub fn show_inner<F, R>(self, f: F) -> (WidgetId, R)
+    pub fn show<R, F>(self, f: F) -> InnerResponse<R>
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
@@ -129,13 +114,18 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
         }
         let _ = self.scope.tree.add_child(self.scope.parent, node_id);
 
-        let mut child_scope = self.scope.child_scope(node_id);
-        let result = f(&mut child_scope);
+        let panel_seed = crate::declarative::types::combine_seeds(
+            self.scope.seed,
+            crate::declarative::types::hash_label(self.name),
+        );
+        let mut child_scope = self.scope.child_scope_seeded(node_id, panel_seed);
+        let inner = f(&mut child_scope);
         crate::declarative::layout_subtree(self.scope.tree, node_id, rect);
         if let Some(cursor) = self.scope.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.scope.tree, node_id, cursor);
         }
-        (node_id, result)
+        let response = self.scope.response(node_id);
+        InnerResponse::new(response, inner)
     }
 }
 

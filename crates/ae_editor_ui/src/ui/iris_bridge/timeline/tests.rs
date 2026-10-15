@@ -5,7 +5,7 @@
 //!
 
 use super::*;
-use irisui::prelude::{PanelBuilder, Point, Rect, UiTree, hash_label};
+use irisui::prelude::{PanelBuilder, Point, Rect, UiTree, hash_label, hash_label_with_seed};
 
 #[test]
 fn test_timeline_panel_build_empty_state() {
@@ -72,8 +72,9 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
     build_timeline_panel(&mut tree, root, &params_empty, &mut actions);
     assert!(actions.is_empty());
 
-    // 2. Compute persistent tag for the declarative button inside card
-    let button_tag = hash_label("➕ Add AnimationPlayer");
+    // 2. Compute persistent tag for the declarative button inside AnimationTimelinePanelRoot panel
+    let panel_seed = hash_label("AnimationTimelinePanelRoot");
+    let button_tag = hash_label_with_seed(panel_seed, "➕ Add AnimationPlayer");
 
     // 3. Dispatch click event to tagged button
     let click_events = [(

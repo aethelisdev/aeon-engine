@@ -11,18 +11,8 @@ use super::types::InspectorPanelParams;
 use irisui::prelude::*;
 
 /// Output node handles created during Inspector footer construction.
-pub struct FooterNodes {
-    /// Add component button node ID.
-    pub add_comp_btn_id: WidgetId,
-    /// Save prefab button node ID.
-    pub save_prefab_btn_id: WidgetId,
-}
-
 /// Builds the Inspector bottom action bar declaratively into the parent [`UiScope`].
-pub fn build_inspector_footer(
-    scope: &mut UiScope<'_>,
-    params: &InspectorPanelParams<'_>,
-) -> FooterNodes {
+pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelParams<'_>) {
     let padding_x = 8.0;
     let footer_h = 24.0;
     let btn_gap = 8.0;
@@ -54,9 +44,6 @@ pub fn build_inspector_footer(
         .height(34.0)
         .margin_insets(Insets::new(4.0, padding_x, 6.0, padding_x));
 
-    let mut add_comp_btn_id = WidgetId::default();
-    let mut save_prefab_btn_id = WidgetId::default();
-
     scope.container_named("InspectorFooter", row_style, |row| {
         // 1. `➕ Add Component` Button
         let mut add_btn_style = Style::new()
@@ -77,7 +64,7 @@ pub fn build_inspector_footer(
                 .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95));
         }
 
-        add_comp_btn_id = row.container_tagged(
+        row.container_tagged(
             "AddComponentBtn",
             add_btn_style,
             WidgetRole::Button,
@@ -118,7 +105,7 @@ pub fn build_inspector_footer(
             .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95))
             .border_radius(5.0);
 
-        save_prefab_btn_id = row.container_tagged(
+        row.container_tagged(
             "SavePrefabBtn",
             save_btn_style,
             WidgetRole::Button,
@@ -135,11 +122,6 @@ pub fn build_inspector_footer(
             },
         );
     });
-
-    FooterNodes {
-        add_comp_btn_id,
-        save_prefab_btn_id,
-    }
 }
 
 #[cfg(test)]
@@ -177,17 +159,18 @@ mod tests {
         };
 
         let mut scope = UiScope::new(&mut tree, root);
-        let nodes = build_inspector_footer(&mut scope, &params);
+        build_inspector_footer(&mut scope, &params);
         scope.finish_layout(params.panel_rect);
 
-        assert!(nodes.add_comp_btn_id != WidgetId::default());
-        assert!(nodes.save_prefab_btn_id != WidgetId::default());
-
         let add_btn = tree
-            .get(nodes.add_comp_btn_id)
+            .iter()
+            .find(|(_, n)| n.tag == TAG_INSPECTOR_ADD_COMPONENT)
+            .map(|(_, n)| n)
             .expect("Add button must exist");
         let save_btn = tree
-            .get(nodes.save_prefab_btn_id)
+            .iter()
+            .find(|(_, n)| n.tag == TAG_INSPECTOR_SAVE_PREFAB)
+            .map(|(_, n)| n)
             .expect("Save button must exist");
 
         assert_eq!(add_btn.tag, TAG_INSPECTOR_ADD_COMPONENT);

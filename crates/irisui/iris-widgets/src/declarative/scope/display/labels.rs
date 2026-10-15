@@ -369,6 +369,8 @@ impl<'a> UiScope<'a> {
         self.container(badge_style, |badge_scope| {
             badge_scope.label_custom(text_str, 9.5, tint, TextAlign::Center);
         })
+        .response
+        .id
     }
 
     /// Emits a styled telemetry or key-value pill badge.
@@ -397,6 +399,8 @@ impl<'a> UiScope<'a> {
             );
             badge_scope.label_custom(value, 10.0, val_color, TextAlign::Right);
         })
+        .response
+        .id
     }
 
     /// Emits a clickable text hyperlink with persistent tag and automatic hover styling.

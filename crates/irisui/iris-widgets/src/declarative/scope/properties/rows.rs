@@ -84,6 +84,8 @@ impl<'a> UiScope<'a> {
 
             row.container_named("PropertySlot", slot_style, f);
         })
+        .response
+        .id
     }
 
     /// Emits an immediate two-way bound property checkbox row.

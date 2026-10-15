@@ -30,6 +30,8 @@ pub const PREF_TAG_SCROLLBAR_TRACK: u64 = PREFERENCES_TAG_DOMAIN | 0x0004;
 pub const PREF_TAG_SCROLLBAR_THUMB: u64 = PREFERENCES_TAG_DOMAIN | 0x0005;
 /// Semantic tag for the scrollable content view container.
 pub const PREF_TAG_CONTENT_VIEW: u64 = PREFERENCES_TAG_DOMAIN | 0x0006;
+/// Semantic tag for the inner preferences scroll column container.
+pub const PREF_TAG_SCROLL_CONTAINER: u64 = PREFERENCES_TAG_DOMAIN | 0x0007;
 
 /// Base semantic tag for sidebar navigation tabs (0..=9).
 pub const PREF_TAG_TAB_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0010;

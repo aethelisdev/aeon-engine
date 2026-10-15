@@ -10,66 +10,94 @@ use super::registry::ComponentRenderContext;
 use super::types::{InspectorNumberInputId, TransformAxisType};
 use irisui::prelude::*;
 
+/// Descriptor mapping a 3D vector property label to its inspector input IDs and drag limits.
+struct TransformPropertyDescriptor {
+    label: &'static str,
+    axes: [InspectorNumberInputId; 3],
+    min: f32,
+    max: f32,
+    speed: f32,
+}
+
+const TRANSFORM_PROPERTIES: [TransformPropertyDescriptor; 3] = [
+    TransformPropertyDescriptor {
+        label: "Position",
+        axes: [
+            InspectorNumberInputId::PosX,
+            InspectorNumberInputId::PosY,
+            InspectorNumberInputId::PosZ,
+        ],
+        min: -10000.0,
+        max: 10000.0,
+        speed: 0.1,
+    },
+    TransformPropertyDescriptor {
+        label: "Rotation",
+        axes: [
+            InspectorNumberInputId::RotX,
+            InspectorNumberInputId::RotY,
+            InspectorNumberInputId::RotZ,
+        ],
+        min: -360.0,
+        max: 360.0,
+        speed: 0.5,
+    },
+    TransformPropertyDescriptor {
+        label: "Scale",
+        axes: [
+            InspectorNumberInputId::ScaleX,
+            InspectorNumberInputId::ScaleY,
+            InspectorNumberInputId::ScaleZ,
+        ],
+        min: 0.001,
+        max: 1000.0,
+        speed: 0.01,
+    },
+];
+
+const TRANSFORM_RESET_PROPERTIES: [(&str, TransformAxisType); 3] = [
+    ("Position", TransformAxisType::Position),
+    ("Rotation", TransformAxisType::Rotation),
+    ("Scale", TransformAxisType::Scale),
+];
+
+/// Candidate hierarchical seeds for the transform inspector card.
+#[inline]
+fn transform_seeds() -> [u64; 2] {
+    [0, hash_label("InspectorPanelRoot")]
+}
+
 /// Resolves an interactive semantic tag to a Transform numeric input ID, bounds, and sensitivity.
 ///
 /// Enables $O(1)$ dispatch for numeric dragging, inline typing, and text selection
-/// without requiring coordinate allocations or imperative target buffers.
+/// via high-level [`resolve_property_vec3_for_seeds`] without manual tag arithmetic or per-axis let bindings.
 #[inline]
 pub fn resolve_transform_number_input_tag(
     tag: u64,
 ) -> Option<(InspectorNumberInputId, f32, f32, f32)> {
-    let pos_base = hash_label_with_seed(0, "Position");
-    if tag == pos_base.wrapping_add(1) {
-        return Some((InspectorNumberInputId::PosX, -10000.0, 10000.0, 0.1));
+    let seeds = transform_seeds();
+    for prop in TRANSFORM_PROPERTIES {
+        if let Some(PropertyVec3Target::Axis(axis_idx)) =
+            resolve_property_vec3_for_seeds(tag, prop.label, &seeds)
+        {
+            return Some((prop.axes[axis_idx], prop.min, prop.max, prop.speed));
+        }
     }
-    if tag == pos_base.wrapping_add(2) {
-        return Some((InspectorNumberInputId::PosY, -10000.0, 10000.0, 0.1));
-    }
-    if tag == pos_base.wrapping_add(3) {
-        return Some((InspectorNumberInputId::PosZ, -10000.0, 10000.0, 0.1));
-    }
-
-    let rot_base = hash_label_with_seed(0, "Rotation");
-    if tag == rot_base.wrapping_add(1) {
-        return Some((InspectorNumberInputId::RotX, -360.0, 360.0, 0.5));
-    }
-    if tag == rot_base.wrapping_add(2) {
-        return Some((InspectorNumberInputId::RotY, -360.0, 360.0, 0.5));
-    }
-    if tag == rot_base.wrapping_add(3) {
-        return Some((InspectorNumberInputId::RotZ, -360.0, 360.0, 0.5));
-    }
-
-    let scale_base = hash_label_with_seed(0, "Scale");
-    if tag == scale_base.wrapping_add(1) {
-        return Some((InspectorNumberInputId::ScaleX, 0.001, 1000.0, 0.01));
-    }
-    if tag == scale_base.wrapping_add(2) {
-        return Some((InspectorNumberInputId::ScaleY, 0.001, 1000.0, 0.01));
-    }
-    if tag == scale_base.wrapping_add(3) {
-        return Some((InspectorNumberInputId::ScaleZ, 0.001, 1000.0, 0.01));
-    }
-
     None
 }
 
 /// Resolves an interactive semantic tag to a Transform reset axis type.
 ///
-/// Enables $O(1)$ event routing for reset buttons without coordinate traversal.
+/// Enables $O(1)$ event routing for reset buttons without coordinate traversal
+/// via high-level [`resolve_property_vec3_for_seeds`] without manual tag arithmetic or let bindings.
 #[inline]
 pub fn resolve_transform_reset_tag(tag: u64) -> Option<TransformAxisType> {
-    let pos_base = hash_label_with_seed(0, "Position");
-    if tag == pos_base.wrapping_add(4) {
-        return Some(TransformAxisType::Position);
-    }
-    let rot_base = hash_label_with_seed(0, "Rotation");
-    if tag == rot_base.wrapping_add(4) {
-        return Some(TransformAxisType::Rotation);
-    }
-    let scale_base = hash_label_with_seed(0, "Scale");
-    if tag == scale_base.wrapping_add(4) {
-        return Some(TransformAxisType::Scale);
+    let seeds = transform_seeds();
+    for (label, axis_type) in TRANSFORM_RESET_PROPERTIES {
+        if let Some(PropertyVec3Target::Reset) = resolve_property_vec3_for_seeds(tag, label, &seeds)
+        {
+            return Some(axis_type);
+        }
     }
     None
 }

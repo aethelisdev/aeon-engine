@@ -9,9 +9,9 @@
 
 use super::tabs::*;
 use super::types::{
-    PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLLBAR_THUMB,
-    PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesParams, encode_dropdown_item_tag,
-    encode_tab_tag, preferences_scroll_style,
+    PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER,
+    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesParams,
+    encode_dropdown_item_tag, encode_tab_tag, preferences_scroll_style,
 };
 use irisui::prelude::*;
 
@@ -97,227 +97,231 @@ pub fn build_preferences_dialog(
     let mut root_scope = UiScope::with_tagged_interactions(tree, root_id, params.events, None)
         .with_active_text_input(params.active_number_input);
 
-    let mut scroll_container_id: Option<WidgetId> = None;
-
     // 1. Floating Preferences Dialog Card
-    let card_id = root_scope.container_tagged(
-        "PreferencesDialogCard",
-        Style::new()
-            .position_absolute()
-            .left(left)
-            .top(top)
-            .width(PREF_CARD_WIDTH)
-            .height(PREF_CARD_HEIGHT)
-            .flex_col()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-            .border(1.0, Color::rgba(0.20, 0.23, 0.32, 1.0))
-            .border_radius(10.0)
-            .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.75))
-            .clip_children(true),
-        WidgetRole::ModalWindow,
-        PREF_TAG_CARD,
-        |card| {
-            // 2. Titlebar Strip - unified deep black matching sidebar with matching top rounded corners
-            card.container_tagged(
-                "PreferencesTitlebar",
-                Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::SpaceBetween)
-                    .height(TITLEBAR_HEIGHT)
-                    .padding_insets(Insets::new(0.0, 14.0, 0.0, 10.0))
-                    .background(Color::rgba(0.07, 0.08, 0.10, 0.98))
-                    .corner_radii(CornerRadii::new(10.0, 10.0, 0.0, 0.0)),
-                WidgetRole::Default,
-                PREF_TAG_TITLEBAR,
-                |titlebar| {
-                    titlebar.icon(
-                        crate::ui::iris_bridge::icons::ICON_GEAR,
-                        Color::rgba(0.85, 0.88, 0.94, 1.0),
-                        15.0,
-                    );
+    let card_id = root_scope
+        .container_tagged(
+            "PreferencesDialogCard",
+            Style::new()
+                .position_absolute()
+                .left(left)
+                .top(top)
+                .width(PREF_CARD_WIDTH)
+                .height(PREF_CARD_HEIGHT)
+                .flex_col()
+                .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+                .border(1.0, Color::rgba(0.20, 0.23, 0.32, 1.0))
+                .border_radius(10.0)
+                .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.75))
+                .clip_children(true),
+            WidgetRole::ModalWindow,
+            PREF_TAG_CARD,
+            |card| {
+                // 2. Titlebar Strip - unified deep black matching sidebar with matching top rounded corners
+                card.container_tagged(
+                    "PreferencesTitlebar",
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween)
+                        .height(TITLEBAR_HEIGHT)
+                        .padding_insets(Insets::new(0.0, 14.0, 0.0, 10.0))
+                        .background(Color::rgba(0.07, 0.08, 0.10, 0.98))
+                        .corner_radii(CornerRadii::new(10.0, 10.0, 0.0, 0.0)),
+                    WidgetRole::Default,
+                    PREF_TAG_TITLEBAR,
+                    |titlebar| {
+                        titlebar.icon(
+                            crate::ui::iris_bridge::icons::ICON_GEAR,
+                            Color::rgba(0.85, 0.88, 0.94, 1.0),
+                            15.0,
+                        );
 
-                    titlebar.empty_box_passive_named(
-                        "PrefTitleGap",
-                        Style::new().width(8.0).height(1.0),
-                    );
+                        titlebar.empty_box_passive_named(
+                            "PrefTitleGap",
+                            Style::new().width(8.0).height(1.0),
+                        );
 
-                    titlebar.label_styled_passive(
-                        "PrefTitleText",
-                        "Preferences",
-                        13.0,
-                        Color::rgba(1.0, 1.0, 1.0, 1.0),
-                        TextAlign::Left,
-                        Style::new().flex_grow(1.0),
-                    );
+                        titlebar.label_styled_passive(
+                            "PrefTitleText",
+                            "Preferences",
+                            13.0,
+                            Color::rgba(1.0, 1.0, 1.0, 1.0),
+                            TextAlign::Left,
+                            Style::new().flex_grow(1.0),
+                        );
 
-                    // Close Button
-                    titlebar.container_tagged(
-                        "PrefCloseButton",
-                        Style::new()
-                            .width(26.0)
-                            .height(26.0)
-                            .background(Color::TRANSPARENT)
-                            .hover_background(Color::rgba(0.85, 0.20, 0.25, 0.85))
-                            .border_radius(4.0)
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::Center),
-                        WidgetRole::Button,
-                        PREF_TAG_CLOSE,
-                        |btn| {
-                            let icon_id = btn.label_styled_passive(
-                                "PrefCloseIcon",
-                                "✕",
-                                12.0,
-                                Color::rgba(0.90, 0.92, 0.96, 1.0),
-                                TextAlign::Center,
-                                Style::new(),
-                            );
-                            btn.set_hover_text_color(icon_id, Color::WHITE);
-                        },
-                    );
-                },
-            );
+                        // Close Button
+                        titlebar.container_tagged(
+                            "PrefCloseButton",
+                            Style::new()
+                                .width(26.0)
+                                .height(26.0)
+                                .background(Color::TRANSPARENT)
+                                .hover_background(Color::rgba(0.85, 0.20, 0.25, 0.85))
+                                .border_radius(4.0)
+                                .align_items(AlignItems::Center)
+                                .justify_content(JustifyContent::Center),
+                            WidgetRole::Button,
+                            PREF_TAG_CLOSE,
+                            |btn| {
+                                let icon_id = btn.label_styled_passive(
+                                    "PrefCloseIcon",
+                                    "✕",
+                                    12.0,
+                                    Color::rgba(0.90, 0.92, 0.96, 1.0),
+                                    TextAlign::Center,
+                                    Style::new(),
+                                );
+                                btn.set_hover_text_color(icon_id, Color::WHITE);
+                            },
+                        );
+                    },
+                );
 
-            // 1px Horizontal Titlebar Divider
-            card.divider(Color::rgba(0.20, 0.22, 0.30, 0.70));
+                // 1px Horizontal Titlebar Divider
+                card.divider(Color::rgba(0.20, 0.22, 0.30, 0.70));
 
-            // 3. Body: Sidebar + Divider + Content View
-            card.container_named(
-                "PreferencesBody",
-                Style::new().flex_row().flex_grow(1.0).height(content_h),
-                |body| {
-                    // Left Sidebar
-                    body.container_named(
-                        "PreferencesSidebar",
-                        Style::new()
-                            .width(SIDEBAR_WIDTH)
-                            .height(content_h)
-                            .flex_col()
-                            .padding_insets(Insets::new(8.0, 6.0, 8.0, 6.0))
-                            .background(Color::rgba(0.07, 0.08, 0.10, 0.90)),
-                        |sidebar| {
-                            for &(label, tab_idx) in &SIDEBAR_TABS {
-                                let tab_tag = encode_tab_tag(tab_idx);
-                                let is_active = params.active_tab == tab_idx;
+                // 3. Body: Sidebar + Divider + Content View
+                card.container_named(
+                    "PreferencesBody",
+                    Style::new().flex_row().flex_grow(1.0).height(content_h),
+                    |body| {
+                        // Left Sidebar
+                        body.container_named(
+                            "PreferencesSidebar",
+                            Style::new()
+                                .width(SIDEBAR_WIDTH)
+                                .height(content_h)
+                                .flex_col()
+                                .padding_insets(Insets::new(8.0, 6.0, 8.0, 6.0))
+                                .background(Color::rgba(0.07, 0.08, 0.10, 0.90)),
+                            |sidebar| {
+                                for &(label, tab_idx) in &SIDEBAR_TABS {
+                                    let tab_tag = encode_tab_tag(tab_idx);
+                                    let is_active = params.active_tab == tab_idx;
 
-                                let (bg, hover_bg, text_col) = if is_active {
-                                    (
-                                        Color::rgba(0.0, 0.65, 0.85, 0.12),
-                                        Color::rgba(0.0, 0.65, 0.85, 0.18),
-                                        Color::rgba(0.0, 0.90, 1.0, 1.0),
-                                    )
-                                } else {
-                                    (
-                                        Color::TRANSPARENT,
-                                        Color::rgba(0.18, 0.20, 0.28, 0.50),
-                                        Color::rgba(0.80, 0.83, 0.90, 1.0),
-                                    )
-                                };
+                                    let (bg, hover_bg, text_col) = if is_active {
+                                        (
+                                            Color::rgba(0.0, 0.65, 0.85, 0.12),
+                                            Color::rgba(0.0, 0.65, 0.85, 0.18),
+                                            Color::rgba(0.0, 0.90, 1.0, 1.0),
+                                        )
+                                    } else {
+                                        (
+                                            Color::TRANSPARENT,
+                                            Color::rgba(0.18, 0.20, 0.28, 0.50),
+                                            Color::rgba(0.80, 0.83, 0.90, 1.0),
+                                        )
+                                    };
 
-                                sidebar.container_tagged(
-                                    "PrefSidebarTab",
-                                    Style::new()
-                                        .flex_row()
-                                        .align_items(AlignItems::Center)
-                                        .height(30.0)
-                                        .padding_insets(Insets::new(0.0, 10.0, 0.0, 0.0))
-                                        .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
-                                        .border_radius(4.0)
-                                        .clip_children(true)
-                                        .background(bg)
-                                        .hover_background(hover_bg),
-                                    WidgetRole::Button,
-                                    tab_tag,
-                                    |btn| {
-                                        // Vertical Cyan Accent Bar for Active Tab anchored to the exact left edge
-                                        let bar_color = if is_active {
-                                            Color::rgba(0.0, 0.85, 1.0, 1.0)
-                                        } else {
-                                            Color::TRANSPARENT
-                                        };
+                                    sidebar.container_tagged(
+                                        "PrefSidebarTab",
+                                        Style::new()
+                                            .flex_row()
+                                            .align_items(AlignItems::Center)
+                                            .height(30.0)
+                                            .padding_insets(Insets::new(0.0, 10.0, 0.0, 0.0))
+                                            .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
+                                            .border_radius(4.0)
+                                            .clip_children(true)
+                                            .background(bg)
+                                            .hover_background(hover_bg),
+                                        WidgetRole::Button,
+                                        tab_tag,
+                                        |btn| {
+                                            // Vertical Cyan Accent Bar for Active Tab anchored to the exact left edge
+                                            let bar_color = if is_active {
+                                                Color::rgba(0.0, 0.85, 1.0, 1.0)
+                                            } else {
+                                                Color::TRANSPARENT
+                                            };
 
-                                        btn.empty_box_passive_named(
-                                            "PrefTabAccentBar",
-                                            Style::new()
-                                                .width(3.0)
-                                                .height(30.0)
-                                                .background(bar_color),
+                                            btn.empty_box_passive_named(
+                                                "PrefTabAccentBar",
+                                                Style::new()
+                                                    .width(3.0)
+                                                    .height(30.0)
+                                                    .background(bar_color),
+                                            );
+
+                                            // 11px spacer ensures exactly 14.0px clean left padding from outer edge
+                                            btn.empty_box_passive_named(
+                                                "PrefTabSpacer",
+                                                Style::new().width(11.0).height(1.0),
+                                            );
+
+                                            let label_id = btn.label_styled_passive(
+                                                "PrefTabLabel",
+                                                label,
+                                                12.0,
+                                                text_col,
+                                                TextAlign::Left,
+                                                Style::new().flex_grow(1.0),
+                                            );
+                                            btn.set_hover_text_color(label_id, Color::WHITE);
+                                        },
+                                    );
+                                }
+                            },
+                        );
+
+                        // Vertical Divider
+                        body.vertical_divider(content_h, Color::rgba(0.20, 0.22, 0.30, 0.70));
+
+                        // Right Content Area (Clipped Viewport)
+                        body.container_tagged(
+                            "PreferencesContentArea",
+                            Style::new()
+                                .width(content_w)
+                                .height(content_h)
+                                .clip_children(true)
+                                .scroll_offset_y(params.scroll_offset_y)
+                                .padding_insets(Insets::new(14.0, 18.0, 14.0, 18.0)),
+                            WidgetRole::Default,
+                            PREF_TAG_CONTENT_VIEW,
+                            |content| {
+                                // Virtual Scrolling Container
+                                content.container_tagged(
+                                    "PreferencesScrollContainer",
+                                    Style::new().flex_col().gap(14.0),
+                                    WidgetRole::Default,
+                                    PREF_TAG_SCROLL_CONTAINER,
+                                    |scroll_col| {
+                                        match params.active_tab {
+                                            0 => build_general_tab(scroll_col, &mut params),
+                                            1 => build_graphics_tab(scroll_col, &mut params),
+                                            2 => build_editor_tab(scroll_col, &mut params),
+                                            3 => build_navigation_tab(scroll_col, &mut params),
+                                            4 => build_keymap_tab(scroll_col, &params),
+                                            5 => build_system_tab(scroll_col, &params),
+                                            6 => build_addons_tab(scroll_col, &params),
+                                            7 => build_input_tab(scroll_col, &mut params),
+                                            8 => build_experimental_tab(scroll_col, &params),
+                                            9 => build_modules_tab(scroll_col, &params),
+                                            _ => {}
+                                        }
+                                        scroll_col.empty_box_passive_named(
+                                            "PrefScrollBottomSpacer",
+                                            Style::new().height(24.0),
                                         );
-
-                                        // 11px spacer ensures exactly 14.0px clean left padding from outer edge
-                                        btn.empty_box_passive_named(
-                                            "PrefTabSpacer",
-                                            Style::new().width(11.0).height(1.0),
-                                        );
-
-                                        let label_id = btn.label_styled_passive(
-                                            "PrefTabLabel",
-                                            label,
-                                            12.0,
-                                            text_col,
-                                            TextAlign::Left,
-                                            Style::new().flex_grow(1.0),
-                                        );
-                                        btn.set_hover_text_color(label_id, Color::WHITE);
                                     },
                                 );
-                            }
-                        },
-                    );
+                            },
+                        );
+                    },
+                );
 
-                    // Vertical Divider
-                    body.vertical_divider(content_h, Color::rgba(0.20, 0.22, 0.30, 0.70));
-
-                    // Right Content Area (Clipped Viewport)
-                    body.container_tagged(
-                        "PreferencesContentArea",
-                        Style::new()
-                            .width(content_w)
-                            .height(content_h)
-                            .clip_children(true)
-                            .scroll_offset_y(params.scroll_offset_y)
-                            .padding_insets(Insets::new(14.0, 18.0, 14.0, 18.0)),
-                        WidgetRole::Default,
-                        PREF_TAG_CONTENT_VIEW,
-                        |content| {
-                            // Virtual Scrolling Container
-                            let sc_id = content.container_named(
-                                "PreferencesScrollContainer",
-                                Style::new().flex_col().gap(14.0),
-                                |scroll_col| {
-                                    match params.active_tab {
-                                        0 => build_general_tab(scroll_col, &mut params),
-                                        1 => build_graphics_tab(scroll_col, &mut params),
-                                        2 => build_editor_tab(scroll_col, &mut params),
-                                        3 => build_navigation_tab(scroll_col, &mut params),
-                                        4 => build_keymap_tab(scroll_col, &params),
-                                        5 => build_system_tab(scroll_col, &params),
-                                        6 => build_addons_tab(scroll_col, &params),
-                                        7 => build_input_tab(scroll_col, &mut params),
-                                        8 => build_experimental_tab(scroll_col, &params),
-                                        9 => build_modules_tab(scroll_col, &params),
-                                        _ => {}
-                                    }
-                                    scroll_col.empty_box_passive_named(
-                                        "PrefScrollBottomSpacer",
-                                        Style::new().height(24.0),
-                                    );
-                                },
-                            );
-                            scroll_container_id = Some(sc_id);
-                        },
-                    );
-                },
-            );
-
-            // Calculate and assign layout geometry to the entire preferences dialog hierarchy
-            card.finish_layout(card_rect);
-        },
-    );
+                // Calculate and assign layout geometry to the entire preferences dialog hierarchy
+                card.finish_layout(card_rect);
+            },
+        )
+        .response
+        .id;
 
     // Measure dynamic accumulated height of all tab content sections from layout pass
-    let measured_total_h = scroll_container_id
+    let measured_total_h = root_scope
+        .tree()
+        .find_node_by_tag(PREF_TAG_SCROLL_CONTAINER)
         .and_then(|id| root_scope.tree().get(id))
         .map(|node| {
             node.children

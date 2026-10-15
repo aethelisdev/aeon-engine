@@ -23,8 +23,11 @@ pub use scope::{
     CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, CollapsingBuilder, CollapsingResponse,
     ContainerResponseExt, ContextMenuExt, InputBoxProps, PropertySliderOptions,
     PropertyTextOptions, PropertyTextResponse, PropertyVec3Options, PropertyVec3Response,
-    ScrollAreaConfig, TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps,
-    UiScope, WrappedLabelDescriptor, calculate_visible_slice_and_caret, measure_text_advance,
+    PropertyVec3Target, ScrollAreaConfig, TreeNodeProps, TreeRowProps, TreeRowResponse,
+    TreeViewConfig, TreeViewProps, UiScope, WrappedLabelDescriptor,
+    calculate_visible_slice_and_caret, measure_text_advance, property_vec3_axis_tag,
+    property_vec3_reset_tag, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
+    resolve_property_vec3_tag,
 };
 pub use types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,

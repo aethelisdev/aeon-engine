@@ -34,7 +34,7 @@ pub fn build_ui_designer_panel(
         .bounds(params.panel_rect)
         .background(Color::rgba(0.065, 0.070, 0.082, 1.0))
         .border(1.0, Color::rgba(0.14, 0.15, 0.18, 0.70))
-        .show_inner(|panel_scope| {
+        .show(|panel_scope| {
             // ── 1. Virtual Canvas & Elements Viewport ──────────────────────────
             let metrics = build_designer_canvas(panel_scope, params, out_contexts);
 
@@ -42,7 +42,7 @@ pub fn build_ui_designer_panel(
             build_designer_toolbar(panel_scope, params);
             metrics
         })
-        .1;
+        .inner;
 
     // ── 4. Dropdown Popups (Rendered on top in UiLayer::Popup via UiScope) ────
     build_ui_designer_overlays(&mut scope, params);

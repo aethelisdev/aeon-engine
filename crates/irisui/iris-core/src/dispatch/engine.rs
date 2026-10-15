@@ -96,6 +96,7 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
 
         return DispatchResult {
             consumed: true,
+            needs_redraw: true,
             target: Some(captured_id),
             target_tag: tag,
             cursor,
@@ -126,6 +127,7 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
 
         DispatchResult {
             consumed: false, // Normal hover motion does not consume the event
+            needs_redraw: false,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -238,6 +240,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
 
         DispatchResult {
             consumed: is_interactive,
+            needs_redraw: is_interactive,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -279,6 +282,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
 
         return DispatchResult {
             consumed: true,
+            needs_redraw: true,
             target: Some(captured_id),
             target_tag: tag,
             cursor,
@@ -408,6 +412,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
 
             DispatchResult {
                 consumed: is_interactive,
+                needs_redraw: true,
                 target: Some(target_id),
                 target_tag: effective_tag,
                 cursor,
@@ -420,6 +425,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         } else {
             DispatchResult {
                 consumed: false,
+                needs_redraw: false,
                 target: Some(target_id),
                 target_tag: tag,
                 cursor,
@@ -505,6 +511,7 @@ fn handle_mouse_scroll(
 
                     return DispatchResult {
                         consumed: true,
+                        needs_redraw: true,
                         target: Some(curr_id),
                         target_tag: tag,
                         cursor: None,
@@ -521,6 +528,7 @@ fn handle_mouse_scroll(
                 } else {
                     return DispatchResult {
                         consumed: true,
+                        needs_redraw: false,
                         target: Some(curr_id),
                         target_tag: node.tag,
                         cursor: None,
@@ -560,6 +568,7 @@ fn handle_keyboard(
         tree.event_state.active_context_menu = None;
         return DispatchResult {
             consumed: true,
+            needs_redraw: true,
             key: Some(key),
             is_key_pressed: true,
             ..Default::default()
@@ -590,6 +599,7 @@ fn handle_keyboard(
 
         DispatchResult {
             consumed: true,
+            needs_redraw: is_pressed,
             target: Some(focused_id),
             target_tag: tag,
             cursor: None,
@@ -637,13 +647,14 @@ fn handle_ime(tree: &mut UiTree, ime_event: ImeEvent) -> DispatchResult {
 
         DispatchResult {
             consumed: true,
+            needs_redraw: committed_text.is_some(),
             target: Some(focused_id),
             target_tag: tag,
             cursor: None,
             response: Some(WidgetResponse::from_flags(focused_id, rect, flags)),
             scroll_delta: (0.0, 0.0),
             key: None,
-            is_key_pressed: true,
+            is_key_pressed: false,
             text_input: committed_text,
         }
     } else {

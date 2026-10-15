@@ -35,45 +35,37 @@ pub fn build_bottom_status_bar(
 ) -> WidgetId {
     let mut scope = UiScope::new(tree, parent_id);
 
-    let bar_style = Style::new()
-        .flex_row()
-        .justify_content(JustifyContent::SpaceBetween)
-        .align_items(AlignItems::Center)
+    scope
+        .row_with()
         .width(params.screen_width)
         .height(STATUS_BAR_HEIGHT)
+        .space_between()
         .padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0))
-        .background(Color::rgba(0.071, 0.082, 0.122, 1.0));
-
-    scope.container(bar_style, |bar| {
-        // 1. Left side: Engine status message or "● Ready" indicator
-        let left_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .gap(10.0);
-
-        bar.container(left_style, |left| {
-            if let Some(spans) = params.status_spans
-                && !spans.is_empty()
-            {
-                for (text, color) in spans {
-                    left.colored_label(*color, text);
+        .background(Color::rgba(0.071, 0.082, 0.122, 1.0))
+        .show(|bar| {
+            // 1. Left side: Engine status message or "● Ready" indicator
+            bar.row_spaced(10.0, |left| {
+                if let Some(spans) = params.status_spans
+                    && !spans.is_empty()
+                {
+                    for (text, color) in spans {
+                        left.colored_label(*color, text);
+                    }
+                } else {
+                    left.colored_label(Color::hex("#46be78"), "● Ready");
                 }
-            } else {
-                left.colored_label(Color::hex("#46be78"), "● Ready");
-            }
-        });
+            });
 
-        // 2. Right side: Engine Version
-        let right_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .gap(8.0);
-
-        bar.container(right_style, |right| {
-            let version_text = format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION"));
-            right.colored_label(Color::hex("#646470"), version_text);
-        });
-    })
+            // 2. Right side: Engine Version
+            bar.row_spaced(8.0, |right| {
+                right.colored_label(
+                    Color::hex("#646470"),
+                    format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION")),
+                );
+            });
+        })
+        .response
+        .id
 }
 
 #[cfg(test)]

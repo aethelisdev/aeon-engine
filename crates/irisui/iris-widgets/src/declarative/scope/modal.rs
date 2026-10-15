@@ -8,6 +8,7 @@
 //! primary confirm buttons, and secondary cancel buttons.
 //!
 
+use super::containers::InnerResponse;
 use super::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use crate::modal::{
@@ -15,7 +16,7 @@ use crate::modal::{
 };
 use iris_core::{
     AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiLayer, WidgetCursor,
-    WidgetId, WidgetRole,
+    WidgetRole,
 };
 
 impl<'a> UiScope<'a> {
@@ -29,9 +30,9 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `color` - RGBA fill color of the semi-transparent backdrop blocker.
     /// * `f` - Child builder closure receiving the scoped context of the scrim container.
-    pub fn modal_scrim<F>(&mut self, color: Color, f: F) -> WidgetId
+    pub fn modal_scrim<R, F>(&mut self, color: Color, f: F) -> InnerResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -53,8 +54,9 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, node_id);
 
         let mut child_scope = self.child_scope(node_id);
-        f(&mut child_scope);
-        node_id
+        let inner = f(&mut child_scope);
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
     }
 
     /// Emits a full-screen backdrop modal scrim container elevating its subtree to [`UiLayer::Modal`]
@@ -66,16 +68,16 @@ impl<'a> UiScope<'a> {
     /// * `bounds` - Physical screen bounding rectangle allocated for the modal backdrop.
     /// * `color` - RGBA fill color of the semi-transparent backdrop blocker.
     /// * `f` - Child builder closure receiving the scoped context of the scrim container.
-    pub fn modal_scrim_sized<F>(&mut self, bounds: Rect, color: Color, f: F) -> WidgetId
+    pub fn modal_scrim_sized<R, F>(&mut self, bounds: Rect, color: Color, f: F) -> InnerResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
-        let node_id = self.modal_scrim(color, f);
-        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        let resp = self.modal_scrim(color, f);
+        crate::declarative::layout_subtree(self.tree, resp.response.id, bounds);
         if let Some(cursor) = self.tree.cursor_position() {
-            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
+            super::hover::update_hover_styles_recursive(self.tree, resp.response.id, cursor);
         }
-        node_id
+        resp
     }
 
     /// Emits an elevated modal dialog card container styled with standard dark themes, borders, and drop shadows.
@@ -88,9 +90,9 @@ impl<'a> UiScope<'a> {
     /// * `width` - Card width constraint in physical pixels.
     /// * `height` - Card height constraint in physical pixels.
     /// * `f` - Child builder closure receiving the scoped context of the card container.
-    pub fn modal_card<F>(&mut self, width: f32, height: f32, f: F) -> WidgetId
+    pub fn modal_card<R, F>(&mut self, width: f32, height: f32, f: F) -> InnerResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -114,8 +116,9 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, node_id);
 
         let mut child_scope = self.child_scope(node_id);
-        f(&mut child_scope);
-        node_id
+        let inner = f(&mut child_scope);
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
     }
 
     /// Emits a standardized modal header close button glyph ("✕") tagged with [`MODAL_TAG_CLOSE`].

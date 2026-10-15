@@ -124,6 +124,28 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    /// Creates a child scope for a nested widget container with an explicitly isolated seed.
+    ///
+    /// Preserves active events, tags, and text input state while establishing a new hierarchical
+    /// namespace seed derived via [`combine_seeds`](crate::declarative::types::combine_seeds).
+    ///
+    /// # Arguments
+    /// * `parent` - Target parent widget node receiving emitted children.
+    /// * `seed` - Combined 64-bit seed used for deterministic child tag hashing.
+    #[inline]
+    pub fn child_scope_seeded(&mut self, parent: WidgetId, seed: u64) -> UiScope<'_> {
+        UiScope {
+            tree: self.tree,
+            parent,
+            events: self.events,
+            tagged_events: self.tagged_events,
+            hovered_id: self.hovered_id,
+            hovered_tag: self.hovered_tag,
+            seed,
+            active_text_input: self.active_text_input,
+        }
+    }
+
     /// Returns the active scope seed used to isolate tag hashing.
     #[inline]
     pub fn seed(&self) -> u64 {

@@ -19,6 +19,7 @@ pub mod hover;
 pub mod input;
 pub mod input_box;
 pub mod menu;
+pub mod menu_bar;
 pub mod modal;
 pub mod panel;
 pub mod progress;
@@ -28,6 +29,9 @@ pub mod spacing;
 pub mod tree_view;
 
 pub use collapsing::{CollapsingBuilder, CollapsingResponse};
+pub use menu_bar::{
+    MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarScope, MenuScope,
+};
 pub use panel::PanelBuilder;
 pub use scroll_area::ScrollAreaConfig;
 pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
@@ -35,12 +39,13 @@ pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
-pub use containers::ContainerResponseExt;
+pub use containers::{ColumnBuilder, ContainerResponseExt, InnerResponse, RowBuilder};
 pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, ContextMenuExt};
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
 pub use properties::{
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
-    PropertyVec3Response,
+    PropertyVec3Response, PropertyVec3Target, property_vec3_axis_tag, property_vec3_reset_tag,
+    resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
 };

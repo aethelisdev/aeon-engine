@@ -44,33 +44,38 @@ pub enum ActiveMenu {
 }
 
 impl ActiveMenu {
-    /// Converts this menu category to its numeric widget tag.
+    /// Converts this menu category to its deterministic hashed widget tag.
     ///
-    /// Uses non-zero identifiers (`10..=14`) to ensure valid hardware hit-testing
-    /// and unambiguous hover targeting across all engine subsystems.
+    /// Evaluates the tag via [`hash_label`] ensuring  alignment with
+    /// [`UiScope::menu_bar_item`].
     #[inline]
-    pub const fn to_tag(self) -> u64 {
+    pub fn to_tag(self) -> u64 {
         match self {
-            Self::File => 10,
-            Self::Edit => 11,
-            Self::View => 12,
-            Self::Window => 13,
-            Self::Help => 14,
+            Self::File => hash_label("File"),
+            Self::Edit => hash_label("Edit"),
+            Self::View => hash_label("View"),
+            Self::Window => hash_label("Window"),
+            Self::Help => hash_label("Help"),
         }
     }
 
     /// Resolves an active menu category from its numeric widget tag.
     ///
-    /// Accepts both legacy indices (`0..=4`) and designated tag space (`10..=14`).
+    /// Accepts both string label hash tags and legacy designated tag space (`10..=14`).
     #[inline]
-    pub const fn from_tag(tag: u64) -> Option<Self> {
-        match tag {
-            0 | 10 => Some(Self::File),
-            1 | 11 => Some(Self::Edit),
-            2 | 12 => Some(Self::View),
-            3 | 13 => Some(Self::Window),
-            4 | 14 => Some(Self::Help),
-            _ => None,
+    pub fn from_tag(tag: u64) -> Option<Self> {
+        if tag == hash_label("File") || tag == 10 || tag == 0 {
+            Some(Self::File)
+        } else if tag == hash_label("Edit") || tag == 11 || tag == 1 {
+            Some(Self::Edit)
+        } else if tag == hash_label("View") || tag == 12 || tag == 2 {
+            Some(Self::View)
+        } else if tag == hash_label("Window") || tag == 13 || tag == 3 {
+            Some(Self::Window)
+        } else if tag == hash_label("Help") || tag == 14 || tag == 4 {
+            Some(Self::Help)
+        } else {
+            None
         }
     }
 }

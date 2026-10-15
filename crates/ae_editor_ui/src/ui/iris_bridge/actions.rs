@@ -48,4 +48,9 @@ impl IrisEditorOverlay {
     pub fn take_ui_designer_actions(&mut self) -> Vec<super::ui_designer::UiDesignerAction> {
         self.ui_designer.take_actions()
     }
+
+    /// Consumes and returns all queued Top MenuBar dropdown actions.
+    pub fn take_menubar_actions(&mut self) -> Vec<super::types::DropdownAction> {
+        std::mem::take(&mut self.menubar.actions)
+    }
 }

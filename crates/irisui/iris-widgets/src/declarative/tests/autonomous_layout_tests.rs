@@ -54,7 +54,9 @@ fn test_panel_builder_autonomous_layout() {
             panel_scope.heading("Panel Title");
             panel_scope.label("Description text");
             let _ = panel_scope.button("Apply Changes");
-        });
+        })
+        .response
+        .id;
 
     let panel_node = tree.get(panel_id).expect("Panel node exists");
     assert_eq!(panel_node.computed_rect, panel_rect);
@@ -73,16 +75,19 @@ fn test_modal_scrim_sized_autonomous_layout() {
     let screen = Rect::new(0.0, 0.0, 1920.0, 1080.0);
 
     let mut scope = UiScope::new(&mut tree, root);
-    let scrim_id = scope.modal_scrim_sized(screen, Color::rgba(0.0, 0.0, 0.0, 0.6), |scrim| {
-        scrim.modal_card(420.0, 200.0, |card| {
-            card.heading("Confirm Action");
-            card.label("Are you sure you want to proceed?");
-            card.row(|row| {
-                row.modal_cancel_button("Cancel", 80.0);
-                row.modal_confirm_button("Confirm", 80.0);
+    let scrim_id = scope
+        .modal_scrim_sized(screen, Color::rgba(0.0, 0.0, 0.0, 0.6), |scrim| {
+            scrim.modal_card(420.0, 200.0, |card| {
+                card.heading("Confirm Action");
+                card.label("Are you sure you want to proceed?");
+                card.row(|row| {
+                    row.modal_cancel_button("Cancel", 80.0);
+                    row.modal_confirm_button("Confirm", 80.0);
+                });
             });
-        });
-    });
+        })
+        .response
+        .id;
 
     let scrim_node = tree.get(scrim_id).expect("Scrim exists");
     assert_eq!(scrim_node.computed_rect, screen);
@@ -109,10 +114,13 @@ fn test_dropdown_menu_card_autonomous_layout() {
     tree.set_cursor_position(cursor);
 
     let mut scope = UiScope::new(&mut tree, root);
-    let dd_id = scope.dropdown_menu_card(100.0, 40.0, 160.0, |menu| {
-        menu.dropdown_item(1, "📁", "Open File", Some("Ctrl+O"), true);
-        menu.dropdown_item(2, "💾", "Save File", Some("Ctrl+S"), true);
-    });
+    let dd_id = scope
+        .dropdown_menu_card(100.0, 40.0, 160.0, |menu| {
+            menu.dropdown_item(1, "📁", "Open File", Some("Ctrl+O"), true);
+            menu.dropdown_item(2, "💾", "Save File", Some("Ctrl+S"), true);
+        })
+        .response
+        .id;
 
     let dd_node = tree.get(dd_id).expect("Dropdown exists");
     assert_eq!(dd_node.computed_rect.x, 100.0);

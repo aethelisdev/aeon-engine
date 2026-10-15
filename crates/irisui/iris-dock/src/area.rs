@@ -181,10 +181,12 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
                 .background(bg_color)
                 .clip_children(true);
 
-            let container_id =
-                scope.container_named("DockLeafPanelContent", container_style, |leaf_scope| {
+            let container_id = scope
+                .container_named("DockLeafPanelContent", container_style, |leaf_scope| {
                     viewer.ui(leaf_scope, &tab);
-                });
+                })
+                .response
+                .id;
 
             iris_widgets::layout_subtree(scope.tree_mut(), container_id, panel_rect);
         }
@@ -243,13 +245,16 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
 
                     // Attach content container directly to the floating window so it inherits UiLayer::Floating
                     let mut win_scope = scope.child_scope(win_container);
-                    let container_id = win_scope.container_named(
-                        "FloatingLeafPanelContent",
-                        container_style,
-                        |leaf_scope| {
-                            viewer.ui(leaf_scope, &tab);
-                        },
-                    );
+                    let container_id = win_scope
+                        .container_named(
+                            "FloatingLeafPanelContent",
+                            container_style,
+                            |leaf_scope| {
+                                viewer.ui(leaf_scope, &tab);
+                            },
+                        )
+                        .response
+                        .id;
 
                     // Mark container with WidgetRole::FloatingWindow to guarantee proper layer z-ordering
                     if let Some(node) = scope.tree_mut().get_mut(container_id) {

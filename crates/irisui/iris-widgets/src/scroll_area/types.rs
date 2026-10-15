@@ -250,7 +250,9 @@ impl From<VirtualScrollResponse> for f32 {
 
 /// Response returned by an autonomous declarative [`scroll_area`] call.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ScrollAreaResponse {
+pub struct ScrollAreaResponse<R = ()> {
+    /// Inner value returned by the scroll area child closure.
+    pub inner: R,
     /// Allocated widget node ID for the viewport container.
     pub container_id: iris_core::WidgetId,
     /// Maximum vertical scroll limit in physical pixels (`(content_height - viewport_height).max(0.0)`).
@@ -261,7 +263,7 @@ pub struct ScrollAreaResponse {
     pub viewport_height: f32,
 }
 
-impl ScrollAreaResponse {
+impl<R> ScrollAreaResponse<R> {
     /// Returns the maximum vertical scroll limit in physical pixels.
     #[inline]
     #[must_use]
@@ -270,9 +272,17 @@ impl ScrollAreaResponse {
     }
 }
 
-impl From<ScrollAreaResponse> for f32 {
+impl<R> std::ops::Deref for ScrollAreaResponse<R> {
+    type Target = R;
     #[inline]
-    fn from(resp: ScrollAreaResponse) -> Self {
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<R> From<ScrollAreaResponse<R>> for f32 {
+    #[inline]
+    fn from(resp: ScrollAreaResponse<R>) -> Self {
         resp.max_scroll_y
     }
 }

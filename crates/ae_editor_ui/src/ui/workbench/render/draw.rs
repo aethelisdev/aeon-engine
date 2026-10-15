@@ -215,6 +215,26 @@ impl EngineUi {
             ui_actions: params.ui_actions,
         });
 
+        for action in self.iris_overlay.take_menubar_actions() {
+            match action {
+                crate::ui::iris_bridge::DropdownAction::UiAction(act) => {
+                    params.ui_actions.push(act);
+                }
+                crate::ui::iris_bridge::DropdownAction::TogglePanel(pid) => {
+                    self.layout_state.activate_or_open(pid);
+                }
+                crate::ui::iris_bridge::DropdownAction::ResetLayout => {
+                    self.layout_state.reset_to_default();
+                }
+                crate::ui::iris_bridge::DropdownAction::OpenPreferences => {
+                    self.show_preferences = true;
+                }
+                crate::ui::iris_bridge::DropdownAction::OpenAbout => {
+                    self.show_about = true;
+                }
+            }
+        }
+
         self.process_viewport_hud_actions(
             &mut cur_snap,
             &mut snap_changed,

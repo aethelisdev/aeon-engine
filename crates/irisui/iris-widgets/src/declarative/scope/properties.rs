@@ -19,4 +19,8 @@ pub mod vectors;
 
 pub use sliders::PropertySliderOptions;
 pub use text::{PropertyTextOptions, PropertyTextResponse};
-pub use vectors::{PropertyVec3Options, PropertyVec3Response};
+pub use vectors::{
+    PropertyVec3Options, PropertyVec3Response, PropertyVec3Target, property_vec3_axis_tag,
+    property_vec3_reset_tag, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
+    resolve_property_vec3_tag,
+};

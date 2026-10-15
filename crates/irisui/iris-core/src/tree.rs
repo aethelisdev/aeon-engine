@@ -34,6 +34,8 @@ pub struct UiTree {
     pub viewport_sizes: HashMap<u64, Size>,
     /// Persistent state map tracking maximum vertical scroll extents, keyed by 64-bit semantic tag.
     pub max_scrolls: HashMap<u64, f32>,
+    /// Persistent 64-bit semantic tag identifying the currently opened menu bar dropdown menu, if any.
+    pub active_menu_bar_tag: Option<u64>,
 }
 
 impl UiTree {
@@ -48,6 +50,7 @@ impl UiTree {
             scroll_offsets: HashMap::new(),
             viewport_sizes: HashMap::new(),
             max_scrolls: HashMap::new(),
+            active_menu_bar_tag: None,
         }
     }
 
@@ -76,6 +79,19 @@ impl UiTree {
         self.event_state.has_frame_interactions()
     }
 
+    /// Returns `true` if this UI tree requires an immediate declarative rebuild and render.
+    ///
+    /// Evaluates whether the tree has pending interactions (clicks, double-clicks, secondary clicks,
+    /// drags), active open cascading menus, autonomous context menus, or invalidating dirty flags.
+    #[inline]
+    #[must_use]
+    pub fn needs_rebuild(&self) -> bool {
+        self.event_state.has_frame_interactions()
+            || self.active_menu_bar_tag.is_some()
+            || self.event_state.active_context_menu.is_some()
+            || self.has_dirty_nodes(DirtyFlags::LAYOUT | DirtyFlags::PAINT)
+    }
+
     /// Returns whether the collapsing section with the given `tag` is currently expanded.
     ///
     /// If the tag has never been toggled by the user, returns `default_open`.
@@ -101,6 +117,28 @@ impl UiTree {
         let new_state = !current;
         self.collapsing_state.insert(tag, new_state);
         new_state
+    }
+
+    /// Returns whether the menu bar dropdown identified by semantic `tag` is currently opened.
+    #[inline]
+    #[must_use]
+    pub fn is_menu_open(&self, tag: u64) -> bool {
+        self.active_menu_bar_tag == Some(tag)
+    }
+
+    /// Sets or clears the active menu bar dropdown identified by semantic `tag`.
+    ///
+    /// # Arguments
+    /// * `tag` - Optional 64-bit semantic tag of the opened menu, or `None` to close all dropdowns.
+    #[inline]
+    pub fn set_active_menu(&mut self, tag: Option<u64>) {
+        self.active_menu_bar_tag = tag;
+    }
+
+    /// Closes any currently opened menu bar dropdown popup.
+    #[inline]
+    pub fn close_menu(&mut self) {
+        self.active_menu_bar_tag = None;
     }
 
     /// Returns the persistent vertical scroll position for the given semantic `tag`.

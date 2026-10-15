@@ -44,11 +44,13 @@ pub use controls::{
 pub use declarative::{
     CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, CollapsingBuilder, CollapsingResponse,
     ContainerResponseExt, ContextMenuExt, InputBoxProps, PropertySliderOptions,
-    PropertyTextOptions, PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, ScopeId,
-    ScrollAreaConfig, TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps,
-    UiScope, WidgetResponse, WrappedLabelDescriptor, calculate_visible_slice_and_caret,
-    combine_seeds, hash_label, hash_label_with_seed, layout_subtree, measure_content_height,
-    measure_height, measure_height_constrained, measure_text_advance, measure_width,
+    PropertyTextOptions, PropertyTextResponse, PropertyVec3Options, PropertyVec3Response,
+    PropertyVec3Target, ScopeId, ScrollAreaConfig, TreeNodeProps, TreeRowProps, TreeRowResponse,
+    TreeViewConfig, TreeViewProps, UiScope, WidgetResponse, WrappedLabelDescriptor,
+    calculate_visible_slice_and_caret, combine_seeds, hash_label, hash_label_with_seed,
+    layout_subtree, measure_content_height, measure_height, measure_height_constrained,
+    measure_text_advance, measure_width, property_vec3_axis_tag, property_vec3_reset_tag,
+    resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds, resolve_property_vec3_tag,
     split_label_id,
 };
 pub use grid_view::ResponsiveGrid;

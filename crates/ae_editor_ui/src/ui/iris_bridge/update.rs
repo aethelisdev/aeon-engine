@@ -147,8 +147,8 @@ impl IrisEditorOverlay {
             || self.modals.last_modal_active != modal_active
             || self.preferences.last_tab != self.preferences.tab
             || (self.preferences.scroll_y - self.preferences.last_scroll_y).abs() > 0.001
-            || self.chrome.last_has_drag_payload != has_drag_payload
             || self.menubar.active_menu.is_some()
+            || self.tree.needs_rebuild()
             || self.chrome.active_dock_overflow.is_some()
             || self.chrome.needs_layout_rebuild
             || self.chrome.needs_scroll_sync
@@ -411,15 +411,19 @@ impl IrisEditorOverlay {
             );
 
             // 1. Top MenuBar
-            let menu_output = menubar::build_top_menu_bar(
+            if let Some(action) = menubar::build_top_menu_bar(
                 &mut self.tree,
                 root,
-                screen_width,
-                self.menubar.active_menu,
-                params.context.is_editing,
-                cursor,
-            );
-            self.menubar.button_ids = menu_output.menu_button_ids.to_vec();
+                &menubar::MenuBarParams {
+                    screen_width,
+                    layout_state: params.context.layout_state,
+                    can_undo: params.context.can_undo,
+                    can_redo: params.context.can_redo,
+                    is_editing: params.context.is_editing,
+                },
+            ) {
+                self.menubar.actions.push(action);
+            }
 
             // 2. Bottom Diagnostics & Status Bar
             let _status_bar_id = status_bar::build_bottom_status_bar(

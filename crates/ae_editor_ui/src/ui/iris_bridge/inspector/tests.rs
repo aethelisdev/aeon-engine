@@ -681,10 +681,10 @@ fn test_inspector_entity_rename_all_selected_lifecycle() {
     params.is_rename_all_selected = true;
 
     let mut scope = UiScope::new(&mut tree, root);
-    let nodes = header::build_entity_header(&mut scope, entity, &params);
+    let resp = header::build_entity_header(&mut scope, entity, &params);
     scope.finish_layout(params.panel_rect);
 
-    let box_node = tree.get(nodes.name_box_id).expect("Box node must exist");
+    let box_node = tree.get(resp.id).expect("Box node must exist");
     assert_eq!(
         box_node.children.len(),
         2,

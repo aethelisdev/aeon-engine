@@ -229,7 +229,8 @@ impl<'a, 'b> CollapsingBuilder<'a, 'b> {
                     self.indent,
                 )));
             }
-            let mut body_scope = UiScope::new(self.scope.tree, body_id);
+            let body_seed = crate::declarative::types::combine_seeds(self.scope.seed, tag);
+            let mut body_scope = self.scope.child_scope_seeded(body_id, body_seed);
             Some(add_contents(&mut body_scope))
         } else {
             None

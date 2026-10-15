@@ -217,6 +217,8 @@ impl EventState {
 pub struct DispatchResult {
     /// Whether the interaction was consumed by a target widget node in the hierarchy.
     pub consumed: bool,
+    /// Whether this interaction mutated state or requires the containing UI tree to re-render.
+    pub needs_redraw: bool,
     /// The target widget node ID that processed or originated the event.
     pub target: Option<WidgetId>,
     /// The 64-bit persistent semantic tag of the target widget node, if assigned (`0` if none).
@@ -241,6 +243,7 @@ impl DispatchResult {
     pub const fn ignored() -> Self {
         Self {
             consumed: false,
+            needs_redraw: false,
             target: None,
             target_tag: 0,
             cursor: None,
@@ -257,6 +260,7 @@ impl DispatchResult {
     pub const fn consumed_at(target: WidgetId, target_tag: u64) -> Self {
         Self {
             consumed: true,
+            needs_redraw: true,
             target: Some(target),
             target_tag,
             cursor: None,
@@ -272,6 +276,12 @@ impl DispatchResult {
     #[inline]
     pub const fn is_consumed(&self) -> bool {
         self.consumed
+    }
+
+    /// Returns `true` if this event requires an immediate visual re-render of the target UI tree.
+    #[inline]
+    pub const fn needs_redraw(&self) -> bool {
+        self.needs_redraw
     }
 
     /// Attaches a hardware cursor override to this dispatch result.

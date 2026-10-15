@@ -409,10 +409,8 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
             .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
             .gap(4.0);
 
-        let mut del_btn_id = WidgetId::default();
-
         scope.container_named("UiProgressBarCard", card_style, |card| {
-            del_btn_id = build_declarative_card_header(
+            build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
                     atlas_icon: None,

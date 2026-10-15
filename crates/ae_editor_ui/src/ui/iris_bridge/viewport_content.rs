@@ -34,32 +34,35 @@ impl IrisEditorOverlay {
             .clip_children(true);
 
         let mut scope = UiScope::new(tree, parent);
-        let root = scope.container_passive(root_style, |vp_scope| {
-            if params.viewport.has_viewport_texture {
-                vp_scope.external_texture(
-                    VIEWPORT_TEXTURE_ID,
-                    viewport_rect.width,
-                    viewport_rect.height,
-                );
-            } else {
-                let ph_style = Style::new()
-                    .position_absolute()
-                    .left(0.0)
-                    .top(0.0)
-                    .width(viewport_rect.width)
-                    .height(viewport_rect.height)
-                    .justify_content(JustifyContent::Center)
-                    .align_items(AlignItems::Center);
-                vp_scope.container_passive(ph_style, |ph| {
-                    ph.label_custom(
-                        "Rendering viewport...",
-                        14.0,
-                        Color::hex("#888888"),
-                        TextAlign::Center,
+        let root = scope
+            .container_passive(root_style, |vp_scope| {
+                if params.viewport.has_viewport_texture {
+                    vp_scope.external_texture(
+                        VIEWPORT_TEXTURE_ID,
+                        viewport_rect.width,
+                        viewport_rect.height,
                     );
-                });
-            }
-        });
+                } else {
+                    let ph_style = Style::new()
+                        .position_absolute()
+                        .left(0.0)
+                        .top(0.0)
+                        .width(viewport_rect.width)
+                        .height(viewport_rect.height)
+                        .justify_content(JustifyContent::Center)
+                        .align_items(AlignItems::Center);
+                    vp_scope.container_passive(ph_style, |ph| {
+                        ph.label_custom(
+                            "Rendering viewport...",
+                            14.0,
+                            Color::hex("#888888"),
+                            TextAlign::Center,
+                        );
+                    });
+                }
+            })
+            .response
+            .id;
 
         // 3. Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
         let cursor_pos = self.cursor_pos();

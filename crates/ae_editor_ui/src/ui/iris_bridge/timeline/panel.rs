@@ -81,33 +81,30 @@ fn render_empty_placeholder(
     title: &str,
     subtitle: &str,
 ) {
-    scope.container_named(
-        "TimelineEmptyCenterWrapper",
-        Style::new()
-            .flex_col()
-            .height(height)
-            .justify_content(JustifyContent::Center)
-            .align_items(AlignItems::Center),
-        |center_col| {
-            let card_style = Style::new()
+    scope
+        .column_with()
+        .name("TimelineEmptyCenterWrapper")
+        .height(height)
+        .centered()
+        .show(|center_col| {
+            center_col
+                .column_with()
+                .name("TimelineEmptyCard")
                 .width(460.0)
                 .background(Color::rgba(0.09, 0.11, 0.15, 0.85))
                 .border_radius(6.0)
                 .border(1.0, Color::rgba(0.20, 0.24, 0.32, 0.50))
-                .flex_col()
                 .align_items(AlignItems::Center)
                 .padding_insets(Insets::new(12.0, 16.0, 12.0, 16.0))
-                .gap(4.0);
-
-            center_col.container_named("TimelineEmptyCard", card_style, |card_scope| {
-                card_scope.colored_label(
-                    Color::rgba(0.70, 0.75, 0.85, 1.0),
-                    format!("{}  {}", icon, title),
-                );
-                card_scope.colored_label(Color::rgba(0.48, 0.52, 0.62, 1.0), subtitle);
-            });
-        },
-    );
+                .gap(4.0)
+                .show(|card_scope| {
+                    card_scope.colored_label(
+                        Color::rgba(0.70, 0.75, 0.85, 1.0),
+                        format!("{}  {}", icon, title),
+                    );
+                    card_scope.colored_label(Color::rgba(0.48, 0.52, 0.62, 1.0), subtitle);
+                });
+        });
 }
 
 /// Renders an informational card with an action button when an entity is selected without AnimationPlayer.
@@ -120,34 +117,31 @@ fn render_missing_player_card(
     actions: &mut Vec<TimelineAction>,
     entity: hecs::Entity,
 ) {
-    scope.container_named(
-        "TimelineMissingCenterWrapper",
-        Style::new()
-            .flex_col()
-            .height(height)
-            .justify_content(JustifyContent::Center)
-            .align_items(AlignItems::Center),
-        |center_col| {
-            let card_style = Style::new()
+    scope
+        .column_with()
+        .name("TimelineMissingCenterWrapper")
+        .height(height)
+        .centered()
+        .show(|center_col| {
+            center_col
+                .column_with()
+                .name("TimelineMissingPlayerCard")
                 .width(480.0)
                 .background(Color::rgba(0.09, 0.11, 0.15, 0.85))
                 .border_radius(6.0)
                 .border(1.0, Color::rgba(0.25, 0.28, 0.38, 0.60))
-                .flex_col()
                 .align_items(AlignItems::Center)
                 .padding_insets(Insets::new(12.0, 16.0, 12.0, 16.0))
-                .gap(8.0);
+                .gap(8.0)
+                .show(|card_scope| {
+                    card_scope.colored_label(
+                        Color::rgba(0.72, 0.76, 0.86, 1.0),
+                        "Selected entity does not have an AnimationPlayer component.",
+                    );
 
-            center_col.container_named("TimelineMissingPlayerCard", card_style, |card_scope| {
-                card_scope.colored_label(
-                    Color::rgba(0.72, 0.76, 0.86, 1.0),
-                    "Selected entity does not have an AnimationPlayer component.",
-                );
-
-                if card_scope.button("➕ Add AnimationPlayer").clicked() {
-                    actions.push(TimelineAction::AddAnimationPlayer(entity));
-                }
-            });
-        },
-    );
+                    if card_scope.button("➕ Add AnimationPlayer").clicked() {
+                        actions.push(TimelineAction::AddAnimationPlayer(entity));
+                    }
+                });
+        });
 }

@@ -306,18 +306,28 @@ impl<'a> AssetCardBuilder<'a> {
             preview_rect: self.preview_rect(),
             card_rect: self.rect,
             card_id: match self.tag {
-                Some(tag) => scope.container_tagged(
-                    self.name.unwrap_or("AssetCard"),
-                    self.compute_card_style(scope),
-                    WidgetRole::Button,
-                    tag,
-                    |card_scope| self.render_body(card_scope),
-                ),
-                None => scope.container_named(
-                    self.name.unwrap_or("AssetCard"),
-                    self.compute_card_style(scope),
-                    |card_scope| self.render_body(card_scope),
-                ),
+                Some(tag) => {
+                    scope
+                        .container_tagged(
+                            self.name.unwrap_or("AssetCard"),
+                            self.compute_card_style(scope),
+                            WidgetRole::Button,
+                            tag,
+                            |card_scope| self.render_body(card_scope),
+                        )
+                        .response
+                        .id
+                }
+                None => {
+                    scope
+                        .container_named(
+                            self.name.unwrap_or("AssetCard"),
+                            self.compute_card_style(scope),
+                            |card_scope| self.render_body(card_scope),
+                        )
+                        .response
+                        .id
+                }
             },
         }
     }

@@ -99,80 +99,83 @@ pub fn render_ruler_bar(
         .clip_children(true)
         .background(Color::rgba(0.07, 0.08, 0.11, 0.60));
 
-    scope.container_named("TimelineRulerRoot", ruler_style, |ruler| {
-        let usable_width = (track_width - TIMELINE_SIDEBAR_WIDTH).max(10.0);
-        let safe_duration = duration.max(0.001);
-        let step = if duration <= 1.0 {
-            0.1
-        } else if duration <= 3.0 {
-            0.25
-        } else if duration <= 10.0 {
-            0.5
-        } else if duration <= 30.0 {
-            1.0
-        } else {
-            5.0
-        };
+    scope
+        .container_named("TimelineRulerRoot", ruler_style, |ruler| {
+            let usable_width = (track_width - TIMELINE_SIDEBAR_WIDTH).max(10.0);
+            let safe_duration = duration.max(0.001);
+            let step = if duration <= 1.0 {
+                0.1
+            } else if duration <= 3.0 {
+                0.25
+            } else if duration <= 10.0 {
+                0.5
+            } else if duration <= 30.0 {
+                1.0
+            } else {
+                5.0
+            };
 
-        // Left header indicator
-        let header_style = Style::new()
-            .position_absolute()
-            .left(4.0)
-            .top(2.0)
-            .width(110.0)
-            .height(height - 4.0)
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0));
-        ruler.container_named("TimelineRulerHeader", header_style, |hdr| {
-            hdr.label_custom(
-                "⏱ TIME (s)",
-                8.5,
-                Color::rgba(0.55, 0.60, 0.72, 0.90),
-                TextAlign::Left,
-            );
-        });
-
-        let tick_count = ((duration / step).ceil() as usize).min(120);
-        for i in 0..=tick_count {
-            let t = (i as f32 * step).min(duration);
-            let frac = (t / safe_duration).clamp(0.0, 1.0);
-            let is_major = (i % 2 == 0) || (t == 0.0) || ((t - duration).abs() < 0.001);
-            let tick_h = if is_major { 8.0 } else { 4.0 };
-            let x = TIMELINE_SIDEBAR_WIDTH
-                + (frac * usable_width).clamp(0.0, (usable_width - 1.0).max(0.0));
-
-            let tick_style = Style::new()
+            // Left header indicator
+            let header_style = Style::new()
                 .position_absolute()
-                .left(x)
-                .top(height - tick_h)
-                .width(1.0)
-                .height(tick_h)
-                .background(if is_major {
-                    style.major_tick_color
-                } else {
-                    style.minor_tick_color
-                });
-            ruler.empty_box_passive_named("TimelineRulerTick", tick_style);
-
-            if is_major {
-                let label_style = Style::new()
-                    .position_absolute()
-                    .left(x + 2.0)
-                    .top(0.0)
-                    .width(32.0)
-                    .height(12.0);
-                ruler.label_styled_passive(
-                    "TimelineRulerLabel",
-                    format!("{:.1}s", t),
-                    style.tick_label_font_size,
-                    style.tick_label_color,
+                .left(4.0)
+                .top(2.0)
+                .width(110.0)
+                .height(height - 4.0)
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0));
+            ruler.container_named("TimelineRulerHeader", header_style, |hdr| {
+                hdr.label_custom(
+                    "⏱ TIME (s)",
+                    8.5,
+                    Color::rgba(0.55, 0.60, 0.72, 0.90),
                     TextAlign::Left,
-                    label_style,
                 );
+            });
+
+            let tick_count = ((duration / step).ceil() as usize).min(120);
+            for i in 0..=tick_count {
+                let t = (i as f32 * step).min(duration);
+                let frac = (t / safe_duration).clamp(0.0, 1.0);
+                let is_major = (i % 2 == 0) || (t == 0.0) || ((t - duration).abs() < 0.001);
+                let tick_h = if is_major { 8.0 } else { 4.0 };
+                let x = TIMELINE_SIDEBAR_WIDTH
+                    + (frac * usable_width).clamp(0.0, (usable_width - 1.0).max(0.0));
+
+                let tick_style = Style::new()
+                    .position_absolute()
+                    .left(x)
+                    .top(height - tick_h)
+                    .width(1.0)
+                    .height(tick_h)
+                    .background(if is_major {
+                        style.major_tick_color
+                    } else {
+                        style.minor_tick_color
+                    });
+                ruler.empty_box_passive_named("TimelineRulerTick", tick_style);
+
+                if is_major {
+                    let label_style = Style::new()
+                        .position_absolute()
+                        .left(x + 2.0)
+                        .top(0.0)
+                        .width(32.0)
+                        .height(12.0);
+                    ruler.label_styled_passive(
+                        "TimelineRulerLabel",
+                        format!("{:.1}s", t),
+                        style.tick_label_font_size,
+                        style.tick_label_color,
+                        TextAlign::Left,
+                        label_style,
+                    );
+                }
             }
-        }
-    })
+        })
+        .response
+        .id
 }
 
 /// Parameters describing dimensions, time bounds, keyframes, and style for scrubber track rendering.
@@ -222,9 +225,7 @@ pub fn render_scrubber_track(
         .border(params.style.track_border_width, track_border)
         .clip_children(false);
 
-    let mut playhead_cap_id = WidgetId::default();
-
-    let track_id = scope.container_tagged(
+    let track_resp = scope.container_tagged(
         "TimelineScrubberTrack",
         track_style,
         WidgetRole::Default,
@@ -313,19 +314,22 @@ pub fn render_scrubber_track(
                 .height(cap_h)
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
-            playhead_cap_id = track.container_tagged(
-                "TimelinePlayheadCap",
-                cap_style,
-                WidgetRole::Button,
-                TIMELINE_TAG_PLAYHEAD_CAP,
-                |cap| {
-                    cap.label_custom("▼", 9.0, style.playhead_cap_color, TextAlign::Center);
-                },
-            );
+            track
+                .container_tagged(
+                    "TimelinePlayheadCap",
+                    cap_style,
+                    WidgetRole::Button,
+                    TIMELINE_TAG_PLAYHEAD_CAP,
+                    |cap| {
+                        cap.label_custom("▼", 9.0, style.playhead_cap_color, TextAlign::Center);
+                    },
+                )
+                .response
+                .id
         },
     );
 
-    (track_id, playhead_cap_id)
+    (track_resp.response.id, track_resp.inner)
 }
 
 #[cfg(test)]

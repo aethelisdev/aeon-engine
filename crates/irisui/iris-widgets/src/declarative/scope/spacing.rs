@@ -158,4 +158,15 @@ impl<'a> UiScope<'a> {
     pub fn spacer(&mut self) -> WidgetId {
         self.empty_box(Style::new().flex_grow(1.0))
     }
+
+    /// Emits a fixed-size empty spacing element of the specified extent in physical pixels.
+    ///
+    /// Delegates directly to [`UiScope::spacing_named`] using the `"SpacerPx"` node label,
+    /// dynamically conforming to the parent container's layout axis (width for rows, height for columns).
+    ///
+    /// # Arguments
+    /// * `size` - Fixed spacing extent in physical pixels.
+    pub fn spacer_px(&mut self, size: f32) -> WidgetId {
+        self.spacing_named("SpacerPx", size)
+    }
 }

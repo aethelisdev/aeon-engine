@@ -367,51 +367,49 @@ impl<'a> UiScope<'a> {
                 .hover_border(config.style.border_width, config.style.hover_border);
         }
 
-        let mut foldout_id = None;
+        let resp = self.container_tagged(name, row_style, WidgetRole::Button, props.tag, |row_s| {
+            // 0. Hierarchy Connector Lines (when depth > 0)
+            if depth > 0 {
+                let line_color = config.indent.line_color;
+                for_each_tree_connector_line(depth, &config.indent, |v_line, h_line| {
+                    let rel_x = v_line.x - padding_left;
 
-        let row_id =
-            self.container_tagged(name, row_style, WidgetRole::Button, props.tag, |row_s| {
-                // 0. Hierarchy Connector Lines (when depth > 0)
-                if depth > 0 {
-                    let line_color = config.indent.line_color;
-                    for_each_tree_connector_line(depth, &config.indent, |v_line, h_line| {
-                        let rel_x = v_line.x - padding_left;
+                    let v_style = Style::new()
+                        .position_absolute()
+                        .left(rel_x)
+                        .top(0.0)
+                        .width(v_line.thickness)
+                        .height(v_line.height)
+                        .background(line_color);
+                    row_s.empty_box(v_style);
 
-                        let v_style = Style::new()
+                    if let Some(h) = h_line {
+                        let h_style = Style::new()
                             .position_absolute()
                             .left(rel_x)
-                            .top(0.0)
-                            .width(v_line.thickness)
-                            .height(v_line.height)
+                            .top(h.y)
+                            .width(h.width)
+                            .height(h.thickness)
                             .background(line_color);
-                        row_s.empty_box(v_style);
+                        row_s.empty_box(h_style);
+                    }
+                });
+            }
 
-                        if let Some(h) = h_line {
-                            let h_style = Style::new()
-                                .position_absolute()
-                                .left(rel_x)
-                                .top(h.y)
-                                .width(h.width)
-                                .height(h.thickness)
-                                .background(line_color);
-                            row_s.empty_box(h_style);
-                        }
-                    });
-                }
+            // 1. Foldout Chevron Button (if item has children)
+            let foldout_id = if props.has_children {
+                let chevron_glyph = tree_chevron_arrow_glyph(props.is_expanded);
+                let chevron_col = config.style.resolve_chevron_color(is_selected, false);
 
-                // 1. Foldout Chevron Button (if item has children)
-                if props.has_children {
-                    let chevron_glyph = tree_chevron_arrow_glyph(props.is_expanded);
-                    let chevron_col = config.style.resolve_chevron_color(is_selected, false);
+                let fold_style = Style::new()
+                    .flex_row()
+                    .width(12.0)
+                    .height(config.row_height)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center);
 
-                    let fold_style = Style::new()
-                        .flex_row()
-                        .width(12.0)
-                        .height(config.row_height)
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::Center);
-
-                    let fid = row_s.container_tagged(
+                let fid = row_s
+                    .container_tagged(
                         "TreeFoldoutButton",
                         fold_style,
                         WidgetRole::Button,
@@ -426,15 +424,23 @@ impl<'a> UiScope<'a> {
                             );
                             fold_s.set_hover_text_color(txt_id, config.style.chevron_hover_color);
                         },
-                    );
-                    foldout_id = Some(fid);
-                }
+                    )
+                    .response
+                    .id;
+                Some(fid)
+            } else {
+                None
+            };
 
-                // 2. Custom Row Content (Icon, Label, Actions)
-                content(row_s);
-            });
+            // 2. Custom Row Content (Icon, Label, Actions)
+            content(row_s);
+            foldout_id
+        });
 
-        let row_resp = self.response(row_id);
+        let row_id = resp.response.id;
+        let foldout_id = resp.inner;
+
+        let row_resp = resp.response;
         let row_clicked = row_resp.clicked();
         let row_secondary_clicked = row_resp.secondary_clicked();
         let row_hovered = row_resp.hovered();

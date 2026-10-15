@@ -9,6 +9,7 @@
 //!
 
 use super::core::UiScope;
+use crate::declarative::scope::containers::InnerResponse;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
     AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiLayer, WidgetCursor,
@@ -18,14 +19,25 @@ use iris_core::{
 impl<'a> UiScope<'a> {
     /// Emits a top application menu bar button (e.g. "File", "Edit", "View", "Window", "Help").
     ///
-    /// Resolves hover and interaction state internally via [`UiScope::check_interaction`] without
-    /// requiring manual external coordinate hit tests.
+    /// Resolves hover and interaction state internally via [`UiScope::check_interaction`]. The semantic
+    /// interaction tag is automatically derived from the caption string via [`UiScope::tag_for`].
     ///
     /// # Arguments
     /// * `label` - Caption text displayed on the menu bar button.
-    /// * `tag` - Semantic identifier constant inspected during menu activation routing.
     /// * `is_active` - Whether the dropdown associated with this menu item is currently open.
-    pub fn menu_bar_item(
+    pub fn menu_bar_item(&mut self, label: impl Into<String>, is_active: bool) -> WidgetResponse {
+        let label_str = label.into();
+        let tag = self.tag_for(&label_str);
+        self.menu_bar_item_tagged(label_str, tag, is_active)
+    }
+
+    /// Emits a top application menu bar button with an explicit semantic interaction tag.
+    ///
+    /// # Arguments
+    /// * `label` - Caption text displayed on the menu bar button.
+    /// * `tag` - Explicit semantic identifier constant inspected during menu activation routing.
+    /// * `is_active` - Whether the dropdown associated with this menu item is currently open.
+    pub fn menu_bar_item_tagged(
         &mut self,
         label: impl Into<String>,
         tag: u64,
@@ -80,14 +92,32 @@ impl<'a> UiScope<'a> {
 
     /// Emits a prominent top menu action button (e.g. "▶ Play" or "⏹ Stop").
     ///
-    /// Applies a ~15% background brightness lift when hovered, resolved internally by the framework.
+    /// The semantic interaction tag is automatically derived from the caption string via
+    /// [`UiScope::tag_for`]. Applies a ~15% background brightness lift when hovered.
     ///
     /// # Arguments
     /// * `label` - Caption text on the action button.
-    /// * `tag` - Semantic identifier constant inspected during execution dispatch.
     /// * `bg_color` - Base idle background color (e.g. emerald green or crimson red).
     /// * `text_color` - Label text color.
     pub fn menu_action_button(
+        &mut self,
+        label: impl Into<String>,
+        bg_color: Color,
+        text_color: Color,
+    ) -> WidgetResponse {
+        let label_str = label.into();
+        let tag = self.tag_for(&label_str);
+        self.menu_action_button_tagged(label_str, tag, bg_color, text_color)
+    }
+
+    /// Emits a prominent top menu action button with an explicit semantic interaction tag.
+    ///
+    /// # Arguments
+    /// * `label` - Caption text on the action button.
+    /// * `tag` - Explicit semantic identifier constant inspected during execution dispatch.
+    /// * `bg_color` - Base idle background color (e.g. emerald green or crimson red).
+    /// * `text_color` - Label text color.
+    pub fn menu_action_button_tagged(
         &mut self,
         label: impl Into<String>,
         tag: u64,
@@ -139,9 +169,9 @@ impl<'a> UiScope<'a> {
     /// * `y` - Top vertical screen offset in physical pixels.
     /// * `width` - Fixed card width constraint in physical pixels.
     /// * `f` - Closure emitting dropdown items inside this popup scope.
-    pub fn dropdown_menu_card<F>(&mut self, x: f32, y: f32, width: f32, f: F) -> WidgetId
+    pub fn dropdown_menu_card<R, F>(&mut self, x: f32, y: f32, width: f32, f: F) -> InnerResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -166,8 +196,12 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = self.child_scope(node_id);
-        f(&mut child_scope);
+        let child_seed = crate::declarative::types::combine_seeds(
+            self.seed,
+            crate::declarative::types::hash_label("DropdownMenu"),
+        );
+        let mut child_scope = self.child_scope_seeded(node_id, child_seed);
+        let inner = f(&mut child_scope);
         let height = crate::declarative::layout::measure_height(self.tree, node_id);
         let bounds = Rect::new(x, y, width, height);
         crate::declarative::layout_subtree(self.tree, node_id, bounds);
@@ -175,7 +209,8 @@ impl<'a> UiScope<'a> {
             node.computed_rect = bounds;
             node.style.height = Some(height);
         }
-        node_id
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
     }
 
     /// Emits an elevated floating dropdown popup container with an explicit debug name at `(x, y)` on [`UiLayer::Popup`].
@@ -186,16 +221,16 @@ impl<'a> UiScope<'a> {
     /// * `y` - Top vertical screen offset in physical pixels.
     /// * `width` - Fixed card width constraint in physical pixels.
     /// * `f` - Closure emitting dropdown items inside this popup scope.
-    pub fn dropdown_menu_card_named<F>(
+    pub fn dropdown_menu_card_named<R, F>(
         &mut self,
         name: &'static str,
         x: f32,
         y: f32,
         width: f32,
         f: F,
-    ) -> WidgetId
+    ) -> InnerResponse<R>
     where
-        F: FnOnce(&mut UiScope<'_>),
+        F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -221,8 +256,12 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
-        let mut child_scope = self.child_scope(node_id);
-        f(&mut child_scope);
+        let child_seed = crate::declarative::types::combine_seeds(
+            self.seed,
+            crate::declarative::types::hash_label(name),
+        );
+        let mut child_scope = self.child_scope_seeded(node_id, child_seed);
+        let inner = f(&mut child_scope);
         let height = crate::declarative::layout::measure_height(self.tree, node_id);
         let bounds = Rect::new(x, y, width, height);
         crate::declarative::layout_subtree(self.tree, node_id, bounds);
@@ -233,7 +272,8 @@ impl<'a> UiScope<'a> {
         if let Some(cursor) = self.tree.cursor_position() {
             super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
         }
-        node_id
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
     }
 
     /// Emits a selectable menu item row inside a floating dropdown menu.

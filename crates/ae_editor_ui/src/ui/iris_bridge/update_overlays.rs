@@ -12,7 +12,6 @@
 use super::about::build_about_dialog;
 use super::hierarchy;
 use super::inspector;
-use super::menubar;
 use super::modals::{
     self, build_delete_modal, build_loading_overlay, build_new_folder_modal, build_rename_modal,
 };
@@ -407,44 +406,7 @@ impl IrisEditorOverlay {
             );
         }
 
-        // 11. Top Menubar Dropdown Popup
-        if let Some(active) = self.menubar.active_menu {
-            let anchor_x = self
-                .menubar
-                .button_ids
-                .iter()
-                .find(|(m, _)| *m == active)
-                .and_then(|(_, id)| self.tree.get(*id))
-                .map(|n| n.computed_rect.x)
-                .unwrap_or(6.0);
-
-            let overlay_root = self
-                .overlay_tree
-                .tree_mut()
-                .root()
-                .unwrap_or_else(|| self.overlay_tree.tree_mut().create_root().unwrap_or(root));
-
-            let (_dropdown_id, actions, dd_rect) = menubar::build_floating_dropdown(
-                self.overlay_tree.tree_mut(),
-                overlay_root,
-                menubar::DropdownMenuParams {
-                    active,
-                    anchor_x,
-                    layout_state: params.context.layout_state,
-                    can_undo: params.context.can_undo,
-                    can_redo: params.context.can_redo,
-                    cursor_pos: cursor,
-                },
-            );
-
-            self.menubar.actions = actions;
-            self.menubar.dropdown_rect = Some(dd_rect);
-            self.overlay_tree.open(
-                super::overlay_tree::ActiveOverlay::MenubarDropdown(active),
-                super::overlay_tree::OverlayDismissPolicy::ClickOutside,
-            );
-            self.overlay_tree.set_overlay_bounds(dd_rect);
-        }
+        // 11. Top Menubar Dropdown Popup handled autonomously by UiScope::menu_bar
 
         // 12. Native Dock Tab Overflow Dropdown Menu
         if let Some((leaf_id, anchor_rect)) = self.chrome.active_dock_overflow
