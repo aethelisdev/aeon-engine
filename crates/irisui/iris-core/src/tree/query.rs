@@ -5,7 +5,7 @@
 
 use crate::geometry::{Point, Rect};
 use crate::id::WidgetId;
-use crate::node::WidgetNode;
+use crate::node::{WidgetNode, WidgetRole};
 
 use super::arena::UiTree;
 
@@ -240,5 +240,138 @@ impl UiTree {
             current = self.nodes.get(curr_id).and_then(|n| n.parent);
         }
         false
+    }
+
+    /// Returns `true` if a widget node with the given name exists in the tree.
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    #[inline]
+    #[must_use]
+    pub fn has_node_named(&self, name: &str) -> bool {
+        self.node_named(name).is_some()
+    }
+
+    /// Returns the computed bounding rectangle of the widget node with the given name, if present.
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    #[inline]
+    #[must_use]
+    pub fn node_rect(&self, name: &str) -> Option<Rect> {
+        self.node_named(name).map(|n| n.computed_rect)
+    }
+
+    /// Returns the computed bounding rectangle of the named widget node, panicking if not found.
+    ///
+    /// Designed for declarative test assertions without intermediate variable bindings.
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    #[inline]
+    pub fn assert_node_rect(&self, name: &str) -> Rect {
+        self.node_named(name)
+            .map(|n| n.computed_rect)
+            .unwrap_or_else(|| {
+                panic!("Assertion failed: Widget node named '{name}' not found in UiTree")
+            })
+    }
+
+    /// Asserts that a widget node exists with the expected role.
+    ///
+    /// Returns a shared reference to the validated [`WidgetNode`].
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    /// * `expected_role` - Expected [`WidgetRole`] variant.
+    #[inline]
+    pub fn assert_node(&self, name: &str, expected_role: WidgetRole) -> &WidgetNode {
+        let node = self.node_named(name).unwrap_or_else(|| {
+            panic!("Assertion failed: Widget node named '{name}' not found in UiTree")
+        });
+        assert_eq!(
+            node.role, expected_role,
+            "Assertion failed: Widget node '{name}' expected role {:?}, but found {:?}",
+            expected_role, node.role
+        );
+        node
+    }
+
+    /// Asserts that a widget node exists with the expected role and non-zero layout dimensions.
+    ///
+    /// Returns a shared reference to the validated [`WidgetNode`].
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    /// * `expected_role` - Expected [`WidgetRole`] variant.
+    #[inline]
+    pub fn assert_node_layout(&self, name: &str, expected_role: WidgetRole) -> &WidgetNode {
+        let node = self.assert_node(name, expected_role);
+        assert!(
+            node.computed_rect.width > 0.0,
+            "Assertion failed: Widget node '{name}' width must be non-zero after layout (was {})",
+            node.computed_rect.width
+        );
+        assert!(
+            node.computed_rect.height > 0.0,
+            "Assertion failed: Widget node '{name}' height must be non-zero after layout (was {})",
+            node.computed_rect.height
+        );
+        node
+    }
+
+    /// Asserts that all specified widget nodes exist with the given role and non-zero layout dimensions.
+    ///
+    /// Eliminates imperative loop boilerplate in test suites across editor and framework modules.
+    ///
+    /// # Arguments
+    /// * `names` - Slice of widget node names to assert.
+    /// * `expected_role` - Expected [`WidgetRole`] variant for all nodes.
+    #[inline]
+    pub fn assert_widgets(&self, names: &[&str], expected_role: WidgetRole) {
+        for &name in names {
+            self.assert_node_layout(name, expected_role);
+        }
+    }
+
+    /// Asserts that a widget node with the given name exists in the tree.
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    #[inline]
+    pub fn assert_node_exists(&self, name: &str) -> &WidgetNode {
+        self.node_named(name).unwrap_or_else(|| {
+            panic!("Assertion failed: Widget node named '{name}' was expected to exist in UiTree")
+        })
+    }
+
+    /// Asserts that no widget node with the given name exists in the tree.
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name prohibited from appearing in the tree.
+    #[inline]
+    pub fn assert_node_absent(&self, name: &str) {
+        assert!(
+            !self.has_node_named(name),
+            "Assertion failed: Widget node named '{name}' was expected NOT to exist in UiTree, but was found"
+        );
+    }
+
+    /// Asserts that a widget node exists and has the expected text content.
+    ///
+    /// # Arguments
+    /// * `name` - Exact string name assigned to the target widget node.
+    /// * `expected_text` - Expected textual content string.
+    #[inline]
+    pub fn assert_node_text(&self, name: &str, expected_text: &str) {
+        let node = self.node_named(name).unwrap_or_else(|| {
+            panic!("Assertion failed: Widget node named '{name}' not found in UiTree")
+        });
+        assert_eq!(
+            node.text.as_deref(),
+            Some(expected_text),
+            "Assertion failed: Widget node '{name}' expected text '{expected_text}', but found '{:?}'",
+            node.text
+        );
     }
 }

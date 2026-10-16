@@ -311,18 +311,6 @@ impl IrisEditorOverlay {
                 return Some(result);
             }
 
-            // 2b. Transform Reset Buttons
-            if let Some(axis_type) = inspector::resolve_transform_reset_tag(hit.tag) {
-                if let Some(entity) = entity_opt {
-                    self.inspector
-                        .interactions
-                        .actions
-                        .push(InspectorAction::ResetTransform(entity, axis_type));
-                }
-                result.consumed = true;
-                return Some(result);
-            }
-
             // 2c. Number Inputs (Transform & Components, zero rectangular loops)
             if let Some((num_id, min_val, max_val, sensitivity)) =
                 inspector::resolve_inspector_number_input_tag(hit.tag)

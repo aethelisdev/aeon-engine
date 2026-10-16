@@ -10,6 +10,7 @@
 
 pub mod button;
 pub mod checkbox;
+pub mod drag_vec3;
 pub mod empty_box;
 pub mod scroll_area;
 pub mod toolbar;
@@ -17,6 +18,7 @@ pub mod toolbar_button;
 
 pub use button::Button;
 pub use checkbox::Checkbox;
+pub use drag_vec3::{DragVec3, Vec3Response};
 pub use empty_box::EmptyBox;
 pub use scroll_area::ScrollAreaView;
 pub use toolbar::Toolbar;

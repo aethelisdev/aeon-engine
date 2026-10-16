@@ -60,9 +60,7 @@ pub use tags::{
     resolve_inspector_number_input_tag, resolve_inspector_text_input_tag, resolve_preset_reset_tag,
     resolve_save_prefab_btn_tag, resolve_unparent_tag,
 };
-pub use transform::{
-    build_transform_card, resolve_transform_number_input_tag, resolve_transform_reset_tag,
-};
+pub use transform::build_transform_card;
 pub use types::{
     ActiveNumberInputState, ComponentCategory, ComponentCheckboxId, InspectorAction,
     InspectorColorDragMode, InspectorDropdownId, InspectorNumberDragState, InspectorNumberInputId,

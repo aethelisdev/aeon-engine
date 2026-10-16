@@ -33,4 +33,7 @@ pub use scope::{
 pub use types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
-pub use widget::{Button, Checkbox, EmptyBox, ScrollAreaView, Toolbar, ToolbarButton, Widget};
+pub use widget::{
+    Button, Checkbox, DragVec3, EmptyBox, ScrollAreaView, Toolbar, ToolbarButton, Vec3Response,
+    Widget,
+};

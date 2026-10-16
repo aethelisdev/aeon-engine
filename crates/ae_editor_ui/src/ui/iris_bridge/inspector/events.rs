@@ -17,7 +17,6 @@ use super::tags::{
     resolve_component_checkbox_tag, resolve_component_delete_tag, resolve_inspector_dropdown_tag,
     resolve_preset_reset_tag, resolve_save_prefab_btn_tag, resolve_unparent_tag,
 };
-use super::transform::resolve_transform_reset_tag;
 use super::types::InspectorAction;
 use irisui::prelude::*;
 
@@ -120,13 +119,6 @@ pub fn resolve_inspector_tag_click(
     if resolve_unparent_tag(hit_tag) {
         if let Some(entity) = entity_opt {
             out_actions.push(InspectorAction::Unparent(entity));
-        }
-        return true;
-    }
-
-    if let Some(axis_type) = resolve_transform_reset_tag(hit_tag) {
-        if let Some(entity) = entity_opt {
-            out_actions.push(InspectorAction::ResetTransform(entity, axis_type));
         }
         return true;
     }

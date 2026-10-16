@@ -398,27 +398,21 @@ impl<'a> UiScope<'a> {
     }
 
     /// Emits a 3D vector property row with inline X, Y, Z drag-value editors.
+    /// Emits a 3D vector property drag row with dedicated X, Y, and Z numeric drag inputs.
+    ///
+    /// Modifies `values` (`[x, y, z]`) in place and yields a [`crate::declarative::widget::Vec3Response`].
     ///
     /// # Arguments
     /// * `label` - Descriptive vector label (e.g. `"Position"`, `"Rotation"`).
     /// * `values` - Mutable slice containing `[x, y, z]` vector coordinates.
     /// * `speed` - Multiplier applied to drag displacement.
-    pub fn drag_vec3(&mut self, label: &str, values: &mut [f32; 3], speed: f32) -> WidgetResponse {
-        let resp = self.row(|row| {
-            row.text(label);
-            let rx = row.drag_float("X", &mut values[0], speed, -10_000.0, 10_000.0);
-            let ry = row.drag_float("Y", &mut values[1], speed, -10_000.0, 10_000.0);
-            let rz = row.drag_float("Z", &mut values[2], speed, -10_000.0, 10_000.0);
-
-            (
-                rx.clicked() || ry.clicked() || rz.clicked(),
-                rx.hovered() || ry.hovered() || rz.hovered(),
-                rx.changed() || ry.changed() || rz.changed(),
-            )
-        });
-
-        let (clicked, hovered, changed) = resp.inner;
-        WidgetResponse::new(resp.response.id, clicked, hovered, changed)
+    pub fn drag_vec3(
+        &mut self,
+        label: &str,
+        values: &mut [f32; 3],
+        speed: f32,
+    ) -> crate::declarative::widget::Vec3Response {
+        self.add(crate::declarative::widget::DragVec3::new(label, values).speed(speed))
     }
 }
 

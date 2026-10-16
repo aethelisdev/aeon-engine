@@ -36,8 +36,6 @@ pub fn is_inspector_tag(tag: u64) -> bool {
     tag == TAG_INSPECTOR_PANEL_ROOT
         || tag == TAG_INSPECTOR_CARDS_CONTAINER
         || (0xD000_0000..0xE000_0000).contains(&tag)
-        || super::transform::resolve_transform_number_input_tag(tag).is_some()
-        || super::transform::resolve_transform_reset_tag(tag).is_some()
 }
 
 /// Semantic tag for the `➕ Add Component` button in the Inspector footer.
@@ -229,10 +227,6 @@ pub const fn encode_inspector_number_input_tag(id: InspectorNumberInputId) -> u6
 pub fn resolve_inspector_number_input_tag(
     tag: u64,
 ) -> Option<(InspectorNumberInputId, f32, f32, f32)> {
-    if let Some(res) = super::transform::resolve_transform_number_input_tag(tag) {
-        return Some(res);
-    }
-
     if (TAG_INSPECTOR_NUMBER_INPUT_BASE..TAG_INSPECTOR_NUMBER_INPUT_BASE + 64).contains(&tag) {
         let idx = (tag - TAG_INSPECTOR_NUMBER_INPUT_BASE) as usize;
         if let Some(id) = InspectorNumberInputId::from_tag_index(idx) {

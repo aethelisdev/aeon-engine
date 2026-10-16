@@ -79,22 +79,10 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
 
     build_inspector_panel(&mut tree, root, &params);
 
-    // Verify 3D Transform inputs are present via semantic tags on UiTree
-    let has_pos_x = tree.iter().any(|(_, n)| {
-        super::transform::resolve_transform_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::PosX))
-    });
-    let has_rot_x = tree.iter().any(|(_, n)| {
-        super::transform::resolve_transform_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::RotX))
-    });
-    let has_scale_x = tree.iter().any(|(_, n)| {
-        super::transform::resolve_transform_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::ScaleX))
-    });
-    assert!(has_pos_x, "3D Transform PosX must be present");
-    assert!(has_rot_x, "3D Transform RotX must be present");
-    assert!(has_scale_x, "3D Transform ScaleX must be present");
+    // Verify 3D Transform inputs are present via declarative assertions
+    tree.assert_node_exists("NumBox_Position_X");
+    tree.assert_node_exists("NumBox_Rotation_X");
+    tree.assert_node_exists("NumBox_Scale_X");
 
     // Verify 2D Screen Transform inputs are NOT present
     let has_ui_offset = tree.iter().any(|(_, n)| {
@@ -147,14 +135,7 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     build_inspector_panel(&mut tree, root, &params);
 
     // Verify 3D Transform inputs are NOT present
-    let has_3d_pos = tree.iter().any(|(_, n)| {
-        super::transform::resolve_transform_number_input_tag(n.tag)
-            .is_some_and(|(id, ..)| matches!(id, InspectorNumberInputId::PosX))
-    });
-    assert!(
-        !has_3d_pos,
-        "2D UI element must not show 3D Position in Inspector"
-    );
+    tree.assert_node_absent("NumBox_Position_X");
 
     // Verify 2D Screen Transform inputs ARE present
     let has_offset_x = tree.iter().any(|(_, n)| {
@@ -287,22 +268,8 @@ fn test_inspector_entity_isolation_invariant() {
         "InspectorPanelParams must explicitly carry the inspected entity"
     );
 
-    // Verify reset transform button produces action targeting ent_a via O(1) semantic tag resolution
-    let reset_node = tree
-        .iter()
-        .find(|(_, n)| super::transform::resolve_transform_reset_tag(n.tag).is_some());
-    if let Some((_, node)) = reset_node {
-        let axis = super::transform::resolve_transform_reset_tag(node.tag)
-            .expect("Reset tag must resolve");
-        let action = InspectorAction::ResetTransform(ent_a, axis);
-        match action {
-            InspectorAction::ResetTransform(target_ent, target_axis) => {
-                assert_eq!(target_ent, ent_a);
-                assert_eq!(target_axis, axis);
-            }
-            _ => panic!("Expected ResetTransform with target entity"),
-        }
-    }
+    // Verify reset transform button exists on UiTree declaratively
+    tree.assert_node("ResetBtn_Position", WidgetRole::Button);
 }
 
 #[test]

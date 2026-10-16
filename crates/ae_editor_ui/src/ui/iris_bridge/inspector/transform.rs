@@ -7,100 +7,8 @@
 //! declarative [`UiScope`] cards and property row primitives.
 
 use super::registry::ComponentRenderContext;
-use super::types::{InspectorNumberInputId, TransformAxisType};
+use super::types::InspectorNumberInputId;
 use irisui::prelude::*;
-
-/// Descriptor mapping a 3D vector property label to its inspector input IDs and drag limits.
-struct TransformPropertyDescriptor {
-    label: &'static str,
-    axes: [InspectorNumberInputId; 3],
-    min: f32,
-    max: f32,
-    speed: f32,
-}
-
-const TRANSFORM_PROPERTIES: [TransformPropertyDescriptor; 3] = [
-    TransformPropertyDescriptor {
-        label: "Position",
-        axes: [
-            InspectorNumberInputId::PosX,
-            InspectorNumberInputId::PosY,
-            InspectorNumberInputId::PosZ,
-        ],
-        min: -10000.0,
-        max: 10000.0,
-        speed: 0.1,
-    },
-    TransformPropertyDescriptor {
-        label: "Rotation",
-        axes: [
-            InspectorNumberInputId::RotX,
-            InspectorNumberInputId::RotY,
-            InspectorNumberInputId::RotZ,
-        ],
-        min: -360.0,
-        max: 360.0,
-        speed: 0.5,
-    },
-    TransformPropertyDescriptor {
-        label: "Scale",
-        axes: [
-            InspectorNumberInputId::ScaleX,
-            InspectorNumberInputId::ScaleY,
-            InspectorNumberInputId::ScaleZ,
-        ],
-        min: 0.001,
-        max: 1000.0,
-        speed: 0.01,
-    },
-];
-
-const TRANSFORM_RESET_PROPERTIES: [(&str, TransformAxisType); 3] = [
-    ("Position", TransformAxisType::Position),
-    ("Rotation", TransformAxisType::Rotation),
-    ("Scale", TransformAxisType::Scale),
-];
-
-/// Candidate hierarchical seeds for the transform inspector card.
-#[inline]
-fn transform_seeds() -> [u64; 2] {
-    [0, hash_label("InspectorPanelRoot")]
-}
-
-/// Resolves an interactive semantic tag to a Transform numeric input ID, bounds, and sensitivity.
-///
-/// Enables $O(1)$ dispatch for numeric dragging, inline typing, and text selection
-/// via high-level [`resolve_property_vec3_for_seeds`] without manual tag arithmetic or per-axis let bindings.
-#[inline]
-pub fn resolve_transform_number_input_tag(
-    tag: u64,
-) -> Option<(InspectorNumberInputId, f32, f32, f32)> {
-    let seeds = transform_seeds();
-    for prop in TRANSFORM_PROPERTIES {
-        if let Some(PropertyVec3Target::Axis(axis_idx)) =
-            resolve_property_vec3_for_seeds(tag, prop.label, &seeds)
-        {
-            return Some((prop.axes[axis_idx], prop.min, prop.max, prop.speed));
-        }
-    }
-    None
-}
-
-/// Resolves an interactive semantic tag to a Transform reset axis type.
-///
-/// Enables $O(1)$ event routing for reset buttons without coordinate traversal
-/// via high-level [`resolve_property_vec3_for_seeds`] without manual tag arithmetic or let bindings.
-#[inline]
-pub fn resolve_transform_reset_tag(tag: u64) -> Option<TransformAxisType> {
-    let seeds = transform_seeds();
-    for (label, axis_type) in TRANSFORM_RESET_PROPERTIES {
-        if let Some(PropertyVec3Target::Reset) = resolve_property_vec3_for_seeds(tag, label, &seeds)
-        {
-            return Some(axis_type);
-        }
-    }
-    None
-}
 
 /// Builds the `📐 Transform` card declaratively in the `UiTree` and returns the measured height.
 ///
@@ -148,35 +56,39 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
     };
 
     scope.card_named("TransformCard", "📐 Transform", |card| {
-        let pos_opts = PropertyVec3Options::new(0.1)
-            .with_decimals(3)
-            .with_reset([0.0, 0.0, 0.0])
-            .with_edit_states([
-                get_edit_state(InspectorNumberInputId::PosX),
-                get_edit_state(InspectorNumberInputId::PosY),
-                get_edit_state(InspectorNumberInputId::PosZ),
-            ]);
-        card.property_vec3_with_options("Position", &mut pos, pos_opts);
-
-        let rot_opts = PropertyVec3Options::new(0.5)
-            .with_decimals(1)
-            .with_reset([0.0, 0.0, 0.0])
-            .with_edit_states([
-                get_edit_state(InspectorNumberInputId::RotX),
-                get_edit_state(InspectorNumberInputId::RotY),
-                get_edit_state(InspectorNumberInputId::RotZ),
-            ]);
-        card.property_vec3_with_options("Rotation", &mut rot, rot_opts);
-
-        let scale_opts = PropertyVec3Options::new(0.01)
-            .with_decimals(3)
-            .with_reset([1.0, 1.0, 1.0])
-            .with_edit_states([
-                get_edit_state(InspectorNumberInputId::ScaleX),
-                get_edit_state(InspectorNumberInputId::ScaleY),
-                get_edit_state(InspectorNumberInputId::ScaleZ),
-            ]);
-        card.property_vec3_with_options("Scale", &mut scale, scale_opts);
+        card.add(
+            DragVec3::new("Position", &mut pos)
+                .speed(0.1)
+                .decimals(3)
+                .reset([0.0, 0.0, 0.0])
+                .edit_states([
+                    get_edit_state(InspectorNumberInputId::PosX),
+                    get_edit_state(InspectorNumberInputId::PosY),
+                    get_edit_state(InspectorNumberInputId::PosZ),
+                ]),
+        );
+        card.add(
+            DragVec3::new("Rotation", &mut rot)
+                .speed(0.5)
+                .decimals(1)
+                .reset([0.0, 0.0, 0.0])
+                .edit_states([
+                    get_edit_state(InspectorNumberInputId::RotX),
+                    get_edit_state(InspectorNumberInputId::RotY),
+                    get_edit_state(InspectorNumberInputId::RotZ),
+                ]),
+        );
+        card.add(
+            DragVec3::new("Scale", &mut scale)
+                .speed(0.01)
+                .decimals(3)
+                .reset([1.0, 1.0, 1.0])
+                .edit_states([
+                    get_edit_state(InspectorNumberInputId::ScaleX),
+                    get_edit_state(InspectorNumberInputId::ScaleY),
+                    get_edit_state(InspectorNumberInputId::ScaleZ),
+                ]),
+        );
     });
 }
 
@@ -228,84 +140,38 @@ mod tests {
         build_transform_card(&mut scope, &mut ctx);
         layout_subtree(scope.tree_mut(), root, Rect::new(6.0, 10.0, 308.0, 300.0));
 
-        // Verify card node exists and has non-zero computed_rect after layout pass
-        let card_node = tree
-            .iter()
-            .find(|(_, n)| n.name.as_deref() == Some("TransformCard"))
-            .map(|(_, n)| n)
-            .expect("TransformCard node must exist");
-        assert_eq!(card_node.style.corner_radii.top_left, 6.0);
-        assert_eq!(card_node.computed_rect.x, 6.0);
-        assert_eq!(card_node.computed_rect.y, 10.0);
-        assert_eq!(card_node.computed_rect.width, 308.0);
-        assert!(card_node.computed_rect.height > 100.0);
+        // Declarative assertions (zero imperative loop or let boilerplate)
+        tree.assert_node_exists("TransformCard");
+        assert_eq!(
+            tree.assert_node_rect("TransformCard"),
+            Rect::new(
+                6.0,
+                10.0,
+                308.0,
+                tree.assert_node_rect("TransformCard").height
+            )
+        );
+        assert!(tree.assert_node_rect("TransformCard").height > 100.0);
 
-        // Verify all 9 input boxes exist with correct tags and WidgetRole::NumericInput
-        let expected_input_ids = [
-            InspectorNumberInputId::PosX,
-            InspectorNumberInputId::PosY,
-            InspectorNumberInputId::PosZ,
-            InspectorNumberInputId::RotX,
-            InspectorNumberInputId::RotY,
-            InspectorNumberInputId::RotZ,
-            InspectorNumberInputId::ScaleX,
-            InspectorNumberInputId::ScaleY,
-            InspectorNumberInputId::ScaleZ,
-        ];
+        tree.assert_widgets(
+            &[
+                "NumBox_Position_X",
+                "NumBox_Position_Y",
+                "NumBox_Position_Z",
+                "NumBox_Rotation_X",
+                "NumBox_Rotation_Y",
+                "NumBox_Rotation_Z",
+                "NumBox_Scale_X",
+                "NumBox_Scale_Y",
+                "NumBox_Scale_Z",
+            ],
+            WidgetRole::NumericInput,
+        );
 
-        let mut resolved_inputs = Vec::new();
-        for (_, node) in tree.iter() {
-            if let Some((id, _, _, _)) = resolve_transform_number_input_tag(node.tag) {
-                assert_eq!(node.role, WidgetRole::NumericInput);
-                assert!(
-                    node.computed_rect.width > 0.0,
-                    "Input width must be non-zero"
-                );
-                assert!(
-                    node.computed_rect.height > 0.0,
-                    "Input height must be non-zero"
-                );
-                resolved_inputs.push(id);
-            }
-        }
-        assert_eq!(resolved_inputs.len(), 9);
-        for expected in expected_input_ids {
-            assert!(
-                resolved_inputs.contains(&expected),
-                "Missing tag for {:?}",
-                expected
-            );
-        }
-
-        // Verify all 3 reset buttons exist with correct tags and WidgetRole::Button
-        let expected_axes = [
-            TransformAxisType::Position,
-            TransformAxisType::Rotation,
-            TransformAxisType::Scale,
-        ];
-        let mut resolved_resets = Vec::new();
-        for (_, node) in tree.iter() {
-            if let Some(axis) = resolve_transform_reset_tag(node.tag) {
-                assert_eq!(node.role, WidgetRole::Button);
-                assert!(
-                    node.computed_rect.width > 0.0,
-                    "Reset button width must be non-zero"
-                );
-                assert!(
-                    node.computed_rect.height > 0.0,
-                    "Reset button height must be non-zero"
-                );
-                resolved_resets.push(axis);
-            }
-        }
-        assert_eq!(resolved_resets.len(), 3);
-        for expected in expected_axes {
-            assert!(
-                resolved_resets.contains(&expected),
-                "Missing reset button for {:?}",
-                expected
-            );
-        }
+        tree.assert_widgets(
+            &["ResetBtn_Position", "ResetBtn_Rotation", "ResetBtn_Scale"],
+            WidgetRole::Button,
+        );
     }
 
     #[test]
@@ -322,13 +188,6 @@ mod tests {
 
         let euler = [0.0, 0.0, 0.0];
         let swatches = [];
-        let active_input = ActiveNumberInputState {
-            id: InspectorNumberInputId::RotY,
-            buffer: "45.0",
-            cursor_idx: 4,
-            is_all_selected: true,
-        };
-
         let params = InspectorPanelParams {
             panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
             world: &world,
@@ -342,7 +201,12 @@ mod tests {
             active_submenu: None,
             is_add_menu_open: false,
             is_color_picker_open: false,
-            active_number_input: Some(active_input),
+            active_number_input: Some(ActiveNumberInputState {
+                id: InspectorNumberInputId::RotY,
+                buffer: "45.0",
+                cursor_idx: 4,
+                is_all_selected: true,
+            }),
             active_text_input: None,
             active_rename_buffer: None,
             is_rename_all_selected: false,
@@ -352,31 +216,18 @@ mod tests {
         };
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
-
         let mut scope = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope, &mut ctx);
 
-        let rot_y_box = tree
-            .iter()
-            .find(|(_, n)| n.name.as_deref() == Some("NumBox_Rotation_Y"))
-            .map(|(_, n)| n)
-            .expect("NumBox_Rotation_Y node must exist");
-
-        // Verify active cyan border
+        // Verify active cyan border and selection highlight pill declaratively
         assert_eq!(
-            rot_y_box.style.border.color,
+            tree.assert_node("NumBox_Rotation_Y", WidgetRole::NumericInput)
+                .style
+                .border
+                .color,
             Color::rgba(0.0, 0.80, 1.00, 0.95)
         );
-
-        // Verify selection highlight pill was created
-        let sel_node = tree
-            .iter()
-            .find(|(_, n)| n.name.as_deref() == Some("NumSel_Rotation_Y"))
-            .map(|(_, n)| n);
-        assert!(
-            sel_node.is_some(),
-            "NumSel_Rotation_Y must be rendered when is_all_selected is true"
-        );
+        tree.assert_node_exists("NumSel_Rotation_Y");
     }
 
     #[test]
@@ -424,32 +275,23 @@ mod tests {
             Rect::new(6.0, 10.0, 308.0, 300.0),
         );
 
-        let get_rect = |tree: &UiTree, name: &str| {
-            tree.iter()
-                .find(|(_, n)| n.name.as_deref() == Some(name))
-                .map(|(_, n)| n.computed_rect)
-                .unwrap_or_else(|| panic!("Node {} must exist in tree", name))
-        };
-
-        let pos_x_narrow = get_rect(&tree, "NumBox_Position_X");
-        let rot_x_narrow = get_rect(&tree, "NumBox_Rotation_X");
-        let scale_x_narrow = get_rect(&tree, "NumBox_Scale_X");
-
-        // Verify all 3 rows have identical X coordinates (column aligned)
+        // Verify all 3 rows have identical X coordinates (column aligned) declaratively
         assert_eq!(
-            pos_x_narrow.x, rot_x_narrow.x,
+            tree.assert_node_rect("NumBox_Position_X").x,
+            tree.assert_node_rect("NumBox_Rotation_X").x,
             "Position X and Rotation X must share horizontal start coordinate"
         );
         assert_eq!(
-            rot_x_narrow.x, scale_x_narrow.x,
+            tree.assert_node_rect("NumBox_Rotation_X").x,
+            tree.assert_node_rect("NumBox_Scale_X").x,
             "Rotation X and Scale X must share horizontal start coordinate"
         );
 
-        // Verify inputs are left-aligned (close to card start, base_x = 6.0 + padding + label_width)
+        // Verify inputs are left-aligned
         assert!(
-            pos_x_narrow.x < 100.0,
+            tree.assert_node_rect("NumBox_Position_X").x < 100.0,
             "Inputs must be left-aligned, found X: {}",
-            pos_x_narrow.x
+            tree.assert_node_rect("NumBox_Position_X").x
         );
 
         // 2. Render in a wide card (600px)
@@ -464,17 +306,20 @@ mod tests {
             Rect::new(6.0, 10.0, 600.0, 300.0),
         );
 
-        let pos_x_wide = get_rect(&tree_wide, "NumBox_Position_X");
-        let rot_x_wide = get_rect(&tree_wide, "NumBox_Rotation_X");
-        let scale_x_wide = get_rect(&tree_wide, "NumBox_Scale_X");
-
         // In the wide card, the inputs must REMAIN at the exact same left-aligned X position
         assert_eq!(
-            pos_x_wide.x, pos_x_narrow.x,
+            tree_wide.assert_node_rect("NumBox_Position_X").x,
+            tree.assert_node_rect("NumBox_Position_X").x,
             "Inputs must not shift to the right when card is widened!"
         );
-        assert_eq!(rot_x_wide.x, rot_x_narrow.x);
-        assert_eq!(scale_x_wide.x, scale_x_narrow.x);
+        assert_eq!(
+            tree_wide.assert_node_rect("NumBox_Rotation_X").x,
+            tree.assert_node_rect("NumBox_Rotation_X").x,
+        );
+        assert_eq!(
+            tree_wide.assert_node_rect("NumBox_Scale_X").x,
+            tree.assert_node_rect("NumBox_Scale_X").x,
+        );
     }
 
     #[test]
@@ -518,26 +363,9 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope, &mut ctx);
 
-        // Find NumText_Rotation_X, Y, Z and verify text does not flip to 180
-        let rot_x_node = tree
-            .iter()
-            .find(|(_, n)| n.name.as_deref() == Some("NumText_Rotation_X"))
-            .map(|(_, n)| n)
-            .expect("NumText_Rotation_X must exist");
-        assert_eq!(rot_x_node.text.as_deref(), Some("X: -34.0"));
-
-        let rot_y_node = tree
-            .iter()
-            .find(|(_, n)| n.name.as_deref() == Some("NumText_Rotation_Y"))
-            .map(|(_, n)| n)
-            .expect("NumText_Rotation_Y must exist");
-        assert_eq!(rot_y_node.text.as_deref(), Some("Y: 120.0"));
-
-        let rot_z_node = tree
-            .iter()
-            .find(|(_, n)| n.name.as_deref() == Some("NumText_Rotation_Z"))
-            .map(|(_, n)| n)
-            .expect("NumText_Rotation_Z must exist");
-        assert_eq!(rot_z_node.text.as_deref(), Some("Z: 0.0"));
+        // Verify NumText_Rotation_X, Y, Z declaratively without loops or node let bindings
+        tree.assert_node_text("NumText_Rotation_X", "X: -34.0");
+        tree.assert_node_text("NumText_Rotation_Y", "Y: 120.0");
+        tree.assert_node_text("NumText_Rotation_Z", "Z: 0.0");
     }
 }
