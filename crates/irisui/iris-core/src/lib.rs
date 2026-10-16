@@ -22,6 +22,7 @@ pub mod measurer;
 pub mod node;
 pub mod response;
 pub mod style;
+pub mod theme;
 pub mod tree;
 
 pub use color::Color;
@@ -40,6 +41,7 @@ pub use response::{ResponseFlags, WidgetResponse};
 pub use style::{
     AlignItems, FlexDirection, FlexWrap, JustifyContent, Position, Style, TextAlign, TextWrap,
 };
+pub use theme::Theme;
 pub use tree::{HitTargetInfo, UiTree};
 
 #[cfg(test)]

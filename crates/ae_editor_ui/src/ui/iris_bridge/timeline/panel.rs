@@ -34,8 +34,8 @@ pub fn build_timeline_panel(
     scope
         .panel("AnimationTimelinePanelRoot")
         .tagged(TIMELINE_TAG_PANEL_ROOT)
-        .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-        .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.60))
+        .background_themed(|t| t.panel_bg)
+        .border_themed(1.0, |t| t.panel_border)
         .show(|panel_scope| {
             // ── Case A: No Entity Selected ──
             let Some(entity) = params.entity else {
@@ -91,18 +91,18 @@ fn render_empty_placeholder(
                 .column_with()
                 .name("TimelineEmptyCard")
                 .width(460.0)
-                .background(Color::rgba(0.09, 0.11, 0.15, 0.85))
+                .background_themed(|t| t.card_bg)
                 .border_radius(6.0)
-                .border(1.0, Color::rgba(0.20, 0.24, 0.32, 0.50))
+                .border_themed(1.0, |t| t.card_border)
                 .align_items(AlignItems::Center)
                 .padding_insets(Insets::new(12.0, 16.0, 12.0, 16.0))
                 .gap(4.0)
                 .show(|card_scope| {
                     card_scope.colored_label(
-                        Color::rgba(0.70, 0.75, 0.85, 1.0),
+                        card_scope.theme().text_primary,
                         format!("{}  {}", icon, title),
                     );
-                    card_scope.colored_label(Color::rgba(0.48, 0.52, 0.62, 1.0), subtitle);
+                    card_scope.colored_label(card_scope.theme().text_muted, subtitle);
                 });
         });
 }
@@ -127,15 +127,15 @@ fn render_missing_player_card(
                 .column_with()
                 .name("TimelineMissingPlayerCard")
                 .width(480.0)
-                .background(Color::rgba(0.09, 0.11, 0.15, 0.85))
+                .background_themed(|t| t.card_bg)
                 .border_radius(6.0)
-                .border(1.0, Color::rgba(0.25, 0.28, 0.38, 0.60))
+                .border_themed(1.0, |t| t.card_border)
                 .align_items(AlignItems::Center)
                 .padding_insets(Insets::new(12.0, 16.0, 12.0, 16.0))
                 .gap(8.0)
                 .show(|card_scope| {
                     card_scope.colored_label(
-                        Color::rgba(0.72, 0.76, 0.86, 1.0),
+                        card_scope.theme().text_secondary,
                         "Selected entity does not have an AnimationPlayer component.",
                     );
 

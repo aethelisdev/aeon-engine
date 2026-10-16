@@ -65,15 +65,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                 .map(|s| s.to_edit_state(ctx.params.blink_caret))
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("AudioSourceCard", card_style, |card| {
+        scope.card_panel("AudioSourceCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -98,7 +90,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                     "AudioPathLbl",
                     "Sound:",
                     11.0,
-                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    row.theme().text_muted,
                     TextAlign::Left,
                     Style::new().width(46.0).height(22.0),
                 );
@@ -117,8 +109,8 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                     .align_items(AlignItems::Center)
                     .flex_grow(1.0)
                     .height(22.0)
-                    .background(Color::rgba(0.157, 0.165, 0.188, 0.98))
-                    .border(1.0, Color::rgba(0.212, 0.220, 0.259, 0.85))
+                    .background(row.theme().card_header_bg)
+                    .border(1.0, row.theme().card_border)
                     .border_radius(4.0)
                     .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0));
 
@@ -128,9 +120,9 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                         &file_name,
                         10.0,
                         if path_str.is_empty() {
-                            Color::rgba(0.45, 0.47, 0.52, 1.0)
+                            pbox.theme().text_muted
                         } else {
-                            Color::rgba(0.886, 0.894, 0.918, 1.0)
+                            pbox.theme().text_primary
                         },
                         TextAlign::Left,
                         Style::new().flex_grow(1.0).height(20.0),
@@ -144,8 +136,8 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                     .justify_content(JustifyContent::Center)
                     .width(20.0)
                     .height(20.0)
-                    .background(Color::rgba(0.157, 0.165, 0.188, 0.98))
-                    .border(1.0, Color::rgba(0.212, 0.220, 0.259, 0.85))
+                    .background(row.theme().button_idle_bg)
+                    .border(1.0, row.theme().button_border)
                     .border_radius(4.0);
 
                 row.container_tagged(
@@ -157,7 +149,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
                         btn.icon_named(
                             "AudioPickBtnIcon",
                             crate::ui::iris_bridge::icons::ICON_FOLDER,
-                            Color::rgba(0.85, 0.88, 0.92, 1.0),
+                            btn.theme().text_secondary,
                             14.0,
                         );
                     },
@@ -299,15 +291,7 @@ impl ComponentInspectorHandler for AudioListenerHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("AudioListenerCard", card_style, |card| {
+        scope.card_panel("AudioListenerCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -324,7 +308,7 @@ impl ComponentInspectorHandler for AudioListenerHandler {
                 "AudioListenerDesc",
                 "Active 3D spatial microphone & ear for scene audio.",
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

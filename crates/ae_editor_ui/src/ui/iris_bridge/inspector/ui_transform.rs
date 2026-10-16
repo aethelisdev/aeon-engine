@@ -71,24 +71,17 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
 
     let is_anchor_open = ctx.params.active_dropdown == Some(InspectorDropdownId::UiAnchor);
 
-    let card_style = Style::new()
-        .flex_col()
-        .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-        .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-        .border_radius(6.0)
-        .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-        .gap(4.0);
-
     let label_w = if ctx.card_w < 220.0 { 42.0 } else { 52.0 };
 
-    scope.container_named("UiTransformCard", card_style, |card| {
+    scope.card_panel("UiTransformCard", |card| {
+        let accent = card.theme().accent;
         build_declarative_card_header(
             card,
             ComponentHeaderProps {
                 atlas_icon: None,
                 icon: "📐",
                 display_title: "2D Screen Transform",
-                header_color: Color::rgba(0.0, 0.85, 1.0, 1.0),
+                header_color: accent,
                 component_name: "UiElement",
             },
             false,
@@ -209,7 +202,7 @@ fn render_declarative_dual_number_row(
             "UiRowLabel",
             params.label,
             11.0,
-            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            row.theme().text_muted,
             TextAlign::Left,
             Style::new().width(label_w).height(20.0),
         );
@@ -286,9 +279,9 @@ fn render_declarative_dual_number_row(
                         &display_str,
                         10.5,
                         if is_editing {
-                            Color::WHITE
+                            tb.theme().text_primary
                         } else {
-                            Color::rgba(0.886, 0.894, 0.918, 1.0)
+                            tb.theme().text_secondary
                         },
                         TextAlign::Center,
                         Style::new().flex_grow(1.0).height(20.0),

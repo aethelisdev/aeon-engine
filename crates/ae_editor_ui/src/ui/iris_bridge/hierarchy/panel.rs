@@ -13,7 +13,6 @@ use super::footer::build_hierarchy_footer;
 use super::header::build_hierarchy_header;
 use super::rows::{build_hierarchy_rows, sync_hierarchy_rows};
 use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyPanelParams, HierarchyRow};
-use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Builds the complete Scene Hierarchy panel tree purely using [`UiScope`].
@@ -30,7 +29,7 @@ pub fn build_hierarchy_panel(
         .panel("HierarchyPanelRoot")
         .tagged(HIERARCHY_TAG_PANEL_ROOT)
         .bounds(params.panel_rect)
-        .background(ELEVATION_1_PANEL)
+        .background_themed(|t| t.panel_bg)
         .show(|panel_scope| {
             // 1. Header Toolbar (Search Box, Add Button, Delete Button)
             build_hierarchy_header(panel_scope, params);

@@ -187,4 +187,17 @@ impl UiTree {
             false
         }
     }
+
+    /// Returns the active visual theme tokens configured on this tree.
+    #[inline]
+    #[must_use]
+    pub fn theme(&self) -> crate::theme::Theme {
+        self.theme
+    }
+
+    /// Sets the active visual theme tokens governing surface colors, text, and metrics on this tree.
+    #[inline]
+    pub fn set_theme(&mut self, theme: crate::theme::Theme) {
+        self.theme = theme;
+    }
 }

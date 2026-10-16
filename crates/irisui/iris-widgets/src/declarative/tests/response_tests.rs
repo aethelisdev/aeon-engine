@@ -737,7 +737,7 @@ fn test_declarative_instant_effective_state_on_click_frame() {
         );
         assert_eq!(
             box_node.style.background_color,
-            iris_core::Color::rgba(0.18, 0.52, 0.88, 1.0),
+            scope.tree().theme().button_active_bg,
             "Checkbox indicator MUST use active accent background color on click frame"
         );
         let lbl_node = scope.tree().get(chk_node.children[1]).unwrap();

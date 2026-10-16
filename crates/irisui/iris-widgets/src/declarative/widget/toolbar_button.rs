@@ -85,6 +85,8 @@ impl Widget for ToolbarButton {
         let _ = scope.tree.add_child(scope.parent, node_id);
         let (clicked, hovered, _) = scope.check_interaction(node_id);
 
+        let theme = scope.theme();
+
         if let Some(node) = scope.tree.get_mut(node_id) {
             node.interactive = true;
             node.role = WidgetRole::Button;
@@ -94,33 +96,33 @@ impl Widget for ToolbarButton {
             node.line_height = 24.0;
             node.text_align = TextAlign::Center;
             node.text_color = if hovered || self.is_active {
-                Color::WHITE
+                theme.text_primary
             } else {
                 Color::rgba(0.90, 0.93, 0.98, 1.0)
             };
-            node.hover_text_color = Some(Color::WHITE);
+            node.hover_text_color = Some(theme.text_primary);
 
             let mut style = Style::new()
                 .height(24.0)
                 .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
                 .background(if self.is_active {
-                    Color::rgba(0.0, 0.60, 0.90, 0.90)
+                    theme.button_active_bg
                 } else if hovered {
-                    Color::rgba(0.24, 0.29, 0.39, 1.0)
+                    theme.button_hover_bg
                 } else {
-                    Color::rgba(0.15, 0.18, 0.25, 0.95)
+                    theme.button_idle_bg
                 })
-                .hover_background(Color::rgba(0.24, 0.29, 0.39, 1.0))
+                .hover_background(theme.button_hover_bg)
                 .border(
                     1.0,
                     if hovered {
-                        Color::rgba(0.0, 0.85, 1.0, 0.85)
+                        theme.button_hover_border
                     } else {
-                        Color::rgba(0.30, 0.36, 0.48, 0.75)
+                        theme.button_border
                     },
                 )
-                .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
-                .border_radius(4.0)
+                .hover_border(1.0, theme.button_hover_border)
+                .border_radius(theme.corner_radius_md)
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
 

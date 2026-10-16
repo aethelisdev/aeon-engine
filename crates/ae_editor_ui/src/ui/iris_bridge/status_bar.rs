@@ -41,7 +41,7 @@ pub fn build_bottom_status_bar(
         .height(STATUS_BAR_HEIGHT)
         .space_between()
         .padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0))
-        .background(Color::rgba(0.071, 0.082, 0.122, 1.0))
+        .background_themed(|t| t.toolbar_bg)
         .show(|bar| {
             // 1. Left side: Engine status message or "● Ready" indicator
             bar.row_spaced(10.0, |left| {
@@ -52,14 +52,14 @@ pub fn build_bottom_status_bar(
                         left.colored_label(*color, text);
                     }
                 } else {
-                    left.colored_label(Color::hex("#46be78"), "● Ready");
+                    left.colored_label(left.theme().success, "● Ready");
                 }
             });
 
             // 2. Right side: Engine Version
             bar.row_spaced(8.0, |right| {
                 right.colored_label(
-                    Color::hex("#646470"),
+                    right.theme().text_muted,
                     format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION")),
                 );
             });

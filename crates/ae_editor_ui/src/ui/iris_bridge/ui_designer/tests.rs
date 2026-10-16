@@ -485,8 +485,8 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
 
     assert_eq!(
         item_node.style.hover_background,
-        Some(Color::hex("#222634")),
-        "Dropdown item must have obsidian hover background"
+        Some(tree.theme().button_hover_bg),
+        "Dropdown item must have theme button_hover_bg"
     );
 
     // Verify click on hovered dropdown item produces SpawnElement action

@@ -85,15 +85,7 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
             .map(|s| s.joints.len())
             .ok();
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("AnimationPlayerCard", card_style, |card| {
+        scope.card_panel("AnimationPlayerCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -118,7 +110,7 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
                     "AnimStatusLbl",
                     "Status:",
                     11.0,
-                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    row.theme().text_muted,
                     TextAlign::Left,
                     Style::new().width(48.0).height(20.0),
                 );
@@ -138,7 +130,7 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
                 "AnimClipLbl",
                 &clip_str,
                 11.0,
-                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                card.theme().text_primary,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -147,12 +139,12 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
             let (info_text, info_col) = if let Some(joints) = has_skeleton {
                 (
                     format!("🦴 Joints: {} | ⏱ Duration: {:.2}s", joints, clip_duration),
-                    Color::rgba(0.38, 0.74, 0.97, 1.0),
+                    card.theme().info,
                 )
             } else {
                 (
                     "ℹ Static 3D Mesh (No Armature found)".to_string(),
-                    Color::rgba(0.95, 0.75, 0.15, 0.90),
+                    card.theme().warning,
                 )
             };
             card.label_styled_passive(
@@ -171,7 +163,7 @@ impl ComponentInspectorHandler for AnimationPlayerHandler {
                 "AnimSpeedLoop",
                 &speed_loop_str,
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

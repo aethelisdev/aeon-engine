@@ -51,15 +51,7 @@ impl ComponentInspectorHandler for ParentHandler {
             .ok()
             .map(|p| p.0);
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("ParentingCard", card_style, |card| {
+        scope.card_panel("ParentingCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -90,7 +82,7 @@ impl ComponentInspectorHandler for ParentHandler {
                         "ParentLbl",
                         format!("Parent: {}", parent_name),
                         11.0,
-                        Color::rgba(0.886, 0.894, 0.918, 1.0),
+                        row.theme().text_primary,
                         TextAlign::Left,
                         Style::new().flex_grow(1.0).height(20.0),
                     );
@@ -101,9 +93,9 @@ impl ComponentInspectorHandler for ParentHandler {
                         .justify_content(JustifyContent::Center)
                         .width(80.0)
                         .height(20.0)
-                        .background(Color::rgba(0.157, 0.165, 0.188, 0.98))
-                        .border(1.0, Color::rgba(0.212, 0.220, 0.259, 0.85))
-                        .border_radius(4.0);
+                        .background(row.theme().button_idle_bg)
+                        .border(1.0, row.theme().button_border)
+                        .border_radius(row.theme().corner_radius_md);
 
                     row.container_tagged(
                         "UnparentBtn",
@@ -115,7 +107,7 @@ impl ComponentInspectorHandler for ParentHandler {
                                 "UnparentTxt",
                                 "❌ Unparent",
                                 10.0,
-                                Color::rgba(0.82, 0.84, 0.88, 1.0),
+                                btn.theme().text_secondary,
                                 TextAlign::Center,
                                 Style::new().width(80.0).height(20.0),
                             );
@@ -127,7 +119,7 @@ impl ComponentInspectorHandler for ParentHandler {
                     "ParentRootLbl",
                     "Parent: None (Root Entity)",
                     11.0,
-                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    card.theme().text_muted,
                     TextAlign::Left,
                     Style::new().height(20.0),
                 );

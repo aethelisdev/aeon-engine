@@ -145,7 +145,7 @@ fn render_object_color_row(
             "ObjectColorLabel",
             "Object Color:",
             11.0,
-            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            row.theme().text_muted,
             TextAlign::Left,
             Style::new().width(75.0).height(22.0),
         );
@@ -173,7 +173,7 @@ fn render_object_color_row(
             "HexPrefixLabel",
             "Hex:",
             11.0,
-            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            row.theme().text_muted,
             TextAlign::Left,
             Style::new().width(28.0).height(22.0),
         );
@@ -258,7 +258,7 @@ fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) {
             "AddPaletteLabel",
             "Add to Palette:",
             11.0,
-            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            row.theme().text_muted,
             TextAlign::Left,
             Style::new().width(88.0).height(22.0),
         );

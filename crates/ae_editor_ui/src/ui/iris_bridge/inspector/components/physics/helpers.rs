@@ -90,9 +90,9 @@ pub fn build_declarative_card_header(
             .justify_content(JustifyContent::Center)
             .width(16.0)
             .height(16.0)
-            .border_radius(3.0)
+            .border_radius(header.theme().corner_radius_sm)
             .background(if is_delete_hovered {
-                Color::rgba(0.35, 0.12, 0.15, 0.85)
+                header.theme().danger
             } else {
                 Color::rgba(0.12, 0.13, 0.16, 0.5)
             });
@@ -108,9 +108,9 @@ pub fn build_declarative_card_header(
                     "×",
                     12.0,
                     if is_delete_hovered {
-                        Color::WHITE
+                        btn.theme().text_primary
                     } else {
-                        Color::rgba(0.70, 0.72, 0.78, 1.0)
+                        btn.theme().text_secondary
                     },
                     TextAlign::Center,
                     Style::new().width(16.0).height(16.0),
@@ -166,7 +166,7 @@ pub fn render_declarative_combobox_row(
                 "ComboLabel",
                 lbl,
                 11.0,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                row.theme().text_muted,
                 TextAlign::Left,
                 Style::new().width(params.label_w).height(22.0),
             );
@@ -211,9 +211,9 @@ pub fn render_declarative_combobox_row(
                     params.selected_text,
                     10.5,
                     if params.is_open {
-                        Color::WHITE
+                        pill.theme().text_primary
                     } else {
-                        Color::rgba(0.886, 0.894, 0.918, 1.0)
+                        pill.theme().text_secondary
                     },
                     TextAlign::Left,
                     Style::new().flex_grow(1.0),
@@ -225,9 +225,9 @@ pub fn render_declarative_combobox_row(
                     crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN
                 };
                 let chevron_color = if params.is_open {
-                    Color::WHITE
+                    pill.theme().text_primary
                 } else {
-                    Color::rgba(0.70, 0.72, 0.78, 0.9)
+                    pill.theme().text_secondary
                 };
                 pill.icon_named("ComboChevron", chevron_uv, chevron_color, 9.0);
             },
@@ -284,7 +284,7 @@ pub fn render_declarative_numeric_row_custom(
             "NumLbl",
             params.label,
             11.0,
-            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            row.theme().text_muted,
             TextAlign::Left,
             Style::new().width(params.label_w).height(22.0),
         );
@@ -345,11 +345,11 @@ pub fn render_declarative_numeric_row_custom(
                     display_str,
                     10.5,
                     if is_editing {
-                        Color::WHITE
+                        pill.theme().text_primary
                     } else if params.is_hovered {
-                        Color::rgba(0.95, 0.96, 0.98, 1.0)
+                        pill.theme().text_primary
                     } else {
-                        Color::rgba(0.886, 0.894, 0.918, 1.0)
+                        pill.theme().text_secondary
                     },
                     TextAlign::Center,
                     Style::new().width(params.box_w).height(22.0),
@@ -362,7 +362,7 @@ pub fn render_declarative_numeric_row_custom(
                 "NumUnit",
                 unit_str,
                 11.0,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                row.theme().text_muted,
                 TextAlign::Left,
                 Style::new().width(35.0).height(22.0),
             );
@@ -465,7 +465,7 @@ pub fn render_declarative_checkbox_row(
             "CheckboxLabel",
             label,
             11.0,
-            Color::rgba(0.620, 0.635, 0.678, 1.0),
+            row.theme().text_muted,
             TextAlign::Left,
             Style::new().flex_grow(1.0),
         );

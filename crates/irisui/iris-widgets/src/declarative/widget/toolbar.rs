@@ -17,7 +17,7 @@ pub struct Toolbar {
     name: &'static str,
     height: f32,
     tag: u64,
-    background: Color,
+    background: Option<Color>,
 }
 
 impl Toolbar {
@@ -28,7 +28,7 @@ impl Toolbar {
             name,
             height: 34.0,
             tag: 0,
-            background: Color::rgba(0.08, 0.09, 0.11, 0.95),
+            background: None,
         }
     }
 
@@ -52,7 +52,7 @@ impl Toolbar {
     #[inline]
     #[must_use]
     pub fn background(mut self, bg: Color) -> Self {
-        self.background = bg;
+        self.background = Some(bg);
         self
     }
 
@@ -62,14 +62,16 @@ impl Toolbar {
         scope: &mut UiScope<'_>,
         f: impl FnOnce(&mut UiScope<'_>) -> R,
     ) -> InnerResponse<R> {
+        let theme = scope.theme();
+        let bg = self.background.unwrap_or(theme.toolbar_bg);
         let style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
             .height(self.height)
-            .background(self.background)
+            .background(bg)
             .gap(6.0)
             .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-            .border(1.0, Color::rgba(1.0, 1.0, 1.0, 0.08));
+            .border(1.0, theme.toolbar_border);
         scope.container_tagged(self.name, style, WidgetRole::Default, self.tag, f)
     }
 }

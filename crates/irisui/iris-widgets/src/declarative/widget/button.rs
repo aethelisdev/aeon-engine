@@ -214,6 +214,8 @@ impl Widget for Button {
         let (clicked, hovered, _) = scope.check_interaction(node_id);
         let pressed = scope.is_pressed(node_id);
 
+        let theme = scope.theme();
+
         let mut base_style = self.style.unwrap_or_else(|| {
             if self.is_small {
                 Style::new()
@@ -221,16 +223,16 @@ impl Widget for Button {
                     .justify_content(JustifyContent::Center)
                     .height(20.0)
                     .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
-                    .border_radius(3.0)
-                    .background(Color::rgba(0.18, 0.20, 0.24, 0.85))
-                    .border(1.0, Color::rgba(0.28, 0.30, 0.36, 0.50))
+                    .border_radius(theme.corner_radius_sm)
+                    .background(theme.button_idle_bg)
+                    .border(1.0, theme.button_border)
             } else {
                 Style::new()
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .height(28.0)
                     .padding_insets(Insets::new(4.0, 10.0, 4.0, 10.0))
-                    .border_radius(4.0)
+                    .border_radius(theme.corner_radius_md)
                     .background(Color::rgba(0.14, 0.16, 0.20, 0.90))
                     .border(1.0, Color::rgba(0.24, 0.26, 0.32, 0.60))
             }
@@ -261,8 +263,8 @@ impl Widget for Button {
             base_style.flex_grow = 1.0;
         }
         if self.is_active {
-            base_style.background_color = Color::rgba(0.0, 0.55, 0.85, 0.90);
-            base_style.border.color = Color::rgba(0.0, 0.88, 1.0, 0.95);
+            base_style.background_color = theme.button_active_bg;
+            base_style.border.color = theme.accent;
         }
 
         if let Some(node) = scope.tree.get_mut(node_id) {
@@ -275,11 +277,11 @@ impl Widget for Button {
             node.text_align = TextAlign::Center;
 
             let default_text = if self.is_active {
-                Color::WHITE
+                theme.text_primary
             } else if self.is_small {
-                Color::rgba(0.85, 0.87, 0.92, 1.0)
+                theme.text_secondary
             } else if hovered || pressed {
-                Color::WHITE
+                theme.text_primary
             } else {
                 Color::rgba(0.0, 0.88, 1.0, 1.0)
             };

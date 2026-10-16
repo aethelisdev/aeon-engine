@@ -50,15 +50,7 @@ impl ComponentInspectorHandler for TriggerZoneHandler {
                 (false, 3.0, 4.0)
             };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("TriggerZoneCard", card_style, |card| {
+        scope.card_panel("TriggerZoneCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -73,9 +65,9 @@ impl ComponentInspectorHandler for TriggerZoneHandler {
 
             // Row 1: Status
             let (status_str, status_col) = if is_triggered {
-                ("Status: ● ACTIVATED", Color::rgba(0.20, 0.85, 0.40, 1.0))
+                ("Status: ● ACTIVATED", card.theme().success)
             } else {
-                ("Status: ○ IDLE", Color::rgba(0.60, 0.62, 0.68, 1.0))
+                ("Status: ○ IDLE", card.theme().text_muted)
             };
             card.label_styled_passive(
                 "TriggerStatusLbl",
@@ -92,7 +84,7 @@ impl ComponentInspectorHandler for TriggerZoneHandler {
                 "TriggerParamLbl",
                 &param_str,
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

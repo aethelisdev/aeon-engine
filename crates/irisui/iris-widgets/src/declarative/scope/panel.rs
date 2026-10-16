@@ -13,12 +13,6 @@ use super::containers::InnerResponse;
 use super::core::UiScope;
 use iris_core::{Color, Rect, Style};
 
-/// Canonical default dark theme background fill color for panel containers.
-pub const DEFAULT_PANEL_BACKGROUND: Color = Color::rgba(0.08, 0.09, 0.11, 0.98);
-
-/// Canonical default border outline color for panel containers.
-pub const DEFAULT_PANEL_BORDER: Color = Color::rgba(0.12, 0.13, 0.16, 0.90);
-
 /// Fluent builder for constructing dockable panels with autonomous layout and optional styling.
 pub struct PanelBuilder<'a, 'b> {
     scope: &'a mut UiScope<'b>,
@@ -63,11 +57,33 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
         self
     }
 
+    /// Sets the background fill color using the active theme tokens.
+    #[inline]
+    #[must_use]
+    pub fn background_themed<F: FnOnce(&iris_core::Theme) -> Color>(mut self, f: F) -> Self {
+        let theme = self.scope.tree.theme();
+        self.bg = Some(f(&theme));
+        self
+    }
+
     /// Sets the border stroke width and color of the panel container.
     #[inline]
     #[must_use]
     pub fn border(mut self, width: f32, color: Color) -> Self {
         self.border = Some((width, color));
+        self
+    }
+
+    /// Sets the border stroke width and color using the active theme tokens.
+    #[inline]
+    #[must_use]
+    pub fn border_themed<F: FnOnce(&iris_core::Theme) -> Color>(
+        mut self,
+        width: f32,
+        f: F,
+    ) -> Self {
+        let theme = self.scope.tree.theme();
+        self.border = Some((width, f(&theme)));
         self
     }
 
@@ -90,7 +106,8 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let rect = self.bounds.unwrap_or_else(|| self.scope.available_rect());
-        let bg = self.bg.unwrap_or(DEFAULT_PANEL_BACKGROUND);
+        let theme = self.scope.tree.theme();
+        let bg = self.bg.unwrap_or(theme.panel_bg);
         let mut style = Style::new()
             .flex_col()
             .width(rect.width)
@@ -101,7 +118,7 @@ impl<'a, 'b> PanelBuilder<'a, 'b> {
         if let Some((bw, bc)) = self.border {
             style = style.border(bw, bc);
         } else {
-            style = style.border(1.0, DEFAULT_PANEL_BORDER);
+            style = style.border(1.0, theme.panel_border);
         }
 
         let node_id = self.scope.tree.create_node();
@@ -137,5 +154,48 @@ impl<'a> UiScope<'a> {
     #[inline]
     pub fn panel(&mut self, name: &'static str) -> PanelBuilder<'_, 'a> {
         PanelBuilder::new(self, name)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iris_core::UiTree;
+
+    #[test]
+    fn test_panel_builder_theme_defaults() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        let resp = scope.panel("TestThemePanel").show(|_| 123);
+        assert_eq!(resp.inner, 123);
+
+        let node = tree.get(resp.response.id).expect("Panel node exists");
+        assert_eq!(node.style.background_color, tree.theme().panel_bg);
+        assert_eq!(
+            node.style.border,
+            iris_core::Border::uniform(1.0, tree.theme().panel_border)
+        );
+    }
+
+    #[test]
+    fn test_panel_builder_themed_overrides() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let mut scope = UiScope::new(&mut tree, root);
+
+        let resp = scope
+            .panel("TestCustomThemedPanel")
+            .background_themed(|t| t.card_bg)
+            .border_themed(2.0, |t| t.card_border)
+            .show(|_| ());
+
+        let node = tree.get(resp.response.id).expect("Panel node exists");
+        assert_eq!(node.style.background_color, tree.theme().card_bg);
+        assert_eq!(
+            node.style.border,
+            iris_core::Border::uniform(2.0, tree.theme().card_border)
+        );
     }
 }

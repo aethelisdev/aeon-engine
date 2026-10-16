@@ -55,15 +55,7 @@ impl ComponentInspectorHandler for LightHandler {
                 .map(|s| s.to_edit_state(ctx.params.blink_caret))
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("LightCard", card_style, |card| {
+        scope.card_panel("LightCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -167,15 +159,7 @@ impl ComponentInspectorHandler for ModelMeshHandler {
             .map(|m| format!("{:?}", m.0))
             .unwrap_or_else(|_| "Default".to_string());
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("ModelMeshCard", card_style, |card| {
+        scope.card_panel("ModelMeshCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -192,7 +176,7 @@ impl ComponentInspectorHandler for ModelMeshHandler {
                 "ModelAssetInfo",
                 format!("Asset Handle: {}", handle_str),
                 10.5,
-                Color::rgba(0.54, 0.56, 0.60, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -245,15 +229,7 @@ impl ComponentInspectorHandler for ShapeHandler {
 
         let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::ShapeType);
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("ShapeCard", card_style, |card| {
+        scope.card_panel("ShapeCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {

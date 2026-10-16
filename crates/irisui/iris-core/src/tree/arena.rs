@@ -34,10 +34,12 @@ pub struct UiTree {
     pub max_scrolls: HashMap<u64, f32>,
     /// Persistent 64-bit semantic tag identifying the currently opened menu bar dropdown menu, if any.
     pub active_menu_bar_tag: Option<u64>,
+    /// Active visual theme tokens governing surface colors, text, and metrics.
+    pub theme: crate::theme::Theme,
 }
 
 impl UiTree {
-    /// Creates a new, empty UI tree.
+    /// Creates a new, empty UI tree with default dark theme tokens.
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -49,6 +51,7 @@ impl UiTree {
             viewport_sizes: HashMap::new(),
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
+            theme: crate::theme::Theme::default(),
         }
     }
 

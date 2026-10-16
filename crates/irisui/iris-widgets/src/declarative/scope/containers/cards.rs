@@ -9,7 +9,7 @@
 
 use super::super::core::UiScope;
 use super::generic::InnerResponse;
-use iris_core::{Color, Insets, Style};
+use iris_core::{Insets, Style};
 
 impl<'a> UiScope<'a> {
     /// Emits a named elevated, bordered card container conforming to flexbox layout.
@@ -30,10 +30,11 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
+        let theme = self.tree.theme();
         let card_style = Style::new()
             .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
+            .background(theme.panel_bg)
+            .border(1.0, theme.card_bg)
             .border_radius(6.0)
             .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
             .gap(4.0);
@@ -46,12 +47,13 @@ impl<'a> UiScope<'a> {
                 .height(20.0)
                 .gap(6.0);
 
+            let title_color = card_scope.theme().text_primary;
             card_scope.container_named("CardHeader", header_style, |header_scope| {
                 header_scope.label_styled_passive(
                     "CardHeaderTitle",
                     title,
                     11.5,
-                    Color::rgba(0.886, 0.894, 0.918, 1.0),
+                    title_color,
                     iris_core::TextAlign::Left,
                     Style::new().height(20.0),
                 );
@@ -61,6 +63,24 @@ impl<'a> UiScope<'a> {
             card_scope.column(f).inner
         });
         InnerResponse::new(resp.response, resp.inner)
+    }
+
+    /// Emits a styled card panel container using active theme surface and border tokens.
+    ///
+    /// Ideal for inspector component cards, tool drawers, and grouped property panels.
+    pub fn card_panel<R, F>(&mut self, name: impl Into<String>, f: F) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let theme = self.tree.theme();
+        let card_style = Style::new()
+            .flex_col()
+            .background(theme.panel_bg)
+            .border(1.0, theme.card_bg)
+            .border_radius(6.0)
+            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
+            .gap(4.0);
+        self.container_named(name, card_style, f)
     }
 
     /// Emits an elevated, bordered card container conforming to flexbox layout.
@@ -88,10 +108,11 @@ impl<'a> UiScope<'a> {
         H: FnOnce(&mut UiScope<'_>) -> HR,
         B: FnOnce(&mut UiScope<'_>) -> BR,
     {
+        let theme = self.tree.theme();
         let card_style = Style::new()
             .flex_col()
-            .background(Color::rgba(0.082, 0.086, 0.100, 0.95))
-            .border(1.0, Color::rgba(0.15, 0.16, 0.20, 0.85))
+            .background(theme.panel_bg)
+            .border(1.0, theme.card_border)
             .border_radius(6.0)
             .padding(8.0)
             .gap(6.0);

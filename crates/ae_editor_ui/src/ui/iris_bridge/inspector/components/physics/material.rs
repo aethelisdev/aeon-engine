@@ -60,15 +60,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                 .map(|s| s.to_edit_state(ctx.params.blink_caret))
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("PhysicsMaterialCard", card_style, |card| {
+        scope.card_panel("PhysicsMaterialCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -93,7 +85,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                     "SurfaceTypeLbl",
                     "Surface Type:",
                     11.0,
-                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    row.theme().text_muted,
                     TextAlign::Left,
                     Style::new().width(85.0).height(22.0),
                 );
@@ -136,9 +128,9 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                             mat_data.2,
                             10.5,
                             if is_open {
-                                Color::WHITE
+                                pill.theme().text_primary
                             } else {
-                                Color::rgba(0.886, 0.894, 0.918, 1.0)
+                                pill.theme().text_secondary
                             },
                             TextAlign::Left,
                             Style::new().flex_grow(1.0),
@@ -150,9 +142,9 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                             crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN
                         };
                         let chevron_color = if is_open {
-                            Color::WHITE
+                            pill.theme().text_primary
                         } else {
-                            Color::rgba(0.70, 0.72, 0.78, 0.9)
+                            pill.theme().text_secondary
                         };
                         pill.icon_named("ComboChevron", chevron_uv, chevron_color, 9.0);
                     },
@@ -181,7 +173,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                             "PresetText",
                             "↺ Preset",
                             10.5,
-                            Color::rgba(0.886, 0.894, 0.918, 1.0),
+                            btn.theme().text_secondary,
                             TextAlign::Center,
                             Style::new().width(62.0).height(22.0),
                         );

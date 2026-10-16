@@ -14,7 +14,6 @@ use super::registry::{ComponentRenderContext, InspectorRegistry};
 use super::transform;
 use super::types::InspectorPanelParams;
 use super::ui_transform;
-use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 /// Builds the complete Scene Inspector layout and returns root handle.
@@ -31,7 +30,7 @@ pub fn build_inspector_panel(
     scope
         .panel("InspectorPanelRoot")
         .tagged(super::tags::TAG_INSPECTOR_PANEL_ROOT)
-        .background(ELEVATION_1_PANEL)
+        .background_themed(|t| t.panel_bg)
         .show(|panel_scope| {
             // 1. Check if an entity is selected
             let Some(entity) = params.selected_entity.filter(|e| params.world.contains(*e)) else {

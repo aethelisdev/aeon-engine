@@ -106,15 +106,7 @@ impl ComponentInspectorHandler for UiPanelHandler {
                 .map(|s| s.to_edit_state(ctx.params.blink_caret))
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("UiPanelCard", card_style, |card| {
+        scope.card_panel("UiPanelCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -248,14 +240,6 @@ impl ComponentInspectorHandler for UiTextHandler {
             )
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
         let align_str = match alignment {
             UiTextAlignment::Left => "Left",
             UiTextAlignment::Center => "Center",
@@ -265,7 +249,7 @@ impl ComponentInspectorHandler for UiTextHandler {
         let is_align_open =
             ctx.params.active_dropdown == Some(InspectorDropdownId::UiTextAlignment);
 
-        scope.container_named("UiTextCard", card_style, |card| {
+        scope.card_panel("UiTextCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -290,7 +274,7 @@ impl ComponentInspectorHandler for UiTextHandler {
                     "UiTextLabelPrefix",
                     "Text",
                     11.0,
-                    Color::rgba(0.620, 0.635, 0.678, 1.0),
+                    row.theme().text_muted,
                     TextAlign::Left,
                     Style::new().width(42.0).height(22.0),
                 );
@@ -401,15 +385,7 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
             0.0
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("UiProgressBarCard", card_style, |card| {
+        scope.card_panel("UiProgressBarCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -427,7 +403,7 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
                 "ProgressBarStats",
                 &stats_text,
                 11.0,
-                Color::rgba(0.85, 0.88, 0.95, 1.0),
+                card.theme().text_primary,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -437,9 +413,9 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
                 .flex_row()
                 .align_items(AlignItems::Center)
                 .height(10.0)
-                .background(Color::rgba(0.15, 0.18, 0.25, 0.90))
-                .border(1.0, Color::rgba(0.25, 0.30, 0.40, 0.70))
-                .border_radius(3.0);
+                .background(card.theme().scrollbar_track)
+                .border(1.0, card.theme().card_border)
+                .border_radius(card.theme().corner_radius_sm);
 
             card.container_named("MiniBarTrack", track_style, |track| {
                 if frac > 0.001 {
@@ -447,8 +423,8 @@ impl ComponentInspectorHandler for UiProgressBarHandler {
                     let fill_style = Style::new()
                         .width(fill_w)
                         .height(10.0)
-                        .background(Color::rgba(0.15, 0.65, 1.0, 0.95))
-                        .border_radius(3.0);
+                        .background(track.theme().accent)
+                        .border_radius(track.theme().corner_radius_sm);
                     track.empty_box_passive_named("MiniBarFill", fill_style);
                 }
             });
@@ -495,15 +471,7 @@ impl ComponentInspectorHandler for UiButtonHandler {
             .map(|b| b.is_enabled)
             .unwrap_or(true);
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("UiButtonCard", card_style, |card| {
+        scope.card_panel("UiButtonCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -566,15 +534,7 @@ impl ComponentInspectorHandler for UiImageHandler {
             "Stretch".to_string()
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("UiImageCard", card_style, |card| {
+        scope.card_panel("UiImageCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -592,7 +552,7 @@ impl ComponentInspectorHandler for UiImageHandler {
                 "UiImageMode",
                 &mode_str,
                 11.0,
-                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                card.theme().text_primary,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

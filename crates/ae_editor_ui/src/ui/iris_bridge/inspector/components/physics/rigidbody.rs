@@ -67,15 +67,7 @@ impl ComponentInspectorHandler for RigidBodyHandler {
 
         let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::RigidBodyType);
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("RigidBodyCard", card_style, |card| {
+        scope.card_panel("RigidBodyCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {

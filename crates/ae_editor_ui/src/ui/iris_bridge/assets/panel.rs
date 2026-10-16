@@ -19,7 +19,6 @@ use super::types::{
     ASSETS_TAG_PANEL_ROOT, AssetsPanelAction, AssetsPanelLayoutMetrics, AssetsPanelParams,
 };
 use crate::assets::types::AssetViewMode;
-use crate::ui::iris_bridge::theme::*;
 use irisui::prelude::*;
 
 pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP_BAR_HEIGHT};
@@ -45,7 +44,7 @@ pub fn build_assets_panel(
     UiScope::new(tree, parent_id)
         .panel("AssetsPanelRoot")
         .tagged(ASSETS_TAG_PANEL_ROOT)
-        .background(ELEVATION_1_PANEL)
+        .background_themed(|t| t.panel_bg)
         .bounds(params.panel_rect)
         .show(|panel_scope| {
             // 2. Top Header Toolbar (Pure Flexbox Breadcrumbs + Controls)

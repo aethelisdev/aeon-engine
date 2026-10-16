@@ -39,7 +39,7 @@ pub fn build_asset_toolbar_scope(
             .justify_content(JustifyContent::SpaceBetween)
             .width(params.panel_rect.width)
             .padding_insets(Insets::symmetric(0.0, 8.0))
-            .background(crate::ui::iris_bridge::theme::ELEVATION_2_HEADER)
+            .background(scope.theme().toolbar_bg)
             .height(ASSETS_TOP_BAR_HEIGHT),
         |toolbar| {
             // 1. Left Group: Breadcrumb navigation hierarchy

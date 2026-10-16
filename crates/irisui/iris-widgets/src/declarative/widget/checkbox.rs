@@ -68,6 +68,7 @@ impl Widget for Checkbox {
 
         let (clicked, hovered, _) = scope.check_interaction(node_id);
         let pressed = scope.is_pressed(node_id);
+        let theme = scope.theme();
         let is_effective_checked = self.checked ^ clicked;
 
         if let Some(node) = scope.tree.get_mut(node_id) {
@@ -80,7 +81,7 @@ impl Widget for Checkbox {
                 .align_items(AlignItems::Center)
                 .gap(6.0)
                 .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
-                .border_radius(4.0);
+                .border_radius(theme.corner_radius_md);
             style.hover_background = Some(Color::rgba(0.25, 0.28, 0.35, 0.30));
             if pressed {
                 style.background_color = Color::rgba(0.20, 0.22, 0.28, 0.50);
@@ -99,19 +100,19 @@ impl Widget for Checkbox {
             node.set_name("CheckboxIndicator");
 
             let box_bg = if is_effective_checked {
-                Color::rgba(0.18, 0.52, 0.88, 1.0)
+                theme.button_active_bg
             } else if hovered {
-                Color::rgba(0.18, 0.20, 0.26, 1.0)
+                theme.button_hover_bg
             } else {
-                Color::rgba(0.12, 0.14, 0.18, 1.0)
+                theme.button_idle_bg
             };
 
             let border_color = if is_effective_checked {
-                Color::rgba(0.24, 0.60, 0.96, 1.0)
+                theme.accent
             } else if hovered {
-                Color::rgba(0.40, 0.44, 0.55, 1.0)
+                theme.button_hover_border
             } else {
-                Color::rgba(0.25, 0.28, 0.35, 1.0)
+                theme.button_border
             };
 
             node.set_style(
@@ -122,7 +123,7 @@ impl Widget for Checkbox {
                     .justify_content(JustifyContent::Center)
                     .background(box_bg)
                     .border(1.0, border_color)
-                    .border_radius(3.0),
+                    .border_radius(theme.corner_radius_sm),
             );
 
             if is_effective_checked {
@@ -130,7 +131,7 @@ impl Widget for Checkbox {
                 node.font_size = 11.0;
                 node.line_height = 14.0;
                 node.text_align = TextAlign::Center;
-                node.text_color = Color::rgba(0.05, 0.06, 0.08, 1.0);
+                node.text_color = theme.text_primary;
             } else {
                 node.set_text("");
             }
@@ -148,9 +149,9 @@ impl Widget for Checkbox {
                 node.font_size = 12.0;
                 node.line_height = 16.0;
                 node.text_color = if hovered {
-                    Color::WHITE
+                    theme.text_primary
                 } else {
-                    Color::rgba(0.85, 0.88, 0.94, 1.0)
+                    theme.text_secondary
                 };
             }
         }

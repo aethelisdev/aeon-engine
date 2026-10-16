@@ -136,6 +136,13 @@ impl<'a> UiScope<'a> {
         widget.ui(self)
     }
 
+    /// Returns the active visual theme tokens configured on the underlying tree.
+    #[inline]
+    #[must_use]
+    pub fn theme(&self) -> iris_core::Theme {
+        self.tree.theme()
+    }
+
     /// Creates a child scope for a nested widget container with an explicitly isolated seed.
     ///
     /// Preserves active events, tags, and text input state while establishing a new hierarchical

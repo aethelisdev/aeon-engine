@@ -45,15 +45,7 @@ impl ComponentInspectorHandler for PlayerHealthBarTagHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("PlayerHealthBarTagCard", card_style, |card| {
+        scope.card_panel("PlayerHealthBarTagCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -70,7 +62,7 @@ impl ComponentInspectorHandler for PlayerHealthBarTagHandler {
                 "HealthBarTagDesc",
                 "Links this UI progress bar to active player health events.",
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -111,15 +103,7 @@ impl ComponentInspectorHandler for ScoreDisplayTagHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("ScoreDisplayTagCard", card_style, |card| {
+        scope.card_panel("ScoreDisplayTagCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -136,7 +120,7 @@ impl ComponentInspectorHandler for ScoreDisplayTagHandler {
                 "ScoreDisplayTagDesc",
                 "Links this UI text to active player score events.",
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -177,15 +161,7 @@ impl ComponentInspectorHandler for ReticleTagHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("ReticleTagCard", card_style, |card| {
+        scope.card_panel("ReticleTagCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -202,7 +178,7 @@ impl ComponentInspectorHandler for ReticleTagHandler {
                 "ReticleTagDesc",
                 "Marks this UI element as the primary crosshair reticle.",
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

@@ -50,15 +50,7 @@ impl ComponentInspectorHandler for MovingPlatformHandler {
                 (2.5, [0.0, 5.0, 0.0])
             };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("MovingPlatformCard", card_style, |card| {
+        scope.card_panel("MovingPlatformCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -77,7 +69,7 @@ impl ComponentInspectorHandler for MovingPlatformHandler {
                 "PlatformSpeedLbl",
                 &speed_str,
                 11.0,
-                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                card.theme().text_primary,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -91,7 +83,7 @@ impl ComponentInspectorHandler for MovingPlatformHandler {
                 "PlatformTargetLbl",
                 &target_str,
                 10.5,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

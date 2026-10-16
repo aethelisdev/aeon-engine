@@ -51,18 +51,10 @@ impl ComponentInspectorHandler for LodGroupHandler {
                 (15.0, 35.0, false, false)
             };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
         let l1_str = if lod1_set { "Set" } else { "None" };
         let l2_str = if lod2_set { "Set" } else { "None" };
 
-        scope.container_named("LodGroupCard", card_style, |card| {
+        scope.card_panel("LodGroupCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -80,7 +72,7 @@ impl ComponentInspectorHandler for LodGroupHandler {
                 "LodSlotsInfo",
                 format!("Slots: LOD0 (Active) | LOD1: {} | LOD2: {}", l1_str, l2_str),
                 10.5,
-                Color::rgba(0.886, 0.894, 0.918, 1.0),
+                card.theme().text_primary,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -90,7 +82,7 @@ impl ComponentInspectorHandler for LodGroupHandler {
                 "LodThresh1Lbl",
                 format!("LOD 0 ➔ 1 Distance: {:.1} m", t1),
                 11.0,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );
@@ -100,7 +92,7 @@ impl ComponentInspectorHandler for LodGroupHandler {
                 "LodThresh2Lbl",
                 format!("LOD 1 ➔ 2 Distance: {:.1} m", t2),
                 11.0,
-                Color::rgba(0.620, 0.635, 0.678, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().height(20.0),
             );

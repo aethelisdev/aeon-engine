@@ -53,12 +53,13 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
 
+        let theme = self.theme();
         let (text_color, bg) = if is_active {
-            (Color::hex("#00e5ff"), Color::hex("#1e2230"))
+            (theme.accent, theme.button_active_bg)
         } else if hovered {
-            (Color::WHITE, Color::hex("#222634"))
+            (theme.text_primary, theme.button_hover_bg)
         } else {
-            (Color::hex("#dcdce2"), Color::TRANSPARENT)
+            (theme.text_secondary, Color::TRANSPARENT)
         };
 
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -69,11 +70,11 @@ impl<'a> UiScope<'a> {
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = text_color;
-            node.hover_text_color = Some(Color::WHITE);
+            node.hover_text_color = Some(theme.text_primary);
             let hover_bg = if is_active {
-                Color::hex("#1e2230")
+                theme.button_active_bg
             } else {
-                Color::hex("#222634")
+                theme.button_hover_bg
             };
             node.set_style(
                 Style::new()
@@ -81,7 +82,7 @@ impl<'a> UiScope<'a> {
                     .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
                     .background(bg)
                     .hover_background(hover_bg)
-                    .border_radius(3.0)
+                    .border_radius(theme.corner_radius_sm)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .flex_shrink(0.0),
@@ -174,6 +175,10 @@ impl<'a> UiScope<'a> {
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
         let node_id = self.tree.create_node();
+        let theme = self.theme();
+        let bg = theme.modal_bg;
+        let border = theme.modal_border;
+        let radius = theme.corner_radius_md;
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("DropdownMenu");
             node.set_role(WidgetRole::DropdownPopup);
@@ -186,9 +191,9 @@ impl<'a> UiScope<'a> {
                     .flex_col()
                     .width(width)
                     .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
-                    .background(Color::rgba(0.035, 0.040, 0.050, 0.98)) // Deep sleek obsidian black
-                    .border(1.0, Color::rgba(0.20, 0.22, 0.28, 0.85))
-                    .border_radius(4.0)
+                    .background(bg)
+                    .border(1.0, border)
+                    .border_radius(radius)
                     .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.70)),
             );
             node.computed_rect.x = x;
@@ -311,10 +316,11 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
 
+        let theme = self.theme();
         let (text_color, bg) = if !enabled {
-            (Color::hex("#646470"), Color::TRANSPARENT)
+            (theme.text_muted, Color::TRANSPARENT)
         } else {
-            (Color::hex("#dcdce2"), Color::TRANSPARENT)
+            (theme.text_secondary, Color::TRANSPARENT)
         };
 
         if let Some(node) = self.tree.get_mut(node_id) {
@@ -325,9 +331,9 @@ impl<'a> UiScope<'a> {
                 .height(24.0)
                 .padding_insets(Insets::new(2.0, 8.0, 2.0, 8.0))
                 .background(bg)
-                .border_radius(3.0);
+                .border_radius(theme.corner_radius_sm);
             if enabled {
-                style = style.hover_background(Color::hex("#222634"));
+                style = style.hover_background(theme.button_hover_bg);
             }
             node.set_style(style);
         }
@@ -365,18 +371,18 @@ impl<'a> UiScope<'a> {
             n.set_style(Style::new().flex_grow(1.0).height(14.0));
         }
         if enabled {
-            self.set_hover_text_color(label_id, Color::WHITE);
+            self.set_hover_text_color(label_id, theme.text_primary);
         }
         let _ = self.tree.add_child(node_id, label_id);
 
         // 3. Trailing Shortcut / Checkmark (fixed width 74.0, right-aligned)
         if let Some(sc) = shortcut {
             let sc_color = if sc == "✓" {
-                Color::hex("#00e5ff")
+                theme.accent
             } else if !enabled {
-                Color::hex("#50505a")
+                theme.text_muted
             } else {
-                Color::hex("#828292")
+                theme.text_secondary
             };
             let sc_id = self.tree.create_node();
             if let Some(n) = self.tree.get_mut(sc_id) {
@@ -393,7 +399,7 @@ impl<'a> UiScope<'a> {
                 n.set_style(Style::new().width(sc_w).height(14.0).flex_shrink(0.0));
             }
             if enabled && sc != "✓" {
-                self.set_hover_text_color(sc_id, Color::hex("#b0b0be"));
+                self.set_hover_text_color(sc_id, theme.text_secondary);
             }
             let _ = self.tree.add_child(node_id, sc_id);
         }
@@ -419,15 +425,12 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(self.parent, node_id);
 
+        let divider_color = self.theme().divider;
         let line_id = self.tree.create_node();
         if let Some(line) = self.tree.get_mut(line_id) {
             line.set_layer(UiLayer::Popup);
             line.interactive = false;
-            line.set_style(
-                Style::new()
-                    .height(1.0)
-                    .background(Color::rgba(0.20, 0.22, 0.28, 0.70)),
-            );
+            line.set_style(Style::new().height(1.0).background(divider_color));
         }
         let _ = self.tree.add_child(node_id, line_id);
         node_id

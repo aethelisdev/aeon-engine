@@ -34,7 +34,7 @@ pub mod prelude {
         EventDispatcher, EventState, ExternalTextureId, FlexDirection, FlexWrap, FocusManager,
         HitTargetInfo, HitTestResult, ImeEvent, Insets, InteractionEvent, IrisCoreError,
         JustifyContent, KeyCode, MouseButton, Point, Position, Rect, ResponseFlags, Size, Style,
-        TextAlign, TextWrap, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId, WidgetNode,
+        TextAlign, TextWrap, Theme, UiEvent, UiLayer, UiTree, WidgetCursor, WidgetId, WidgetNode,
         WidgetRole, WidgetState,
     };
     pub use iris_dock::{

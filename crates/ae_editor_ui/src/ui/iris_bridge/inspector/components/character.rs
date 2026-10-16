@@ -66,15 +66,7 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
                 .map(|s| s.to_edit_state(ctx.params.blink_caret))
         };
 
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
-            .gap(4.0);
-
-        scope.container_named("CharacterControllerCard", card_style, |card| {
+        scope.card_panel("CharacterControllerCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -154,9 +146,9 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
 
             card.container_named("GroundedStatusPill", status_row_style, |status_scope| {
                 let (text_str, text_col) = if char_data.5 {
-                    ("🛡 Grounded", Color::rgba(0.20, 0.85, 0.35, 1.0))
+                    ("🛡 Grounded", status_scope.theme().success)
                 } else {
-                    ("🛡 In Air", Color::rgba(0.92, 0.70, 0.05, 1.0))
+                    ("🛡 In Air", status_scope.theme().warning)
                 };
                 status_scope.label_styled_passive(
                     "GroundedStatusText",
@@ -212,15 +204,7 @@ impl ComponentInspectorHandler for PlayerTagHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, _ctx: &mut ComponentRenderContext<'_>) {
-        let card_style = Style::new()
-            .flex_col()
-            .background(Color::rgba(0.090, 0.094, 0.110, 0.98))
-            .border(1.0, Color::rgba(0.133, 0.141, 0.165, 0.85))
-            .border_radius(6.0)
-            .padding_insets(Insets::new(6.0, 8.0, 8.0, 8.0))
-            .gap(6.0);
-
-        scope.container_named("PlayerTagCard", card_style, |card| {
+        scope.card_panel("PlayerTagCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
@@ -237,7 +221,7 @@ impl ComponentInspectorHandler for PlayerTagHandler {
                 "PlayerTagDesc",
                 "Designates this entity as the active Player target",
                 10.5,
-                Color::rgba(0.54, 0.56, 0.60, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new().margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
             );
@@ -245,7 +229,7 @@ impl ComponentInspectorHandler for PlayerTagHandler {
                 "PlayerTagDescSub",
                 "for gameplay logic and camera tracking.",
                 10.5,
-                Color::rgba(0.54, 0.56, 0.60, 1.0),
+                card.theme().text_muted,
                 TextAlign::Left,
                 Style::new(),
             );

@@ -119,9 +119,23 @@ impl<'a, 'b> RowBuilder<'a, 'b> {
         self
     }
 
+    /// Sets background fill color from an active theme token.
+    pub fn background_themed(mut self, f: impl FnOnce(&iris_core::Theme) -> Color) -> Self {
+        let theme = self.scope.theme();
+        self.style = self.style.background(f(&theme));
+        self
+    }
+
     /// Sets border width and color.
     pub fn border(mut self, width: f32, color: Color) -> Self {
         self.style = self.style.border(width, color);
+        self
+    }
+
+    /// Sets border stroke width and color from an active theme token.
+    pub fn border_themed(mut self, width: f32, f: impl FnOnce(&iris_core::Theme) -> Color) -> Self {
+        let theme = self.scope.theme();
+        self.style = self.style.border(width, f(&theme));
         self
     }
 
@@ -274,9 +288,23 @@ impl<'a, 'b> ColumnBuilder<'a, 'b> {
         self
     }
 
+    /// Sets background fill color from an active theme token.
+    pub fn background_themed(mut self, f: impl FnOnce(&iris_core::Theme) -> Color) -> Self {
+        let theme = self.scope.theme();
+        self.style = self.style.background(f(&theme));
+        self
+    }
+
     /// Sets border width and color.
     pub fn border(mut self, width: f32, color: Color) -> Self {
         self.style = self.style.border(width, color);
+        self
+    }
+
+    /// Sets border stroke width and color from an active theme token.
+    pub fn border_themed(mut self, width: f32, f: impl FnOnce(&iris_core::Theme) -> Color) -> Self {
+        let theme = self.scope.theme();
+        self.style = self.style.border(width, f(&theme));
         self
     }
 
@@ -401,5 +429,44 @@ mod tests {
         assert_eq!(node.style.gap, 12.0);
         assert_eq!(node.style.flex_grow, 1.0);
         assert_eq!(node.children.len(), 3);
+    }
+
+    #[test]
+    fn test_builder_themed_styling() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+        let (row_id, col_id) = {
+            let mut scope = UiScope::new(&mut tree, root);
+
+            let row_resp = scope
+                .row_with()
+                .name("ThemedRow")
+                .background_themed(|t| t.toolbar_bg)
+                .border_themed(1.0, |t| t.toolbar_border)
+                .show(|_| ());
+
+            let col_resp = scope
+                .column_with()
+                .name("ThemedCol")
+                .background_themed(|t| t.card_bg)
+                .border_themed(2.0, |t| t.card_border)
+                .show(|_| ());
+
+            (row_resp.response.id, col_resp.response.id)
+        };
+
+        let node = tree.get(row_id).expect("Row node exists");
+        assert_eq!(node.style.background_color, tree.theme().toolbar_bg);
+        assert_eq!(
+            node.style.border,
+            iris_core::Border::uniform(1.0, tree.theme().toolbar_border)
+        );
+
+        let col_node = tree.get(col_id).expect("Col node exists");
+        assert_eq!(col_node.style.background_color, tree.theme().card_bg);
+        assert_eq!(
+            col_node.style.border,
+            iris_core::Border::uniform(2.0, tree.theme().card_border)
+        );
     }
 }

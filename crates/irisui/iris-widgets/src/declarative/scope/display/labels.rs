@@ -79,12 +79,8 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `text` - Display string content.
     pub fn label(&mut self, text: impl Into<String>) -> WidgetId {
-        self.label_custom(
-            text,
-            11.5,
-            Color::rgba(0.78, 0.80, 0.85, 1.0),
-            TextAlign::Left,
-        )
+        let color = self.tree.theme().text_secondary;
+        self.label_custom(text, 11.5, color, TextAlign::Left)
     }
 
     /// Emits a prominent section heading text label node with bold white foreground coloring.
@@ -92,7 +88,8 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `text` - Display string content.
     pub fn heading(&mut self, text: impl Into<String>) -> WidgetId {
-        self.label_custom(text, 13.5, Color::WHITE, TextAlign::Left)
+        let color = self.tree.theme().text_primary;
+        self.label_custom(text, 13.5, color, TextAlign::Left)
     }
 
     /// Emits a secondary section subtitle text label node with muted light gray coloring.
@@ -100,12 +97,8 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `text` - Display string content.
     pub fn subheading(&mut self, text: impl Into<String>) -> WidgetId {
-        self.label_custom(
-            text,
-            12.0,
-            Color::rgba(0.90, 0.92, 0.96, 1.0),
-            TextAlign::Left,
-        )
+        let color = self.tree.theme().text_secondary;
+        self.label_custom(text, 12.0, color, TextAlign::Left)
     }
 
     /// Emits a text label node with an explicit foreground color and standard typography sizing.
