@@ -59,14 +59,17 @@ pub fn build_console_panel(
         .background(Color::rgba(0.05, 0.06, 0.08, 1.0))
         .show(|panel_scope| {
             // 3. Declarative Toolbar Header Bar
-            panel_scope.toolbar_tagged(
-                "ConsoleToolbar",
-                CONSOLE_TOOLBAR_HEIGHT,
-                CONSOLE_TAG_TOOLBAR,
-                Color::rgba(0.02, 0.02, 0.03, 0.98),
-                |tb| {
+            Toolbar::new("ConsoleToolbar")
+                .height(CONSOLE_TOOLBAR_HEIGHT)
+                .tag(CONSOLE_TAG_TOOLBAR)
+                .background(Color::rgba(0.02, 0.02, 0.03, 0.98))
+                .show(panel_scope, |tb| {
                     if tb
-                        .toolbar_button_tagged("🧹 Clear", 76.0, CONSOLE_TAG_CLEAR)
+                        .add(
+                            ToolbarButton::new("🧹 Clear")
+                                .width(76.0)
+                                .tag(CONSOLE_TAG_CLEAR),
+                        )
                         .clicked()
                     {
                         actions.push(ConsoleAction::ClearLogs);
@@ -152,23 +155,22 @@ pub fn build_console_panel(
                         TextAlign::Right,
                     );
 
-                    let auto_scroll_label = if params.auto_scroll {
-                        "✓ Auto-Scroll"
-                    } else {
-                        "⏸ Auto-Scroll"
-                    };
                     if tb
-                        .toggle_pill_tagged(
-                            auto_scroll_label,
-                            params.auto_scroll,
-                            CONSOLE_TAG_AUTOSCROLL,
+                        .add(
+                            Button::new(if params.auto_scroll {
+                                "✓ Auto-Scroll"
+                            } else {
+                                "⏸ Auto-Scroll"
+                            })
+                            .small()
+                            .active(params.auto_scroll)
+                            .tag(CONSOLE_TAG_AUTOSCROLL),
                         )
                         .clicked()
                     {
                         actions.push(ConsoleAction::ToggleAutoScroll);
                     }
-                },
-            );
+                });
 
             // 4. Scrollable Log Rows Viewport via declarative virtual_scroll_area
             build_console_rows(panel_scope, params);

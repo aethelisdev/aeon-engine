@@ -9,72 +9,10 @@
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
-    AlignItems, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, WidgetCursor,
-    WidgetRole,
+    AlignItems, Color, CornerRadii, JustifyContent, Style, TextAlign, WidgetCursor, WidgetRole,
 };
 
 impl<'a> UiScope<'a> {
-    /// Emits an interactive compact button designed for toolbar header strips.
-    ///
-    /// # Arguments
-    /// * `label` - Button caption text.
-    /// * `width` - Explicit button width in physical pixels.
-    /// * `tag` - Semantic identifier inspected during interaction event dispatching.
-    pub fn toolbar_button_tagged(
-        &mut self,
-        label: impl Into<String>,
-        width: f32,
-        tag: u64,
-    ) -> WidgetResponse {
-        let label_str = label.into();
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.tag = tag;
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        let (clicked, hovered, _) = self.check_interaction(node_id);
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(label_str);
-            node.font_size = 11.0;
-            node.line_height = 24.0;
-            node.text_align = TextAlign::Center;
-            node.text_color = if hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.90, 0.93, 0.98, 1.0)
-            };
-            node.hover_text_color = Some(Color::WHITE);
-            node.set_style(
-                Style::new()
-                    .width(width)
-                    .height(24.0)
-                    .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
-                    .background(if hovered {
-                        Color::rgba(0.24, 0.29, 0.39, 1.0)
-                    } else {
-                        Color::rgba(0.15, 0.18, 0.25, 0.95)
-                    })
-                    .hover_background(Color::rgba(0.24, 0.29, 0.39, 1.0))
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(0.0, 0.85, 1.0, 0.85)
-                        } else {
-                            Color::rgba(0.30, 0.36, 0.48, 0.75)
-                        },
-                    )
-                    .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85))
-                    .border_radius(4.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center),
-            );
-        }
-        WidgetResponse::new(node_id, clicked, hovered, false)
-    }
-
     /// Emits a 32×32 pixel square toolbar icon button for gizmos, tools, and coordinate toggles.
     ///
     /// Provides built-in hover lifting, active state coloring, and pointer cursor styling.

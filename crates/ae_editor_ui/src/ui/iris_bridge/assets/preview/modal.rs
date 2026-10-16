@@ -142,10 +142,10 @@ pub fn build_asset_preview_modal(
                         .height(32.0)
                         .padding_insets(Insets::new(0.0, 4.0, 0.0, 4.0)),
                     |footer| {
-                        footer.modal_cancel_button_tagged(
-                            "Reveal in Explorer",
-                            140.0,
-                            crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL,
+                        footer.add(
+                            Button::new("Reveal in Explorer").width(140.0).tag(
+                                crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL,
+                            ),
                         );
 
                         footer.colored_label(

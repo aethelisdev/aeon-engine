@@ -3,7 +3,7 @@
 
 //! # Unit Tests for Declarative Input Box Layout & Caret Positioning (`iris-widgets::declarative::tests::input_box_tests`)
 
-use crate::declarative::UiScope;
+use crate::declarative::{UiScope, widget::Toolbar};
 use iris_core::{Rect, UiTree, WidgetRole};
 
 #[test]
@@ -13,19 +13,26 @@ fn test_input_box_tagged_with_icon_and_caret_layout() {
     let mut scope = UiScope::new(&mut tree, root);
     let tag = 0x5002;
 
-    let mut box_id_opt = None;
-    scope.toolbar_tagged("TestTb", 34.0, 0x1000, iris_core::Color::BLACK, |tb| {
-        let props =
-            crate::declarative::scope::InputBoxProps::new("", "Search logs...", 210.0, true, true)
-                .with_icon("🔍");
-        let id = tb.input_box_tagged(&props, tag).id();
-        box_id_opt = Some(id);
-    });
+    let box_id = Toolbar::new("TestTb")
+        .height(34.0)
+        .tag(0x1000)
+        .background(iris_core::Color::BLACK)
+        .show(&mut scope, |tb| {
+            let props = crate::declarative::scope::InputBoxProps::new(
+                "",
+                "Search logs...",
+                210.0,
+                true,
+                true,
+            )
+            .with_icon("🔍");
+            tb.input_box_tagged(&props, tag).id()
+        })
+        .inner;
 
     let bounds = Rect::new(0.0, 0.0, 400.0, 34.0);
     scope.finish_layout(bounds);
 
-    let box_id = box_id_opt.expect("Box exists");
     let box_node = tree.get(box_id).expect("Box node exists");
     assert_eq!(box_node.computed_rect.width, 210.0);
     assert_eq!(box_node.computed_rect.height, 24.0);
@@ -57,25 +64,27 @@ fn test_input_box_tagged_cursor_byte_idx_caret_positioning() {
     let mut scope = UiScope::new(&mut tree, root);
     let tag = 0x5003;
 
-    let mut box_id_opt = None;
-    scope.toolbar_tagged("TestTb2", 34.0, 0x1000, iris_core::Color::BLACK, |tb| {
-        let props = crate::declarative::scope::InputBoxProps::new(
-            "Hello World",
-            "Search...",
-            210.0,
-            true,
-            true,
-        )
-        .with_icon("🔍")
-        .with_cursor_byte_idx(5);
-        let id = tb.input_box_tagged(&props, tag).id();
-        box_id_opt = Some(id);
-    });
+    let box_id = Toolbar::new("TestTb2")
+        .height(34.0)
+        .tag(0x1000)
+        .background(iris_core::Color::BLACK)
+        .show(&mut scope, |tb| {
+            let props = crate::declarative::scope::InputBoxProps::new(
+                "Hello World",
+                "Search...",
+                210.0,
+                true,
+                true,
+            )
+            .with_icon("🔍")
+            .with_cursor_byte_idx(5);
+            tb.input_box_tagged(&props, tag).id()
+        })
+        .inner;
 
     let bounds = Rect::new(0.0, 0.0, 400.0, 34.0);
     scope.finish_layout(bounds);
 
-    let box_id = box_id_opt.expect("Box exists");
     let box_node = tree.get(box_id).expect("Box node exists");
     let text_node = tree.get(box_node.children[1]).expect("Text node");
     let caret_node = tree.get(box_node.children[2]).expect("Caret node");
@@ -93,25 +102,27 @@ fn test_input_box_tagged_long_text_clipping_and_visible_slice() {
     let tag = 0x5004;
 
     let long_text = "fgdgfdhfhfdhhhhfdhfdhfdhfdhfdhfdhfdhfdhfdffdhfdhfdhfdhdf";
-    let mut box_id_opt = None;
-    scope.toolbar_tagged("TestTb3", 34.0, 0x1000, iris_core::Color::BLACK, |tb| {
-        let props = crate::declarative::scope::InputBoxProps::new(
-            long_text,
-            "Search...",
-            180.0,
-            true,
-            true,
-        )
-        .with_icon("🔍")
-        .with_clear_tag(0x9999);
-        let id = tb.input_box_tagged(&props, tag).id();
-        box_id_opt = Some(id);
-    });
+    let box_id = Toolbar::new("TestTb3")
+        .height(34.0)
+        .tag(0x1000)
+        .background(iris_core::Color::BLACK)
+        .show(&mut scope, |tb| {
+            let props = crate::declarative::scope::InputBoxProps::new(
+                long_text,
+                "Search...",
+                180.0,
+                true,
+                true,
+            )
+            .with_icon("🔍")
+            .with_clear_tag(0x9999);
+            tb.input_box_tagged(&props, tag).id()
+        })
+        .inner;
 
     let bounds = Rect::new(0.0, 0.0, 400.0, 34.0);
     scope.finish_layout(bounds);
 
-    let box_id = box_id_opt.expect("Box exists");
     let box_node = tree.get(box_id).expect("Box node exists");
     assert!(box_node.style.clip_children, "Input box must clip children");
 

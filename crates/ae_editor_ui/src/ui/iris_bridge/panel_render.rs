@@ -131,7 +131,7 @@ mod tests {
             .tagged(0xCC00_0001)
             .background(Color::BLACK)
             .show(|s| {
-                s.button_named_tagged("TestBtn", "Btn", 0xCC00_0002);
+                s.add(Button::new("Btn").name("TestBtn").tag(0xCC00_0002));
             });
 
         // Hit-test local query with coordinate transformation: (150.0, 70.0) -> local (50.0, 20.0)
@@ -201,8 +201,8 @@ mod tests {
                 WidgetRole::Default,
                 0xAA00_0001,
                 |s| {
-                    let _ = s.button_tagged("EntityRow1", 0xAA00_0002);
-                    let _ = s.button_tagged("EntityRow2", 0xAA00_0003);
+                    s.add(Button::new("EntityRow1").tag(0xAA00_0002));
+                    s.add(Button::new("EntityRow2").tag(0xAA00_0003));
                 },
             );
         }
@@ -237,7 +237,7 @@ mod tests {
         let shell_root = shell_tree.create_root().unwrap();
         {
             let mut scope = UiScope::new(&mut shell_tree, shell_root);
-            let _ = scope.button_tagged("TopMenubarBtn", 0xBB00_0001);
+            scope.add(Button::new("TopMenubarBtn").tag(0xBB00_0001));
             scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 30.0));
         }
 
@@ -245,7 +245,7 @@ mod tests {
         let overlay_root = overlay_tree.create_root().unwrap();
         {
             let mut scope = UiScope::new(&mut overlay_tree, overlay_root);
-            let _ = scope.button_tagged("DropdownItem", 0xCC00_0001);
+            scope.add(Button::new("DropdownItem").tag(0xCC00_0001));
             scope.finish_layout(Rect::new(50.0, 30.0, 150.0, 200.0));
         }
 

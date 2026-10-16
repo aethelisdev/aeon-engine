@@ -109,31 +109,6 @@ impl<'a> UiScope<'a> {
     }
 
     /// Emits a non-container leaf node with custom styling, widget role, and 64-bit semantic tag.
-    ///
-    /// # Arguments
-    /// * `name` - Descriptive name of the widget node for tree debugging.
-    /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    /// * `role` - Accessibility and interaction role for the widget.
-    /// * `tag` - 64-bit semantic identifier for hardware hit-testing and event routing.
-    pub fn empty_box_tagged(
-        &mut self,
-        name: impl Into<String>,
-        style: Style,
-        role: WidgetRole,
-        tag: u64,
-    ) -> WidgetId {
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name(name.into());
-            node.tag = tag;
-            node.role = role;
-            node.interactive = true;
-            node.cursor = role.default_cursor();
-            node.set_style(style);
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        node_id
-    }
 
     /// Emits a 1-pixel horizontal rule divider container with a custom color.
     ///

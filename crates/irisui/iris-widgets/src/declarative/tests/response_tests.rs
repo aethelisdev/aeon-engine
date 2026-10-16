@@ -6,7 +6,10 @@
 //! Verifies immediate reactive interaction states ([`WidgetResponse`]) produced by
 //! declarative buttons and checkboxes during autonomous event dispatch cycles.
 
-use crate::declarative::UiScope;
+use crate::declarative::{
+    UiScope,
+    widget::{Button, Checkbox},
+};
 use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
 use iris_core::tree::UiTree;
@@ -700,8 +703,8 @@ fn test_declarative_instant_effective_state_on_click_frame() {
             70.0,
             tag_pill,
         );
-        let toggle_resp = scope.toggle_pill_tagged("Auto-Scroll", false, tag_toggle);
-        let check_resp = scope.checkbox_val_tagged("Wireframe", tag_check, false);
+        let toggle_resp = scope.add(Button::new("Auto-Scroll").small().tag(tag_toggle));
+        let check_resp = scope.add(Checkbox::new("Wireframe", false).tag(tag_check));
         (pill_resp.id(), toggle_resp.id(), check_resp.id())
     };
 
@@ -719,7 +722,7 @@ fn test_declarative_instant_effective_state_on_click_frame() {
     // Rebuild frame with check clicked: verify checkmark appears on the SAME frame!
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let check_resp = scope.checkbox_val_tagged("Wireframe", tag_check, false);
+        let check_resp = scope.add(Checkbox::new("Wireframe", false).tag(tag_check));
         assert!(
             check_resp.clicked(),
             "Checkbox must report clicked() == true"

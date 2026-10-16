@@ -496,10 +496,14 @@ pub fn asset_list_row(
                 row.spacing(4.0);
 
                 // Direct Action: Inspect Button ("Inspect")
-                row.small_button_tagged("Inspect", encode_item_inspect_tag(item_idx))
-                    .on_click(|| {
-                        actions.push(AssetsPanelAction::InspectAsset(item.clone()));
-                    });
+                row.add(
+                    Button::new("Inspect")
+                        .small()
+                        .tag(encode_item_inspect_tag(item_idx)),
+                )
+                .on_click(|| {
+                    actions.push(AssetsPanelAction::InspectAsset(item.clone()));
+                });
             },
         )
         .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))

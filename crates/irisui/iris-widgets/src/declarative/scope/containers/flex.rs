@@ -9,7 +9,7 @@
 
 use super::super::core::UiScope;
 use super::generic::InnerResponse;
-use iris_core::{AlignItems, Color, Insets, JustifyContent, Style, WidgetRole};
+use iris_core::{AlignItems, Color, Insets, JustifyContent, Style};
 
 impl<'a> UiScope<'a> {
     /// Emits a horizontal flexbox container (`flex_direction: Row`) with standard centered alignment and 6.0px gap.
@@ -130,36 +130,6 @@ impl<'a> UiScope<'a> {
             .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
             .border(1.0, Color::rgba(1.0, 1.0, 1.0, 0.08));
         self.container_named(name, style, f)
-    }
-
-    /// Emits a tagged horizontal toolbar container with a fixed height and centered flex alignment.
-    ///
-    /// # Arguments
-    /// * `name` - Descriptive debug name for the toolbar node.
-    /// * `height` - Fixed toolbar height in physical pixels.
-    /// * `tag` - Semantic tag for tracking interactions and event routing.
-    /// * `bg` - Background fill color.
-    /// * `f` - Closure executing within the toolbar scope.
-    pub fn toolbar_tagged<R, F>(
-        &mut self,
-        name: &'static str,
-        height: f32,
-        tag: u64,
-        bg: Color,
-        f: F,
-    ) -> InnerResponse<R>
-    where
-        F: FnOnce(&mut UiScope<'_>) -> R,
-    {
-        let style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .height(height)
-            .background(bg)
-            .gap(6.0)
-            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-            .border(1.0, Color::rgba(1.0, 1.0, 1.0, 0.08));
-        self.container_tagged(name, style, WidgetRole::Default, tag, f)
     }
 }
 

@@ -163,11 +163,10 @@ fn render_object_color_row(
             .background(obj_color)
             .border(1.0, swatch_border)
             .border_radius(5.0);
-        row.empty_box_tagged(
-            "ColorSwatchBox",
-            swatch_style,
-            WidgetRole::Button,
-            swatch_tag,
+        row.add(
+            EmptyBox::new("ColorSwatchBox", swatch_style)
+                .role(WidgetRole::Button)
+                .tag(swatch_tag),
         );
 
         row.label_styled_passive(
@@ -382,8 +381,13 @@ fn render_palette_swatches(
                 .background(col)
                 .border(1.0, border_col)
                 .border_radius(3.0);
-            let sw_id =
-                wrap_scope.empty_box_tagged("PaletteSwatch", sw_style, WidgetRole::Button, tag);
+            let sw_id = wrap_scope
+                .add(
+                    EmptyBox::new("PaletteSwatch", sw_style)
+                        .role(WidgetRole::Button)
+                        .tag(tag),
+                )
+                .id;
             swatch_nodes.push((idx, sw_id, col));
         }
 
@@ -403,8 +407,13 @@ fn render_palette_swatches(
                 .background(col)
                 .border(1.0, border_col)
                 .border_radius(3.0);
-            let sw_id =
-                wrap_scope.empty_box_tagged("PaletteSwatch", sw_style, WidgetRole::Button, tag);
+            let sw_id = wrap_scope
+                .add(
+                    EmptyBox::new("PaletteSwatch", sw_style)
+                        .role(WidgetRole::Button)
+                        .tag(tag),
+                )
+                .id;
             swatch_nodes.push((global_idx, sw_id, col));
         }
     });

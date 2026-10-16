@@ -14,7 +14,7 @@ use crate::ui::iris_bridge::material::{MaterialAction, MaterialPanelState};
 use crate::ui::iris_bridge::preferences::{PreferencesAction, PreferencesDialogState};
 use crate::ui::iris_bridge::stats::{StatsPanelAction, StatsPanelState};
 use crate::ui::iris_bridge::types::PanelInteractionState;
-use irisui::prelude::{FocusManager, FocusState, FocusTarget};
+use irisui::prelude::{Button, FocusManager, FocusState, FocusTarget};
 
 #[test]
 fn test_panel_interaction_state_pending_actions_invariants() {
@@ -399,7 +399,7 @@ fn test_iris_editor_overlay_winit_autonomous_dispatch_integration() {
     // 1. Initial build: Emit button in tree using declarative finish_layout
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.button_tagged("AutonomousBtn", btn_tag);
+        let resp = scope.add(Button::new("AutonomousBtn").tag(btn_tag));
         assert!(!resp.clicked());
         scope.finish_layout(Rect::new(0.0, 0.0, 800.0, 600.0));
     }
@@ -427,10 +427,10 @@ fn test_iris_editor_overlay_winit_autonomous_dispatch_integration() {
     assert!(res_up.is_consumed());
     assert_eq!(tree.event_state.frame_clicked_tag, Some(btn_tag));
 
-    // 4. Next frame: scope.button_tagged reports clicked() autonomously
+    // 4. Next frame: scope.add(Button) reports clicked() autonomously
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.button_tagged("AutonomousBtn", btn_tag);
+        let resp = scope.add(Button::new("AutonomousBtn").tag(btn_tag));
         assert!(
             resp.clicked(),
             "Declarative button MUST autonomously report clicked() from window root dispatch"

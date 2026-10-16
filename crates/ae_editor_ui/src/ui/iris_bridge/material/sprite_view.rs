@@ -59,14 +59,14 @@ pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>)
         );
         card.colored_label(Color::rgba(0.30, 0.82, 0.45, 1.0), info_text);
         card.row(|row| {
-            row.button_with_icon_styled_tagged(
-                ICON_FOLDER,
-                Color::rgba(0.95, 0.80, 0.25, 0.95),
-                "Change Texture",
-                None,
-                MATERIAL_TAG_SPRITE_CHANGE,
+            row.add(
+                Button::new("Change Texture")
+                    .icon(ICON_FOLDER, 16.0)
+                    .fill(Color::rgba(0.95, 0.80, 0.25, 0.25))
+                    .text_color(Color::rgba(0.95, 0.80, 0.25, 0.95))
+                    .tag(MATERIAL_TAG_SPRITE_CHANGE),
             );
-            row.button_tagged("🗑 Remove", MATERIAL_TAG_SPRITE_REMOVE);
+            row.add(Button::new("🗑 Remove").tag(MATERIAL_TAG_SPRITE_REMOVE));
         });
     });
 

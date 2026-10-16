@@ -108,9 +108,13 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
                 card.label("Alpha Mode:");
                 card.row(|row| {
                     for (mode, label) in &alpha_modes {
-                        let pill_tag = make_submesh_alpha_tag(idx, *mode);
-                        let is_active = submesh.alpha_mode == *mode;
-                        row.toggle_pill_flex_tagged(label, is_active, pill_tag);
+                        row.add(
+                            Button::new(*label)
+                                .small()
+                                .active(submesh.alpha_mode == *mode)
+                                .flex(true)
+                                .tag(make_submesh_alpha_tag(idx, *mode)),
+                        );
                     }
                 });
 

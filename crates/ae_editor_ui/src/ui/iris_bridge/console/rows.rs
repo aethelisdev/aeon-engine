@@ -45,19 +45,17 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
     let total_filtered = matching_indices.len();
 
     if total_filtered == 0 {
-        panel_scope.scroll_area_tagged(
-            "ConsoleViewport",
-            CONSOLE_TAG_VIEWPORT,
-            Color::rgba(0.05, 0.06, 0.08, 0.98),
-            |vp| {
+        ScrollAreaView::new("ConsoleViewport")
+            .tag(CONSOLE_TAG_VIEWPORT)
+            .background(Color::rgba(0.05, 0.06, 0.08, 0.98))
+            .show(panel_scope, |vp| {
                 let msg = if has_query {
                     "No logs matching the search filter."
                 } else {
                     "Console log is empty."
                 };
                 render_console_empty_notice(vp, msg);
-            },
-        );
+            });
         return;
     }
 

@@ -7,7 +7,6 @@
 //! scrollable containers and $O(1)$ virtualized lists into the retainable UI tree.
 //!
 
-use super::containers::InnerResponse;
 use super::core::UiScope;
 use crate::scroll_area::area::{ScrollAreaBuilder, ScrollAreaFrame};
 use crate::scroll_area::style::ScrollAreaStyle;
@@ -107,29 +106,6 @@ impl ScrollAreaConfig {
 
 impl<'a> UiScope<'a> {
     /// Emits a tagged scrollable container with flex-grow expansion and hardware child clipping.
-    ///
-    /// # Arguments
-    /// * `name` - Descriptive identifier assigned to the scroll viewport node.
-    /// * `tag` - Semantic tag for tracking interactions and event routing.
-    /// * `bg` - Background fill color.
-    /// * `f` - Closure executing within the scroll viewport scope.
-    pub fn scroll_area_tagged<R, F>(
-        &mut self,
-        name: &'static str,
-        tag: u64,
-        bg: Color,
-        f: F,
-    ) -> InnerResponse<R>
-    where
-        F: FnOnce(&mut UiScope<'_>) -> R,
-    {
-        let style = Style::new()
-            .flex_col()
-            .flex_grow(1.0)
-            .clip_children(true)
-            .background(bg);
-        self.container_tagged(name, style, WidgetRole::ScrollAreaViewport, tag, f)
-    }
 
     /// Emits an autonomous declarative scroll container that clips its children,
     /// measures content height, and emits a scrollbar when content overflows the viewport.
@@ -350,8 +326,10 @@ impl<'a> UiScope<'a> {
             self.tree.set_max_scroll(tag, max_scroll);
         }
 
-        let vp_id = self
-            .scroll_area_tagged(name, tag, config.bg, |vp| {
+        let vp_id = crate::declarative::widget::ScrollAreaView::new(name)
+            .tag(tag)
+            .background(config.bg)
+            .show(self, |vp| {
                 vp.set_scroll_offset_y(safe_scroll);
                 if slice.start_idx > 0 {
                     let top_spacer_h = slice.start_idx as f32 * stride;

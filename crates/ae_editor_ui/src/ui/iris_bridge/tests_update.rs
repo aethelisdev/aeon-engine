@@ -6,7 +6,7 @@
 
 use super::IrisEditorOverlay;
 use super::types::IrisChromeState;
-use irisui::prelude::{Color, FocusManager, Rect, UiScope, UiTree};
+use irisui::prelude::{Button, Color, FocusManager, Rect, UiScope, UiTree};
 
 #[test]
 fn test_always_rebuild_default_and_setter() {
@@ -27,7 +27,7 @@ fn test_collect_text_sections_with_hover_state() {
 
     {
         let mut scope = UiScope::new(&mut tree, root);
-        let _ = scope.button_tagged("Export", btn_tag);
+        scope.add(Button::new("Export").tag(btn_tag));
         scope.finish_layout(Rect::new(0.0, 0.0, 800.0, 600.0));
     }
 

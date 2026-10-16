@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+
+//! # Unified Declarative Widget Trait & Builders
+//!
+//! Provides the [`Widget`] trait and idiomatic builder structs ([`Button`], [`ToolbarButton`],
+//! [`Checkbox`], [`EmptyBox`], [`ScrollArea`], [`Toolbar`]) to eliminate combinatorial method explosion
+//! (`*_tagged`, `*_named_*`, `*_styled_*`) in favor of a unified `scope.add(widget)` pattern.
+//!
+
+pub mod button;
+pub mod checkbox;
+pub mod empty_box;
+pub mod scroll_area;
+pub mod toolbar;
+pub mod toolbar_button;
+
+pub use button::Button;
+pub use checkbox::Checkbox;
+pub use empty_box::EmptyBox;
+pub use scroll_area::ScrollAreaView;
+pub use toolbar::Toolbar;
+pub use toolbar_button::ToolbarButton;
+
+use super::scope::core::UiScope;
+
+/// Trait implemented by configurable declarative widgets.
+///
+/// Enables consumers to use the unified builder pattern:
+/// ```ignore
+/// scope.add(Button::new("▶ Play").fill(Color::GREEN).tag(PLAY_TAG));
+/// ```
+pub trait Widget {
+    /// Return type produced by evaluating this widget in the UI scope.
+    type Response;
+
+    /// Evaluates and attaches this widget to the given UI scope.
+    fn ui(self, scope: &mut UiScope<'_>) -> Self::Response;
+}

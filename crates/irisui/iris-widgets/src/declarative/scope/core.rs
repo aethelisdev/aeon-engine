@@ -125,6 +125,17 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    /// Adds a configurable widget to this scope using the unified builder pattern.
+    ///
+    /// Enables declarative expression chaining without combinatorial method proliferation:
+    /// ```ignore
+    /// scope.add(Button::new("Save").fill(Color::GREEN).tag(SAVE_TAG));
+    /// ```
+    #[inline]
+    pub fn add<W: crate::declarative::widget::Widget>(&mut self, widget: W) -> W::Response {
+        widget.ui(self)
+    }
+
     /// Creates a child scope for a nested widget container with an explicitly isolated seed.
     ///
     /// Preserves active events, tags, and text input state while establishing a new hierarchical

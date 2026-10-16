@@ -50,7 +50,7 @@ pub fn build_transport_toolbar(
 
     scope.container_named("TimelineTransportToolbar", toolbar_style, |row| {
         // 1. Step Back Button (26px)
-        let _ = render_transport_button(
+        render_transport_button(
             row,
             "TimelineStepBackBtn",
             "⏮",
@@ -61,7 +61,7 @@ pub fn build_transport_toolbar(
         );
 
         // 2. Play / Pause Button (32px accent)
-        let _ = render_transport_button(
+        render_transport_button(
             row,
             "TimelinePlayPauseBtn",
             if is_playing { "⏸" } else { "▶" },
@@ -72,7 +72,7 @@ pub fn build_transport_toolbar(
         );
 
         // 3. Stop Button (26px)
-        let _ = render_transport_button(
+        render_transport_button(
             row,
             "TimelineStopBtn",
             "⏹",
@@ -83,7 +83,7 @@ pub fn build_transport_toolbar(
         );
 
         // 4. Step Forward Button (26px)
-        let _ = render_transport_button(
+        render_transport_button(
             row,
             "TimelineStepFwdBtn",
             "⏭",
@@ -97,16 +97,20 @@ pub fn build_transport_toolbar(
         row.vertical_divider(18.0, style.divider_color);
 
         // 6. Loop Toggle Pill (26px)
-        let _ = render_loop_pill(row, is_looping, TIMELINE_TAG_LOOP, &style);
+        render_loop_pill(row, is_looping, TIMELINE_TAG_LOOP, &style);
 
         // 7. Divider
         row.vertical_divider(18.0, style.divider_color);
 
         // 8. Speed Presets Pills
         for (idx, &preset) in SPEED_PRESETS.iter().enumerate() {
-            let tag = TIMELINE_TAG_SPEED_BASE + idx as u64;
-            let is_selected = (preset - current_speed).abs() < 0.05;
-            let _ = render_speed_pill(row, preset, is_selected, tag, &style);
+            render_speed_pill(
+                row,
+                preset,
+                (preset - current_speed).abs() < 0.05,
+                TIMELINE_TAG_SPEED_BASE + idx as u64,
+                &style,
+            );
         }
 
         // 9. Spacer
@@ -122,7 +126,7 @@ pub fn build_transport_toolbar(
 
 /// Emits a compact styled playback transport control button with semantic tagging and interaction evaluation.
 ///
-/// Uses pure declarative [`UiScope::button_named_styled_tagged`] with editor-side [`Style`].
+/// Uses pure declarative [`Button`] builder directly into [`UiScope`].
 pub fn render_transport_button(
     scope: &mut UiScope<'_>,
     name: &'static str,
@@ -131,27 +135,29 @@ pub fn render_transport_button(
     is_active: bool,
     is_accent: bool,
     style: &MediaTransportStyle,
-) -> (WidgetId, WidgetResponse) {
-    let width = if is_accent { 32.0 } else { 26.0 };
-    let (bg, border_color) = if is_active {
-        (style.play_bg_active, style.play_border_active)
-    } else {
-        (style.btn_bg_idle, style.btn_border)
-    };
-    let btn_style = Style::new()
-        .width(width)
-        .height(24.0)
-        .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
-        .background(bg)
-        .border(1.0, border_color)
-        .border_radius(4.0)
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center);
-    let resp = scope.button_named_styled_tagged(name, glyph, btn_style, tag);
-    (resp.id, resp)
+) -> WidgetResponse {
+    scope.add(
+        Button::new(glyph)
+            .name(name)
+            .width(if is_accent { 32.0 } else { 26.0 })
+            .height(24.0)
+            .padding(Insets::new(2.0, 4.0, 2.0, 4.0))
+            .border_radius(4.0)
+            .fill(if is_active {
+                style.play_bg_active
+            } else {
+                style.btn_bg_idle
+            })
+            .border_color(if is_active {
+                style.play_border_active
+            } else {
+                style.btn_border
+            })
+            .tag(tag),
+    )
 }
 
-/// Emits a playback speed multiplier pill button via declarative [`UiScope::toggle_pill_tagged`].
+/// Emits a playback speed multiplier pill button via declarative [`Button`] builder.
 ///
 /// Formats exact labels without redundant unit characters (e.g. "0.25x", "0.5x", "1x", "2x").
 pub fn render_speed_pill(
@@ -160,25 +166,28 @@ pub fn render_speed_pill(
     is_selected: bool,
     tag: u64,
     _style: &MediaTransportStyle,
-) -> (WidgetId, WidgetResponse) {
-    let label = if (speed - 1.0).abs() < 1e-3 {
-        "1x".to_string()
-    } else if (speed - 0.5).abs() < 1e-3 {
-        "0.5x".to_string()
-    } else if (speed - 0.25).abs() < 1e-3 {
-        "0.25x".to_string()
-    } else if (speed - 2.0).abs() < 1e-3 {
-        "2x".to_string()
-    } else {
-        let s = format!("{:.2}", speed);
-        let s = s.trim_end_matches('0').trim_end_matches('.');
-        format!("{}x", s)
-    };
-    let resp = scope.toggle_pill_tagged(&label, is_selected, tag);
-    (resp.id, resp)
+) -> WidgetResponse {
+    scope.add(
+        Button::new(match (speed * 100.0) as i32 {
+            100 => "1x".to_string(),
+            50 => "0.5x".to_string(),
+            25 => "0.25x".to_string(),
+            200 => "2x".to_string(),
+            _ => {
+                format!("{:.2}", speed)
+                    .trim_end_matches('0')
+                    .trim_end_matches('.')
+                    .to_string()
+                    + "x"
+            }
+        })
+        .small()
+        .active(is_selected)
+        .tag(tag),
+    )
 }
 
-/// Emits a playback looping toggle button via declarative [`UiScope::button_named_styled_tagged`].
+/// Emits a playback looping toggle button via declarative [`Button`] builder.
 ///
 /// Uses the universal clockwise loop glyph (`↻`) for crisp rendering across all font engines.
 pub fn render_loop_pill(
@@ -186,23 +195,26 @@ pub fn render_loop_pill(
     is_looping: bool,
     tag: u64,
     style: &MediaTransportStyle,
-) -> (WidgetId, WidgetResponse) {
-    let (bg, border_color) = if is_looping {
-        (style.loop_active_bg, style.loop_active_color)
-    } else {
-        (style.btn_bg_idle, style.btn_border)
-    };
-    let loop_style = Style::new()
-        .width(26.0)
-        .height(24.0)
-        .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
-        .background(bg)
-        .border(1.0, border_color)
-        .border_radius(4.0)
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center);
-    let resp = scope.button_named_styled_tagged("TimelineLoopBtn", "↻", loop_style, tag);
-    (resp.id, resp)
+) -> WidgetResponse {
+    scope.add(
+        Button::new("↻")
+            .name("TimelineLoopBtn")
+            .width(26.0)
+            .height(24.0)
+            .padding(Insets::new(2.0, 4.0, 2.0, 4.0))
+            .border_radius(4.0)
+            .fill(if is_looping {
+                style.loop_active_bg
+            } else {
+                style.btn_bg_idle
+            })
+            .border_color(if is_looping {
+                style.loop_active_color
+            } else {
+                style.btn_border
+            })
+            .tag(tag),
+    )
 }
 
 /// Emits a badge pill displaying the title of the active animation clip using declarative scope nesting.
@@ -320,7 +332,7 @@ mod tests {
         let (btn_id, pill_id, loop_id, badge_id, readout_id) = {
             let mut scope = UiScope::new(&mut tree, root);
 
-            let (btn_id, btn_resp) = render_transport_button(
+            let btn_resp = render_transport_button(
                 &mut scope,
                 "PlayBtn",
                 "▶",
@@ -329,20 +341,22 @@ mod tests {
                 true,
                 &style,
             );
-            assert_eq!(btn_resp.id, btn_id);
 
-            let (pill_id, pill_resp) =
+            let pill_resp =
                 render_speed_pill(&mut scope, 1.5, true, TIMELINE_TAG_SPEED_BASE, &style);
-            assert_eq!(pill_resp.id, pill_id);
 
-            let (loop_id, loop_resp) =
-                render_loop_pill(&mut scope, true, TIMELINE_TAG_LOOP, &style);
-            assert_eq!(loop_resp.id, loop_id);
+            let loop_resp = render_loop_pill(&mut scope, true, TIMELINE_TAG_LOOP, &style);
 
             let badge_id = render_clip_badge(&mut scope, Some("WalkCycle"), &style);
             let readout_id = render_time_readout(&mut scope, 1.25, 4.0, 30.0, &style);
 
-            (btn_id, pill_id, loop_id, badge_id, readout_id)
+            (
+                btn_resp.id,
+                pill_resp.id,
+                loop_resp.id,
+                badge_id,
+                readout_id,
+            )
         };
 
         assert!(tree.get(btn_id).is_some());

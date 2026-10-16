@@ -40,15 +40,15 @@ pub fn build_asset_footer_scope(
                     .align_items(AlignItems::Center)
                     .gap(8.0),
                 |left| {
-                    left.button_named_styled_tagged(
-                        "SidebarToggleButton",
-                        if params.sidebar_collapsed {
+                    left.add(
+                        Button::new(if params.sidebar_collapsed {
                             "▶"
                         } else {
                             "◀"
-                        },
-                        sidebar_toggle_button_style(),
-                        ASSETS_TAG_TOGGLE_SIDEBAR,
+                        })
+                        .name("SidebarToggleButton")
+                        .style(sidebar_toggle_button_style())
+                        .tag(ASSETS_TAG_TOGGLE_SIDEBAR),
                     )
                     .on_click(|| {
                         actions.push(AssetsPanelAction::ToggleSidebar);

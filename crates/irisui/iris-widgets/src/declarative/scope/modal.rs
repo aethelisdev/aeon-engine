@@ -245,67 +245,17 @@ impl<'a> UiScope<'a> {
     /// * `label` - Button caption text (e.g., "Cancel", "Dismiss").
     /// * `width` - Button width constraint in physical pixels.
     pub fn modal_cancel_button(&mut self, label: impl Into<String>, width: f32) -> WidgetResponse {
-        self.modal_cancel_button_tagged(label, width, MODAL_TAG_CANCEL)
-    }
-
-    /// Emits a secondary dismiss action push button with a custom semantic tag.
-    ///
-    /// Applies neutral dark gray button styling with a gentle 10% background highlight.
-    ///
-    /// # Arguments
-    /// * `label` - Button caption text.
-    /// * `width` - Button width constraint in physical pixels.
-    /// * `tag` - Semantic tag constant for event routing.
-    pub fn modal_cancel_button_tagged(
-        &mut self,
-        label: impl Into<String>,
-        width: f32,
-        tag: u64,
-    ) -> WidgetResponse {
-        let label_str = label.into();
-        let node_id = self.tree.create_node();
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name("ModalCancelBtn");
-            node.tag = tag;
-        }
-        let _ = self.tree.add_child(self.parent, node_id);
-        let (clicked, hovered, _) = self.check_interaction(node_id);
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
-            node.set_text(label_str);
-            node.font_size = 11.5;
-            node.line_height = 14.0;
-            node.text_align = TextAlign::Center;
-            node.text_color = if hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.75, 0.78, 0.84, 1.0)
-            };
-            node.set_style(
-                Style::new()
-                    .width(width)
-                    .height(26.0)
-                    .border_radius(4.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center)
-                    .background(if hovered {
-                        Color::rgba(0.20, 0.22, 0.26, 1.0)
-                    } else {
-                        Color::rgba(0.14, 0.15, 0.18, 1.0)
-                    })
-                    .border(
-                        1.0,
-                        if hovered {
-                            Color::rgba(1.0, 1.0, 1.0, 0.18)
-                        } else {
-                            Color::rgba(1.0, 1.0, 1.0, 0.10)
-                        },
-                    ),
-            );
-        }
-        WidgetResponse::new(node_id, clicked, hovered, false)
+        self.add(
+            crate::declarative::widget::Button::new(label)
+                .name("ModalCancelBtn")
+                .width(width)
+                .height(26.0)
+                .border_radius(4.0)
+                .fill(Color::rgba(0.14, 0.15, 0.18, 1.0))
+                .border_color(Color::rgba(1.0, 1.0, 1.0, 0.10))
+                .text_color(Color::rgba(0.75, 0.78, 0.84, 1.0))
+                .tag(MODAL_TAG_CANCEL),
+        )
     }
 
     /// Emits a destructive confirmation action push button tagged with [`MODAL_TAG_DANGER`].

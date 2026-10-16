@@ -268,11 +268,10 @@ pub fn build_designer_canvas(
                             .height(local_elem_rect.height)
                             .background(Color::TRANSPARENT);
 
-                        canvas_scope.empty_box_tagged(
-                            "UiCanvasElement",
-                            elem_style,
-                            WidgetRole::Button,
-                            elem_tag,
+                        canvas_scope.add(
+                            EmptyBox::new("UiCanvasElement", elem_style)
+                                .role(WidgetRole::Button)
+                                .tag(elem_tag),
                         );
 
                         if is_selected {

@@ -25,10 +25,9 @@ pub fn build_viewport_overlays_content(
 
     scope.container(row_style, |s| {
         // 1. Wireframe Mode Checkbox
-        if s.checkbox_val_tagged(
-            "🕸 Wireframe Mode (Edges)",
-            STATS_TAG_TOGGLE_WIREFRAME,
-            params.wireframe_enabled,
+        if s.add(
+            Checkbox::new("🕸 Wireframe Mode (Edges)", params.wireframe_enabled)
+                .tag(STATS_TAG_TOGGLE_WIREFRAME),
         )
         .clicked()
         {
@@ -36,7 +35,7 @@ pub fn build_viewport_overlays_content(
         }
 
         // 2. Show Grid Checkbox
-        if s.checkbox_val_tagged("🔲 Show Grid", STATS_TAG_TOGGLE_GRID, params.grid_enabled)
+        if s.add(Checkbox::new("🔲 Show Grid", params.grid_enabled).tag(STATS_TAG_TOGGLE_GRID))
             .clicked()
         {
             actions.push(StatsPanelAction::ToggleGrid);

@@ -67,7 +67,9 @@ impl<'a, 's> UndeclarativeScope<'a, 's> {
         label: impl Into<String>,
         tag: u64,
     ) -> (WidgetId, WidgetResponse) {
-        let resp = self.scope.button_tagged(label, tag);
+        let resp = self
+            .scope
+            .add(crate::declarative::widget::Button::new(label).tag(tag));
         (resp.id, resp)
     }
 

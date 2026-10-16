@@ -9,7 +9,7 @@
 //!    the child button's click handler and does NOT bubble to parent click or drag handlers.
 //!
 
-use crate::declarative::UiScope;
+use crate::declarative::{UiScope, widget::Button};
 use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
 use iris_core::tree::UiTree;
@@ -76,7 +76,11 @@ fn test_child_event_consumption_prevents_parent_click_or_drag() {
             Style::new().width(400.0).height(40.0),
             WidgetRole::Button,
             tag_row,
-            |row_scope| row_scope.small_button_tagged("Action", tag_btn).id(),
+            |row_scope| {
+                row_scope
+                    .add(Button::new("Action").small().tag(tag_btn))
+                    .id()
+            },
         );
         (row_resp.response.id, row_resp.inner)
     };

@@ -8,7 +8,7 @@
 //! and autonomous menu bar item tag generation conforming to FAZ 4.2.6 standards.
 //!
 
-use crate::declarative::UiScope;
+use crate::declarative::{UiScope, widget::Button};
 use iris_core::{Color, UiTree};
 
 #[test]
@@ -96,8 +96,11 @@ fn test_menu_bar_items_and_actions_derive_tags_autonomously() {
         let mut scope = UiScope::new(&mut tree, root);
         let file_resp = scope.menu_bar_item("File", false);
         let edit_resp = scope.menu_bar_item("Edit", false);
-        let play_resp =
-            scope.menu_action_button("▶ Play", Color::rgba(0.2, 0.6, 0.3, 1.0), Color::WHITE);
+        let play_resp = scope.add(
+            Button::new("▶ Play")
+                .fill(Color::rgba(0.2, 0.6, 0.3, 1.0))
+                .text_color(Color::WHITE),
+        );
 
         (
             file_resp.id,

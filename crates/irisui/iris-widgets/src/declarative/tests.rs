@@ -3,7 +3,10 @@
 
 //! # Declarative Subsystem Unit Tests
 
-use crate::declarative::{UiScope, layout_subtree};
+use crate::declarative::{
+    UiScope, layout_subtree,
+    widget::{Button, EmptyBox, ScrollAreaView, Toolbar, ToolbarButton},
+};
 use iris_core::{CornerRadii, InteractionEvent, MouseButton, Point, Rect, UiTree, WidgetRole};
 
 #[test]
@@ -441,22 +444,21 @@ fn test_panel_tagged_declarative_layout_and_flex_grow() {
         .bounds(panel_rect)
         .background(iris_core::Color::BLACK)
         .show(|panel_scope| {
-            let tb_resp = panel_scope.toolbar_tagged(
-                "TestToolbar",
-                34.0,
-                0x500a,
-                iris_core::Color::BLACK,
-                |tb| tb.toolbar_button_tagged("Action", 80.0, 0x5001).id,
-            );
+            let tb_resp = Toolbar::new("TestToolbar")
+                .height(34.0)
+                .tag(0x500a)
+                .background(iris_core::Color::BLACK)
+                .show(panel_scope, |tb| {
+                    tb.add(ToolbarButton::new("Action").width(80.0).tag(0x5001))
+                        .id
+                });
 
-            let vp_resp = panel_scope.scroll_area_tagged(
-                "TestViewport",
-                0x500b,
-                iris_core::Color::BLACK,
-                |vp| {
+            let vp_resp = ScrollAreaView::new("TestViewport")
+                .tag(0x500b)
+                .background(iris_core::Color::BLACK)
+                .show(panel_scope, |vp| {
                     vp.label("No entries");
-                },
-            );
+                });
 
             (tb_resp.response.id, vp_resp.response.id, tb_resp.inner)
         });
@@ -505,9 +507,27 @@ fn test_declarative_toggle_pill_flex_distribution_fits_bounds() {
         let mut scope = UiScope::new(&mut tree, root);
         scope
             .row(|row| {
-                let _ = row.toggle_pill_flex_tagged("🟫 Opaque", true, 101);
-                let _ = row.toggle_pill_flex_tagged("✂️ Cutout", false, 102);
-                let _ = row.toggle_pill_flex_tagged("💧 Blend", false, 103);
+                row.add(
+                    Button::new("🟫 Opaque")
+                        .small()
+                        .active(true)
+                        .flex(true)
+                        .tag(101),
+                );
+                row.add(
+                    Button::new("✂️ Cutout")
+                        .small()
+                        .active(false)
+                        .flex(true)
+                        .tag(102),
+                );
+                row.add(
+                    Button::new("💧 Blend")
+                        .small()
+                        .active(false)
+                        .flex(true)
+                        .tag(103),
+                );
             })
             .response
             .id
@@ -712,12 +732,9 @@ fn test_declarative_flex_wrap_row_layout() {
     scope.container_named("WrapContainer", row_style, |wrap_scope| {
         for i in 0..5 {
             let item_style = iris_core::Style::new().width(20.0).height(16.0);
-            let id = wrap_scope.empty_box_tagged(
-                "WrapItem",
-                item_style,
-                WidgetRole::Default,
-                0x9000 + i,
-            );
+            let id = wrap_scope
+                .add(EmptyBox::new("WrapItem", item_style).tag(0x9000 + i))
+                .id;
             item_ids.push(id);
         }
     });

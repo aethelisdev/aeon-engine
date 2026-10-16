@@ -265,17 +265,17 @@ fn build_pause_card(scope: &mut UiScope, card_rect: Rect) {
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
 
-            btns.button_named_styled_tagged(
-                "InGamePauseResumeButton",
-                "▶  Resume Game",
-                btn_style,
-                TAG_PLAY_RESUME,
+            btns.add(
+                Button::new("▶  Resume Game")
+                    .name("InGamePauseResumeButton")
+                    .style(btn_style)
+                    .tag(TAG_PLAY_RESUME),
             );
-            btns.button_named_styled_tagged(
-                "InGamePauseExitButton",
-                "⏹  Exit to Editor",
-                btn_style,
-                TAG_PLAY_EXIT,
+            btns.add(
+                Button::new("⏹  Exit to Editor")
+                    .name("InGamePauseExitButton")
+                    .style(btn_style)
+                    .tag(TAG_PLAY_EXIT),
             );
         });
     });
