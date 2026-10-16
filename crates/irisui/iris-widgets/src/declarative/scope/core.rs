@@ -7,6 +7,7 @@
 //! interaction query evaluation, and recursive layout completion routines.
 //!
 
+use super::undeclarative::UndeclarativeScope;
 use crate::declarative::layout::layout_subtree;
 use iris_core::{
     InteractionEvent, Point, Rect, ResponseFlags, Size, UiTree, WidgetId, WidgetResponse,
@@ -598,5 +599,21 @@ impl<'a> UiScope<'a> {
             }
         }
         Rect::new(0.0, 0.0, 800.0, 600.0)
+    }
+
+    /// Enters an explicit imperative escape hatch scope for raw tree mutations and identifier extraction.
+    ///
+    /// This method serves as an intentional architectural checkpoint. Code executing within this
+    /// closure explicitly opts into imperative UI handling and raw [`WidgetId`] manipulation via
+    /// [`UndeclarativeScope`].
+    ///
+    /// # Arguments
+    /// * `f` - Closure executing imperative operations on the [`UndeclarativeScope`].
+    ///
+    /// # Returns
+    /// The arbitrary result `R` returned by the closure.
+    pub fn undeclarative<R>(&mut self, f: impl FnOnce(&mut UndeclarativeScope<'a, '_>) -> R) -> R {
+        let mut raw = UndeclarativeScope::new(self);
+        f(&mut raw)
     }
 }
