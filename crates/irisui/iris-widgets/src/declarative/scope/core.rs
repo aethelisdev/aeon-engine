@@ -136,6 +136,16 @@ impl<'a> UiScope<'a> {
         widget.ui(self)
     }
 
+    /// Returns a fluent [`Chip`] builder for emitting a categorized filter badge.
+    ///
+    /// # Arguments
+    /// * `label` - Text displayed on the filter badge.
+    #[inline]
+    #[must_use]
+    pub fn chip<'w>(&self, label: &'w str) -> crate::declarative::widget::chip::Chip<'w> {
+        crate::declarative::widget::chip::Chip::new(label)
+    }
+
     /// Returns the active visual theme tokens configured on the underlying tree.
     #[inline]
     #[must_use]

@@ -45,13 +45,12 @@ pub fn build_category_chips_scope(
             .gap(6.0),
         |row| {
             for (idx, &(cat, label)) in CATEGORIES.iter().enumerate() {
-                category_chip(
-                    row,
-                    label,
-                    count_category_items(params, cat),
-                    cat,
-                    active_category(row, params.active_category) == cat,
-                    encode_chip_tag(idx as u8),
+                row.add(
+                    Chip::new(label)
+                        .count(count_category_items(params, cat))
+                        .selected(active_category(row, params.active_category) == cat)
+                        .tag(encode_chip_tag(idx as u8))
+                        .accent_color(super::cards::resolve_category_color(cat)),
                 )
                 .on_click(|| {
                     actions.push(AssetsPanelAction::SelectCategory(cat));
@@ -92,91 +91,6 @@ fn count_category_items(params: &AssetsPanelParams<'_>, cat: AssetCategory) -> u
         .count()
 }
 
-/// Constructs the declarative flexbox style for a category filter chip.
-#[inline]
-fn chip_style(is_selected: bool, color: Color, width: f32) -> Style {
-    Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center)
-        .width(width)
-        .height(22.0)
-        .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-        .border_radius(4.0)
-        .border(
-            1.0,
-            if is_selected {
-                color
-            } else {
-                Color::rgba(0.16, 0.18, 0.24, 0.40)
-            },
-        )
-        .background(if is_selected {
-            Color::rgba(0.12, 0.16, 0.22, 0.95)
-        } else {
-            Color::rgba(0.08, 0.09, 0.11, 0.60)
-        })
-        .hover_background(Color::rgba(0.10, 0.12, 0.16, 0.80))
-        .hover_border(1.0, Color::rgba(0.28, 0.32, 0.42, 0.70))
-}
-
-/// Computes the fixed layout width for a category filter chip based on label and item count.
-#[inline]
-fn chip_width(label: &str, count: usize) -> f32 {
-    (((label.len() + 3 + count_digits(count)) as f32) * 6.8 + 16.0).max(54.0)
-}
-
-/// Computes the decimal digit count of an item counter using hardware-accelerated integer logarithm.
-#[inline]
-const fn count_digits(count: usize) -> usize {
-    match count.checked_ilog10() {
-        Some(exp) => exp as usize + 1,
-        None => 1,
-    }
-}
-
-/// Emits an individual category filter chip with live item counter and accent styling.
-fn category_chip(
-    scope: &mut UiScope<'_>,
-    label: &str,
-    count: usize,
-    cat: AssetCategory,
-    is_selected: bool,
-    tag: u64,
-) -> WidgetResponse {
-    scope.container_tagged_resp(
-        "CategoryChip",
-        chip_style(
-            is_selected,
-            super::cards::resolve_category_color(cat),
-            chip_width(label, count),
-        ),
-        WidgetRole::Button,
-        tag,
-        |chip| {
-            chip.label_styled_hover_passive(
-                "CategoryChipText",
-                format!("{label} ({count})"),
-                11.0,
-                (
-                    if is_selected {
-                        Color::WHITE
-                    } else {
-                        Color::rgba(0.65, 0.69, 0.78, 1.0)
-                    },
-                    if is_selected {
-                        Color::WHITE
-                    } else {
-                        Color::rgba(0.90, 0.93, 0.98, 1.0)
-                    },
-                ),
-                TextAlign::Center,
-                Style::new().width(chip_width(label, count) - 16.0),
-            );
-        },
-    )
-}
-
 /// Builds the category filter chips row with live item counters into the Iris tree.
 pub fn build_category_chips(
     tree: &mut UiTree,
@@ -210,31 +124,59 @@ mod tests {
     }
 
     #[test]
-    fn test_count_digits_invariants() {
-        assert_eq!(count_digits(0), 1);
-        assert_eq!(count_digits(9), 1);
-        assert_eq!(count_digits(10), 2);
-        assert_eq!(count_digits(99), 2);
-        assert_eq!(count_digits(100), 3);
-        assert_eq!(count_digits(999), 3);
-        assert_eq!(count_digits(1000), 4);
-        assert_eq!(count_digits(9999), 4);
-        assert_eq!(count_digits(10000), 5);
-        assert_eq!(count_digits(99999), 5);
-        assert_eq!(count_digits(100_000), 6);
-        assert_eq!(count_digits(1_000_000), 7);
-    }
+    fn test_category_chips_renders_in_tree() {
+        use std::collections::HashMap;
+        use std::path::Path;
 
-    #[test]
-    fn test_chip_width_matches_text_formatting() {
-        for label in ["All Assets", "3D Meshes", "Textures", "Shaders"] {
-            for count in [0, 5, 42, 100, 1500] {
-                assert_eq!(
-                    chip_width(label, count),
-                    (format!("{label} ({count})").len() as f32 * 6.8 + 16.0).max(54.0),
-                    "chip_width must match format! string length calculation"
-                );
-            }
-        }
+        let mut tree = UiTree::new();
+        let root_id = tree.create_root().expect("Root node creation failed");
+        let mut actions = Vec::new();
+        let focus_state = FocusState::new();
+        let current_folder = Path::new("assets");
+        let thumbnail_layers = HashMap::new();
+
+        let params = AssetsPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 800.0, 400.0),
+            screen_size: (1280.0, 720.0),
+            current_folder,
+            search_query: "",
+            active_category: AssetCategory::All,
+            view_mode: crate::assets::types::AssetViewMode::Grid,
+            selected_asset: None,
+            cached_items: &[],
+            filtered_items: &[],
+            subfolders: &[],
+            is_2d_mode: false,
+            show_engine_content: false,
+            sidebar_width: 180.0,
+            sidebar_collapsed: false,
+            scroll_y: 0.0,
+            tree_scroll_y: 0.0,
+            cursor_pos: Point::new(10.0, 10.0),
+            blink_caret: false,
+            active_context_menu: None,
+            active_preview_modal: None,
+            thumbnail_layers: &thumbnail_layers,
+            focus_state: &focus_state,
+            cursor_byte_idx: 0,
+        };
+
+        build_category_chips(
+            &mut tree,
+            root_id,
+            Rect::new(0.0, 0.0, 800.0, 32.0),
+            &params,
+            &mut actions,
+        );
+
+        let row_id = tree
+            .find_node_by_name("AssetsCategoryChipsRow")
+            .expect("AssetsCategoryChipsRow must be emitted");
+        let row_node = tree.get(row_id).expect("Row node must exist");
+        assert_eq!(
+            row_node.children.len(),
+            CATEGORIES.len(),
+            "Must emit exactly one Chip container per category"
+        );
     }
 }

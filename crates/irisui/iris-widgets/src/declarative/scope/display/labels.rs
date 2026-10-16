@@ -429,4 +429,131 @@ impl<'a> UiScope<'a> {
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
     }
+
+    /// Emits a structured horizontal key-value row with secondary key and primary value text.
+    ///
+    /// Eliminates `format!("{key}: {val}")` heap allocations in inspector, stats, and preview dialogs
+    /// by creating two independent text nodes in a lightweight flex row container.
+    ///
+    /// # Arguments
+    /// * `key` - Left property or metadata key title (rendered with muted text color).
+    /// * `val` - Right value text content (rendered with primary text color).
+    pub fn key_value(&mut self, key: &str, val: &str) -> WidgetId {
+        let theme = self.tree.theme();
+        self.key_value_styled(key, val, theme.text_muted, theme.text_primary, 11.5)
+    }
+
+    /// Emits a structured horizontal key-value row with customized text colors and font size.
+    pub fn key_value_styled(
+        &mut self,
+        key: &str,
+        val: &str,
+        key_color: Color,
+        val_color: Color,
+        font_size: f32,
+    ) -> WidgetId {
+        let row_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .gap(6.0);
+
+        self.container(row_style, |row| {
+            row.label_styled_passive(
+                "KeyValueLabel",
+                key,
+                font_size,
+                key_color,
+                TextAlign::Left,
+                Style::new(),
+            );
+            row.label_styled_passive(
+                "KeyValueSeparator",
+                ":",
+                font_size,
+                key_color,
+                TextAlign::Left,
+                Style::new(),
+            );
+            row.label_styled_passive(
+                "KeyValueContent",
+                val,
+                font_size,
+                val_color,
+                TextAlign::Left,
+                Style::new(),
+            );
+        })
+        .response
+        .id
+    }
+
+    /// Emits a key-value row where the value is a byte count formatted as human-readable size (B, KB, MB, GB).
+    ///
+    /// Operates completely on a stack buffer with zero heap allocations.
+    ///
+    /// # Arguments
+    /// * `key` - Left property key title.
+    /// * `bytes` - Integer file or buffer size in bytes.
+    pub fn key_value_file_size(&mut self, key: &str, bytes: u64) -> WidgetId {
+        let mut buf = [0u8; 32];
+        let val_str = format_file_size_stack(bytes, &mut buf);
+        self.key_value(key, val_str)
+    }
+
+    /// Emits a floating-point number label formatted to `precision` decimal digits without heap allocation.
+    ///
+    /// Uses an internal stack buffer to format the number directly into the node text slice.
+    ///
+    /// # Arguments
+    /// * `val` - Floating-point number to render.
+    /// * `precision` - Number of fractional decimal places to retain.
+    pub fn label_number(&mut self, val: f64, precision: usize) -> WidgetId {
+        let mut buf = [0u8; 32];
+        let num_str = format_number_stack(val, precision, &mut buf);
+        self.label(num_str)
+    }
+
+    /// Emits a structured horizontal key-value row formatting a float value without heap allocations.
+    ///
+    /// # Arguments
+    /// * `key` - Left property key title.
+    /// * `val` - Numeric float value to format.
+    /// * `precision` - Fractional precision places.
+    pub fn key_value_number(&mut self, key: &str, val: f64, precision: usize) -> WidgetId {
+        let mut buf = [0u8; 32];
+        let num_str = format_number_stack(val, precision, &mut buf);
+        self.key_value(key, num_str)
+    }
+}
+
+/// Formats a 64-bit integer file size in bytes to a human-readable string without heap allocations.
+#[inline]
+pub fn format_file_size_stack(bytes: u64, buf: &mut [u8; 32]) -> &str {
+    use std::io::Write;
+    let mut cursor = std::io::Cursor::new(&mut buf[..]);
+    if bytes < 1024 {
+        let _ = write!(cursor, "{bytes} B");
+    } else if bytes < 1024 * 1024 {
+        let _ = write!(cursor, "{:.1} KB", bytes as f64 / 1024.0);
+    } else if bytes < 1024 * 1024 * 1024 {
+        let _ = write!(cursor, "{:.2} MB", bytes as f64 / (1024.0 * 1024.0));
+    } else {
+        let _ = write!(
+            cursor,
+            "{:.2} GB",
+            bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+        );
+    }
+    let pos = cursor.position() as usize;
+    std::str::from_utf8(&buf[..pos]).unwrap_or("")
+}
+
+/// Formats a float number with specified precision onto a stack buffer without heap allocations.
+#[inline]
+pub fn format_number_stack(val: f64, precision: usize, buf: &mut [u8; 32]) -> &str {
+    use std::io::Write;
+    let mut cursor = std::io::Cursor::new(&mut buf[..]);
+    let _ = write!(cursor, "{val:.precision$}");
+    let pos = cursor.position() as usize;
+    std::str::from_utf8(&buf[..pos]).unwrap_or("")
 }

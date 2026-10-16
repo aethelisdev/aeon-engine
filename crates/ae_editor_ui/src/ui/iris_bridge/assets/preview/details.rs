@@ -8,13 +8,11 @@
 //! using pure declarative [`UiScope`].
 //!
 
-use crate::assets::types::AssetBrowserState;
 use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
 use irisui::prelude::*;
 
 /// Renders the 2D texture specification and analysis section.
 pub(crate) fn render_texture_preview_content(ui: &mut UiScope<'_>, modal: &AssetPreviewModalState) {
-    // Top action bar
     ui.container(
         Style::new()
             .flex_row()
@@ -25,56 +23,53 @@ pub(crate) fn render_texture_preview_content(ui: &mut UiScope<'_>, modal: &Asset
         },
     );
 
-    render_info_box(
-        ui,
-        &[
-            format!("File Name: {}", modal.item.name),
-            format!(
-                "File Size on Disk: {}",
-                AssetBrowserState::format_file_size(modal.item.file_size_bytes)
-            ),
-            "Format: 2D Texture Image (Straight Alpha / RGBA8)".to_string(),
-            "GPU Texture Allocation: WGPU Texture2D / Dynamic Mipmap Chain".to_string(),
-            "Sampling Mode: Linear Trilinear Filtering + 16x Anisotropic".to_string(),
-            "Wrap Mode: Repeat / Clamp to Edge".to_string(),
-            format!(
-                "Memory Residency: {}",
-                if modal.item.is_loaded_in_memory {
-                    "Resident in VRAM"
-                } else {
-                    "Unloaded (Lazy Streaming)"
-                }
-            ),
-        ],
-        Color::rgba(0.80, 0.84, 0.92, 1.0),
-        314.0,
-    );
+    render_info_box(ui, 314.0, |info| {
+        info.key_value("File Name", &modal.item.name);
+        info.key_value_file_size("File Size on Disk", modal.item.file_size_bytes);
+        info.key_value("Format", "2D Texture Image (Straight Alpha / RGBA8)");
+        info.key_value(
+            "GPU Texture Allocation",
+            "WGPU Texture2D / Dynamic Mipmap Chain",
+        );
+        info.key_value(
+            "Sampling Mode",
+            "Linear Trilinear Filtering + 16x Anisotropic",
+        );
+        info.key_value("Wrap Mode", "Repeat / Clamp to Edge");
+        info.key_value(
+            "Memory Residency",
+            if modal.item.is_loaded_in_memory {
+                "Resident in VRAM"
+            } else {
+                "Unloaded (Lazy Streaming)"
+            },
+        );
+    });
 }
 
 /// Renders the WGSL shader specification and diagnostics section.
 pub(crate) fn render_shader_preview_content(ui: &mut UiScope<'_>, modal: &AssetPreviewModalState) {
-    render_info_box(
-        ui,
-        &[
-            format!("Shader Module: {}", modal.item.name),
-            "Language: WebGPU Shading Language (WGSL 1.0 Standard)".to_string(),
-            "Supported Entry Points: @vertex vs_main, @fragment fs_main".to_string(),
-            "Uniform Bind Groups: Global Camera Matrix, Light Uniforms, Material PBR Maps"
-                .to_string(),
-            "Validation Status: Verified & Compiled on Active WGPU Hardware Pipeline".to_string(),
-            format!(
-                "File Size: {}",
-                AssetBrowserState::format_file_size(modal.item.file_size_bytes)
-            ),
-        ],
-        Color::rgba(1.0, 0.85, 0.45, 1.0),
-        350.0,
-    );
+    render_info_box(ui, 350.0, |info| {
+        info.key_value("Shader Module", &modal.item.name);
+        info.key_value("Language", "WebGPU Shading Language (WGSL 1.0 Standard)");
+        info.key_value(
+            "Supported Entry Points",
+            "@vertex vs_main, @fragment fs_main",
+        );
+        info.key_value(
+            "Uniform Bind Groups",
+            "Global Camera Matrix, Light Uniforms, Material PBR Maps",
+        );
+        info.key_value(
+            "Validation Status",
+            "Verified & Compiled on Active WGPU Hardware Pipeline",
+        );
+        info.key_value_file_size("File Size", modal.item.file_size_bytes);
+    });
 }
 
 /// Renders the scene summary and direct load section.
 pub(crate) fn render_scene_preview_content(ui: &mut UiScope<'_>, modal: &AssetPreviewModalState) {
-    // Top action bar
     ui.container(
         Style::new()
             .flex_row()
@@ -85,21 +80,19 @@ pub(crate) fn render_scene_preview_content(ui: &mut UiScope<'_>, modal: &AssetPr
         },
     );
 
-    render_info_box(
-        ui,
-        &[
-            format!("Scene Name: {}", modal.item.name),
-            "File Format: Aeon Scene Descriptor (.ae3d / .ae2d JSON)".to_string(),
-            "Entity Hierarchy: Declarative ECS World State with Transform & Behaviors".to_string(),
-            "Environment: Dynamic Atmosphere, 4-Cascade CSM Sun & Procedural Clouds".to_string(),
-            format!(
-                "Package Size: {}",
-                AssetBrowserState::format_file_size(modal.item.file_size_bytes)
-            ),
-        ],
-        Color::rgba(0.60, 0.80, 1.0, 1.0),
-        314.0,
-    );
+    render_info_box(ui, 314.0, |info| {
+        info.key_value("Scene Name", &modal.item.name);
+        info.key_value("File Format", "Aeon Scene Descriptor (.ae3d / .ae2d JSON)");
+        info.key_value(
+            "Entity Hierarchy",
+            "Declarative ECS World State with Transform & Behaviors",
+        );
+        info.key_value(
+            "Environment",
+            "Dynamic Atmosphere, 4-Cascade CSM Sun & Procedural Clouds",
+        );
+        info.key_value_file_size("Package Size", modal.item.file_size_bytes);
+    });
 }
 
 /// Renders the audio specification and play preview section.
@@ -114,56 +107,41 @@ pub(crate) fn render_audio_preview_content(ui: &mut UiScope<'_>, modal: &AssetPr
         },
     );
 
-    render_info_box(
-        ui,
-        &[
-            format!("Audio File: {}", modal.item.name),
-            "Audio Engine: Rodio 0.20 Output Stream & 3D Spatial Attenuation".to_string(),
-            "Supported Formats: WAV PCM, MP3 MPEG, OGG Vorbis".to_string(),
-            "Sampling Rate: 44.1 kHz / 48.0 kHz Multi-Channel".to_string(),
-            format!(
-                "File Size: {}",
-                AssetBrowserState::format_file_size(modal.item.file_size_bytes)
-            ),
-        ],
-        Color::rgba(1.0, 0.60, 0.50, 1.0),
-        314.0,
-    );
+    render_info_box(ui, 314.0, |info| {
+        info.key_value("Audio File", &modal.item.name);
+        info.key_value(
+            "Audio Engine",
+            "Rodio 0.20 Output Stream & 3D Spatial Attenuation",
+        );
+        info.key_value("Supported Formats", "WAV PCM, MP3 MPEG, OGG Vorbis");
+        info.key_value("Sampling Rate", "44.1 kHz / 48.0 kHz Multi-Channel");
+        info.key_value_file_size("File Size", modal.item.file_size_bytes);
+    });
 }
 
 /// Renders generic asset information for fallback categories.
 pub(crate) fn render_generic_preview_content(ui: &mut UiScope<'_>, modal: &AssetPreviewModalState) {
-    render_info_box(
-        ui,
-        &[
-            format!("Asset Name: {}", modal.item.name),
-            format!("Relative Path: {}", modal.item.relative_path),
-            format!("Classification: {:?}", modal.item.category),
-            format!(
-                "File Size: {}",
-                AssetBrowserState::format_file_size(modal.item.file_size_bytes)
-            ),
-            format!(
-                "Memory State: {}",
-                if modal.item.is_loaded_in_memory {
-                    "Loaded in VRAM"
-                } else {
-                    "On Disk"
-                }
-            ),
-        ],
-        Color::rgba(0.80, 0.84, 0.92, 1.0),
-        350.0,
-    );
+    render_info_box(ui, 350.0, |info| {
+        info.key_value("Asset Name", &modal.item.name);
+        info.key_value("Relative Path", &modal.item.relative_path);
+        info.key_value("Classification", modal.item.category.label());
+        info.key_value_file_size("File Size", modal.item.file_size_bytes);
+        info.key_value(
+            "Memory State",
+            if modal.item.is_loaded_in_memory {
+                "Loaded in VRAM"
+            } else {
+                "On Disk"
+            },
+        );
+    });
 }
 
-/// Helper to render structured text lines within an elevated info card using declarative [`UiScope`].
-pub(crate) fn render_info_box(
-    ui: &mut UiScope<'_>,
-    lines: &[String],
-    text_color: Color,
-    height: f32,
-) {
+/// Helper to render structured text key-value rows within an elevated info card using declarative [`UiScope`].
+pub(crate) fn render_info_box<F>(ui: &mut UiScope<'_>, height: f32, builder: F)
+where
+    F: FnOnce(&mut UiScope<'_>),
+{
     ui.container(
         Style::new()
             .flex_col()
@@ -173,10 +151,6 @@ pub(crate) fn render_info_box(
             .border_radius(6.0)
             .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.60))
             .height(height),
-        |col| {
-            for line in lines {
-                col.colored_label(text_color, line);
-            }
-        },
+        builder,
     );
 }

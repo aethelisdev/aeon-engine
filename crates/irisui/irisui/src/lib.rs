@@ -75,7 +75,7 @@ pub mod prelude {
     };
     pub use iris_widgets::{
         Button, CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
-        CascadingMenuStyle, ChartDrawer, Checkbox, CollapsingBuilder, CollapsingResponse,
+        CascadingMenuStyle, ChartDrawer, Checkbox, Chip, CollapsingBuilder, CollapsingResponse,
         ColorPickerDragMode, ContainerResponseExt, ContextMenuBuilder, ContextMenuExt,
         ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle, DEFAULT_SCROLL_STEP,
         DragVec3, EmptyBox, FocusEventResponse, FocusModifiers, FocusPolicy, FocusState,

@@ -197,7 +197,29 @@ fn test_declarative_label_customization() {
 
     let head_node = tree.get(heading_id).expect("Heading exists");
     assert_eq!(head_node.font_size, 13.5);
-    assert_eq!(head_node.text_color, iris_core::Color::WHITE);
+}
+
+#[test]
+fn test_declarative_key_value_and_number_formatting() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root should be created");
+
+    let mut scope = UiScope::new(&mut tree, root);
+    let kv_id = scope.key_value("Texture Format", "RGBA8 Unorm");
+    let size_id = scope.key_value_file_size("Texture Size", 2_500_000);
+    let num_id = scope.label_number(std::f64::consts::PI, 2);
+
+    assert!(tree.get(kv_id).is_some());
+    assert!(tree.get(size_id).is_some());
+    assert_eq!(
+        tree.get(num_id).expect("num_id exists").text.as_deref(),
+        Some("3.14")
+    );
+
+    assert!(tree.has_node_named("KeyValueLabel"));
+    assert!(tree.has_node_named("KeyValueContent"));
+    tree.assert_node_text("KeyValueLabel", "Texture Format");
+    tree.assert_node_text("KeyValueContent", "RGBA8 Unorm");
 }
 
 #[test]

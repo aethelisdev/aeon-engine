@@ -117,15 +117,15 @@ impl<'a, 'b, A> MenuBarScope<'a, 'b, A> {
         }
 
         // Apply instant effective highlight on the header node if state changed this frame
-        if is_active != was_active {
-            if let Some(node) = self.scope.tree.get_mut(resp.id) {
-                if is_active {
-                    node.text_color = Color::hex("#00e5ff");
-                    node.style.background_color = Color::hex("#1e2230");
-                } else {
-                    node.text_color = Color::hex("#dcdce2");
-                    node.style.background_color = Color::TRANSPARENT;
-                }
+        if is_active != was_active
+            && let Some(node) = self.scope.tree.get_mut(resp.id)
+        {
+            if is_active {
+                node.text_color = Color::hex("#00e5ff");
+                node.style.background_color = Color::hex("#1e2230");
+            } else {
+                node.text_color = Color::hex("#dcdce2");
+                node.style.background_color = Color::TRANSPARENT;
             }
         }
 
@@ -262,22 +262,20 @@ impl<'a> UiScope<'a> {
             && self.tree.has_frame_interactions()
             && new_active_tag.is_none()
             && selected_action.is_none()
-        {
-            if let Some(click_pos) = self
+            && let Some(click_pos) = self
                 .tree
                 .event_state
                 .frame_clicked_pos
                 .or(self.tree.event_state.last_pointer_pos)
-            {
-                if let Some(hit) = self.tree.hit_test_target(click_pos) {
-                    if hit.role != WidgetRole::MenuBarItem && hit.role != WidgetRole::DropdownItem {
-                        self.tree.close_menu();
-                        return None;
-                    }
-                } else {
+        {
+            if let Some(hit) = self.tree.hit_test_target(click_pos) {
+                if hit.role != WidgetRole::MenuBarItem && hit.role != WidgetRole::DropdownItem {
                     self.tree.close_menu();
                     return None;
                 }
+            } else {
+                self.tree.close_menu();
+                return None;
             }
         }
 

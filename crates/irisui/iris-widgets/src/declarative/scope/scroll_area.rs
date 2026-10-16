@@ -105,8 +105,6 @@ impl ScrollAreaConfig {
 }
 
 impl<'a> UiScope<'a> {
-    /// Emits a tagged scrollable container with flex-grow expansion and hardware child clipping.
-
     /// Emits an autonomous declarative scroll container that clips its children,
     /// measures content height, and emits a scrollbar when content overflows the viewport.
     ///

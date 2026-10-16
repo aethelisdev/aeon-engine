@@ -108,8 +108,6 @@ impl<'a> UiScope<'a> {
         node_id
     }
 
-    /// Emits a non-container leaf node with custom styling, widget role, and 64-bit semantic tag.
-
     /// Emits a 1-pixel horizontal rule divider container with a custom color.
     ///
     /// # Arguments

@@ -42,12 +42,12 @@ pub use controls::{
     handle_numeric_drag_event,
 };
 pub use declarative::{
-    Button, CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, Checkbox, CollapsingBuilder,
-    CollapsingResponse, ContainerResponseExt, ContextMenuExt, DragVec3, EmptyBox, InputBoxProps,
-    PopupExt, PopupPlacement, PropertySliderOptions, PropertyTextOptions, PropertyTextResponse,
-    PropertyVec3Options, PropertyVec3Response, PropertyVec3Target, ScopeId, ScrollAreaConfig,
-    ScrollAreaView, Toolbar, ToolbarButton, TreeNodeProps, TreeRowProps, TreeRowResponse,
-    TreeViewConfig, TreeViewProps, UiScope, Vec3Response, Widget, WidgetResponse,
+    Button, CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, Checkbox, Chip,
+    CollapsingBuilder, CollapsingResponse, ContainerResponseExt, ContextMenuExt, DragVec3,
+    EmptyBox, InputBoxProps, PopupExt, PopupPlacement, PropertySliderOptions, PropertyTextOptions,
+    PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, PropertyVec3Target, ScopeId,
+    ScrollAreaConfig, ScrollAreaView, Toolbar, ToolbarButton, TreeNodeProps, TreeRowProps,
+    TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope, Vec3Response, Widget, WidgetResponse,
     WrappedLabelDescriptor, calculate_visible_slice_and_caret, combine_seeds, hash_label,
     hash_label_with_seed, layout_subtree, measure_content_height, measure_height,
     measure_height_constrained, measure_text_advance, measure_width, property_vec3_axis_tag,
