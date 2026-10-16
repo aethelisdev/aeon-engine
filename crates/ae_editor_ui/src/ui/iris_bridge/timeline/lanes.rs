@@ -379,20 +379,14 @@ mod tests {
         }
 
         // Verify keyframes start at or after TIMELINE_SIDEBAR_WIDTH (never overlapping badge)
-        let mut checked_keyframe = false;
-        for (_, node) in tree.iter() {
-            if node.name.as_deref() == Some("TimelineLaneKeyframe") {
-                assert!(
-                    node.style.inset_left.unwrap_or(0.0) >= TIMELINE_SIDEBAR_WIDTH - 5.0,
-                    "Keyframe diamond must not be positioned before sidebar offset: {:?}",
-                    node.style.inset_left
-                );
-                checked_keyframe = true;
-            }
-        }
         assert!(
-            checked_keyframe,
-            "At least one keyframe diamond should have been rendered"
+            tree.node_named("TimelineLaneKeyframe")
+                .expect("At least one keyframe diamond should have been rendered")
+                .style
+                .inset_left
+                .unwrap_or(0.0)
+                >= TIMELINE_SIDEBAR_WIDTH - 5.0,
+            "Keyframe diamond must not be positioned before sidebar offset"
         );
     }
 }

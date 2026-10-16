@@ -432,4 +432,210 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(node_id, line_id);
         node_id
     }
+
+    /// Emits an elevated floating popup card container dynamically anchored to `anchor_rect`.
+    ///
+    /// Automatically performs horizontal and vertical viewport boundary clamping and
+    /// flips direction if screen borders are exceeded, eliminating manual coordinate
+    /// guessing and tree iteration in editor panels.
+    ///
+    /// # Arguments
+    /// * `anchor_rect` - Absolute screen rectangle of the trigger widget or button.
+    /// * `width` - Preferred popup width in physical pixels.
+    /// * `f` - Scoped closure populating items inside the popup card.
+    pub fn popup_anchored<R, F>(&mut self, anchor_rect: Rect, width: f32, f: F) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.popup_anchored_with_placement(
+            "AnchoredPopup",
+            anchor_rect,
+            width,
+            PopupPlacement::Below,
+            f,
+        )
+    }
+
+    /// Emits an elevated floating popup card container with an explicit debug name anchored to `anchor_rect`.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug name assigned to the container node.
+    /// * `anchor_rect` - Absolute screen rectangle of the trigger widget or button.
+    /// * `width` - Preferred popup width in physical pixels.
+    /// * `f` - Scoped closure populating items inside the popup card.
+    pub fn popup_anchored_named<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_rect: Rect,
+        width: f32,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.popup_anchored_with_placement(name, anchor_rect, width, PopupPlacement::Below, f)
+    }
+
+    /// Emits an elevated floating popup card container with explicit placement preference and boundary clamping.
+    ///
+    /// # Arguments
+    /// * `name` - Static debug name assigned to the container node.
+    /// * `anchor_rect` - Absolute screen rectangle of the trigger widget or button.
+    /// * `width` - Preferred popup width in physical pixels.
+    /// * `placement` - Vertical orientation preference ([`PopupPlacement::Below`] or [`PopupPlacement::Above`]).
+    /// * `f` - Scoped closure populating items inside the popup card.
+    pub fn popup_anchored_with_placement<R, F>(
+        &mut self,
+        name: &'static str,
+        anchor_rect: Rect,
+        width: f32,
+        placement: PopupPlacement,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let (window_w, window_h) = if let Some(root_id) = self.tree.root() {
+            let r = self
+                .tree
+                .get(root_id)
+                .map(|n| n.computed_rect)
+                .unwrap_or(Rect::ZERO);
+            if r.width > 0.0 && r.height > 0.0 {
+                (r.width, r.height)
+            } else {
+                (1920.0, 1080.0)
+            }
+        } else {
+            (1920.0, 1080.0)
+        };
+
+        // Horizontal placement: align left with anchor, clamp to right screen boundary
+        let mut x = anchor_rect.x;
+        if x + width > window_w - 6.0 {
+            x = (anchor_rect.right() - width).clamp(6.0, window_w - width - 6.0);
+        }
+
+        // Vertical initial placement: below or above
+        let mut y = match placement {
+            PopupPlacement::Below => anchor_rect.bottom() + 2.0,
+            PopupPlacement::Above => (anchor_rect.y - 200.0).max(6.0),
+        };
+
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.set_role(WidgetRole::DropdownPopup);
+            node.set_layer(UiLayer::Popup);
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(x)
+                    .top(y)
+                    .flex_col()
+                    .width(width)
+                    .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
+                    .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
+                    .border(1.0, Color::rgba(0.20, 0.23, 0.30, 0.90))
+                    .border_radius(6.0)
+                    .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.75)),
+            );
+            node.computed_rect.x = x;
+            node.computed_rect.y = y;
+            node.computed_rect.width = width;
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let child_seed = crate::declarative::types::combine_seeds(
+            self.seed,
+            crate::declarative::types::hash_label(name),
+        );
+        let mut child_scope = self.child_scope_seeded(node_id, child_seed);
+        let inner = f(&mut child_scope);
+        let height = crate::declarative::layout::measure_height(self.tree, node_id);
+
+        // Re-evaluate vertical position with accurate measured height
+        y = match placement {
+            PopupPlacement::Below => {
+                if anchor_rect.bottom() + height + 4.0 > window_h - 6.0 {
+                    (anchor_rect.y - height - 2.0).max(6.0)
+                } else {
+                    anchor_rect.bottom() + 2.0
+                }
+            }
+            PopupPlacement::Above => {
+                if anchor_rect.y - height - 2.0 < 6.0 {
+                    anchor_rect.bottom() + 2.0
+                } else {
+                    anchor_rect.y - height - 2.0
+                }
+            }
+        };
+
+        let bounds = Rect::new(x, y, width, height);
+        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.computed_rect = bounds;
+            node.style.inset_left = Some(x);
+            node.style.inset_top = Some(y);
+            node.style.height = Some(height);
+        }
+        if let Some(cursor) = self.tree.cursor_position() {
+            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
+        }
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
+    }
+}
+
+/// Placement direction for anchored floating popups relative to their anchor rectangle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PopupPlacement {
+    /// Positions the popup card directly below the anchor rectangle (default).
+    /// If bottom viewport overflow occurs, dynamically flips above the anchor.
+    #[default]
+    Below,
+    /// Positions the popup card directly above the anchor rectangle.
+    /// If top viewport overflow occurs, dynamically flips below the anchor.
+    Above,
+}
+
+/// Extension trait adding autonomous popup capabilities to widget responses.
+pub trait PopupExt {
+    /// Opens or maintains an autonomous dropdown popup card anchored below this response.
+    ///
+    /// Returns the inner closure output if open.
+    fn popup_below<R, F>(
+        self,
+        scope: &mut UiScope<'_>,
+        width: f32,
+        add_contents: F,
+    ) -> Option<InnerResponse<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R;
+}
+
+impl PopupExt for WidgetResponse {
+    #[inline]
+    fn popup_below<R, F>(
+        self,
+        scope: &mut UiScope<'_>,
+        width: f32,
+        add_contents: F,
+    ) -> Option<InnerResponse<R>>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        if self.rect.width > 0.0 && self.rect.height > 0.0 {
+            Some(scope.popup_anchored_with_placement(
+                "PopupBelow",
+                self.rect,
+                width,
+                PopupPlacement::Below,
+                add_contents,
+            ))
+        } else {
+            None
+        }
+    }
 }

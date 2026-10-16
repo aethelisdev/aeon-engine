@@ -384,7 +384,8 @@ impl<'a> UiScope<'a> {
         } else {
             None
         };
-        WidgetResponse::from_flags(id, Rect::ZERO, flags).with_pointer_pos(pointer_pos)
+        let rect = self.tree.get(id).map_or(Rect::ZERO, |n| n.computed_rect);
+        WidgetResponse::from_flags(id, rect, flags).with_pointer_pos(pointer_pos)
     }
 
     /// Checks whether the given widget node or its semantic tag is actively in a pressed state.

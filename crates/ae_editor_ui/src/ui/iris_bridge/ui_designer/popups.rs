@@ -82,43 +82,30 @@ pub fn build_aspect_ratio_popup(scope: &mut UiScope<'_>, params: &UiDesignerPane
 
 /// Builds the `➕ Add Element` palette popup if open.
 pub fn build_add_element_popup(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
-    if !params.is_add_menu_open {
-        return;
+    if params.is_add_menu_open {
+        scope.popup_anchored_named(
+            "AddElementPopup",
+            scope
+                .tree()
+                .node_rect_tagged(super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN, Point::ZERO)
+                .unwrap_or(Rect::new(
+                    params.panel_rect.x + 8.0,
+                    params.panel_rect.y + 5.0,
+                    118.0,
+                    24.0,
+                )),
+            200.0,
+            |popup_scope| {
+                for (idx, elem_type) in UI_ELEMENT_TYPES.iter().enumerate() {
+                    popup_scope.dropdown_item(
+                        make_add_item_tag(idx),
+                        elem_type.icon(),
+                        elem_type.label(),
+                        None,
+                        true,
+                    );
+                }
+            },
+        );
     }
-
-    let anchor = scope
-        .tree()
-        .iter()
-        .find(|(_, n)| n.tag == super::types::UI_DESIGNER_TAG_ADD_ELEMENT_BTN)
-        .map(|(_, n)| n.computed_rect)
-        .unwrap_or_else(|| {
-            Rect::new(
-                params.panel_rect.x + 8.0,
-                params.panel_rect.y + 5.0,
-                118.0,
-                24.0,
-            )
-        });
-
-    let popup_x = anchor.x;
-    let popup_y = anchor.y + anchor.height + 2.0;
-    let popup_w = 200.0;
-
-    scope.dropdown_menu_card_named(
-        "AddElementPopup",
-        popup_x,
-        popup_y,
-        popup_w,
-        |popup_scope| {
-            for (idx, elem_type) in UI_ELEMENT_TYPES.iter().enumerate() {
-                popup_scope.dropdown_item(
-                    make_add_item_tag(idx),
-                    elem_type.icon(),
-                    elem_type.label(),
-                    None,
-                    true,
-                );
-            }
-        },
-    );
 }

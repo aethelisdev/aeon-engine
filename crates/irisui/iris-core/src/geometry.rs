@@ -153,6 +153,26 @@ impl Rect {
         }
     }
 
+    /// Computes the minimal bounding rectangle enclosing both `self` and `other`.
+    ///
+    /// If either rectangle is [`Self::ZERO`], returns the other rectangle.
+    #[inline]
+    #[must_use]
+    pub fn union(self, other: Self) -> Self {
+        if self == Self::ZERO {
+            other
+        } else if other == Self::ZERO {
+            self
+        } else {
+            Self::from_min_max(
+                self.x.min(other.x),
+                self.y.min(other.y),
+                self.right().max(other.right()),
+                self.bottom().max(other.bottom()),
+            )
+        }
+    }
+
     /// Converts the rectangle to a 4-element array `[x, y, width, height]`.
     #[inline]
     pub const fn to_array(self) -> [f32; 4] {

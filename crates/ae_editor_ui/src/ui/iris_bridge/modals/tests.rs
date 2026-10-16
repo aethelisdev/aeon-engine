@@ -311,24 +311,19 @@ fn test_declarative_modals_buttons_hover_reactivity() {
     assert!(tree.get(del_id).is_some());
 
     // Search for close button and danger button
-    let mut close_btn_hovered = false;
-    let mut danger_btn_found = false;
-    tree.traverse_depth_first(del_id, &mut |_id, node| {
-        if node.tag == irisui::prelude::MODAL_TAG_CLOSE
-            && node.text.as_deref() == Some("✕")
-            && node.style.background_color == Color::rgba(0.85, 0.22, 0.22, 0.28)
-        {
-            close_btn_hovered = true;
-        }
-        if node.tag == irisui::prelude::MODAL_TAG_DANGER
-            && node.text.as_deref() == Some("🗑 Delete Permanently")
-        {
-            danger_btn_found = true;
-        }
-    });
-    assert!(close_btn_hovered, "Modal close button must react to hover");
     assert!(
-        danger_btn_found,
+        tree.any_in_subtree(del_id, |node| {
+            node.tag == irisui::prelude::MODAL_TAG_CLOSE
+                && node.text.as_deref() == Some("✕")
+                && node.style.background_color == Color::rgba(0.85, 0.22, 0.22, 0.28)
+        }),
+        "Modal close button must react to hover"
+    );
+    assert!(
+        tree.any_in_subtree(del_id, |node| {
+            node.tag == irisui::prelude::MODAL_TAG_DANGER
+                && node.text.as_deref() == Some("🗑 Delete Permanently")
+        }),
         "Danger confirm button must be tagged with MODAL_TAG_DANGER"
     );
 }

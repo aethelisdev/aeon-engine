@@ -175,18 +175,15 @@ mod tests {
         let vp_tag = super::super::inspector::tags::TAG_INSPECTOR_CARDS_CONTAINER;
         let (_cid, ch1) = {
             let mut scope = UiScope::new(&mut tree, root);
-            let mut child = None;
             let c = scope.container_tagged(
                 "InspectorCardsContainer",
                 Style::new().width(200.0).height(400.0).flex_col(),
                 WidgetRole::Default,
                 vp_tag,
-                |s| {
-                    child = Some(s.empty_box_passive_named("Card", Style::new().height(50.0)));
-                },
+                |s| s.empty_box_passive_named("Card", Style::new().height(50.0)),
             );
             scope.finish_layout(Rect::new(0.0, 0.0, 200.0, 400.0));
-            (c, child.unwrap())
+            (c.response, c.inner)
         };
 
         assert_eq!(tree.get(ch1).unwrap().computed_rect.y, 0.0);

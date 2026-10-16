@@ -63,29 +63,33 @@ fn test_ui_designer_panel_build() {
     assert_eq!(panel_root.computed_rect, panel_rect);
 
     // Check letterbox and toolbar non-zero geometry
-    let mut found_toolbar = false;
-    let mut found_letterbox = false;
-    for &cid in &panel_root.children {
-        if let Some(child) = tree.get(cid) {
-            if child.name.as_deref() == Some("UiDesignerToolbar") {
-                found_toolbar = true;
-                assert_eq!(child.computed_rect.height, 34.0);
-                assert_eq!(child.computed_rect.width, panel_rect.width);
-            }
-            if child.name.as_deref() == Some("UiDesignerLetterbox") {
-                found_letterbox = true;
-                assert!(child.computed_rect.width > 0.0);
-                assert!(child.computed_rect.height > 0.0);
-            }
-        }
-    }
-    assert!(
-        found_toolbar,
-        "UiDesignerToolbar must exist in panel hierarchy"
+    assert_eq!(
+        tree.node_named_in_subtree(panel_root_id, "UiDesignerToolbar")
+            .expect("UiDesignerToolbar must exist in panel hierarchy")
+            .computed_rect
+            .height,
+        34.0
+    );
+    assert_eq!(
+        tree.node_named_in_subtree(panel_root_id, "UiDesignerToolbar")
+            .expect("UiDesignerToolbar must exist in panel hierarchy")
+            .computed_rect
+            .width,
+        panel_rect.width
     );
     assert!(
-        found_letterbox,
-        "UiDesignerLetterbox must exist in panel hierarchy"
+        tree.node_named_in_subtree(panel_root_id, "UiDesignerLetterbox")
+            .expect("UiDesignerLetterbox must exist in panel hierarchy")
+            .computed_rect
+            .width
+            > 0.0
+    );
+    assert!(
+        tree.node_named_in_subtree(panel_root_id, "UiDesignerLetterbox")
+            .expect("UiDesignerLetterbox must exist in panel hierarchy")
+            .computed_rect
+            .height
+            > 0.0
     );
 }
 

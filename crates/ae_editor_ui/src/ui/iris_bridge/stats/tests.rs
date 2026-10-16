@@ -87,39 +87,28 @@ fn test_build_stats_panel_declarative_structure() {
     let max_scroll = build_stats_panel(&mut tree, root, &params, &mut actions);
     assert!(max_scroll >= 0.0);
 
-    // Verify root node exists and contains semantic panel root tag
-    let mut found_panel_root = false;
-    let mut found_canvas = false;
-    let mut found_wireframe_toggle = false;
-    let mut found_grid_toggle = false;
-
-    for (_wid, node) in tree.iter() {
-        if node.tag == STATS_TAG_PANEL_ROOT {
-            found_panel_root = true;
-        }
-        if node.tag == STATS_TAG_CANVAS {
-            found_canvas = true;
-            assert_eq!(node.role, WidgetRole::OscilloscopeCanvas);
-        }
-        if node.tag == STATS_TAG_TOGGLE_WIREFRAME {
-            found_wireframe_toggle = true;
-            assert_eq!(node.role, WidgetRole::Checkbox);
-        }
-        if node.tag == STATS_TAG_TOGGLE_GRID {
-            found_grid_toggle = true;
-            assert_eq!(node.role, WidgetRole::Checkbox);
-        }
-    }
-
-    assert!(found_panel_root, "STATS_TAG_PANEL_ROOT must exist in tree");
-    assert!(found_canvas, "STATS_TAG_CANVAS must exist in tree");
+    // Verify nodes exist with semantic tags
     assert!(
-        found_wireframe_toggle,
-        "STATS_TAG_TOGGLE_WIREFRAME must exist in tree"
+        tree.node_tagged(STATS_TAG_PANEL_ROOT).is_some(),
+        "STATS_TAG_PANEL_ROOT must exist in tree"
     );
-    assert!(
-        found_grid_toggle,
-        "STATS_TAG_TOGGLE_GRID must exist in tree"
+    assert_eq!(
+        tree.node_tagged(STATS_TAG_CANVAS)
+            .expect("STATS_TAG_CANVAS must exist in tree")
+            .role,
+        WidgetRole::OscilloscopeCanvas
+    );
+    assert_eq!(
+        tree.node_tagged(STATS_TAG_TOGGLE_WIREFRAME)
+            .expect("STATS_TAG_TOGGLE_WIREFRAME must exist in tree")
+            .role,
+        WidgetRole::Checkbox
+    );
+    assert_eq!(
+        tree.node_tagged(STATS_TAG_TOGGLE_GRID)
+            .expect("STATS_TAG_TOGGLE_GRID must exist in tree")
+            .role,
+        WidgetRole::Checkbox
     );
 }
 

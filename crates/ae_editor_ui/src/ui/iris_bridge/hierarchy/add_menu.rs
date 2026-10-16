@@ -8,7 +8,7 @@
 //!
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
-use super::types::{AddSubmenuId, HierarchyAction, HierarchyPanelParams};
+use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyAction, HierarchyPanelParams};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
 use irisui::prelude::*;
 
@@ -255,30 +255,27 @@ pub fn build_add_menu(
         return Vec::new();
     }
 
-    let menu_items = get_hierarchy_add_menu_items(params.is_2d);
-
-    let mut active_path = Vec::new();
-    if let Some(sub) = params.active_submenu {
-        active_path.push(sub.to_tag());
-        if let Some(sub_sub) = params.active_sub_submenu {
-            active_path.push(sub_sub.to_tag());
-        }
-    }
-
-    let add_btn_anchor = Rect::new(
-        (params.panel_rect.x + params.panel_rect.width - 56.0).max(params.panel_rect.x + 60.0),
-        params.panel_rect.y + 4.0,
-        24.0,
-        24.0,
-    );
-
-    if let Some(frame) = CascadingMenuBuilder::new(add_btn_anchor, &menu_items, &active_path)
-        .cursor_pos(params.cursor_pos)
-        .name("HierarchyAddMenu")
-        .build(tree, parent_id)
-    {
-        frame.rendered_popup_rects
-    } else {
-        Vec::new()
-    }
+    CascadingMenuBuilder::new(
+        tree.node_rect_tagged(HIERARCHY_TAG_ADD_BUTTON, params.panel_rect.origin())
+            .unwrap_or(Rect::new(
+                (params.panel_rect.x + params.panel_rect.width - 56.0)
+                    .max(params.panel_rect.x + 60.0),
+                params.panel_rect.y + 4.0,
+                24.0,
+                24.0,
+            )),
+        &get_hierarchy_add_menu_items(params.is_2d),
+        &params
+            .active_submenu
+            .map(|sub| {
+                params
+                    .active_sub_submenu
+                    .map_or_else(|| vec![sub.to_tag()], |s2| vec![sub.to_tag(), s2.to_tag()])
+            })
+            .unwrap_or_default(),
+    )
+    .cursor_pos(params.cursor_pos)
+    .name("HierarchyAddMenu")
+    .build(tree, parent_id)
+    .map_or_else(Vec::new, |frame| frame.rendered_popup_rects)
 }

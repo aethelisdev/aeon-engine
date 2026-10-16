@@ -174,38 +174,30 @@ mod tests {
             (screen_h - ABOUT_DIALOG_HEIGHT) * 0.5
         );
 
-        // Verify required action tags exist in card subtree
-        let mut has_close_btn = false;
-        let mut has_confirm_btn = false;
-        let mut has_title = false;
-        let mut has_license_link = false;
-
-        tree.traverse_depth_first(card_id, &mut |_id, node| {
-            if node.tag == MODAL_TAG_CLOSE {
-                has_close_btn = true;
-            }
-            if node.tag == MODAL_TAG_CONFIRM {
-                has_confirm_btn = true;
-            }
-            if let Some(text) = &node.text {
-                if text.contains("About Aeon Engine") {
-                    has_title = true;
-                }
-                if text.contains("MPL-2.0") {
-                    has_license_link = true;
-                }
-            }
-        });
-
+        // Verify required action tags and text exist in card subtree
         assert!(
-            has_close_btn,
+            tree.find_node_by_tag_in_subtree(card_id, MODAL_TAG_CLOSE)
+                .is_some(),
             "Close button with MODAL_TAG_CLOSE must exist"
         );
         assert!(
-            has_confirm_btn,
+            tree.find_node_by_tag_in_subtree(card_id, MODAL_TAG_CONFIRM)
+                .is_some(),
             "Confirm button with MODAL_TAG_CONFIRM must exist"
         );
-        assert!(has_title, "Title label must exist");
-        assert!(has_license_link, "MPL-2.0 license link must exist");
+        assert!(
+            tree.any_in_subtree(card_id, |n| {
+                n.text
+                    .as_deref()
+                    .is_some_and(|t| t.contains("About Aeon Engine"))
+            }),
+            "Title label must exist"
+        );
+        assert!(
+            tree.any_in_subtree(card_id, |n| {
+                n.text.as_deref().is_some_and(|t| t.contains("MPL-2.0"))
+            }),
+            "MPL-2.0 license link must exist"
+        );
     }
 }

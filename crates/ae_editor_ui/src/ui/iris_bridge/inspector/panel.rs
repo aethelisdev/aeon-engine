@@ -212,32 +212,34 @@ mod tests {
         render_empty_selection_view(&mut scope, &params);
         scope.finish_layout(params.panel_rect);
 
-        // Find EmptySelectionCard in tree
-        let mut card_found = false;
-        let mut icon_found = false;
-        let mut title_found = false;
-
-        for (_, node) in tree.iter() {
-            if node.name.as_deref() == Some("EmptySelectionCard") {
-                card_found = true;
-                assert_eq!(
-                    node.style.background_color,
-                    Color::rgba(0.09, 0.10, 0.12, 0.95)
-                );
-                assert_eq!(node.style.corner_radii.top_left, 8.0);
-            }
-            if node.name.as_deref() == Some("EmptyWorldIcon") {
-                icon_found = true;
-                assert_eq!(node.texture_tint, Some(Color::rgba(0.0, 0.85, 1.0, 0.65)));
-            }
-            if node.name.as_deref() == Some("EmptySelectionTitle") {
-                title_found = true;
-                assert_eq!(node.text.as_deref(), Some("No Entity Selected"));
-            }
-        }
-
-        assert!(card_found, "EmptySelectionCard node must be created");
-        assert!(icon_found, "EmptyWorldIcon node must be created");
-        assert!(title_found, "EmptySelectionTitle node must be created");
+        // Verify EmptySelectionCard, EmptyWorldIcon, and EmptySelectionTitle exist in tree
+        assert_eq!(
+            tree.node_named("EmptySelectionCard")
+                .expect("EmptySelectionCard node must be created")
+                .style
+                .background_color,
+            Color::rgba(0.09, 0.10, 0.12, 0.95)
+        );
+        assert_eq!(
+            tree.node_named("EmptySelectionCard")
+                .expect("EmptySelectionCard node must be created")
+                .style
+                .corner_radii
+                .top_left,
+            8.0
+        );
+        assert_eq!(
+            tree.node_named("EmptyWorldIcon")
+                .expect("EmptyWorldIcon node must be created")
+                .texture_tint,
+            Some(Color::rgba(0.0, 0.85, 1.0, 0.65))
+        );
+        assert_eq!(
+            tree.node_named("EmptySelectionTitle")
+                .expect("EmptySelectionTitle node must be created")
+                .text
+                .as_deref(),
+            Some("No Entity Selected")
+        );
     }
 }

@@ -46,6 +46,7 @@ pub use context_menu::{CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, Con
 pub use core::UiScope;
 pub use display::WrappedLabelDescriptor;
 pub use input_box::{InputBoxProps, calculate_visible_slice_and_caret, measure_text_advance};
+pub use menu::{PopupExt, PopupPlacement};
 pub use properties::{
     PropertySliderOptions, PropertyTextOptions, PropertyTextResponse, PropertyVec3Options,
     PropertyVec3Response, PropertyVec3Target, property_vec3_axis_tag, property_vec3_reset_tag,

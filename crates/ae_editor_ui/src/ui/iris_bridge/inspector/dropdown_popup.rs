@@ -20,57 +20,46 @@ pub fn build_inspector_dropdown_popup(
     params: &InspectorPanelParams<'_>,
     panel_tree: Option<&UiTree>,
 ) -> Option<Rect> {
-    let active_id = params.active_dropdown?;
-
-    let active_tag = encode_inspector_dropdown_tag(active_id);
-    let anchor_rect = panel_tree
-        .and_then(|ptree| {
-            ptree
-                .iter()
-                .find(|(_, node)| node.tag == active_tag)
-                .map(|(_, node)| {
-                    Rect::new(
-                        params.panel_rect.x + node.computed_rect.x,
-                        params.panel_rect.y + node.computed_rect.y,
-                        node.computed_rect.width,
-                        node.computed_rect.height,
-                    )
-                })
-        })
-        .unwrap_or(Rect::new(
-            params.panel_rect.x + 8.0,
-            params.panel_rect.y + 40.0,
-            110.0,
-            22.0,
-        ));
-
-    let options = get_dropdown_options(active_id);
-    let popup_w = anchor_rect.width.max(110.0);
-    let item_h = 24.0;
-    let popup_h = options.len() as f32 * item_h + 8.0;
-
-    let popup_x = anchor_rect.x;
-    let popup_y = if anchor_rect.bottom() + popup_h > params.panel_rect.bottom() - 10.0 {
-        (anchor_rect.y - popup_h - 2.0).max(params.panel_rect.y + 10.0)
-    } else {
-        anchor_rect.bottom() + 2.0
-    };
-
-    let mut scope = UiScope::new(tree, parent_id);
-    scope.dropdown_menu_card_named(
-        "InspectorDropdownPopup",
-        popup_x,
-        popup_y,
-        popup_w,
-        |menu| {
-            for (idx, &item_label) in options.iter().enumerate() {
-                let item_tag = TAG_INSPECTOR_DROPDOWN_ITEM_BASE + idx as u64;
-                menu.dropdown_item(item_tag, "", item_label, None, true);
-            }
-        },
-    );
-
-    Some(Rect::new(popup_x, popup_y, popup_w, popup_h))
+    params.active_dropdown.map(|active_id| {
+        UiScope::new(tree, parent_id)
+            .popup_anchored_named(
+                "InspectorDropdownPopup",
+                panel_tree
+                    .and_then(|ptree| {
+                        ptree.node_rect_tagged(
+                            encode_inspector_dropdown_tag(active_id),
+                            params.panel_rect.origin(),
+                        )
+                    })
+                    .unwrap_or(Rect::new(
+                        params.panel_rect.x + 8.0,
+                        params.panel_rect.y + 40.0,
+                        110.0,
+                        22.0,
+                    )),
+                panel_tree
+                    .and_then(|ptree| {
+                        ptree.node_rect_tagged(
+                            encode_inspector_dropdown_tag(active_id),
+                            params.panel_rect.origin(),
+                        )
+                    })
+                    .map_or(110.0, |rect| rect.width.max(110.0)),
+                |menu| {
+                    for (idx, &item_label) in get_dropdown_options(active_id).iter().enumerate() {
+                        menu.dropdown_item(
+                            TAG_INSPECTOR_DROPDOWN_ITEM_BASE + idx as u64,
+                            "",
+                            item_label,
+                            None,
+                            true,
+                        );
+                    }
+                },
+            )
+            .response
+            .rect
+    })
 }
 
 /// Returns the slice of option label strings for a given dropdown identifier.
