@@ -154,9 +154,18 @@ impl<'a> UiScope<'a> {
         let mut style = Style::new().flex_col().flex_grow(1.0).clip_children(true);
         style.scroll_offset_y = scroll_y;
 
-        let vp_resp = self.container_tagged(name, style, WidgetRole::ScrollAreaViewport, tag, f);
-        let vp_id = vp_resp.response.id;
-        let inner = vp_resp.inner;
+        let vp_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(vp_id) {
+            node.set_name(name);
+            node.set_style(style);
+            node.role = WidgetRole::ScrollAreaViewport;
+            node.tag = tag;
+            node.interactive = true;
+        }
+        let _ = self.tree.add_child(self.parent, vp_id);
+
+        let mut child_scope = self.child_scope(vp_id);
+        let inner = f(&mut child_scope);
 
         let vp_h = self.resolve_available_height(tag);
         let content_h = crate::declarative::measure_content_height(self.tree, vp_id);
@@ -324,26 +333,38 @@ impl<'a> UiScope<'a> {
             self.tree.set_max_scroll(tag, max_scroll);
         }
 
-        let vp_id = crate::declarative::widget::ScrollAreaView::new(name)
-            .tag(tag)
-            .background(config.bg)
-            .show(self, |vp| {
-                vp.set_scroll_offset_y(safe_scroll);
-                if slice.start_idx > 0 {
-                    let top_spacer_h = slice.start_idx as f32 * stride;
-                    vp.empty_box(Style::new().height(top_spacer_h));
-                }
-                for idx in slice.start_idx..slice.end_idx {
-                    item_renderer(vp, idx);
-                }
-                let remaining = config.total_items.saturating_sub(slice.end_idx);
-                if remaining > 0 {
-                    let bottom_spacer_h = remaining as f32 * stride;
-                    vp.empty_box(Style::new().height(bottom_spacer_h));
-                }
-            })
-            .response
-            .id;
+        let vp_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(vp_id) {
+            node.set_name(name);
+            node.tag = tag;
+            node.role = WidgetRole::ScrollAreaViewport;
+            node.interactive = true;
+            node.set_style(
+                Style::new()
+                    .flex_col()
+                    .flex_grow(1.0)
+                    .clip_children(true)
+                    .background(config.bg),
+            );
+        }
+        let _ = self.tree.add_child(self.parent, vp_id);
+
+        {
+            let mut vp = self.child_scope(vp_id);
+            vp.set_scroll_offset_y(safe_scroll);
+            if slice.start_idx > 0 {
+                let top_spacer_h = slice.start_idx as f32 * stride;
+                vp.empty_box(Style::new().height(top_spacer_h));
+            }
+            for idx in slice.start_idx..slice.end_idx {
+                item_renderer(&mut vp, idx);
+            }
+            let remaining = config.total_items.saturating_sub(slice.end_idx);
+            if remaining > 0 {
+                let bottom_spacer_h = remaining as f32 * stride;
+                vp.empty_box(Style::new().height(bottom_spacer_h));
+            }
+        }
 
         if let Some(node) = self.tree.get_mut(vp_id) {
             node.content_size = iris_core::geometry::Size::new(0.0, vlist.total_content_height());

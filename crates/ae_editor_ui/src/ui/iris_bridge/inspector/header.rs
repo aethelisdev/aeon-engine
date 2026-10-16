@@ -91,12 +91,13 @@ mod tests {
         };
 
         let mut scope = UiScope::new(&mut tree, root);
-        let resp = build_entity_header(&mut scope, entity, &params);
+        let _resp = build_entity_header(&mut scope, entity, &params);
         scope.finish_layout(params.panel_rect);
 
-        assert!(resp.id != WidgetId::default());
-
-        let box_node = tree.get(resp.id).expect("Box node must exist");
+        let box_id = tree
+            .find_node_by_tag(entity_name_input_tag())
+            .expect("Box node must exist");
+        let box_node = tree.get(box_id).expect("Box node must exist");
         assert_eq!(box_node.tag, entity_name_input_tag());
         assert_eq!(box_node.role, WidgetRole::TextInput);
         assert_eq!(box_node.cursor, Some(WidgetCursor::Text));

@@ -13,6 +13,9 @@ use irisui::prelude::*;
 /// Height of the bottom status bar in physical pixels.
 pub const STATUS_BAR_HEIGHT: f32 = 22.0;
 
+/// Persistent 64-bit semantic tag for the status bar container.
+pub const STATUS_BAR_TAG: u64 = 0x5354_4154_5553_5F31;
+
 /// Diagnostic parameters required to build the bottom status bar.
 pub struct StatusBarParams<'a> {
     /// Screen width in physical pixels.
@@ -32,11 +35,12 @@ pub fn build_bottom_status_bar(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &StatusBarParams<'_>,
-) -> WidgetId {
+) {
     let mut scope = UiScope::new(tree, parent_id);
 
     scope
         .row_with()
+        .tagged(STATUS_BAR_TAG, WidgetRole::Default)
         .width(params.screen_width)
         .height(STATUS_BAR_HEIGHT)
         .space_between()
@@ -63,9 +67,7 @@ pub fn build_bottom_status_bar(
                     format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION")),
                 );
             });
-        })
-        .response
-        .id
+        });
 }
 
 #[cfg(test)]
@@ -83,7 +85,10 @@ mod tests {
             status_spans: None,
         };
 
-        let bar_id = build_bottom_status_bar(&mut tree, root, &params);
+        build_bottom_status_bar(&mut tree, root, &params);
+        let bar_id = tree
+            .find_node_by_tag(STATUS_BAR_TAG)
+            .expect("Status bar node must exist");
         let bar_node = tree.get(bar_id).expect("Status bar node must exist");
 
         // Verify dimensions and layout style
@@ -115,7 +120,10 @@ mod tests {
             status_spans: Some(&custom_spans),
         };
 
-        let bar_id = build_bottom_status_bar(&mut tree, root, &params);
+        build_bottom_status_bar(&mut tree, root, &params);
+        let bar_id = tree
+            .find_node_by_tag(STATUS_BAR_TAG)
+            .expect("Status bar node must exist");
         let bar_node = tree.get(bar_id).expect("Status bar node must exist");
 
         let left_group_id = bar_node.children[0];

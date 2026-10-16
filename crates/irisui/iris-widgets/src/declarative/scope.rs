@@ -27,7 +27,6 @@ pub mod properties;
 pub mod scroll_area;
 pub mod spacing;
 pub mod tree_view;
-pub mod undeclarative;
 
 pub use collapsing::{CollapsingBuilder, CollapsingResponse};
 pub use menu_bar::{
@@ -36,7 +35,6 @@ pub use menu_bar::{
 pub use panel::PanelBuilder;
 pub use scroll_area::ScrollAreaConfig;
 pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
-pub use undeclarative::UndeclarativeScope;
 
 pub use super::types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,

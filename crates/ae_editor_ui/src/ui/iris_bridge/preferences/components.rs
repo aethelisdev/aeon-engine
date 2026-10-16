@@ -83,15 +83,14 @@ pub fn pref_section_card<F>(
                         TextAlign::Left,
                         Style::new().margin_insets(Insets::new(0.0, 8.0, 0.0, 0.0)),
                     );
-                    let title_id = hdr.label_styled_passive(
+                    hdr.label_styled_hover_passive(
                         "PrefSectionTitle",
                         title,
                         12.5,
-                        Color::rgba(0.92, 0.94, 0.98, 1.0),
+                        (Color::rgba(0.92, 0.94, 0.98, 1.0), Color::WHITE),
                         TextAlign::Left,
                         Style::new().flex_grow(1.0),
                     );
-                    hdr.set_hover_text_color(title_id, Color::WHITE);
                 },
             );
 
@@ -166,15 +165,14 @@ pub fn pref_toggle_row(
             );
 
             // Label text
-            let label_id = row.label_styled_passive(
+            row.label_styled_hover_passive(
                 "PrefToggleLabel",
                 label,
                 11.5,
-                Color::rgba(0.80, 0.83, 0.90, 1.0),
+                (Color::rgba(0.80, 0.83, 0.90, 1.0), Color::WHITE),
                 TextAlign::Left,
                 Style::new().flex_grow(1.0),
             );
-            row.set_hover_text_color(label_id, Color::WHITE);
         },
     );
 }
@@ -249,15 +247,14 @@ pub fn pref_dropdown_row(
                 WidgetRole::Button,
                 tag,
                 |btn| {
-                    let text_id = btn.label_styled_passive(
+                    btn.label_styled_hover_passive(
                         "PrefComboText",
                         combo_text,
                         11.5,
-                        Color::rgba(0.90, 0.92, 0.96, 1.0),
+                        (Color::rgba(0.90, 0.92, 0.96, 1.0), Color::WHITE),
                         TextAlign::Left,
                         Style::new().flex_grow(1.0),
                     );
-                    btn.set_hover_text_color(text_id, Color::WHITE);
                 },
             );
         },

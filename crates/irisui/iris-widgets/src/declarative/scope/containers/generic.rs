@@ -27,12 +27,6 @@ impl<R> InnerResponse<R> {
     pub fn new(response: WidgetResponse, inner: R) -> Self {
         Self { response, inner }
     }
-
-    /// Convenience accessor for the container widget identifier.
-    #[inline]
-    pub fn id(&self) -> WidgetId {
-        self.response.id
-    }
 }
 
 impl<R> std::ops::Deref for InnerResponse<R> {
@@ -279,9 +273,75 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
-        let resp = self.container_named(name, style, f);
-        self.layout_subtree_measured(resp.response.id, origin, min_height);
-        resp
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.set_style(style);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = self.child_scope(node_id);
+        let inner = f(&mut child_scope);
+        self.layout_subtree_measured(node_id, origin, min_height);
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
+    }
+
+    /// Emits a container positioned at exact bounds and performs autonomous subtree layout and hover styling.
+    ///
+    /// # Arguments
+    /// * `name` - Debug node name.
+    /// * `style` - Base layout styling applied to the container.
+    /// * `bounds` - Exact layout bounding rectangle.
+    /// * `f` - Children construction closure.
+    pub fn container_rect<R, F>(
+        &mut self,
+        name: &'static str,
+        style: Style,
+        bounds: Rect,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.container_rect_with_role(name, style, bounds, WidgetRole::Default, f)
+    }
+
+    /// Emits a container with a custom role positioned at exact bounds and performs autonomous subtree layout.
+    ///
+    /// # Arguments
+    /// * `name` - Debug node name.
+    /// * `style` - Base layout styling applied to the container.
+    /// * `bounds` - Exact layout bounding rectangle.
+    /// * `role` - Semantic accessibility / layer widget role.
+    /// * `f` - Children construction closure.
+    pub fn container_rect_with_role<R, F>(
+        &mut self,
+        name: &'static str,
+        style: Style,
+        bounds: Rect,
+        role: WidgetRole,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.set_style(style);
+            node.set_role(role);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = self.child_scope(node_id);
+        let inner = f(&mut child_scope);
+        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        if let Some(cursor) = self.tree.cursor_position() {
+            super::super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
+        }
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
     }
 
     /// Emits a concentric circular viewport landing drop target with an outer glowing ring and inner dot.
@@ -298,17 +358,21 @@ impl<'a> UiScope<'a> {
         dot_radius: f32,
         color: Color,
     ) {
-        let ring_id = self.empty_box_passive_named(
-            "ViewportDropLandingRing",
-            Style::new()
-                .position_absolute()
-                .left(center.x - ring_radius)
-                .top(center.y - ring_radius)
-                .width(ring_radius * 2.0)
-                .height(ring_radius * 2.0)
-                .border(2.0, color)
-                .border_radius(ring_radius),
-        );
+        let ring_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(ring_id) {
+            node.set_name("ViewportDropLandingRing");
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(center.x - ring_radius)
+                    .top(center.y - ring_radius)
+                    .width(ring_radius * 2.0)
+                    .height(ring_radius * 2.0)
+                    .border(2.0, color)
+                    .border_radius(ring_radius),
+            );
+        }
+        let _ = self.tree.add_child(self.parent, ring_id);
         crate::declarative::layout_subtree(
             self.tree,
             ring_id,
@@ -320,17 +384,21 @@ impl<'a> UiScope<'a> {
             ),
         );
 
-        let dot_id = self.empty_box_passive_named(
-            "ViewportDropLandingDot",
-            Style::new()
-                .position_absolute()
-                .left(center.x - dot_radius)
-                .top(center.y - dot_radius)
-                .width(dot_radius * 2.0)
-                .height(dot_radius * 2.0)
-                .background(color)
-                .border_radius(dot_radius),
-        );
+        let dot_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(dot_id) {
+            node.set_name("ViewportDropLandingDot");
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(center.x - dot_radius)
+                    .top(center.y - dot_radius)
+                    .width(dot_radius * 2.0)
+                    .height(dot_radius * 2.0)
+                    .background(color)
+                    .border_radius(dot_radius),
+            );
+        }
+        let _ = self.tree.add_child(self.parent, dot_id);
         crate::declarative::layout_subtree(
             self.tree,
             dot_id,

@@ -35,7 +35,7 @@ fn test_declarative_button_click_response() {
             !resp.pressed(),
             "New button must not report pressed on clean tree"
         );
-        resp.id()
+        resp.id
     };
 
     // Assign a valid bounding box to the button for spatial hit-testing
@@ -123,7 +123,7 @@ fn test_declarative_checkbox_click_and_toggle_response() {
         assert!(!resp.clicked());
         assert!(!resp.changed());
         assert!(!is_active);
-        resp.id()
+        resp.id
     };
 
     let chk_rect = Rect::new(10.0, 10.0, 140.0, 24.0);
@@ -197,7 +197,7 @@ fn test_declarative_checkbox_val_response() {
         let resp = scope.checkbox_val("Read Only Checkbox", is_active);
         assert!(!resp.clicked());
         assert!(!is_active);
-        resp.id()
+        resp.id
     };
 
     let chk_rect = Rect::new(10.0, 10.0, 140.0, 24.0);
@@ -253,7 +253,7 @@ fn test_declarative_numeric_drag_changed_response() {
             "Clean drag scrubber must not report hovered"
         );
         assert_eq!(scale, 1.0);
-        resp.id()
+        resp.id
     };
 
     // Assign computed rect for spatial hit-testing
@@ -357,7 +357,7 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         assert!(!resp.focused(), "Clean text input must not report focused");
         assert!(!resp.changed(), "Clean text input must not report changed");
         assert!(!resp.clicked(), "Clean text input must not report clicked");
-        resp.id()
+        resp.id
     };
 
     // Assign computed rect for spatial hit-testing
@@ -705,7 +705,7 @@ fn test_declarative_instant_effective_state_on_click_frame() {
         );
         let toggle_resp = scope.add(Button::new("Auto-Scroll").small().tag(tag_toggle));
         let check_resp = scope.add(Checkbox::new("Wireframe", false).tag(tag_check));
-        (pill_resp.id(), toggle_resp.id(), check_resp.id())
+        (pill_resp.id, toggle_resp.id, check_resp.id)
     };
 
     // Verify initial inactive checkbox indicator and label
@@ -727,7 +727,8 @@ fn test_declarative_instant_effective_state_on_click_frame() {
             check_resp.clicked(),
             "Checkbox must report clicked() == true"
         );
-        let chk_node = scope.tree().get(check_resp.id()).unwrap();
+        let chk_id = check_resp.id;
+        let chk_node = scope.tree().get(chk_id).unwrap();
         assert_eq!(chk_node.children.len(), 2);
         let box_node = scope.tree().get(chk_node.children[0]).unwrap();
         assert_eq!(
@@ -759,7 +760,8 @@ fn test_declarative_instant_effective_state_on_click_frame() {
             pill_resp.clicked(),
             "Filter pill must report clicked() == true"
         );
-        let node = scope.tree().get(pill_resp.id()).unwrap();
+        let pill_id = pill_resp.id;
+        let node = scope.tree().get(pill_id).unwrap();
         assert_eq!(
             node.text_color,
             iris_core::Color::WHITE,

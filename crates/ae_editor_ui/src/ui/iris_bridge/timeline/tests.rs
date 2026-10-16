@@ -5,7 +5,7 @@
 //!
 
 use super::*;
-use irisui::prelude::{PanelBuilder, Point, Rect, UiTree, hash_label, hash_label_with_seed};
+use irisui::prelude::{PanelBuilder, Point, Rect, UiScope, UiTree};
 
 #[test]
 fn test_timeline_panel_build_empty_state() {
@@ -22,7 +22,7 @@ fn test_timeline_panel_build_empty_state() {
         events: &[],
     };
 
-    let duration = build_timeline_panel(&mut tree, root, &params, &mut actions);
+    let duration = build_timeline_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     assert_eq!(duration, 0.0);
     assert!(actions.is_empty());
@@ -45,7 +45,7 @@ fn test_timeline_panel_build_missing_player() {
         events: &[],
     };
 
-    let duration = build_timeline_panel(&mut tree, root, &params, &mut actions);
+    let duration = build_timeline_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     assert_eq!(duration, 0.0);
     assert!(actions.is_empty());
@@ -69,22 +69,22 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
         is_dragging_scrubber: false,
         events: &[],
     };
-    build_timeline_panel(&mut tree, root, &params_empty, &mut actions);
+    build_timeline_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params_empty,
+        &mut actions,
+    );
     assert!(actions.is_empty());
 
-    // 2. Compute persistent tag for the declarative button inside AnimationTimelinePanelRoot panel
-    let panel_seed = hash_label("AnimationTimelinePanelRoot");
-    let button_tag = hash_label_with_seed(panel_seed, "➕ Add AnimationPlayer");
-
-    // 3. Dispatch click event to tagged button
-    let click_events = [(
-        button_tag,
-        irisui::prelude::InteractionEvent::Click {
-            button: irisui::prelude::MouseButton::Left,
-        },
-    )];
+    // 2. Find button tag dynamically from the tree
+    let button_tag = tree
+        .iter()
+        .find(|(_, n)| n.text.as_deref() == Some("➕ Add AnimationPlayer"))
+        .map(|(_, n)| n.tag)
+        .expect("Add button must exist");
 
     let mut tree_click = UiTree::new();
+    tree_click.event_state.frame_clicked_tag = Some(button_tag);
     let root_click = PanelBuilder::new(&mut tree_click).build();
     let _ = tree_click.set_root(root_click);
     let params_click = TimelinePanelParams {
@@ -93,10 +93,14 @@ fn test_timeline_panel_build_missing_player_declarative_click() {
         animation_player: None,
         cursor_pos: Point::new(400.0, 480.0),
         is_dragging_scrubber: false,
-        events: &click_events,
+        events: &[],
     };
 
-    build_timeline_panel(&mut tree_click, root_click, &params_click, &mut actions);
+    build_timeline_panel(
+        &mut UiScope::new(&mut tree_click, root_click),
+        &params_click,
+        &mut actions,
+    );
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0], TimelineAction::AddAnimationPlayer(dummy_entity));
 }
@@ -126,7 +130,7 @@ fn test_timeline_panel_build_with_player() {
         events: &[],
     };
 
-    let duration = build_timeline_panel(&mut tree, root, &params, &mut actions);
+    let duration = build_timeline_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     assert!((duration - 3.5).abs() < 1e-4);
     assert!(actions.is_empty());

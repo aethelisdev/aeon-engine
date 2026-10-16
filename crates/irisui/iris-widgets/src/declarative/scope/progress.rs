@@ -8,7 +8,7 @@
 //!
 
 use super::core::UiScope;
-use iris_core::{Color, Style, WidgetId, WidgetRole};
+use iris_core::{Color, Style, WidgetRole};
 
 impl<'a> UiScope<'a> {
     /// Emits a determinate progress bar container with a filled slug proportional to `fraction`.
@@ -19,9 +19,7 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `fraction` - Value in range `[0.0, 1.0]` representing the current completion ratio.
-    ///
-    /// Returns the allocated [`WidgetId`] of the track container.
-    pub fn progress_bar(&mut self, fraction: f32) -> WidgetId {
+    pub fn progress_bar(&mut self, fraction: f32) {
         let track_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(track_id) {
             node.role = WidgetRole::ProgressBar;
@@ -46,8 +44,6 @@ impl<'a> UiScope<'a> {
             );
         }
         let _ = self.tree.add_child(track_id, slug_id);
-
-        track_id
     }
 
     /// Emits an indeterminate sliding progress bar container with an animated runner slug.
@@ -57,9 +53,7 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `slide_phase` - Normalized phase in range `[0.0, 1.0]` controlling horizontal travel.
-    ///
-    /// Returns the allocated [`WidgetId`] of the track container.
-    pub fn indeterminate_progress(&mut self, slide_phase: f32) -> WidgetId {
+    pub fn indeterminate_progress(&mut self, slide_phase: f32) {
         let track_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(track_id) {
             node.role = WidgetRole::ProgressBar;
@@ -84,7 +78,5 @@ impl<'a> UiScope<'a> {
             );
         }
         let _ = self.tree.add_child(track_id, slug_id);
-
-        track_id
     }
 }

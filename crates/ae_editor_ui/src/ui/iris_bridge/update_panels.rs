@@ -13,8 +13,7 @@ impl IrisEditorOverlay {
     /// Builds the Performance Stats & Telemetry profiler panel if active in either docked or floating mode.
     pub(crate) fn build_stats_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(stats_rect) = params.panel_rects.stats
@@ -44,7 +43,7 @@ impl IrisEditorOverlay {
             };
 
             let max_scroll =
-                stats::build_stats_panel(tree, root, &stats_params, &mut self.stats.actions);
+                stats::build_stats_panel(scope, &stats_params, &mut self.stats.actions);
             self.stats.max_scroll = max_scroll;
             self.stats.last_rect = Some(stats_rect);
             self.stats.frame_ring_buffer = Some(*params.telemetry.frame_pacing);
@@ -58,8 +57,7 @@ impl IrisEditorOverlay {
     /// Builds the Scene Hierarchy panel if active in either docked or floating mode.
     pub(crate) fn build_hierarchy_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(hierarchy_rect) = params.panel_rects.hierarchy
@@ -87,13 +85,8 @@ impl IrisEditorOverlay {
                 cursor_byte_idx: self.hierarchy.interactions.search_input.cursor_byte_idx,
             };
 
-            hierarchy::build_hierarchy_panel(
-                tree,
-                root,
-                &hier_params,
-                &mut self.hierarchy.rows_cache,
-            );
-            self.hierarchy.max_scroll = tree.max_scroll(hierarchy::HIERARCHY_TAG_VIEWPORT);
+            hierarchy::build_hierarchy_panel(scope, &hier_params, &mut self.hierarchy.rows_cache);
+            self.hierarchy.max_scroll = scope.tree().max_scroll(hierarchy::HIERARCHY_TAG_VIEWPORT);
             self.hierarchy.last_rect = Some(hierarchy_rect);
         } else {
             self.hierarchy.last_rect = None;
@@ -103,8 +96,7 @@ impl IrisEditorOverlay {
     /// Builds the Scene Inspector panel if active in either docked or floating mode.
     pub(crate) fn build_inspector_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(inspector_rect) = params.panel_rects.inspector
@@ -165,7 +157,7 @@ impl IrisEditorOverlay {
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
-            super::inspector::build_inspector_panel(tree, root, &insp_params);
+            super::inspector::build_inspector_panel(scope, &insp_params);
             self.inspector.inspected_entity = params.scene.selected_entity;
             self.inspector.inspector_euler = *params.panel_data.inspector_euler;
             if let Some(entity) = params.scene.selected_entity {
@@ -189,8 +181,7 @@ impl IrisEditorOverlay {
     /// Builds the Developer Console panel if active in either docked or floating mode.
     pub(crate) fn build_console_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(console_rect) = params.panel_rects.console
@@ -214,8 +205,10 @@ impl IrisEditorOverlay {
             };
 
             let mut actions = Vec::new();
-            super::console::build_console_panel(tree, root, &console_params, &mut actions);
-            self.console.max_scroll_y = tree.max_scroll(super::console::CONSOLE_TAG_VIEWPORT);
+            super::console::build_console_panel(scope, &console_params, &mut actions);
+            self.console.max_scroll_y = scope
+                .tree()
+                .max_scroll(super::console::CONSOLE_TAG_VIEWPORT);
 
             let has_console_actions = !actions.is_empty();
             for action in actions {
@@ -256,8 +249,7 @@ impl IrisEditorOverlay {
     /// Builds the Content / Asset Browser panel if active in either docked or floating mode.
     pub(crate) fn build_assets_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(assets_rect) = params.panel_rects.assets
@@ -353,8 +345,7 @@ impl IrisEditorOverlay {
 
             let mut actions = Vec::new();
             let metrics = super::assets::build_assets_panel(
-                tree,
-                root,
+                scope,
                 &assets_params,
                 &mut self.assets.tree_state,
                 &mut actions,
@@ -418,8 +409,7 @@ impl IrisEditorOverlay {
     /// Builds the Animation Timeline Studio panel if active in either docked or floating mode.
     pub(crate) fn build_timeline_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(timeline_rect) = params.panel_rects.timeline {
@@ -445,8 +435,7 @@ impl IrisEditorOverlay {
             };
 
             let duration = super::timeline::build_timeline_panel(
-                tree,
-                root,
+                scope,
                 &timeline_params,
                 &mut self.timeline.actions,
             );
@@ -462,8 +451,7 @@ impl IrisEditorOverlay {
     /// Builds the Material & Surface Studio panel if active in either docked or floating mode.
     pub(crate) fn build_material_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(material_rect) = params.panel_rects.material {
@@ -484,8 +472,10 @@ impl IrisEditorOverlay {
                 is_scrollbar_dragging,
             };
 
-            super::material::build_material_panel(tree, root, &material_params);
-            self.material.max_scroll_y = tree.max_scroll(super::material::MATERIAL_TAG_VIEWPORT);
+            super::material::build_material_panel(scope, &material_params);
+            self.material.max_scroll_y = scope
+                .tree()
+                .max_scroll(super::material::MATERIAL_TAG_VIEWPORT);
             self.material.panel_rect = Some(material_rect);
             self.material.active_model = params
                 .scene
@@ -501,8 +491,7 @@ impl IrisEditorOverlay {
     /// Builds the 2D Visual UI Designer panel if active in either docked or floating mode.
     pub(crate) fn build_ui_designer_panel_if_active(
         &mut self,
-        tree: &mut UiTree,
-        root: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         if let Some(designer_rect) = params.panel_rects.ui_designer {
@@ -519,8 +508,7 @@ impl IrisEditorOverlay {
             };
 
             let metrics = super::ui_designer::build_ui_designer_panel(
-                tree,
-                root,
+                scope,
                 &designer_params,
                 &mut self.ui_designer.drag_contexts,
             );
@@ -538,8 +526,7 @@ impl IrisEditorOverlay {
     pub(crate) fn render_panel_by_id(
         &mut self,
         panel: crate::ui::panel_layout::PanelId,
-        tree: &mut UiTree,
-        parent: WidgetId,
+        scope: &mut UiScope<'_>,
         params: &OverlayUpdateParams<'_>,
     ) {
         use crate::ui::panel_layout::PanelId;
@@ -551,17 +538,17 @@ impl IrisEditorOverlay {
                 )
                 .unwrap_or(params.viewport.viewport_rect);
                 if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
-                    self.build_viewport_content(tree, parent, vp_rect, params);
+                    self.build_viewport_content(scope, vp_rect, params);
                 }
             }
-            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(tree, parent, params),
-            PanelId::Inspector => self.build_inspector_panel_if_active(tree, parent, params),
-            PanelId::Console => self.build_console_panel_if_active(tree, parent, params),
-            PanelId::Assets => self.build_assets_panel_if_active(tree, parent, params),
-            PanelId::MaterialEditor => self.build_material_panel_if_active(tree, parent, params),
-            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(tree, parent, params),
-            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(tree, parent, params),
-            PanelId::Stats => self.build_stats_panel_if_active(tree, parent, params),
+            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(scope, params),
+            PanelId::Inspector => self.build_inspector_panel_if_active(scope, params),
+            PanelId::Console => self.build_console_panel_if_active(scope, params),
+            PanelId::Assets => self.build_assets_panel_if_active(scope, params),
+            PanelId::MaterialEditor => self.build_material_panel_if_active(scope, params),
+            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(scope, params),
+            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(scope, params),
+            PanelId::Stats => self.build_stats_panel_if_active(scope, params),
         }
     }
 

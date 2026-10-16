@@ -32,16 +32,14 @@ pub use super::types::{ASSETS_CHIPS_BAR_HEIGHT, ASSETS_FOOTER_HEIGHT, ASSETS_TOP
 /// Returns [`AssetsPanelLayoutMetrics`] describing the outer panel bounds, sidebar geometry,
 /// asset content viewport, and optional floating context menu card bounds.
 pub fn build_assets_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &AssetsPanelParams<'_>,
     tree_state: &mut TreeState<PathBuf>,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> AssetsPanelLayoutMetrics {
     let metrics = params.layout_metrics();
-    tree.set_cursor_position(params.cursor_pos);
 
-    UiScope::new(tree, parent_id)
+    scope
         .panel("AssetsPanelRoot")
         .tagged(ASSETS_TAG_PANEL_ROOT)
         .background_themed(|t| t.panel_bg)
@@ -113,7 +111,7 @@ pub fn build_assets_panel(
     // to prevent clipping and preserve precise absolute screen coordinates.
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)
-    super::preview::build_asset_preview_modal(tree, parent_id, params);
+    super::preview::build_asset_preview_modal(scope, params);
 
     metrics
 }

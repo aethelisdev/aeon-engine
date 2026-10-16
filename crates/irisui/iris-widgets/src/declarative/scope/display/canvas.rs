@@ -7,7 +7,7 @@
 //!
 
 use crate::declarative::scope::core::UiScope;
-use iris_core::{Color, Point, Rect, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole};
+use iris_core::{Color, Point, Rect, Style, TextAlign, WidgetCursor, WidgetRole};
 
 impl<'a> UiScope<'a> {
     /// Emits a blinking text input caret cursor node with [`WidgetRole::TextInputCaret`].
@@ -17,8 +17,8 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `color` - Caret indicator foreground color.
-    pub fn text_caret(&mut self, color: Color) -> WidgetId {
-        self.text_caret_with_offset(color, 0.0)
+    pub fn text_caret(&mut self, color: Color) {
+        self.text_caret_with_offset(color, 0.0);
     }
 
     /// Emits an in-place retained text caret cursor with a custom horizontal layout offset.
@@ -29,7 +29,7 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `color` - Caret indicator foreground color.
     /// * `offset` - Horizontal pixel offset relative to the text beginning.
-    pub fn text_caret_with_offset(&mut self, color: Color, offset: f32) -> WidgetId {
+    pub fn text_caret_with_offset(&mut self, color: Color, offset: f32) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("TextInputCaret");
@@ -44,7 +44,6 @@ impl<'a> UiScope<'a> {
             node.set_style(Style::new().width(6.0));
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a colored preview swatch box.
@@ -53,7 +52,7 @@ impl<'a> UiScope<'a> {
     /// * `color` - Color to display in the swatch.
     /// * `width` - Swatch box width in physical pixels.
     /// * `height` - Swatch box height in physical pixels.
-    pub fn color_swatch(&mut self, color: Color, width: f32, height: f32) -> WidgetId {
+    pub fn color_swatch(&mut self, color: Color, width: f32, height: f32) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.role = WidgetRole::ColorSwatch;
@@ -67,7 +66,6 @@ impl<'a> UiScope<'a> {
             );
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a textured quad displaying an external host-owned texture (e.g. 3D Viewport RTT framebuffer).
@@ -84,7 +82,7 @@ impl<'a> UiScope<'a> {
         texture_id: iris_core::ExternalTextureId,
         width: f32,
         height: f32,
-    ) -> WidgetId {
+    ) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = false;
@@ -100,7 +98,6 @@ impl<'a> UiScope<'a> {
             );
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a vertical scrollbar overlay (track and thumb) for a scrollable container.

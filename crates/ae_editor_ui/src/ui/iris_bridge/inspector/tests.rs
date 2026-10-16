@@ -52,7 +52,7 @@ fn test_inspector_empty_selection_renders_placeholder() {
 
     let params = create_default_test_params(&world, None, &euler, &swatches);
 
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
 
     let has_empty_label = tree
         .iter()
@@ -77,7 +77,7 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
 
     // Verify 3D Transform inputs are present via declarative assertions
     tree.assert_node_exists("NumBox_Position_X");
@@ -132,7 +132,7 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
 
     // Verify 3D Transform inputs are NOT present
     tree.assert_node_absent("NumBox_Position_X");
@@ -260,7 +260,7 @@ fn test_inspector_entity_isolation_invariant() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(ent_a), &euler, &swatches);
 
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
 
     assert_eq!(
         params.selected_entity,
@@ -301,7 +301,7 @@ fn test_inspector_select_all_number_input_styling() {
         is_all_selected: true,
     });
 
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
 
     // Verify node tree contains NumBox_Position_X with dark background and glowing cyan active border
     let mut pos_x_style = None;
@@ -355,7 +355,7 @@ fn test_active_number_input_caret_position() {
         is_all_selected: false,
     });
 
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
 
     let mut pos_x_text = None;
     let mut has_sel_pill = false;
@@ -394,7 +394,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let params = create_default_test_params(&world, Some(ent), &euler, &swatches);
 
     // 1. Initial State: Rotation Y must be 0.0
-    build_inspector_panel(&mut tree, root, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
         if node.name.as_deref() == Some("NumText_Rotation_Y") {
@@ -409,7 +409,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     }
     let mut tree2 = UiTree::new();
     let root2 = tree2.create_root().expect("root node");
-    build_inspector_panel(&mut tree2, root2, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree2, root2), &params);
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
         if node.name.as_deref() == Some("NumText_Rotation_Y") {
@@ -424,7 +424,7 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     }
     let mut tree3 = UiTree::new();
     let root3 = tree3.create_root().expect("root node");
-    build_inspector_panel(&mut tree3, root3, &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree3, root3), &params);
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
         if node.name.as_deref() == Some("NumText_Rotation_Y") {
@@ -648,10 +648,13 @@ fn test_inspector_entity_rename_all_selected_lifecycle() {
     params.is_rename_all_selected = true;
 
     let mut scope = UiScope::new(&mut tree, root);
-    let resp = header::build_entity_header(&mut scope, entity, &params);
+    let _resp = header::build_entity_header(&mut scope, entity, &params);
     scope.finish_layout(params.panel_rect);
 
-    let box_node = tree.get(resp.id).expect("Box node must exist");
+    let box_id = tree
+        .find_node_by_tag(header::entity_name_input_tag())
+        .expect("Box node must exist");
+    let box_node = tree.get(box_id).expect("Box node must exist");
     assert_eq!(
         box_node.children.len(),
         2,

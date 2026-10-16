@@ -66,8 +66,7 @@ fn test_assets_panel_structure_and_no_emojis() {
 
     let mut actions = Vec::new();
     let metrics = build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions,
@@ -202,8 +201,7 @@ fn test_preview_modal_build_and_actions() {
 
     let mut actions_build = Vec::new();
     let _metrics = build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions_build,
@@ -276,8 +274,7 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
 
     let mut actions_idle = Vec::new();
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params_idle,
         &mut TreeState::default(),
         &mut actions_idle,
@@ -329,11 +326,11 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
 
     let mut params_hover = params_idle;
     params_hover.cursor_pos = Point::new(close_rect.x + 2.0, close_rect.y + 2.0);
+    tree_hover.set_cursor_position(params_hover.cursor_pos);
 
     let mut actions_hover = Vec::new();
     build_assets_panel(
-        &mut tree_hover,
-        root_hover,
+        &mut UiScope::new(&mut tree_hover, root_hover),
         &params_hover,
         &mut TreeState::default(),
         &mut actions_hover,
@@ -425,8 +422,7 @@ fn test_assets_card_rendering_with_unicode_filenames() {
     // Should build cards with Turkish/Unicode filenames without any panic
     let mut actions = Vec::new();
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions,
@@ -695,8 +691,7 @@ fn test_engine_and_sidebar_vector_icons() {
 
     let mut actions = Vec::new();
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions,
@@ -973,8 +968,7 @@ fn test_assets_toolbar_width_and_search_ux() {
 
     let mut actions = Vec::new();
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions,

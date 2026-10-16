@@ -51,7 +51,7 @@ fn test_console_click_target_routing() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     // Verify Clear button exists in tree with correct tag
     let mut clear_node_found = false;
@@ -128,7 +128,11 @@ fn test_console_panel_clipping_and_clear_action() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, parent_id, &params, &mut actions);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, parent_id),
+        &params,
+        &mut actions,
+    );
 
     // Find ConsolePanelRoot and ConsoleViewport and verify clip_children is true
     let mut found_root = false;
@@ -178,7 +182,7 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
     let max_scroll = tree.max_scroll(CONSOLE_TAG_VIEWPORT);
     assert!(
         max_scroll > 0.0,
@@ -227,7 +231,7 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     let (_, clear_node) = tree
         .iter()
@@ -236,13 +240,13 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
 
     assert_eq!(
         clear_node.style.hover_background,
-        Some(Color::rgba(0.24, 0.29, 0.39, 1.0)),
+        Some(tree.theme().button_hover_bg),
         "Clear button must have declarative hover background"
     );
     assert_eq!(
         clear_node.hover_text_color,
-        Some(Color::WHITE),
-        "Clear button must have declarative white hover text"
+        Some(tree.theme().text_primary),
+        "Clear button must have declarative hover text"
     );
 
     let (_, search_node) = tree
@@ -285,7 +289,7 @@ fn test_console_toolbar_action_unification() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
     let mut layout_engine = irisui::layout::LayoutEngine::new();
     let _ = layout_engine.compute_layout(&mut tree, Size::new(1000.0, 400.0));
 
@@ -362,7 +366,7 @@ fn test_console_search_focused_caret_positioning() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     let (_, search_box) = tree
         .iter()
@@ -412,13 +416,17 @@ fn test_console_declarative_action_generation() {
     };
 
     let mut actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut actions);
+    build_console_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
     assert!(actions.is_empty());
 
     tree.event_state.frame_clicked_tag = Some(CONSOLE_TAG_CLEAR);
 
     let mut clicked_actions = Vec::new();
-    build_console_panel(&mut tree, root, &params, &mut clicked_actions);
+    build_console_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut clicked_actions,
+    );
 
     assert_eq!(clicked_actions.len(), 1);
     assert_eq!(clicked_actions[0], ConsoleAction::ClearLogs);

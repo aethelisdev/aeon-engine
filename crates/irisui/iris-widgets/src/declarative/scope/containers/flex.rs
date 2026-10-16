@@ -142,27 +142,36 @@ mod tests {
     fn test_flex_row_and_column_spaced() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
+        let (row_resp, col_resp, row_id, col_id) = {
+            let mut scope = UiScope::new(&mut tree, root);
 
-        let row_resp = scope.row_spaced(14.0, |row| {
-            row.label("A");
-            row.label("B");
-            100
-        });
+            let row_resp = scope.row_spaced(14.0, |row| {
+                row.label("A");
+                row.label("B");
+                100
+            });
 
-        let col_resp = scope.column_spaced(20.0, |col| {
-            col.label("1");
-            col.label("2");
-            "col_inner"
-        });
+            let col_resp = scope.column_spaced(20.0, |col| {
+                col.label("1");
+                col.label("2");
+                "col_inner"
+            });
+
+            (
+                row_resp,
+                col_resp,
+                row_resp.response.id,
+                col_resp.response.id,
+            )
+        };
 
         assert_eq!(row_resp.inner, 100);
-        let row_node = tree.get(row_resp.response.id).expect("Row node exists");
+        let row_node = tree.get(row_id).expect("Row node exists");
         assert_eq!(row_node.style.gap, 14.0);
         assert_eq!(row_node.children.len(), 2);
 
         assert_eq!(col_resp.inner, "col_inner");
-        let col_node = tree.get(col_resp.response.id).expect("Column node exists");
+        let col_node = tree.get(col_id).expect("Column node exists");
         assert_eq!(col_node.style.gap, 20.0);
         assert_eq!(col_node.children.len(), 2);
     }
@@ -171,23 +180,25 @@ mod tests {
     fn test_space_between_and_centered_shortcuts() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
+        let (sb_resp, ctr_resp, sb_id, ctr_id) = {
+            let mut scope = UiScope::new(&mut tree, root);
 
-        let sb_resp = scope.space_between(|row| {
-            row.label("Left");
-            row.label("Right");
-            true
-        });
+            let sb_resp = scope.space_between(|row| {
+                row.label("Left");
+                row.label("Right");
+                true
+            });
 
-        let ctr_resp = scope.centered(|col| {
-            col.label("Center content");
-            999
-        });
+            let ctr_resp = scope.centered(|col| {
+                col.label("Center content");
+                999
+            });
+
+            (sb_resp, ctr_resp, sb_resp.response.id, ctr_resp.response.id)
+        };
 
         assert!(sb_resp.inner);
-        let sb_node = tree
-            .get(sb_resp.response.id)
-            .expect("Space between node exists");
+        let sb_node = tree.get(sb_id).expect("Space between node exists");
         assert_eq!(
             sb_node.style.justify_content,
             iris_core::JustifyContent::SpaceBetween
@@ -195,9 +206,7 @@ mod tests {
         assert_eq!(sb_node.style.align_items, iris_core::AlignItems::Center);
 
         assert_eq!(ctr_resp.inner, 999);
-        let ctr_node = tree
-            .get(ctr_resp.response.id)
-            .expect("Centered node exists");
+        let ctr_node = tree.get(ctr_id).expect("Centered node exists");
         assert_eq!(
             ctr_node.style.justify_content,
             iris_core::JustifyContent::Center

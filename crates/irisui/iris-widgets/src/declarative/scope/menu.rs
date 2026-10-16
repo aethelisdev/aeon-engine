@@ -369,9 +369,9 @@ impl<'a> UiScope<'a> {
             n.text_align = TextAlign::Left;
             n.text_color = text_color;
             n.set_style(Style::new().flex_grow(1.0).height(14.0));
-        }
-        if enabled {
-            self.set_hover_text_color(label_id, theme.text_primary);
+            if enabled {
+                n.set_hover_text_color(theme.text_primary);
+            }
         }
         let _ = self.tree.add_child(node_id, label_id);
 
@@ -397,9 +397,9 @@ impl<'a> UiScope<'a> {
                 n.text_color = sc_color;
                 let sc_w = if sc.len() <= 4 { 18.0 } else { 74.0 };
                 n.set_style(Style::new().width(sc_w).height(14.0).flex_shrink(0.0));
-            }
-            if enabled && sc != "✓" {
-                self.set_hover_text_color(sc_id, theme.text_secondary);
+                if enabled && sc != "✓" {
+                    n.set_hover_text_color(theme.text_secondary);
+                }
             }
             let _ = self.tree.add_child(node_id, sc_id);
         }

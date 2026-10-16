@@ -23,7 +23,11 @@ fn test_declarative_context_menu_open_and_render() {
     let click_pos = Point::new(120.0, 85.0);
     let card_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        let id = scope.empty_box_passive_named("TestCard", iris_core::Style::new());
+        scope.empty_box_passive_named("TestCard", iris_core::Style::new());
+        let id = scope
+            .tree()
+            .find_node_by_name("TestCard")
+            .expect("TestCard exists");
         let card_resp = WidgetResponse::empty(id)
             .with_secondary_clicked(true)
             .with_pointer_pos(Some(click_pos));
@@ -80,7 +84,11 @@ fn test_declarative_context_menu_item_click_closes_menu() {
 
     let card_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        scope.empty_box_passive_named("TestCard", iris_core::Style::new())
+        scope.empty_box_passive_named("TestCard", iris_core::Style::new());
+        scope
+            .tree()
+            .find_node_by_name("TestCard")
+            .expect("TestCard exists")
     };
 
     // Open context menu for card
@@ -121,7 +129,11 @@ fn test_declarative_context_menu_outside_click_dismiss() {
 
     let card_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        scope.empty_box_passive_named("TestCard", iris_core::Style::new())
+        scope.empty_box_passive_named("TestCard", iris_core::Style::new());
+        scope
+            .tree()
+            .find_node_by_name("TestCard")
+            .expect("TestCard exists")
     };
 
     // Open menu
@@ -160,7 +172,11 @@ fn test_declarative_context_menu_escape_key_dismiss() {
 
     let card_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        scope.empty_box_passive_named("TestCard", iris_core::Style::new())
+        scope.empty_box_passive_named("TestCard", iris_core::Style::new());
+        scope
+            .tree()
+            .find_node_by_name("TestCard")
+            .expect("TestCard exists")
     };
 
     // Open menu
@@ -211,8 +227,9 @@ fn test_declarative_container_response_ext_fluent_chaining() {
             let _ = menu.context_menu_item("Action");
         });
 
-    assert_eq!(container_resp.id, tree.get(container_resp.id).unwrap().id);
-    let node = tree.get(container_resp.id).expect("Container node exists");
+    let container_id = container_resp.id;
+    assert_eq!(container_id, tree.get(container_id).unwrap().id);
+    let node = tree.get(container_id).expect("Container node exists");
     assert_eq!(node.content_size, Size::new(900.0, 1500.0));
     assert_eq!(node.tag, 42);
     assert_eq!(node.role, WidgetRole::ScrollAreaViewport);

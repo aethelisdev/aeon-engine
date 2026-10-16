@@ -47,7 +47,7 @@ fn test_material_panel_build_empty_state() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut tree, root, &params);
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
     let max_scroll = tree.max_scroll(MATERIAL_TAG_VIEWPORT);
 
     assert_eq!(params.panel_rect, panel_rect);
@@ -76,7 +76,7 @@ fn test_material_panel_build_no_geometry() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut tree, root, &params);
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_ADD_TEXTURE));
 }
@@ -107,7 +107,7 @@ fn test_material_panel_build_sprite_view() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut tree, root, &params);
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_CHANGE));
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_REMOVE));
@@ -170,7 +170,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
     let root = tree.create_root().unwrap();
     let menubar = {
         let mut scope = UiScope::new(&mut tree, root);
-        let menubar_id = scope.container(
+        let _menubar_id = scope.container(
             Style::new()
                 .position_absolute()
                 .left(0.0)
@@ -182,7 +182,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
             },
         );
         scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
-        menubar_id.response.id
+        tree.get(root).unwrap().children[0]
     };
 
     let world = hecs::World::new();
@@ -202,7 +202,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut tree, root, &params);
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
 
     let root_rect = tree.get(root).unwrap().computed_rect;
     let menubar_rect = tree.get(menubar).unwrap().computed_rect;
@@ -236,7 +236,7 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         events: &[],
         is_scrollbar_dragging: false,
     };
-    build_material_panel(&mut tree, root, &params_0);
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params_0);
 
     // Find the sprite change button's Y position at scroll 0
     let change_btn_0 =
@@ -257,7 +257,7 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         events: &[],
         is_scrollbar_dragging: false,
     };
-    build_material_panel(&mut tree_scroll, root_scroll, &params_50);
+    build_material_panel(&mut UiScope::new(&mut tree_scroll, root_scroll), &params_50);
 
     let change_btn_50 = find_node_by_tag(&tree_scroll, root_scroll, MATERIAL_TAG_SPRITE_CHANGE)
         .expect("Button must exist");
@@ -281,7 +281,10 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         events: &[],
         is_scrollbar_dragging: false,
     };
-    build_material_panel(&mut tree_empty, root_empty, &params_empty);
+    build_material_panel(
+        &mut UiScope::new(&mut tree_empty, root_empty),
+        &params_empty,
+    );
 
     let add_btn = find_node_by_tag(&tree_empty, root_empty, MATERIAL_TAG_ADD_TEXTURE)
         .expect("Add texture button must exist in empty state");

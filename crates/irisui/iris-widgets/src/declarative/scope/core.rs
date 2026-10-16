@@ -7,7 +7,6 @@
 //! interaction query evaluation, and recursive layout completion routines.
 //!
 
-use super::undeclarative::UndeclarativeScope;
 use crate::declarative::layout::layout_subtree;
 use iris_core::{
     InteractionEvent, Point, Rect, ResponseFlags, Size, UiTree, WidgetId, WidgetResponse,
@@ -220,16 +219,16 @@ impl<'a> UiScope<'a> {
         f(&mut sub_scope)
     }
 
-    /// Returns the target [`WidgetId`] currently acting as the parent for emitted widgets.
-    #[inline]
-    pub fn parent(&self) -> WidgetId {
-        self.parent
-    }
-
     /// Returns an immutable reference to the underlying [`UiTree`] arena.
     #[inline]
     pub fn tree(&self) -> &UiTree {
         self.tree
+    }
+
+    /// Returns the active parent node identifier of this scope.
+    #[inline]
+    pub fn parent(&self) -> WidgetId {
+        self.parent
     }
 
     /// Returns a mutable reference to the underlying [`UiTree`] arena.
@@ -263,6 +262,9 @@ impl<'a> UiScope<'a> {
     }
 
     /// Returns the computed bounding rectangle of an emitted widget after layout resolution.
+    ///
+    /// # Arguments
+    /// * `id` - Arena node identifier of the target widget.
     #[inline]
     pub fn computed_rect(&self, id: WidgetId) -> Rect {
         self.tree
@@ -628,21 +630,5 @@ impl<'a> UiScope<'a> {
             }
         }
         Rect::new(0.0, 0.0, 800.0, 600.0)
-    }
-
-    /// Enters an explicit imperative escape hatch scope for raw tree mutations and identifier extraction.
-    ///
-    /// This method serves as an intentional architectural checkpoint. Code executing within this
-    /// closure explicitly opts into imperative UI handling and raw [`WidgetId`] manipulation via
-    /// [`UndeclarativeScope`].
-    ///
-    /// # Arguments
-    /// * `f` - Closure executing imperative operations on the [`UndeclarativeScope`].
-    ///
-    /// # Returns
-    /// The arbitrary result `R` returned by the closure.
-    pub fn undeclarative<R>(&mut self, f: impl FnOnce(&mut UndeclarativeScope<'a, '_>) -> R) -> R {
-        let mut raw = UndeclarativeScope::new(self);
-        f(&mut raw)
     }
 }

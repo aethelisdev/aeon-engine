@@ -14,8 +14,7 @@
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, TextWrap, WidgetCursor, WidgetId,
-    WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, TextWrap, WidgetCursor, WidgetRole,
 };
 
 /// Descriptor struct configuring word-wrapping, style layout, and typography for wrapped text labels.
@@ -27,6 +26,8 @@ pub struct WrappedLabelDescriptor {
     pub font_size: f32,
     /// Foreground text color.
     pub color: Color,
+    /// Optional foreground text color applied when the parent container is hovered.
+    pub hover_color: Option<Color>,
     /// Horizontal text alignment (`Left`, `Center`, `Right`).
     pub align: TextAlign,
     /// Word-wrapping mode applied across multi-line runs.
@@ -42,6 +43,7 @@ impl WrappedLabelDescriptor {
         Self {
             font_size,
             color,
+            hover_color: None,
             align: TextAlign::Left,
             wrap: TextWrap::Word,
             style,
@@ -52,6 +54,13 @@ impl WrappedLabelDescriptor {
     #[inline]
     pub fn align(mut self, align: TextAlign) -> Self {
         self.align = align;
+        self
+    }
+
+    /// Sets the foreground text color applied when the parent container is hovered.
+    #[inline]
+    pub fn hover_color(mut self, hover_color: Color) -> Self {
+        self.hover_color = Some(hover_color);
         self
     }
 
@@ -78,27 +87,27 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `text` - Display string content.
-    pub fn label(&mut self, text: impl Into<String>) -> WidgetId {
+    pub fn label(&mut self, text: impl Into<String>) {
         let color = self.tree.theme().text_secondary;
-        self.label_custom(text, 11.5, color, TextAlign::Left)
+        self.label_custom(text, 11.5, color, TextAlign::Left);
     }
 
     /// Emits a prominent section heading text label node with bold white foreground coloring.
     ///
     /// # Arguments
     /// * `text` - Display string content.
-    pub fn heading(&mut self, text: impl Into<String>) -> WidgetId {
+    pub fn heading(&mut self, text: impl Into<String>) {
         let color = self.tree.theme().text_primary;
-        self.label_custom(text, 13.5, color, TextAlign::Left)
+        self.label_custom(text, 13.5, color, TextAlign::Left);
     }
 
     /// Emits a secondary section subtitle text label node with muted light gray coloring.
     ///
     /// # Arguments
     /// * `text` - Display string content.
-    pub fn subheading(&mut self, text: impl Into<String>) -> WidgetId {
+    pub fn subheading(&mut self, text: impl Into<String>) {
         let color = self.tree.theme().text_secondary;
-        self.label_custom(text, 12.0, color, TextAlign::Left)
+        self.label_custom(text, 12.0, color, TextAlign::Left);
     }
 
     /// Emits a text label node with an explicit foreground color and standard typography sizing.
@@ -106,8 +115,8 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `color` - Foreground text color.
     /// * `text` - Display string content.
-    pub fn colored_label(&mut self, color: Color, text: impl Into<String>) -> WidgetId {
-        self.label_custom(text, 11.5, color, TextAlign::Left)
+    pub fn colored_label(&mut self, color: Color, text: impl Into<String>) {
+        self.label_custom(text, 11.5, color, TextAlign::Left);
     }
 
     /// Emits a static text label node with default light gray foreground coloring.
@@ -117,8 +126,8 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `text` - Display string content.
     #[inline]
-    pub fn text(&mut self, text: impl Into<String>) -> WidgetId {
-        self.label(text)
+    pub fn text(&mut self, text: impl Into<String>) {
+        self.label(text);
     }
 
     /// Emits a static text label node with explicit foreground color.
@@ -129,8 +138,8 @@ impl<'a> UiScope<'a> {
     /// * `text` - Display string content.
     /// * `color` - RGBA foreground color.
     #[inline]
-    pub fn text_colored(&mut self, text: impl Into<String>, color: Color) -> WidgetId {
-        self.colored_label(color, text)
+    pub fn text_colored(&mut self, text: impl Into<String>, color: Color) {
+        self.colored_label(color, text);
     }
 
     /// Emits a fully customized text label node with explicit font size, foreground color, and horizontal alignment.
@@ -149,7 +158,7 @@ impl<'a> UiScope<'a> {
         font_size: f32,
         color: Color,
         align: TextAlign,
-    ) -> WidgetId {
+    ) {
         let text_str = text.into();
         let est_w = (text_str.len() as f32 * font_size * 0.65).ceil().max(16.0);
         let node_id = self.tree.create_node();
@@ -163,7 +172,6 @@ impl<'a> UiScope<'a> {
             node.set_style(Style::new().width(est_w));
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a styled text label node with an explicit fixed width constraint.
@@ -183,7 +191,7 @@ impl<'a> UiScope<'a> {
         font_size: f32,
         color: Color,
         align: TextAlign,
-    ) -> WidgetId {
+    ) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.role = WidgetRole::Default;
@@ -195,7 +203,6 @@ impl<'a> UiScope<'a> {
             node.set_style(Style::new().width(width));
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a styled text label node with an explicit width constraint.
@@ -207,8 +214,8 @@ impl<'a> UiScope<'a> {
         color: Color,
         width: f32,
         align: TextAlign,
-    ) -> WidgetId {
-        self.label_with_width(text, width, font_size, color, align)
+    ) {
+        self.label_with_width(text, width, font_size, color, align);
     }
 
     /// Emits a text label that expands to fill remaining row/column flex space (`flex_grow = 1.0`).
@@ -224,7 +231,7 @@ impl<'a> UiScope<'a> {
         font_size: f32,
         color: Color,
         align: TextAlign,
-    ) -> WidgetId {
+    ) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.role = WidgetRole::Default;
@@ -236,7 +243,6 @@ impl<'a> UiScope<'a> {
             node.set_style(Style::new().flex_grow(1.0));
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a styled text label node with an explicit style layout (e.g. absolute position, size).
@@ -258,7 +264,7 @@ impl<'a> UiScope<'a> {
         color: Color,
         align: TextAlign,
         style: Style,
-    ) -> WidgetId {
+    ) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name(name);
@@ -273,7 +279,6 @@ impl<'a> UiScope<'a> {
             node.set_style(style);
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a non-interactive, styled text label with reactive hover text coloring.
@@ -297,12 +302,16 @@ impl<'a> UiScope<'a> {
         (color, hover_color): (Color, Color),
         align: TextAlign,
         style: Style,
-    ) -> WidgetId {
-        let node_id = self.label_styled_passive(name, text, font_size, color, align, style);
-        if let Some(node) = self.tree.get_mut(node_id) {
+    ) {
+        let name_str = name.into();
+        self.label_styled_passive(name_str.clone(), text, font_size, color, align, style);
+        if let Some(node) = self
+            .tree
+            .find_node_by_name_in_subtree(self.parent, &name_str)
+            .and_then(|id| self.tree.get_mut(id))
+        {
             node.set_hover_text_color(hover_color);
         }
-        node_id
     }
 
     /// Emits a non-interactive, styled text label with explicit text wrapping and layout styling.
@@ -318,7 +327,7 @@ impl<'a> UiScope<'a> {
         name: &'static str,
         text: impl Into<String>,
         desc: WrappedLabelDescriptor,
-    ) -> WidgetId {
+    ) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name(name);
@@ -331,9 +340,11 @@ impl<'a> UiScope<'a> {
             node.text_align = desc.align;
             node.set_text_wrap(desc.wrap);
             node.set_style(desc.style);
+            if let Some(hover_color) = desc.hover_color {
+                node.set_hover_text_color(hover_color);
+            }
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a compact, autonomous status badge pill with rounded corners and themed background.
@@ -344,7 +355,7 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `text` - Badge label string content.
     /// * `tint` - Accent tint color applied to the badge border and text.
-    pub fn badge(&mut self, text: impl Into<String>, tint: Color) -> WidgetId {
+    pub fn badge(&mut self, text: impl Into<String>, tint: Color) {
         let text_str = text.into();
         let bg_color = Color::rgba(tint.r * 0.15, tint.g * 0.15, tint.b * 0.15, 0.85);
         let border_color = Color::rgba(tint.r * 0.45, tint.g * 0.45, tint.b * 0.45, 0.70);
@@ -361,9 +372,7 @@ impl<'a> UiScope<'a> {
 
         self.container(badge_style, |badge_scope| {
             badge_scope.label_custom(text_str, 9.5, tint, TextAlign::Center);
-        })
-        .response
-        .id
+        });
     }
 
     /// Emits a styled telemetry or key-value pill badge.
@@ -372,7 +381,7 @@ impl<'a> UiScope<'a> {
     /// * `label` - Left title label text.
     /// * `value` - Right value text.
     /// * `val_color` - Color of the value readout.
-    pub fn key_value_badge(&mut self, label: &str, value: &str, val_color: Color) -> WidgetId {
+    pub fn key_value_badge(&mut self, label: &str, value: &str, val_color: Color) {
         let badge_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
@@ -391,9 +400,7 @@ impl<'a> UiScope<'a> {
                 TextAlign::Left,
             );
             badge_scope.label_custom(value, 10.0, val_color, TextAlign::Right);
-        })
-        .response
-        .id
+        });
     }
 
     /// Emits a clickable text hyperlink with persistent tag and automatic hover styling.
@@ -438,9 +445,9 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `key` - Left property or metadata key title (rendered with muted text color).
     /// * `val` - Right value text content (rendered with primary text color).
-    pub fn key_value(&mut self, key: &str, val: &str) -> WidgetId {
+    pub fn key_value(&mut self, key: &str, val: &str) {
         let theme = self.tree.theme();
-        self.key_value_styled(key, val, theme.text_muted, theme.text_primary, 11.5)
+        self.key_value_styled(key, val, theme.text_muted, theme.text_primary, 11.5);
     }
 
     /// Emits a structured horizontal key-value row with customized text colors and font size.
@@ -451,7 +458,7 @@ impl<'a> UiScope<'a> {
         key_color: Color,
         val_color: Color,
         font_size: f32,
-    ) -> WidgetId {
+    ) {
         let row_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
@@ -482,9 +489,7 @@ impl<'a> UiScope<'a> {
                 TextAlign::Left,
                 Style::new(),
             );
-        })
-        .response
-        .id
+        });
     }
 
     /// Emits a key-value row where the value is a byte count formatted as human-readable size (B, KB, MB, GB).
@@ -494,10 +499,10 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `key` - Left property key title.
     /// * `bytes` - Integer file or buffer size in bytes.
-    pub fn key_value_file_size(&mut self, key: &str, bytes: u64) -> WidgetId {
+    pub fn key_value_file_size(&mut self, key: &str, bytes: u64) {
         let mut buf = [0u8; 32];
         let val_str = format_file_size_stack(bytes, &mut buf);
-        self.key_value(key, val_str)
+        self.key_value(key, val_str);
     }
 
     /// Emits a floating-point number label formatted to `precision` decimal digits without heap allocation.
@@ -507,10 +512,10 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `val` - Floating-point number to render.
     /// * `precision` - Number of fractional decimal places to retain.
-    pub fn label_number(&mut self, val: f64, precision: usize) -> WidgetId {
+    pub fn label_number(&mut self, val: f64, precision: usize) {
         let mut buf = [0u8; 32];
         let num_str = format_number_stack(val, precision, &mut buf);
-        self.label(num_str)
+        self.label(num_str);
     }
 
     /// Emits a structured horizontal key-value row formatting a float value without heap allocations.
@@ -519,10 +524,10 @@ impl<'a> UiScope<'a> {
     /// * `key` - Left property key title.
     /// * `val` - Numeric float value to format.
     /// * `precision` - Fractional precision places.
-    pub fn key_value_number(&mut self, key: &str, val: f64, precision: usize) -> WidgetId {
+    pub fn key_value_number(&mut self, key: &str, val: f64, precision: usize) {
         let mut buf = [0u8; 32];
         let num_str = format_number_stack(val, precision, &mut buf);
-        self.key_value(key, num_str)
+        self.key_value(key, num_str);
     }
 }
 

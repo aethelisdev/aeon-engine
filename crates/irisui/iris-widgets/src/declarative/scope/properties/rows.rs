@@ -56,36 +56,42 @@ impl<'a> UiScope<'a> {
             .gap(4.0);
         row_style.min_height = Some(24.0);
 
-        self.container_named("PropertyRow", row_style, |row| {
-            // Left-aligned label
-            let label_id = row.tree.create_node();
-            if let Some(node) = row.tree.get_mut(label_id) {
-                node.set_name("PropertyLabel");
-                node.set_text(visible_label);
-                node.font_size = 11.0;
-                node.line_height = 14.0;
-                node.text_align = TextAlign::Left;
-                node.text_color = Color::rgba(0.70, 0.72, 0.78, 1.0);
-                let mut label_style = Style::new().flex_shrink(0.0);
-                if let Some(w) = label_width {
-                    label_style.width = Some(w);
-                }
-                node.set_style(label_style);
+        let row_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(row_id) {
+            node.set_name("PropertyRow");
+            node.set_style(row_style);
+        }
+        let _ = self.tree.add_child(self.parent, row_id);
+
+        let mut row = self.child_scope(row_id);
+
+        // Left-aligned label
+        let label_id = row.tree.create_node();
+        if let Some(node) = row.tree.get_mut(label_id) {
+            node.set_name("PropertyLabel");
+            node.set_text(visible_label);
+            node.font_size = 11.0;
+            node.line_height = 14.0;
+            node.text_align = TextAlign::Left;
+            node.text_color = Color::rgba(0.70, 0.72, 0.78, 1.0);
+            let mut label_style = Style::new().flex_shrink(0.0);
+            if let Some(w) = label_width {
+                label_style.width = Some(w);
             }
-            let _ = row.tree.add_child(row.parent, label_id);
+            node.set_style(label_style);
+        }
+        let _ = row.tree.add_child(row.parent, label_id);
 
-            // Left-aligned control slot container
-            let slot_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::FlexStart)
-                .flex_grow(1.0)
-                .gap(3.0);
+        // Left-aligned control slot container
+        let slot_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .justify_content(JustifyContent::FlexStart)
+            .flex_grow(1.0)
+            .gap(3.0);
 
-            row.container_named("PropertySlot", slot_style, f);
-        })
-        .response
-        .id
+        row.container_named("PropertySlot", slot_style, f);
+        row_id
     }
 
     /// Emits an immediate two-way bound property checkbox row.
@@ -99,6 +105,7 @@ impl<'a> UiScope<'a> {
     pub fn property_checkbox(&mut self, label: &str, checked: &mut bool) -> WidgetResponse {
         let tag = self.tag_for(label);
         let mut response = WidgetResponse::default();
+        let mut slot_executed = false;
 
         let row_id = self.property_row(label, |slot| {
             let check_id = slot.tree.create_node();
@@ -156,10 +163,11 @@ impl<'a> UiScope<'a> {
             }
 
             response = WidgetResponse::new(check_id, clicked, hovered, changed);
+            slot_executed = true;
         });
 
-        if response.id == WidgetId::default() {
-            response.id = row_id;
+        if !slot_executed {
+            response = self.response(row_id);
         }
         response
     }
@@ -175,6 +183,7 @@ impl<'a> UiScope<'a> {
     pub fn property_dropdown(&mut self, label: &str, current_option: &str) -> WidgetResponse {
         let tag = self.tag_for(label);
         let mut response = WidgetResponse::default();
+        let mut slot_executed = false;
 
         let row_id = self.property_row(label, |slot| {
             let combo_id = slot.tree.create_node();
@@ -203,10 +212,11 @@ impl<'a> UiScope<'a> {
 
             let (clicked, hovered, _) = slot.check_interaction(combo_id);
             response = WidgetResponse::new(combo_id, clicked, hovered, false);
+            slot_executed = true;
         });
 
-        if response.id == WidgetId::default() {
-            response.id = row_id;
+        if !slot_executed {
+            response = self.response(row_id);
         }
         response
     }

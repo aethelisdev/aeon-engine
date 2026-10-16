@@ -15,8 +15,7 @@ impl IrisEditorOverlay {
     /// hardware 3D RTT texture quad, and the complete interactive HUD overlay.
     pub(crate) fn build_viewport_content(
         &mut self,
-        tree: &mut UiTree,
-        parent: WidgetId,
+        scope: &mut UiScope<'_>,
         viewport_rect: Rect,
         params: &OverlayUpdateParams<'_>,
     ) {
@@ -33,58 +32,55 @@ impl IrisEditorOverlay {
             .background(Color::TRANSPARENT)
             .clip_children(true);
 
-        let mut scope = UiScope::new(tree, parent);
-        let root = scope
-            .container_passive(root_style, |vp_scope| {
-                if params.viewport.has_viewport_texture {
-                    vp_scope.external_texture(
-                        VIEWPORT_TEXTURE_ID,
-                        viewport_rect.width,
-                        viewport_rect.height,
-                    );
-                } else {
-                    let ph_style = Style::new()
-                        .position_absolute()
-                        .left(0.0)
-                        .top(0.0)
-                        .width(viewport_rect.width)
-                        .height(viewport_rect.height)
-                        .justify_content(JustifyContent::Center)
-                        .align_items(AlignItems::Center);
-                    vp_scope.container_passive(ph_style, |ph| {
-                        ph.label_custom(
-                            "Rendering viewport...",
-                            14.0,
-                            Color::hex("#888888"),
-                            TextAlign::Center,
-                        );
-                    });
-                }
-            })
-            .response
-            .id;
-
-        // 3. Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
-        viewport_hud::build_viewport_hud(
-            tree,
-            root,
-            &ViewportHudParams {
-                viewport_rect,
-                camera: params.viewport.camera,
-                wireframe_enabled: params.viewport.wireframe_enabled,
-                gizmo_mode: params.viewport.gizmo_mode,
-                gizmo_space: params.viewport.gizmo_space,
-                snapping: params.preferences.snapping_settings,
-                cursor_pos,
-                active_dropdown,
-                selected_entity: params.scene.selected_entity,
-                world: params.scene.world,
-                is_editing: params.context.is_editing,
-                is_2d: params.context.is_2d_mode,
-            },
-        );
+
+        scope.container_passive(root_style, |vp_scope| {
+            if params.viewport.has_viewport_texture {
+                vp_scope.external_texture(
+                    VIEWPORT_TEXTURE_ID,
+                    viewport_rect.width,
+                    viewport_rect.height,
+                );
+            } else {
+                let ph_style = Style::new()
+                    .position_absolute()
+                    .left(0.0)
+                    .top(0.0)
+                    .width(viewport_rect.width)
+                    .height(viewport_rect.height)
+                    .justify_content(JustifyContent::Center)
+                    .align_items(AlignItems::Center);
+                vp_scope.container_passive(ph_style, |ph| {
+                    ph.label_custom(
+                        "Rendering viewport...",
+                        14.0,
+                        Color::hex("#888888"),
+                        TextAlign::Center,
+                    );
+                });
+            }
+
+            // 3. Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
+            viewport_hud::build_viewport_hud_scope(
+                vp_scope,
+                &ViewportHudParams {
+                    viewport_rect,
+                    camera: params.viewport.camera,
+                    wireframe_enabled: params.viewport.wireframe_enabled,
+                    gizmo_mode: params.viewport.gizmo_mode,
+                    gizmo_space: params.viewport.gizmo_space,
+                    snapping: params.preferences.snapping_settings,
+                    cursor_pos,
+                    active_dropdown,
+                    selected_entity: params.scene.selected_entity,
+                    world: params.scene.world,
+                    is_editing: params.context.is_editing,
+                    is_2d: params.context.is_2d_mode,
+                },
+            );
+        });
+
         self.viewport_hud.camera_angles =
             (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
     }

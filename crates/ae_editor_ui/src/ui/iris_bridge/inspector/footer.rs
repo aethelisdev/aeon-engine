@@ -70,24 +70,44 @@ pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelPa
             WidgetRole::Button,
             TAG_INSPECTOR_ADD_COMPONENT,
             |btn| {
-                let icon_id = btn.icon_named(
-                    "AddComponentPlusIcon",
-                    crate::ui::iris_bridge::icons::ICON_PLUS,
-                    add_text_col,
-                    11.0,
-                );
-                if !params.is_add_menu_open {
-                    btn.set_hover_texture_tint(icon_id, Color::WHITE);
-                }
-                let txt_id = btn.label_styled_passive_wrapped(
-                    "AddComponentBtnText",
-                    "Add Component",
-                    WrappedLabelDescriptor::new(11.0, add_text_col, Style::new().height(footer_h))
+                if params.is_add_menu_open {
+                    btn.icon_named(
+                        "AddComponentPlusIcon",
+                        crate::ui::iris_bridge::icons::ICON_PLUS,
+                        add_text_col,
+                        11.0,
+                    );
+                    btn.label_styled_passive_wrapped(
+                        "AddComponentBtnText",
+                        "Add Component",
+                        WrappedLabelDescriptor::new(
+                            11.0,
+                            add_text_col,
+                            Style::new().height(footer_h),
+                        )
                         .align(TextAlign::Left)
                         .wrap(TextWrap::None),
-                );
-                if !params.is_add_menu_open {
-                    btn.set_hover_text_color(txt_id, Color::WHITE);
+                    );
+                } else {
+                    btn.icon_hover_named(
+                        "AddComponentPlusIcon",
+                        crate::ui::iris_bridge::icons::ICON_PLUS,
+                        add_text_col,
+                        Color::WHITE,
+                        11.0,
+                    );
+                    btn.label_styled_passive_wrapped(
+                        "AddComponentBtnText",
+                        "Add Component",
+                        WrappedLabelDescriptor::new(
+                            11.0,
+                            add_text_col,
+                            Style::new().height(footer_h),
+                        )
+                        .align(TextAlign::Left)
+                        .wrap(TextWrap::None)
+                        .hover_color(Color::WHITE),
+                    );
                 }
             },
         );
@@ -111,14 +131,14 @@ pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelPa
             WidgetRole::Button,
             TAG_INSPECTOR_SAVE_PREFAB,
             |btn| {
-                let txt_id = btn.label_styled_passive_wrapped(
+                btn.label_styled_passive_wrapped(
                     "SavePrefabBtnText",
                     "💾 Save as Prefab",
                     WrappedLabelDescriptor::new(11.0, save_text_col, Style::new().height(footer_h))
                         .align(TextAlign::Center)
-                        .wrap(TextWrap::None),
+                        .wrap(TextWrap::None)
+                        .hover_color(Color::WHITE),
                 );
-                btn.set_hover_text_color(txt_id, Color::WHITE);
             },
         );
     });

@@ -366,33 +366,41 @@ pub type PanelRenderDispatch<'a> = &'a mut dyn FnMut(&mut irisui::widgets::UiSco
 ///
 /// Encapsulates tab display metadata (icons, titles, closeability) and dispatches
 /// panel content rendering into the host leaf's [`irisui::widgets::UiScope`].
-pub struct PanelTabViewer<'a> {
-    render_dispatch: Option<PanelRenderDispatch<'a>>,
+pub struct PanelTabViewer<F = fn(&mut irisui::widgets::UiScope<'_>, &PanelId)> {
+    render_dispatch: Option<F>,
 }
 
-impl<'a> PanelTabViewer<'a> {
+impl PanelTabViewer<fn(&mut irisui::widgets::UiScope<'_>, &PanelId)> {
     /// Creates a default [`PanelTabViewer`] without an attached render dispatch closure.
     pub fn new() -> Self {
         Self {
             render_dispatch: None,
         }
     }
+}
 
+impl<F> PanelTabViewer<F>
+where
+    F: FnMut(&mut irisui::widgets::UiScope<'_>, &PanelId),
+{
     /// Creates a [`PanelTabViewer`] with an active render dispatch closure.
-    pub fn with_dispatch(dispatch: PanelRenderDispatch<'a>) -> Self {
+    pub fn with_dispatch(dispatch: F) -> Self {
         Self {
             render_dispatch: Some(dispatch),
         }
     }
 }
 
-impl Default for PanelTabViewer<'_> {
+impl Default for PanelTabViewer<fn(&mut irisui::widgets::UiScope<'_>, &PanelId)> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'a> irisui::dock::TabViewer<PanelId> for PanelTabViewer<'a> {
+impl<F> irisui::dock::TabViewer<PanelId> for PanelTabViewer<F>
+where
+    F: FnMut(&mut irisui::widgets::UiScope<'_>, &PanelId),
+{
     fn title(&self, tab: &PanelId) -> String {
         if tab.atlas_icon().is_some() {
             tab.title().to_string()

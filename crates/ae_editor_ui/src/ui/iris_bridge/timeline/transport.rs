@@ -19,6 +19,12 @@ pub const TRANSPORT_TOOLBAR_HEIGHT: f32 = 36.0;
 /// Available speed preset multipliers.
 pub const SPEED_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
 
+/// Persistent 64-bit semantic tag for the clip title badge container.
+pub const TIMELINE_TAG_CLIP_BADGE: u64 = 0x5449_4D45_4241_4447;
+
+/// Persistent 64-bit semantic tag for the time readout badge container.
+pub const TIMELINE_TAG_TIME_READOUT: u64 = 0x5449_4D45_5245_4144;
+
 /// Builds the transport controls toolbar at the top of the animation timeline panel.
 ///
 /// Emits declarative buttons, pills, dividers, and badges directly into [`UiScope`].
@@ -222,7 +228,7 @@ pub fn render_clip_badge(
     scope: &mut UiScope<'_>,
     clip_name: Option<&str>,
     style: &MediaTransportStyle,
-) -> WidgetId {
+) {
     let text = clip_name
         .map(|name| format!("🎬 {}", name))
         .unwrap_or_else(|| "🎬 No Clip".to_string());
@@ -241,12 +247,15 @@ pub fn render_clip_badge(
         .justify_content(JustifyContent::Center)
         .flex_shrink(0.0);
 
-    scope
-        .container_named("TimelineClipBadge", badge_style, |b| {
+    scope.container_tagged(
+        "TimelineClipBadge",
+        badge_style,
+        WidgetRole::Default,
+        TIMELINE_TAG_CLIP_BADGE,
+        |b| {
             b.label_custom(text, 10.0, style.clip_badge_text, TextAlign::Center);
-        })
-        .response
-        .id
+        },
+    );
 }
 
 /// Emits a timestamp and frame index readout display badge using declarative scope nesting.
@@ -256,7 +265,7 @@ pub fn render_time_readout(
     duration: f32,
     fps: f32,
     style: &MediaTransportStyle,
-) -> WidgetId {
+) {
     let cur_m = (current_time / 60.0).floor() as u32;
     let cur_s = current_time % 60.0;
     let dur_m = (duration / 60.0).floor() as u32;
@@ -284,12 +293,15 @@ pub fn render_time_readout(
         .justify_content(JustifyContent::Center)
         .flex_shrink(0.0);
 
-    scope
-        .container_named("TimelineTimeReadout", readout_style, |r| {
+    scope.container_tagged(
+        "TimelineTimeReadout",
+        readout_style,
+        WidgetRole::Default,
+        TIMELINE_TAG_TIME_READOUT,
+        |r| {
             r.label_custom(text, 9.5, style.time_readout_color, TextAlign::Center);
-        })
-        .response
-        .id
+        },
+    );
 }
 
 #[cfg(test)]
@@ -329,7 +341,7 @@ mod tests {
 
         let style = MediaTransportStyle::dark_default();
 
-        let (btn_id, pill_id, loop_id, badge_id, readout_id) = {
+        let (btn_id, pill_id, loop_id) = {
             let mut scope = UiScope::new(&mut tree, root);
 
             let btn_resp = render_transport_button(
@@ -347,17 +359,18 @@ mod tests {
 
             let loop_resp = render_loop_pill(&mut scope, true, TIMELINE_TAG_LOOP, &style);
 
-            let badge_id = render_clip_badge(&mut scope, Some("WalkCycle"), &style);
-            let readout_id = render_time_readout(&mut scope, 1.25, 4.0, 30.0, &style);
+            render_clip_badge(&mut scope, Some("WalkCycle"), &style);
+            render_time_readout(&mut scope, 1.25, 4.0, 30.0, &style);
 
-            (
-                btn_resp.id,
-                pill_resp.id,
-                loop_resp.id,
-                badge_id,
-                readout_id,
-            )
+            (btn_resp.id, pill_resp.id, loop_resp.id)
         };
+
+        let badge_id = tree
+            .find_node_by_tag(TIMELINE_TAG_CLIP_BADGE)
+            .expect("Badge node must exist");
+        let readout_id = tree
+            .find_node_by_tag(TIMELINE_TAG_TIME_READOUT)
+            .expect("Readout node must exist");
 
         assert!(tree.get(btn_id).is_some());
         assert!(tree.get(pill_id).is_some());

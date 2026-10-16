@@ -173,7 +173,8 @@ fn test_declarative_split_label_id_rendering() {
         let res1 = scope.property_checkbox("Scale##entity_1", &mut scale1);
         let res2 = scope.property_checkbox("Scale##entity_2", &mut scale2);
 
-        assert_ne!(res1.id, res2.id);
+        let (id1, id2) = (res1.id, res2.id);
+        assert_ne!(id1, id2);
     }
 
     // Inspect the generated text node inside property rows

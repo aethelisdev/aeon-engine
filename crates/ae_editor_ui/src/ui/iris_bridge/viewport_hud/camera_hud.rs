@@ -14,7 +14,7 @@ use irisui::prelude::*;
 ///
 /// Configured using [`Style::position_absolute`], [`Style::right`], and [`Style::bottom`]
 /// without manual coordinate calculations.
-pub fn build_camera_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportHudParams<'_>) {
+pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     let p = params.camera.position;
     let pos_text = format!("Pos: {:.1}, {:.1}, {:.1}", p.x, p.y, p.z);
     let pitch_deg = params.camera.pitch.0.to_degrees();
@@ -38,7 +38,6 @@ pub fn build_camera_hud(tree: &mut UiTree, parent_id: WidgetId, params: &Viewpor
         .border(1.0, Color::rgba(0.24, 0.28, 0.38, 0.50))
         .border_radius(4.0);
 
-    let mut scope = UiScope::new(tree, parent_id);
     scope.container_named("CameraHudPill", pill_style, |pill| {
         pill.label_custom(
             full_text,

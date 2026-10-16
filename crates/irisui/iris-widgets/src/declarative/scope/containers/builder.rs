@@ -379,23 +379,27 @@ mod tests {
     fn test_row_builder_fluent_chaining() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
+        let (resp, row_id) = {
+            let mut scope = UiScope::new(&mut tree, root);
 
-        let resp = scope
-            .row_with()
-            .name("CustomHeaderRow")
-            .gap(8.0)
-            .height(32.0)
-            .padding(4.0)
-            .centered()
-            .show(|row| {
-                row.label("Item 1");
-                row.label("Item 2");
-                42
-            });
+            let resp = scope
+                .row_with()
+                .name("CustomHeaderRow")
+                .gap(8.0)
+                .height(32.0)
+                .padding(4.0)
+                .centered()
+                .show(|row| {
+                    row.label("Item 1");
+                    row.label("Item 2");
+                    42
+                });
+            let rid = resp.response.id;
+            (resp, rid)
+        };
 
         assert_eq!(resp.inner, 42);
-        let node = tree.get(resp.response.id).expect("Row node exists");
+        let node = tree.get(row_id).expect("Row node exists");
         assert_eq!(node.name.as_deref(), Some("CustomHeaderRow"));
         assert_eq!(node.style.gap, 8.0);
         assert_eq!(node.style.height, Some(32.0));
@@ -406,24 +410,27 @@ mod tests {
     fn test_column_builder_fluent_chaining() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
-
-        let resp = scope
-            .column_with()
-            .name("SidebarCol")
-            .width(200.0)
-            .gap(12.0)
-            .flex_grow(1.0)
-            .space_between()
-            .show(|col| {
-                col.label("Header");
-                col.spacer_px(16.0);
-                col.label("Footer");
-                "SidebarContent"
-            });
+        let (resp, col_id) = {
+            let mut scope = UiScope::new(&mut tree, root);
+            let resp = scope
+                .column_with()
+                .name("SidebarCol")
+                .width(200.0)
+                .gap(12.0)
+                .flex_grow(1.0)
+                .space_between()
+                .show(|col| {
+                    col.label("Header");
+                    col.spacer_px(16.0);
+                    col.label("Footer");
+                    "SidebarContent"
+                });
+            let col_id = resp.response.id;
+            (resp, col_id)
+        };
 
         assert_eq!(resp.inner, "SidebarContent");
-        let node = tree.get(resp.response.id).expect("Column node exists");
+        let node = tree.get(col_id).expect("Column node exists");
         assert_eq!(node.name.as_deref(), Some("SidebarCol"));
         assert_eq!(node.style.width, Some(200.0));
         assert_eq!(node.style.gap, 12.0);
@@ -452,7 +459,9 @@ mod tests {
                 .border_themed(2.0, |t| t.card_border)
                 .show(|_| ());
 
-            (row_resp.response.id, col_resp.response.id)
+            let r_id = row_resp.response.id;
+            let c_id = col_resp.response.id;
+            (r_id, c_id)
         };
 
         let node = tree.get(row_id).expect("Row node exists");

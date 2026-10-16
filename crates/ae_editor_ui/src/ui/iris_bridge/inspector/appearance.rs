@@ -354,7 +354,7 @@ fn render_palette_swatches(
     scope: &mut UiScope<'_>,
     saved_swatches: &[[f32; 4]],
     _cursor_pos: Point,
-) -> Vec<(usize, WidgetId, Color)> {
+) {
     let swatch_size = 16.0;
     let swatch_gap = 6.0;
 
@@ -363,8 +363,6 @@ fn render_palette_swatches(
         .flex_wrap(FlexWrap::Wrap)
         .align_items(AlignItems::Center)
         .gap(swatch_gap);
-
-    let mut swatch_nodes = Vec::with_capacity(7 + saved_swatches.len());
 
     scope.container_named("PaletteSwatches", container_style, |wrap_scope| {
         for (idx, &col) in DEFAULT_PALETTE.iter().enumerate() {
@@ -381,14 +379,11 @@ fn render_palette_swatches(
                 .background(col)
                 .border(1.0, border_col)
                 .border_radius(3.0);
-            let sw_id = wrap_scope
-                .add(
-                    EmptyBox::new("PaletteSwatch", sw_style)
-                        .role(WidgetRole::Button)
-                        .tag(tag),
-                )
-                .id;
-            swatch_nodes.push((idx, sw_id, col));
+            wrap_scope.add(
+                EmptyBox::new("PaletteSwatch", sw_style)
+                    .role(WidgetRole::Button)
+                    .tag(tag),
+            );
         }
 
         for (custom_idx, &s) in saved_swatches.iter().enumerate() {
@@ -407,18 +402,13 @@ fn render_palette_swatches(
                 .background(col)
                 .border(1.0, border_col)
                 .border_radius(3.0);
-            let sw_id = wrap_scope
-                .add(
-                    EmptyBox::new("PaletteSwatch", sw_style)
-                        .role(WidgetRole::Button)
-                        .tag(tag),
-                )
-                .id;
-            swatch_nodes.push((global_idx, sw_id, col));
+            wrap_scope.add(
+                EmptyBox::new("PaletteSwatch", sw_style)
+                    .role(WidgetRole::Button)
+                    .tag(tag),
+            );
         }
     });
-
-    swatch_nodes
 }
 
 #[cfg(test)]
@@ -489,17 +479,13 @@ mod tests {
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 280.0);
 
         let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        let root = scope.container_named(
+        scope.container_rect(
             "TestContainer",
             Style::new().width(280.0).height(300.0),
+            Rect::new(10.0, 20.0, 280.0, 300.0),
             |card_scope| {
                 build_appearance_card(card_scope, &mut ctx);
             },
-        );
-        layout_subtree(
-            &mut tree,
-            root.response.id,
-            Rect::new(10.0, 20.0, 280.0, 300.0),
         );
 
         let has_swatch = tree

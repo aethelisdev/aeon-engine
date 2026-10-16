@@ -63,11 +63,7 @@ pub fn append_compass_quads(command_list: &mut DrawCommandList, rect: Rect, pitc
 /// Anchored via [`Style::position_absolute`], [`Style::right`], and [`Style::top`].
 /// Emits a single canvas node for custom hardware line rendering, and 6 interactive
 /// knob nodes tagged with semantic IDs [`TAG_COMPASS_POS_X`]..=[`TAG_COMPASS_NEG_Z`].
-pub fn build_scene_navigation_compass(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &ViewportHudParams<'_>,
-) {
+pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     let radius = 28.0;
     let total_radius = radius + 8.0; // 36px radius = 72px diameter
     let compass_size = total_radius * 2.0;
@@ -91,7 +87,6 @@ pub fn build_scene_navigation_compass(
         radius,
     );
 
-    let mut scope = UiScope::new(tree, parent_id);
     scope.container_tagged(
         "SceneNavCompass",
         canvas_style,
@@ -187,7 +182,7 @@ mod tests {
             is_2d: false,
         };
 
-        build_scene_navigation_compass(&mut tree, root, &params);
+        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &params);
 
         // Verify that NOT A SINGLE fake "AxisLineDot" node was created
         let mut names = Vec::new();
@@ -236,7 +231,7 @@ mod tests {
             is_2d: false,
         };
 
-        build_scene_navigation_compass(&mut tree, root, &params);
+        build_scene_navigation_compass(&mut UiScope::new(&mut tree, root), &params);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
         assert!(tags.contains(&TAG_COMPASS_CANVAS));

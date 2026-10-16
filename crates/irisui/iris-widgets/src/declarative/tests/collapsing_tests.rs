@@ -32,8 +32,9 @@ fn test_declarative_collapsing_default_closed_and_toggle() {
         );
         assert!(!body_executed, "Body closure must NOT execute when closed");
 
-        let tag = scope.tree().get(res.header_response().id()).unwrap().tag;
-        (res.header_response().id(), tag)
+        let header_id = res.header_response().id;
+        let tag = scope.tree().get(header_id).unwrap().tag;
+        (header_id, tag)
     };
 
     // Verify chevron arrow text is collapsed ▶
@@ -75,7 +76,7 @@ fn test_declarative_collapsing_default_closed_and_toggle() {
         assert!(body_executed, "Body closure MUST execute when open");
         assert!(res.body().is_some(), "Body response must be populated");
 
-        let h_id = res.header_response().id();
+        let h_id = res.header_response().id;
         let b_id = scope.tree().get(scope.parent).unwrap().children[1];
         (h_id, b_id)
     };
@@ -107,7 +108,7 @@ fn test_declarative_collapsing_default_closed_and_toggle() {
         assert!(!res.clicked(), "Header was not clicked on idle frame");
         assert!(res.is_open(), "Section must REMAIN open persistently");
         assert!(body_executed, "Body closure must continue executing");
-        res.header_response().id()
+        res.header_response().id
     };
 
     // 5. Fourth frame: Click again to collapse
@@ -183,7 +184,7 @@ fn test_declarative_collapsing_builder_customization() {
         });
 
     assert!(res.is_open());
-    let header_id = res.header_response().id();
+    let header_id = res.header_response().id;
     assert_eq!(res.into_inner(), Some(42));
 
     // Verify custom tag was assigned to header

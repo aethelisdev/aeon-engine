@@ -55,8 +55,7 @@ fn test_assets_panel_declarative_toolbar_and_chip_actions() {
     // 1. Initial build: constructs the tree and registers tags
     let mut actions = Vec::new();
     let _metrics = build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions,
@@ -103,8 +102,7 @@ fn test_assets_panel_declarative_toolbar_and_chip_actions() {
     params_clicked.cursor_pos = click_pos;
 
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params_clicked,
         &mut TreeState::default(),
         &mut click_actions,
@@ -168,8 +166,7 @@ fn test_assets_panel_declarative_card_selection_action() {
     // 1. Initial build: constructs the card
     let mut actions = Vec::new();
     let _metrics = build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut TreeState::default(),
         &mut actions,
@@ -204,8 +201,7 @@ fn test_assets_panel_declarative_card_selection_action() {
     params_clicked.cursor_pos = click_pos;
 
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params_clicked,
         &mut TreeState::default(),
         &mut select_actions,
@@ -270,7 +266,12 @@ fn test_assets_card_declarative_context_menu_interaction() {
     // 1. Initial build: render card
     let mut actions = Vec::new();
     let mut tree_state = TreeState::default();
-    build_assets_panel(&mut tree, root_id, &params, &mut tree_state, &mut actions);
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut TreeState::default(),
+        &mut actions,
+    );
 
     let card_tag = encode_item_tag(0);
     let mut card_rect = None;
@@ -296,8 +297,7 @@ fn test_assets_card_declarative_context_menu_interaction() {
     // 3. Rebuild: context menu should be open and rendered in UiLayer::Popup
     let mut right_click_actions = Vec::new();
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut tree_state,
         &mut right_click_actions,
@@ -345,8 +345,7 @@ fn test_assets_card_declarative_context_menu_interaction() {
     // 5. Rebuild: must emit OpenInspectModal action
     let mut inspect_actions = Vec::new();
     build_assets_panel(
-        &mut tree,
-        root_id,
+        &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut tree_state,
         &mut inspect_actions,

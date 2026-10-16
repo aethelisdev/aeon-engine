@@ -19,14 +19,11 @@ use irisui::prelude::*;
 
 /// Assembles the complete 2D Visual UI Designer panel tree in native Iris UI.
 pub fn build_ui_designer_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &UiDesignerPanelParams<'_>,
     out_contexts: &mut Vec<UiElementDragContext>,
 ) -> UiDesignerCanvasMetrics {
     out_contexts.clear();
-
-    let mut scope = UiScope::new(tree, parent_id);
 
     let canvas_metrics = scope
         .panel("UiDesignerPanelRoot")
@@ -45,7 +42,7 @@ pub fn build_ui_designer_panel(
         .inner;
 
     // ── 4. Dropdown Popups (Rendered on top in UiLayer::Popup via UiScope) ────
-    build_ui_designer_overlays(&mut scope, params);
+    build_ui_designer_overlays(scope, params);
 
     canvas_metrics
 }

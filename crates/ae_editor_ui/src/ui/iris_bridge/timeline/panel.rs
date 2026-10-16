@@ -22,14 +22,11 @@ use irisui::prelude::*;
 ///
 /// Returns the resolved clip duration in seconds.
 pub fn build_timeline_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &TimelinePanelParams<'_>,
     actions: &mut Vec<TimelineAction>,
 ) -> f32 {
     let mut resolved_duration = 0.0;
-
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, params.events, None);
 
     scope
         .panel("AnimationTimelinePanelRoot")

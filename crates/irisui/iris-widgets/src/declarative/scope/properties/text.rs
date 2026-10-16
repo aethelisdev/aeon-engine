@@ -174,59 +174,61 @@ impl<'a> UiScope<'a> {
                 Color::rgba(0.886, 0.894, 0.918, 1.0)
             };
 
-            let box_resp = slot.container_tagged(
-                box_name,
-                box_style,
-                WidgetRole::TextInput,
-                tag,
-                |box_scope| {
-                    let selection_range = options.selection.or({
-                        if options.is_all_selected && !value.is_empty() {
-                            Some((0, value.len()))
-                        } else {
-                            None
-                        }
-                    });
-                    if options.is_editing
-                        && let Some((start_byte, end_byte)) = selection_range
-                        && !value.is_empty()
-                    {
-                        let approx_char_w = 6.8;
-                        let start_char_idx = value[..start_byte.min(value.len())].chars().count();
-                        let end_char_idx = value[..end_byte.min(value.len())].chars().count();
-                        let sel_start = start_char_idx.min(end_char_idx);
-                        let sel_count = end_char_idx.saturating_sub(sel_start).max(1);
-                        let sel_x = 6.0 + sel_start as f32 * approx_char_w;
-                        let sel_w = sel_count as f32 * approx_char_w + 2.0;
-                        let sel_name = format!("{}_Sel", sanitized_label);
-                        let sel_style = Style::new()
-                            .position_absolute()
-                            .left(sel_x)
-                            .top(3.5)
-                            .width(sel_w)
-                            .height(17.0)
-                            .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                            .border_radius(3.0);
-                        box_scope.empty_box_passive_named(sel_name, sel_style);
-                    }
-
-                    box_scope.label_styled_passive(
-                        text_name,
-                        display_text,
-                        11.5,
-                        text_color,
-                        TextAlign::Left,
-                        Style::new().flex_grow(1.0),
-                    )
-                },
-            );
-
-            let box_id = box_resp.response.id;
-            let captured_text_id = box_resp.inner;
-
+            let box_id = slot.tree.create_node();
             if let Some(node) = slot.tree.get_mut(box_id) {
+                node.set_name(box_name);
+                node.role = WidgetRole::TextInput;
+                node.tag = tag;
+                node.interactive = true;
                 node.cursor = Some(WidgetCursor::Text);
+                node.set_style(box_style);
             }
+            let _ = slot.tree.add_child(slot.parent, box_id);
+
+            let mut box_scope = slot.child_scope(box_id);
+            let selection_range = options.selection.or({
+                if options.is_all_selected && !value.is_empty() {
+                    Some((0, value.len()))
+                } else {
+                    None
+                }
+            });
+            if options.is_editing
+                && let Some((start_byte, end_byte)) = selection_range
+                && !value.is_empty()
+            {
+                let approx_char_w = 6.8;
+                let start_char_idx = value[..start_byte.min(value.len())].chars().count();
+                let end_char_idx = value[..end_byte.min(value.len())].chars().count();
+                let sel_start = start_char_idx.min(end_char_idx);
+                let sel_count = end_char_idx.saturating_sub(sel_start).max(1);
+                let sel_x = 6.0 + sel_start as f32 * approx_char_w;
+                let sel_w = sel_count as f32 * approx_char_w + 2.0;
+                let sel_name = format!("{}_Sel", sanitized_label);
+                let sel_style = Style::new()
+                    .position_absolute()
+                    .left(sel_x)
+                    .top(3.5)
+                    .width(sel_w)
+                    .height(17.0)
+                    .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                    .border_radius(3.0);
+                box_scope.empty_box_passive_named(sel_name, sel_style);
+            }
+
+            let text_id = box_scope.tree.create_node();
+            if let Some(node) = box_scope.tree.get_mut(text_id) {
+                node.role = iris_core::WidgetRole::Default;
+                node.set_name(text_name);
+                node.set_text(display_text);
+                node.font_size = 11.5;
+                node.line_height = 15.0;
+                node.text_color = text_color;
+                node.text_align = TextAlign::Left;
+                node.set_style(Style::new().flex_grow(1.0));
+            }
+            let _ = box_scope.tree.add_child(box_scope.parent, text_id);
+            let captured_text_id = text_id;
 
             let (clicked, hovered, _) = slot.check_interaction(box_id);
 
@@ -237,8 +239,9 @@ impl<'a> UiScope<'a> {
             };
         });
 
-        if text_response.response.id == WidgetId::default() {
-            text_response.response.id = row_id;
+        if text_response.box_id == WidgetId::default() {
+            text_response.box_id = row_id;
+            text_response.response = self.response(row_id);
         }
         text_response
     }
@@ -275,11 +278,7 @@ mod tests {
         assert_eq!(text_node.text.as_deref(), Some("TestEntity"));
 
         // Layout subtree and verify geometry computation
-        crate::declarative::layout_subtree(
-            scope.tree_mut(),
-            root,
-            Rect::new(0.0, 0.0, 300.0, 50.0),
-        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 50.0));
 
         let box_rect = scope.tree().get(resp.box_id).unwrap().computed_rect;
         assert!(box_rect.width > 100.0, "Box width must flex-expand");
@@ -338,11 +337,7 @@ mod tests {
             Color::rgba(0.14, 0.46, 0.88, 0.95)
         );
 
-        crate::declarative::layout_subtree(
-            scope.tree_mut(),
-            root,
-            Rect::new(0.0, 0.0, 300.0, 50.0),
-        );
+        scope.finish_layout(Rect::new(0.0, 0.0, 300.0, 50.0));
         let sel_node_after = scope
             .tree()
             .get(sel_id)

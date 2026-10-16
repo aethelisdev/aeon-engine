@@ -429,23 +429,22 @@ mod tests {
         let thumb_tag = 0xAA03;
 
         // Construct container with children via UiScope
-        let (_cid, ch1) = {
+        let _cid = {
             let mut scope = crate::declarative::UiScope::new(&mut tree, root);
-            let mut child_id = None;
             let c = scope.container_tagged(
                 "TestScrollContainer",
                 Style::new().width(200.0).height(200.0).flex_col(),
                 iris_core::WidgetRole::Default,
                 container_tag,
                 |s| {
-                    child_id = Some(
-                        s.empty_box_passive_named("Child1", Style::new().width(200.0).height(60.0)),
-                    );
+                    s.empty_box_passive_named("Child1", Style::new().width(200.0).height(60.0));
                 },
             );
             scope.finish_layout(Rect::new(0.0, 0.0, 200.0, 200.0));
-            (c, child_id.unwrap())
+            c
         };
+
+        let ch1 = tree.find_node_by_name("Child1").expect("Child1 must exist");
 
         // Construct track and thumb
         let trk = tree.create_node();

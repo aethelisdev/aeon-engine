@@ -49,10 +49,7 @@ fn test_stats_panel_state_take_actions() {
 #[test]
 fn test_build_stats_panel_declarative_structure() {
     let mut tree = UiTree::new();
-    let root = {
-        let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        scope.empty_box(Style::new())
-    };
+    let root = tree.create_root().expect("root must exist");
 
     let ring = FrameRingBuffer::<240>::new();
     let pacing_stats = FramePacingStats::default();
@@ -84,7 +81,7 @@ fn test_build_stats_panel_declarative_structure() {
     };
 
     let mut actions = Vec::new();
-    let max_scroll = build_stats_panel(&mut tree, root, &params, &mut actions);
+    let max_scroll = build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
     assert!(max_scroll >= 0.0);
 
     // Verify nodes exist with semantic tags
@@ -115,10 +112,7 @@ fn test_build_stats_panel_declarative_structure() {
 #[test]
 fn test_checkbox_children_resolve_ancestor_tag() {
     let mut tree = UiTree::new();
-    let root = {
-        let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        scope.empty_box(Style::new())
-    };
+    let root = tree.create_root().expect("root must exist");
 
     let ring = FrameRingBuffer::<240>::new();
     let pacing_stats = FramePacingStats::default();
@@ -150,7 +144,7 @@ fn test_checkbox_children_resolve_ancestor_tag() {
     };
 
     let mut actions = Vec::new();
-    build_stats_panel(&mut tree, root, &params, &mut actions);
+    build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     // Find the wireframe checkbox and verify it carries the semantic tag and role
     let mut box_nodes_with_tag = 0;
@@ -184,10 +178,7 @@ fn test_stats_panel_state_ring_buffer_snapshot() {
 #[test]
 fn test_stats_panel_declarative_action_generation() {
     let mut tree = UiTree::new();
-    let root = {
-        let mut scope = UiScope::new(&mut tree, WidgetId::default());
-        scope.empty_box(Style::new())
-    };
+    let root = tree.create_root().expect("root must exist");
 
     let ring = FrameRingBuffer::<240>::new();
     let pacing_stats = FramePacingStats::default();
@@ -219,7 +210,7 @@ fn test_stats_panel_declarative_action_generation() {
     };
 
     let mut actions = Vec::new();
-    build_stats_panel(&mut tree, root, &params, &mut actions);
+    build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     // Initial build without clicks produces zero actions
     assert!(actions.is_empty());
@@ -228,7 +219,11 @@ fn test_stats_panel_declarative_action_generation() {
     tree.event_state.frame_clicked_tag = Some(STATS_TAG_TOGGLE_WIREFRAME);
 
     let mut clicked_actions = Vec::new();
-    build_stats_panel(&mut tree, root, &params, &mut clicked_actions);
+    build_stats_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut clicked_actions,
+    );
 
     assert_eq!(clicked_actions.len(), 1);
     assert_eq!(clicked_actions[0], StatsPanelAction::ToggleWireframe);

@@ -46,7 +46,8 @@ fn test_ui_designer_panel_build() {
     };
 
     let mut contexts = Vec::new();
-    let metrics = build_ui_designer_panel(&mut tree, root, &params, &mut contexts);
+    let metrics =
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
 
     assert_eq!(metrics.panel_rect, panel_rect);
     assert!(metrics.canvas_rect.width > 0.0);
@@ -129,7 +130,8 @@ fn test_ui_designer_canvas_projection() {
     };
 
     let mut contexts = Vec::new();
-    let metrics = build_ui_designer_panel(&mut tree, root, &params, &mut contexts);
+    let metrics =
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
 
     assert_eq!(contexts.len(), 1);
     let found = &contexts[0];
@@ -167,7 +169,8 @@ fn test_ui_designer_click_hit_testing() {
     };
 
     let mut contexts = Vec::new();
-    let metrics = build_ui_designer_panel(&mut tree, root, &params, &mut contexts);
+    let metrics =
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
     assert_eq!(contexts.len(), 1);
 
     // Click on aspect ratio button via tag
@@ -337,7 +340,8 @@ fn test_ui_designer_toolbar_tags() {
     };
 
     let mut contexts = Vec::new();
-    let _metrics = build_ui_designer_panel(&mut tree, root, &params, &mut contexts);
+    let _metrics =
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
 
     // Verify all toolbar controls have been created with their designated 64-bit tags
     let required_tags = [
@@ -401,7 +405,11 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
         is_aspect_dropdown_open: false,
         is_add_menu_open: true,
     };
-    let metrics = build_ui_designer_panel(&mut tree, root, &params_selected, &mut contexts);
+    let metrics = build_ui_designer_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params_selected,
+        &mut contexts,
+    );
 
     // 1. Verify AddElementPopup is anchored to the Add Element button's computed rect
     let add_btn = tree
@@ -475,7 +483,8 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
     };
 
     let mut contexts = Vec::new();
-    let _metrics = build_ui_designer_panel(&mut tree, root, &params, &mut contexts);
+    let _metrics =
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
 
     // Verify target dropdown item exists and has active hover styling
     let (_, item_node) = tree

@@ -33,8 +33,8 @@ impl<'a> UiScope<'a> {
         let theme = self.tree.theme();
         let card_style = Style::new()
             .flex_col()
-            .background(theme.panel_bg)
-            .border(1.0, theme.card_bg)
+            .background(theme.card_bg)
+            .border(1.0, theme.card_border)
             .border_radius(6.0)
             .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
             .gap(4.0);
@@ -75,8 +75,8 @@ impl<'a> UiScope<'a> {
         let theme = self.tree.theme();
         let card_style = Style::new()
             .flex_col()
-            .background(theme.panel_bg)
-            .border(1.0, theme.card_bg)
+            .background(theme.card_bg)
+            .border(1.0, theme.card_border)
             .border_radius(6.0)
             .padding_insets(Insets::new(6.0, 8.0, 6.0, 8.0))
             .gap(4.0);
@@ -111,7 +111,7 @@ impl<'a> UiScope<'a> {
         let theme = self.tree.theme();
         let card_style = Style::new()
             .flex_col()
-            .background(theme.panel_bg)
+            .background(theme.card_bg)
             .border(1.0, theme.card_border)
             .border_radius(6.0)
             .padding(8.0)

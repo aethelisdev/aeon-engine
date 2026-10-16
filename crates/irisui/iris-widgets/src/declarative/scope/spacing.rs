@@ -11,7 +11,7 @@
 //!
 
 use super::core::UiScope;
-use iris_core::{Color, FlexDirection, Style, WidgetId, WidgetRole};
+use iris_core::{Color, FlexDirection, Style, WidgetRole};
 
 impl<'a> UiScope<'a> {
     /// Emits a passive layout spacing element of the specified size in logical pixels.
@@ -21,8 +21,8 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `px` - Spacing gap extent in logical pixels.
-    pub fn spacing(&mut self, px: f32) -> WidgetId {
-        self.spacing_named("Spacing", px)
+    pub fn spacing(&mut self, px: f32) {
+        self.spacing_named("Spacing", px);
     }
 
     /// Emits a passive layout spacing element with a custom node name for debugging and tree inspection.
@@ -30,7 +30,7 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `name` - Descriptive debug identifier for the UI node.
     /// * `px` - Spacing gap extent in logical pixels.
-    pub fn spacing_named(&mut self, name: impl Into<String>, px: f32) -> WidgetId {
+    pub fn spacing_named(&mut self, name: impl Into<String>, px: f32) {
         let is_row = self
             .tree
             .get(self.parent)
@@ -42,13 +42,14 @@ impl<'a> UiScope<'a> {
         } else {
             Style::new().width(1.0).height(px)
         };
-        self.empty_box_passive_named(name, style)
+        self.empty_box_passive_named(name, style);
     }
 
     /// Emits a horizontal divider separator line.
-    pub fn separator(&mut self) -> WidgetId {
+    pub fn separator(&mut self) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name("Separator");
             node.role = WidgetRole::Separator;
             node.set_style(
                 Style::new()
@@ -57,20 +58,18 @@ impl<'a> UiScope<'a> {
             );
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a styled leaf element (empty container node without child scopes, e.g. solid box or backdrop).
     ///
     /// # Arguments
     /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    pub fn empty_box(&mut self, style: Style) -> WidgetId {
+    pub fn empty_box(&mut self, style: Style) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_style(style);
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a styled leaf element with `interactive = false` so it does not intercept hit-testing.
@@ -79,14 +78,13 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `style` - Visual bounds and styling properties applied to the passive leaf node.
-    pub fn empty_box_passive(&mut self, style: Style) -> WidgetId {
+    pub fn empty_box_passive(&mut self, style: Style) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = false;
             node.set_style(style);
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a named, non-interactive leaf box node with custom styling.
@@ -97,7 +95,7 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `name` - Descriptive name of the widget node for tree debugging.
     /// * `style` - Visual bounds and styling properties applied to the leaf node.
-    pub fn empty_box_passive_named(&mut self, name: impl Into<String>, style: Style) -> WidgetId {
+    pub fn empty_box_passive_named(&mut self, name: impl Into<String>, style: Style) {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name(name);
@@ -105,16 +103,15 @@ impl<'a> UiScope<'a> {
             node.set_style(style);
         }
         let _ = self.tree.add_child(self.parent, node_id);
-        node_id
     }
 
     /// Emits a 1-pixel horizontal rule divider container with a custom color.
     ///
     /// # Arguments
     /// * `color` - RGBA color of the divider line.
-    pub fn divider(&mut self, color: Color) -> WidgetId {
+    pub fn divider(&mut self, color: Color) {
         let div_style = Style::new().background(color).height(1.0);
-        self.empty_box(div_style)
+        self.empty_box(div_style);
     }
 
     /// Emits a 1-pixel vertical divider container with custom height and color.
@@ -122,14 +119,14 @@ impl<'a> UiScope<'a> {
     /// # Arguments
     /// * `height` - Explicit vertical height of the divider line.
     /// * `color` - RGBA color of the divider line.
-    pub fn vertical_divider(&mut self, height: f32, color: Color) -> WidgetId {
+    pub fn vertical_divider(&mut self, height: f32, color: Color) {
         let div_style = Style::new().background(color).width(1.0).height(height);
-        self.empty_box(div_style)
+        self.empty_box(div_style);
     }
 
     /// Emits an empty flex-grow spacer node to expand and push subsequent items.
-    pub fn spacer(&mut self) -> WidgetId {
-        self.empty_box(Style::new().flex_grow(1.0))
+    pub fn spacer(&mut self) {
+        self.empty_box(Style::new().flex_grow(1.0));
     }
 
     /// Emits a fixed-size empty spacing element of the specified extent in physical pixels.
@@ -139,7 +136,7 @@ impl<'a> UiScope<'a> {
     ///
     /// # Arguments
     /// * `size` - Fixed spacing extent in physical pixels.
-    pub fn spacer_px(&mut self, size: f32) -> WidgetId {
-        self.spacing_named("SpacerPx", size)
+    pub fn spacer_px(&mut self, size: f32) {
+        self.spacing_named("SpacerPx", size);
     }
 }

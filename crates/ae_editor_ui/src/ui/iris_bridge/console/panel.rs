@@ -23,8 +23,7 @@ pub const CONSOLE_TOOLBAR_HEIGHT: f32 = 34.0;
 ///
 /// Uses pure declarative [`UiScope`] containers (`panel_tagged`, `toolbar_tagged`, `scroll_area_tagged`).
 pub fn build_console_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &ConsolePanelParams<'_>,
     actions: &mut Vec<ConsoleAction>,
 ) {
@@ -50,8 +49,6 @@ pub fn build_console_panel(
     );
 
     // 2. Panel Base Container via declarative UiScope
-    let mut scope = UiScope::new(tree, parent_id);
-
     scope
         .panel("ConsolePanelRoot")
         .tagged(CONSOLE_TAG_PANEL_ROOT)

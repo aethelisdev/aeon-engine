@@ -367,7 +367,19 @@ impl<'a> UiScope<'a> {
                 .hover_border(config.style.border_width, config.style.hover_border);
         }
 
-        let resp = self.container_tagged(name, row_style, WidgetRole::Button, props.tag, |row_s| {
+        let row_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(row_id) {
+            node.set_name(name);
+            node.set_style(row_style);
+            node.role = WidgetRole::Button;
+            node.tag = props.tag;
+            node.interactive = true;
+        }
+        let _ = self.tree.add_child(self.parent, row_id);
+
+        let foldout_id = {
+            let mut row_s = self.child_scope(row_id);
+
             // 0. Hierarchy Connector Lines (when depth > 0)
             if depth > 0 {
                 let line_color = config.indent.line_color;
@@ -408,39 +420,36 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center);
 
-                let fid = row_s
-                    .container_tagged(
-                        "TreeFoldoutButton",
-                        fold_style,
-                        WidgetRole::Button,
-                        props.foldout_tag,
-                        |fold_s| {
-                            let txt_id = fold_s.label_with_width(
-                                chevron_glyph,
-                                12.0,
-                                9.0,
-                                chevron_col,
-                                TextAlign::Center,
-                            );
-                            fold_s.set_hover_text_color(txt_id, config.style.chevron_hover_color);
-                        },
-                    )
-                    .response
-                    .id;
+                let fid = row_s.tree.create_node();
+                if let Some(node) = row_s.tree.get_mut(fid) {
+                    node.set_name("TreeFoldoutButton");
+                    node.set_style(fold_style);
+                    node.role = WidgetRole::Button;
+                    node.tag = props.foldout_tag;
+                    node.interactive = true;
+                }
+                let _ = row_s.tree.add_child(row_s.parent, fid);
+
+                let mut fold_s = row_s.child_scope(fid);
+                fold_s.label_styled_hover_passive(
+                    "TreeChevronText",
+                    chevron_glyph,
+                    9.0,
+                    (chevron_col, config.style.chevron_hover_color),
+                    TextAlign::Center,
+                    Style::new().width(12.0),
+                );
                 Some(fid)
             } else {
                 None
             };
 
             // 2. Custom Row Content (Icon, Label, Actions)
-            content(row_s);
+            content(&mut row_s);
             foldout_id
-        });
+        };
 
-        let row_id = resp.response.id;
-        let foldout_id = resp.inner;
-
-        let row_resp = resp.response;
+        let row_resp = self.response(row_id);
         let row_clicked = row_resp.clicked();
         let row_secondary_clicked = row_resp.secondary_clicked();
         let row_hovered = row_resp.hovered();

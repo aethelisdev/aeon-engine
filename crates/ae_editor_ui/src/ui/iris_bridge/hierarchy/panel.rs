@@ -17,14 +17,10 @@ use irisui::prelude::*;
 
 /// Builds the complete Scene Hierarchy panel tree purely using [`UiScope`].
 pub fn build_hierarchy_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     params: &HierarchyPanelParams<'_>,
     rows_cache: &mut Vec<HierarchyRow>,
 ) {
-    tree.set_cursor_position(params.cursor_pos);
-    let mut scope = UiScope::new(tree, parent_id);
-
     scope
         .panel("HierarchyPanelRoot")
         .tagged(HIERARCHY_TAG_PANEL_ROOT)

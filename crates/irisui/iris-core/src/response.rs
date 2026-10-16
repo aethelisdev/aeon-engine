@@ -108,6 +108,12 @@ impl WidgetResponse {
         }
     }
 
+    /// Returns the unique generational identifier of the widget node.
+    #[inline]
+    pub const fn id(&self) -> WidgetId {
+        self.id
+    }
+
     /// Attaches the cursor screen position recorded during this interaction.
     #[inline]
     pub const fn with_pointer_pos(mut self, pos: Option<Point>) -> Self {
@@ -121,12 +127,6 @@ impl WidgetResponse {
     #[inline]
     pub const fn interact_pointer_pos(&self) -> Option<Point> {
         self.pointer_pos
-    }
-
-    /// Returns the unique generational identifier of the widget node.
-    #[inline]
-    pub const fn id(&self) -> WidgetId {
-        self.id
     }
 
     /// Returns the absolute layout bounding box of the widget.
@@ -435,7 +435,7 @@ mod tests {
             ResponseFlags::CLICKED | ResponseFlags::HOVERED | ResponseFlags::DOUBLE_CLICKED,
         );
 
-        assert_eq!(resp.id(), id);
+        assert_eq!(resp.id, id);
         assert_eq!(resp.rect(), rect);
         assert!(resp.clicked());
         assert!(resp.hovered());
@@ -527,6 +527,6 @@ mod tests {
         assert!(!dragged);
         assert!(!changed);
         assert!(hovered);
-        assert_eq!(resp.id(), id);
+        assert_eq!(resp.id, id);
     }
 }

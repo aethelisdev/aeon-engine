@@ -14,9 +14,9 @@ fn test_declarative_scope_hierarchy() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root should be created");
 
-    let mut scope = UiScope::new(&mut tree, root);
-    let card_id = scope
-        .card("Transform", |card| {
+    let card_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.card("Transform", |card| {
             card.row(|row| {
                 row.text("Position");
                 row.drag_value(101, "X: ", 0.0);
@@ -24,9 +24,9 @@ fn test_declarative_scope_hierarchy() {
                 row.drag_value(103, "Z: ", 2.0);
             });
             let _ = card.button("Reset");
-        })
-        .response
-        .id;
+        });
+        resp.response.id
+    };
 
     assert!(tree.get(card_id).is_some());
     let root_node = tree.get(root).expect("Root node exists");
@@ -43,15 +43,15 @@ fn test_declarative_layout_subtree_rects() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root should be created");
 
-    let mut scope = UiScope::new(&mut tree, root);
-    let card_id = scope
-        .card("Properties", |card| {
+    let card_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.card("Properties", |card| {
             card.heading("Section 1");
             card.text("Label A");
             let _ = card.button("Action");
-        })
-        .response
-        .id;
+        });
+        resp.response.id
+    };
 
     let bounds = Rect::new(10.0, 20.0, 300.0, 400.0);
     layout_subtree(&mut tree, card_id, bounds);
@@ -159,12 +159,13 @@ fn test_declarative_drag_vec3_mutation() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut vec = [1.0_f32, 2.0_f32, 3.0_f32];
-    let vec_resp = {
+    let vec_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        scope.drag_vec3("Offset", &mut vec, 0.5)
+        let resp = scope.drag_vec3("Offset", &mut vec, 0.5);
+        resp.id
     };
 
-    assert!(tree.get(vec_resp.id).is_some());
+    assert!(tree.get(vec_id).is_some());
     assert_eq!(vec, [1.0, 2.0, 3.0]);
 }
 
@@ -174,28 +175,37 @@ fn test_declarative_label_customization() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut scope = UiScope::new(&mut tree, root);
-    let custom_id = scope.label_custom(
+    scope.label_custom(
         "Custom Title",
         20.0,
         iris_core::Color::rgba(0.0, 0.9, 1.0, 1.0),
         iris_core::TextAlign::Center,
     );
 
-    let standard_id = scope.label("Standard Label");
-    let heading_id = scope.heading("Heading Title");
+    scope.label("Standard Label");
+    scope.heading("Heading Title");
 
-    let node = tree.get(custom_id).expect("Custom label exists");
+    let node = tree
+        .find_node_by_text("Custom Title")
+        .and_then(|id| tree.get(id))
+        .expect("Custom label exists");
     assert_eq!(node.font_size, 20.0);
     assert_eq!(node.text_align, iris_core::TextAlign::Center);
     assert_eq!(node.text.as_deref(), Some("Custom Title"));
     assert_eq!(node.line_height, 26.0);
 
-    let std_node = tree.get(standard_id).expect("Standard label exists");
+    let std_node = tree
+        .find_node_by_text("Standard Label")
+        .and_then(|id| tree.get(id))
+        .expect("Standard label exists");
     assert_eq!(std_node.font_size, 11.5);
     assert_eq!(std_node.text_align, iris_core::TextAlign::Left);
     assert_eq!(std_node.text.as_deref(), Some("Standard Label"));
 
-    let head_node = tree.get(heading_id).expect("Heading exists");
+    let head_node = tree
+        .find_node_by_text("Heading Title")
+        .and_then(|id| tree.get(id))
+        .expect("Heading exists");
     assert_eq!(head_node.font_size, 13.5);
 }
 
@@ -205,21 +215,15 @@ fn test_declarative_key_value_and_number_formatting() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut scope = UiScope::new(&mut tree, root);
-    let kv_id = scope.key_value("Texture Format", "RGBA8 Unorm");
-    let size_id = scope.key_value_file_size("Texture Size", 2_500_000);
-    let num_id = scope.label_number(std::f64::consts::PI, 2);
-
-    assert!(tree.get(kv_id).is_some());
-    assert!(tree.get(size_id).is_some());
-    assert_eq!(
-        tree.get(num_id).expect("num_id exists").text.as_deref(),
-        Some("3.14")
-    );
+    scope.key_value("Texture Format", "RGBA8 Unorm");
+    scope.key_value_file_size("Texture Size", 2_500_000);
+    scope.label_number(std::f64::consts::PI, 2);
 
     assert!(tree.has_node_named("KeyValueLabel"));
     assert!(tree.has_node_named("KeyValueContent"));
     tree.assert_node_text("KeyValueLabel", "Texture Format");
     tree.assert_node_text("KeyValueContent", "RGBA8 Unorm");
+    assert!(tree.find_node_by_text("3.14").is_some());
 }
 
 #[test]
@@ -259,16 +263,17 @@ fn test_declarative_progress_bar_layout() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut scope = UiScope::new(&mut tree, root);
-    let mut bar_id = None;
     scope.column(|col| {
-        let id = col.progress_bar(0.75);
-        bar_id = Some(id);
+        col.progress_bar(0.75);
     });
 
     let bounds = Rect::new(0.0, 0.0, 200.0, 100.0);
     scope.finish_layout(bounds);
 
-    let id = bar_id.expect("Progress bar created");
+    let id = tree
+        .root()
+        .and_then(|r| tree.find_node_by_role_in_subtree(r, iris_core::WidgetRole::ProgressBar))
+        .expect("Progress bar created");
     let track_node = tree.get(id).expect("Track exists");
     assert_eq!(track_node.computed_rect.width, 200.0);
     assert_eq!(track_node.computed_rect.height, 4.0);
@@ -286,16 +291,17 @@ fn test_declarative_indeterminate_progress_layout() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut scope = UiScope::new(&mut tree, root);
-    let mut bar_id = None;
     scope.column(|col| {
-        let id = col.indeterminate_progress(0.5);
-        bar_id = Some(id);
+        col.indeterminate_progress(0.5);
     });
 
     let bounds = Rect::new(50.0, 100.0, 200.0, 100.0);
     scope.finish_layout(bounds);
 
-    let id = bar_id.expect("Indeterminate progress created");
+    let id = tree
+        .root()
+        .and_then(|r| tree.find_node_by_role_in_subtree(r, iris_core::WidgetRole::ProgressBar))
+        .expect("Indeterminate progress created");
     let track_node = tree.get(id).expect("Track exists");
     assert_eq!(track_node.computed_rect.x, 50.0);
     assert_eq!(track_node.computed_rect.width, 200.0);
@@ -323,26 +329,28 @@ fn test_declarative_modal_hierarchy_and_tags() {
     let card_w = 400.0;
     let card_h = 200.0;
 
-    let mut scope = UiScope::new(&mut tree, root);
-    let scrim_resp = scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.6), |scrim| {
-        let card_resp = scrim.modal_card(card_w, card_h, |card| {
-            card.row(|row| {
-                row.text("Title");
-                row.modal_close_button();
+    let (scrim_resp, scrim_id) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.modal_scrim(Color::rgba(0.0, 0.0, 0.0, 0.6), |scrim| {
+            let card_resp = scrim.modal_card(card_w, card_h, |card| {
+                card.row(|row| {
+                    row.text("Title");
+                    row.modal_close_button();
+                });
+                card.column(|col| {
+                    col.text("Content line");
+                });
+                card.row(|footer| {
+                    footer.modal_cancel_button("Cancel", 80.0);
+                    footer.modal_confirm_button("OK", 80.0);
+                });
             });
-            card.column(|col| {
-                col.text("Content line");
-            });
-            card.row(|footer| {
-                footer.modal_cancel_button("Cancel", 80.0);
-                footer.modal_confirm_button("OK", 80.0);
-            });
+            scrim.finish_layout(Rect::new(0.0, 0.0, screen_w, screen_h));
+            card_resp.response.id
         });
-        scrim.finish_layout(Rect::new(0.0, 0.0, screen_w, screen_h));
-        card_resp.response.id
-    });
-
-    let scrim_id = scrim_resp.response.id;
+        let sid = resp.response.id;
+        (resp, sid)
+    };
     let scrim_node = tree.get(scrim_id).expect("Scrim node exists");
     assert_eq!(scrim_node.tag, MODAL_TAG_SCRIM);
     assert_eq!(scrim_node.role, WidgetRole::ModalWindow);
@@ -395,7 +403,7 @@ fn test_toolbar_buttons_child_non_interactive_and_hit_test() {
             "Perspective",
             1002,
             false,
-            100.0,
+            120.0,
             CornerRadii::all(4.0),
         );
         (icon_resp.id, mode_resp.id)
@@ -459,34 +467,35 @@ fn test_panel_tagged_declarative_layout_and_flex_grow() {
 
     let panel_rect = Rect::new(50.0, 100.0, 800.0, 400.0);
 
-    let mut scope = UiScope::new(&mut tree, root);
-    let panel_resp = scope
-        .panel("TestPanelRoot")
-        .tagged(0x5000)
-        .bounds(panel_rect)
-        .background(iris_core::Color::BLACK)
-        .show(|panel_scope| {
-            let tb_resp = Toolbar::new("TestToolbar")
-                .height(34.0)
-                .tag(0x500a)
-                .background(iris_core::Color::BLACK)
-                .show(panel_scope, |tb| {
-                    tb.add(ToolbarButton::new("Action").width(80.0).tag(0x5001))
-                        .id
-                });
+    let (panel_id, (tb_id, vp_id, btn_id)) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let panel_resp = scope
+            .panel("TestPanelRoot")
+            .tagged(0x5000)
+            .bounds(panel_rect)
+            .background(iris_core::Color::BLACK)
+            .show(|panel_scope| {
+                let tb_resp = Toolbar::new("TestToolbar")
+                    .height(34.0)
+                    .tag(0x500a)
+                    .background(iris_core::Color::BLACK)
+                    .show(panel_scope, |tb| {
+                        let btn_resp = tb.add(ToolbarButton::new("Action").width(80.0).tag(0x5001));
+                        btn_resp.id
+                    });
 
-            let vp_resp = ScrollAreaView::new("TestViewport")
-                .tag(0x500b)
-                .background(iris_core::Color::BLACK)
-                .show(panel_scope, |vp| {
-                    vp.label("No entries");
-                });
+                let vp_resp = ScrollAreaView::new("TestViewport")
+                    .tag(0x500b)
+                    .background(iris_core::Color::BLACK)
+                    .show(panel_scope, |vp| {
+                        vp.label("No entries");
+                    });
 
-            (tb_resp.response.id, vp_resp.response.id, tb_resp.inner)
-        });
-
-    let panel_id = panel_resp.response.id;
-    let (tb_id, vp_id, btn_id) = panel_resp.inner;
+                (tb_resp.response.id, vp_resp.response.id, tb_resp.inner)
+            });
+        let pid = panel_resp.response.id;
+        (pid, panel_resp.inner)
+    };
 
     let panel_node = tree.get(panel_id).expect("Panel node exists");
     assert_eq!(panel_node.computed_rect, panel_rect);
@@ -527,32 +536,30 @@ fn test_declarative_toggle_pill_flex_distribution_fits_bounds() {
 
     let row_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        scope
-            .row(|row| {
-                row.add(
-                    Button::new("🟫 Opaque")
-                        .small()
-                        .active(true)
-                        .flex(true)
-                        .tag(101),
-                );
-                row.add(
-                    Button::new("✂️ Cutout")
-                        .small()
-                        .active(false)
-                        .flex(true)
-                        .tag(102),
-                );
-                row.add(
-                    Button::new("💧 Blend")
-                        .small()
-                        .active(false)
-                        .flex(true)
-                        .tag(103),
-                );
-            })
-            .response
-            .id
+        let resp = scope.row(|row| {
+            row.add(
+                Button::new("🟫 Opaque")
+                    .small()
+                    .active(true)
+                    .flex(true)
+                    .tag(101),
+            );
+            row.add(
+                Button::new("✂️ Cutout")
+                    .small()
+                    .active(false)
+                    .flex(true)
+                    .tag(102),
+            );
+            row.add(
+                Button::new("💧 Blend")
+                    .small()
+                    .active(false)
+                    .flex(true)
+                    .tag(103),
+            );
+        });
+        resp.response.id
     };
 
     let bounds = Rect::new(10.0, 10.0, 260.0, 40.0);
@@ -584,26 +591,24 @@ fn test_declarative_row_flex_badge_and_button_fits_bounds() {
 
     let row_id = {
         let mut scope = UiScope::new(&mut tree, root);
-        scope
-            .row(|row| {
-                let _ = row.label("Texture:");
-                let badge_style = iris_core::Style::new()
-                    .flex_row()
-                    .flex_grow(1.0)
-                    .clip_children(true);
-                row.container(badge_style, |badge| {
-                    let _ = badge.label("stylized_ww1_plane.glb_tex_0");
-                });
-                let _ = row.button_with_icon_styled_tagged(
-                    [0.0, 0.0, 1.0, 1.0],
-                    iris_core::Color::WHITE,
-                    "Change",
-                    None,
-                    999,
-                );
-            })
-            .response
-            .id
+        let resp = scope.row(|row| {
+            row.label("Texture:");
+            let badge_style = iris_core::Style::new()
+                .flex_row()
+                .flex_grow(1.0)
+                .clip_children(true);
+            row.container(badge_style, |badge| {
+                badge.label("stylized_ww1_plane.glb_tex_0");
+            });
+            let _ = row.button_with_icon_styled_tagged(
+                [0.0, 0.0, 1.0, 1.0],
+                iris_core::Color::WHITE,
+                "Change",
+                None,
+                999,
+            );
+        });
+        resp.response.id
     };
 
     let bounds = Rect::new(10.0, 10.0, 260.0, 40.0);
@@ -639,34 +644,28 @@ fn test_space_between_does_not_stretch_unconstrained_children() {
             .width(1000.0)
             .height(30.0),
         |tb| {
-            let lid = tb
-                .container_named(
-                    "LeftGroup",
-                    iris_core::Style::new().flex_row().height(24.0),
-                    |left| {
-                        left.label_styled_passive(
-                            "BreadcrumbText",
-                            "assets",
-                            11.5,
-                            iris_core::Color::WHITE,
-                            iris_core::TextAlign::Left,
-                            iris_core::Style::new(),
-                        );
-                    },
-                )
-                .response
-                .id;
+            let l_resp = tb.container_named(
+                "LeftGroup",
+                iris_core::Style::new().flex_row().height(24.0),
+                |left| {
+                    left.label_styled_passive(
+                        "BreadcrumbText",
+                        "assets",
+                        11.5,
+                        iris_core::Color::WHITE,
+                        iris_core::TextAlign::Left,
+                        iris_core::Style::new(),
+                    );
+                },
+            );
 
-            let rid = tb
-                .container_named(
-                    "RightGroup",
-                    iris_core::Style::new().flex_row().width(500.0).height(24.0),
-                    |_right| {},
-                )
-                .response
-                .id;
+            let r_resp = tb.container_named(
+                "RightGroup",
+                iris_core::Style::new().flex_row().width(500.0).height(24.0),
+                |_right| {},
+            );
 
-            (lid, rid)
+            (l_resp.response.id, r_resp.response.id)
         },
     );
 
@@ -694,14 +693,13 @@ fn test_declarative_text_wrap_multi_line_height_measurement() {
     let root = tree.create_root().expect("Root should be created");
 
     let mut scope = UiScope::new(&mut tree, root);
-    let mut label_id = None;
     let long_desc = "Direct hardware execution with low-overhead command recording, multi-draw indirect, and compute passes.";
 
     scope.container_named(
         "ColContainer",
         iris_core::Style::new().flex_col().width(150.0),
         |col| {
-            let lid = col.label_styled_passive(
+            col.label_styled_passive(
                 "LongDesc",
                 long_desc,
                 11.0,
@@ -709,11 +707,13 @@ fn test_declarative_text_wrap_multi_line_height_measurement() {
                 iris_core::TextAlign::Left,
                 iris_core::Style::new(),
             );
-            label_id = Some(lid);
         },
     );
 
-    let lid = label_id.unwrap();
+    let lid = scope
+        .tree()
+        .find_node_by_name("LongDesc")
+        .expect("LongDesc exists");
 
     // Unconstrained should measure at least single line height (~14px..20px)
     let h_unconstrained = measure_height_constrained(scope.tree(), lid, None);
@@ -754,9 +754,8 @@ fn test_declarative_flex_wrap_row_layout() {
     scope.container_named("WrapContainer", row_style, |wrap_scope| {
         for i in 0..5 {
             let item_style = iris_core::Style::new().width(20.0).height(16.0);
-            let id = wrap_scope
-                .add(EmptyBox::new("WrapItem", item_style).tag(0x9000 + i))
-                .id;
+            let item_resp = wrap_scope.add(EmptyBox::new("WrapItem", item_style).tag(0x9000 + i));
+            let id = item_resp.id;
             item_ids.push(id);
         }
     });

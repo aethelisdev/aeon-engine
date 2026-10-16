@@ -20,17 +20,7 @@ use irisui::prelude::*;
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
 ///
 /// Returns the computed maximum vertical scroll limit in physical pixels.
-pub fn build_material_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &MaterialPanelParams<'_>,
-) {
-    if params.scroll_y > 0.0 {
-        tree.set_scroll_offset(MATERIAL_TAG_VIEWPORT, params.scroll_y);
-    }
-
-    let mut scope = UiScope::with_tagged_interactions(tree, parent_id, params.events, None);
-
+pub fn build_material_panel(scope: &mut UiScope<'_>, params: &MaterialPanelParams<'_>) {
     scope
         .panel("MaterialPanelRoot")
         .background(Color::rgba(0.065, 0.068, 0.080, 0.98))
@@ -61,9 +51,10 @@ pub fn build_material_panel(
                     let has_sprite = params.world.get::<&ae_core::ecs::SpriteId>(entity).is_ok();
 
                     if has_model {
-                        panel_scope.scroll_area(
+                        panel_scope.scroll_area_with_offset(
                             "MaterialViewport",
                             MATERIAL_TAG_VIEWPORT,
+                            Some(params.scroll_y),
                             Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
                             |vp_scope| {
                                 let submesh_params = SubmeshViewParams {
@@ -76,9 +67,10 @@ pub fn build_material_panel(
                             },
                         );
                     } else if has_sprite {
-                        panel_scope.scroll_area(
+                        panel_scope.scroll_area_with_offset(
                             "MaterialViewport",
                             MATERIAL_TAG_VIEWPORT,
+                            Some(params.scroll_y),
                             Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
                             |vp_scope| {
                                 let sprite_params = SpriteViewParams {

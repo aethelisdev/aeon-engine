@@ -83,9 +83,10 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
             WidgetRole::Button,
             HIERARCHY_TAG_ADD_BUTTON,
             |add_btn| {
-                let icon_id = add_btn.icon(ICON_PLUS, add_icon_col, 14.0);
-                if !is_active {
-                    add_btn.set_hover_texture_tint(icon_id, Color::WHITE);
+                if is_active {
+                    add_btn.icon(ICON_PLUS, add_icon_col, 14.0);
+                } else {
+                    add_btn.icon_hover(ICON_PLUS, add_icon_col, Color::WHITE, 14.0);
                 }
             },
         );
@@ -128,10 +129,17 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
             WidgetRole::Button,
             HIERARCHY_TAG_DELETE_BUTTON,
             |del_btn| {
-                let txt_id =
-                    del_btn.label_with_width("🗑", 24.0, 11.0, del_text_col, TextAlign::Center);
                 if has_selection {
-                    del_btn.set_hover_text_color(txt_id, Color::WHITE);
+                    del_btn.label_styled_hover_passive(
+                        "DeleteSelectedIcon",
+                        "🗑",
+                        11.0,
+                        (del_text_col, Color::WHITE),
+                        TextAlign::Center,
+                        Style::new().width(24.0),
+                    );
+                } else {
+                    del_btn.label_with_width("🗑", 24.0, 11.0, del_text_col, TextAlign::Center);
                 }
             },
         );

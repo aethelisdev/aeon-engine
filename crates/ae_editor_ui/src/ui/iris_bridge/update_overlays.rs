@@ -118,7 +118,7 @@ impl IrisEditorOverlay {
         if params.dialogs.show_about {
             let pending_events = std::mem::take(&mut self.modals.pending_interaction_events);
             let hovered_id = self.overlay_tree.tree().hit_test_layered(cursor);
-            let _about_id = build_about_dialog(
+            build_about_dialog(
                 self.overlay_tree.tree_mut(),
                 screen_width,
                 screen_height,
@@ -141,7 +141,7 @@ impl IrisEditorOverlay {
 
         // 3. Delete Confirmation Modal
         if let Some(target_path) = params.dialogs.delete_target {
-            let _del_id = build_delete_modal(
+            build_delete_modal(
                 self.overlay_tree.tree_mut(),
                 target_path,
                 screen_width,
@@ -170,7 +170,7 @@ impl IrisEditorOverlay {
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
                 .width;
-            let _folder_id = build_new_folder_modal(
+            build_new_folder_modal(
                 self.overlay_tree.tree_mut(),
                 modals::FolderModalParams {
                     parent_path,
@@ -204,7 +204,7 @@ impl IrisEditorOverlay {
                 .text_system
                 .measure_text(input_name, 12.0, 28.0, None)
                 .width;
-            let _rename_id = build_rename_modal(
+            build_rename_modal(
                 self.overlay_tree.tree_mut(),
                 modals::RenameModalParams {
                     target_path,
@@ -232,7 +232,7 @@ impl IrisEditorOverlay {
 
         // 6. Asset Loading Splash
         if params.dialogs.is_loading_assets {
-            let _loading_id = build_loading_overlay(
+            build_loading_overlay(
                 &mut self.tree,
                 modals::LoadingOverlayParams {
                     screen_width,

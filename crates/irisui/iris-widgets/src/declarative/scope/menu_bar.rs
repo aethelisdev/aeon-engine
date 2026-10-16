@@ -118,7 +118,11 @@ impl<'a, 'b, A> MenuBarScope<'a, 'b, A> {
 
         // Apply instant effective highlight on the header node if state changed this frame
         if is_active != was_active
-            && let Some(node) = self.scope.tree.get_mut(resp.id)
+            && let Some(node) = self
+                .scope
+                .tree
+                .find_node_by_tag(tag)
+                .and_then(|id| self.scope.tree.get_mut(id))
         {
             if is_active {
                 node.text_color = Color::hex("#00e5ff");

@@ -426,7 +426,7 @@ impl IrisEditorOverlay {
             }
 
             // 2. Bottom Diagnostics & Status Bar
-            let _status_bar_id = status_bar::build_bottom_status_bar(
+            status_bar::build_bottom_status_bar(
                 &mut self.tree,
                 root,
                 &status_bar::StatusBarParams {
@@ -513,21 +513,20 @@ impl IrisEditorOverlay {
             let root_id = tree.root().unwrap_or(root);
             {
                 let mut scope = UiScope::new(&mut tree, root_id);
-                let mut render_panel =
-                    |leaf_scope: &mut UiScope<'_>, panel: &crate::ui::panel_layout::PanelId| {
-                        let parent_id = leaf_scope.parent();
-                        self.render_panel_by_id(*panel, leaf_scope.tree_mut(), parent_id, &params);
-                    };
-                let mut panel_tab_viewer =
-                    crate::ui::panel_layout::PanelTabViewer::with_dispatch(&mut render_panel);
-
                 let dock_frame =
                     irisui::dock::DockArea::from_ref(&params.context.layout_state.dock_state)
                         .bounds(workspace_rect)
                         .style(dock_style)
                         .cursor_pos(cursor)
                         .cursor_occluded(is_cursor_occluded)
-                        .show(&mut scope, &mut panel_tab_viewer);
+                        .show(
+                            &mut scope,
+                            &mut crate::ui::panel_layout::PanelTabViewer::with_dispatch(
+                                |leaf_scope, panel| {
+                                    self.render_panel_by_id(*panel, leaf_scope, &params);
+                                },
+                            ),
+                        );
 
                 for &(panel_id, panel_rect) in &dock_frame.panel_rects {
                     if let Some(panel) = self

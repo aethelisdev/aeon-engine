@@ -26,11 +26,7 @@ pub const PREVIEW_MODAL_HEIGHT: f32 = 470.0;
 /// Constructed using pure declarative [`UiScope`] architecture, presenting category badges,
 /// formatted file metadata, modern close glyphs ('✕') with soft danger hover tinting,
 /// interactive inspection bodies, and elevated action controls.
-pub fn build_asset_preview_modal(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &AssetsPanelParams<'_>,
-) {
+pub fn build_asset_preview_modal(scope: &mut UiScope<'_>, params: &AssetsPanelParams<'_>) {
     let Some(modal) = params.active_preview_modal else {
         return;
     };
@@ -38,8 +34,6 @@ pub fn build_asset_preview_modal(
     let (modal_w, modal_h) = compute_modal_dimensions(params.screen_size);
     let cat_col = resolve_category_color(modal.item.category);
 
-    tree.set_cursor_position(params.cursor_pos);
-    let mut scope = UiScope::new(tree, parent_id);
     scope.modal_scrim_sized(
         Rect::new(0.0, 0.0, params.screen_size.0, params.screen_size.1),
         Color::rgba(0.0, 0.0, 0.0, 0.65),

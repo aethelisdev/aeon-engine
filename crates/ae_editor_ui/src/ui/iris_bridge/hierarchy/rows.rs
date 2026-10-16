@@ -412,8 +412,7 @@ pub fn build_hierarchy_rows(
                     WidgetRole::Button,
                     eye_tag,
                     |eye_s| {
-                        let icon_id = eye_s.icon(eye_uv, eye_col, 16.0);
-                        eye_s.set_hover_texture_tint(icon_id, Color::WHITE);
+                        eye_s.icon_hover(eye_uv, eye_col, Color::WHITE, 16.0);
                     },
                 );
             });

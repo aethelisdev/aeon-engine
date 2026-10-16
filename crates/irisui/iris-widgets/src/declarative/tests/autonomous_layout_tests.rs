@@ -20,14 +20,14 @@ fn test_scoped_autonomous_subtree_layout() {
     }
     let bounds = Rect::new(0.0, 0.0, 400.0, 300.0);
 
-    let (btn1, btn2) = UiScope::scoped(&mut tree, root, bounds, |scope| {
+    let (id1, id2) = UiScope::scoped(&mut tree, root, bounds, |scope| {
         let b1 = scope.button("Option 1");
         let b2 = scope.button("Option 2");
-        (b1, b2)
+        (b1.id, b2.id)
     });
 
-    let n1 = tree.get(btn1.id).expect("Button 1 exists");
-    let n2 = tree.get(btn2.id).expect("Button 2 exists");
+    let n1 = tree.get(id1).expect("Button 1 exists");
+    let n2 = tree.get(id2).expect("Button 2 exists");
 
     assert!(n1.computed_rect.width > 0.0);
     assert!(n1.computed_rect.height > 0.0);
@@ -43,20 +43,21 @@ fn test_panel_builder_autonomous_layout() {
     let root = tree.create_root().expect("Root exists");
     let panel_rect = Rect::new(50.0, 30.0, 320.0, 500.0);
 
-    let mut outer_scope = UiScope::new(&mut tree, root);
-    let panel_id = outer_scope
-        .panel("AutonomousPanel")
-        .tagged(0xABCD)
-        .bounds(panel_rect)
-        .background(Color::rgba(0.1, 0.1, 0.12, 1.0))
-        .border(1.0, Color::rgba(0.2, 0.2, 0.25, 1.0))
-        .show(|panel_scope| {
-            panel_scope.heading("Panel Title");
-            panel_scope.label("Description text");
-            let _ = panel_scope.button("Apply Changes");
-        })
-        .response
-        .id;
+    let panel_id = {
+        let mut outer_scope = UiScope::new(&mut tree, root);
+        let resp = outer_scope
+            .panel("AutonomousPanel")
+            .tagged(0xABCD)
+            .bounds(panel_rect)
+            .background(Color::rgba(0.1, 0.1, 0.12, 1.0))
+            .border(1.0, Color::rgba(0.2, 0.2, 0.25, 1.0))
+            .show(|panel_scope| {
+                panel_scope.heading("Panel Title");
+                panel_scope.label("Description text");
+                let _ = panel_scope.button("Apply Changes");
+            });
+        resp.response.id
+    };
 
     let panel_node = tree.get(panel_id).expect("Panel node exists");
     assert_eq!(panel_node.computed_rect, panel_rect);
@@ -74,9 +75,9 @@ fn test_modal_scrim_sized_autonomous_layout() {
     let root = tree.create_root().expect("Root exists");
     let screen = Rect::new(0.0, 0.0, 1920.0, 1080.0);
 
-    let mut scope = UiScope::new(&mut tree, root);
-    let scrim_id = scope
-        .modal_scrim_sized(screen, Color::rgba(0.0, 0.0, 0.0, 0.6), |scrim| {
+    let scrim_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.modal_scrim_sized(screen, Color::rgba(0.0, 0.0, 0.0, 0.6), |scrim| {
             scrim.modal_card(420.0, 200.0, |card| {
                 card.heading("Confirm Action");
                 card.label("Are you sure you want to proceed?");
@@ -85,9 +86,9 @@ fn test_modal_scrim_sized_autonomous_layout() {
                     row.modal_confirm_button("Confirm", 80.0);
                 });
             });
-        })
-        .response
-        .id;
+        });
+        resp.response.id
+    };
 
     let scrim_node = tree.get(scrim_id).expect("Scrim exists");
     assert_eq!(scrim_node.computed_rect, screen);
@@ -113,14 +114,14 @@ fn test_dropdown_menu_card_autonomous_layout() {
     let cursor = Point::new(110.0, 55.0);
     tree.set_cursor_position(cursor);
 
-    let mut scope = UiScope::new(&mut tree, root);
-    let dd_id = scope
-        .dropdown_menu_card(100.0, 40.0, 160.0, |menu| {
+    let dd_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.dropdown_menu_card(100.0, 40.0, 160.0, |menu| {
             menu.dropdown_item(1, "📁", "Open File", Some("Ctrl+O"), true);
             menu.dropdown_item(2, "💾", "Save File", Some("Ctrl+S"), true);
-        })
-        .response
-        .id;
+        });
+        resp.response.id
+    };
 
     let dd_node = tree.get(dd_id).expect("Dropdown exists");
     assert_eq!(dd_node.computed_rect.x, 100.0);

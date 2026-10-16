@@ -61,7 +61,11 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         cursor_byte_idx: 0,
     };
 
-    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut rows_cache,
+    );
 
     // Verify foldout chevron widget exists and eye buttons maintain strictly identical X alignment across all rows
     let mut found_foldout = false;

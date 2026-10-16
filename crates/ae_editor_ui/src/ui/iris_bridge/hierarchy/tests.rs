@@ -469,7 +469,11 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         cursor_byte_idx: 0,
     };
 
-    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut rows_cache,
+    );
 
     assert_eq!(rows_cache.len(), 1);
     assert_eq!(rows_cache[0].entity, entity);
@@ -519,7 +523,11 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         cursor_byte_idx: 0,
     };
 
-    super::panel::build_hierarchy_panel(&mut new_tree, new_root, &new_params, &mut new_rows_cache);
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut new_tree, new_root),
+        &new_params,
+        &mut new_rows_cache,
+    );
 
     let mut closed_eye_uv_opt = None;
     new_tree.traverse_depth_first(new_root, &mut |_, node| {
@@ -594,7 +602,11 @@ fn test_hierarchy_panel_declarative_scope_build() {
     };
 
     let mut rows_cache = Vec::new();
-    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut rows_cache,
+    );
     let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT);
 
     assert_eq!(rows_cache.len(), 2);
@@ -662,7 +674,11 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
     };
 
     let mut rows_cache = Vec::new();
-    super::panel::build_hierarchy_panel(&mut tree, root_id, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut rows_cache,
+    );
     let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT);
 
     assert_eq!(
@@ -726,7 +742,11 @@ fn test_hierarchy_header_and_row_hover_styling() {
     };
 
     let mut rows_cache = Vec::new();
-    super::panel::build_hierarchy_panel(&mut tree, root, &params, &mut rows_cache);
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut rows_cache,
+    );
 
     let (_, add_node) = tree
         .iter()

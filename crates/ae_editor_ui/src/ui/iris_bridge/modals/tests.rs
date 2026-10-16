@@ -17,7 +17,7 @@ fn test_new_folder_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
     let _root = tree.create_root().expect("Root node must be created");
 
-    let _scrim_id = build_new_folder_modal(
+    build_new_folder_modal(
         &mut tree,
         FolderModalParams {
             parent_path: Path::new("assets/models"),
@@ -64,7 +64,7 @@ fn test_rename_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
     let _root = tree.create_root().expect("Root node must be created");
 
-    let _scrim_id = build_rename_modal(
+    build_rename_modal(
         &mut tree,
         RenameModalParams {
             target_path: Path::new("assets/textures/diffuse.png"),
@@ -107,7 +107,7 @@ fn test_delete_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
     let _root = tree.create_root().expect("Root node must be created");
 
-    let _scrim_id = build_delete_modal(
+    build_delete_modal(
         &mut tree,
         Path::new("assets/temp.obj"),
         1920.0,
@@ -144,7 +144,7 @@ fn test_loading_overlay_text_sections_not_occluded() {
     let mut tree = UiTree::new();
     let _root = tree.create_root().expect("Root node must be created");
 
-    let _scrim_id = build_loading_overlay(
+    build_loading_overlay(
         &mut tree,
         LoadingOverlayParams {
             screen_width: 1920.0,
@@ -219,7 +219,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         );
 
     // 2. Build About dialog centered on top of Preferences
-    let _about_id = crate::ui::iris_bridge::about::build_about_dialog(
+    crate::ui::iris_bridge::about::build_about_dialog(
         &mut tree,
         screen_width,
         screen_height,
@@ -298,7 +298,7 @@ fn test_declarative_modals_buttons_hover_reactivity() {
     let screen_h = 1080.0;
 
     // 1. Build delete modal with cursor hovering the close button
-    let del_id = build_delete_modal(
+    build_delete_modal(
         &mut tree,
         Path::new("assets/test.mesh"),
         screen_w,
@@ -308,6 +308,9 @@ fn test_declarative_modals_buttons_hover_reactivity() {
             (screen_h - DELETE_MODAL_HEIGHT) * 0.5 + 20.0,
         ),
     );
+    let del_id = tree
+        .find_node_by_tag(irisui::prelude::MODAL_TAG_SCRIM)
+        .expect("Modal scrim must exist");
     assert!(tree.get(del_id).is_some());
 
     // Search for close button and danger button

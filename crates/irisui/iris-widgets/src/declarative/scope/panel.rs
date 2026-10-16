@@ -166,12 +166,15 @@ mod tests {
     fn test_panel_builder_theme_defaults() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
-
-        let resp = scope.panel("TestThemePanel").show(|_| 123);
+        let (resp, pid) = {
+            let mut scope = UiScope::new(&mut tree, root);
+            let resp = scope.panel("TestThemePanel").show(|_| 123);
+            let pid = resp.response.id;
+            (resp, pid)
+        };
         assert_eq!(resp.inner, 123);
 
-        let node = tree.get(resp.response.id).expect("Panel node exists");
+        let node = tree.get(pid).expect("Panel node exists");
         assert_eq!(node.style.background_color, tree.theme().panel_bg);
         assert_eq!(
             node.style.border,
@@ -183,15 +186,17 @@ mod tests {
     fn test_panel_builder_themed_overrides() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root node");
-        let mut scope = UiScope::new(&mut tree, root);
+        let pid = {
+            let mut scope = UiScope::new(&mut tree, root);
+            let resp = scope
+                .panel("TestCustomThemedPanel")
+                .background_themed(|t| t.card_bg)
+                .border_themed(2.0, |t| t.card_border)
+                .show(|_| ());
+            resp.response.id
+        };
 
-        let resp = scope
-            .panel("TestCustomThemedPanel")
-            .background_themed(|t| t.card_bg)
-            .border_themed(2.0, |t| t.card_border)
-            .show(|_| ());
-
-        let node = tree.get(resp.response.id).expect("Panel node exists");
+        let node = tree.get(pid).expect("Panel node exists");
         assert_eq!(node.style.background_color, tree.theme().card_bg);
         assert_eq!(
             node.style.border,

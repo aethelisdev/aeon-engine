@@ -173,9 +173,9 @@ mod tests {
         let root = tree.create_root().expect("root must exist");
 
         let vp_tag = super::super::inspector::tags::TAG_INSPECTOR_CARDS_CONTAINER;
-        let (_cid, ch1) = {
+        {
             let mut scope = UiScope::new(&mut tree, root);
-            let c = scope.container_tagged(
+            scope.container_tagged(
                 "InspectorCardsContainer",
                 Style::new().width(200.0).height(400.0).flex_col(),
                 WidgetRole::Default,
@@ -183,17 +183,16 @@ mod tests {
                 |s| s.empty_box_passive_named("Card", Style::new().height(50.0)),
             );
             scope.finish_layout(Rect::new(0.0, 0.0, 200.0, 400.0));
-            (c.response, c.inner)
-        };
+        }
 
-        assert_eq!(tree.get(ch1).unwrap().computed_rect.y, 0.0);
+        assert_eq!(tree.assert_node_rect("Card").y, 0.0);
 
         // Update container scroll via ScrollArea API
         let success = ScrollArea::update_container_scroll_by_tag(&mut tree, vp_tag, 20.0);
         assert!(success);
 
         // Child should be shifted upwards by 20px
-        assert_eq!(tree.get(ch1).unwrap().computed_rect.y, -20.0);
+        assert_eq!(tree.assert_node_rect("Card").y, -20.0);
     }
 
     #[test]
@@ -215,7 +214,7 @@ mod tests {
                 WidgetRole::Default,
                 vp_tag,
                 |s| {
-                    let _ = s.empty_box_passive_named("Item1", Style::new().height(800.0));
+                    s.empty_box_passive_named("Item1", Style::new().height(800.0));
                 },
             );
             scope.finish_layout(Rect::new(0.0, 0.0, 260.0, 400.0));

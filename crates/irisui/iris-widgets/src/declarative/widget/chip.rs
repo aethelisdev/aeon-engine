@@ -24,6 +24,7 @@ pub struct Chip<'a> {
     selected: bool,
     tag: u64,
     accent_color: Option<Color>,
+    width: Option<f32>,
 }
 
 impl<'a> Chip<'a> {
@@ -40,6 +41,7 @@ impl<'a> Chip<'a> {
             selected: false,
             tag: 0,
             accent_color: None,
+            width: None,
         }
     }
 
@@ -77,6 +79,16 @@ impl<'a> Chip<'a> {
         self.accent_color = Some(color);
         self
     }
+
+    /// Overrides the horizontal layout width of the filter chip with an explicit fixed pixel dimension.
+    ///
+    /// When omitted, width is calculated automatically from label length and counter digits.
+    #[inline]
+    #[must_use]
+    pub fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
 }
 
 impl<'a> Widget for Chip<'a> {
@@ -86,10 +98,21 @@ impl<'a> Widget for Chip<'a> {
         let theme = scope.tree().theme();
         let accent = self.accent_color.unwrap_or(theme.accent);
 
+        let chip_w = self.width.unwrap_or_else(|| {
+            let count_len = match self.count {
+                Some(c) => 5.0 + ((count_digits(c) + 2) as f32 * 6.5),
+                None => 0.0,
+            };
+            ((self.label.len() as f32 * 6.8) + count_len + 18.0)
+                .max(52.0)
+                .ceil()
+        });
+
         let chip_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
+            .width(chip_w)
             .height(22.0)
             .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
             .gap(5.0)
@@ -181,6 +204,15 @@ fn format_count_stack(count: usize, buf: &mut [u8; 24]) -> &str {
     std::str::from_utf8(&buf[..pos]).unwrap_or("()")
 }
 
+/// Computes the decimal digit count of an item counter using hardware-accelerated integer logarithm.
+#[inline]
+const fn count_digits(count: usize) -> usize {
+    match count.checked_ilog10() {
+        Some(exp) => exp as usize + 1,
+        None => 1,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,8 +225,9 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
 
         let resp = scope.add(Chip::new("3D Meshes").count(42).selected(true).tag(0x1234));
+        let chip_id = resp.id;
 
-        assert!(tree.get(resp.id).is_some());
+        assert!(tree.get(chip_id).is_some());
         assert!(tree.has_node_named("CategoryChipLabel"));
         assert!(tree.has_node_named("CategoryChipCount"));
         tree.assert_node_text("CategoryChipLabel", "3D Meshes");

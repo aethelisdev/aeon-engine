@@ -27,11 +27,7 @@ use irisui::prelude::*;
 ///
 /// Positioned using declarative absolute layout ([`Style::position_absolute`], [`Style::left`], [`Style::top`]).
 /// Interactions and mode switching are driven 100% by semantic tags dispatched through the UI tree.
-pub fn build_viewport_toolbar(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &ViewportHudParams<'_>,
-) {
+pub fn build_viewport_toolbar(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     let box_h = 32.0;
     let corner_radius = 4.0;
 
@@ -73,8 +69,6 @@ pub fn build_viewport_toolbar(
     };
 
     let total_w = view_box_w + 8.0 + 140.0 + 8.0 + 32.0;
-
-    let mut scope = UiScope::new(tree, parent_id);
 
     // Toolbar Root Container: Flex Row with 8px group gap, absolutely anchored top-left
     let tb_style = Style::new()
@@ -206,7 +200,7 @@ mod tests {
             is_2d: false,
         };
 
-        build_viewport_toolbar(&mut tree, parent_id, &params);
+        build_viewport_toolbar(&mut UiScope::new(&mut tree, parent_id), &params);
         let mut scope = UiScope::new(&mut tree, parent_id);
         scope.finish_layout(params.viewport_rect);
 
@@ -258,7 +252,7 @@ mod tests {
             is_2d: false,
         };
 
-        build_viewport_toolbar(&mut tree, parent_id, &params);
+        build_viewport_toolbar(&mut UiScope::new(&mut tree, parent_id), &params);
         let mut scope = UiScope::new(&mut tree, parent_id);
         scope.finish_layout(params.viewport_rect);
 
@@ -309,7 +303,7 @@ mod tests {
             is_2d: true,
         };
 
-        build_viewport_toolbar(&mut tree, parent_id, &params);
+        build_viewport_toolbar(&mut UiScope::new(&mut tree, parent_id), &params);
 
         let cam_node = tree
             .iter()

@@ -131,6 +131,24 @@ impl UiTree {
         None
     }
 
+    /// Finds the first widget identifier whose text content matches the specified string.
+    ///
+    /// # Arguments
+    /// * `text` - Expected textual content string.
+    ///
+    /// # Returns
+    /// `Some(WidgetId)` if a node with matching text exists, or `None` otherwise.
+    #[inline]
+    #[must_use]
+    pub fn find_node_by_text(&self, text: &str) -> Option<WidgetId> {
+        for (id, node) in &self.nodes {
+            if node.text.as_deref() == Some(text) {
+                return Some(id);
+            }
+        }
+        None
+    }
+
     /// Finds the first widget identifier within a specific subtree matching the specified name.
     ///
     /// # Arguments
@@ -144,6 +162,29 @@ impl UiTree {
         let mut target = None;
         self.traverse_depth_first(root_id, &mut |id, node| {
             if target.is_none() && node.name.as_deref() == Some(name) {
+                target = Some(id);
+            }
+        });
+        target
+    }
+
+    /// Finds the first widget identifier within a specific subtree matching the specified role.
+    ///
+    /// # Arguments
+    /// * `root_id` - Root container node where subtree traversal begins.
+    /// * `role` - Expected [`WidgetRole`] variant.
+    ///
+    /// # Returns
+    /// `Some(WidgetId)` if a matching descendant node with the role is found, or `None` otherwise.
+    #[must_use]
+    pub fn find_node_by_role_in_subtree(
+        &self,
+        root_id: WidgetId,
+        role: WidgetRole,
+    ) -> Option<WidgetId> {
+        let mut target = None;
+        self.traverse_depth_first(root_id, &mut |id, node| {
+            if target.is_none() && node.role == role {
                 target = Some(id);
             }
         });

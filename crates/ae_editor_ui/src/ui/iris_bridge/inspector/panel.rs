@@ -17,15 +17,9 @@ use super::ui_transform;
 use irisui::prelude::*;
 
 /// Builds the complete Scene Inspector layout and returns root handle.
-pub fn build_inspector_panel(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &InspectorPanelParams<'_>,
-) {
+pub fn build_inspector_panel(scope: &mut UiScope<'_>, params: &InspectorPanelParams<'_>) {
     let padding_x = 6.0;
     let card_w = params.panel_rect.width - padding_x * 2.0;
-
-    let mut scope = UiScope::new(tree, parent_id);
 
     scope
         .panel("InspectorPanelRoot")

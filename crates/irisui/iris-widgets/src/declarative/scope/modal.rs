@@ -72,12 +72,33 @@ impl<'a> UiScope<'a> {
     where
         F: FnOnce(&mut UiScope<'_>) -> R,
     {
-        let resp = self.modal_scrim(color, f);
-        crate::declarative::layout_subtree(self.tree, resp.response.id, bounds);
-        if let Some(cursor) = self.tree.cursor_position() {
-            super::hover::update_hover_styles_recursive(self.tree, resp.response.id, cursor);
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name("ModalScrim");
+            node.tag = MODAL_TAG_SCRIM;
+            node.interactive = true;
+            node.role = WidgetRole::ModalWindow;
+            node.layer = UiLayer::Modal;
+            node.set_style(
+                Style::new()
+                    .flex_grow(1.0)
+                    .flex_shrink(0.0)
+                    .flex_col()
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center)
+                    .background(color),
+            );
         }
-        resp
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = self.child_scope(node_id);
+        let inner = f(&mut child_scope);
+        crate::declarative::layout_subtree(self.tree, node_id, bounds);
+        if let Some(cursor) = self.tree.cursor_position() {
+            super::hover::update_hover_styles_recursive(self.tree, node_id, cursor);
+        }
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
     }
 
     /// Emits an elevated modal dialog card container styled with standard dark themes, borders, and drop shadows.

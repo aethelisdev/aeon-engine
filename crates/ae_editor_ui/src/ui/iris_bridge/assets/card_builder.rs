@@ -150,8 +150,6 @@ impl<'a> AssetCardBadge<'a> {
 /// Structural layout frame returned by [`AssetCardBuilder`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AssetCardFrame {
-    /// Identifier of the outer card container widget.
-    pub card_id: WidgetId,
     /// Bounding rectangle of the entire card.
     pub card_rect: Rect,
     /// Bounding rectangle allocated for the central preview box.
@@ -302,34 +300,29 @@ impl<'a> AssetCardBuilder<'a> {
     ///
     /// Uses 100% declarative UI scope primitives with zero imperative node allocations.
     pub fn build_scope(self, scope: &mut UiScope<'_>) -> AssetCardFrame {
-        AssetCardFrame {
+        let frame = AssetCardFrame {
             preview_rect: self.preview_rect(),
             card_rect: self.rect,
-            card_id: match self.tag {
-                Some(tag) => {
-                    scope
-                        .container_tagged(
-                            self.name.unwrap_or("AssetCard"),
-                            self.compute_card_style(scope),
-                            WidgetRole::Button,
-                            tag,
-                            |card_scope| self.render_body(card_scope),
-                        )
-                        .response
-                        .id
-                }
-                None => {
-                    scope
-                        .container_named(
-                            self.name.unwrap_or("AssetCard"),
-                            self.compute_card_style(scope),
-                            |card_scope| self.render_body(card_scope),
-                        )
-                        .response
-                        .id
-                }
-            },
+        };
+        match self.tag {
+            Some(tag) => {
+                scope.container_tagged(
+                    self.name.unwrap_or("AssetCard"),
+                    self.compute_card_style(),
+                    WidgetRole::Button,
+                    tag,
+                    |card_scope| self.render_body(card_scope),
+                );
+            }
+            None => {
+                scope.container_named(
+                    self.name.unwrap_or("AssetCard"),
+                    self.compute_card_style(),
+                    |card_scope| self.render_body(card_scope),
+                );
+            }
         }
+        frame
     }
 
     /// Computes the absolute bounding box of the central thumbnail/preview icon box.
@@ -345,10 +338,8 @@ impl<'a> AssetCardBuilder<'a> {
 
     /// Resolves the parent container's computed rectangle for relative positioning.
     #[inline]
-    fn resolve_parent_rect(&self, scope: &UiScope<'_>) -> Rect {
-        self.parent_rect
-            .or_else(|| scope.tree().get(scope.parent()).map(|p| p.computed_rect))
-            .unwrap_or(Rect::ZERO)
+    fn resolve_parent_rect(&self) -> Rect {
+        self.parent_rect.unwrap_or(Rect::ZERO)
     }
 
     /// Computes the card's active background color based on selection and hover flags.
@@ -398,11 +389,11 @@ impl<'a> AssetCardBuilder<'a> {
     }
 
     /// Assembles the declarative flexbox container style for the outer card.
-    fn compute_card_style(&self, scope: &UiScope<'_>) -> Style {
+    fn compute_card_style(&self) -> Style {
         Style::new()
             .position_absolute()
-            .left(self.rect.x - self.resolve_parent_rect(scope).x)
-            .top(self.rect.y - self.resolve_parent_rect(scope).y)
+            .left(self.rect.x - self.resolve_parent_rect().x)
+            .top(self.rect.y - self.resolve_parent_rect().y)
             .width(self.rect.width)
             .height(self.rect.height)
             .flex_col()
@@ -557,16 +548,17 @@ mod tests {
             .is_selected(true)
             .build(&mut tree, root);
 
+        let card_id = tree.get(root).expect("Root node must exist").children[0];
         assert_eq!(frame.card_rect, Rect::new(10.0, 10.0, 115.0, 125.0));
         assert_eq!(
-            tree.get(frame.card_id)
+            tree.get(card_id)
                 .expect("Card node must exist")
                 .children
                 .len(),
             4
         );
         assert_eq!(
-            tree.get(tree.get(frame.card_id).expect("Card node").children[0])
+            tree.get(tree.get(card_id).expect("Card node").children[0])
                 .expect("Header exists")
                 .children
                 .len(),
@@ -588,9 +580,10 @@ mod tests {
             .is_hovered(true)
             .build(&mut tree, root);
 
+        let card_id = tree.get(root).expect("Root node must exist").children[0];
         assert_eq!(frame.card_rect, Rect::new(0.0, 0.0, 100.0, 120.0));
         assert_eq!(
-            tree.get(frame.card_id)
+            tree.get(card_id)
                 .expect("Card node must exist")
                 .children
                 .len(),

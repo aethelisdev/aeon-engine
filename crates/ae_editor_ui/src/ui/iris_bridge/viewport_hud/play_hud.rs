@@ -19,7 +19,7 @@ use irisui::wgpu_backend::{DrawCommandList, QuadInstance};
 /// Builds the Play Mode HUD overlay (reticle canvas, quick control badge, in-game UI, and pause menu).
 ///
 /// Constructed entirely using declarative [`UiScope`] containers and semantic tags.
-pub fn build_play_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportHudParams<'_>) {
+pub fn build_play_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     let is_paused = params
         .world
         .query::<&ae_core::ui::PauseMenuUiTag>()
@@ -28,14 +28,12 @@ pub fn build_play_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportH
         .is_some();
 
     if is_paused {
-        build_in_game_pause_menu(tree, parent_id, params);
+        build_in_game_pause_menu(scope, params);
         return;
     }
 
-    let mut scope = UiScope::new(tree, parent_id);
-
     // 1. Render in-game ECS UI elements (health bar, score text, custom HUD) if present
-    render_ingame_ecs_ui(&mut scope, params);
+    render_ingame_ecs_ui(scope, params);
 
     // Check whether the active player character has `CharacterAction` (aiming/shooting ability)
     let has_action = if let Some(sel) = params.selected_entity
@@ -183,15 +181,9 @@ pub fn append_crosshair_quads(command_list: &mut DrawCommandList, rect: Rect) {
 /// Constructed entirely using declarative [`UiScope`] modal primitives:
 /// [`UiScope::container`], [`UiScope::modal_confirm_button`], and [`UiScope::modal_danger_button`].
 /// Button click events are dispatched 100% via semantic tags ([`TAG_PLAY_RESUME`], [`TAG_PLAY_EXIT`]).
-fn build_in_game_pause_menu(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &ViewportHudParams<'_>,
-) {
+fn build_in_game_pause_menu(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     let card_w = 320.0;
     let card_h = 220.0;
-
-    let mut scope = UiScope::new(tree, parent_id);
 
     // 1. Full-viewport darkened translucent backdrop
     let backdrop_style = Style::new()
@@ -456,7 +448,7 @@ mod tests {
             is_2d: false,
         };
 
-        build_play_hud(&mut tree, root, &params);
+        build_play_hud(&mut UiScope::new(&mut tree, root), &params);
 
         let mut names = Vec::new();
         collect_node_names(&tree, root, &mut names);
@@ -505,7 +497,7 @@ mod tests {
             is_2d: false,
         };
 
-        build_play_hud(&mut tree, root, &params);
+        build_play_hud(&mut UiScope::new(&mut tree, root), &params);
 
         let mut names = Vec::new();
         collect_node_names(&tree, root, &mut names);

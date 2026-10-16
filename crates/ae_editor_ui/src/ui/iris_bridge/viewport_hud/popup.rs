@@ -12,8 +12,7 @@ use irisui::prelude::*;
 
 /// Renders active floating popup menus in the Viewport HUD.
 pub fn render_viewport_hud_dropdown_popup(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
+    scope: &mut UiScope<'_>,
     active_dd: ViewportHudDropdownId,
     params: &ViewportHudParams<'_>,
 ) {
@@ -81,7 +80,6 @@ pub fn render_viewport_hud_dropdown_popup(
         };
     let popup_y = params.viewport_rect.y + 6.0 + 32.0 + 2.0;
 
-    let mut scope = UiScope::new(tree, parent_id);
     scope.dropdown_menu_card(popup_x, popup_y, popup_w, |menu| {
         for (idx, (icon, label)) in items.into_iter().enumerate() {
             let is_selected = selected_index == Some(idx);
@@ -183,8 +181,7 @@ mod tests {
         };
 
         render_viewport_hud_dropdown_popup(
-            &mut tree,
-            root,
+            &mut UiScope::new(&mut tree, root),
             ViewportHudDropdownId::CameraMode,
             &params,
         );
@@ -261,8 +258,7 @@ mod tests {
         };
 
         render_viewport_hud_dropdown_popup(
-            &mut tree,
-            root,
+            &mut UiScope::new(&mut tree, root),
             ViewportHudDropdownId::CameraMode,
             &params,
         );

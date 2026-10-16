@@ -16,40 +16,46 @@ use irisui::prelude::*;
 ///
 /// Dispatches declarative HUD components: top-left floating toolbar, top-right
 /// 3D navigation compass, bottom-right camera info HUD, and optional active dropdown popups.
-/// Subtree layout and hover states are resolved declaratively across the viewport bounds.
-pub fn build_viewport_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportHudParams<'_>) {
+/// Builds viewport HUD overlays purely through a declarative [`UiScope`].
+pub fn build_viewport_hud_scope(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
     if params.viewport_rect.width < 20.0 || params.viewport_rect.height < 20.0 {
         return;
     }
 
     if params.is_editing {
         // 1. Top-left floating toolbar
-        toolbar::build_viewport_toolbar(tree, parent_id, params);
+        toolbar::build_viewport_toolbar(scope, params);
 
         // In 2D dimension mode, 3D compass and 3D camera Euler angle telemetry are hidden
         if !params.is_2d {
             // 2. Top-right 3D Scene Navigation Compass (visible across all 3D projection modes)
-            compass::build_scene_navigation_compass(tree, parent_id, params);
+            compass::build_scene_navigation_compass(scope, params);
 
             // 3. Bottom-right Camera Info HUD (positioned via Style::position_absolute, right(8.0), bottom(8.0))
-            camera_hud::build_camera_hud(tree, parent_id, params);
+            camera_hud::build_camera_hud(scope, params);
         }
 
         // 4. Resolve complete HUD layout and hover reconciliation across viewport bounds
-        let mut scope = UiScope::new(tree, parent_id);
         scope.finish_layout(params.viewport_rect);
 
         // 5. Active dropdown popup if open
         if let Some(active_dd) = params.active_dropdown {
-            popup::render_viewport_hud_dropdown_popup(tree, parent_id, active_dd, params);
+            popup::render_viewport_hud_dropdown_popup(scope, active_dd, params);
         }
     } else {
         // Play Mode HUD & In-Game Pause Menu Overlay
-        play_hud::build_play_hud(tree, parent_id, params);
+        play_hud::build_play_hud(scope, params);
 
-        let mut scope = UiScope::new(tree, parent_id);
         scope.finish_layout(params.viewport_rect);
     }
+}
+
+/// Builds the interactive Viewport HUD overlay directly into the UI tree.
+///
+/// Subtree layout and hover states are resolved declaratively across the viewport bounds.
+pub fn build_viewport_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportHudParams<'_>) {
+    let mut scope = UiScope::new(tree, parent_id);
+    build_viewport_hud_scope(&mut scope, params);
 }
 
 #[cfg(test)]

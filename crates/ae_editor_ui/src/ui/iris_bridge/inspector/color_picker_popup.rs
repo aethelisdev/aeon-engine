@@ -115,15 +115,14 @@ pub fn build_color_picker_popup(
                             WidgetRole::Button,
                             TAG_INSPECTOR_COLOR_PICKER_CLOSE,
                             |btn| {
-                                let txt_id = btn.label_styled_passive(
+                                btn.label_styled_hover_passive(
                                     "CloseGlyph",
                                     "✖",
                                     9.0,
-                                    Color::rgba(0.70, 0.73, 0.80, 0.90),
+                                    (Color::rgba(0.70, 0.73, 0.80, 0.90), Color::WHITE),
                                     TextAlign::Center,
                                     Style::new().height(close_size),
                                 );
-                                btn.set_hover_text_color(txt_id, Color::WHITE);
                             },
                         );
                     });

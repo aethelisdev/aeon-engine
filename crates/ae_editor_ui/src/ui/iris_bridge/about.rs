@@ -54,78 +54,75 @@ pub fn build_about_dialog(
     _cursor_pos: Point,
     events: &[(WidgetId, InteractionEvent)],
     hovered_id: Option<WidgetId>,
-) -> WidgetId {
+) {
     let parent = tree
         .root()
         .or_else(|| tree.create_root().ok())
         .unwrap_or_default();
     let mut scope = UiScope::with_interactions(tree, parent, events, hovered_id);
 
-    scope
-        .modal_scrim_sized(
-            Rect::new(0.0, 0.0, screen_width, screen_height),
-            Color::rgba(0.0, 0.0, 0.0, 0.55),
-            |scrim| {
-                scrim.modal_card(ABOUT_DIALOG_WIDTH, ABOUT_DIALOG_HEIGHT, |card| {
-                    // 1. Header Bar: Title and '✖' close button
-                    card.container(
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::SpaceBetween),
-                        |header| {
-                            header.subheading("ℹ  About Aeon Engine");
-                            header.modal_close_button();
-                        },
+    scope.modal_scrim_sized(
+        Rect::new(0.0, 0.0, screen_width, screen_height),
+        Color::rgba(0.0, 0.0, 0.0, 0.55),
+        |scrim| {
+            scrim.modal_card(ABOUT_DIALOG_WIDTH, ABOUT_DIALOG_HEIGHT, |card| {
+                // 1. Header Bar: Title and '✖' close button
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::SpaceBetween),
+                    |header| {
+                        header.subheading("ℹ  About Aeon Engine");
+                        header.modal_close_button();
+                    },
+                );
+
+                // 2. Body Column: Engine identity, copyright, license link, and warranty
+                card.column(|col| {
+                    col.label_custom(
+                        "Aeon Engine",
+                        20.0,
+                        Color::rgba(0.0, 0.90, 1.0, 1.0),
+                        TextAlign::Center,
                     );
-
-                    // 2. Body Column: Engine identity, copyright, license link, and warranty
-                    card.column(|col| {
-                        col.label_custom(
-                            "Aeon Engine",
-                            20.0,
-                            Color::rgba(0.0, 0.90, 1.0, 1.0),
-                            TextAlign::Center,
-                        );
-                        col.colored_label(
-                            Color::rgba(0.65, 0.65, 0.70, 1.0),
-                            "Copyright (C) 2026 AethelisDEV / Aeon Engine",
-                        );
-                        col.separator();
-                        col.colored_label(
-                            Color::rgba(0.72, 0.72, 0.78, 1.0),
-                            "This Source Code Form is subject to the terms of the Mozilla Public",
-                        );
-                        if col
-                            .link(
-                                "License, v. 2.0 (MPL-2.0). https://mozilla.org/MPL/2.0/",
-                                11.0,
-                            )
-                            .clicked()
-                        {
-                            open_url("https://mozilla.org/MPL/2.0/");
-                        }
-                        col.colored_label(
-                            Color::rgba(1.0, 0.40, 0.40, 1.0),
-                            "This program comes with ABSOLUTELY NO WARRANTY.",
-                        );
-                    });
-
-                    // 3. Footer Bar: Confirmation close button
-                    card.container(
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::FlexEnd),
-                        |footer| {
-                            footer.modal_confirm_button("Close", 100.0);
-                        },
+                    col.colored_label(
+                        Color::rgba(0.65, 0.65, 0.70, 1.0),
+                        "Copyright (C) 2026 AethelisDEV / Aeon Engine",
+                    );
+                    col.separator();
+                    col.colored_label(
+                        Color::rgba(0.72, 0.72, 0.78, 1.0),
+                        "This Source Code Form is subject to the terms of the Mozilla Public",
+                    );
+                    if col
+                        .link(
+                            "License, v. 2.0 (MPL-2.0). https://mozilla.org/MPL/2.0/",
+                            11.0,
+                        )
+                        .clicked()
+                    {
+                        open_url("https://mozilla.org/MPL/2.0/");
+                    }
+                    col.colored_label(
+                        Color::rgba(1.0, 0.40, 0.40, 1.0),
+                        "This program comes with ABSOLUTELY NO WARRANTY.",
                     );
                 });
-            },
-        )
-        .response
-        .id
+
+                // 3. Footer Bar: Confirmation close button
+                card.container(
+                    Style::new()
+                        .flex_row()
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::FlexEnd),
+                    |footer| {
+                        footer.modal_confirm_button("Close", 100.0);
+                    },
+                );
+            });
+        },
+    );
 }
 
 #[cfg(test)]
@@ -140,7 +137,7 @@ mod tests {
         let screen_w = 1920.0;
         let screen_h = 1080.0;
 
-        let scrim_id = build_about_dialog(
+        build_about_dialog(
             &mut tree,
             screen_w,
             screen_h,
@@ -148,6 +145,10 @@ mod tests {
             &[],
             None,
         );
+
+        let scrim_id = tree
+            .find_node_by_tag(MODAL_TAG_SCRIM)
+            .expect("Scrim node must exist");
 
         let scrim_node = tree.get(scrim_id).expect("Scrim node must exist");
         assert_eq!(scrim_node.tag, MODAL_TAG_SCRIM);

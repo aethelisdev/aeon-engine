@@ -213,6 +213,7 @@ impl<'a> UiScope<'a> {
         let mut reset_btn_out = None;
         let mut changed_axis_out = None;
         let mut reset_clicked_out = false;
+        let mut slot_executed = false;
 
         let row_id = self.property_row_styled(label, Some(options.label_width), |slot| {
             let axes_meta = [
@@ -282,43 +283,10 @@ impl<'a> UiScope<'a> {
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center);
 
-                let axis_box_id = slot
-                    .container_named(box_name, pill_style, |pill_scope| {
-                        if let Some(s) = edit_state.filter(|s| s.is_all_selected) {
-                            let approx_char_w = 6.2;
-                            let val_w = (s.buffer.len() as f32 * approx_char_w).max(12.0);
-                            let prefix_w = prefix.len() as f32 * approx_char_w;
-                            let tot_w = (prefix.len() + s.buffer.len()) as f32 * approx_char_w;
-                            let cx = 54.0 * 0.5;
-                            let text_start_x = cx - tot_w * 0.5;
-                            let val_start_x = text_start_x + prefix_w;
-                            let sel_x = (val_start_x - 2.0).clamp(2.0, 54.0 - 6.0);
-                            let sel_w = (val_w + 4.0).min(54.0 - 2.0 - sel_x);
-
-                            let sel_style = Style::new()
-                                .position_absolute()
-                                .left(sel_x)
-                                .top(2.5)
-                                .width(sel_w)
-                                .height(15.0)
-                                .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
-                                .border_radius(3.0);
-                            pill_scope.empty_box_passive_named(sel_name, sel_style);
-                        }
-
-                        pill_scope.label_styled_passive(
-                            txt_name,
-                            display_str,
-                            10.5,
-                            txt_col,
-                            TextAlign::Center,
-                            Style::new().width(54.0).height(20.0),
-                        );
-                    })
-                    .response
-                    .id;
-
+                let axis_box_id = slot.tree.create_node();
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
+                    node.set_name(box_name);
+                    node.set_style(pill_style);
                     node.interactive = true;
                     node.role = WidgetRole::NumericInput;
                     node.tag = axis_tag;
@@ -327,6 +295,41 @@ impl<'a> UiScope<'a> {
                     } else {
                         WidgetCursor::EwResize
                     });
+                }
+                let _ = slot.tree.add_child(slot.parent, axis_box_id);
+
+                {
+                    let mut pill_scope = slot.child_scope(axis_box_id);
+                    if let Some(s) = edit_state.filter(|s| s.is_all_selected) {
+                        let approx_char_w = 6.2;
+                        let val_w = (s.buffer.len() as f32 * approx_char_w).max(12.0);
+                        let prefix_w = prefix.len() as f32 * approx_char_w;
+                        let tot_w = (prefix.len() + s.buffer.len()) as f32 * approx_char_w;
+                        let cx = 54.0 * 0.5;
+                        let text_start_x = cx - tot_w * 0.5;
+                        let val_start_x = text_start_x + prefix_w;
+                        let sel_x = (val_start_x - 2.0).clamp(2.0, 54.0 - 6.0);
+                        let sel_w = (val_w + 4.0).min(54.0 - 2.0 - sel_x);
+
+                        let sel_style = Style::new()
+                            .position_absolute()
+                            .left(sel_x)
+                            .top(2.5)
+                            .width(sel_w)
+                            .height(15.0)
+                            .background(Color::rgba(0.14, 0.46, 0.88, 0.95))
+                            .border_radius(3.0);
+                        pill_scope.empty_box_passive_named(sel_name, sel_style);
+                    }
+
+                    pill_scope.label_styled_passive(
+                        txt_name,
+                        display_str,
+                        10.5,
+                        txt_col,
+                        TextAlign::Center,
+                        Style::new().width(54.0).height(20.0),
+                    );
                 }
 
                 axes_out[idx] = axis_box_id;
@@ -378,30 +381,30 @@ impl<'a> UiScope<'a> {
                     .justify_content(JustifyContent::Center);
 
                 let reset_name = format!("ResetBtn_{}", visible_label);
-                let reset_btn_id = slot
-                    .container_named(reset_name, reset_style, |btn_scope| {
-                        btn_scope.label_styled_passive(
-                            "ResetBtnText",
-                            "🔄",
-                            10.0,
-                            if is_reset_hovered {
-                                Color::WHITE
-                            } else {
-                                Color::rgba(0.70, 0.73, 0.80, 0.90)
-                            },
-                            TextAlign::Center,
-                            Style::new().width(18.0).height(18.0),
-                        );
-                    })
-                    .response
-                    .id;
-
+                let reset_btn_id = slot.tree.create_node();
                 if let Some(node) = slot.tree.get_mut(reset_btn_id) {
+                    node.set_name(reset_name);
+                    node.set_style(reset_style);
                     node.interactive = true;
                     node.role = WidgetRole::Button;
                     node.tag = reset_tag;
                     node.cursor = Some(WidgetCursor::Pointer);
                 }
+                let _ = slot.tree.add_child(slot.parent, reset_btn_id);
+
+                let mut btn_scope = slot.child_scope(reset_btn_id);
+                btn_scope.label_styled_passive(
+                    "ResetBtnText",
+                    "🔄",
+                    10.0,
+                    if is_reset_hovered {
+                        Color::WHITE
+                    } else {
+                        Color::rgba(0.70, 0.73, 0.80, 0.90)
+                    },
+                    TextAlign::Center,
+                    Style::new().width(18.0).height(18.0),
+                );
 
                 reset_btn_out = Some(reset_btn_id);
 
@@ -417,10 +420,11 @@ impl<'a> UiScope<'a> {
 
             widget_response =
                 WidgetResponse::new(slot.parent, any_clicked, any_hovered, any_changed);
+            slot_executed = true;
         });
 
-        if widget_response.id == WidgetId::default() {
-            widget_response.id = row_id;
+        if !slot_executed {
+            widget_response = self.response(row_id);
         }
 
         PropertyVec3Response {
@@ -447,6 +451,7 @@ impl<'a> UiScope<'a> {
         let (visible_label, _) = crate::declarative::types::split_label_id(label);
         let base_tag = self.tag_for(label);
         let mut response = WidgetResponse::default();
+        let mut slot_executed = false;
 
         let row_id = self.property_row_styled(label, Some(52.0), |slot| {
             let axes = [
@@ -476,29 +481,26 @@ impl<'a> UiScope<'a> {
 
                 let text_val = format!("{} {:.2}", prefix, values[idx]);
 
-                let axis_box_id = slot
-                    .container_tagged(
-                        box_name,
-                        box_style,
-                        WidgetRole::NumericInput,
-                        axis_tag,
-                        |pill_scope| {
-                            pill_scope.label_styled_passive(
-                                txt_name,
-                                text_val,
-                                10.5,
-                                col,
-                                TextAlign::Center,
-                                Style::new().width(72.0).height(16.0),
-                            );
-                        },
-                    )
-                    .response
-                    .id;
-
+                let axis_box_id = slot.tree.create_node();
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
+                    node.set_name(box_name);
+                    node.set_style(box_style);
+                    node.role = WidgetRole::NumericInput;
+                    node.tag = axis_tag;
+                    node.interactive = true;
                     node.cursor = Some(WidgetCursor::EwResize);
                 }
+                let _ = slot.tree.add_child(slot.parent, axis_box_id);
+
+                let mut pill_scope = slot.child_scope(axis_box_id);
+                pill_scope.label_styled_passive(
+                    txt_name,
+                    text_val,
+                    10.5,
+                    col,
+                    TextAlign::Center,
+                    Style::new().width(72.0).height(16.0),
+                );
 
                 let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
                 if let Some(delta) = drag_delta {
@@ -513,10 +515,11 @@ impl<'a> UiScope<'a> {
             }
 
             response = WidgetResponse::new(slot.parent, any_clicked, any_hovered, any_changed);
+            slot_executed = true;
         });
 
-        if response.id == WidgetId::default() {
-            response.id = row_id;
+        if !slot_executed {
+            response = self.response(row_id);
         }
         response
     }
@@ -531,6 +534,7 @@ impl<'a> UiScope<'a> {
         let (visible_label, _) = crate::declarative::types::split_label_id(label);
         let base_tag = self.tag_for(label);
         let mut response = WidgetResponse::default();
+        let mut slot_executed = false;
 
         let row_id = self.property_row_styled(label, Some(52.0), |slot| {
             let axes = [
@@ -565,29 +569,26 @@ impl<'a> UiScope<'a> {
 
                 let text_val = format!("{} {:.2}", prefix, rgb[idx]);
 
-                let axis_box_id = slot
-                    .container_tagged(
-                        box_name,
-                        box_style,
-                        WidgetRole::NumericInput,
-                        axis_tag,
-                        |pill_scope| {
-                            pill_scope.label_styled_passive(
-                                txt_name,
-                                text_val,
-                                10.5,
-                                col,
-                                TextAlign::Center,
-                                Style::new().width(50.0).height(16.0),
-                            );
-                        },
-                    )
-                    .response
-                    .id;
-
+                let axis_box_id = slot.tree.create_node();
                 if let Some(node) = slot.tree.get_mut(axis_box_id) {
+                    node.set_name(box_name);
+                    node.set_style(box_style);
+                    node.role = WidgetRole::NumericInput;
+                    node.tag = axis_tag;
+                    node.interactive = true;
                     node.cursor = Some(WidgetCursor::EwResize);
                 }
+                let _ = slot.tree.add_child(slot.parent, axis_box_id);
+
+                let mut pill_scope = slot.child_scope(axis_box_id);
+                pill_scope.label_styled_passive(
+                    txt_name,
+                    text_val,
+                    10.5,
+                    col,
+                    TextAlign::Center,
+                    Style::new().width(50.0).height(16.0),
+                );
 
                 let (clicked, hovered, drag_delta) = slot.check_interaction(axis_box_id);
                 if let Some(delta) = drag_delta {
@@ -602,10 +603,11 @@ impl<'a> UiScope<'a> {
             }
 
             response = WidgetResponse::new(slot.parent, any_clicked, any_hovered, any_changed);
+            slot_executed = true;
         });
 
-        if response.id == WidgetId::default() {
-            response.id = row_id;
+        if !slot_executed {
+            response = self.response(row_id);
         }
         response
     }

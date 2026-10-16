@@ -9,7 +9,7 @@
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};
 use iris_core::{
-    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
+    AlignItems, Color, Insets, JustifyContent, Style, TextAlign, WidgetCursor, WidgetRole,
 };
 
 /// Configuration options for custom property sliders.
@@ -361,6 +361,7 @@ impl<'a> UiScope<'a> {
     ) -> WidgetResponse {
         let tag = self.tag_for(label);
         let mut response = WidgetResponse::default();
+        let mut slot_executed = false;
 
         let row_id = self.property_row(label, |slot| {
             let drag_id = slot.tree.create_node();
@@ -400,10 +401,11 @@ impl<'a> UiScope<'a> {
             }
 
             response = WidgetResponse::new(drag_id, clicked, hovered, changed);
+            slot_executed = true;
         });
 
-        if response.id == WidgetId::default() {
-            response.id = row_id;
+        if !slot_executed {
+            response = self.response(row_id);
         }
         response
     }

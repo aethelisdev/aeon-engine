@@ -138,7 +138,7 @@ mod tests {
 
         let mut scope = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope, &mut ctx);
-        layout_subtree(scope.tree_mut(), root, Rect::new(6.0, 10.0, 308.0, 300.0));
+        scope.finish_layout(Rect::new(6.0, 10.0, 308.0, 300.0));
 
         // Declarative assertions (zero imperative loop or let boilerplate)
         tree.assert_node_exists("TransformCard");
@@ -269,11 +269,7 @@ mod tests {
         let mut ctx_narrow = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
         let mut scope_narrow = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope_narrow, &mut ctx_narrow);
-        layout_subtree(
-            scope_narrow.tree_mut(),
-            root,
-            Rect::new(6.0, 10.0, 308.0, 300.0),
-        );
+        scope_narrow.finish_layout(Rect::new(6.0, 10.0, 308.0, 300.0));
 
         // Verify all 3 rows have identical X coordinates (column aligned) declaratively
         assert_eq!(
@@ -300,11 +296,7 @@ mod tests {
         let mut ctx_wide = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 600.0);
         let mut scope_wide = UiScope::new(&mut tree_wide, root_wide);
         build_transform_card(&mut scope_wide, &mut ctx_wide);
-        layout_subtree(
-            scope_wide.tree_mut(),
-            root_wide,
-            Rect::new(6.0, 10.0, 600.0, 300.0),
-        );
+        scope_wide.finish_layout(Rect::new(6.0, 10.0, 600.0, 300.0));
 
         // In the wide card, the inputs must REMAIN at the exact same left-aligned X position
         assert_eq!(

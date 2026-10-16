@@ -16,6 +16,9 @@ use irisui::prelude::*;
 /// Height of the time ruler section above the track in physical pixels.
 pub const RULER_HEIGHT: f32 = 18.0;
 
+/// Persistent 64-bit semantic tag for the ruler bar container.
+pub const TIMELINE_TAG_RULER_ROOT: u64 = 0x5449_4D45_5255_4C45;
+
 /// Height of the interactive scrubber track in physical pixels.
 pub const SCRUBBER_TRACK_HEIGHT: f32 = 36.0;
 
@@ -66,8 +69,8 @@ pub fn build_ruler_and_scrubber(
         .padding_insets(Insets::new(4.0, 10.0, 4.0, 10.0));
 
     scope.container_named("TimelineRulerAndScrubberSection", section_style, |col| {
-        let _ = render_ruler_bar(col, duration, RULER_HEIGHT, track_width, &ruler_style);
-        let _ = render_scrubber_track(
+        render_ruler_bar(col, duration, RULER_HEIGHT, track_width, &ruler_style);
+        render_scrubber_track(
             col,
             &ScrubberTrackParams {
                 duration,
@@ -92,15 +95,19 @@ pub fn render_ruler_bar(
     height: f32,
     track_width: f32,
     style: &TimelineRulerStyle,
-) -> WidgetId {
+) {
     let ruler_style = Style::new()
         .height(height)
         .width(track_width)
         .clip_children(true)
         .background(Color::rgba(0.07, 0.08, 0.11, 0.60));
 
-    scope
-        .container_named("TimelineRulerRoot", ruler_style, |ruler| {
+    scope.container_tagged(
+        "TimelineRulerRoot",
+        ruler_style,
+        WidgetRole::Default,
+        TIMELINE_TAG_RULER_ROOT,
+        |ruler| {
             let usable_width = (track_width - TIMELINE_SIDEBAR_WIDTH).max(10.0);
             let safe_duration = duration.max(0.001);
             let step = if duration <= 1.0 {
@@ -173,9 +180,8 @@ pub fn render_ruler_bar(
                     );
                 }
             }
-        })
-        .response
-        .id
+        },
+    );
 }
 
 /// Parameters describing dimensions, time bounds, keyframes, and style for scrubber track rendering.
@@ -200,10 +206,7 @@ pub struct ScrubberTrackParams<'a> {
 /// and the draggable playhead needle and cap handle.
 ///
 /// Returns `(track_widget_id, playhead_cap_widget_id)`.
-pub fn render_scrubber_track(
-    scope: &mut UiScope<'_>,
-    params: &ScrubberTrackParams<'_>,
-) -> (WidgetId, WidgetId) {
+pub fn render_scrubber_track(scope: &mut UiScope<'_>, params: &ScrubberTrackParams<'_>) {
     let style = params.style;
     let height = params.height;
     let keyframes = params.keyframes;
@@ -225,7 +228,7 @@ pub fn render_scrubber_track(
         .border(params.style.track_border_width, track_border)
         .clip_children(false);
 
-    let track_resp = scope.container_tagged(
+    scope.container_tagged(
         "TimelineScrubberTrack",
         track_style,
         WidgetRole::Default,
@@ -314,22 +317,17 @@ pub fn render_scrubber_track(
                 .height(cap_h)
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
-            track
-                .container_tagged(
-                    "TimelinePlayheadCap",
-                    cap_style,
-                    WidgetRole::Button,
-                    TIMELINE_TAG_PLAYHEAD_CAP,
-                    |cap| {
-                        cap.label_custom("▼", 9.0, style.playhead_cap_color, TextAlign::Center);
-                    },
-                )
-                .response
-                .id
+            track.container_tagged(
+                "TimelinePlayheadCap",
+                cap_style,
+                WidgetRole::Button,
+                TIMELINE_TAG_PLAYHEAD_CAP,
+                |cap| {
+                    cap.label_custom("▼", 9.0, style.playhead_cap_color, TextAlign::Center);
+                },
+            );
         },
     );
-
-    (track_resp.response.id, track_resp.inner)
 }
 
 #[cfg(test)]
@@ -344,10 +342,13 @@ mod tests {
 
         let style = TimelineRulerStyle::dark_default();
 
-        let ruler_id = {
+        {
             let mut scope = UiScope::new(&mut tree, root);
-            render_ruler_bar(&mut scope, 5.0, 18.0, 500.0, &style)
-        };
+            render_ruler_bar(&mut scope, 5.0, 18.0, 500.0, &style);
+        }
+        let ruler_id = tree
+            .find_node_by_tag(TIMELINE_TAG_RULER_ROOT)
+            .expect("Ruler node must exist");
         assert!(tree.get(ruler_id).is_some());
         assert!(!tree.get(ruler_id).unwrap().children.is_empty());
     }
@@ -364,7 +365,7 @@ mod tests {
             TimelineKeyframeMarker::new(2.0),
         ];
 
-        let (track_id, cap_id) = {
+        {
             let mut scope = UiScope::new(&mut tree, root);
             render_scrubber_track(
                 &mut scope,
@@ -377,9 +378,15 @@ mod tests {
                     track_width: 600.0,
                     style: &style,
                 },
-            )
-        };
+            );
+        }
 
+        let track_id = tree
+            .find_node_by_tag(TIMELINE_TAG_SCRUBBER_TRACK)
+            .expect("Track node must exist");
+        let cap_id = tree
+            .find_node_by_tag(TIMELINE_TAG_PLAYHEAD_CAP)
+            .expect("Cap node must exist");
         assert!(tree.get(track_id).is_some());
         assert!(tree.get(cap_id).is_some());
         assert_eq!(tree.get(track_id).unwrap().tag, TIMELINE_TAG_SCRUBBER_TRACK);

@@ -15,7 +15,7 @@ pub mod popup;
 pub mod toolbar;
 pub mod types;
 
-pub use builder::build_viewport_hud;
+pub use builder::{build_viewport_hud, build_viewport_hud_scope};
 pub use types::{
     TAG_COMPASS_CANVAS, TAG_COMPASS_NEG_X, TAG_COMPASS_NEG_Y, TAG_COMPASS_NEG_Z, TAG_COMPASS_POS_X,
     TAG_COMPASS_POS_Y, TAG_COMPASS_POS_Z, TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT,

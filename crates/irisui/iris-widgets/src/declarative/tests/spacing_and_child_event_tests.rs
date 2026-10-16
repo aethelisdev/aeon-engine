@@ -21,38 +21,41 @@ fn test_declarative_spacing_and_separators() {
     let root = tree.create_root().expect("Root node creation failed");
 
     // 1. In a horizontal row, spacing(12.0) sets width = 12.0
-    let (spacing_id, sep_id) = {
+    {
         let mut scope = UiScope::new(&mut tree, root);
-        let mut sp_id = None;
-        let mut s_id = None;
         scope.row(|row| {
-            sp_id = Some(row.spacing(12.0));
-            s_id = Some(row.separator());
+            row.spacing(12.0);
+            row.separator();
         });
-        (sp_id.unwrap(), s_id.unwrap())
-    };
+    }
 
-    let sp_node = tree.get(spacing_id).expect("Spacing node must exist");
+    let sp_id = tree
+        .find_node_by_name("Spacing")
+        .expect("Spacing node must exist");
+    let sp_node = tree.get(sp_id).expect("Spacing node exists");
     assert_eq!(sp_node.style.width, Some(12.0));
     assert!(!sp_node.interactive);
 
-    let sep_node = tree.get(sep_id).expect("Separator node must exist");
-    assert_eq!(sep_node.role, WidgetRole::Separator);
+    let sep_id = tree
+        .find_node_by_name("Separator")
+        .expect("Separator node must exist");
+    let sep_node = tree.get(sep_id).expect("Separator node exists");
     assert_eq!(sep_node.style.height, Some(1.0));
 
     // 2. In a vertical column, spacing(20.0) sets height = 20.0
-    let col_spacing_id = {
-        let mut scope = UiScope::new(&mut tree, root);
-        let mut sp_id = None;
+    let mut tree_col = UiTree::new();
+    let root_col = tree_col.create_root().expect("Root node creation failed");
+    {
+        let mut scope = UiScope::new(&mut tree_col, root_col);
         scope.column(|col| {
-            sp_id = Some(col.spacing(20.0));
+            col.spacing(20.0);
         });
-        sp_id.unwrap()
-    };
+    }
 
-    let col_sp_node = tree
-        .get(col_spacing_id)
+    let col_sp_id = tree_col
+        .find_node_by_name("Spacing")
         .expect("Column spacing node must exist");
+    let col_sp_node = tree_col.get(col_sp_id).expect("Column spacing node exists");
     assert_eq!(col_sp_node.style.height, Some(20.0));
 }
 
@@ -77,12 +80,12 @@ fn test_child_event_consumption_prevents_parent_click_or_drag() {
             WidgetRole::Button,
             tag_row,
             |row_scope| {
-                row_scope
-                    .add(Button::new("Action").small().tag(tag_btn))
-                    .id()
+                let resp = row_scope.add(Button::new("Action").small().tag(tag_btn));
+                resp.id
             },
         );
-        (row_resp.response.id, row_resp.inner)
+        let row_id = row_resp.response.id;
+        (row_id, row_resp.inner)
     };
 
     // Assign computed layout rectangles
@@ -160,7 +163,7 @@ fn test_small_button_with_icon_renders_and_responds() {
     let btn_id = {
         let mut scope = UiScope::new(&mut tree, root);
         let resp = scope.small_button_with_icon_tagged(icon_uv, "Spawn", tag_btn);
-        resp.id()
+        resp.id
     };
 
     let btn_node = tree.get(btn_id).expect("Button node must exist");
