@@ -50,7 +50,7 @@ fn test_preferences_all_ten_tabs_render_cleanly() {
         };
 
         let (_card_id, card_rect, content_rect, max_scroll_y) =
-            build_preferences_dialog(&mut tree, params);
+            build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
         assert!(
             card_rect.width > 500.0 && card_rect.height > 400.0,
@@ -141,7 +141,7 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         events: &nav_events,
     };
 
-    build_preferences_dialog(&mut tree_nav, params_nav);
+    build_preferences_dialog(&mut tree_nav, params_nav, &mut Vec::new());
 
     // Verify mutations in editor_config:
     // camera_base_speed: 5.0 + 10.0 * 0.2 = 7.0
@@ -196,7 +196,7 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         events: &input_events,
     };
 
-    build_preferences_dialog(&mut tree_input, params_input);
+    build_preferences_dialog(&mut tree_input, params_input, &mut Vec::new());
 
     // Look Sensitivity: 0.005 + 10.0 * 0.0002 = 0.007
     assert!(
@@ -238,7 +238,7 @@ fn test_preferences_keymap_scroll_covers_full_content() {
     };
 
     let (_card_id, _card_rect, content_rect, max_scroll_y) =
-        build_preferences_dialog(&mut tree, params);
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Dynamic measurement must provide sufficient scroll extent so bottom buttons are never cut off
     assert!(

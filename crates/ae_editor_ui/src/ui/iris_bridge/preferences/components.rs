@@ -40,16 +40,20 @@ pub fn pref_heading(scope: &mut UiScope<'_>, title: &'static str, subtitle: &'st
 }
 
 /// Emits a collapsible card section with a toggleable header and scoped content body.
+///
+/// Returns the [`WidgetResponse`] of the section header button.
 pub fn pref_section_card<F>(
     scope: &mut UiScope<'_>,
     sec_id: &'static str,
     title: &'static str,
     is_collapsed: bool,
     content: F,
-) where
+) -> WidgetResponse
+where
     F: FnOnce(&mut UiScope<'_>),
 {
     let tag = encode_section_tag(sec_id);
+    let mut header_resp = WidgetResponse::default();
 
     scope.container_named(
         "PrefSectionCard",
@@ -61,7 +65,7 @@ pub fn pref_section_card<F>(
             .margin_insets(Insets::new(0.0, 0.0, 14.0, 0.0)),
         |card| {
             // Section Header Bar
-            card.container_tagged(
+            header_resp = card.container_tagged_resp(
                 "PrefSectionHeader",
                 Style::new()
                     .flex_row()
@@ -107,18 +111,22 @@ pub fn pref_section_card<F>(
             }
         },
     );
+
+    header_resp
 }
 
 /// Emits an interactive checkbox toggle row.
+///
+/// Returns the [`WidgetResponse`] of the checkbox container.
 pub fn pref_toggle_row(
     scope: &mut UiScope<'_>,
     toggle_id: PreferencesToggleId,
     label: &'static str,
     is_checked: bool,
-) {
+) -> WidgetResponse {
     let tag = encode_toggle_tag(toggle_id);
 
-    scope.container_tagged(
+    scope.container_tagged_resp(
         "PrefToggleRow",
         Style::new()
             .flex_row()
@@ -174,18 +182,21 @@ pub fn pref_toggle_row(
                 Style::new().flex_grow(1.0),
             );
         },
-    );
+    )
 }
 
 /// Emits an interactive dropdown ComboBox row.
+///
+/// Returns the [`WidgetResponse`] of the ComboBox trigger button.
 pub fn pref_dropdown_row(
     scope: &mut UiScope<'_>,
     dropdown_id: PreferencesDropdownId,
     label: &'static str,
     current_label: &str,
     is_open: bool,
-) {
+) -> WidgetResponse {
     let tag = encode_dropdown_tag(dropdown_id);
+    let mut combo_resp = WidgetResponse::default();
 
     scope.container_named(
         "PrefDropdownRow",
@@ -232,7 +243,7 @@ pub fn pref_dropdown_row(
 
             let combo_text = format!("{} ▾", current_label);
 
-            row.container_tagged(
+            combo_resp = row.container_tagged_resp(
                 "PrefComboBox",
                 Style::new()
                     .width(180.0)
@@ -259,4 +270,6 @@ pub fn pref_dropdown_row(
             );
         },
     );
+
+    combo_resp
 }

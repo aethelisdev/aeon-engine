@@ -77,10 +77,18 @@ impl EngineUi {
         }
         if iris_res.close_preferences {
             self.show_preferences = false;
+            self.iris_overlay.overlay_tree.close();
+            self.iris_overlay.preferences.drag_offset = None;
+            self.iris_overlay.preferences.dropdown = None;
         }
         if let Some(pref_act) = iris_res.preferences_action {
             if let crate::ui::iris_bridge::PreferencesAction::SetUiScale(s) = pref_act {
                 self.ui_zoom_factor = s;
+            }
+            if let crate::ui::iris_bridge::PreferencesAction::SelectTab(t) = pref_act {
+                self.preferences_tab = t;
+                self.iris_overlay.preferences.tab = t;
+                self.iris_overlay.preferences.reset_scroll();
             }
             self.pending_preferences_actions.push(pref_act);
         }
@@ -102,7 +110,8 @@ impl EngineUi {
             self.asset_browser.delete_confirmation = None;
         }
 
-        let modal_closed = iris_res.close_about
+        let modal_closed = iris_res.close_preferences
+            || iris_res.close_about
             || iris_res.cancel_delete
             || iris_res.confirm_delete
             || iris_res.cancel_new_folder

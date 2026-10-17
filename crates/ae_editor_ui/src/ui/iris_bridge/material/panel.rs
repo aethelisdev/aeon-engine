@@ -20,7 +20,11 @@ use irisui::prelude::*;
 /// Builds the complete Material & Surface Studio panel tree in the retained `UiTree`.
 ///
 /// Returns the computed maximum vertical scroll limit in physical pixels.
-pub fn build_material_panel(scope: &mut UiScope<'_>, params: &MaterialPanelParams<'_>) {
+pub fn build_material_panel(
+    scope: &mut UiScope<'_>,
+    params: &MaterialPanelParams<'_>,
+    actions: &mut Vec<super::types::MaterialAction>,
+) {
     scope
         .panel("MaterialPanelRoot")
         .background(Color::rgba(0.065, 0.068, 0.080, 0.98))
@@ -63,7 +67,7 @@ pub fn build_material_panel(scope: &mut UiScope<'_>, params: &MaterialPanelParam
                                     models: params.models,
                                     textures: params.textures,
                                 };
-                                build_submesh_view(vp_scope, &submesh_params);
+                                build_submesh_view(vp_scope, &submesh_params, actions);
                             },
                         );
                     } else if has_sprite {
@@ -78,7 +82,7 @@ pub fn build_material_panel(scope: &mut UiScope<'_>, params: &MaterialPanelParam
                                     world: params.world,
                                     textures: params.textures,
                                 };
-                                build_sprite_view(vp_scope, &sprite_params);
+                                build_sprite_view(vp_scope, &sprite_params, actions);
                             },
                         );
                     } else {
@@ -89,7 +93,12 @@ pub fn build_material_panel(scope: &mut UiScope<'_>, params: &MaterialPanelParam
                             .justify_content(JustifyContent::Center)
                             .padding_insets(Insets::new(12.0, 12.0, 12.0, 12.0));
                         panel_scope.container(center_style, |center_scope| {
-                            build_no_renderable_geometry(center_scope, params.panel_rect.width);
+                            build_no_renderable_geometry(
+                                center_scope,
+                                params.panel_rect.width,
+                                params.entity,
+                                actions,
+                            );
                         });
                     }
                 }

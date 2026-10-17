@@ -64,13 +64,29 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
 /// Processes cursor motion inputs, updating hover states and servicing active pointer capture.
 fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
     // 1. Pointer capture overrides normal hit-testing (drag gesture in progress)
-    if let Some((captured_id, node)) = tree
+    let captured_id = tree
         .event_state
         .pointer_capture
-        .and_then(|id| tree.get(id).map(|node| (id, node)))
+        .filter(|&id| tree.get(id).is_some())
+        .or_else(|| {
+            let tag = tree.event_state.pointer_capture_tag?;
+            let id = tree.find_node_by_tag(tag)?;
+            tree.event_state.pointer_capture = Some(id);
+            Some(id)
+        });
+
+    if let Some(captured_id) = captured_id
+        && let Some((role, cursor, tag, rect)) = tree.get(captured_id).map(|node| {
+            (
+                node.role,
+                node.cursor.or_else(|| node.role.default_cursor()),
+                node.tag,
+                node.computed_rect,
+            )
+        })
     {
         // Special case: Autonomous ScrollBarThumb dragging
-        if node.role == WidgetRole::ScrollBarThumb
+        if role == WidgetRole::ScrollBarThumb
             && let Some(press_origin) = tree.event_state.press_origin
         {
             let delta_y = point.y - press_origin.y;
@@ -88,10 +104,6 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
         tree.event_state.frame_drag_delta = Some(delta);
         tree.event_state.last_pointer_pos = Some(point);
 
-        let node = tree.get(captured_id).unwrap();
-        let cursor = node.cursor.or_else(|| node.role.default_cursor());
-        let tag = node.tag;
-        let rect = node.computed_rect;
         let flags = ResponseFlags::HOVERED | ResponseFlags::DRAGGED;
 
         return DispatchResult {
@@ -201,37 +213,71 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
+        // If clicking on non-button child of a ModalTitlebar (e.g. title text label or icon), bubble target to titlebar
+        let (effective_target_id, effective_role) = if role != WidgetRole::Button {
+            if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
+            {
+                (tb_id, WidgetRole::ModalTitlebar)
+            } else {
+                (target_id, role)
+            }
+        } else {
+            (target_id, role)
+        };
+
         // Special case: Autonomous ScrollBarThumb capture inception
-        if role == WidgetRole::ScrollBarThumb && button == MouseButton::Left {
-            tree.event_state.pointer_capture = Some(target_id);
-            if let Some((vp_id, _)) = find_associated_viewport_and_track(tree, target_id) {
+        if effective_role == WidgetRole::ScrollBarThumb && button == MouseButton::Left {
+            tree.event_state.pointer_capture = Some(effective_target_id);
+            tree.event_state.pointer_capture_tag = if effective_tag != 0 {
+                Some(effective_tag)
+            } else {
+                tree.get(effective_target_id)
+                    .map(|n| n.tag)
+                    .filter(|&t| t != 0)
+            };
+            if let Some((vp_id, _)) = find_associated_viewport_and_track(tree, effective_target_id)
+            {
                 tree.event_state.initial_scroll_y = tree
                     .get(vp_id)
                     .map(|v| v.style.scroll_offset_y)
                     .unwrap_or(0.0);
             }
-        } else if role == WidgetRole::ScrollBarTrack && button == MouseButton::Left {
+        } else if effective_role == WidgetRole::ScrollBarTrack && button == MouseButton::Left {
             // Special case: Autonomous ScrollBarTrack click-to-jump gesture
-            if let Some((vp_id, thumb_id)) = find_associated_viewport_and_thumb(tree, target_id) {
-                perform_track_jump_scroll(tree, vp_id, target_id, thumb_id, point);
+            if let Some((vp_id, thumb_id)) =
+                find_associated_viewport_and_thumb(tree, effective_target_id)
+            {
+                perform_track_jump_scroll(tree, vp_id, effective_target_id, thumb_id, point);
                 tree.event_state.pointer_capture = Some(thumb_id);
+                tree.event_state.pointer_capture_tag =
+                    tree.get(thumb_id).map(|n| n.tag).filter(|&t| t != 0);
                 tree.event_state.initial_scroll_y = tree
                     .get(vp_id)
                     .map(|v| v.style.scroll_offset_y)
                     .unwrap_or(0.0);
             }
-        } else if role == WidgetRole::NumericInput && button == MouseButton::Left {
-            // Autonomous NumericInput pointer capture inception for drag scrubbers
-            tree.event_state.pointer_capture = Some(target_id);
+        } else if (effective_role == WidgetRole::NumericInput
+            || effective_role == WidgetRole::ModalTitlebar)
+            && button == MouseButton::Left
+        {
+            // Autonomous pointer capture inception for drag scrubbers and draggable modal titlebars
+            tree.event_state.pointer_capture = Some(effective_target_id);
+            tree.event_state.pointer_capture_tag = if effective_tag != 0 {
+                Some(effective_tag)
+            } else {
+                tree.get(effective_target_id)
+                    .map(|n| n.tag)
+                    .filter(|&t| t != 0)
+            };
         }
 
         let rect = tree
-            .get(target_id)
+            .get(effective_target_id)
             .map(|n| n.computed_rect)
             .unwrap_or(crate::geometry::Rect::ZERO);
-        let cursor = resolve_effective_cursor(tree, target_id);
+        let cursor = resolve_effective_cursor(tree, effective_target_id);
 
-        let is_interactive = role.is_interactive()
+        let is_interactive = effective_role.is_interactive()
             || effective_tag != 0
             || tree.event_state.pointer_capture.is_some();
 
@@ -260,25 +306,35 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
 /// Processes mouse button release inputs, detecting click and double-click gestures.
 fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> DispatchResult {
     // 1. Check if an active pointer capture is being released
-    if let Some(captured_id) = tree.event_state.pointer_capture {
+    let captured_id = tree
+        .event_state
+        .pointer_capture
+        .filter(|&id| tree.get(id).is_some())
+        .or_else(|| {
+            let tag = tree.event_state.pointer_capture_tag?;
+            tree.find_node_by_tag(tag)
+        });
+
+    let captured_info = captured_id.and_then(|id| {
+        tree.get(id).map(|n| {
+            (
+                id,
+                n.tag,
+                n.computed_rect,
+                n.cursor.or_else(|| n.role.default_cursor()),
+            )
+        })
+    });
+
+    if let Some((captured_id, tag, rect, cursor)) = captured_info {
         tree.event_state.pointer_capture = None;
+        tree.event_state.pointer_capture_tag = None;
         tree.event_state.pressed = None;
         tree.event_state.pressed_button = None;
         tree.event_state.press_origin = None;
         tree.event_state.last_pointer_pos = None;
         tree.event_state.initial_scroll_y = 0.0;
         tree.event_state.frame_drag_delta = None;
-
-        let (tag, rect, cursor) = tree
-            .get(captured_id)
-            .map(|n| {
-                (
-                    n.tag,
-                    n.computed_rect,
-                    n.cursor.or_else(|| n.role.default_cursor()),
-                )
-            })
-            .unwrap_or((0, crate::geometry::Rect::ZERO, None));
 
         return DispatchResult {
             consumed: true,
@@ -297,6 +353,9 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             text_input: None,
         };
     }
+
+    tree.event_state.pointer_capture = None;
+    tree.event_state.pointer_capture_tag = None;
 
     // 2. Normal click detection: pressed and released on identical widget with identical button
     let hit_id = tree.hit_test_layered(point);
@@ -797,6 +856,39 @@ fn sync_scrollbar_thumb_geometry(tree: &mut UiTree, viewport_id: WidgetId) {
 }
 
 /// Locates the associated viewport and scrollbar track for a given scrollbar thumb node.
+fn find_viewport_in_subtree(
+    tree: &UiTree,
+    root_id: WidgetId,
+    exclude: WidgetId,
+) -> Option<WidgetId> {
+    let mut stack = [WidgetId::default(); 32];
+    let mut head = 0;
+    if let Some(node) = tree.get(root_id) {
+        for &child in &node.children {
+            if child != exclude && head < stack.len() {
+                stack[head] = child;
+                head += 1;
+            }
+        }
+    }
+    while head > 0 {
+        head -= 1;
+        let curr_id = stack[head];
+        if let Some(node) = tree.get(curr_id) {
+            if node.role == WidgetRole::ScrollAreaViewport {
+                return Some(curr_id);
+            }
+            for &child in &node.children {
+                if child != exclude && head < stack.len() {
+                    stack[head] = child;
+                    head += 1;
+                }
+            }
+        }
+    }
+    None
+}
+
 fn find_associated_viewport_and_track(
     tree: &UiTree,
     thumb_id: WidgetId,
@@ -814,11 +906,16 @@ fn find_associated_viewport_and_track(
     }
 
     // If thumb and track are siblings of the viewport under a shared parent container
-    let vp_id = parent.children.iter().copied().find(|&c| {
-        tree.get(c).is_some_and(|n| {
-            n.role == WidgetRole::ScrollAreaViewport || (n.style.clip_children && c != thumb_id)
+    let vp_id = parent
+        .children
+        .iter()
+        .copied()
+        .find(|&c| {
+            tree.get(c).is_some_and(|n| {
+                n.role == WidgetRole::ScrollAreaViewport || (n.style.clip_children && c != thumb_id)
+            })
         })
-    })?;
+        .or_else(|| find_viewport_in_subtree(tree, parent_id, thumb_id))?;
 
     let track_id = parent.children.iter().copied().find(|&c| {
         tree.get(c)
@@ -844,11 +941,16 @@ fn find_associated_viewport_and_thumb(
         return Some((parent_id, thumb_id));
     }
 
-    let vp_id = parent.children.iter().copied().find(|&c| {
-        tree.get(c).is_some_and(|n| {
-            n.role == WidgetRole::ScrollAreaViewport || (n.style.clip_children && c != track_id)
+    let vp_id = parent
+        .children
+        .iter()
+        .copied()
+        .find(|&c| {
+            tree.get(c).is_some_and(|n| {
+                n.role == WidgetRole::ScrollAreaViewport || (n.style.clip_children && c != track_id)
+            })
         })
-    })?;
+        .or_else(|| find_viewport_in_subtree(tree, parent_id, track_id))?;
 
     let thumb_id = parent.children.iter().copied().find(|&c| {
         tree.get(c)

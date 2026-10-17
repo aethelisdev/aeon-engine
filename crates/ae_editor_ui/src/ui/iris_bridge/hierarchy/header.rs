@@ -10,7 +10,7 @@
 
 use super::types::{
     HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_SEARCH_CLEAR,
-    HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams,
+    HIERARCHY_TAG_SEARCH_INPUT, HierarchyAction, HierarchyPanelParams,
 };
 use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
@@ -19,7 +19,11 @@ use irisui::prelude::*;
 /// Add entity menu button, and Delete selected entity button.
 ///
 /// Attaches declarative widgets directly into the active [`UiScope`] flexbox flow.
-pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelParams<'_>) {
+pub fn build_hierarchy_header(
+    scope: &mut UiScope<'_>,
+    params: &HierarchyPanelParams<'_>,
+    actions: &mut Vec<HierarchyAction>,
+) {
     let header_bar_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -77,7 +81,7 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
                 .hover_border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
         }
 
-        bar.container_tagged(
+        let add_resp = bar.container_tagged_resp(
             "AddEntityButton",
             add_btn_style,
             WidgetRole::Button,
@@ -90,6 +94,9 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
                 }
             },
         );
+        if add_resp.clicked() {
+            actions.push(HierarchyAction::OpenAddMenu(None));
+        }
 
         // 3. "🗑" Delete Entity Button (Permanently visible)
         let has_selection = params.selected_entity.is_some();
@@ -123,7 +130,7 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
                 .hover_border(1.0, Color::rgba(0.95, 0.35, 0.40, 0.90));
         }
 
-        bar.container_tagged(
+        let del_resp = bar.container_tagged_resp(
             "DeleteSelectedButton",
             del_btn_style,
             WidgetRole::Button,
@@ -143,5 +150,8 @@ pub fn build_hierarchy_header(scope: &mut UiScope<'_>, params: &HierarchyPanelPa
                 }
             },
         );
+        if has_selection && del_resp.clicked() {
+            actions.push(HierarchyAction::DeleteSelected);
+        }
     });
 }

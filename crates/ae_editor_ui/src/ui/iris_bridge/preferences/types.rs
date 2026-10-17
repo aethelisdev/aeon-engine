@@ -352,6 +352,8 @@ pub enum PreferencesAction {
     Toggle(PreferencesToggleId),
     /// Select item index in an open dropdown.
     SelectDropdownItem(PreferencesDropdownId, usize),
+    /// Reposition the floating modal dialog window during titlebar dragging.
+    Move(Point),
 }
 
 /// Standard scrollbar styling for the Preferences modal dialog.

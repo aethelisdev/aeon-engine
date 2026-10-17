@@ -33,6 +33,8 @@ pub enum WidgetRole {
     DropdownPopup,
     /// Modal dialog card or window (e.g. Preferences, About, Asset Preview).
     ModalWindow,
+    /// Draggable modal window header or title bar strip.
+    ModalTitlebar,
     /// Floating draggable tool window.
     FloatingWindow,
     /// Canvas for drawing real-time audio or profiler oscilloscope curves.
@@ -167,7 +169,7 @@ impl WidgetRole {
             | WidgetRole::ScrollBarTrack
             | WidgetRole::ScrollBarThumb => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
-            WidgetRole::ModalWindow => UiLayer::Modal,
+            WidgetRole::ModalWindow | WidgetRole::ModalTitlebar => UiLayer::Modal,
             WidgetRole::DropdownPopup
             | WidgetRole::DropdownItem
             | WidgetRole::DropdownIcon
@@ -215,6 +217,7 @@ impl WidgetRole {
                 | WidgetRole::ScrollBarThumb
                 | WidgetRole::ScrollBarTrack
                 | WidgetRole::ModalWindow
+                | WidgetRole::ModalTitlebar
                 | WidgetRole::FloatingWindow
         )
     }

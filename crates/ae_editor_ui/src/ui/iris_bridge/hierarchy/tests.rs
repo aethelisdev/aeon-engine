@@ -38,7 +38,8 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -129,7 +130,8 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -177,7 +179,8 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -265,7 +268,8 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -308,7 +312,8 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 100.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -359,7 +364,8 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         active_context_menu: None,
         cursor_pos: Point::new(150.0, 50.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -405,7 +411,8 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         active_context_menu: Some((entity, Point::new(120.0, 200.0))),
         cursor_pos: Point::new(125.0, 210.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
@@ -463,16 +470,21 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
+    let mut actions = Vec::new();
+    let mut tree_state = TreeState::expanded_by_default();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
     );
 
     assert_eq!(rows_cache.len(), 1);
@@ -517,16 +529,21 @@ fn test_hierarchy_eye_visibility_click_and_rebuild_invalidation() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
+    let mut new_actions = Vec::new();
+    let mut new_tree_state = TreeState::expanded_by_default();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut new_tree, new_root),
         &new_params,
         &mut new_rows_cache,
+        &mut new_actions,
+        &mut new_tree_state,
     );
 
     let mut closed_eye_uv_opt = None;
@@ -595,17 +612,22 @@ fn test_hierarchy_panel_declarative_scope_build() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
     let mut rows_cache = Vec::new();
+    let mut actions = Vec::new();
+    let mut tree_state = TreeState::expanded_by_default();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
     );
     let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT);
 
@@ -667,17 +689,22 @@ fn test_hierarchy_frustum_culling_limits_rendered_node_count() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
     let mut rows_cache = Vec::new();
+    let mut actions = Vec::new();
+    let mut tree_state = TreeState::expanded_by_default();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
     );
     let max_scroll = tree.max_scroll(HIERARCHY_TAG_VIEWPORT);
 
@@ -735,17 +762,22 @@ fn test_hierarchy_header_and_row_hover_styling() {
         active_context_menu: None,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        tree_state: &TreeState::expanded_by_default(),
+        ctrl_held: false,
+        shift_held: false,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
 
     let mut rows_cache = Vec::new();
+    let mut actions = Vec::new();
+    let mut tree_state = TreeState::expanded_by_default();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root),
         &params,
         &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
     );
 
     let (_, add_node) = tree

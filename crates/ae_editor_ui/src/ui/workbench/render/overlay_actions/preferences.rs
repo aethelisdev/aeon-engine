@@ -43,9 +43,21 @@ impl EngineUi {
                 iris_bridge::PreferencesAction::SelectTab(t) => {
                     self.preferences_tab = t;
                     self.iris_overlay.preferences.tab = t;
+                    self.iris_overlay.preferences.reset_scroll();
+                    self.iris_overlay.overlay_tree.tree_mut().set_scroll_offset(
+                        crate::ui::iris_bridge::preferences::PREF_TAG_CONTENT_VIEW,
+                        0.0,
+                    );
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }
                 iris_bridge::PreferencesAction::ToggleDropdown(dd) => {
                     self.iris_overlay.preferences.dropdown = dd;
+                }
+                iris_bridge::PreferencesAction::Move(new_pos) => {
+                    self.iris_overlay.preferences.pos = Some(new_pos);
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }
                 iris_bridge::PreferencesAction::SetUiScale(s) => {
                     self.ui_zoom_factor = s.clamp(0.6, 2.0);

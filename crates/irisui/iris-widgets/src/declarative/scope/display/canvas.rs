@@ -137,7 +137,7 @@ impl<'a> UiScope<'a> {
             node.set_name("ScrollBarTrack");
             node.tag = track_tag;
             node.interactive = true;
-            node.role = WidgetRole::Button;
+            node.role = WidgetRole::ScrollBarTrack;
             node.cursor = Some(WidgetCursor::Pointer);
             node.computed_rect = geom.track_rect;
             node.layer = parent_layer;
@@ -174,7 +174,7 @@ impl<'a> UiScope<'a> {
             node.set_name("ScrollBarThumb");
             node.tag = thumb_tag;
             node.interactive = true;
-            node.role = WidgetRole::Button;
+            node.role = WidgetRole::ScrollBarThumb;
             node.cursor = Some(WidgetCursor::Pointer);
             node.computed_rect = geom.thumb_rect;
             node.layer = parent_layer;

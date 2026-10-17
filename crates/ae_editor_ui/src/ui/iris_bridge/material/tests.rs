@@ -47,7 +47,8 @@ fn test_material_panel_build_empty_state() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
+    let mut actions = Vec::new();
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
     let max_scroll = tree.max_scroll(MATERIAL_TAG_VIEWPORT);
 
     assert_eq!(params.panel_rect, panel_rect);
@@ -76,7 +77,8 @@ fn test_material_panel_build_no_geometry() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
+    let mut actions = Vec::new();
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_ADD_TEXTURE));
 }
@@ -107,7 +109,8 @@ fn test_material_panel_build_sprite_view() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
+    let mut actions = Vec::new();
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_CHANGE));
     assert!(find_tag_recursive(&tree, root, MATERIAL_TAG_SPRITE_REMOVE));
@@ -202,7 +205,8 @@ fn test_material_panel_does_not_mutate_parent_rect() {
         is_scrollbar_dragging: false,
     };
 
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params);
+    let mut actions = Vec::new();
+    build_material_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
 
     let root_rect = tree.get(root).unwrap().computed_rect;
     let menubar_rect = tree.get(menubar).unwrap().computed_rect;
@@ -236,7 +240,12 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         events: &[],
         is_scrollbar_dragging: false,
     };
-    build_material_panel(&mut UiScope::new(&mut tree, root), &params_0);
+    let mut actions_0 = Vec::new();
+    build_material_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params_0,
+        &mut actions_0,
+    );
 
     // Find the sprite change button's Y position at scroll 0
     let change_btn_0 =
@@ -257,7 +266,12 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         events: &[],
         is_scrollbar_dragging: false,
     };
-    build_material_panel(&mut UiScope::new(&mut tree_scroll, root_scroll), &params_50);
+    let mut actions_50 = Vec::new();
+    build_material_panel(
+        &mut UiScope::new(&mut tree_scroll, root_scroll),
+        &params_50,
+        &mut actions_50,
+    );
 
     let change_btn_50 = find_node_by_tag(&tree_scroll, root_scroll, MATERIAL_TAG_SPRITE_CHANGE)
         .expect("Button must exist");
@@ -281,9 +295,11 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         events: &[],
         is_scrollbar_dragging: false,
     };
+    let mut actions_empty = Vec::new();
     build_material_panel(
         &mut UiScope::new(&mut tree_empty, root_empty),
         &params_empty,
+        &mut actions_empty,
     );
 
     let add_btn = find_node_by_tag(&tree_empty, root_empty, MATERIAL_TAG_ADD_TEXTURE)
@@ -329,4 +345,72 @@ fn test_resolve_material_tag_invariants() {
 
     assert_eq!(resolve_material_tag(0), None);
     assert_eq!(resolve_material_tag(0xFFFF_FFFF), None);
+}
+
+#[test]
+fn test_material_panel_declarative_actions_dispatch() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let mut world = hecs::World::new();
+    let sprite_h = ae_renderer::asset::AssetHandle::default();
+    let ent = world.spawn((
+        ae_core::ecs::SpriteId(sprite_h),
+        ae_core::ecs::Color::new(1.0, 0.5, 0.2, 1.0),
+    ));
+    let textures = ae_renderer::asset::AssetStorage::new();
+    let models = ae_renderer::asset::AssetStorage::new();
+    let panel_rect = Rect::new(0.0, 0.0, 320.0, 450.0);
+
+    // 1. Click Change Texture on sprite
+    let events = [(
+        MATERIAL_TAG_SPRITE_CHANGE,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let params = MaterialPanelParams {
+        panel_rect,
+        entity: Some(ent),
+        world: &world,
+        textures: &textures,
+        models: &models,
+        cursor_pos: Point::new(0.0, 0.0),
+        scroll_y: 0.0,
+        events: &events,
+        is_scrollbar_dragging: false,
+    };
+
+    let mut actions = Vec::new();
+    build_material_panel(
+        &mut UiScope::with_tagged_interactions(&mut tree, root, &events, None),
+        &params,
+        &mut actions,
+    );
+
+    assert!(
+        actions
+            .iter()
+            .any(|a| matches!(a, MaterialAction::PickAndAssignEntityTexture(e) if *e == ent)),
+        "Clicking Change Texture button must dispatch MaterialAction::PickAndAssignEntityTexture"
+    );
+
+    // 2. Click Remove Texture on sprite
+    let events_remove = [(
+        MATERIAL_TAG_SPRITE_REMOVE,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let mut actions_remove = Vec::new();
+    build_material_panel(
+        &mut UiScope::with_tagged_interactions(&mut UiTree::new(), root, &events_remove, None),
+        &params,
+        &mut actions_remove,
+    );
+    assert!(
+        actions_remove
+            .iter()
+            .any(|a| matches!(a, MaterialAction::RemoveTextureFromEntity(e) if *e == ent)),
+        "Clicking Remove button must dispatch MaterialAction::RemoveTextureFromEntity"
+    );
 }

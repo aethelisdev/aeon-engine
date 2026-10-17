@@ -328,14 +328,16 @@ pub struct HierarchyPanelParams<'a> {
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Active tree state managing expanded, collapsed, and selected entities.
-    pub tree_state: &'a TreeState<hecs::Entity>,
     /// Whether the Hierarchy scrollbar thumb is actively being dragged.
     pub is_scrollbar_dragging: bool,
     /// Autonomous focus state machine providing SSOT for panel inputs.
     pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
     pub cursor_byte_idx: usize,
+    /// Whether the Control (or Command on macOS) modifier key is held down.
+    pub ctrl_held: bool,
+    /// Whether the Shift modifier key is held down.
+    pub shift_held: bool,
 }
 
 /// Persistent interactive state for the Scene Hierarchy panel overlay.

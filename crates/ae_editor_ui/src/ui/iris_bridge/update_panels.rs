@@ -65,27 +65,40 @@ impl IrisEditorOverlay {
             && hierarchy_rect.height > 20.0
         {
             let local_hier_rect = Rect::new(0.0, 0.0, hierarchy_rect.width, hierarchy_rect.height);
+            let cursor_pos = self.cursor_pos();
+            let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
+            let ctrl_held = self.chrome.ctrl_held;
+            let shift_held = self.chrome.shift_held;
+            let focus_state = &self.focus_state;
+            let hierarchy = &mut self.hierarchy;
             let hier_params = HierarchyPanelParams {
                 panel_rect: local_hier_rect,
                 world: params.scene.world,
                 selected_entity: params.scene.selected_entity,
-                search_query: self.hierarchy.interactions.search_input.text(),
+                search_query: hierarchy.interactions.search_input.text(),
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
-                scroll_y: self.hierarchy.scroll_y,
-                active_submenu: self.hierarchy.active_submenu,
-                active_sub_submenu: self.hierarchy.active_sub_submenu,
-                is_add_menu_open: self.hierarchy.is_add_menu_open,
-                active_context_menu: self.hierarchy.active_context_menu,
-                cursor_pos: self.cursor_pos(),
-                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                tree_state: &self.hierarchy.tree_state,
-                is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
-                focus_state: &self.focus_state,
-                cursor_byte_idx: self.hierarchy.interactions.search_input.cursor_byte_idx,
+                scroll_y: hierarchy.scroll_y,
+                active_submenu: hierarchy.active_submenu,
+                active_sub_submenu: hierarchy.active_sub_submenu,
+                is_add_menu_open: hierarchy.is_add_menu_open,
+                active_context_menu: hierarchy.active_context_menu,
+                cursor_pos,
+                blink_caret,
+                is_scrollbar_dragging: hierarchy.scroll_state.is_dragging(),
+                focus_state,
+                cursor_byte_idx: hierarchy.interactions.search_input.cursor_byte_idx,
+                ctrl_held,
+                shift_held,
             };
 
-            hierarchy::build_hierarchy_panel(scope, &hier_params, &mut self.hierarchy.rows_cache);
+            hierarchy::build_hierarchy_panel(
+                scope,
+                &hier_params,
+                &mut hierarchy.rows_cache,
+                &mut hierarchy.interactions.actions,
+                &mut hierarchy.tree_state,
+            );
             self.hierarchy.max_scroll = scope.tree().max_scroll(hierarchy::HIERARCHY_TAG_VIEWPORT);
             self.hierarchy.last_rect = Some(hierarchy_rect);
         } else {
@@ -472,7 +485,11 @@ impl IrisEditorOverlay {
                 is_scrollbar_dragging,
             };
 
-            super::material::build_material_panel(scope, &material_params);
+            super::material::build_material_panel(
+                scope,
+                &material_params,
+                &mut self.material.interactions.actions,
+            );
             self.material.max_scroll_y = scope
                 .tree()
                 .max_scroll(super::material::MATERIAL_TAG_VIEWPORT);

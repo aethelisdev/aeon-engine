@@ -100,6 +100,7 @@ impl IrisEditorOverlay {
                     enabled_modules: params.preferences.enabled_modules,
                     events: &self.preferences.pending_interaction_events,
                 },
+                &mut self.preferences.interactions.actions,
             );
             self.preferences.pending_interaction_events.clear();
             self.preferences.card_rect = Some(card_rect);
@@ -258,10 +259,11 @@ impl IrisEditorOverlay {
                 active_context_menu: self.hierarchy.active_context_menu,
                 cursor_pos: cursor,
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                tree_state: &self.hierarchy.tree_state,
                 is_scrollbar_dragging: self.hierarchy.scroll_state.is_dragging(),
                 focus_state: &self.focus_state,
                 cursor_byte_idx: self.hierarchy.search_input.cursor_byte_idx,
+                ctrl_held: self.chrome.ctrl_held,
+                shift_held: self.chrome.shift_held,
             };
             let overlay_root = self
                 .overlay_tree
@@ -438,13 +440,8 @@ impl IrisEditorOverlay {
         {
             self.text_system
                 .measure_subtree_text(self.overlay_tree.tree_mut(), r);
-            if !matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::Modal(_))
-            ) {
-                self.overlay_tree
-                    .compute_layout(Size::new(screen_width, screen_height));
-            }
+            self.overlay_tree
+                .compute_layout(Size::new(screen_width, screen_height));
         }
     }
 }

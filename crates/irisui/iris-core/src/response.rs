@@ -61,6 +61,8 @@ pub struct WidgetResponse {
     pub flags: ResponseFlags,
     /// Absolute cursor screen position when this interaction occurred, if captured.
     pub pointer_pos: Option<Point>,
+    /// Continuous displacement delta vector if an active dragging gesture is in progress.
+    pub drag_delta: Option<Point>,
 }
 
 impl WidgetResponse {
@@ -83,6 +85,7 @@ impl WidgetResponse {
             rect: Rect::ZERO,
             flags,
             pointer_pos: None,
+            drag_delta: None,
         }
     }
 
@@ -94,6 +97,7 @@ impl WidgetResponse {
             rect,
             flags,
             pointer_pos: None,
+            drag_delta: None,
         }
     }
 
@@ -105,6 +109,7 @@ impl WidgetResponse {
             rect: Rect::ZERO,
             flags: ResponseFlags::empty(),
             pointer_pos: None,
+            drag_delta: None,
         }
     }
 
@@ -127,6 +132,19 @@ impl WidgetResponse {
     #[inline]
     pub const fn interact_pointer_pos(&self) -> Option<Point> {
         self.pointer_pos
+    }
+
+    /// Returns the active dragging displacement delta vector, if any.
+    #[inline]
+    pub const fn drag_delta(&self) -> Option<Point> {
+        self.drag_delta
+    }
+
+    /// Sets the dragging displacement delta vector and returns updated response.
+    #[inline]
+    pub const fn with_drag_delta(mut self, delta: Option<Point>) -> Self {
+        self.drag_delta = delta;
+        self
     }
 
     /// Returns the absolute layout bounding box of the widget.

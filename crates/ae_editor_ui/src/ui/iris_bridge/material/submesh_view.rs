@@ -25,7 +25,11 @@ pub struct SubmeshViewParams<'a> {
 }
 
 /// Builds the 3D Model overview card and submesh material slot cards directly on [`UiScope`].
-pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_>) {
+pub fn build_submesh_view(
+    scope: &mut UiScope<'_>,
+    params: &SubmeshViewParams<'_>,
+    actions: &mut Vec<super::types::MaterialAction>,
+) {
     let model_handle = match params.world.get::<&ae_core::ecs::ModelId>(params.entity) {
         Ok(m) => m.0,
         Err(_) => return,
@@ -108,13 +112,22 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
                 card.label("Alpha Mode:");
                 card.row(|row| {
                     for (mode, label) in &alpha_modes {
-                        row.add(
-                            Button::new(*label)
-                                .small()
-                                .active(submesh.alpha_mode == *mode)
-                                .flex(true)
-                                .tag(make_submesh_alpha_tag(idx, *mode)),
-                        );
+                        if row
+                            .add(
+                                Button::new(*label)
+                                    .small()
+                                    .active(submesh.alpha_mode == *mode)
+                                    .flex(true)
+                                    .tag(make_submesh_alpha_tag(idx, *mode)),
+                            )
+                            .clicked()
+                        {
+                            actions.push(super::types::MaterialAction::SetModelSubmeshAlphaMode(
+                                model_handle,
+                                idx,
+                                *mode,
+                            ));
+                        }
                     }
                 });
 
@@ -140,13 +153,21 @@ pub fn build_submesh_view(scope: &mut UiScope<'_>, params: &SubmeshViewParams<'_
                     });
 
                     let chg_tag = make_submesh_texture_tag(idx);
-                    row.button_with_icon_styled_tagged(
-                        ICON_FOLDER,
-                        Color::rgba(0.95, 0.80, 0.25, 0.95),
-                        "Change",
-                        None,
-                        chg_tag,
-                    );
+                    if row
+                        .button_with_icon_styled_tagged(
+                            ICON_FOLDER,
+                            Color::rgba(0.95, 0.80, 0.25, 0.95),
+                            "Change",
+                            None,
+                            chg_tag,
+                        )
+                        .clicked()
+                    {
+                        actions.push(super::types::MaterialAction::PickAndSetSubmeshTexture(
+                            model_handle,
+                            idx,
+                        ));
+                    }
                 });
             },
         );

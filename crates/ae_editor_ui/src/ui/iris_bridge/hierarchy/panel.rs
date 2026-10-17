@@ -12,7 +12,7 @@ use super::context_menu::build_context_menu;
 use super::footer::build_hierarchy_footer;
 use super::header::build_hierarchy_header;
 use super::rows::{build_hierarchy_rows, sync_hierarchy_rows};
-use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyPanelParams, HierarchyRow};
+use super::types::{HIERARCHY_TAG_PANEL_ROOT, HierarchyAction, HierarchyPanelParams, HierarchyRow};
 use irisui::prelude::*;
 
 /// Builds the complete Scene Hierarchy panel tree purely using [`UiScope`].
@@ -20,6 +20,8 @@ pub fn build_hierarchy_panel(
     scope: &mut UiScope<'_>,
     params: &HierarchyPanelParams<'_>,
     rows_cache: &mut Vec<HierarchyRow>,
+    actions: &mut Vec<HierarchyAction>,
+    tree_state: &mut TreeState<hecs::Entity>,
 ) {
     scope
         .panel("HierarchyPanelRoot")
@@ -28,14 +30,14 @@ pub fn build_hierarchy_panel(
         .background_themed(|t| t.panel_bg)
         .show(|panel_scope| {
             // 1. Header Toolbar (Search Box, Add Button, Delete Button)
-            build_hierarchy_header(panel_scope, params);
+            build_hierarchy_header(panel_scope, params, actions);
 
             // 2. Sync and Flatten ECS Hierarchy Tree Rows into persistent cache
-            sync_hierarchy_rows(params.world, params.tree_state, rows_cache);
+            sync_hierarchy_rows(params.world, tree_state, rows_cache);
             let total_objects = rows_cache.len();
 
             // 3. Virtualized & Frustum-Culled Entity Rows Viewport
-            build_hierarchy_rows(panel_scope, rows_cache, params);
+            build_hierarchy_rows(panel_scope, rows_cache, params, actions, tree_state);
 
             // 4. Footer Status Line (Object Count & Selection Telemetry)
             build_hierarchy_footer(panel_scope, total_objects, params);

@@ -24,7 +24,11 @@ pub struct SpriteViewParams<'a> {
 }
 
 /// Builds the 2D Sprite material, texture inspector, and sampler setting cards directly on [`UiScope`].
-pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>) {
+pub fn build_sprite_view(
+    scope: &mut UiScope<'_>,
+    params: &SpriteViewParams<'_>,
+    actions: &mut Vec<super::types::MaterialAction>,
+) {
     let sprite_handle = params
         .world
         .get::<&ae_core::ecs::SpriteId>(params.entity)
@@ -59,14 +63,28 @@ pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>)
         );
         card.colored_label(Color::rgba(0.30, 0.82, 0.45, 1.0), info_text);
         card.row(|row| {
-            row.add(
-                Button::new("Change Texture")
-                    .icon(ICON_FOLDER, 16.0)
-                    .fill(Color::rgba(0.95, 0.80, 0.25, 0.25))
-                    .text_color(Color::rgba(0.95, 0.80, 0.25, 0.95))
-                    .tag(MATERIAL_TAG_SPRITE_CHANGE),
-            );
-            row.add(Button::new("🗑 Remove").tag(MATERIAL_TAG_SPRITE_REMOVE));
+            if row
+                .add(
+                    Button::new("Change Texture")
+                        .icon(ICON_FOLDER, 16.0)
+                        .fill(Color::rgba(0.95, 0.80, 0.25, 0.25))
+                        .text_color(Color::rgba(0.95, 0.80, 0.25, 0.95))
+                        .tag(MATERIAL_TAG_SPRITE_CHANGE),
+                )
+                .clicked()
+            {
+                actions.push(super::types::MaterialAction::PickAndAssignEntityTexture(
+                    params.entity,
+                ));
+            }
+            if row
+                .add(Button::new("🗑 Remove").tag(MATERIAL_TAG_SPRITE_REMOVE))
+                .clicked()
+            {
+                actions.push(super::types::MaterialAction::RemoveTextureFromEntity(
+                    params.entity,
+                ));
+            }
         });
     });
 
@@ -101,14 +119,19 @@ pub fn build_sprite_view(scope: &mut UiScope<'_>, params: &SpriteViewParams<'_>)
                 );
                 row.colored_label(Color::rgba(0.85, 0.88, 0.92, 1.0), hex_str);
             });
-        } else {
-            card.button_with_icon_styled_tagged(
+        } else if card
+            .button_with_icon_styled_tagged(
                 ICON_PLUS,
                 Color::rgba(0.0, 0.85, 1.0, 0.95),
                 "Add Color Tint",
                 None,
                 MATERIAL_TAG_ADD_COLOR,
-            );
+            )
+            .clicked()
+        {
+            actions.push(super::types::MaterialAction::AddColorComponent(
+                params.entity,
+            ));
         }
     });
 }

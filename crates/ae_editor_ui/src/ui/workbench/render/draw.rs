@@ -203,6 +203,9 @@ impl EngineUi {
         let mut cfg_changed = false;
         let mut live_changed = false;
 
+        self.pending_preferences_actions
+            .append(&mut self.iris_overlay.preferences.interactions.actions);
+
         self.process_preferences_actions(PreferencesActionContext {
             graphics_settings: &mut cur_gs,
             snapping: &mut cur_snap,
@@ -309,6 +312,28 @@ impl EngineUi {
             is_2d_mode: params.is_2d_mode,
         });
 
+        // 3a. Immediate post-pass action drain for declarative overlay actions produced during render
+        self.pending_preferences_actions
+            .append(&mut self.iris_overlay.preferences.interactions.actions);
+        if !self.pending_preferences_actions.is_empty() {
+            self.process_preferences_actions(PreferencesActionContext {
+                graphics_settings: &mut cur_gs,
+                snapping: &mut cur_snap,
+                editor_config: &mut cur_cfg,
+                enable_live_updates: &mut cur_live,
+                gs_changed: &mut gs_changed,
+                snap_changed: &mut snap_changed,
+                cfg_changed: &mut cfg_changed,
+                live_changed: &mut live_changed,
+                ui_actions: params.ui_actions,
+            });
+        }
+        self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode);
+        if self.iris_overlay.has_pending_panel_actions() {
+            self.iris_overlay.notifier.tag_all();
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+        }
+
         // 3b. Dispatch any settings modifications mutated in-place by declarative two-way bindings
         if !gs_changed && cur_gs != *params.graphics_settings {
             params
@@ -324,13 +349,6 @@ impl EngineUi {
             params
                 .ui_actions
                 .push(EngineUiAction::UpdateEditorConfig(cur_cfg.clone()));
-        }
-
-        // 3c. Immediate post-pass action drain for declarative overlay actions produced during render
-        self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode);
-        if self.iris_overlay.has_pending_panel_actions() {
-            self.iris_overlay.notifier.tag_all();
-            self.iris_overlay.chrome.needs_layout_rebuild = true;
         }
 
         // 4. Viewport Texture Re-registration Check

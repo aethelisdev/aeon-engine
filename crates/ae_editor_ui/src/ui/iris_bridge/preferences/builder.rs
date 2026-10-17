@@ -56,12 +56,28 @@ pub fn tab_virtual_height(tab_idx: u8) -> f32 {
     }
 }
 
+/// Calculates the clamped preferences floating window position during titlebar dragging.
+pub fn calculate_preferences_drag_pos(
+    cursor: Point,
+    drag_offset: Point,
+    screen_width: f32,
+    screen_height: f32,
+) -> Point {
+    let max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
+    let max_y = (screen_height - PREF_CARD_HEIGHT).max(28.0);
+    Point::new(
+        (cursor.x - drag_offset.x).clamp(0.0, max_x).round(),
+        (cursor.y - drag_offset.y).clamp(28.0, max_y).round(),
+    )
+}
+
 /// Constructs the complete Preferences dialog tree declaratively using [`UiScope`].
 ///
 /// Returns `(card_id, card_rect, content_rect, max_scroll_y)`.
 pub fn build_preferences_dialog(
     tree: &mut UiTree,
     mut params: PreferencesParams<'_>,
+    actions: &mut Vec<super::types::PreferencesAction>,
 ) -> (WidgetId, Rect, Rect, f32) {
     let screen_width = params.screen_width;
     let screen_height = params.screen_height;
@@ -116,7 +132,7 @@ pub fn build_preferences_dialog(
         PREF_TAG_CARD,
         |card| {
             // 2. Titlebar Strip - unified deep black matching sidebar with matching top rounded corners
-            card.container_tagged(
+            let titlebar_resp = card.container_tagged_resp(
                 "PreferencesTitlebar",
                 Style::new()
                     .flex_row()
@@ -126,7 +142,7 @@ pub fn build_preferences_dialog(
                     .padding_insets(Insets::new(0.0, 14.0, 0.0, 10.0))
                     .background(Color::rgba(0.07, 0.08, 0.10, 0.98))
                     .corner_radii(CornerRadii::new(10.0, 10.0, 0.0, 0.0)),
-                WidgetRole::Default,
+                WidgetRole::ModalTitlebar,
                 PREF_TAG_TITLEBAR,
                 |titlebar| {
                     titlebar.icon(
@@ -150,31 +166,47 @@ pub fn build_preferences_dialog(
                     );
 
                     // Close Button
-                    titlebar.container_tagged(
-                        "PrefCloseButton",
-                        Style::new()
-                            .width(26.0)
-                            .height(26.0)
-                            .background(Color::TRANSPARENT)
-                            .hover_background(Color::rgba(0.85, 0.20, 0.25, 0.85))
-                            .border_radius(4.0)
-                            .align_items(AlignItems::Center)
-                            .justify_content(JustifyContent::Center),
-                        WidgetRole::Button,
-                        PREF_TAG_CLOSE,
-                        |btn| {
-                            btn.label_styled_hover_passive(
-                                "PrefCloseIcon",
-                                "✕",
-                                12.0,
-                                (Color::rgba(0.90, 0.92, 0.96, 1.0), Color::WHITE),
-                                TextAlign::Center,
-                                Style::new(),
-                            );
-                        },
-                    );
+                    if titlebar
+                        .container_tagged_resp(
+                            "PrefCloseButton",
+                            Style::new()
+                                .width(26.0)
+                                .height(26.0)
+                                .background(Color::TRANSPARENT)
+                                .hover_background(Color::rgba(0.85, 0.20, 0.25, 0.85))
+                                .border_radius(4.0)
+                                .align_items(AlignItems::Center)
+                                .justify_content(JustifyContent::Center),
+                            WidgetRole::Button,
+                            PREF_TAG_CLOSE,
+                            |btn| {
+                                btn.label_styled_hover_passive(
+                                    "PrefCloseIcon",
+                                    "✕",
+                                    12.0,
+                                    (Color::rgba(0.90, 0.92, 0.96, 1.0), Color::WHITE),
+                                    TextAlign::Center,
+                                    Style::new(),
+                                );
+                            },
+                        )
+                        .clicked()
+                    {
+                        actions.push(super::types::PreferencesAction::Close);
+                    }
                 },
             );
+
+            if let Some(delta) = titlebar_resp.drag_delta() {
+                let cur = params.window_pos.unwrap_or(Point::new(left, top));
+                let new_pos = calculate_preferences_drag_pos(
+                    Point::new(cur.x + delta.x, cur.y + delta.y),
+                    Point::ZERO,
+                    screen_width,
+                    screen_height,
+                );
+                actions.push(super::types::PreferencesAction::Move(new_pos));
+            }
 
             // 1px Horizontal Titlebar Divider
             card.divider(Color::rgba(0.20, 0.22, 0.30, 0.70));
@@ -212,52 +244,58 @@ pub fn build_preferences_dialog(
                                     )
                                 };
 
-                                sidebar.container_tagged(
-                                    "PrefSidebarTab",
-                                    Style::new()
-                                        .flex_row()
-                                        .align_items(AlignItems::Center)
-                                        .height(30.0)
-                                        .padding_insets(Insets::new(0.0, 10.0, 0.0, 0.0))
-                                        .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
-                                        .border_radius(4.0)
-                                        .clip_children(true)
-                                        .background(bg)
-                                        .hover_background(hover_bg),
-                                    WidgetRole::Button,
-                                    tab_tag,
-                                    |btn| {
-                                        // Vertical Cyan Accent Bar for Active Tab anchored to the exact left edge
-                                        let bar_color = if is_active {
-                                            Color::rgba(0.0, 0.85, 1.0, 1.0)
-                                        } else {
-                                            Color::TRANSPARENT
-                                        };
+                                if sidebar
+                                    .container_tagged_resp(
+                                        "PrefSidebarTab",
+                                        Style::new()
+                                            .flex_row()
+                                            .align_items(AlignItems::Center)
+                                            .height(30.0)
+                                            .padding_insets(Insets::new(0.0, 10.0, 0.0, 0.0))
+                                            .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
+                                            .border_radius(4.0)
+                                            .clip_children(true)
+                                            .background(bg)
+                                            .hover_background(hover_bg),
+                                        WidgetRole::Button,
+                                        tab_tag,
+                                        |btn| {
+                                            // Vertical Cyan Accent Bar for Active Tab anchored to the exact left edge
+                                            let bar_color = if is_active {
+                                                Color::rgba(0.0, 0.85, 1.0, 1.0)
+                                            } else {
+                                                Color::TRANSPARENT
+                                            };
 
-                                        btn.empty_box_passive_named(
-                                            "PrefTabAccentBar",
-                                            Style::new()
-                                                .width(3.0)
-                                                .height(30.0)
-                                                .background(bar_color),
-                                        );
+                                            btn.empty_box_passive_named(
+                                                "PrefTabAccentBar",
+                                                Style::new()
+                                                    .width(3.0)
+                                                    .height(30.0)
+                                                    .background(bar_color),
+                                            );
 
-                                        // 11px spacer ensures exactly 14.0px clean left padding from outer edge
-                                        btn.empty_box_passive_named(
-                                            "PrefTabSpacer",
-                                            Style::new().width(11.0).height(1.0),
-                                        );
+                                            // 11px spacer ensures exactly 14.0px clean left padding from outer edge
+                                            btn.empty_box_passive_named(
+                                                "PrefTabSpacer",
+                                                Style::new().width(11.0).height(1.0),
+                                            );
 
-                                        btn.label_styled_hover_passive(
-                                            "PrefTabLabel",
-                                            label,
-                                            12.0,
-                                            (text_col, Color::WHITE),
-                                            TextAlign::Left,
-                                            Style::new().flex_grow(1.0),
-                                        );
-                                    },
-                                );
+                                            btn.label_styled_hover_passive(
+                                                "PrefTabLabel",
+                                                label,
+                                                12.0,
+                                                (text_col, Color::WHITE),
+                                                TextAlign::Left,
+                                                Style::new().flex_grow(1.0),
+                                            );
+                                        },
+                                    )
+                                    .clicked()
+                                {
+                                    actions
+                                        .push(super::types::PreferencesAction::SelectTab(tab_idx));
+                                }
                             }
                         },
                     );
@@ -274,7 +312,7 @@ pub fn build_preferences_dialog(
                             .clip_children(true)
                             .scroll_offset_y(params.scroll_offset_y)
                             .padding_insets(Insets::new(14.0, 18.0, 14.0, 18.0)),
-                        WidgetRole::Default,
+                        WidgetRole::ScrollAreaViewport,
                         PREF_TAG_CONTENT_VIEW,
                         |content| {
                             // Virtual Scrolling Container
@@ -336,6 +374,15 @@ pub fn build_preferences_dialog(
         .max(tab_virtual_height(params.active_tab))
         .max(content_h);
     let max_scroll_y = (total_h - content_h).max(0.0);
+
+    // Register measured content size and scroll boundaries on the viewport node
+    root_scope.tree_mut().set_content_size(
+        PREF_TAG_CONTENT_VIEW,
+        irisui::prelude::Size::new(content_w, total_h),
+    );
+    root_scope
+        .tree_mut()
+        .set_max_scroll(PREF_TAG_CONTENT_VIEW, max_scroll_y);
 
     // 4. Custom Scrollbar Indicator if virtual height exceeds content height
     if total_h > content_h {
@@ -411,29 +458,36 @@ pub fn build_preferences_dialog(
                 for (idx, &item_label) in options.iter().enumerate() {
                     let item_tag = encode_dropdown_item_tag(idx);
 
-                    menu.container_tagged(
-                        "PrefDropdownMenuItem",
-                        Style::new()
-                            .flex_row()
-                            .align_items(AlignItems::Center)
-                            .height(item_h)
-                            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-                            .border_radius(3.0)
-                            .background(Color::TRANSPARENT)
-                            .hover_background(Color::rgba(0.0, 0.65, 0.85, 0.35)),
-                        WidgetRole::DropdownItem,
-                        item_tag,
-                        |item| {
-                            item.label_styled_hover_passive(
-                                "PrefDropdownMenuText",
-                                item_label,
-                                11.5,
-                                (Color::rgba(0.85, 0.88, 0.94, 1.0), Color::WHITE),
-                                TextAlign::Left,
-                                Style::new().flex_grow(1.0),
-                            );
-                        },
-                    );
+                    if menu
+                        .container_tagged_resp(
+                            "PrefDropdownMenuItem",
+                            Style::new()
+                                .flex_row()
+                                .align_items(AlignItems::Center)
+                                .height(item_h)
+                                .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
+                                .border_radius(3.0)
+                                .background(Color::TRANSPARENT)
+                                .hover_background(Color::rgba(0.0, 0.65, 0.85, 0.35)),
+                            WidgetRole::DropdownItem,
+                            item_tag,
+                            |item| {
+                                item.label_styled_hover_passive(
+                                    "PrefDropdownMenuText",
+                                    item_label,
+                                    11.5,
+                                    (Color::rgba(0.85, 0.88, 0.94, 1.0), Color::WHITE),
+                                    TextAlign::Left,
+                                    Style::new().flex_grow(1.0),
+                                );
+                            },
+                        )
+                        .clicked()
+                    {
+                        actions.push(super::types::PreferencesAction::SelectDropdownItem(
+                            dd_id, idx,
+                        ));
+                    }
                 }
                 menu.finish_layout(popup_rect);
             },

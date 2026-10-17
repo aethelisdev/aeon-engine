@@ -97,6 +97,18 @@ impl UiTree {
         self.max_scrolls.get(&tag).copied().unwrap_or(0.0)
     }
 
+    /// Sets the content size for the node identified by the semantic `tag`.
+    ///
+    /// Updates the measured content bounds used for scroll normalization and bounds checking.
+    #[inline]
+    pub fn set_content_size(&mut self, tag: u64, size: Size) {
+        if let Some(id) = self.find_node_by_tag(tag) {
+            if let Some(node) = self.get_mut(id) {
+                node.content_size = size;
+            }
+        }
+    }
+
     /// Sets the maximum vertical scroll extent for the given semantic `tag`.
     #[inline]
     pub fn set_max_scroll(&mut self, tag: u64, max_scroll: f32) {

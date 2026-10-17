@@ -12,6 +12,7 @@ use crate::ui::iris_bridge::console::{
     CONSOLE_TAG_SEARCH_CLEAR, CONSOLE_TAG_SEARCH_INPUT, CONSOLE_TAG_VIEWPORT,
 };
 use crate::ui::iris_bridge::hierarchy::{HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT};
+use crate::ui::iris_bridge::preferences::PREF_TAG_CONTENT_VIEW;
 use crate::ui::iris_bridge::stats::STATS_TAG_VIEWPORT;
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, IrisOverlayEventResult};
 use crate::ui::iris_bridge::{ActiveOverlay, ModalKind};
@@ -39,8 +40,39 @@ impl IrisEditorOverlay {
         // Dispatches events through the retained tree hierarchy (hover, reactive clicks, scroll bubbling).
         let tree_consumed =
             if let Some(ui_event) = irisui::winit::winit_to_ui_event(event, current_cursor) {
-                let tree_dispatch = self.tree.dispatch_event(&ui_event);
-                if tree_dispatch.is_consumed() {
+                // Autonomous overlay tree event dispatch (Modals, preferences, dropdowns)
+                let overlay_consumed = if self.overlay_tree.is_open() {
+                    let overlay_dispatch = self.overlay_tree.tree_mut().dispatch_event(&ui_event);
+                    if overlay_dispatch.is_consumed() {
+                        if let Some(target_id) = overlay_dispatch.target {
+                            let scroll_y = self
+                                .overlay_tree
+                                .tree()
+                                .get(target_id)
+                                .map_or(0.0, |n| n.style.scroll_offset_y);
+                            let tag = overlay_dispatch.target_tag;
+                            if tag == PREF_TAG_CONTENT_VIEW {
+                                self.preferences.scroll_state.scroll_y = scroll_y;
+                                self.preferences.interactions.scroll_y = scroll_y;
+                            }
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                let tree_dispatch = if !overlay_consumed {
+                    self.tree.dispatch_event(&ui_event)
+                } else {
+                    irisui::prelude::DispatchResult::default()
+                };
+
+                if overlay_consumed {
+                    true
+                } else if tree_dispatch.is_consumed() {
                     if let Some(target_id) = tree_dispatch.target {
                         let scroll_y = self
                             .tree
@@ -60,6 +92,9 @@ impl IrisEditorOverlay {
                             self.assets.tree_scroll_y = scroll_y;
                         } else if tag == STATS_TAG_VIEWPORT {
                             self.stats.scroll_y = scroll_y;
+                        } else if tag == PREF_TAG_CONTENT_VIEW {
+                            self.preferences.scroll_state.scroll_y = scroll_y;
+                            self.preferences.interactions.scroll_y = scroll_y;
                         }
                     }
                     true
@@ -162,11 +197,6 @@ impl IrisEditorOverlay {
                 WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_)
             ) {
                 match self.overlay_tree.active_overlay() {
-                    Some(ActiveOverlay::Modal(ModalKind::Preferences)) => {
-                        if let Some(pref_res) = self.handle_preferences_event(event) {
-                            return pref_res;
-                        }
-                    }
                     Some(ActiveOverlay::Modal(_)) => {
                         if let Some(modal_res) = self.handle_modal_events(event) {
                             return modal_res;
@@ -184,19 +214,9 @@ impl IrisEditorOverlay {
                             return mb_res;
                         }
                     }
-                    Some(ActiveOverlay::Modal(ModalKind::Preferences)) => {
-                        if let Some(pref_res) = self.handle_preferences_event(event) {
-                            return pref_res;
-                        }
-                    }
                     Some(ActiveOverlay::Modal(_)) => {
                         if let Some(modal_res) = self.handle_modal_events(event) {
                             return modal_res;
-                        }
-                    }
-                    Some(ActiveOverlay::HierarchyContextMenu) => {
-                        if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
-                            return hier_res;
                         }
                     }
                     Some(
@@ -221,9 +241,6 @@ impl IrisEditorOverlay {
                         }
                         if let Some(modal_res) = self.handle_modal_events(event) {
                             return modal_res;
-                        }
-                        if let Some(pref_res) = self.handle_preferences_event(event) {
-                            return pref_res;
                         }
                         if let Some(mb_res) = self.handle_menubar_event(event) {
                             return mb_res;
@@ -443,11 +460,6 @@ impl IrisEditorOverlay {
             return Some(insp_drag_res);
         }
 
-        // Active Preferences Drag Interaction (Window dragging or slider dragging)
-        if let Some(pref_drag_res) = self.handle_preferences_drag_events(event) {
-            return Some(pref_drag_res);
-        }
-
         None
     }
 
@@ -459,9 +471,6 @@ impl IrisEditorOverlay {
     ) -> Option<IrisOverlayEventResult> {
         if let Some(hud_res) = self.handle_viewport_hud_window_event(event) {
             return Some(hud_res);
-        }
-        if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
-            return Some(hier_res);
         }
         if let Some(insp_res) = self.handle_inspector_window_event(event, world) {
             return Some(insp_res);
@@ -486,12 +495,6 @@ impl IrisEditorOverlay {
         // Try panel handlers that might be hosted inside this floating container
         if let Some(insp_res) = self.handle_inspector_window_event(event, world) {
             return Some(insp_res);
-        }
-        if let Some(hier_res) = self.handle_hierarchy_window_event(event) {
-            return Some(hier_res);
-        }
-        if let Some(mat_res) = self.handle_material_window_event(event) {
-            return Some(mat_res);
         }
         if let Some(ui_res) = self.handle_ui_designer_window_event(event) {
             return Some(ui_res);
@@ -527,18 +530,10 @@ impl IrisEditorOverlay {
 
         let mut res = None;
 
-        if (!is_pointer || is_in(&self.panels, PanelId::Hierarchy))
-            && let Some(hier_res) = self.handle_hierarchy_window_event(event)
-        {
-            res = Some(hier_res);
-        } else if (!is_pointer || is_in(&self.panels, PanelId::AnimationTimeline))
+        if (!is_pointer || is_in(&self.panels, PanelId::AnimationTimeline))
             && let Some(timeline_res) = self.handle_timeline_window_event(event)
         {
             res = Some(timeline_res);
-        } else if (!is_pointer || is_in(&self.panels, PanelId::MaterialEditor))
-            && let Some(mat_res) = self.handle_material_window_event(event)
-        {
-            res = Some(mat_res);
         } else if (!is_pointer || is_in(&self.panels, PanelId::UiDesigner))
             && let Some(ui_res) = self.handle_ui_designer_window_event(event)
         {

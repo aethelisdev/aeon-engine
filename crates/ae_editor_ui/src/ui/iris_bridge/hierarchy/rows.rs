@@ -11,7 +11,8 @@
 
 use super::types::{
     HIERARCHY_TAG_SCROLLBAR_THUMB, HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_VIEWPORT,
-    HierarchyPanelParams, HierarchyRow, make_eye_tag, make_foldout_tag, make_row_tag,
+    HierarchyAction, HierarchyPanelParams, HierarchyRow, make_eye_tag, make_foldout_tag,
+    make_row_tag,
 };
 use crate::ui::iris_bridge::icons::*;
 use irisui::prelude::*;
@@ -242,6 +243,8 @@ pub fn build_hierarchy_rows(
     scope: &mut UiScope<'_>,
     rows: &[HierarchyRow],
     params: &HierarchyPanelParams<'_>,
+    actions: &mut Vec<HierarchyAction>,
+    tree_state: &mut TreeState<hecs::Entity>,
 ) {
     let query_lower = params.search_query.trim().to_lowercase();
 
@@ -324,7 +327,8 @@ pub fn build_hierarchy_rows(
             let master_idx = matching_indices[filtered_idx];
             let row = &rows[master_idx];
 
-            let is_selected = params.selected_entity == Some(row.entity);
+            let is_selected =
+                tree_state.is_selected(&row.entity) || params.selected_entity == Some(row.entity);
             let row_tag = make_row_tag(master_idx);
             let eye_tag = make_eye_tag(master_idx);
             let foldout_tag = make_foldout_tag(master_idx);
@@ -338,84 +342,119 @@ pub fn build_hierarchy_rows(
                 foldout_tag,
             );
 
-            row_scope.tree_row("HierarchyEntityRow", row_props, &tree_config, |row_s| {
-                // 1. Entity Type Icon
-                let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
-                match comp_icon {
-                    EntityIcon::Texture(uv, tint) => {
-                        row_s.icon(uv, tint, 16.0);
+            let mut eye_clicked = false;
+            let row_resp =
+                row_scope.tree_row("HierarchyEntityRow", row_props, &tree_config, |row_s| {
+                    // 1. Entity Type Icon
+                    let comp_icon = resolve_entity_icon(params.world, row.entity, is_selected);
+                    match comp_icon {
+                        EntityIcon::Texture(uv, tint) => {
+                            row_s.icon(uv, tint, 16.0);
+                        }
+                        EntityIcon::Text(glyph) => {
+                            let text_col = if is_selected {
+                                Color::rgba(0.0, 0.95, 1.0, 1.0)
+                            } else {
+                                Color::WHITE
+                            };
+                            row_s.label_with_width(
+                                glyph.trim(),
+                                16.0,
+                                11.0,
+                                text_col,
+                                TextAlign::Center,
+                            );
+                        }
                     }
-                    EntityIcon::Text(glyph) => {
-                        let text_col = if is_selected {
-                            Color::rgba(0.0, 0.95, 1.0, 1.0)
-                        } else {
-                            Color::WHITE
-                        };
-                        row_s.label_with_width(
-                            glyph.trim(),
-                            16.0,
-                            11.0,
-                            text_col,
-                            TextAlign::Center,
-                        );
-                    }
-                }
 
-                // 2. Entity Name Label
-                let is_visible = params
-                    .world
-                    .get::<&ae_core::ecs::Hidden>(row.entity)
-                    .is_err();
+                    // 2. Entity Name Label
+                    let is_visible = params
+                        .world
+                        .get::<&ae_core::ecs::Hidden>(row.entity)
+                        .is_err();
 
-                let text_color = if is_selected {
-                    Color::rgba(0.0, 0.95, 1.0, 1.0) // Bright cyan #00e5ff
-                } else if !is_visible {
-                    Color::rgba(0.55, 0.60, 0.72, 0.65) // Muted slate when entity is hidden
-                } else {
-                    Color::rgba(0.88, 0.91, 0.98, 1.0) // Crisp slate white
-                };
+                    let text_color = if is_selected {
+                        Color::rgba(0.0, 0.95, 1.0, 1.0) // Bright cyan #00e5ff
+                    } else if !is_visible {
+                        Color::rgba(0.55, 0.60, 0.72, 0.65) // Muted slate when entity is hidden
+                    } else {
+                        Color::rgba(0.88, 0.91, 0.98, 1.0) // Crisp slate white
+                    };
 
-                let entity_name =
-                    if let Ok(name_comp) = params.world.get::<&ae_core::ecs::Name>(row.entity) {
+                    let entity_name = if let Ok(name_comp) =
+                        params.world.get::<&ae_core::ecs::Name>(row.entity)
+                    {
                         name_comp.0.clone()
                     } else {
                         format!("Entity {:?}", row.entity)
                     };
 
-                let name_container_style = Style::new()
-                    .flex_row()
-                    .flex_grow(1.0)
-                    .align_items(AlignItems::Center);
+                    let name_container_style = Style::new()
+                        .flex_row()
+                        .flex_grow(1.0)
+                        .align_items(AlignItems::Center);
 
-                row_s.container(name_container_style, |nc| {
-                    nc.colored_label(text_color, entity_name);
+                    row_s.container(name_container_style, |nc| {
+                        nc.colored_label(text_color, entity_name);
+                    });
+
+                    // 3. Eye Visibility Toggle Button
+                    let (eye_uv, eye_col) = if !is_visible {
+                        (ICON_EYE_CLOSED, Color::rgba(0.55, 0.60, 0.72, 0.65))
+                    } else if is_selected {
+                        (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
+                    } else {
+                        (ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
+                    };
+
+                    let eye_style = Style::new()
+                        .width(22.0)
+                        .height(20.0)
+                        .align_items(AlignItems::Center)
+                        .justify_content(JustifyContent::Center);
+
+                    let eye_resp = row_s.container_tagged_resp(
+                        "EyeVisibilityButton",
+                        eye_style,
+                        WidgetRole::Button,
+                        eye_tag,
+                        |eye_s| {
+                            eye_s.icon_hover(eye_uv, eye_col, Color::WHITE, 16.0);
+                        },
+                    );
+                    if eye_resp.clicked() {
+                        eye_clicked = true;
+                    }
                 });
 
-                // 3. Eye Visibility Toggle Button
-                let (eye_uv, eye_col) = if !is_visible {
-                    (ICON_EYE_CLOSED, Color::rgba(0.55, 0.60, 0.72, 0.65))
-                } else if is_selected {
-                    (ICON_EYE_OPEN, Color::rgba(0.0, 0.95, 1.0, 1.0))
-                } else {
-                    (ICON_EYE_OPEN, Color::rgba(0.88, 0.91, 0.98, 0.95))
-                };
-
-                let eye_style = Style::new()
-                    .width(22.0)
-                    .height(20.0)
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::Center);
-
-                row_s.container_tagged(
-                    "EyeVisibilityButton",
-                    eye_style,
-                    WidgetRole::Button,
-                    eye_tag,
-                    |eye_s| {
-                        eye_s.icon_hover(eye_uv, eye_col, Color::WHITE, 16.0);
-                    },
-                );
-            });
+            if eye_clicked {
+                actions.push(HierarchyAction::ToggleVisibility(row.entity));
+            } else if row_resp.clicked() {
+                if handle_tree_row_click(
+                    tree_state,
+                    row.entity,
+                    TreeSelectionModifiers::from_ctrl_shift(params.ctrl_held, params.shift_held),
+                    params
+                        .shift_held
+                        .then(|| rows.iter().map(|r| r.entity).collect::<Vec<_>>())
+                        .as_deref(),
+                )
+                .selection_changed
+                {
+                    actions.push(HierarchyAction::SelectEntity(
+                        tree_state.primary_selected().copied(),
+                    ));
+                }
+            } else if row_resp.foldout_clicked {
+                tree_state.toggle_expanded(&row.entity);
+            } else if row_resp.secondary_clicked() {
+                tree_state.select_single(row.entity);
+                actions.push(HierarchyAction::SelectEntity(Some(row.entity)));
+                actions.push(HierarchyAction::OpenContextMenu(
+                    row.entity,
+                    params.cursor_pos,
+                ));
+            }
         },
     );
 }
@@ -510,13 +549,22 @@ mod tests {
             active_context_menu: None,
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
-            tree_state: &TreeState::expanded_by_default(),
             is_scrollbar_dragging: false,
             focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
+            ctrl_held: false,
+            shift_held: false,
         };
 
-        build_hierarchy_rows(&mut scope, &rows, &params);
+        let mut actions = Vec::new();
+        let mut row_tree_state = TreeState::expanded_by_default();
+        build_hierarchy_rows(
+            &mut scope,
+            &rows,
+            &params,
+            &mut actions,
+            &mut row_tree_state,
+        );
 
         // Verify that every HierarchyEntityRow container has an icon node of exactly 16.0px width
         let mut row_icon_widths = Vec::new();

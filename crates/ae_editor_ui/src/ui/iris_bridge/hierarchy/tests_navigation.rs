@@ -55,16 +55,20 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         active_context_menu: None,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        tree_state: &tree_state,
         is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
+        ctrl_held: false,
+        shift_held: false,
     };
 
+    let mut actions = Vec::new();
     super::panel::build_hierarchy_panel(
         &mut UiScope::new(&mut tree, root_id),
         &params,
         &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
     );
 
     // Verify foldout chevron widget exists and eye buttons maintain strictly identical X alignment across all rows
@@ -207,4 +211,79 @@ fn test_hierarchy_keyboard_arrow_navigation() {
         handle_tree_arrow_navigation(&mut state.tree_state, &tree_items, KeyCode::ArrowUp, false);
     assert!(nav3.consumed);
     assert_eq!(state.tree_state.primary_selected(), Some(&ent1));
+}
+
+#[test]
+fn test_hierarchy_declarative_row_selection_dispatch() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root creation must succeed");
+
+    let mut world = World::new();
+    let ent1 = world.spawn((ae_core::ecs::Name("Entity_A".into()),));
+    let ent2 = world.spawn((ae_core::ecs::Name("Entity_B".into()),));
+
+    let mut tree_state = TreeState::new();
+    let mut rows_cache = Vec::new();
+    let mut actions = Vec::new();
+
+    // 1. Initial click on row 0 (ent1)
+    tree.event_state.frame_clicked_tag = Some(super::types::make_row_tag(0));
+
+    let params = HierarchyPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 300.0, 400.0),
+        world: &world,
+        selected_entity: None,
+        search_query: "",
+        is_editing: true,
+        is_2d: false,
+        scroll_y: 0.0,
+        active_submenu: None,
+        active_sub_submenu: None,
+        is_add_menu_open: false,
+        active_context_menu: None,
+        cursor_pos: Point::new(100.0, 45.0),
+        blink_caret: false,
+        is_scrollbar_dragging: false,
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+        ctrl_held: false,
+        shift_held: false,
+    };
+
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params,
+        &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
+    );
+
+    // Initial click selects ent1
+    assert!(tree_state.is_selected(&ent1));
+    assert_eq!(tree_state.selected_count(), 1);
+    assert_eq!(
+        actions.first(),
+        Some(&super::types::HierarchyAction::SelectEntity(Some(ent1)))
+    );
+
+    // 2. Second click on row 1 (ent2) with Ctrl modifier
+    actions.clear();
+    tree.event_state.frame_clicked_tag = Some(super::types::make_row_tag(1));
+    let params_ctrl = HierarchyPanelParams {
+        ctrl_held: true,
+        ..params
+    };
+
+    super::panel::build_hierarchy_panel(
+        &mut UiScope::new(&mut tree, root),
+        &params_ctrl,
+        &mut rows_cache,
+        &mut actions,
+        &mut tree_state,
+    );
+
+    // Both ent1 and ent2 are now selected in TreeState
+    assert!(tree_state.is_selected(&ent1));
+    assert!(tree_state.is_selected(&ent2));
+    assert_eq!(tree_state.selected_count(), 2);
 }

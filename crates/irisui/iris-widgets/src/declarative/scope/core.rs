@@ -298,6 +298,7 @@ impl<'a> UiScope<'a> {
 
         if let Some(delta) = self.tree.event_state.frame_drag_delta {
             let captured_matches = self.tree.event_state.pointer_capture == Some(id)
+                || (tag != 0 && self.tree.event_state.pointer_capture_tag == Some(tag))
                 || (tag != 0
                     && self
                         .tree
@@ -379,6 +380,7 @@ impl<'a> UiScope<'a> {
                 .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
         let is_dragged = drag_delta.is_some()
             || self.tree.event_state.pointer_capture == Some(id)
+            || (tag != 0 && self.tree.event_state.pointer_capture_tag == Some(tag))
             || (tag != 0
                 && self
                     .tree
@@ -415,7 +417,9 @@ impl<'a> UiScope<'a> {
             None
         };
         let rect = self.tree.get(id).map_or(Rect::ZERO, |n| n.computed_rect);
-        WidgetResponse::from_flags(id, rect, flags).with_pointer_pos(pointer_pos)
+        WidgetResponse::from_flags(id, rect, flags)
+            .with_pointer_pos(pointer_pos)
+            .with_drag_delta(drag_delta)
     }
 
     /// Checks whether the given widget node or its semantic tag is actively in a pressed state.

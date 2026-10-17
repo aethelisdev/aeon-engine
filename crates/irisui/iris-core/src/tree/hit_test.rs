@@ -333,6 +333,30 @@ impl UiTree {
         0
     }
 
+    /// Traverses upward through the ancestor chain starting from `start_id`, returning the
+    /// first ancestor node matching the requested [`WidgetRole`].
+    ///
+    /// Useful for bubbling interaction events from leaf text labels or icons to their enclosing
+    /// interactive containers such as [`WidgetRole::ModalTitlebar`] or [`WidgetRole::Button`].
+    pub fn find_ancestor_with_role(
+        &self,
+        start_id: WidgetId,
+        role: crate::node::WidgetRole,
+    ) -> Option<WidgetId> {
+        let mut curr = Some(start_id);
+        while let Some(id) = curr {
+            if let Some(node) = self.nodes.get(id) {
+                if node.role == role {
+                    return Some(id);
+                }
+                curr = node.parent;
+            } else {
+                break;
+            }
+        }
+        None
+    }
+
     /// Performs layered hit-testing and returns detailed metadata for the hit widget.
     ///
     /// Evaluates the highest priority [`UiLayer`] under `point` via [`UiTree::hit_test_layered`],
@@ -368,6 +392,7 @@ impl UiTree {
     #[must_use]
     pub fn wants_pointer_at(&self, point: Point) -> bool {
         if self.event_state.pointer_capture.is_some()
+            || self.event_state.pointer_capture_tag.is_some()
             || self.event_state.active_context_menu.is_some()
         {
             return true;

@@ -21,7 +21,7 @@ mod tests_scroll;
 
 pub use builder::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, SIDEBAR_WIDTH, TITLEBAR_HEIGHT,
-    build_preferences_dialog,
+    build_preferences_dialog, calculate_preferences_drag_pos,
 };
 pub use components::{pref_dropdown_row, pref_heading, pref_section_card, pref_toggle_row};
 pub use types::{

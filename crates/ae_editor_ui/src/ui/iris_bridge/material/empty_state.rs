@@ -45,7 +45,12 @@ pub fn build_no_entity_selected(scope: &mut UiScope<'_>, panel_width: f32) {
 }
 
 /// Builds an empty-state placeholder card when the selected entity has no ModelId or SpriteId.
-pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>, panel_width: f32) {
+pub fn build_no_renderable_geometry(
+    scope: &mut UiScope<'_>,
+    panel_width: f32,
+    entity: Option<hecs::Entity>,
+    actions: &mut Vec<super::types::MaterialAction>,
+) {
     let card_w = (panel_width - 24.0).max(100.0);
     let card_style = Style::new()
         .flex_col()
@@ -79,13 +84,20 @@ pub fn build_no_renderable_geometry(scope: &mut UiScope<'_>, panel_width: f32) {
             .justify_content(JustifyContent::Center)
             .padding_insets(Insets::new(6.0, 0.0, 0.0, 0.0));
         card.container(btn_row, |r| {
-            r.button_with_icon_styled_tagged(
+            if r.button_with_icon_styled_tagged(
                 ICON_PLUS,
                 Color::rgba(0.0, 0.85, 1.0, 0.95),
                 "Add Texture / Sprite",
                 Some(160.0),
                 MATERIAL_TAG_ADD_TEXTURE,
-            );
+            )
+            .clicked()
+                && let Some(ent) = entity
+            {
+                actions.push(super::types::MaterialAction::PickAndAssignEntityTexture(
+                    ent,
+                ));
+            }
         });
     });
 }

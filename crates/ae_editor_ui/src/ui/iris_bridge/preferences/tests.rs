@@ -8,14 +8,14 @@
 
 use super::builder::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, TITLEBAR_HEIGHT, build_preferences_dialog,
+    calculate_preferences_drag_pos,
 };
 use super::types::{
-    PREF_TAG_CLOSE, PREF_TAG_TITLEBAR, PreferencesDropdownId, PreferencesParams,
+    PREF_TAG_CLOSE, PREF_TAG_TITLEBAR, PreferencesAction, PreferencesDropdownId, PreferencesParams,
     PreferencesToggleId, encode_dropdown_item_tag, encode_dropdown_tag, encode_section_tag,
     encode_tab_tag, encode_toggle_tag, is_preferences_tag, parse_dropdown_item_tag,
     parse_dropdown_tag, parse_section_tag, parse_tab_tag, parse_toggle_tag,
 };
-use crate::ui::iris_bridge::events::preferences::calculate_preferences_drag_pos;
 use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
@@ -154,7 +154,7 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
     };
 
     let (_widget_id, card_rect, content_rect, max_scroll_y) =
-        build_preferences_dialog(&mut tree, params);
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Verify card geometry
     assert_eq!(card_rect.x, 400.0);
@@ -277,7 +277,7 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
     };
 
     let (_widget_id, _card_rect, _content_rect, max_scroll_y) =
-        build_preferences_dialog(&mut tree, params);
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Graphics tab total content height exceeds viewport height
     assert!(max_scroll_y > 0.0, "Graphics tab must require scrolling");
@@ -390,8 +390,8 @@ fn test_preferences_scroll_translates_children_upward() {
         events: &[],
     };
 
-    build_preferences_dialog(&mut tree_0, params_0);
-    build_preferences_dialog(&mut tree_100, params_100);
+    build_preferences_dialog(&mut tree_0, params_0, &mut Vec::new());
+    build_preferences_dialog(&mut tree_100, params_100, &mut Vec::new());
 
     // Find the Shadows section card in both trees
     let tag = encode_section_tag("graphics_shadows");
@@ -458,7 +458,7 @@ fn test_preferences_declarative_text_wrap_and_scope_purity() {
     };
 
     let (_card_id, _card_rect, _content_rect, max_scroll_y) =
-        build_preferences_dialog(&mut tree, params);
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Dynamic scroll measurement should compute a non-negative scroll limit
     assert!(
@@ -573,7 +573,7 @@ fn test_preferences_two_way_data_binding_shadows_and_bloom() {
         events: &events,
     };
 
-    build_preferences_dialog(&mut tree, params);
+    build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Verify two-way data binding flipped boolean values in-place!
     assert!(
@@ -666,7 +666,7 @@ fn test_preferences_two_way_data_binding_editor_tab() {
         events: &events,
     };
 
-    build_preferences_dialog(&mut tree, params);
+    build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Verify two-way data binding mutated Editor values in-place!
     // Grid Size: speed = 0.05, delta = 10.0 -> 1.0 + 0.5 = 1.5
@@ -725,7 +725,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         events: &[],
     };
 
-    build_preferences_dialog(&mut tree, params);
+    build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     // Verify SliderNumberBox in Graphics tab renders active selection highlight
     let num_box = tree
@@ -771,7 +771,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         events: &events,
     };
 
-    build_preferences_dialog(&mut tree_type, params_typed);
+    build_preferences_dialog(&mut tree_type, params_typed, &mut Vec::new());
 
     // Verify two-way data binding parsed and mutated gs.sun_pitch in-place!
     assert!(
@@ -813,7 +813,7 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
     };
 
     let (_card_id, _card_rect, _content_rect, max_scroll_y) =
-        build_preferences_dialog(&mut tree, params);
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     assert!(max_scroll_y > 0.0, "Graphics tab must be scrollable");
 
@@ -867,6 +867,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             enabled_modules: &enabled_modules,
             events: &[],
         },
+        &mut Vec::new(),
     );
 
     let (_card_id_unscrolled, _, _, _) = build_preferences_dialog(
@@ -892,6 +893,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             enabled_modules: &enabled_modules,
             events: &[],
         },
+        &mut Vec::new(),
     );
 
     assert!(max_scroll_y > 0.0);
@@ -940,7 +942,7 @@ fn test_sync_scroll_in_place_translates_children() {
     };
 
     let (_card_id, _card_rect, _content_rect, max_scroll_y) =
-        build_preferences_dialog(&mut tree, params);
+        build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
     let tag = encode_section_tag("graphics_shadows");
     let y_before = tree
@@ -1029,6 +1031,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             enabled_modules: &enabled_modules,
             events: &[],
         },
+        &mut Vec::new(),
     );
 
     assert!(
@@ -1071,6 +1074,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             enabled_modules: &enabled_modules,
             events: &[],
         },
+        &mut Vec::new(),
     );
 
     let y_at_150 = tree_scrolled
@@ -1090,5 +1094,129 @@ fn test_preferences_mouse_wheel_and_drag() {
         y_at_150,
         y_at_0 - 150.0,
         "Building with scroll_offset_y: 150.0 must shift content up by 150px"
+    );
+}
+
+#[test]
+fn test_preferences_declarative_actions_dispatch() {
+    let mut tree = UiTree::new();
+    let collapsed = HashSet::new();
+    let enabled_modules = HashSet::new();
+    let mut gs = GraphicsSettings::default();
+    let mut snapping_settings = SnapSettings::default();
+    let mut editor_config = EditorConfig::default();
+
+    // 1. Test Close button declarative dispatch
+    let events_close = [(
+        PREF_TAG_CLOSE,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let params_close = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 0,
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &events_close,
+    };
+    let mut actions = Vec::new();
+    build_preferences_dialog(&mut tree, params_close, &mut actions);
+    assert!(
+        actions
+            .iter()
+            .any(|a| matches!(a, PreferencesAction::Close)),
+        "Clicking Close button must dispatch PreferencesAction::Close"
+    );
+
+    // 2. Test Sidebar tab selection declarative dispatch
+    let tab_3_tag = encode_tab_tag(3);
+    let events_tab = [(
+        tab_3_tag,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let params_tab = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 0,
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: None,
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &events_tab,
+    };
+    let mut actions_tab = Vec::new();
+    build_preferences_dialog(&mut UiTree::new(), params_tab, &mut actions_tab);
+    assert!(
+        actions_tab
+            .iter()
+            .any(|a| matches!(a, PreferencesAction::SelectTab(3))),
+        "Clicking tab 3 must dispatch PreferencesAction::SelectTab(3)"
+    );
+
+    // 3. Test Dropdown item selection declarative dispatch
+    let dd_item_tag = encode_dropdown_item_tag(2);
+    let events_dd = [(
+        dd_item_tag,
+        InteractionEvent::Click {
+            button: MouseButton::Left,
+        },
+    )];
+    let params_dd = PreferencesParams {
+        screen_width: 1920.0,
+        screen_height: 1080.0,
+        window_pos: None,
+        active_tab: 1,
+        scroll_offset_y: 0.0,
+        is_scrollbar_dragging: false,
+        active_dropdown: Some(PreferencesDropdownId::ShadowResolution),
+        dropdown_trigger_rect: None,
+        collapsed_sections: &collapsed,
+        blink_caret: false,
+        active_number_input: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        zoom_factor: 1.0,
+        graphics_settings: &mut gs,
+        snapping_settings: &mut snapping_settings,
+        editor_config: &mut editor_config,
+        enable_live_updates: false,
+        enabled_modules: &enabled_modules,
+        events: &events_dd,
+    };
+    let mut actions_dd = Vec::new();
+    build_preferences_dialog(&mut UiTree::new(), params_dd, &mut actions_dd);
+    assert!(
+        actions_dd.iter().any(|a| matches!(
+            a,
+            PreferencesAction::SelectDropdownItem(PreferencesDropdownId::ShadowResolution, 2)
+        )),
+        "Clicking dropdown item 2 must dispatch SelectDropdownItem(ShadowResolution, 2)"
     );
 }

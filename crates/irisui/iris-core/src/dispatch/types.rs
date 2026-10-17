@@ -45,6 +45,8 @@ pub struct PopupMenuState {
 pub struct EventState {
     /// Active widget node currently capturing all pointer movements and releases.
     pub pointer_capture: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag of the widget capturing all pointer movements and releases, if assigned.
+    pub pointer_capture_tag: Option<u64>,
     /// Deepest interactive widget node currently underneath the pointer cursor.
     pub hovered: Option<WidgetId>,
     /// Widget node where the mouse button was originally pressed down.
@@ -101,6 +103,7 @@ impl EventState {
     pub const fn new() -> Self {
         Self {
             pointer_capture: None,
+            pointer_capture_tag: None,
             hovered: None,
             pressed: None,
             pressed_button: None,

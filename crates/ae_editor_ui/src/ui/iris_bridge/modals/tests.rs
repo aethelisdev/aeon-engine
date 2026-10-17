@@ -216,6 +216,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         crate::ui::iris_bridge::preferences::builder::build_preferences_dialog(
             &mut tree,
             pref_params,
+            &mut Vec::new(),
         );
 
     // 2. Build About dialog centered on top of Preferences
