@@ -329,7 +329,7 @@ impl EngineUi {
             });
         }
         self.process_assets_actions(params.ui_actions, params.camera, params.is_2d_mode);
-        if self.iris_overlay.has_pending_panel_actions() {
+        if self.iris_overlay.has_pending_actions() {
             self.iris_overlay.notifier.tag_all();
             self.iris_overlay.chrome.needs_layout_rebuild = true;
         }

@@ -6,15 +6,13 @@
 //! Provides the `PhysicsMaterialHandler` implementing UI rendering, surface type
 //! combobox with preset action button, and friction / restitution numeric controls.
 
-use super::helpers::{
-    ComponentHeaderProps, DeclarativeNumericRowParams, build_declarative_card_header,
-    render_declarative_numeric_row,
-};
+use super::helpers::{ComponentHeaderProps, build_declarative_card_header};
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
+use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
 use crate::ui::iris_bridge::inspector::types::{
-    ComponentCategory, InspectorDropdownId, InspectorNumberInputId,
+    ComponentCategory, InspectorAction, InspectorDropdownId, InspectorNumberInputId,
 };
 use irisui::prelude::*;
 
@@ -47,18 +45,11 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let mat_data = ctx
+        let (mut friction, mut restitution, surface_name) = ctx
             .world
             .get::<&ae_core::ecs::PhysicsMaterial>(ctx.entity)
             .map(|m| (m.friction, m.restitution, m.surface_type.display_name()))
             .unwrap_or((0.70, 0.0, "Default"));
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
 
         scope.card_panel("PhysicsMaterialCard", |card| {
             build_declarative_card_header(
@@ -81,74 +72,28 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                 .gap(4.0);
 
             card.container_named("SurfaceTypeRow", row_style, |row| {
-                row.label_styled_passive(
-                    "SurfaceTypeLbl",
-                    "Surface Type:",
-                    11.0,
-                    row.theme().text_muted,
-                    TextAlign::Left,
-                    Style::new().width(85.0).height(22.0),
-                );
-
-                let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::SurfaceType);
-                let pill_style = Style::new()
-                    .flex_row()
-                    .align_items(AlignItems::Center)
-                    .justify_content(JustifyContent::SpaceBetween)
+                let options = &[
+                    "Default", "Metal", "Wood", "Stone", "Flesh", "Dirt", "Glass", "Rubber",
+                ];
+                let combo = ComboBox::new(surface_name, options)
+                    .label("Surface Type:")
+                    .label_width(85.0)
                     .width(80.0)
-                    .height(22.0)
-                    .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-                    .background(if is_open {
-                        Color::rgba(0.118, 0.125, 0.145, 1.0)
-                    } else {
-                        Color::rgba(0.157, 0.165, 0.188, 0.98)
-                    })
-                    .border(
-                        1.0,
-                        if is_open {
-                            Color::rgba(0.353, 0.376, 0.439, 0.95)
-                        } else {
-                            Color::rgba(0.212, 0.220, 0.259, 0.85)
-                        },
-                    )
-                    .border_radius(5.0);
-
-                let dropdown_tag =
-                    crate::ui::iris_bridge::inspector::tags::encode_inspector_dropdown_tag(
-                        InspectorDropdownId::SurfaceType,
+                    .tag(
+                        crate::ui::iris_bridge::inspector::tags::encode_inspector_dropdown_tag(
+                            InspectorDropdownId::SurfaceType,
+                        ),
                     );
-                row.container_tagged(
-                    "ComboPill",
-                    pill_style,
-                    WidgetRole::Button,
-                    dropdown_tag,
-                    |pill| {
-                        pill.label_styled_passive(
-                            "ComboText",
-                            mat_data.2,
-                            10.5,
-                            if is_open {
-                                pill.theme().text_primary
-                            } else {
-                                pill.theme().text_secondary
-                            },
-                            TextAlign::Left,
-                            Style::new().flex_grow(1.0),
-                        );
-
-                        let chevron_uv = if is_open {
-                            crate::ui::iris_bridge::icons::ICON_CHEVRON_UP
-                        } else {
-                            crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN
-                        };
-                        let chevron_color = if is_open {
-                            pill.theme().text_primary
-                        } else {
-                            pill.theme().text_secondary
-                        };
-                        pill.icon_named("ComboChevron", chevron_uv, chevron_color, 9.0);
-                    },
-                );
+                let resp = row.add(combo);
+                if resp.changed()
+                    && let Some(idx) = resp.selected_index()
+                {
+                    ctx.push_action(InspectorAction::SelectDropdown(
+                        ctx.entity,
+                        InspectorDropdownId::SurfaceType,
+                        idx,
+                    ));
+                }
 
                 // ↺ Preset button
                 let preset_style = Style::new()
@@ -163,7 +108,7 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
 
                 let preset_tag =
                     crate::ui::iris_bridge::inspector::tags::TAG_INSPECTOR_PRESET_RESET;
-                row.container_tagged(
+                let preset_resp = row.container_tagged(
                     "PresetBtn",
                     preset_style,
                     WidgetRole::Button,
@@ -179,37 +124,40 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
                         );
                     },
                 );
+                if preset_resp.response.clicked() {
+                    ctx.push_action(InspectorAction::ResetPhysMatPreset(ctx.entity));
+                }
             });
 
             // Row 2: Friction
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::PhysMatFriction,
-                    label: "Friction:",
-                    val: mat_data.0,
-                    label_w: 85.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::PhysMatFriction),
-                    is_hovered: false,
-                },
-            );
+            let fric_id = InspectorNumberInputId::PhysMatFriction;
+            if card
+                .add(
+                    NumericDrag::new("Friction:", &mut friction)
+                        .tag(encode_inspector_number_input_tag(fric_id))
+                        .label_width(85.0)
+                        .box_width(44.0)
+                        .edit_state(ctx.edit_state(fric_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(fric_id, friction);
+            }
 
             // Row 3: Restitution (Bounciness)
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::PhysMatRestitution,
-                    label: "Restitution (Bounciness):",
-                    val: mat_data.1,
-                    label_w: 155.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::PhysMatRestitution),
-                    is_hovered: false,
-                },
-            );
+            let rest_id = InspectorNumberInputId::PhysMatRestitution;
+            if card
+                .add(
+                    NumericDrag::new("Restitution (Bounciness):", &mut restitution)
+                        .tag(encode_inspector_number_input_tag(rest_id))
+                        .label_width(155.0)
+                        .box_width(44.0)
+                        .edit_state(ctx.edit_state(rest_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(rest_id, restitution);
+            }
         });
     }
 

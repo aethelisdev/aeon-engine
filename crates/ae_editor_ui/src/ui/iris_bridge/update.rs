@@ -54,7 +54,34 @@ impl IrisEditorOverlay {
             focus_state: FocusState::new(),
             overlay_tree: super::overlay_tree::OverlayTree::new(),
             compositor: super::compositor::TreeCompositor::new(),
+            pending_actions: Vec::new(),
         }
+    }
+
+    /// Intercepts and processes UI interaction events via autonomous Iris UI tree dispatch.
+    ///
+    /// Automatically routes interactions to the active [`OverlayTree`](super::overlay_tree::OverlayTree) when modals
+    /// or dropdown menus are open, or directly to the primary retained [`UiTree`].
+    pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
+        // Track logical cursor coordinates for layout and inspection queries
+        if let UiEvent::MouseMove { point } = event {
+            self.chrome.cursor_pos = *point;
+        }
+
+        let target_tree = if self.overlay_tree.is_open() {
+            self.overlay_tree.tree_mut()
+        } else {
+            &mut self.tree
+        };
+
+        let dispatch = target_tree.dispatch_event(event);
+
+        if dispatch.is_consumed() || !self.pending_actions.is_empty() {
+            self.notifier.tag_all();
+            self.chrome.needs_layout_rebuild = true;
+        }
+
+        super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed())
     }
 
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.
@@ -494,7 +521,7 @@ impl IrisEditorOverlay {
                 None
             };
 
-            let is_cursor_occluded = self.is_point_over_modal_or_dropdown(cursor)
+            let is_cursor_occluded = self.is_point_over_overlay(cursor)
                 || pref_rect.is_some_and(|r| {
                     cursor.x >= r.x
                         && cursor.x <= r.right()
@@ -604,5 +631,55 @@ impl IrisEditorOverlay {
         self.notifier.clear_all();
         self.tree.clear_frame_clicks();
         self.overlay_tree.tree_mut().clear_frame_clicks();
+    }
+
+    /// Evaluates the active UI cursor across all composite layers (OverlayTree, Floating Windows, Dock Panels, Shell).
+    ///
+    /// Resolves interactive cursors in strict back-to-front Z-order using pure, hardware-abstracted
+    /// [`WidgetCursor`] tokens without platform window dependencies.
+    #[must_use]
+    pub fn active_cursor(&self) -> WidgetCursor {
+        let p = self.cursor_pos();
+
+        // 1. Topmost Overlay Tree (Dropdowns, Popups, Modals)
+        if self.overlay_tree.is_open() {
+            let overlay_cursor = self.overlay_tree.tree().cursor_at(p);
+            if overlay_cursor != WidgetCursor::Default {
+                return overlay_cursor;
+            }
+        }
+
+        // 2. Floating window 8-way resize boundary evaluation (Higher Z-layer than docked panels)
+        if p.y > Self::MENUBAR_HEIGHT
+            && !self.overlay_tree.is_open()
+            && let Some(cur) = irisui::dock::evaluate_floating_resize_cursor(
+                &self.chrome.floating_window_rects,
+                p,
+                irisui::dock::DEFAULT_RESIZE_MARGIN,
+            )
+        {
+            return cur.to_widget_cursor();
+        }
+
+        // 3. Docked Tool and Workspace Panels
+        if let Some(pid) = self.chrome.hovered_panel
+            && let Some(panel) = self.panels.get(pid.id_str())
+            && let Some(panel_tree) = panel.tree()
+            && let Some(bounds) = panel.bounds()
+        {
+            let local_p = crate::ui::iris_bridge::compositor::screen_to_panel_local(p, bounds);
+            let panel_cursor = panel_tree.cursor_at(local_p);
+            if panel_cursor != WidgetCursor::Default {
+                return panel_cursor;
+            }
+        }
+
+        // 4. Base Shell Tree (Menubar, StatusBar, Viewport HUD)
+        let tree_cursor = self.tree.cursor_at(p);
+        if tree_cursor != WidgetCursor::Default {
+            return tree_cursor;
+        }
+
+        WidgetCursor::Default
     }
 }

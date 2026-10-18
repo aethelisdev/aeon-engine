@@ -6,12 +6,12 @@
 //! Provides a declarative inspector card for configuring action speed, range, and cooldown times.
 
 use crate::ui::iris_bridge::inspector::components::physics::helpers::{
-    ComponentHeaderProps, DeclarativeNumericRowParams, build_declarative_card_header,
-    render_declarative_numeric_row_custom,
+    ComponentHeaderProps, build_declarative_card_header,
 };
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
+use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
 use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorNumberInputId};
 use irisui::prelude::*;
 
@@ -44,18 +44,11 @@ impl ComponentInspectorHandler for CharacterActionHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let act_data = ctx
+        let (mut speed, mut cooldown) = ctx
             .world
             .get::<&ae_core::ecs::CharacterAction>(ctx.entity)
             .map(|a| (a.speed, a.cooldown))
             .unwrap_or((50.0, 0.20));
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
 
         scope.card_panel("CharacterActionCard", |card| {
             build_declarative_card_header(
@@ -74,37 +67,38 @@ impl ComponentInspectorHandler for CharacterActionHandler {
             let box_w = 44.0;
 
             // Speed / Range [ 50 ] m/s
-            let custom_speed = format!("{:.0}", act_data.0);
-            render_declarative_numeric_row_custom(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::ActionSpeedRange,
-                    label: "Speed / Range:",
-                    val: act_data.0,
-                    label_w,
-                    box_w,
-                    unit: Some("m/s"),
-                    edit_state: get_edit(InspectorNumberInputId::ActionSpeedRange),
-                    is_hovered: false,
-                },
-                Some(&custom_speed),
-            );
+            let speed_id = InspectorNumberInputId::ActionSpeedRange;
+            let custom_speed = format!("{:.0}", speed);
+            if card
+                .add(
+                    NumericDrag::new("Speed / Range:", &mut speed)
+                        .tag(encode_inspector_number_input_tag(speed_id))
+                        .label_width(label_w)
+                        .box_width(box_w)
+                        .unit("m/s")
+                        .custom_text(&custom_speed)
+                        .edit_state(ctx.edit_state(speed_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(speed_id, speed);
+            }
 
             // Cooldown [ 0.20 ] s
-            render_declarative_numeric_row_custom(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::ActionCooldown,
-                    label: "Cooldown:",
-                    val: act_data.1,
-                    label_w,
-                    box_w,
-                    unit: Some("s"),
-                    edit_state: get_edit(InspectorNumberInputId::ActionCooldown),
-                    is_hovered: false,
-                },
-                None,
-            );
+            let cd_id = InspectorNumberInputId::ActionCooldown;
+            if card
+                .add(
+                    NumericDrag::new("Cooldown:", &mut cooldown)
+                        .tag(encode_inspector_number_input_tag(cd_id))
+                        .label_width(label_w)
+                        .box_width(box_w)
+                        .unit("s")
+                        .edit_state(ctx.edit_state(cd_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(cd_id, cooldown);
+            }
         });
     }
 

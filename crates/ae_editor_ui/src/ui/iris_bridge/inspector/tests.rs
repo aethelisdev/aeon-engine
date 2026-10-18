@@ -52,7 +52,7 @@ fn test_inspector_empty_selection_renders_placeholder() {
 
     let params = create_default_test_params(&world, None, &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
 
     let has_empty_label = tree
         .iter()
@@ -77,7 +77,7 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
 
     // Verify 3D Transform inputs are present via declarative assertions
     tree.assert_node_exists("NumBox_Position_X");
@@ -132,7 +132,7 @@ fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
 
     // Verify 3D Transform inputs are NOT present
     tree.assert_node_absent("NumBox_Position_X");
@@ -260,7 +260,7 @@ fn test_inspector_entity_isolation_invariant() {
     let swatches = [];
     let params = create_default_test_params(&world, Some(ent_a), &euler, &swatches);
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
 
     assert_eq!(
         params.selected_entity,
@@ -301,30 +301,22 @@ fn test_inspector_select_all_number_input_styling() {
         is_all_selected: true,
     });
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
 
-    // Verify node tree contains NumBox_Position_X with dark background and glowing cyan active border
+    // Verify node tree contains NumBox_Position_X with active editing background and border
     let mut pos_x_style = None;
-    let mut sel_pill_color = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
         if node.name.as_deref() == Some("NumBox_Position_X") {
             pos_x_style = Some((node.style.background_color, node.style.border.color));
-        } else if node.name.as_deref() == Some("NumSel_Position_X") {
-            sel_pill_color = Some(node.style.background_color);
         }
     });
     assert_eq!(
         pos_x_style,
         Some((
-            Color::rgba(0.118, 0.125, 0.145, 1.0),
-            Color::rgba(0.0, 0.80, 1.00, 0.95),
+            Color::rgba(0.180, 0.190, 0.220, 1.0),
+            Color::rgba(0.85, 0.88, 0.98, 0.95),
         )),
-        "Active number input must have dark background and glowing cyan active border"
-    );
-    assert_eq!(
-        sel_pill_color,
-        Some(Color::rgba(0.14, 0.46, 0.88, 0.95)),
-        "Active number input must render vivid blue selection pill when is_all_selected is true"
+        "Active number input must have editing background and bright active border"
     );
 }
 
@@ -355,25 +347,18 @@ fn test_active_number_input_caret_position() {
         is_all_selected: false,
     });
 
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
 
     let mut pos_x_text = None;
-    let mut has_sel_pill = false;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_Position_X") {
+        if node.name.as_deref() == Some("NumBox_Position_X") {
             pos_x_text = node.text.clone();
-        } else if node.name.as_deref() == Some("NumSel_Position_X") {
-            has_sel_pill = true;
         }
     });
     assert_eq!(
         pos_x_text,
-        Some("X: 42|.5".to_string()),
+        Some("42|.5".to_string()),
         "Active number input must place caret at the exact cursor index"
-    );
-    assert!(
-        !has_sel_pill,
-        "Selection pill must NOT be rendered when is_all_selected is false"
     );
 }
 
@@ -394,14 +379,14 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     let params = create_default_test_params(&world, Some(ent), &euler, &swatches);
 
     // 1. Initial State: Rotation Y must be 0.0
-    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params);
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
     let mut rot_y_text = None;
     tree.traverse_depth_first(root, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_Rotation_Y") {
+        if node.name.as_deref() == Some("NumBox_Rotation_Y") {
             rot_y_text = node.text.clone();
         }
     });
-    assert_eq!(rot_y_text, Some("Y: 0.0".to_string()));
+    assert_eq!(rot_y_text, Some("0.0".to_string()));
 
     // 2. Modified State: Change Rotation component to 55.0 degrees Y
     if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
@@ -409,14 +394,18 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     }
     let mut tree2 = UiTree::new();
     let root2 = tree2.create_root().expect("root node");
-    build_inspector_panel(&mut UiScope::new(&mut tree2, root2), &params);
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree2, root2),
+        &params,
+        &mut Vec::new(),
+    );
     let mut rot_y_text2 = None;
     tree2.traverse_depth_first(root2, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_Rotation_Y") {
+        if node.name.as_deref() == Some("NumBox_Rotation_Y") {
             rot_y_text2 = node.text.clone();
         }
     });
-    assert_eq!(rot_y_text2, Some("Y: 55.0".to_string()));
+    assert_eq!(rot_y_text2, Some("55.0".to_string()));
 
     // 3. Undo State: Revert Rotation component back to identity
     if let Ok(mut r) = world.get::<&mut Rotation>(ent) {
@@ -424,16 +413,20 @@ fn test_inspector_rotation_reflects_entity_component_and_undo() {
     }
     let mut tree3 = UiTree::new();
     let root3 = tree3.create_root().expect("root node");
-    build_inspector_panel(&mut UiScope::new(&mut tree3, root3), &params);
+    build_inspector_panel(
+        &mut UiScope::new(&mut tree3, root3),
+        &params,
+        &mut Vec::new(),
+    );
     let mut rot_y_text3 = None;
     tree3.traverse_depth_first(root3, &mut |_id, node| {
-        if node.name.as_deref() == Some("NumText_Rotation_Y") {
+        if node.name.as_deref() == Some("NumBox_Rotation_Y") {
             rot_y_text3 = node.text.clone();
         }
     });
     assert_eq!(
         rot_y_text3,
-        Some("Y: 0.0".to_string()),
+        Some("0.0".to_string()),
         "Inspector Rotation row must immediately reflect undone component value"
     );
 }
@@ -638,40 +631,19 @@ fn test_color_picker_drag_and_undo_restoration() {
 fn test_inspector_entity_rename_all_selected_lifecycle() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("Root node must exist");
-    let mut world = hecs::World::new();
-    let entity = world.spawn((ae_core::ecs::Name("TestEntity".to_string()),));
-
-    let euler = [0.0, 0.0, 0.0];
-    let swatches = [];
-    let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
-    params.active_rename_buffer = Some("TestEntity");
-    params.is_rename_all_selected = true;
+    let mut name = "TestEntity".to_string();
 
     let mut scope = UiScope::new(&mut tree, root);
-    let _resp = header::build_entity_header(&mut scope, entity, &params);
-    scope.finish_layout(params.panel_rect);
+    let _resp = header::build_entity_header(&mut scope, &mut name, 320.0);
+    scope.finish_layout(Rect::new(0.0, 0.0, 320.0, 800.0));
 
     let box_id = tree
         .find_node_by_tag(header::entity_name_input_tag())
         .expect("Box node must exist");
     let box_node = tree.get(box_id).expect("Box node must exist");
-    assert_eq!(
-        box_node.children.len(),
-        2,
-        "Box must contain selection capsule and text label when all-selected"
-    );
-
-    let sel_node = tree.get(box_node.children[0]).expect("Capsule node exists");
-    assert_eq!(sel_node.name.as_deref(), Some("🏷 Name_Sel"));
-    assert_eq!(
-        sel_node.style.background_color,
-        Color::rgba(0.14, 0.46, 0.88, 0.95)
-    );
-    assert!(
-        sel_node.computed_rect.width < 100.0,
-        "Selection capsule width ({}) must cover text length, not the entire box ({})",
-        sel_node.computed_rect.width,
-        box_node.computed_rect.width
-    );
-    assert!(sel_node.computed_rect.width >= 50.0);
+    assert_eq!(box_node.tag, header::entity_name_input_tag());
+    assert_eq!(box_node.role, WidgetRole::TextInput);
+    assert_eq!(box_node.cursor, Some(WidgetCursor::Text));
+    assert!(box_node.computed_rect.width > 100.0);
+    assert!(box_node.computed_rect.height >= 24.0);
 }

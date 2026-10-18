@@ -6,12 +6,12 @@
 //! Provides a declarative inspector card for 3D linear velocity components (`X`, `Y`, `Z`).
 
 use crate::ui::iris_bridge::inspector::components::physics::helpers::{
-    ComponentHeaderProps, DeclarativeNumericRowParams, build_declarative_card_header,
-    render_declarative_numeric_row,
+    ComponentHeaderProps, build_declarative_card_header,
 };
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
+use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
 use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorNumberInputId};
 use irisui::prelude::*;
 
@@ -44,18 +44,11 @@ impl ComponentInspectorHandler for VelocityHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let vel = ctx
+        let [mut vx, mut vy, mut vz] = ctx
             .world
             .get::<&ae_core::ecs::Velocity>(ctx.entity)
             .map(|v| [v.x, v.y, v.z])
             .unwrap_or([0.0, 0.0, 0.0]);
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
 
         scope.card_panel("VelocityCard", |card| {
             build_declarative_card_header(
@@ -70,25 +63,26 @@ impl ComponentInspectorHandler for VelocityHandler {
                 false,
             );
 
-            let row_defs = [
-                ("X:", vel[0], InspectorNumberInputId::VelocityX),
-                ("Y:", vel[1], InspectorNumberInputId::VelocityY),
-                ("Z:", vel[2], InspectorNumberInputId::VelocityZ),
+            let mut row_defs = [
+                ("X:", &mut vx, InspectorNumberInputId::VelocityX),
+                ("Y:", &mut vy, InspectorNumberInputId::VelocityY),
+                ("Z:", &mut vz, InspectorNumberInputId::VelocityZ),
             ];
-            for (lbl, val, input_id) in row_defs {
-                render_declarative_numeric_row(
-                    card,
-                    DeclarativeNumericRowParams {
-                        input_id,
-                        label: lbl,
-                        val,
-                        label_w: 20.0,
-                        box_w: 44.0,
-                        unit: None,
-                        edit_state: get_edit(input_id),
-                        is_hovered: false,
-                    },
-                );
+            for (lbl, val, input_id) in &mut row_defs {
+                let tag = encode_inspector_number_input_tag(*input_id);
+                let edit = ctx.edit_state(*input_id);
+                if card
+                    .add(
+                        NumericDrag::new(lbl, val)
+                            .tag(tag)
+                            .label_width(20.0)
+                            .box_width(44.0)
+                            .edit_state(edit),
+                    )
+                    .changed()
+                {
+                    ctx.set_number(*input_id, **val);
+                }
             }
         });
     }

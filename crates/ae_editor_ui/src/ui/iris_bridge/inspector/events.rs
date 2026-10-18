@@ -8,8 +8,7 @@
 
 use super::appearance::{
     resolve_appearance_add_palette_tag, resolve_appearance_clear_palette_tag,
-    resolve_appearance_color_swatch_tag, resolve_appearance_hex_input_tag,
-    resolve_appearance_palette_swatch_tag,
+    resolve_appearance_color_swatch_tag, resolve_appearance_palette_swatch_tag,
 };
 use super::header::resolve_entity_name_input_tag;
 use super::tags::{
@@ -31,7 +30,6 @@ pub fn resolve_inspector_tag_click(
     out_actions: &mut Vec<InspectorAction>,
 ) -> bool {
     if resolve_add_component_btn_tag(hit_tag) {
-        out_actions.push(InspectorAction::OpenAddComponentMenu(Point::ZERO));
         return true;
     }
 
@@ -64,12 +62,6 @@ pub fn resolve_inspector_tag_click(
     }
 
     if resolve_appearance_color_swatch_tag(hit_tag) {
-        out_actions.push(InspectorAction::ToggleColorPicker);
-        return true;
-    }
-
-    if resolve_appearance_hex_input_tag(hit_tag) {
-        out_actions.push(InspectorAction::FocusHexInput);
         return true;
     }
 
@@ -124,7 +116,6 @@ pub fn resolve_inspector_tag_click(
     }
 
     if resolve_entity_name_input_tag(hit_tag) {
-        out_actions.push(InspectorAction::FocusRename);
         return true;
     }
 

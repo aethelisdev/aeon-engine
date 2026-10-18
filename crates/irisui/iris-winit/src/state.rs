@@ -160,3 +160,10 @@ impl WinitState {
         }
     }
 }
+
+impl Default for WinitState {
+    /// Constructs a `WinitState` with default 1.0 HighDPI scale factor.
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}

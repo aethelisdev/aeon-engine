@@ -17,7 +17,11 @@ use super::ui_transform;
 use irisui::prelude::*;
 
 /// Builds the complete Scene Inspector layout and returns root handle.
-pub fn build_inspector_panel(scope: &mut UiScope<'_>, params: &InspectorPanelParams<'_>) {
+pub fn build_inspector_panel(
+    scope: &mut UiScope<'_>,
+    params: &InspectorPanelParams<'_>,
+    actions: &mut Vec<super::types::InspectorAction>,
+) {
     let padding_x = 6.0;
     let card_w = params.panel_rect.width - padding_x * 2.0;
 
@@ -33,11 +37,23 @@ pub fn build_inspector_panel(scope: &mut UiScope<'_>, params: &InspectorPanelPar
             };
 
             // 2. Top Entity Name Header
-            header::build_entity_header(panel_scope, entity, params);
+            let mut name = params.entity_display_name(entity).to_string();
+            let name_resp =
+                header::build_entity_header(panel_scope, &mut name, params.panel_rect.width);
+            if name_resp.changed() {
+                actions.push(super::types::InspectorAction::RenameEntity(entity, name));
+            }
 
             // 3. Scrollable Cards Container (Single Declarative Flex Column)
-            let mut ctx =
-                ComponentRenderContext::new(entity, params.world, params, padding_x, 0.0, card_w);
+            let mut ctx = ComponentRenderContext::with_actions(
+                entity,
+                params.world,
+                params,
+                actions,
+                padding_x,
+                0.0,
+                card_w,
+            );
 
             let container_style = Style::new()
                 .flex_col()
@@ -77,7 +93,7 @@ pub fn build_inspector_panel(scope: &mut UiScope<'_>, params: &InspectorPanelPar
             );
 
             // 6. Bottom Action Bar (Fixed at bottom)
-            footer::build_inspector_footer(panel_scope, params);
+            footer::build_inspector_footer(panel_scope, params, actions);
         });
 }
 

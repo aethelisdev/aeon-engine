@@ -6,11 +6,13 @@
 //! Provides handlers for `💡 Light`, `📦 ModelId`, and `🎲 Shape`.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
+use super::super::tags::encode_inspector_number_input_tag;
 use super::super::types::{ComponentCategory, InspectorDropdownId, InspectorNumberInputId};
 use super::physics::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, DeclarativeNumericRowParams,
-    build_declarative_card_header, render_declarative_combobox_row, render_declarative_numeric_row,
+    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
+    render_declarative_combobox_row,
 };
+use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_LIGHT};
 use irisui::prelude::*;
 
 /// Inspector handler for `💡 Light`.
@@ -29,6 +31,10 @@ impl ComponentInspectorHandler for LightHandler {
         "💡"
     }
 
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        Some(ICON_LIGHT)
+    }
+
     fn header_color(&self) -> Color {
         Color::rgba(0.98, 0.80, 0.20, 1.0) // Gold / Bright Yellow (#fbbf24)
     }
@@ -42,24 +48,17 @@ impl ComponentInspectorHandler for LightHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (pos, col) = ctx
+        let (mut pos, mut col) = ctx
             .world
             .get::<&ae_core::ecs::Light>(ctx.entity)
             .map(|l| (l.position, l.color))
             .unwrap_or(([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
 
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
-
         scope.card_panel("LightCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
-                    atlas_icon: None,
+                    atlas_icon: self.atlas_icon(),
                     icon: self.icon(),
                     display_title: self.display_title(),
                     header_color: self.header_color(),
@@ -69,49 +68,56 @@ impl ComponentInspectorHandler for LightHandler {
             );
 
             // Row 1: Light Offset Y
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::LightOffsetY,
-                    label: "Light Offset Y:",
-                    val: pos[1],
-                    label_w: 95.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::LightOffsetY),
-                    is_hovered: false,
-                },
-            );
+            if card
+                .add(
+                    NumericDrag::new("Light Offset Y:", &mut pos[1])
+                        .label_width(95.0)
+                        .box_width(44.0)
+                        .tag(encode_inspector_number_input_tag(
+                            InspectorNumberInputId::LightOffsetY,
+                        ))
+                        .edit_state(ctx.edit_state(InspectorNumberInputId::LightOffsetY)),
+                )
+                .changed()
+            {
+                ctx.set_number(InspectorNumberInputId::LightOffsetY, pos[1]);
+            }
 
             // Row 2: Color R
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::LightColorR,
-                    label: "Color R:",
-                    val: col[0],
-                    label_w: 95.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::LightColorR),
-                    is_hovered: false,
-                },
-            );
+            if card
+                .add(
+                    NumericDrag::new("Color R:", &mut col[0])
+                        .label_width(95.0)
+                        .box_width(44.0)
+                        .range(0.0..=1.0)
+                        .speed(0.01)
+                        .tag(encode_inspector_number_input_tag(
+                            InspectorNumberInputId::LightColorR,
+                        ))
+                        .edit_state(ctx.edit_state(InspectorNumberInputId::LightColorR)),
+                )
+                .changed()
+            {
+                ctx.set_number(InspectorNumberInputId::LightColorR, col[0]);
+            }
 
             // Row 3: Color G
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::LightColorG,
-                    label: "Color G:",
-                    val: col[1],
-                    label_w: 95.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::LightColorG),
-                    is_hovered: false,
-                },
-            );
+            if card
+                .add(
+                    NumericDrag::new("Color G:", &mut col[1])
+                        .label_width(95.0)
+                        .box_width(44.0)
+                        .range(0.0..=1.0)
+                        .speed(0.01)
+                        .tag(encode_inspector_number_input_tag(
+                            InspectorNumberInputId::LightColorG,
+                        ))
+                        .edit_state(ctx.edit_state(InspectorNumberInputId::LightColorG)),
+                )
+                .changed()
+            {
+                ctx.set_number(InspectorNumberInputId::LightColorG, col[1]);
+            }
         });
     }
 
@@ -204,6 +210,10 @@ impl ComponentInspectorHandler for ShapeHandler {
         "🌐"
     }
 
+    fn atlas_icon(&self) -> Option<[f32; 4]> {
+        Some(ICON_CUBE)
+    }
+
     fn header_color(&self) -> Color {
         Color::rgba(0.20, 0.85, 0.60, 1.0) // Mint Green (#34d399)
     }
@@ -227,13 +237,11 @@ impl ComponentInspectorHandler for ShapeHandler {
             _ => "Procedural Mesh",
         };
 
-        let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::ShapeType);
-
         scope.card_panel("ShapeCard", |card| {
             build_declarative_card_header(
                 card,
                 ComponentHeaderProps {
-                    atlas_icon: None,
+                    atlas_icon: self.atlas_icon(),
                     icon: self.icon(),
                     display_title: self.display_title(),
                     header_color: self.header_color(),
@@ -244,14 +252,14 @@ impl ComponentInspectorHandler for ShapeHandler {
 
             render_declarative_combobox_row(
                 card,
+                ctx,
                 DeclarativeComboboxRowParams {
                     dropdown_id: InspectorDropdownId::ShapeType,
                     label: Some("Geometry:"),
                     label_w: 65.0,
                     selected_text: shape_str,
-                    is_open,
-                    is_hovered: false,
                     combo_w: 96.0,
+                    options: &["Cube", "Sphere", "Cylinder", "Capsule", "Torus", "Triangle"],
                 },
             );
         });
@@ -265,7 +273,6 @@ impl ComponentInspectorHandler for ShapeHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
     use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
     use crate::ui::iris_bridge::inspector::tags::{
         encode_component_delete_tag, encode_inspector_dropdown_tag,
@@ -314,6 +321,14 @@ mod tests {
             "Shape delete button must be tagged"
         );
 
+        let has_cube_icon = tree.iter().any(|(_, n)| {
+            n.name.as_deref() == Some("CardAtlasIcon") && n.texture_uv == Some(ICON_CUBE)
+        });
+        assert!(
+            has_cube_icon,
+            "Shape card header must render ICON_CUBE from editor atlas"
+        );
+
         let dd_tag = encode_inspector_dropdown_tag(InspectorDropdownId::ShapeType);
         assert!(
             tree.iter().any(|(_, n)| n.tag == dd_tag),
@@ -321,11 +336,12 @@ mod tests {
         );
 
         let has_chevron_down = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_DOWN)
+            n.name.as_deref() == Some("ComboChevron")
+                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
         });
         assert!(
             has_chevron_down,
-            "Combobox must render ICON_CHEVRON_DOWN when closed"
+            "Combobox must render atlas chevron down when closed"
         );
     }
 
@@ -361,16 +377,20 @@ mod tests {
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
 
+        tree.active_combobox_tag = Some(encode_inspector_dropdown_tag(
+            InspectorDropdownId::ShapeType,
+        ));
         let mut scope = UiScope::new(&mut tree, root);
         let handler = ShapeHandler;
         handler.render_card(&mut scope, &mut ctx);
 
         let has_chevron_up = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_UP)
+            n.name.as_deref() == Some("ComboChevron")
+                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_UP)
         });
         assert!(
             has_chevron_up,
-            "Combobox must render ICON_CHEVRON_UP when open"
+            "Combobox must render atlas chevron up when open"
         );
     }
 }

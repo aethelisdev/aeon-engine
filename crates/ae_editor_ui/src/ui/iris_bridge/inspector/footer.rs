@@ -7,12 +7,16 @@
 //!
 
 use super::tags::{TAG_INSPECTOR_ADD_COMPONENT, TAG_INSPECTOR_SAVE_PREFAB};
-use super::types::InspectorPanelParams;
+use super::types::{InspectorAction, InspectorPanelParams};
 use irisui::prelude::*;
 
 /// Output node handles created during Inspector footer construction.
 /// Builds the Inspector bottom action bar declaratively into the parent [`UiScope`].
-pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelParams<'_>) {
+pub fn build_inspector_footer(
+    scope: &mut UiScope<'_>,
+    params: &InspectorPanelParams<'_>,
+    actions: &mut Vec<InspectorAction>,
+) {
     let padding_x = 8.0;
     let footer_h = 24.0;
     let btn_gap = 8.0;
@@ -64,7 +68,7 @@ pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelPa
                 .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95));
         }
 
-        row.container_tagged(
+        let add_resp = row.container_tagged_resp(
             "AddComponentBtn",
             add_btn_style,
             WidgetRole::Button,
@@ -111,12 +115,16 @@ pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelPa
                 }
             },
         );
+        if add_resp.clicked() {
+            actions.push(InspectorAction::OpenAddComponentMenu(Point::ZERO));
+        }
 
         // 2. `💾 Save as Prefab` Button
         let save_btn_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
+            .gap(5.0)
             .flex_grow(1.0)
             .height(footer_h)
             .background(save_bg)
@@ -125,7 +133,7 @@ pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelPa
             .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95))
             .border_radius(5.0);
 
-        row.container_tagged(
+        let save_resp = row.container_tagged_resp(
             "SavePrefabBtn",
             save_btn_style,
             WidgetRole::Button,
@@ -141,6 +149,11 @@ pub fn build_inspector_footer(scope: &mut UiScope<'_>, params: &InspectorPanelPa
                 );
             },
         );
+        if save_resp.clicked()
+            && let Some(entity) = params.selected_entity
+        {
+            actions.push(InspectorAction::SaveAsPrefab(entity));
+        }
     });
 }
 
@@ -179,7 +192,8 @@ mod tests {
         };
 
         let mut scope = UiScope::new(&mut tree, root);
-        build_inspector_footer(&mut scope, &params);
+        let mut actions = Vec::new();
+        build_inspector_footer(&mut scope, &params, &mut actions);
         scope.finish_layout(params.panel_rect);
 
         let add_btn = tree

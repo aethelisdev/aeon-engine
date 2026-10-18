@@ -164,6 +164,19 @@ impl Button {
         self
     }
 
+    /// Sets both width and height constraints simultaneously.
+    ///
+    /// # Arguments
+    /// * `width` - Fixed horizontal dimension in physical pixels.
+    /// * `height` - Fixed vertical dimension in physical pixels.
+    #[inline]
+    #[must_use]
+    pub fn size(mut self, width: f32, height: f32) -> Self {
+        self.width = Some(width);
+        self.height = Some(height);
+        self
+    }
+
     /// Sets custom internal padding for the button content.
     #[inline]
     #[must_use]

@@ -57,9 +57,11 @@ impl EngineUi {
             .collect();
 
         // Resolve active window cursor icon
-        let requested_cursor = self.iris_overlay.requested_cursor_icon();
-        if requested_cursor != winit::window::CursorIcon::Default {
-            params.window.set_cursor(requested_cursor);
+        let active_widget_cursor = self.iris_overlay.active_cursor();
+        if active_widget_cursor != irisui::prelude::WidgetCursor::Default {
+            params
+                .window
+                .set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
         } else if self
             .iris_overlay
             .is_point_over_overlay(self.iris_overlay.cursor_pos())

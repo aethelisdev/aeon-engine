@@ -7,7 +7,6 @@
 //! declarative [`UiScope`] property primitives and flexbox layout.
 //!
 
-use super::types::InspectorPanelParams;
 use irisui::prelude::*;
 
 /// Returns the persistent 64-bit semantic tag identifying the entity rename text input box for $O(1)$ hit-testing.
@@ -25,74 +24,61 @@ pub fn resolve_entity_name_input_tag(tag: u64) -> bool {
 /// Builds the top Entity Name header declaratively into the parent [`UiScope`].
 ///
 /// Encapsulates the entity name editor within a pure declarative [`UiScope`] property row,
-/// managing flex layout, hover states, caret blinking, and focus rings without manual
-/// coordinate arithmetic or imperative target buffers.
+/// managing clicking, focusing, keyboard typing, and inline string editing autonomously via
+/// [`UiScope::text_input_with_width_tagged`] without external state bags or engine-side rename flags.
+/// Emits [`WidgetResponse`] where [`WidgetResponse::changed`] signals a committed name change.
 pub fn build_entity_header(
     scope: &mut UiScope<'_>,
-    entity: hecs::Entity,
-    params: &InspectorPanelParams<'_>,
+    name: &mut String,
+    panel_w: f32,
 ) -> WidgetResponse {
+    let mut input_resp = WidgetResponse::default();
     scope
         .column_with()
         .name("EntityHeaderCard")
-        .width(params.panel_rect.width - 12.0)
+        .width(panel_w - 12.0)
         .height(30.0)
         .margin_insets(Insets::new(4.0, 6.0, 4.0, 6.0))
         .show(|header_scope| {
-            header_scope
-                .property_text_with_options(
+            let row_style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .height(26.0)
+                .gap(6.0);
+            header_scope.container_named("EntityHeaderRow", row_style, |row| {
+                row.label_styled_passive(
+                    "NameLabel",
                     "🏷 Name:",
-                    &params.entity_display_name(entity),
-                    PropertyTextOptions::new()
-                        .with_editing(params.active_rename_buffer.is_some(), params.blink_caret)
-                        .with_all_selected(params.is_rename_all_selected)
-                        .with_label_width(60.0)
-                        .with_custom_tag(entity_name_input_tag()),
-                )
-                .response
-        })
-        .inner
+                    11.0,
+                    row.theme().text_muted,
+                    TextAlign::Left,
+                    Style::new().width(55.0).height(24.0),
+                );
+                let w = (panel_w - 85.0).max(60.0);
+                input_resp = row.text_input_with_width_tagged(
+                    "Entity name...",
+                    entity_name_input_tag(),
+                    w,
+                    name,
+                );
+            });
+        });
+    input_resp
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ae_core::ecs::Name;
 
     #[test]
     fn test_declarative_entity_header_structure_and_layout() {
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("Root must be created");
-        let mut world = hecs::World::new();
-        let entity = world.spawn((Name("Dynamic Cube".to_string()),));
-
-        let euler = [0.0, 0.0, 0.0];
-        let swatches = [];
-        let params = InspectorPanelParams {
-            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
-            world: &world,
-            selected_entity: Some(entity),
-            inspector_euler: &euler,
-            inspector_color_hex: "#ffffff",
-            saved_swatches: &swatches,
-            cursor_pos: Point::new(0.0, 0.0),
-            scroll_y: 0.0,
-            active_dropdown: None,
-            active_submenu: None,
-            is_add_menu_open: false,
-            is_color_picker_open: false,
-            active_number_input: None,
-            active_text_input: None,
-            active_rename_buffer: None,
-            is_rename_all_selected: false,
-            active_hex_buffer: None,
-            inspector_hsv: [0.0, 0.0, 1.0],
-            blink_caret: false,
-        };
+        let mut name = "Dynamic Cube".to_string();
 
         let mut scope = UiScope::new(&mut tree, root);
-        let _resp = build_entity_header(&mut scope, entity, &params);
-        scope.finish_layout(params.panel_rect);
+        let _resp = build_entity_header(&mut scope, &mut name, 320.0);
+        scope.finish_layout(Rect::new(0.0, 0.0, 320.0, 800.0));
 
         let box_id = tree
             .find_node_by_tag(entity_name_input_tag())

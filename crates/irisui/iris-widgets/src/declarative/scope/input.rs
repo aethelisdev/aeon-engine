@@ -286,93 +286,14 @@ impl<'a> UiScope<'a> {
         min: f32,
         max: f32,
     ) -> WidgetResponse {
-        let node_id = self.tree.create_node();
         let label_str = label.into();
-        let text = format!("{}: {:.2}", label_str, *value);
-
-        let _ = self.tree.add_child(self.parent, node_id);
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.set_name("NumericDrag");
-            node.tag = tag;
-        }
-
-        let (clicked, hovered, drag_delta) = self.check_interaction(node_id);
-        let is_pressed = self.is_pressed(node_id);
-        let is_dragging = drag_delta.is_some()
-            || self.tree.event_state.pointer_capture == Some(node_id)
-            || (tag != 0
-                && self
-                    .tree
-                    .event_state
-                    .pointer_capture
-                    .and_then(|cid| self.tree.get(cid))
-                    .is_some_and(|n| n.tag == tag));
-
-        let mut changed = false;
-        if let Some(delta) = drag_delta {
-            let next = (*value + delta.x * speed).clamp(min, max);
-            if (next - *value).abs() > f32::EPSILON {
-                *value = next;
-                changed = true;
-            }
-        }
-
-        if let Some(node) = self.tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = WidgetRole::NumericInput;
-            node.cursor = Some(WidgetCursor::EwResize);
-            node.set_text(if changed {
-                format!("{}: {:.2}", label_str, *value)
-            } else {
-                text
-            });
-            node.font_size = 11.0;
-            node.line_height = 14.0;
-            node.text_align = TextAlign::Center;
-            node.text_color = if is_dragging {
-                Color::rgba(0.35, 0.85, 0.95, 1.0)
-            } else if hovered || is_pressed {
-                Color::WHITE
-            } else {
-                Color::rgba(0.85, 0.88, 0.94, 1.0)
-            };
-
-            let mut style = Style::new()
-                .padding_insets(Insets::new(3.0, 6.0, 3.0, 6.0))
-                .background(if is_dragging {
-                    Color::rgba(0.20, 0.28, 0.38, 0.98)
-                } else if is_pressed {
-                    Color::rgba(0.18, 0.20, 0.26, 0.98)
-                } else if hovered {
-                    Color::rgba(0.18, 0.20, 0.25, 0.95)
-                } else {
-                    Color::rgba(0.14, 0.15, 0.18, 0.95)
-                })
-                .border(
-                    1.0,
-                    if is_dragging {
-                        Color::rgba(0.35, 0.75, 0.95, 0.9)
-                    } else if hovered {
-                        Color::rgba(0.30, 0.35, 0.45, 0.8)
-                    } else {
-                        Color::rgba(0.24, 0.25, 0.30, 0.8)
-                    },
-                )
-                .border_radius(3.0)
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center);
-            style.hover_background = Some(Color::rgba(0.18, 0.20, 0.25, 0.95));
-            node.set_style(style);
-        }
-
-        let mut resp = WidgetResponse::new(node_id, clicked, hovered, changed);
-        if is_pressed {
-            resp = resp.with_pressed(true);
-        }
-        if is_dragging {
-            resp = resp.with_dragged(true);
-        }
-        resp
+        self.add(
+            crate::declarative::widget::NumericDrag::new(&label_str, value)
+                .tag(tag)
+                .speed(speed)
+                .range(min..=max),
+        )
+        .response
     }
 
     /// Emits a property row with an interactive drag-float scalar editor.

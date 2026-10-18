@@ -12,7 +12,6 @@ pub mod assets;
 pub mod compositor;
 pub mod console;
 pub mod dock_panel;
-pub mod events;
 pub mod floating_layer;
 pub mod hierarchy;
 pub mod icons;

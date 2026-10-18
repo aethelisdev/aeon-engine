@@ -170,7 +170,11 @@ impl IrisEditorOverlay {
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
             };
 
-            super::inspector::build_inspector_panel(scope, &insp_params);
+            super::inspector::build_inspector_panel(
+                scope,
+                &insp_params,
+                &mut self.inspector.interactions.actions,
+            );
             self.inspector.inspected_entity = params.scene.selected_entity;
             self.inspector.inspector_euler = *params.panel_data.inspector_euler;
             if let Some(entity) = params.scene.selected_entity {

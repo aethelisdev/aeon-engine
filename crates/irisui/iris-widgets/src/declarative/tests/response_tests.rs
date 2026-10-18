@@ -769,3 +769,134 @@ fn test_declarative_instant_effective_state_on_click_frame() {
         );
     }
 }
+
+#[test]
+fn test_declarative_numeric_drag_pointer_capture_across_rebuilds_and_boundaries() {
+    use crate::declarative::widget::NumericDrag;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+
+    let mut radius = 10.0f32;
+    let drag_tag = 0xABCD_1234_5678_u64;
+
+    // 1. Initial build
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("Radius", &mut radius)
+                .tag(drag_tag)
+                .range(0.0..=100.0)
+                .speed(1.0),
+        );
+        assert!(!resp.dragged());
+    }
+
+    // Assign computed rect for spatial hit testing
+    let pill_id = tree.find_node_by_tag(drag_tag).expect("Pill must exist");
+    if let Some(node) = tree.get_mut(pill_id) {
+        node.computed_rect = Rect::new(50.0, 50.0, 60.0, 22.0);
+    }
+
+    // 2. MouseDown within pill boundaries (x=60, y=60) -> initiates pointer capture
+    let down_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(60.0, 60.0),
+    });
+    assert!(down_res.is_consumed());
+    assert_eq!(
+        tree.event_state.pointer_capture_tag,
+        Some(drag_tag),
+        "Numeric scrubber must initiate persistent pointer capture tag"
+    );
+
+    // 3. Mouse moves way outside widget boundaries (x=1000, y=1000)
+    let move_res = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(100.0, 60.0), // +40px delta
+    });
+    assert!(move_res.is_consumed());
+
+    // 4. Rebuild scope (simulating next frame re-render)
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("Radius", &mut radius)
+                .tag(drag_tag)
+                .range(0.0..=100.0)
+                .speed(1.0),
+        );
+        assert!(resp.dragged(), "Scrubber must report dragged() == true");
+        assert!(resp.changed(), "Scrubber must report changed() == true");
+        assert_eq!(radius, 50.0, "Radius must increase by delta (10 + 40)");
+    }
+
+    // 5. MouseUp releases pointer capture
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(100.0, 60.0),
+    });
+    assert!(up_res.is_consumed());
+    assert_eq!(tree.event_state.pointer_capture, None);
+    assert_eq!(tree.event_state.pointer_capture_tag, None);
+
+    // 6. Next frame: clean state
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(
+            NumericDrag::new("Radius", &mut radius)
+                .tag(drag_tag)
+                .range(0.0..=100.0)
+                .speed(1.0),
+        );
+        assert!(!resp.dragged());
+        assert!(!resp.changed());
+        assert_eq!(radius, 50.0);
+    }
+}
+
+#[test]
+fn test_numeric_input_child_node_click_bubbles_capture() {
+    use iris_core::WidgetRole;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+
+    // Parent NumericInput node with tag
+    let num_id = tree.create_node();
+    let _ = tree.add_child(root, num_id);
+    let num_tag = 0x9999_8888_7777_u64;
+    if let Some(node) = tree.get_mut(num_id) {
+        node.set_name("NumericParent");
+        node.role = WidgetRole::NumericInput;
+        node.tag = num_tag;
+        node.interactive = true;
+        node.computed_rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+    }
+
+    // Child text label inside the NumericInput (tag 0, not a button)
+    let child_id = tree.create_node();
+    let _ = tree.add_child(num_id, child_id);
+    if let Some(child) = tree.get_mut(child_id) {
+        child.name = Some("InnerNumericLabel".to_string());
+        child.role = WidgetRole::Default;
+        child.interactive = false;
+        child.computed_rect = Rect::new(20.0, 15.0, 50.0, 20.0);
+    }
+
+    // Click on the child label
+    let down_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(25.0, 20.0),
+    });
+    assert!(down_res.is_consumed());
+    assert_eq!(
+        tree.event_state.pointer_capture,
+        Some(num_id),
+        "Click on child inside NumericInput must bubble capture to parent NumericInput"
+    );
+    assert_eq!(
+        tree.event_state.pointer_capture_tag,
+        Some(num_tag),
+        "Pointer capture tag must reflect the parent NumericInput's semantic tag"
+    );
+}

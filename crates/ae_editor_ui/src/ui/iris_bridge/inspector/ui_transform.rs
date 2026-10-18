@@ -21,41 +21,26 @@ use super::types::{ComponentCheckboxId, InspectorDropdownId, InspectorNumberInpu
 use ae_core::ecs::{UiAnchor, UiElement};
 use irisui::prelude::*;
 
-/// Descriptor parameters for rendering a declarative dual-axis numeric row.
-struct DeclarativeDualNumberRowParams<'a> {
-    /// Human-readable label displayed on the left column.
-    label: &'static str,
-    /// Prefix tags displayed inside the two boxes (e.g. `["X: ", "Y: "]`).
-    prefixes: [&'static str; 2],
-    /// Current scalar values for axis 0 and 1.
-    values: [f32; 2],
-    /// Distinct input identifier IDs for axis 0 and 1.
-    ids: [InspectorNumberInputId; 2],
-    /// Decimal precision when formatting idle display values.
-    decimals: usize,
-    /// Optional physical unit suffix string (e.g. `"px"`).
-    unit: &'a str,
-}
-
 /// Builds the `📐 2D Screen Transform` card inside the declarative [`UiScope`].
 pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-    let (anchor, offset, size, pivot, z_index, alpha, visible) = ctx
-        .world
-        .get::<&UiElement>(ctx.entity)
-        .map(|u| {
-            (
-                u.anchor, u.offset, u.size, u.pivot, u.z_index, u.alpha, u.visible,
-            )
-        })
-        .unwrap_or((
-            UiAnchor::Center,
-            [0.0, 0.0],
-            [100.0, 30.0],
-            [0.5, 0.5],
-            0,
-            1.0,
-            true,
-        ));
+    let (anchor, [mut ox, mut oy], [mut sw, mut sh], [mut px, mut py], z_index, mut alpha, visible) =
+        ctx.world
+            .get::<&UiElement>(ctx.entity)
+            .map(|u| {
+                (
+                    u.anchor, u.offset, u.size, u.pivot, u.z_index, u.alpha, u.visible,
+                )
+            })
+            .unwrap_or((
+                UiAnchor::Center,
+                [0.0, 0.0],
+                [100.0, 30.0],
+                [0.5, 0.5],
+                0,
+                1.0,
+                true,
+            ));
+    let mut z_index_f = z_index as f32;
 
     let anchor_str = match anchor {
         UiAnchor::TopLeft => "Top-Left",
@@ -68,8 +53,6 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
         UiAnchor::BottomCenter => "Bottom-Center",
         UiAnchor::BottomRight => "Bottom-Right",
     };
-
-    let is_anchor_open = ctx.params.active_dropdown == Some(InspectorDropdownId::UiAnchor);
 
     let label_w = if ctx.card_w < 220.0 { 42.0 } else { 52.0 };
 
@@ -90,14 +73,24 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
         // Row 1: Anchor Preset Selector Dropdown
         render_declarative_combobox_row(
             card,
+            ctx,
             DeclarativeComboboxRowParams {
                 dropdown_id: InspectorDropdownId::UiAnchor,
                 label: Some("Anchor"),
                 label_w,
                 selected_text: anchor_str,
-                is_open: is_anchor_open,
-                is_hovered: false,
                 combo_w: 90.0,
+                options: &[
+                    "Top-Left",
+                    "Top-Center",
+                    "Top-Right",
+                    "Center-Left",
+                    "Center",
+                    "Center-Right",
+                    "Bottom-Left",
+                    "Bottom-Center",
+                    "Bottom-Right",
+                ],
             },
         );
 
@@ -106,10 +99,10 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
             card,
             ctx,
             label_w,
-            DeclarativeDualNumberRowParams {
+            DualNumberRowDescriptor {
                 label: "Offset",
                 prefixes: ["X: ", "Y: "],
-                values: [offset[0], offset[1]],
+                values: (&mut ox, &mut oy),
                 ids: [
                     InspectorNumberInputId::UiOffsetX,
                     InspectorNumberInputId::UiOffsetY,
@@ -124,10 +117,10 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
             card,
             ctx,
             label_w,
-            DeclarativeDualNumberRowParams {
+            DualNumberRowDescriptor {
                 label: "Size",
                 prefixes: ["W: ", "H: "],
-                values: [size[0], size[1]],
+                values: (&mut sw, &mut sh),
                 ids: [
                     InspectorNumberInputId::UiSizeW,
                     InspectorNumberInputId::UiSizeH,
@@ -142,10 +135,10 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
             card,
             ctx,
             label_w,
-            DeclarativeDualNumberRowParams {
+            DualNumberRowDescriptor {
                 label: "Pivot",
                 prefixes: ["X: ", "Y: "],
-                values: [pivot[0], pivot[1]],
+                values: (&mut px, &mut py),
                 ids: [
                     InspectorNumberInputId::UiPivotX,
                     InspectorNumberInputId::UiPivotY,
@@ -160,10 +153,10 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
             card,
             ctx,
             label_w,
-            DeclarativeDualNumberRowParams {
+            DualNumberRowDescriptor {
                 label: "Layer",
                 prefixes: ["Z: ", "α: "],
-                values: [z_index as f32, alpha],
+                values: (&mut z_index_f, &mut alpha),
                 ids: [
                     InspectorNumberInputId::UiZIndex,
                     InspectorNumberInputId::UiAlpha,
@@ -184,12 +177,28 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
     });
 }
 
+/// Descriptor parameters for rendering a dual-axis numeric property row.
+struct DualNumberRowDescriptor<'a> {
+    /// Left column title label.
+    label: &'static str,
+    /// Axis prefix tags (e.g. `["X: ", "Y: "]`).
+    prefixes: [&'static str; 2],
+    /// Mutable references to scalar values.
+    values: (&'a mut f32, &'a mut f32),
+    /// Numeric input property identifiers.
+    ids: [InspectorNumberInputId; 2],
+    /// Decimal precision when formatting idle display values.
+    decimals: usize,
+    /// Physical unit suffix string (e.g. `"px"`, `""`).
+    unit: &'static str,
+}
+
 /// Helper function to build a declarative 2-axis numeric input row (e.g. Offset X/Y, Size W/H).
 fn render_declarative_dual_number_row(
     scope: &mut UiScope<'_>,
-    ctx: &ComponentRenderContext<'_>,
+    ctx: &mut ComponentRenderContext<'_>,
     label_w: f32,
-    params: DeclarativeDualNumberRowParams<'_>,
+    desc: DualNumberRowDescriptor<'_>,
 ) {
     let row_style = Style::new()
         .flex_row()
@@ -200,94 +209,45 @@ fn render_declarative_dual_number_row(
     scope.container_named("DualNumRow", row_style, |row| {
         row.label_styled_passive(
             "UiRowLabel",
-            params.label,
+            desc.label,
             11.0,
             row.theme().text_muted,
             TextAlign::Left,
             Style::new().width(label_w).height(20.0),
         );
 
-        for (i, prefix) in params.prefixes.iter().enumerate() {
-            let input_id = params.ids[i];
-            let val = params.values[i];
+        let mut render_box = |prefix: &str, input_id: InspectorNumberInputId, val: &mut f32| {
+            let tag = super::tags::encode_inspector_number_input_tag(input_id);
+            let edit = ctx.edit_state(input_id);
+            let current = *val;
 
-            let editing_state = ctx.params.active_number_input.filter(|s| s.id == input_id);
-            let is_editing = editing_state.is_some();
-            let is_all_sel = editing_state.map(|s| s.is_all_selected).unwrap_or(false);
+            let formatted;
+            let mut drag = NumericDrag::new("", val)
+                .tag(tag)
+                .decimals(desc.decimals)
+                .edit_state(edit);
 
-            let (bg, border_col) = if is_editing {
-                if is_all_sel {
-                    (
-                        Color::rgba(0.14, 0.46, 0.88, 0.95),
-                        Color::rgba(0.0, 0.80, 1.00, 0.95),
-                    )
+            if edit.is_none() {
+                if desc.unit.is_empty() {
+                    formatted = format!("{}{:.prec$}", prefix, current, prec = desc.decimals);
                 } else {
-                    (
-                        Color::rgba(0.118, 0.125, 0.145, 1.0),
-                        Color::rgba(0.0, 0.80, 1.00, 0.95),
-                    )
-                }
-            } else {
-                (
-                    Color::rgba(0.125, 0.133, 0.153, 0.98),
-                    Color::rgba(0.180, 0.192, 0.227, 0.85),
-                )
-            };
-
-            let display_str = if let Some(s) = editing_state {
-                let buf = s.buffer;
-                let cursor = s.cursor_idx.min(buf.len());
-                let (left, right) = buf.split_at(cursor);
-                if s.is_all_selected {
-                    format!("{}{}", prefix, buf)
-                } else if ctx.params.blink_caret {
-                    format!("{}{}|{}", prefix, left, right)
-                } else {
-                    format!("{}{}{}", prefix, left, right)
-                }
-            } else if params.unit.is_empty() {
-                format!("{}{:.prec$}", prefix, val, prec = params.decimals)
-            } else {
-                format!(
-                    "{}{:.prec$} {}",
-                    prefix,
-                    val,
-                    params.unit,
-                    prec = params.decimals
-                )
-            };
-
-            let box_style = Style::new()
-                .flex_row()
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center)
-                .flex_grow(1.0)
-                .height(20.0)
-                .background(bg)
-                .border(1.0, border_col)
-                .border_radius(4.0);
-
-            let input_tag = super::tags::encode_inspector_number_input_tag(input_id);
-            row.container_tagged(
-                "NumBox",
-                box_style,
-                WidgetRole::TextInput,
-                input_tag,
-                |tb| {
-                    tb.label_styled_passive(
-                        "NumVal",
-                        &display_str,
-                        10.5,
-                        if is_editing {
-                            tb.theme().text_primary
-                        } else {
-                            tb.theme().text_secondary
-                        },
-                        TextAlign::Center,
-                        Style::new().flex_grow(1.0).height(20.0),
+                    formatted = format!(
+                        "{}{:.prec$} {}",
+                        prefix,
+                        current,
+                        desc.unit,
+                        prec = desc.decimals
                     );
-                },
-            );
-        }
+                }
+                drag = drag.custom_text(&formatted);
+            }
+
+            if row.add(drag).changed() {
+                ctx.set_number(input_id, *val);
+            }
+        };
+
+        render_box(desc.prefixes[0], desc.ids[0], desc.values.0);
+        render_box(desc.prefixes[1], desc.ids[1], desc.values.1);
     });
 }

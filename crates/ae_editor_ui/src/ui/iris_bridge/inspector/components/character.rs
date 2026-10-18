@@ -6,11 +6,9 @@
 //! Provides handlers for `🚶 Kinematic Character Controller` and `🎮 PlayerTag`.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
+use super::super::tags::encode_inspector_number_input_tag;
 use super::super::types::{ComponentCategory, InspectorNumberInputId};
-use super::physics::helpers::{
-    ComponentHeaderProps, DeclarativeNumericRowParams, build_declarative_card_header,
-    render_declarative_numeric_row_custom,
-};
+use super::physics::helpers::{ComponentHeaderProps, build_declarative_card_header};
 use irisui::prelude::*;
 
 /// Inspector handler for `🚶 Kinematic Character Controller`.
@@ -44,27 +42,20 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let char_data = ctx
-            .world
-            .get::<&ae_core::ecs::CharacterController>(ctx.entity)
-            .map(|c| {
-                (
-                    c.height,
-                    c.radius,
-                    c.center_y,
-                    c.max_slope_climb_angle,
-                    c.step_height,
-                    c.is_grounded,
-                )
-            })
-            .unwrap_or((1.80, 0.40, 0.0, 45.0, 0.30, false));
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
+        let (mut height, mut radius, mut center_y, mut max_slope, mut step_height, is_grounded) =
+            ctx.world
+                .get::<&ae_core::ecs::CharacterController>(ctx.entity)
+                .map(|c| {
+                    (
+                        c.height,
+                        c.radius,
+                        c.center_y,
+                        c.max_slope_climb_angle,
+                        c.step_height,
+                        c.is_grounded,
+                    )
+                })
+                .unwrap_or((1.80, 0.40, 0.0, 45.0, 0.30, false));
 
         scope.card_panel("CharacterControllerCard", |card| {
             build_declarative_card_header(
@@ -79,63 +70,56 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
                 false,
             );
 
-            let row_defs = [
+            let mut rows = [
                 (
                     InspectorNumberInputId::CharacterHeight,
                     "Height:",
-                    char_data.0,
-                    get_edit(InspectorNumberInputId::CharacterHeight),
-                    None,
+                    &mut height,
+                    false,
                 ),
                 (
                     InspectorNumberInputId::CharacterRadius,
                     "Radius:",
-                    char_data.1,
-                    get_edit(InspectorNumberInputId::CharacterRadius),
-                    None,
+                    &mut radius,
+                    false,
                 ),
                 (
                     InspectorNumberInputId::CharacterCenterY,
                     "Center Y:",
-                    char_data.2,
-                    get_edit(InspectorNumberInputId::CharacterCenterY),
-                    None,
+                    &mut center_y,
+                    false,
                 ),
                 (
                     InspectorNumberInputId::CharacterMaxSlope,
                     "Max Slope Angle:",
-                    char_data.3,
-                    get_edit(InspectorNumberInputId::CharacterMaxSlope),
-                    Some("45°"),
+                    &mut max_slope,
+                    true,
                 ),
                 (
                     InspectorNumberInputId::CharacterStepHeight,
                     "Step Height:",
-                    char_data.4,
-                    get_edit(InspectorNumberInputId::CharacterStepHeight),
-                    None,
+                    &mut step_height,
+                    false,
                 ),
             ];
 
-            let label_w = 110.0;
-            let box_w = 44.0;
-
-            for (id, lbl, val, edit, custom_fmt) in row_defs {
-                let custom_display = custom_fmt.map(|_| format!("{:.0}°", val));
-                render_declarative_numeric_row_custom(
-                    card,
-                    DeclarativeNumericRowParams {
-                        input_id: id,
-                        label: lbl,
-                        val,
-                        label_w,
-                        box_w,
-                        unit: None,
-                        edit_state: edit,
-                        is_hovered: false,
-                    },
-                    custom_display.as_deref(),
-                );
+            for (id, lbl, val, is_angle) in &mut rows {
+                let tag = encode_inspector_number_input_tag(*id);
+                let edit = ctx.edit_state(*id);
+                let current_val = **val;
+                let mut drag = NumericDrag::new(lbl, val)
+                    .tag(tag)
+                    .label_width(110.0)
+                    .box_width(44.0)
+                    .edit_state(edit);
+                let formatted;
+                if *is_angle {
+                    formatted = format!("{:.0}°", current_val);
+                    drag = drag.custom_text(&formatted);
+                }
+                if card.add(drag).changed() {
+                    ctx.set_number(*id, **val);
+                }
             }
 
             // Grounded Status Text (e.g. 🛡 In Air / 🛡 Grounded)
@@ -145,7 +129,7 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
                 .height(18.0);
 
             card.container_named("GroundedStatusPill", status_row_style, |status_scope| {
-                let (text_str, text_col) = if char_data.5 {
+                let (text_str, text_col) = if is_grounded {
                     ("🛡 Grounded", status_scope.theme().success)
                 } else {
                     ("🛡 In Air", status_scope.theme().warning)

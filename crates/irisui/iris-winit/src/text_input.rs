@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Centralized text input and keyboard navigation handler for editor UI widgets.
+//! # Winit Keyboard & IME Text Input Handler (`TextInputState`)
 //!
-//! Provides unified typing, caret navigation, clipboard operations (Ctrl+C, Ctrl+V, Ctrl+X),
+//! Provides unified typing, caret navigation, clipboard operations (Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X),
 //! text selection, and focus management integration for interactive text inputs.
+//!
 
-use irisui::prelude::{FocusManager, FocusState, FocusTarget, TextInputState, get_clipboard_text};
+use iris_core::event::FocusManager;
+use iris_widgets::controls::focus::{FocusState, FocusTarget};
+use iris_widgets::input::{TextInputState, get_clipboard_text};
 use winit::event::{ElementState, Ime, KeyEvent, WindowEvent};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
@@ -42,7 +45,7 @@ impl TextInputActionResult {
 /// Evaluates a window event for a specific focused semantic tag.
 ///
 /// If the tag holds focus in the provided `FocusState`, dispatches the keyboard event
-/// through `handle_text_input_event`. On `Confirmed` or `Cancelled`, clears active focus
+/// through [`handle_text_input_event`]. On `Confirmed` or `Cancelled`, clears active focus
 /// and synchronizes the core focus manager.
 pub fn handle_focused_text_input(
     state: &mut TextInputState,
@@ -67,7 +70,7 @@ pub fn handle_focused_text_input(
     result
 }
 
-/// Evaluates a key stroke and optional text payload directly against an interactive `TextInputState`.
+/// Evaluates a key stroke and optional text payload directly against an interactive [`TextInputState`].
 pub fn handle_key_stroke(
     state: &mut TextInputState,
     logical_key: &Key,
@@ -156,7 +159,7 @@ pub fn handle_key_stroke(
     }
 }
 
-/// Dispatches raw keyboard and IME window events into an interactive `TextInputState`.
+/// Dispatches raw keyboard and IME window events into an interactive [`TextInputState`].
 ///
 /// Handles:
 /// - Navigation: ArrowLeft, ArrowRight, Home, End

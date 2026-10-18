@@ -437,6 +437,7 @@ impl<'a> UiScope<'a> {
                     .pressed
                     .and_then(|pid| self.tree.get(pid))
                     .is_some_and(|n| n.tag == tag))
+            || (tag != 0 && self.tree.event_state.pressed_tag == Some(tag))
     }
 
     /// Checks whether the specified widget node or semantic tag currently holds keyboard focus.

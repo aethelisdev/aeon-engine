@@ -96,19 +96,15 @@ fn test_hierarchy_tree_connector_lines_and_foldout() {
         "Sibling child eye buttons must have strictly identical X alignment"
     );
 
-    // 3. Collapse parent via handle_tree_foldout_click
-    let resp = handle_tree_foldout_click(&mut tree_state, &parent_ent);
-    assert!(resp.consumed);
-    assert!(resp.layout_changed);
+    // 3. Collapse parent via tree_state.toggle_expanded
+    tree_state.toggle_expanded(&parent_ent);
     rows_cache.clear();
     sync_hierarchy_rows(&world, &tree_state, &mut rows_cache);
     assert_eq!(rows_cache.len(), 1, "Collapsed parent hides its children");
     assert!(!rows_cache[0].is_expanded);
 
-    // 4. Re-expand parent via handle_tree_foldout_click
-    let resp2 = handle_tree_foldout_click(&mut tree_state, &parent_ent);
-    assert!(resp2.consumed);
-    assert!(resp2.layout_changed);
+    // 4. Re-expand parent via tree_state.toggle_expanded
+    tree_state.toggle_expanded(&parent_ent);
     rows_cache.clear();
     sync_hierarchy_rows(&world, &tree_state, &mut rows_cache);
     assert_eq!(rows_cache.len(), 3, "Expanded parent restores its children");

@@ -239,7 +239,7 @@ fn render_add_component_menu_card(
                     card.dropdown_item(
                         item.tag,
                         match &item.icon {
-                            Some(CascadingMenuIcon::Text(t)) => *t,
+                            Some(CascadingMenuIcon::Text(t)) => t,
                             _ => "",
                         },
                         &item.label,
@@ -291,7 +291,7 @@ fn render_add_component_popups(
                                             sub_card.dropdown_item(
                                                 child.tag,
                                                 match &child.icon {
-                                                    Some(CascadingMenuIcon::Text(t)) => *t,
+                                                    Some(CascadingMenuIcon::Text(t)) => t,
                                                     _ => "",
                                                 },
                                                 &child.label,

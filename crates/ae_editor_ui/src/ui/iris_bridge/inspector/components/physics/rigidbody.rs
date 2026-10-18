@@ -8,13 +8,14 @@
 //! and paired component attachment with `Collider`.
 
 use super::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, DeclarativeNumericRowParams,
-    build_declarative_card_header, render_declarative_combobox_row, render_declarative_numeric_row,
+    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
+    render_declarative_combobox_row,
 };
 use crate::ui::iris_bridge::icons::ICON_GEAR;
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
+use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
 use crate::ui::iris_bridge::inspector::types::{
     ComponentCategory, InspectorDropdownId, InspectorNumberInputId,
 };
@@ -53,19 +54,17 @@ impl ComponentInspectorHandler for RigidBodyHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let rb_data = ctx
+        let (body_type, mut mass, mut gravity_scale) = ctx
             .world
             .get::<&ae_core::ecs::RigidBody>(ctx.entity)
             .map(|rb| (rb.body_type, rb.mass, rb.gravity_scale))
             .unwrap_or((ae_core::ecs::RigidBodyType::Kinematic, 1.0, 1.0));
 
-        let body_type_str = match rb_data.0 {
+        let body_type_str = match body_type {
             ae_core::ecs::RigidBodyType::Dynamic => "Dynamic",
             ae_core::ecs::RigidBodyType::Kinematic => "Kinematic",
             ae_core::ecs::RigidBodyType::Static => "Static",
         };
-
-        let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::RigidBodyType);
 
         scope.card_panel("RigidBodyCard", |card| {
             build_declarative_card_header(
@@ -82,54 +81,44 @@ impl ComponentInspectorHandler for RigidBodyHandler {
 
             render_declarative_combobox_row(
                 card,
+                ctx,
                 DeclarativeComboboxRowParams {
                     dropdown_id: InspectorDropdownId::RigidBodyType,
                     label: None,
                     label_w: 0.0,
                     selected_text: body_type_str,
-                    is_open,
-                    is_hovered: false,
                     combo_w: 96.0,
+                    options: &["Dynamic", "Kinematic", "Static"],
                 },
             );
 
-            let mass_edit = ctx
-                .params
-                .active_number_input
-                .filter(|s| s.id == InspectorNumberInputId::RigidBodyMass)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret));
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::RigidBodyMass,
-                    label: "Mass:",
-                    val: rb_data.1,
-                    label_w: 55.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: mass_edit,
-                    is_hovered: false,
-                },
-            );
+            let mass_id = InspectorNumberInputId::RigidBodyMass;
+            if card
+                .add(
+                    NumericDrag::new("Mass:", &mut mass)
+                        .tag(encode_inspector_number_input_tag(mass_id))
+                        .label_width(55.0)
+                        .box_width(44.0)
+                        .edit_state(ctx.edit_state(mass_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(mass_id, mass);
+            }
 
-            let grav_edit = ctx
-                .params
-                .active_number_input
-                .filter(|s| s.id == InspectorNumberInputId::RigidBodyGravity)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret));
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::RigidBodyGravity,
-                    label: "Gravity:",
-                    val: rb_data.2,
-                    label_w: 55.0,
-                    box_w: 44.0,
-                    unit: None,
-                    edit_state: grav_edit,
-                    is_hovered: false,
-                },
-            );
+            let grav_id = InspectorNumberInputId::RigidBodyGravity;
+            if card
+                .add(
+                    NumericDrag::new("Gravity:", &mut gravity_scale)
+                        .tag(encode_inspector_number_input_tag(grav_id))
+                        .label_width(55.0)
+                        .box_width(44.0)
+                        .edit_state(ctx.edit_state(grav_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(grav_id, gravity_scale);
+            }
         });
     }
 
@@ -144,7 +133,6 @@ impl ComponentInspectorHandler for RigidBodyHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
     use crate::ui::iris_bridge::inspector::tags::{
         encode_component_delete_tag, encode_inspector_dropdown_tag,
         encode_inspector_number_input_tag,
@@ -200,11 +188,12 @@ mod tests {
         assert!(has_gear_icon, "RigidBody card header must render ICON_GEAR");
 
         let has_chevron_down = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_DOWN)
+            n.name.as_deref() == Some("ComboChevron")
+                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
         });
         assert!(
             has_chevron_down,
-            "Combobox must render ICON_CHEVRON_DOWN when closed"
+            "Combobox must render atlas chevron down when closed"
         );
 
         let dropdown_tag = encode_inspector_dropdown_tag(InspectorDropdownId::RigidBodyType);
@@ -258,15 +247,19 @@ mod tests {
 
         let mut ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 50.0, 280.0);
 
+        tree.active_combobox_tag = Some(encode_inspector_dropdown_tag(
+            InspectorDropdownId::RigidBodyType,
+        ));
         let mut scope = UiScope::new(&mut tree, root);
         handler.render_card(&mut scope, &mut ctx);
 
         let has_chevron_up = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_UP)
+            n.name.as_deref() == Some("ComboChevron")
+                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_UP)
         });
         assert!(
             has_chevron_up,
-            "Combobox must render ICON_CHEVRON_UP when open"
+            "Combobox must render atlas chevron up when open"
         );
     }
 }

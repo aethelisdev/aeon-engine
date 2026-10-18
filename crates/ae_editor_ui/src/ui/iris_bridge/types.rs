@@ -134,6 +134,18 @@ pub struct IrisOverlayEventResult {
     pub activate_dock_tab: Option<(irisui::dock::DockNodeId, usize)>,
 }
 
+impl IrisOverlayEventResult {
+    /// Constructs an event result initialized with the specified consumption flag.
+    #[must_use]
+    #[inline]
+    pub fn consumed(consumed: bool) -> Self {
+        Self {
+            consumed,
+            ..Default::default()
+        }
+    }
+}
+
 /// Standardized interaction and hit-testing container for Iris UI editor panels.
 ///
 /// Encapsulates the recurring panel-level fields (transient hit-test targets,
@@ -374,13 +386,31 @@ pub struct IrisEditorOverlay {
     /// Multi-tree layer compositor merging independent panel trees, floating windows,
     /// and the topmost overlay tree (Phase 5.3).
     pub compositor: super::compositor::TreeCompositor,
+    /// Centralized queue of pending engine UI actions emitted by panels and overlays.
+    pub pending_actions: Vec<EngineUiAction>,
 }
 
 impl IrisEditorOverlay {
+    /// Returns `true` if there are pending UI actions queued in the central action queue.
+    #[inline]
+    #[must_use]
+    pub fn has_pending_actions(&self) -> bool {
+        !self.pending_actions.is_empty()
+    }
+
     /// Returns the current logical cursor position.
     #[inline]
     pub fn cursor_pos(&self) -> Point {
         self.chrome.cursor_pos
+    }
+
+    /// Returns `true` if the specified point is occluded by any active top-level overlay layer.
+    ///
+    /// Evaluates bounding geometry against the retained top-level [`OverlayTree`](super::overlay_tree::OverlayTree).
+    #[must_use]
+    #[inline]
+    pub fn is_point_over_overlay(&self, point: Point) -> bool {
+        self.overlay_tree.is_open() && self.overlay_tree.contains_point(point)
     }
 
     /// Returns true if the specified 64-bit semantic tag currently holds keyboard input focus.

@@ -6,11 +6,12 @@
 //! Provides inspection cards for  AudioSource and AudioListener components.
 
 use super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::tags::{TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY};
+use super::super::tags::{
+    TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, encode_inspector_number_input_tag,
+};
 use super::super::types::{ComponentCategory, ComponentCheckboxId, InspectorNumberInputId};
 use super::physics::helpers::{
-    ComponentHeaderProps, DeclarativeNumericRowParams, build_declarative_card_header,
-    render_declarative_checkbox_row, render_declarative_numeric_row,
+    ComponentHeaderProps, build_declarative_card_header, render_declarative_checkbox_row,
 };
 use irisui::prelude::*;
 
@@ -43,7 +44,7 @@ impl ComponentInspectorHandler for AudioSourceHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (path_str, volume, pitch, is_spatial, looping, play_on_start, is_playing) =
+        let (path_str, mut volume, mut pitch, is_spatial, looping, play_on_start, is_playing) =
             if let Ok(audio) = ctx.world.get::<&ae_audio::AudioSource>(ctx.entity) {
                 (
                     audio.sound_path.clone(),
@@ -57,13 +58,6 @@ impl ComponentInspectorHandler for AudioSourceHandler {
             } else {
                 (String::new(), 1.0, 1.0, true, false, true, false)
             };
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
 
         scope.card_panel("AudioSourceCard", |card| {
             build_declarative_card_header(
@@ -199,34 +193,36 @@ impl ComponentInspectorHandler for AudioSourceHandler {
             });
 
             // Row 2: Volume
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::AudioVolume,
-                    label: "Volume:",
-                    val: volume,
-                    label_w: 55.0,
-                    box_w: 48.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::AudioVolume),
-                    is_hovered: false,
-                },
-            );
+            let vol_id = InspectorNumberInputId::AudioVolume;
+            if card
+                .add(
+                    NumericDrag::new("Volume:", &mut volume)
+                        .range(0.0..=1.0)
+                        .tag(encode_inspector_number_input_tag(vol_id))
+                        .label_width(55.0)
+                        .box_width(48.0)
+                        .edit_state(ctx.edit_state(vol_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(vol_id, volume);
+            }
 
             // Row 3: Pitch
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::AudioPitch,
-                    label: "Pitch:",
-                    val: pitch,
-                    label_w: 55.0,
-                    box_w: 48.0,
-                    unit: None,
-                    edit_state: get_edit(InspectorNumberInputId::AudioPitch),
-                    is_hovered: false,
-                },
-            );
+            let pitch_id = InspectorNumberInputId::AudioPitch;
+            if card
+                .add(
+                    NumericDrag::new("Pitch:", &mut pitch)
+                        .range(0.1..=10.0)
+                        .tag(encode_inspector_number_input_tag(pitch_id))
+                        .label_width(55.0)
+                        .box_width(48.0)
+                        .edit_state(ctx.edit_state(pitch_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(pitch_id, pitch);
+            }
 
             // Row 4: Spatial 3D Audio
             render_declarative_checkbox_row(

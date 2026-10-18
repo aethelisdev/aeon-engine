@@ -17,8 +17,10 @@
 
 pub mod adapter;
 pub mod cursor;
+pub mod dispatch;
 pub mod modifiers;
 pub mod state;
+pub mod text_input;
 
 #[cfg(test)]
 mod tests;
@@ -27,5 +29,9 @@ pub use adapter::{
     winit_ime_to_iris, winit_key_to_iris, winit_mouse_button_to_iris, winit_to_ui_event,
 };
 pub use cursor::{widget_cursor_to_winit, winit_to_widget_cursor};
+pub use dispatch::dispatch_winit_event;
 pub use modifiers::ModifiersState;
 pub use state::WinitState;
+pub use text_input::{
+    TextInputActionResult, handle_focused_text_input, handle_key_stroke, handle_text_input_event,
+};

@@ -8,13 +8,13 @@
 //! dimension rows, and default component attachment.
 
 use super::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, DeclarativeNumericRowParams,
-    build_declarative_card_header, render_declarative_checkbox_row,
-    render_declarative_combobox_row, render_declarative_numeric_row,
+    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
+    render_declarative_checkbox_row, render_declarative_combobox_row,
 };
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
+use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
 use crate::ui::iris_bridge::inspector::types::{
     ComponentCategory, ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
 };
@@ -53,7 +53,7 @@ impl ComponentInspectorHandler for ColliderHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (shape, friction, restitution, is_sensor) = ctx
+        let (shape, mut friction, mut restitution, is_sensor) = ctx
             .world
             .get::<&ae_core::ecs::Collider>(ctx.entity)
             .map(|c| (c.shape, c.friction, c.restitution, c.is_sensor))
@@ -76,8 +76,6 @@ impl ComponentInspectorHandler for ColliderHandler {
             ae_core::ecs::ColliderShape::ConvexHull => "Convex Hull",
         };
 
-        let is_open = ctx.params.active_dropdown == Some(InspectorDropdownId::ColliderShape);
-
         let label_w = 85.0;
         let box_w = 44.0;
 
@@ -96,207 +94,138 @@ impl ComponentInspectorHandler for ColliderHandler {
 
             render_declarative_combobox_row(
                 card,
+                ctx,
                 DeclarativeComboboxRowParams {
                     dropdown_id: InspectorDropdownId::ColliderShape,
                     label: Some("Shape:"),
                     label_w,
                     selected_text: shape_str,
-                    is_open,
-                    is_hovered: false,
                     combo_w: 88.0,
+                    options: &["Capsule", "Box", "Sphere", "Trimesh", "Convex Hull"],
                 },
             );
 
             match shape {
                 ae_core::ecs::ColliderShape::Box { half_extents } => {
-                    let id_x = InspectorNumberInputId::ColliderBoxX;
-                    let edit_x = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_x)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_x,
-                            label: "Half Extent X:",
-                            val: half_extents[0],
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_x,
-                            is_hovered: false,
-                        },
-                    );
-
-                    let id_y = InspectorNumberInputId::ColliderBoxY;
-                    let edit_y = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_y)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_y,
-                            label: "Half Extent Y:",
-                            val: half_extents[1],
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_y,
-                            is_hovered: false,
-                        },
-                    );
-
-                    let id_z = InspectorNumberInputId::ColliderBoxZ;
-                    let edit_z = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_z)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_z,
-                            label: "Half Extent Z:",
-                            val: half_extents[2],
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_z,
-                            is_hovered: false,
-                        },
-                    );
+                    let [mut hx, mut hy, mut hz] = half_extents;
+                    let mut rows = [
+                        (
+                            InspectorNumberInputId::ColliderBoxX,
+                            "Half Extent X:",
+                            &mut hx,
+                        ),
+                        (
+                            InspectorNumberInputId::ColliderBoxY,
+                            "Half Extent Y:",
+                            &mut hy,
+                        ),
+                        (
+                            InspectorNumberInputId::ColliderBoxZ,
+                            "Half Extent Z:",
+                            &mut hz,
+                        ),
+                    ];
+                    for (id, lbl, val) in &mut rows {
+                        let tag = encode_inspector_number_input_tag(*id);
+                        let edit = ctx.edit_state(*id);
+                        if card
+                            .add(
+                                NumericDrag::new(lbl, val)
+                                    .tag(tag)
+                                    .label_width(label_w)
+                                    .box_width(box_w)
+                                    .edit_state(edit),
+                            )
+                            .changed()
+                        {
+                            ctx.set_number(*id, **val);
+                        }
+                    }
                 }
-                ae_core::ecs::ColliderShape::Sphere { radius } => {
+                ae_core::ecs::ColliderShape::Sphere { mut radius } => {
                     let id_r = InspectorNumberInputId::ColliderRadius;
-                    let edit_r = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_r)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_r,
-                            label: "Radius:",
-                            val: radius,
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_r,
-                            is_hovered: false,
-                        },
-                    );
+                    if card
+                        .add(
+                            NumericDrag::new("Radius:", &mut radius)
+                                .tag(encode_inspector_number_input_tag(id_r))
+                                .label_width(label_w)
+                                .box_width(box_w)
+                                .edit_state(ctx.edit_state(id_r)),
+                        )
+                        .changed()
+                    {
+                        ctx.set_number(id_r, radius);
+                    }
                 }
                 ae_core::ecs::ColliderShape::Capsule {
-                    half_height,
-                    radius,
-                    center_y,
+                    mut half_height,
+                    mut radius,
+                    mut center_y,
                 } => {
-                    let id_hh = InspectorNumberInputId::ColliderHalfHeight;
-                    let edit_hh = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_hh)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_hh,
-                            label: "Half Height:",
-                            val: half_height,
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_hh,
-                            is_hovered: false,
-                        },
-                    );
-
-                    let id_r = InspectorNumberInputId::ColliderRadius;
-                    let edit_r = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_r)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_r,
-                            label: "Radius:",
-                            val: radius,
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_r,
-                            is_hovered: false,
-                        },
-                    );
-
-                    let id_cy = InspectorNumberInputId::ColliderCenterY;
-                    let edit_cy = ctx
-                        .params
-                        .active_number_input
-                        .filter(|s| s.id == id_cy)
-                        .map(|s| s.to_edit_state(ctx.params.blink_caret));
-                    render_declarative_numeric_row(
-                        card,
-                        DeclarativeNumericRowParams {
-                            input_id: id_cy,
-                            label: "Center Y:",
-                            val: center_y,
-                            label_w,
-                            box_w,
-                            unit: None,
-                            edit_state: edit_cy,
-                            is_hovered: false,
-                        },
-                    );
+                    let mut rows = [
+                        (
+                            InspectorNumberInputId::ColliderHalfHeight,
+                            "Half Height:",
+                            &mut half_height,
+                        ),
+                        (
+                            InspectorNumberInputId::ColliderRadius,
+                            "Radius:",
+                            &mut radius,
+                        ),
+                        (
+                            InspectorNumberInputId::ColliderCenterY,
+                            "Center Y:",
+                            &mut center_y,
+                        ),
+                    ];
+                    for (id, lbl, val) in &mut rows {
+                        let tag = encode_inspector_number_input_tag(*id);
+                        let edit = ctx.edit_state(*id);
+                        if card
+                            .add(
+                                NumericDrag::new(lbl, val)
+                                    .tag(tag)
+                                    .label_width(label_w)
+                                    .box_width(box_w)
+                                    .edit_state(edit),
+                            )
+                            .changed()
+                        {
+                            ctx.set_number(*id, **val);
+                        }
+                    }
                 }
                 ae_core::ecs::ColliderShape::Trimesh | ae_core::ecs::ColliderShape::ConvexHull => {}
             }
 
             let id_f = InspectorNumberInputId::ColliderFriction;
-            let edit_f = ctx
-                .params
-                .active_number_input
-                .filter(|s| s.id == id_f)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret));
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: id_f,
-                    label: "Friction:",
-                    val: friction,
-                    label_w,
-                    box_w,
-                    unit: None,
-                    edit_state: edit_f,
-                    is_hovered: false,
-                },
-            );
+            if card
+                .add(
+                    NumericDrag::new("Friction:", &mut friction)
+                        .tag(encode_inspector_number_input_tag(id_f))
+                        .label_width(label_w)
+                        .box_width(box_w)
+                        .edit_state(ctx.edit_state(id_f)),
+                )
+                .changed()
+            {
+                ctx.set_number(id_f, friction);
+            }
 
             let id_re = InspectorNumberInputId::ColliderRestitution;
-            let edit_re = ctx
-                .params
-                .active_number_input
-                .filter(|s| s.id == id_re)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret));
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: id_re,
-                    label: "Restitution:",
-                    val: restitution,
-                    label_w,
-                    box_w,
-                    unit: None,
-                    edit_state: edit_re,
-                    is_hovered: false,
-                },
-            );
+            if card
+                .add(
+                    NumericDrag::new("Restitution:", &mut restitution)
+                        .tag(encode_inspector_number_input_tag(id_re))
+                        .label_width(label_w)
+                        .box_width(box_w)
+                        .edit_state(ctx.edit_state(id_re)),
+                )
+                .changed()
+            {
+                ctx.set_number(id_re, restitution);
+            }
 
             render_declarative_checkbox_row(
                 card,
@@ -329,7 +258,7 @@ impl ComponentInspectorHandler for ColliderHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_WIREFRAME};
+    use crate::ui::iris_bridge::icons::ICON_WIREFRAME;
     use crate::ui::iris_bridge::inspector::tags::{
         encode_component_checkbox_tag, encode_component_delete_tag, encode_inspector_dropdown_tag,
         encode_inspector_number_input_tag,
@@ -391,11 +320,12 @@ mod tests {
         );
 
         let has_chevron_down = tree.iter().any(|(_, n)| {
-            n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_DOWN)
+            n.name.as_deref() == Some("ComboChevron")
+                && n.texture_uv == Some(crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
         });
         assert!(
             has_chevron_down,
-            "Collider Shape combobox must render ICON_CHEVRON_DOWN when closed"
+            "Collider Shape combobox must render atlas chevron down when closed"
         );
 
         let dropdown_tag = encode_inspector_dropdown_tag(InspectorDropdownId::ColliderShape);

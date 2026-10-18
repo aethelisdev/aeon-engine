@@ -60,7 +60,7 @@ impl EngineUi {
 
         // 2. If the point is inside the active 3D viewport canvas (docked or floating)
         if in_rect(self.last_viewport_rect) {
-            if self.iris_overlay.is_point_over_popup(point) {
+            if self.iris_overlay.is_point_over_overlay(point) {
                 return true;
             }
             if self.iris_overlay.tree.wants_pointer_at(point) {

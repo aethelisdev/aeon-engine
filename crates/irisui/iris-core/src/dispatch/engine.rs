@@ -213,11 +213,15 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
-        // If clicking on non-button child of a ModalTitlebar (e.g. title text label or icon), bubble target to titlebar
+        // If clicking on non-button child of a ModalTitlebar or NumericInput (e.g. title text label or inner numeric text), bubble target to interactive ancestor
         let (effective_target_id, effective_role) = if role != WidgetRole::Button {
             if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
             {
                 (tb_id, WidgetRole::ModalTitlebar)
+            } else if let Some(num_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::NumericInput)
+            {
+                (num_id, WidgetRole::NumericInput)
             } else {
                 (target_id, role)
             }
@@ -327,6 +331,14 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
     });
 
     if let Some((captured_id, tag, rect, cursor)) = captured_info {
+        let press_origin = tree.event_state.press_origin;
+        let original_button = tree.event_state.pressed_button;
+        let is_drag_gesture = press_origin.is_some_and(|origin| {
+            let dx = point.x - origin.x;
+            let dy = point.y - origin.y;
+            (dx * dx + dy * dy) > 9.0 // > 3.0 px drag threshold
+        }) || tree.event_state.frame_drag_delta.is_some();
+
         tree.event_state.pointer_capture = None;
         tree.event_state.pointer_capture_tag = None;
         tree.event_state.pressed = None;
@@ -336,17 +348,35 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         tree.event_state.initial_scroll_y = 0.0;
         tree.event_state.frame_drag_delta = None;
 
+        let mut flags = ResponseFlags::empty();
+        if !is_drag_gesture && original_button == Some(button) {
+            match button {
+                MouseButton::Left => {
+                    flags = flags.union(ResponseFlags::CLICKED);
+                    tree.event_state.frame_clicked_id = Some(captured_id);
+                    tree.event_state.frame_clicked_tag = if tag != 0 { Some(tag) } else { None };
+                    tree.event_state.frame_clicked_pos = Some(point);
+                    tree.event_state.focused = Some(captured_id);
+                    tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+                }
+                MouseButton::Right => {
+                    flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
+                    tree.event_state.frame_secondary_clicked_id = Some(captured_id);
+                    tree.event_state.frame_secondary_clicked_tag =
+                        if tag != 0 { Some(tag) } else { None };
+                    tree.event_state.frame_clicked_pos = Some(point);
+                }
+                _ => {}
+            }
+        }
+
         return DispatchResult {
             consumed: true,
             needs_redraw: true,
             target: Some(captured_id),
             target_tag: tag,
             cursor,
-            response: Some(WidgetResponse::from_flags(
-                captured_id,
-                rect,
-                ResponseFlags::empty(),
-            )),
+            response: Some(WidgetResponse::from_flags(captured_id, rect, flags)),
             scroll_delta: (0.0, 0.0),
             key: None,
             is_key_pressed: false,
@@ -383,6 +413,12 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             tree.resolve_ancestor_tag(target_id)
         };
 
+        let effective_target_id = if tag == 0 && effective_tag != 0 {
+            tree.find_node_by_tag(effective_tag).unwrap_or(target_id)
+        } else {
+            target_id
+        };
+
         let role = tree
             .get(target_id)
             .map(|n| n.role)
@@ -396,6 +432,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         // 2. Persistent semantic tag match (across tree rebuilds)
         // 3. Coordinate bounds match (press_origin and release point both inside widget computed_rect)
         let matches_pressed = original_pressed == Some(target_id)
+            || original_pressed == Some(effective_target_id)
             || (original_pressed_tag.is_some() && original_pressed_tag == Some(effective_tag))
             || (original_press_origin.is_some_and(|origin| rect.contains_point(origin))
                 && rect.contains_point(point));

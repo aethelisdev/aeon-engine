@@ -6,7 +6,9 @@
 //! Replaces monolithic `if-else` cascades with an extensible, type-safe,
 //! plugin-friendly component inspection and editing registry.
 
-use super::types::{ComponentCategory, InspectorPanelParams};
+use super::types::{
+    ComponentCategory, InspectorAction, InspectorNumberInputId, InspectorPanelParams,
+};
 use irisui::prelude::*;
 use std::sync::OnceLock;
 
@@ -18,6 +20,8 @@ pub struct ComponentRenderContext<'a> {
     pub world: &'a hecs::World,
     /// Global parameters from the parent Inspector panel.
     pub params: &'a InspectorPanelParams<'a>,
+    /// Mutable collector for inspector UI actions generated during rendering.
+    pub actions: Option<&'a mut Vec<InspectorAction>>,
     /// Absolute X start coordinate of the card.
     pub base_x: f32,
     /// Absolute Y start coordinate of the card.
@@ -27,7 +31,7 @@ pub struct ComponentRenderContext<'a> {
 }
 
 impl<'a> ComponentRenderContext<'a> {
-    /// Constructs a new [`ComponentRenderContext`].
+    /// Constructs a new [`ComponentRenderContext`] without an attached action sink.
     pub fn new(
         entity: hecs::Entity,
         world: &'a hecs::World,
@@ -40,10 +44,58 @@ impl<'a> ComponentRenderContext<'a> {
             entity,
             world,
             params,
+            actions: None,
             base_x,
             base_y,
             card_w,
         }
+    }
+
+    /// Constructs a new [`ComponentRenderContext`] with an attached action sink.
+    pub fn with_actions(
+        entity: hecs::Entity,
+        world: &'a hecs::World,
+        params: &'a InspectorPanelParams<'a>,
+        actions: &'a mut Vec<InspectorAction>,
+        base_x: f32,
+        base_y: f32,
+        card_w: f32,
+    ) -> Self {
+        Self {
+            entity,
+            world,
+            params,
+            actions: Some(actions),
+            base_x,
+            base_y,
+            card_w,
+        }
+    }
+
+    /// Pushes an inspector UI action for the inspected entity, if an action sink is attached.
+    #[inline]
+    pub fn push_action(&mut self, action: InspectorAction) {
+        if let Some(actions) = &mut self.actions {
+            actions.push(action);
+        }
+    }
+
+    /// Pushes a numeric value modification action for the inspected entity.
+    #[inline]
+    pub fn set_number(&mut self, id: InspectorNumberInputId, val: f32) {
+        if let Some(actions) = &mut self.actions {
+            actions.push(InspectorAction::SetNumberValue(self.entity, id, val));
+        }
+    }
+
+    /// Queries the active inline keyboard editing state for a numeric property.
+    #[inline]
+    #[must_use]
+    pub fn edit_state(&self, id: InspectorNumberInputId) -> Option<NumericInputEditState<'a>> {
+        self.params
+            .active_number_input
+            .filter(|s| s.id == id)
+            .map(|s| s.to_edit_state(self.params.blink_caret))
     }
 }
 

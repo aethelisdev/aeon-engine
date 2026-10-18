@@ -60,6 +60,28 @@ impl UiTree {
         self.active_menu_bar_tag = None;
     }
 
+    /// Returns whether the combobox identified by semantic `tag` is currently opened.
+    #[inline]
+    #[must_use]
+    pub fn is_combobox_open(&self, tag: u64) -> bool {
+        self.active_combobox_tag == Some(tag)
+    }
+
+    /// Sets or clears the active combobox dropdown identified by semantic `tag`.
+    ///
+    /// # Arguments
+    /// * `tag` - Optional 64-bit semantic tag of the opened combobox, or `None` to close all dropdowns.
+    #[inline]
+    pub fn set_active_combobox(&mut self, tag: Option<u64>) {
+        self.active_combobox_tag = tag;
+    }
+
+    /// Closes any currently opened combobox popup.
+    #[inline]
+    pub fn close_combobox(&mut self) {
+        self.active_combobox_tag = None;
+    }
+
     /// Returns the persistent vertical scroll position for the given semantic `tag`.
     ///
     /// Defaults to `0.0` if this tag has never been scrolled.
@@ -102,10 +124,8 @@ impl UiTree {
     /// Updates the measured content bounds used for scroll normalization and bounds checking.
     #[inline]
     pub fn set_content_size(&mut self, tag: u64, size: Size) {
-        if let Some(id) = self.find_node_by_tag(tag) {
-            if let Some(node) = self.get_mut(id) {
-                node.content_size = size;
-            }
+        if let Some(node) = self.find_node_by_tag(tag).and_then(|id| self.get_mut(id)) {
+            node.content_size = size;
         }
     }
 

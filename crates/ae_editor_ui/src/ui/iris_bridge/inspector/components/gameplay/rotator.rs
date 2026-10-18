@@ -6,12 +6,12 @@
 //! Provides a declarative inspector card for continuous rotation components around an arbitrary 3D axis.
 
 use crate::ui::iris_bridge::inspector::components::physics::helpers::{
-    ComponentHeaderProps, DeclarativeNumericRowParams, build_declarative_card_header,
-    render_declarative_numeric_row,
+    ComponentHeaderProps, build_declarative_card_header,
 };
 use crate::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
+use crate::ui::iris_bridge::inspector::tags::encode_inspector_number_input_tag;
 use crate::ui::iris_bridge::inspector::types::{ComponentCategory, InspectorNumberInputId};
 use irisui::prelude::*;
 
@@ -44,18 +44,11 @@ impl ComponentInspectorHandler for RotatorHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (speed, axis) = ctx
+        let (mut speed, [mut ax, mut ay, mut az]) = ctx
             .world
             .get::<&ae_core::ecs::Rotator>(ctx.entity)
             .map(|r| (r.speed, r.axis))
             .unwrap_or((1.5, [0.0, 1.0, 0.0]));
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
 
         scope.card_panel("RotatorCard", |card| {
             build_declarative_card_header(
@@ -70,34 +63,32 @@ impl ComponentInspectorHandler for RotatorHandler {
                 false,
             );
 
-            let label_w = 95.0;
-            let box_w = 44.0;
-
-            let row_defs = [
+            let mut row_defs = [
                 (
                     "Speed (rad/s):",
-                    speed,
+                    &mut speed,
                     InspectorNumberInputId::RotatorSpeed,
                 ),
-                ("Axis X:", axis[0], InspectorNumberInputId::RotatorAxisX),
-                ("Axis Y:", axis[1], InspectorNumberInputId::RotatorAxisY),
-                ("Axis Z:", axis[2], InspectorNumberInputId::RotatorAxisZ),
+                ("Axis X:", &mut ax, InspectorNumberInputId::RotatorAxisX),
+                ("Axis Y:", &mut ay, InspectorNumberInputId::RotatorAxisY),
+                ("Axis Z:", &mut az, InspectorNumberInputId::RotatorAxisZ),
             ];
 
-            for (lbl, val, input_id) in row_defs {
-                render_declarative_numeric_row(
-                    card,
-                    DeclarativeNumericRowParams {
-                        input_id,
-                        label: lbl,
-                        val,
-                        label_w,
-                        box_w,
-                        unit: None,
-                        edit_state: get_edit(input_id),
-                        is_hovered: false,
-                    },
-                );
+            for (lbl, val, input_id) in &mut row_defs {
+                let tag = encode_inspector_number_input_tag(*input_id);
+                let edit = ctx.edit_state(*input_id);
+                if card
+                    .add(
+                        NumericDrag::new(lbl, val)
+                            .tag(tag)
+                            .label_width(95.0)
+                            .box_width(44.0)
+                            .edit_state(edit),
+                    )
+                    .changed()
+                {
+                    ctx.set_number(*input_id, **val);
+                }
             }
         });
     }

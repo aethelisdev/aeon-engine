@@ -12,15 +12,16 @@
 //! - `UiImage`
 
 use super::super::super::registry::{ComponentInspectorHandler, ComponentRenderContext};
-use super::super::super::tags::encode_inspector_text_input_tag;
+use super::super::super::tags::{
+    encode_inspector_number_input_tag, encode_inspector_text_input_tag,
+};
 use super::super::super::types::{
     ComponentCategory, ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
     InspectorTextInputId,
 };
 use super::super::physics::helpers::{
-    ComponentHeaderProps, DeclarativeComboboxRowParams, DeclarativeNumericRowParams,
-    build_declarative_card_header, render_declarative_checkbox_row,
-    render_declarative_combobox_row, render_declarative_numeric_row,
+    ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,
+    render_declarative_checkbox_row, render_declarative_combobox_row,
 };
 use ae_core::ui::UiTextAlignment;
 use irisui::prelude::*;
@@ -92,19 +93,12 @@ impl ComponentInspectorHandler for UiPanelHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (border_w, radius) = if let Ok(p) = ctx.world.get::<&ae_core::ecs::UiPanel>(ctx.entity)
-        {
-            (p.border_width, p.corner_radius)
-        } else {
-            (1.0, 4.0)
-        };
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
+        let (mut border_w, mut radius) =
+            if let Ok(p) = ctx.world.get::<&ae_core::ecs::UiPanel>(ctx.entity) {
+                (p.border_width, p.corner_radius)
+            } else {
+                (1.0, 4.0)
+            };
 
         scope.card_panel("UiPanelCard", |card| {
             build_declarative_card_header(
@@ -120,34 +114,36 @@ impl ComponentInspectorHandler for UiPanelHandler {
             );
 
             // Row 1: Border Width
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::UiBorderWidth,
-                    label: "Border Width",
-                    val: border_w,
-                    label_w: 80.0,
-                    box_w: 60.0,
-                    unit: Some("px"),
-                    edit_state: get_edit(InspectorNumberInputId::UiBorderWidth),
-                    is_hovered: false,
-                },
-            );
+            let bw_id = InspectorNumberInputId::UiBorderWidth;
+            if card
+                .add(
+                    NumericDrag::new("Border Width", &mut border_w)
+                        .tag(encode_inspector_number_input_tag(bw_id))
+                        .label_width(80.0)
+                        .box_width(60.0)
+                        .unit("px")
+                        .edit_state(ctx.edit_state(bw_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(bw_id, border_w);
+            }
 
             // Row 2: Corner Radius
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::UiCornerRadius,
-                    label: "Corner Radius",
-                    val: radius,
-                    label_w: 80.0,
-                    box_w: 60.0,
-                    unit: Some("px"),
-                    edit_state: get_edit(InspectorNumberInputId::UiCornerRadius),
-                    is_hovered: false,
-                },
-            );
+            let cr_id = InspectorNumberInputId::UiCornerRadius;
+            if card
+                .add(
+                    NumericDrag::new("Corner Radius", &mut radius)
+                        .tag(encode_inspector_number_input_tag(cr_id))
+                        .label_width(80.0)
+                        .box_width(60.0)
+                        .unit("px")
+                        .edit_state(ctx.edit_state(cr_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(cr_id, radius);
+            }
         });
     }
 
@@ -185,19 +181,12 @@ impl ComponentInspectorHandler for UiTextHandler {
     }
 
     fn render_card(&self, scope: &mut UiScope<'_>, ctx: &mut ComponentRenderContext<'_>) {
-        let (txt, font_size, alignment) =
+        let (txt, mut font_size, alignment) =
             if let Ok(t) = ctx.world.get::<&ae_core::ecs::UiText>(ctx.entity) {
                 (t.text.clone(), t.font_size, t.alignment)
             } else {
                 ("Label".to_string(), 14.0, UiTextAlignment::Left)
             };
-
-        let get_edit = |id| {
-            ctx.params
-                .active_number_input
-                .filter(|s| s.id == id)
-                .map(|s| s.to_edit_state(ctx.params.blink_caret))
-        };
 
         let is_editing = matches!(
             ctx.params.active_text_input,
@@ -245,9 +234,6 @@ impl ComponentInspectorHandler for UiTextHandler {
             UiTextAlignment::Center => "Center",
             UiTextAlignment::Right => "Right",
         };
-
-        let is_align_open =
-            ctx.params.active_dropdown == Some(InspectorDropdownId::UiTextAlignment);
 
         scope.card_panel("UiTextCard", |card| {
             build_declarative_card_header(
@@ -309,31 +295,32 @@ impl ComponentInspectorHandler for UiTextHandler {
             });
 
             // Row 2: Font Size
-            render_declarative_numeric_row(
-                card,
-                DeclarativeNumericRowParams {
-                    input_id: InspectorNumberInputId::UiFontSize,
-                    label: "Font Size",
-                    val: font_size,
-                    label_w: 80.0,
-                    box_w: 60.0,
-                    unit: Some("pt"),
-                    edit_state: get_edit(InspectorNumberInputId::UiFontSize),
-                    is_hovered: false,
-                },
-            );
+            let fs_id = InspectorNumberInputId::UiFontSize;
+            if card
+                .add(
+                    NumericDrag::new("Font Size", &mut font_size)
+                        .tag(encode_inspector_number_input_tag(fs_id))
+                        .label_width(80.0)
+                        .box_width(60.0)
+                        .unit("pt")
+                        .edit_state(ctx.edit_state(fs_id)),
+                )
+                .changed()
+            {
+                ctx.set_number(fs_id, font_size);
+            }
 
             // Row 3: Text Alignment Dropdown
             render_declarative_combobox_row(
                 card,
+                ctx,
                 DeclarativeComboboxRowParams {
                     dropdown_id: InspectorDropdownId::UiTextAlignment,
                     label: Some("Align"),
                     label_w: 52.0,
                     selected_text: align_str,
-                    is_open: is_align_open,
-                    is_hovered: false,
                     combo_w: 80.0,
+                    options: &["Left", "Center", "Right"],
                 },
             );
         });

@@ -7,7 +7,6 @@
 //! for physics, character, gameplay, and audio components without legacy targets buffers.
 //!
 
-use ae_editor_ui::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
 use ae_editor_ui::ui::iris_bridge::inspector::components::audio::{
     AudioListenerHandler, AudioSourceHandler,
 };
@@ -19,8 +18,8 @@ use ae_editor_ui::ui::iris_bridge::inspector::registry::{
     ComponentInspectorHandler, ComponentRenderContext,
 };
 use ae_editor_ui::ui::iris_bridge::inspector::tags::{
-    resolve_audio_pick_tag, resolve_audio_play_tag, resolve_component_checkbox_tag,
-    resolve_component_delete_tag, resolve_inspector_dropdown_tag,
+    encode_inspector_dropdown_tag, resolve_audio_pick_tag, resolve_audio_play_tag,
+    resolve_component_checkbox_tag, resolve_component_delete_tag, resolve_inspector_dropdown_tag,
     resolve_inspector_number_input_tag, resolve_preset_reset_tag,
 };
 use ae_editor_ui::ui::iris_bridge::inspector::types::{
@@ -187,25 +186,28 @@ fn test_shape_card_declarative_structure_and_chevron() {
     assert!(has_dropdown, "Shape dropdown must be tagged");
 
     let has_chevron_down = tree.iter().any(|(_, n)| {
-        n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_DOWN)
+        n.name.as_deref() == Some("ComboChevron")
+            && n.texture_uv == Some(ae_editor_ui::ui::iris_bridge::icons::ICON_CHEVRON_DOWN)
     });
     assert!(
         has_chevron_down,
-        "Closed combobox must render ICON_CHEVRON_DOWN"
+        "Closed combobox must render atlas chevron down"
     );
 
     // Test open state renders chevron up
-    let mut open_params = params;
-    open_params.active_dropdown = Some(InspectorDropdownId::ShapeType);
-    let mut open_ctx = ComponentRenderContext::new(entity, &world, &open_params, 10.0, 20.0, 260.0);
     let mut open_tree = UiTree::new();
+    open_tree.active_combobox_tag = Some(encode_inspector_dropdown_tag(
+        InspectorDropdownId::ShapeType,
+    ));
+    let mut open_ctx = ComponentRenderContext::new(entity, &world, &params, 10.0, 20.0, 260.0);
     let mut open_scope = UiScope::new(&mut open_tree, root);
     handler.render_card(&mut open_scope, &mut open_ctx);
 
     let has_chevron_up = open_tree.iter().any(|(_, n)| {
-        n.name.as_deref() == Some("ComboChevron") && n.texture_uv == Some(ICON_CHEVRON_UP)
+        n.name.as_deref() == Some("ComboChevron")
+            && n.texture_uv == Some(ae_editor_ui::ui::iris_bridge::icons::ICON_CHEVRON_UP)
     });
-    assert!(has_chevron_up, "Open combobox must render ICON_CHEVRON_UP");
+    assert!(has_chevron_up, "Open combobox must render atlas chevron up");
 }
 
 #[test]

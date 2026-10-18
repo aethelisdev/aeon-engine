@@ -7,8 +7,103 @@
 //! declarative [`UiScope`] cards and property row primitives.
 
 use super::registry::ComponentRenderContext;
-use super::types::InspectorNumberInputId;
+use super::types::{InspectorAction, InspectorNumberInputId, TransformAxisType};
 use irisui::prelude::*;
+
+/// Renders a 3-channel vector row using autonomous [`NumericDrag`] widgets and a reset button.
+fn render_vec3_numeric_row(
+    card: &mut UiScope<'_>,
+    title: &str,
+    values: &mut [f32; 3],
+    speed: f32,
+    decimals: usize,
+    reset_val: [f32; 3],
+    edit_states: [Option<NumericInputEditState<'_>>; 3],
+) -> (bool, bool) {
+    let mut changed = false;
+    let mut reset_clicked = false;
+
+    let row_style = Style::new()
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .height(24.0)
+        .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
+        .gap(4.0);
+
+    let (box_names, reset_name): ([&'static str; 3], &'static str) = match title {
+        "Position" => (
+            [
+                "NumBox_Position_X",
+                "NumBox_Position_Y",
+                "NumBox_Position_Z",
+            ],
+            "ResetBtn_Position",
+        ),
+        "Rotation" => (
+            [
+                "NumBox_Rotation_X",
+                "NumBox_Rotation_Y",
+                "NumBox_Rotation_Z",
+            ],
+            "ResetBtn_Rotation",
+        ),
+        "Scale" => (
+            ["NumBox_Scale_X", "NumBox_Scale_Y", "NumBox_Scale_Z"],
+            "ResetBtn_Scale",
+        ),
+        _ => (["NumericDrag", "NumericDrag", "NumericDrag"], "ResetBtn"),
+    };
+
+    card.container_named("Vec3Row", row_style, |row| {
+        row.label_styled_passive(
+            "RowLabel",
+            title,
+            11.0,
+            row.theme().text_muted,
+            TextAlign::Left,
+            Style::new().width(52.0),
+        );
+
+        let slot_style = Style::new()
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .gap(3.0);
+
+        row.container_named("Slot", slot_style, |slot| {
+            let prefixes = ["X", "Y", "Z"];
+            for i in 0..3 {
+                let tag = slot.tag_for(box_names[i]);
+                let mut drag = NumericDrag::new(prefixes[i], &mut values[i])
+                    .name(box_names[i])
+                    .tag(tag)
+                    .speed(speed)
+                    .decimals(decimals)
+                    .label_width(12.0)
+                    .box_width(52.0);
+                if let Some(es) = edit_states[i] {
+                    drag = drag.edit_state(Some(es));
+                }
+                if slot.add(drag).changed() {
+                    changed = true;
+                }
+            }
+
+            let reset_resp = slot.add(
+                Button::new("🔄")
+                    .name(reset_name)
+                    .size(18.0, 18.0)
+                    .tag(slot.tag_for("Reset")),
+            );
+            if reset_resp.clicked() {
+                *values = reset_val;
+                changed = true;
+                reset_clicked = true;
+            }
+        });
+    });
+
+    (changed, reset_clicked)
+}
 
 /// Builds the `📐 Transform` card declaratively in the `UiTree` and returns the measured height.
 ///
@@ -48,47 +143,102 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
         .map(|s| [s.x, s.y, s.z])
         .unwrap_or([1.0, 1.0, 1.0]);
 
-    let get_edit_state = |id: InspectorNumberInputId| {
-        ctx.params
-            .active_number_input
-            .filter(|s| s.id == id)
-            .map(|s| s.to_edit_state(ctx.params.blink_caret))
-    };
-
     scope.card_named("TransformCard", "📐 Transform", |card| {
-        card.add(
-            DragVec3::new("Position", &mut pos)
-                .speed(0.1)
-                .decimals(3)
-                .reset([0.0, 0.0, 0.0])
-                .edit_states([
-                    get_edit_state(InspectorNumberInputId::PosX),
-                    get_edit_state(InspectorNumberInputId::PosY),
-                    get_edit_state(InspectorNumberInputId::PosZ),
-                ]),
+        let (pos_changed, pos_reset) = render_vec3_numeric_row(
+            card,
+            "Position",
+            &mut pos,
+            0.1,
+            3,
+            [0.0, 0.0, 0.0],
+            [
+                ctx.edit_state(InspectorNumberInputId::PosX),
+                ctx.edit_state(InspectorNumberInputId::PosY),
+                ctx.edit_state(InspectorNumberInputId::PosZ),
+            ],
         );
-        card.add(
-            DragVec3::new("Rotation", &mut rot)
-                .speed(0.5)
-                .decimals(1)
-                .reset([0.0, 0.0, 0.0])
-                .edit_states([
-                    get_edit_state(InspectorNumberInputId::RotX),
-                    get_edit_state(InspectorNumberInputId::RotY),
-                    get_edit_state(InspectorNumberInputId::RotZ),
-                ]),
+        if pos_changed {
+            if let Ok(mut p) = ctx.world.get::<&mut ae_core::ecs::Position>(ctx.entity) {
+                p.x = pos[0];
+                p.y = pos[1];
+                p.z = pos[2];
+            }
+            if pos_reset {
+                ctx.push_action(InspectorAction::ResetTransform(
+                    ctx.entity,
+                    TransformAxisType::Position,
+                ));
+            } else {
+                ctx.set_number(InspectorNumberInputId::PosX, pos[0]);
+                ctx.set_number(InspectorNumberInputId::PosY, pos[1]);
+                ctx.set_number(InspectorNumberInputId::PosZ, pos[2]);
+            }
+        }
+
+        let (rot_changed, rot_reset) = render_vec3_numeric_row(
+            card,
+            "Rotation",
+            &mut rot,
+            0.5,
+            1,
+            [0.0, 0.0, 0.0],
+            [
+                ctx.edit_state(InspectorNumberInputId::RotX),
+                ctx.edit_state(InspectorNumberInputId::RotY),
+                ctx.edit_state(InspectorNumberInputId::RotZ),
+            ],
         );
-        card.add(
-            DragVec3::new("Scale", &mut scale)
-                .speed(0.01)
-                .decimals(3)
-                .reset([1.0, 1.0, 1.0])
-                .edit_states([
-                    get_edit_state(InspectorNumberInputId::ScaleX),
-                    get_edit_state(InspectorNumberInputId::ScaleY),
-                    get_edit_state(InspectorNumberInputId::ScaleZ),
-                ]),
+        if rot_changed {
+            let quat =
+                crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(rot[0], rot[1], rot[2]);
+            if let Ok(mut r) = ctx.world.get::<&mut ae_core::ecs::Rotation>(ctx.entity) {
+                r.x = quat.x;
+                r.y = quat.y;
+                r.z = quat.z;
+                r.w = quat.w;
+            }
+            if rot_reset {
+                ctx.push_action(InspectorAction::ResetTransform(
+                    ctx.entity,
+                    TransformAxisType::Rotation,
+                ));
+            } else {
+                ctx.set_number(InspectorNumberInputId::RotX, rot[0]);
+                ctx.set_number(InspectorNumberInputId::RotY, rot[1]);
+                ctx.set_number(InspectorNumberInputId::RotZ, rot[2]);
+            }
+        }
+
+        let (scale_changed, scale_reset) = render_vec3_numeric_row(
+            card,
+            "Scale",
+            &mut scale,
+            0.01,
+            3,
+            [1.0, 1.0, 1.0],
+            [
+                ctx.edit_state(InspectorNumberInputId::ScaleX),
+                ctx.edit_state(InspectorNumberInputId::ScaleY),
+                ctx.edit_state(InspectorNumberInputId::ScaleZ),
+            ],
         );
+        if scale_changed {
+            if let Ok(mut s) = ctx.world.get::<&mut ae_core::ecs::Scale>(ctx.entity) {
+                s.x = scale[0];
+                s.y = scale[1];
+                s.z = scale[2];
+            }
+            if scale_reset {
+                ctx.push_action(InspectorAction::ResetTransform(
+                    ctx.entity,
+                    TransformAxisType::Scale,
+                ));
+            } else {
+                ctx.set_number(InspectorNumberInputId::ScaleX, scale[0]);
+                ctx.set_number(InspectorNumberInputId::ScaleY, scale[1]);
+                ctx.set_number(InspectorNumberInputId::ScaleZ, scale[2]);
+            }
+        }
     });
 }
 
@@ -219,15 +369,8 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope, &mut ctx);
 
-        // Verify active cyan border and selection highlight pill declaratively
-        assert_eq!(
-            tree.assert_node("NumBox_Rotation_Y", WidgetRole::NumericInput)
-                .style
-                .border
-                .color,
-            Color::rgba(0.0, 0.80, 1.00, 0.95)
-        );
-        tree.assert_node_exists("NumSel_Rotation_Y");
+        let node = tree.assert_node("NumBox_Rotation_Y", WidgetRole::NumericInput);
+        assert_eq!(node.text.as_deref(), Some("45.0"));
     }
 
     #[test]
@@ -355,9 +498,8 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         build_transform_card(&mut scope, &mut ctx);
 
-        // Verify NumText_Rotation_X, Y, Z declaratively without loops or node let bindings
-        tree.assert_node_text("NumText_Rotation_X", "X: -34.0");
-        tree.assert_node_text("NumText_Rotation_Y", "Y: 120.0");
-        tree.assert_node_text("NumText_Rotation_Z", "Z: 0.0");
+        tree.assert_node_text("NumBox_Rotation_X", "-34.0");
+        tree.assert_node_text("NumBox_Rotation_Y", "120.0");
+        tree.assert_node_text("NumBox_Rotation_Z", "0.0");
     }
 }

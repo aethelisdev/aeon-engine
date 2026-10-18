@@ -8,10 +8,9 @@
 
 use crate::ui::iris_bridge::inspector::tags::{
     encode_component_checkbox_tag, encode_component_delete_tag, encode_inspector_dropdown_tag,
-    encode_inspector_number_input_tag,
 };
 use crate::ui::iris_bridge::inspector::types::{
-    ComponentCheckboxId, InspectorDropdownId, InspectorNumberInputId,
+    ComponentCheckboxId, InspectorAction, InspectorDropdownId,
 };
 use irisui::prelude::*;
 
@@ -120,271 +119,60 @@ pub fn build_declarative_card_header(
     });
 }
 
-/// Parameter descriptor for rendering a declarative combobox property row.
+use crate::ui::iris_bridge::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
+use crate::ui::iris_bridge::inspector::registry::ComponentRenderContext;
+
+/// Parameter descriptor for rendering an autonomous declarative combobox property row.
 #[derive(Debug, Clone, Copy)]
-pub struct DeclarativeComboboxRowParams {
+pub struct DeclarativeComboboxRowParams<'a> {
     /// Associated inspector dropdown identifier for semantic tag hit-testing.
     pub dropdown_id: InspectorDropdownId,
     /// Optional property description label (e.g. `Some("Shape:")`).
-    pub label: Option<&'static str>,
+    pub label: Option<&'a str>,
     /// Width allocated for the description label in physical pixels.
     pub label_w: f32,
     /// Currently selected option string displayed on the combobox pill.
-    pub selected_text: &'static str,
-    /// Whether the associated dropdown popup menu is currently active.
-    pub is_open: bool,
-    /// Whether the mouse cursor is currently over the combobox button.
-    pub is_hovered: bool,
+    pub selected_text: &'a str,
     /// Width of the combobox trigger button in physical pixels.
     pub combo_w: f32,
+    /// Available selectable option strings for the popup dropdown list.
+    pub options: &'a [&'a str],
 }
 
-/// Renders a compact property combobox row with a label and dropdown trigger button in [`UiScope`].
+/// Renders a standardized autonomous dropdown combobox row in a declarative [`UiScope`].
 ///
-/// Automatically uses the hardware texture atlas chevron icons (`ICON_CHEVRON_UP` when open,
-/// `ICON_CHEVRON_DOWN` when closed) and tags the button with [`encode_inspector_dropdown_tag`]
-/// for O(1) semantic hit-testing.
-///
-/// # Arguments
-/// * `scope` - Active declarative UI scope for the parent row or card.
-/// * `params` - Configuration descriptor for label, option text, state, and dimensions.
-///
-/// Returns the allocated [`WidgetId`] of the combobox button container.
+/// Automatically delegates to the autonomous [`irisui::prelude::ComboBox`] widget which
+/// manages open/close popup layer state internally, emitting [`InspectorAction::SelectDropdown`]
+/// directly upon option selection.
 pub fn render_declarative_combobox_row(
     scope: &mut UiScope<'_>,
-    params: DeclarativeComboboxRowParams,
+    ctx: &mut ComponentRenderContext<'_>,
+    params: DeclarativeComboboxRowParams<'_>,
 ) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(22.0)
-        .gap(6.0);
-
-    scope.container_named("ComboboxRow", row_style, |row| {
-        if let Some(lbl) = params.label {
-            row.label_styled_passive(
-                "ComboLabel",
-                lbl,
-                11.0,
-                row.theme().text_muted,
-                TextAlign::Left,
-                Style::new().width(params.label_w).height(22.0),
-            );
-        }
-
-        let (bg, border) = if params.is_open {
-            (
-                Color::rgba(0.118, 0.125, 0.145, 1.0),
-                Color::rgba(0.353, 0.376, 0.439, 0.95),
-            )
-        } else if params.is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-
-        let pill_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::SpaceBetween)
-            .width(params.combo_w)
-            .height(22.0)
-            .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(5.0);
-
-        row.container_tagged(
-            "ComboPill",
-            pill_style,
-            WidgetRole::Button,
-            encode_inspector_dropdown_tag(params.dropdown_id),
-            |pill| {
-                pill.label_styled_passive(
-                    "ComboText",
-                    params.selected_text,
-                    10.5,
-                    if params.is_open {
-                        pill.theme().text_primary
-                    } else {
-                        pill.theme().text_secondary
-                    },
-                    TextAlign::Left,
-                    Style::new().flex_grow(1.0),
-                );
-
-                let chevron_uv = if params.is_open {
-                    crate::ui::iris_bridge::icons::ICON_CHEVRON_UP
-                } else {
-                    crate::ui::iris_bridge::icons::ICON_CHEVRON_DOWN
-                };
-                let chevron_color = if params.is_open {
-                    pill.theme().text_primary
-                } else {
-                    pill.theme().text_secondary
-                };
-                pill.icon_named("ComboChevron", chevron_uv, chevron_color, 9.0);
-            },
-        );
-    });
-}
-
-/// Parameter descriptor for rendering a declarative numeric property row.
-#[derive(Debug, Clone, Copy)]
-pub struct DeclarativeNumericRowParams<'a> {
-    /// Associated inspector number input identifier for semantic tag hit-testing.
-    pub input_id: InspectorNumberInputId,
-    /// Human-readable property title displayed on the left.
-    pub label: &'static str,
-    /// Floating-point scalar value to display when not actively editing.
-    pub val: f32,
-    /// Width of the left title label column.
-    pub label_w: f32,
-    /// Width of the numeric pill container.
-    pub box_w: f32,
-    /// Optional physical unit suffix string.
-    pub unit: Option<&'static str>,
-    /// Active keyboard editing buffer and caret state, if currently focused.
-    pub edit_state: Option<NumericInputEditState<'a>>,
-    /// Whether the mouse cursor is currently hovering over the input pill.
-    pub is_hovered: bool,
-}
-
-/// Renders a compact numeric property input row in a declarative [`UiScope`] with optional custom display text.
-///
-/// Supports interactive inline keyboard editing state with text buffer selection
-/// and blinking cursor caret, as well as an optional physical unit suffix (e.g. `m/s`).
-/// Tags the container box with [`encode_inspector_number_input_tag`] for zero-search direct hit-testing.
-///
-/// # Arguments
-/// * `scope` - Active declarative UI scope.
-/// * `params` - Numerical property parameters descriptor.
-/// * `custom_text` - Optional custom formatted string to override default scalar display (e.g. `"45°"`, `"50"`).
-///
-/// Returns the allocated [`WidgetId`] of the numeric input pill container.
-pub fn render_declarative_numeric_row_custom(
-    scope: &mut UiScope<'_>,
-    params: DeclarativeNumericRowParams<'_>,
-    custom_text: Option<&str>,
-) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(22.0)
-        .gap(4.0);
-
-    scope.container_named("NumericRow", row_style, |row| {
-        row.label_styled_passive(
-            "NumLbl",
-            params.label,
-            11.0,
-            row.theme().text_muted,
-            TextAlign::Left,
-            Style::new().width(params.label_w).height(22.0),
-        );
-
-        let is_editing = params.edit_state.is_some();
-        let (bg, border_col) = if is_editing {
-            (
-                Color::rgba(0.180, 0.190, 0.220, 1.0),
-                Color::rgba(0.85, 0.88, 0.98, 0.95),
-            )
-        } else if params.is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-
-        let pill_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .width(params.box_w)
-            .height(22.0)
-            .background(bg)
-            .border(1.0, border_col)
-            .border_radius(4.0);
-
-        let display_str = if let Some(s) = params.edit_state {
-            let buf = s.buffer;
-            let cursor = s.cursor_idx.min(buf.len());
-            let (left, right) = buf.split_at(cursor);
-            if s.is_all_selected {
-                buf.to_string()
-            } else if s.blink_caret {
-                format!("{}|{}", left, right)
+    let mut combo = irisui::prelude::ComboBox::new(params.selected_text, params.options)
+        .tag(encode_inspector_dropdown_tag(params.dropdown_id))
+        .width(params.combo_w)
+        .indicator(|pill_scope, is_open| {
+            let uv = if is_open {
+                ICON_CHEVRON_UP
             } else {
-                buf.to_string()
-            }
-        } else if let Some(txt) = custom_text {
-            txt.to_string()
-        } else {
-            format!("{:.2}", params.val)
-        };
-
-        row.container_tagged(
-            "NumPillBox",
-            pill_style,
-            WidgetRole::TextInput,
-            encode_inspector_number_input_tag(params.input_id),
-            |pill| {
-                pill.label_styled_passive(
-                    "NumVal",
-                    display_str,
-                    10.5,
-                    if is_editing {
-                        pill.theme().text_primary
-                    } else if params.is_hovered {
-                        pill.theme().text_primary
-                    } else {
-                        pill.theme().text_secondary
-                    },
-                    TextAlign::Center,
-                    Style::new().width(params.box_w).height(22.0),
-                );
-            },
-        );
-
-        if let Some(unit_str) = params.unit {
-            row.label_styled_passive(
-                "NumUnit",
-                unit_str,
-                11.0,
-                row.theme().text_muted,
-                TextAlign::Left,
-                Style::new().width(35.0).height(22.0),
-            );
-        }
-    });
-}
-
-/// Renders a compact numeric property input row in a declarative [`UiScope`].
-///
-/// Supports interactive inline keyboard editing state with text buffer selection
-/// and blinking cursor caret, as well as an optional physical unit suffix (e.g. `m/s`).
-///
-/// # Arguments
-/// * `scope` - Active declarative UI scope.
-/// * `params` - Numerical property parameters descriptor.
-///
-/// Returns the allocated [`WidgetId`] of the numeric input pill container.
-pub fn render_declarative_numeric_row(
-    scope: &mut UiScope<'_>,
-    params: DeclarativeNumericRowParams<'_>,
-) {
-    render_declarative_numeric_row_custom(scope, params, None)
+                ICON_CHEVRON_DOWN
+            };
+            pill_scope.icon_named("ComboChevron", uv, Color::rgba(0.85, 0.88, 0.94, 0.9), 9.0);
+        });
+    if let Some(lbl) = params.label {
+        combo = combo.label(lbl).label_width(params.label_w);
+    }
+    let resp = scope.add(combo);
+    if resp.changed()
+        && let Some(idx) = resp.selected_index()
+    {
+        ctx.push_action(InspectorAction::SelectDropdown(
+            ctx.entity,
+            params.dropdown_id,
+            idx,
+        ));
+    }
 }
 
 /// Renders a standardized boolean toggle checkbox row in a declarative [`UiScope`].

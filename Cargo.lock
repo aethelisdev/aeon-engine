@@ -1835,6 +1835,7 @@ name = "iris-winit"
 version = "0.1.0"
 dependencies = [
  "iris-core",
+ "iris-widgets",
  "winit",
 ]
 

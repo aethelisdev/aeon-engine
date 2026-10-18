@@ -130,7 +130,7 @@ pub fn render_console_row(
                     .width(3.0)
                     .height(26.0)
                     .background(Color::rgba(0.0, 0.85, 1.0, 0.95));
-                let _ = row_scope.empty_box_passive(accent_style);
+                row_scope.empty_box_passive(accent_style);
             }
 
             let (badge_text, badge_color, badge_bg) = match level {

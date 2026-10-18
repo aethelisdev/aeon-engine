@@ -12,17 +12,18 @@ pub mod keyboard;
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::workbench::state::EngineUi;
 use irisui::dock::{DockArea, DockInteractionConfig, FloatingWindowClampBounds};
-use irisui::prelude::{Point, Rect, UiEvent, WidgetCursor};
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use irisui::prelude::{Rect, UiEvent, WidgetCursor};
 use winit::window::Window;
 
 impl EngineUi {
-    /// Forwards winit window events to Iris UI and the native dock coordinator.
+    /// Dispatches declarative UI interaction events to Iris UI and the native dock coordinator.
+    ///
+    /// Receives pure, hardware-abstracted [`UiEvent`] representations translated at window root.
     pub fn handle_event(
         &mut self,
         window: &Window,
-        event: &WindowEvent,
-        world: Option<&hecs::World>,
+        event: &UiEvent,
+        _world: Option<&hecs::World>,
     ) -> bool {
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
         self.iris_overlay.chrome.floating_window_rects = self
@@ -33,26 +34,7 @@ impl EngineUi {
             .map(|w| Rect::new(w.rect.x, w.rect.y, w.rect.width, w.rect.height))
             .collect();
 
-        let zoom = self.scale_factor();
-        let scaled_event;
-        let event_ref = match event {
-            WindowEvent::CursorMoved {
-                device_id,
-                position,
-            } => {
-                scaled_event = WindowEvent::CursorMoved {
-                    device_id: *device_id,
-                    position: winit::dpi::PhysicalPosition::new(
-                        position.x / (zoom as f64),
-                        position.y / (zoom as f64),
-                    ),
-                };
-                &scaled_event
-            }
-            other => other,
-        };
-
-        let iris_res = self.iris_overlay.handle_event(event_ref, world);
+        let iris_res = self.iris_overlay.handle_event(event);
         if let Some(act) = iris_res.ui_action {
             self.pending_actions.push(act);
         }
@@ -164,6 +146,7 @@ impl EngineUi {
             return true;
         }
 
+        let zoom = self.scale_factor();
         let win_size = window.inner_size();
         let screen_w = win_size.width as f32 / zoom;
         let screen_h = win_size.height as f32 / zoom;
@@ -185,29 +168,11 @@ impl EngineUi {
 
         // Process autonomous dock events (splitters, tabs, drag-and-drop, and floating windows)
         let (dock_consumed, dock_cursor) =
-            self.handle_dock_event(event_ref, workspace_rect, screen_w, screen_h);
+            self.handle_dock_event(event, workspace_rect, screen_w, screen_h);
 
         // Apply requested cursor
-        let requested_cursor = if let Some(cursor) = dock_cursor {
-            match cursor {
-                irisui::prelude::WidgetCursor::Default => winit::window::CursorIcon::Default,
-                irisui::prelude::WidgetCursor::Pointer => winit::window::CursorIcon::Pointer,
-                irisui::prelude::WidgetCursor::Grab => winit::window::CursorIcon::Grab,
-                irisui::prelude::WidgetCursor::Grabbing => winit::window::CursorIcon::Grabbing,
-                irisui::prelude::WidgetCursor::Text => winit::window::CursorIcon::Text,
-                irisui::prelude::WidgetCursor::ColResize => winit::window::CursorIcon::ColResize,
-                irisui::prelude::WidgetCursor::RowResize => winit::window::CursorIcon::RowResize,
-                irisui::prelude::WidgetCursor::EwResize => winit::window::CursorIcon::EwResize,
-                irisui::prelude::WidgetCursor::NsResize => winit::window::CursorIcon::NsResize,
-                irisui::prelude::WidgetCursor::NwseResize => winit::window::CursorIcon::NwseResize,
-                irisui::prelude::WidgetCursor::NeswResize => winit::window::CursorIcon::NeswResize,
-                irisui::prelude::WidgetCursor::Crosshair => winit::window::CursorIcon::Crosshair,
-                irisui::prelude::WidgetCursor::NotAllowed => winit::window::CursorIcon::NotAllowed,
-            }
-        } else {
-            self.iris_overlay.requested_cursor_icon()
-        };
-        window.set_cursor(requested_cursor);
+        let active_widget_cursor = dock_cursor.unwrap_or_else(|| self.iris_overlay.active_cursor());
+        window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
 
         let consumed = iris_res.consumed || dock_consumed;
         if consumed {
@@ -225,35 +190,14 @@ impl EngineUi {
     /// Returns `(consumed, cursor_override)`.
     pub(crate) fn handle_dock_event(
         &mut self,
-        event: &WindowEvent,
+        ui_event: &UiEvent,
         workspace_rect: Rect,
         screen_w: f32,
         screen_h: f32,
     ) -> (bool, Option<WidgetCursor>) {
-        let ui_event = match event {
-            WindowEvent::CursorMoved { position, .. } => UiEvent::MouseMove {
-                point: Point::new(position.x as f32, position.y as f32),
-            },
-            WindowEvent::MouseInput { state, button, .. } => {
-                let btn = match button {
-                    MouseButton::Left => irisui::prelude::MouseButton::Left,
-                    MouseButton::Right => irisui::prelude::MouseButton::Right,
-                    MouseButton::Middle => irisui::prelude::MouseButton::Middle,
-                    MouseButton::Other(b) => irisui::prelude::MouseButton::Other(*b),
-                    _ => irisui::prelude::MouseButton::Left,
-                };
-                let point = self.iris_overlay.chrome.cursor_pos;
-                match state {
-                    ElementState::Pressed => UiEvent::MouseDown { button: btn, point },
-                    ElementState::Released => UiEvent::MouseUp { button: btn, point },
-                }
-            }
-            _ => return (false, None),
-        };
-
         // If modal or dropdown is open and event is mouse press, ignore dock interaction
         if let UiEvent::MouseDown { point, .. } = ui_event
-            && self.iris_overlay.is_point_over_modal_or_dropdown(point)
+            && self.iris_overlay.is_point_over_overlay(*point)
         {
             return (false, None);
         }
@@ -279,7 +223,7 @@ impl EngineUi {
         let res = DockArea::handle_event(
             &mut self.layout_state.dock_state,
             &viewer,
-            &ui_event,
+            ui_event,
             workspace_rect,
             &config,
         );

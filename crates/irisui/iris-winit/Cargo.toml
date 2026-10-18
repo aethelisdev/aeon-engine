@@ -10,4 +10,5 @@ workspace = true
 
 [dependencies]
 iris-core = { workspace = true }
+iris-widgets = { workspace = true }
 winit = { workspace = true }

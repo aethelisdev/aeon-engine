@@ -76,6 +76,8 @@ pub struct AeEngine {
     )>,
     /// Window event and pointer capture arbitration state machine.
     pub input_arbiter: crate::events::InputArbiter,
+    /// Window event state and HighDPI coordinate translation coordinator.
+    pub winit_state: irisui::winit::WinitState,
 }
 
 impl AeEngine {
@@ -305,6 +307,7 @@ impl AeEngine {
             dimension_mode,
             sprite_2d_system,
             input_arbiter: crate::events::InputArbiter::new(),
+            winit_state: irisui::winit::WinitState::new(window.scale_factor()),
         };
 
         let is_2d = dimension_mode.is_2d();

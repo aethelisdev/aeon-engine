@@ -102,12 +102,28 @@ impl InputArbiter {
 
     /// Evaluates whether the UI overlay consumes the incoming window event.
     ///
+    /// Translates raw Winit [`WindowEvent`] into declarative [`irisui::prelude::UiEvent`]
+    /// representations at the engine root before dispatching to editor UI panels.
+    ///
     /// If 3D Viewport holds pointer capture, UI is completely bypassed to prevent
     /// camera orbit or gizmo release events from being swallowed by background panels.
     fn determine_ui_consumption(&self, engine: &mut AeEngine, event: &WindowEvent) -> bool {
         if matches!(self.pointer_capture, PointerCapture::Viewport(_)) {
             return false;
         }
+
+        let zoom = engine.ui.scale_factor();
+        engine.winit_state.set_scale_factor(zoom as f64);
+        let ui_event = engine.winit_state.on_window_event(event);
+
+        // Synchronize keyboard modifier flags to editor UI
+        engine.ui.iris_overlay.chrome.ctrl_held = engine.winit_state.modifiers().ctrl();
+        engine.ui.iris_overlay.chrome.shift_held = engine.winit_state.modifiers().shift();
+        engine.ui.iris_overlay.chrome.alt_held = engine.winit_state.modifiers().alt();
+
+        let Some(ui_event) = ui_event else {
+            return false;
+        };
 
         let window = &engine.render_state.window;
 
@@ -116,12 +132,12 @@ impl InputArbiter {
                 WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } => false,
                 _ => engine
                     .ui
-                    .handle_event(window, event, Some(&engine.ecs.world)),
+                    .handle_event(window, &ui_event, Some(&engine.ecs.world)),
             }
         } else {
             engine
                 .ui
-                .handle_event(window, event, Some(&engine.ecs.world))
+                .handle_event(window, &ui_event, Some(&engine.ecs.world))
         }
     }
 

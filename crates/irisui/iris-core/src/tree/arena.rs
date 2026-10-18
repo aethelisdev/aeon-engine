@@ -34,6 +34,8 @@ pub struct UiTree {
     pub max_scrolls: HashMap<u64, f32>,
     /// Persistent 64-bit semantic tag identifying the currently opened menu bar dropdown menu, if any.
     pub active_menu_bar_tag: Option<u64>,
+    /// Persistent 64-bit semantic tag identifying the currently opened combobox dropdown menu, if any.
+    pub active_combobox_tag: Option<u64>,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
 }
@@ -51,6 +53,7 @@ impl UiTree {
             viewport_sizes: HashMap::new(),
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
+            active_combobox_tag: None,
             theme: crate::theme::Theme::default(),
         }
     }
@@ -89,6 +92,7 @@ impl UiTree {
     pub fn needs_rebuild(&self) -> bool {
         self.event_state.has_frame_interactions()
             || self.active_menu_bar_tag.is_some()
+            || self.active_combobox_tag.is_some()
             || self.event_state.active_context_menu.is_some()
             || self.has_dirty_nodes(DirtyFlags::LAYOUT | DirtyFlags::PAINT)
     }
