@@ -789,3 +789,62 @@ fn test_scroll_over_nested_card_elements_bubbles_to_viewport() {
     let vp = tree.get(viewport).unwrap();
     assert_eq!(vp.style.scroll_offset_y, 40.0);
 }
+
+#[test]
+fn test_autonomous_drag_capture_and_release() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let card = tree.create_node();
+    tree.add_child(root, card).unwrap();
+    {
+        let c = tree.get_mut(card).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Button;
+        c.computed_rect = Rect::new(10.0, 10.0, 100.0, 100.0);
+        c.tag = 0xAA01;
+    }
+
+    // 1. MouseDown on card
+    let down = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    };
+    let res_down = tree.dispatch_event(&down);
+    assert!(res_down.is_consumed());
+    assert_eq!(tree.event_state.pressed, Some(card));
+    assert_eq!(tree.event_state.pointer_capture, None); // Capture not established before threshold
+
+    // 2. MouseMove past drag threshold (> 3.0 px) -> Autonomous drag capture establishes
+    let motion = UiEvent::MouseMove {
+        point: Point::new(25.0, 25.0),
+    };
+    let res_motion = tree.dispatch_event(&motion);
+    assert!(res_motion.is_consumed());
+    assert_eq!(tree.event_state.pointer_capture, Some(card));
+    assert_eq!(tree.event_state.pointer_capture_tag, Some(0xAA01));
+    assert!(res_motion.response.map(|r| r.dragged()).unwrap_or(false));
+
+    // 3. Move far away outside card bounds (e.g. over 3D viewport canvas)
+    let motion_far = UiEvent::MouseMove {
+        point: Point::new(400.0, 300.0),
+    };
+    let res_far = tree.dispatch_event(&motion_far);
+    assert!(res_far.is_consumed());
+    assert_eq!(res_far.target, Some(card)); // Still captures target!
+    assert!(res_far.response.map(|r| r.dragged()).unwrap_or(false));
+
+    // 4. MouseUp outside card bounds -> Drag gesture release (not a normal click)
+    let up = UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(400.0, 300.0),
+    };
+    let res_up = tree.dispatch_event(&up);
+    assert!(res_up.is_consumed());
+    let resp = res_up.response.unwrap();
+    assert!(resp.drag_released());
+    assert!(!resp.clicked()); // Drag release must NOT be considered a click
+    assert_eq!(tree.event_state.frame_drag_released_id, Some(card));
+    assert_eq!(tree.event_state.frame_drag_released_tag, Some(0xAA01));
+    assert_eq!(tree.event_state.pointer_capture, None);
+}

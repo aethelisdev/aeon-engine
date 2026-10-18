@@ -58,8 +58,6 @@ pub enum StatsPanelAction {
 pub struct StatsPanelParams<'a> {
     /// Bounding rectangle allocated for the stats panel inside docking.
     pub panel_rect: Rect,
-    /// Current vertical scroll offset in pixels.
-    pub scroll_y: f32,
     /// Mouse cursor coordinates in screen space.
     pub cursor_pos: Point,
     /// Whether wireframe edge mode is enabled.
@@ -97,12 +95,8 @@ pub struct StatsPanelParams<'a> {
 /// Persistent interactive state for the Performance Stats & Telemetry panel overlay.
 #[derive(Debug, Clone)]
 pub struct StatsPanelState {
-    /// Common panel interaction state (scroll_y, search, actions).
+    /// Common panel interaction state (search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>,
-    /// Autonomous framework scroll state managing thumb dragging and mouse wheel offsets.
-    pub scroll_state: ScrollAreaState,
-    /// Maximum computed vertical scrollable overflow extent.
-    pub max_scroll: f32,
     /// Last bounding rectangle allocated for the Stats & Profiler panel.
     pub last_rect: Option<Rect>,
     /// Accumulated frame count within the current 250ms telemetry rolling average window.
@@ -119,8 +113,6 @@ impl Default for StatsPanelState {
     fn default() -> Self {
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
-            scroll_state: ScrollAreaState::default(),
-            max_scroll: 0.0,
             last_rect: None,
             frame_counter: 0,
             last_fps_refresh: std::time::Instant::now(),
@@ -147,11 +139,6 @@ impl std::ops::DerefMut for StatsPanelState {
 }
 
 impl StatsPanelState {
-    /// Synchronizes current vertical scroll offset from the autonomous [`ScrollAreaState`] into panel interaction state.
-    #[inline]
-    pub fn sync_scroll_y(&mut self) {
-        self.interactions.scroll_y = self.scroll_state.scroll_y;
-    }
     /// Evaluates whether the Performance Stats & Telemetry panel requires an in-place repaint.
     ///
     /// Returns `true` whenever the docked stats panel rectangle is visible.
@@ -163,7 +150,6 @@ impl StatsPanelState {
             || (params.panel_rects.stats.is_some()
                 && self.last_fps_refresh.elapsed().as_secs_f32() >= 0.25)
             || self.interactions.has_pending_actions()
-            || self.scroll_y != self.last_scroll_y
     }
 
     /// Synchronizes rolling FPS text windowing calculations.
@@ -185,7 +171,6 @@ impl StatsPanelState {
             self.frame_counter = 0;
         }
         self.last_rect = params.panel_rects.stats;
-        self.last_scroll_y = self.scroll_y;
     }
 
     /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.

@@ -314,8 +314,6 @@ pub struct HierarchyPanelParams<'a> {
     pub is_editing: bool,
     /// Whether the active dimension mode is 2D Sprite Engine mode.
     pub is_2d: bool,
-    /// Vertical scroll offset in physical pixels.
-    pub scroll_y: f32,
     /// Active cascading Add Menu submenu (if open).
     pub active_submenu: Option<AddSubmenuId>,
     /// Active nested Add Menu sub-submenu (if open).
@@ -328,8 +326,6 @@ pub struct HierarchyPanelParams<'a> {
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Whether the Hierarchy scrollbar thumb is actively being dragged.
-    pub is_scrollbar_dragging: bool,
     /// Autonomous focus state machine providing SSOT for panel inputs.
     pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
@@ -343,12 +339,8 @@ pub struct HierarchyPanelParams<'a> {
 /// Persistent interactive state for the Scene Hierarchy panel overlay.
 #[derive(Debug, Clone)]
 pub struct HierarchyPanelState {
-    /// Common panel interaction state (scroll_y, search, actions).
+    /// Common panel interaction state (search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), HierarchyAction>,
-    /// Maximum computed vertical scrollable overflow extent.
-    pub max_scroll: f32,
-    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
-    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Persistent pre-allocated row cache to eliminate per-frame allocations.
     pub rows_cache: Vec<HierarchyRow>,
     /// Unified TreeState managing expanded and selected entity nodes.
@@ -374,8 +366,6 @@ impl Default for HierarchyPanelState {
     fn default() -> Self {
         Self {
             interactions: Default::default(),
-            max_scroll: 0.0,
-            scroll_state: Default::default(),
             rows_cache: Vec::new(),
             tree_state: TreeState::expanded_by_default(),
             is_add_menu_open: false,
@@ -417,7 +407,6 @@ impl HierarchyPanelState {
         let world_len = params.scene.world.len() as usize;
         self.last_selected_entity != params.scene.selected_entity
             || self.last_entity_count != world_len
-            || (self.scroll_y - self.last_scroll_y).abs() > 0.001
             || self.is_add_menu_open
             || self.active_context_menu.is_some()
     }
@@ -426,7 +415,6 @@ impl HierarchyPanelState {
     pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
         self.last_selected_entity = params.scene.selected_entity;
         self.last_entity_count = params.scene.world.len() as usize;
-        self.last_scroll_y = self.scroll_y;
     }
 
     /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
@@ -537,17 +525,10 @@ mod tests {
     }
 
     #[test]
-    fn test_hierarchy_scroll_dirty_detection() {
-        let mut state = HierarchyPanelState::default();
-        assert_eq!(state.scroll_y, 0.0);
-        assert_eq!(state.last_scroll_y, 0.0);
-
-        // Modifying scroll_y reflects a dirty scroll delta
-        state.scroll_y = 50.0;
-        assert!((state.scroll_y - state.last_scroll_y).abs() > 0.001);
-
-        // Synchronizing updates last_scroll_y to match active scroll_y
-        state.last_scroll_y = state.scroll_y;
-        assert!((state.scroll_y - state.last_scroll_y).abs() <= 0.001);
+    fn test_hierarchy_default_state() {
+        let state = HierarchyPanelState::default();
+        assert_eq!(state.last_entity_count, 0);
+        assert!(state.rows_cache.is_empty());
+        assert!(!state.is_add_menu_open);
     }
 }

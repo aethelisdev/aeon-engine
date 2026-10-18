@@ -81,6 +81,10 @@ pub struct EventState {
     pub frame_secondary_clicked_id: Option<WidgetId>,
     /// Persistent 64-bit semantic tag confirmed as secondary (right) clicked during the current dispatch cycle, if any.
     pub frame_secondary_clicked_tag: Option<u64>,
+    /// Widget node whose active drag gesture was released during the current dispatch cycle, if any.
+    pub frame_drag_released_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag whose active drag gesture was released during the current dispatch cycle, if any.
+    pub frame_drag_released_tag: Option<u64>,
     /// Absolute screen coordinate where the current frame interaction (click, secondary click, press) occurred.
     pub frame_clicked_pos: Option<Point>,
     /// Pointer delta movement vector accumulated during active dragging gestures in the current frame.
@@ -121,6 +125,8 @@ impl EventState {
             frame_double_clicked_tag: None,
             frame_secondary_clicked_id: None,
             frame_secondary_clicked_tag: None,
+            frame_drag_released_id: None,
+            frame_drag_released_tag: None,
             frame_clicked_pos: None,
             frame_drag_delta: None,
             last_pointer_pos: None,
@@ -150,6 +156,8 @@ impl EventState {
         self.frame_double_clicked_tag = None;
         self.frame_secondary_clicked_id = None;
         self.frame_secondary_clicked_tag = None;
+        self.frame_drag_released_id = None;
+        self.frame_drag_released_tag = None;
         self.frame_clicked_pos = None;
         self.frame_drag_delta = None;
         self.last_pointer_pos = None;
@@ -167,6 +175,8 @@ impl EventState {
         self.frame_double_clicked_tag = None;
         self.frame_secondary_clicked_id = None;
         self.frame_secondary_clicked_tag = None;
+        self.frame_drag_released_id = None;
+        self.frame_drag_released_tag = None;
         self.frame_clicked_pos = None;
         self.frame_drag_delta = None;
         self.frame_key = None;

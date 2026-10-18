@@ -136,8 +136,6 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(400.0, 200.0)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -259,8 +257,6 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(400.0, 200.0)),
         active_tab: 1,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: Some(PreferencesDropdownId::FpsLimit),
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -351,8 +347,6 @@ fn test_preferences_scroll_translates_children_upward() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -373,8 +367,6 @@ fn test_preferences_scroll_translates_children_upward() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics
-        scroll_offset_y: 100.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -391,6 +383,7 @@ fn test_preferences_scroll_translates_children_upward() {
     };
 
     build_preferences_dialog(&mut tree_0, params_0, &mut Vec::new());
+    tree_100.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 100.0);
     build_preferences_dialog(&mut tree_100, params_100, &mut Vec::new());
 
     // Find the Shadows section card in both trees
@@ -440,8 +433,6 @@ fn test_preferences_declarative_text_wrap_and_scope_purity() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 9, // Modules tab
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -556,8 +547,6 @@ fn test_preferences_two_way_data_binding_shadows_and_bloom() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -649,8 +638,6 @@ fn test_preferences_two_way_data_binding_editor_tab() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 2, // Editor tab
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -708,8 +695,6 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -754,8 +739,6 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -795,8 +778,6 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab (overflows content height)
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -844,6 +825,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
     let enabled_modules = HashSet::new();
     let collapsed = HashSet::new();
 
+    tree.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 150.0);
     let (_card_id, card_rect, content_rect, max_scroll_y) = build_preferences_dialog(
         &mut tree,
         PreferencesParams {
@@ -851,8 +833,6 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             screen_height: 1080.0,
             window_pos: None,
             active_tab: 1, // Graphics tab
-            scroll_offset_y: 150.0,
-            is_scrollbar_dragging: false,
             active_dropdown: None,
             dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
@@ -877,8 +857,6 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             screen_height: 1080.0,
             window_pos: None,
             active_tab: 1,
-            scroll_offset_y: 0.0,
-            is_scrollbar_dragging: false,
             active_dropdown: None,
             dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
@@ -924,8 +902,6 @@ fn test_sync_scroll_in_place_translates_children() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -1015,8 +991,6 @@ fn test_preferences_mouse_wheel_and_drag() {
             screen_height,
             window_pos: None,
             active_tab: 1, // Graphics tab
-            scroll_offset_y: 0.0,
-            is_scrollbar_dragging: false,
             active_dropdown: None,
             dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
@@ -1049,8 +1023,9 @@ fn test_preferences_mouse_wheel_and_drag() {
         .computed_rect
         .y;
 
-    // Now build with scroll_offset_y: 150.0
+    // Now build with scroll_offset_y: 150.0 via tree.set_scroll_offset
     let mut tree_scrolled = UiTree::new();
+    tree_scrolled.set_scroll_offset(super::types::PREF_TAG_CONTENT_VIEW, 150.0);
     let (_card_id, _card_rect, _content_rect, _max_scroll_y) = build_preferences_dialog(
         &mut tree_scrolled,
         PreferencesParams {
@@ -1058,8 +1033,6 @@ fn test_preferences_mouse_wheel_and_drag() {
             screen_height,
             window_pos: None,
             active_tab: 1, // Graphics tab
-            scroll_offset_y: 150.0,
-            is_scrollbar_dragging: false,
             active_dropdown: None,
             dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
@@ -1118,8 +1091,6 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -1156,8 +1127,6 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -1194,8 +1163,6 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: Some(PreferencesDropdownId::ShadowResolution),
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,

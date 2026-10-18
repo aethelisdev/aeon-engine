@@ -462,7 +462,6 @@ mod tests {
             inspector_color_hex: "#3366cc",
             saved_swatches: &saved_swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            scroll_y: 0.0,
             active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,

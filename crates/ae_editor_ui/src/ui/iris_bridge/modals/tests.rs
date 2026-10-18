@@ -196,8 +196,6 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         screen_height,
         window_pos: Some(Point::new(pref_left, pref_top)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,

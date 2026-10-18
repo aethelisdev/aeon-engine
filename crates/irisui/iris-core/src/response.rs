@@ -42,6 +42,8 @@ bitflags! {
         const GAINED_FOCUS = 1 << 9;
         /// Widget transitioned out of focused state during this frame.
         const LOST_FOCUS = 1 << 10;
+        /// Active pointer drag gesture was released during this frame (drop trigger).
+        const DRAG_RELEASED = 1 << 11;
     }
 }
 
@@ -298,6 +300,23 @@ impl WidgetResponse {
         self
     }
 
+    /// Returns `true` if an active drag gesture was released during this frame on this widget.
+    #[inline]
+    pub const fn drag_released(&self) -> bool {
+        self.flags.contains(ResponseFlags::DRAG_RELEASED)
+    }
+
+    /// Sets the drag released state flag and returns updated response.
+    #[inline]
+    pub const fn with_drag_released(mut self, released: bool) -> Self {
+        if released {
+            self.flags = self.flags.union(ResponseFlags::DRAG_RELEASED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::DRAG_RELEASED);
+        }
+        self
+    }
+
     /// Returns `true` if the widget currently holds keyboard/input focus.
     #[inline]
     pub const fn is_focused(&self) -> bool {
@@ -411,6 +430,17 @@ impl WidgetResponse {
     #[inline]
     pub fn on_drag(self, f: impl FnOnce()) -> Self {
         if self.dragged() {
+            f();
+        }
+        self
+    }
+
+    /// Executes the provided closure if an active drag gesture was released during this frame on this widget.
+    ///
+    /// Returns `self` unmodified to support fluent declarative method chaining without intermediate `let` bindings.
+    #[inline]
+    pub fn on_drag_release(self, f: impl FnOnce()) -> Self {
+        if self.drag_released() {
             f();
         }
         self
@@ -546,5 +576,21 @@ mod tests {
         assert!(!changed);
         assert!(hovered);
         assert_eq!(resp.id, id);
+    }
+
+    #[test]
+    fn test_widget_response_drag_release() {
+        let id = WidgetId::default();
+        let mut released = false;
+
+        let resp = WidgetResponse::empty(id)
+            .with_drag_released(true)
+            .on_drag_release(|| released = true);
+
+        assert!(resp.drag_released());
+        assert!(released);
+
+        let cleared = resp.with_drag_released(false);
+        assert!(!cleared.drag_released());
     }
 }

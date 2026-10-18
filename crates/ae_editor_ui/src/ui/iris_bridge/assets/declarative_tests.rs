@@ -41,8 +41,6 @@ fn test_assets_panel_declarative_toolbar_and_chip_actions() {
         show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
-        scroll_y: 0.0,
-        tree_scroll_y: 0.0,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         active_context_menu: None,
@@ -152,8 +150,6 @@ fn test_assets_panel_declarative_card_selection_action() {
         show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
-        scroll_y: 0.0,
-        tree_scroll_y: 0.0,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
         active_context_menu: None,
@@ -252,8 +248,6 @@ fn test_assets_card_declarative_context_menu_interaction() {
         show_engine_content: false,
         sidebar_width: 180.0,
         sidebar_collapsed: false,
-        scroll_y: 0.0,
-        tree_scroll_y: 0.0,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
         active_context_menu: None,
@@ -354,5 +348,256 @@ fn test_assets_card_declarative_context_menu_interaction() {
         inspect_actions.contains(&AssetsPanelAction::OpenInspectModal(test_item)),
         "Clicking inspect context menu item must emit OpenInspectModal action: {:?}",
         inspect_actions
+    );
+}
+
+/// Verifies that dragging an asset card emits [`AssetsPanelAction::StartAssetDrag`]
+/// and releasing the drag emits [`AssetsPanelAction::EndAssetDrag`].
+#[test]
+fn test_assets_panel_declarative_drag_and_drop_actions() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let test_item = AssetItem {
+        name: "character.glb".to_string(),
+        path: PathBuf::from("assets/models/character.glb"),
+        relative_path: "models/character.glb".to_string(),
+        category: AssetCategory::Models3D,
+        file_size_bytes: 4096,
+        source: AssetSource::Project,
+        is_loaded_in_memory: false,
+        metadata_badge: "4.0 KB".to_string(),
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: true,
+    };
+
+    let items = [test_item.clone()];
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        cursor_pos: Point::new(10.0, 10.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+
+    // 1. Initial build: constructs the asset card
+    let mut tree_state = TreeState::new();
+    let mut actions = Vec::new();
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut actions,
+    );
+
+    let card_node = tree
+        .iter()
+        .find(|(_, n)| n.tag == encode_item_tag(0))
+        .expect("Asset card node with tag encode_item_tag(0) not found");
+    let card_rect = card_node.1.computed_rect;
+    let card_center = Point::new(
+        card_rect.x + card_rect.width * 0.5,
+        card_rect.y + card_rect.height * 0.5,
+    );
+
+    // 2. MouseDown on card
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: card_center,
+        button: MouseButton::Left,
+    });
+
+    // 3. Move mouse past threshold (> 3.0 px) -> Triggers drag
+    let move_point = Point::new(card_center.x + 20.0, card_center.y + 20.0);
+    tree.dispatch_event(&UiEvent::MouseMove { point: move_point });
+
+    // 4. Rebuild: must emit StartAssetDrag
+    let mut drag_actions = Vec::new();
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut drag_actions,
+    );
+    assert!(
+        drag_actions.contains(&AssetsPanelAction::StartAssetDrag(test_item)),
+        "Dragging card must emit AssetsPanelAction::StartAssetDrag, got: {:?}",
+        drag_actions
+    );
+
+    // 5. MouseUp over viewport area -> Release drag
+    let drop_point = Point::new(card_center.x + 200.0, card_center.y + 100.0);
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        point: drop_point,
+        button: MouseButton::Left,
+    });
+    eprintln!("UP RES: {:?}", up_res);
+    eprintln!("UP EVENT STATE: {:?}", tree.event_state);
+
+    // 6. Rebuild: must emit EndAssetDrag
+    let mut release_actions = Vec::new();
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut release_actions,
+    );
+    eprintln!("RELEASE ACTIONS: {:?}", release_actions);
+    assert!(
+        release_actions.contains(&AssetsPanelAction::EndAssetDrag),
+        "Releasing drag must emit AssetsPanelAction::EndAssetDrag, got: {:?}",
+        release_actions
+    );
+}
+
+/// Verifies that dragging an asset card succeeds even when [`UiTree`] is cleared and rebuilt
+/// between MouseDown and MouseMove (mimicking runtime immediate-mode frame rebuilds).
+#[test]
+fn test_assets_panel_drag_and_drop_across_tree_rebuild() {
+    let mut tree = UiTree::new();
+    let root_id = tree
+        .create_root()
+        .expect("Failed to create root node in UiTree");
+
+    let test_item = AssetItem {
+        path: PathBuf::from("assets/models/character.glb"),
+        relative_path: "models/character.glb".to_string(),
+        name: "character.glb".to_string(),
+        category: AssetCategory::Models3D,
+        file_size_bytes: 4096,
+        source: AssetSource::Project,
+        is_loaded_in_memory: false,
+        metadata_badge: "4.0 KB".to_string(),
+        model_handle: None,
+        texture_handle: None,
+        shader_handle: None,
+        is_3d: true,
+    };
+    let items = [test_item.clone()];
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &items,
+        filtered_items: &items,
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        cursor_pos: Point::new(10.0, 10.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+
+    let mut tree_state = TreeState::new();
+    let mut init_actions = Vec::new();
+
+    // 1. Initial build
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut init_actions,
+    );
+    let card_node = tree
+        .iter()
+        .find(|(_, n)| n.tag == encode_item_tag(0))
+        .expect("Asset card node not found");
+    let card_rect = card_node.1.computed_rect;
+    let card_center = Point::new(
+        card_rect.x + card_rect.width * 0.5,
+        card_rect.y + card_rect.height * 0.5,
+    );
+
+    // 2. MouseDown on card
+    tree.dispatch_event(&UiEvent::MouseDown {
+        point: card_center,
+        button: MouseButton::Left,
+    });
+
+    // 3. TREE CLEAR & REBUILD (simulating next runtime frame before mouse motion)
+    tree.clear();
+    let root_id = tree.create_root().expect("Failed to recreate root node");
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut init_actions,
+    );
+
+    // 4. MouseMove past drag threshold (> 3.0 px) -> Must establish pointer capture via pressed_tag
+    let move_point = Point::new(card_center.x + 25.0, card_center.y + 25.0);
+    tree.dispatch_event(&UiEvent::MouseMove { point: move_point });
+
+    // 5. Rebuild: must emit StartAssetDrag
+    let mut drag_actions = Vec::new();
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut drag_actions,
+    );
+    assert!(
+        drag_actions.contains(&AssetsPanelAction::StartAssetDrag(test_item)),
+        "Dragging card across tree rebuild must emit StartAssetDrag, got: {:?}",
+        drag_actions
+    );
+
+    // 6. TREE CLEAR & REBUILD again (simulating mid-drag frame before mouse release)
+    tree.clear();
+    let root_id = tree.create_root().expect("Failed to recreate root node");
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut init_actions,
+    );
+
+    // 7. MouseUp over viewport area -> Release drag
+    let drop_point = Point::new(card_center.x + 200.0, card_center.y + 100.0);
+    tree.dispatch_event(&UiEvent::MouseUp {
+        point: drop_point,
+        button: MouseButton::Left,
+    });
+
+    // 8. Rebuild: must emit EndAssetDrag
+    let mut release_actions = Vec::new();
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut release_actions,
+    );
+    assert!(
+        release_actions.contains(&AssetsPanelAction::EndAssetDrag),
+        "Releasing drag across tree rebuild must emit EndAssetDrag, got: {:?}",
+        release_actions
     );
 }

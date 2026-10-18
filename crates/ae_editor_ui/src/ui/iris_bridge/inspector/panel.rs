@@ -55,20 +55,10 @@ pub fn build_inspector_panel(
                 card_w,
             );
 
-            let container_style = Style::new()
-                .flex_col()
-                .flex_grow(1.0)
-                .gap(6.0)
-                .width(card_w)
-                .margin_insets(Insets::new(0.0, padding_x, 0.0, padding_x))
-                .clip_children(true)
-                .scroll_offset_y(params.scroll_y);
-
-            panel_scope.container_tagged(
+            panel_scope.scroll_area(
                 "InspectorCardsContainer",
-                container_style,
-                WidgetRole::Default,
                 super::tags::TAG_INSPECTOR_CARDS_CONTAINER,
+                None,
                 |cards_scope| {
                     // 4. Primary Transform / Layout Card
                     let is_ui_element = ctx
@@ -203,7 +193,6 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            scroll_y: 0.0,
             active_dropdown: None,
             active_submenu: None,
             is_add_menu_open: false,

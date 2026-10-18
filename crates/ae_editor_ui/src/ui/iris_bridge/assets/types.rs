@@ -524,10 +524,6 @@ pub struct AssetsPanelParams<'a> {
     pub sidebar_width: f32,
     /// Whether the left folder tree sidebar is currently collapsed.
     pub sidebar_collapsed: bool,
-    /// Vertical scroll offset of the primary asset content area.
-    pub scroll_y: f32,
-    /// Vertical scroll offset of the left folder tree sidebar.
-    pub tree_scroll_y: f32,
     /// Current mouse cursor coordinates for hover evaluation.
     pub cursor_pos: Point,
     /// Whether the blinking caret cursor should be drawn (500ms cycle).
@@ -589,10 +585,6 @@ pub struct AssetsPanelState {
     pub content_viewport_rect: Option<Rect>,
     /// Bounding rectangle of the active floating right-click context menu card, if open.
     pub context_menu_card_rect: Option<Rect>,
-    /// Folder tree sidebar vertical scroll offset.
-    pub tree_scroll_y: f32,
-    /// Last synchronized folder tree sidebar vertical scroll offset.
-    pub last_tree_scroll_y: f32,
     /// Current folder path in Asset Browser panel.
     pub current_folder: PathBuf,
     /// Double-click tracking state for asset spawning.
@@ -625,8 +617,6 @@ impl Default for AssetsPanelState {
             sidebar_rect: None,
             content_viewport_rect: None,
             context_menu_card_rect: None,
-            tree_scroll_y: 0.0,
-            last_tree_scroll_y: 0.0,
             current_folder: PathBuf::from("assets"),
             click_tracker: AssetClickTracker::default(),
             context_menu: None,

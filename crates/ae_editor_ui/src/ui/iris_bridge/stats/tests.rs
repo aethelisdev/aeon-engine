@@ -10,7 +10,7 @@
 use crate::ui::iris_bridge::stats::panel::build_stats_panel;
 use crate::ui::iris_bridge::stats::types::{
     STATS_TAG_CANVAS, STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME,
-    StatsPanelAction, StatsPanelParams, StatsPanelState, is_stats_tag,
+    STATS_TAG_VIEWPORT, StatsPanelAction, StatsPanelParams, StatsPanelState, is_stats_tag,
 };
 use ae_core::telemetry::{
     CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer, GpuPassTimings, VramStats,
@@ -61,7 +61,6 @@ fn test_build_stats_panel_declarative_structure() {
     let panel_rect = Rect::new(0.0, 0.0, 320.0, 600.0);
     let params = StatsPanelParams {
         panel_rect,
-        scroll_y: 0.0,
         cursor_pos: Point::new(100.0, 100.0),
         wireframe_enabled: true,
         grid_enabled: false,
@@ -81,7 +80,8 @@ fn test_build_stats_panel_declarative_structure() {
     };
 
     let mut actions = Vec::new();
-    let max_scroll = build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    build_stats_panel(&mut UiScope::new(&mut tree, root), &params, &mut actions);
+    let max_scroll = tree.max_scroll(STATS_TAG_VIEWPORT);
     assert!(max_scroll >= 0.0);
 
     // Verify nodes exist with semantic tags
@@ -124,7 +124,6 @@ fn test_checkbox_children_resolve_ancestor_tag() {
     let panel_rect = Rect::new(0.0, 0.0, 320.0, 600.0);
     let params = StatsPanelParams {
         panel_rect,
-        scroll_y: 0.0,
         cursor_pos: Point::new(100.0, 100.0),
         wireframe_enabled: true,
         grid_enabled: false,
@@ -190,7 +189,6 @@ fn test_stats_panel_declarative_action_generation() {
     let panel_rect = Rect::new(0.0, 0.0, 320.0, 600.0);
     let params = StatsPanelParams {
         panel_rect,
-        scroll_y: 0.0,
         cursor_pos: Point::new(100.0, 100.0),
         wireframe_enabled: true,
         grid_enabled: false,

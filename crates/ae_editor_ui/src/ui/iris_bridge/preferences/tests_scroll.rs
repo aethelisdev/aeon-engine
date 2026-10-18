@@ -48,12 +48,8 @@ fn test_preferences_scroll_state_reset_and_sync() {
     state.scroll_state.drag_state = Some(irisui::prelude::ScrollbarDragState::new(300.0, 250.0));
     assert!(state.scroll_state.is_dragging());
 
-    state.sync_scroll_y();
-    assert_eq!(state.scroll_y, 250.0);
-
     state.reset_scroll();
     assert_eq!(state.scroll_state.scroll_y, 0.0);
-    assert_eq!(state.scroll_y, 0.0);
     assert!(!state.scroll_state.is_dragging());
 }
 
@@ -71,8 +67,6 @@ fn test_preferences_handle_scroll_area_event_wheel_scrolling() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(100.0, 50.0)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -136,8 +130,6 @@ fn test_preferences_handle_scroll_area_event_thumb_drag_lifecycle() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(100.0, 50.0)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -200,8 +192,6 @@ fn test_preferences_wheel_outside_content_is_unconsumed() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(100.0, 50.0)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -251,8 +241,6 @@ fn test_preferences_titlebar_drag_interaction() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(200.0, 150.0)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -309,8 +297,6 @@ fn test_preferences_titlebar_drag_interaction() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(200.0, 150.0)),
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -344,13 +330,11 @@ fn test_preferences_titlebar_drag_interaction() {
 fn test_preferences_select_tab_resets_scroll() {
     let mut state = PreferencesDialogState::default();
     state.scroll_state.scroll_y = 450.0;
-    state.interactions.scroll_y = 450.0;
     assert_eq!(state.scroll_state.scroll_y, 450.0);
 
     // When tab changes, reset_scroll() must reset all scroll offsets to 0.0
     state.reset_scroll();
     assert_eq!(state.scroll_state.scroll_y, 0.0);
-    assert_eq!(state.interactions.scroll_y, 0.0);
 }
 
 #[test]
@@ -367,8 +351,6 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
@@ -411,8 +393,6 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 0,
-        scroll_offset_y: 0.0,
-        is_scrollbar_dragging: false,
         active_dropdown: None,
         dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,

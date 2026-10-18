@@ -98,6 +98,12 @@ impl EngineUi {
                     log::info!("Asset file path copied: {}", path.display());
                 }
                 iris_bridge::AssetsPanelAction::StartAssetDrag(item) => {
+                    log::info!(
+                        "[DRAG-DROP] StartAssetDrag received from Iris UI: item='{}', path={:?}, category={:?}",
+                        item.name,
+                        item.path,
+                        item.category
+                    );
                     self.asset_browser.drag_payload =
                         Some(crate::assets::types::AssetDragPayload {
                             path: item.path,
@@ -108,12 +114,25 @@ impl EngineUi {
                         });
                 }
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
+                    let cursor_pos = self.iris_overlay.cursor_pos();
+                    let is_over_viewport = cursor_pos.x >= self.last_viewport_rect.x
+                        && cursor_pos.x <= self.last_viewport_rect.right()
+                        && cursor_pos.y >= self.last_viewport_rect.y
+                        && cursor_pos.y <= self.last_viewport_rect.bottom();
+
+                    log::info!(
+                        "[DRAG-DROP] EndAssetDrag: cursor={:?}, viewport_rect={:?} (bounds: x=[{:.1}..{:.1}], y=[{:.1}..{:.1}]), is_over_viewport={}, has_payload={}",
+                        cursor_pos,
+                        self.last_viewport_rect,
+                        self.last_viewport_rect.x,
+                        self.last_viewport_rect.right(),
+                        self.last_viewport_rect.y,
+                        self.last_viewport_rect.bottom(),
+                        is_over_viewport,
+                        self.asset_browser.drag_payload.is_some()
+                    );
+
                     if let Some(payload) = self.asset_browser.drag_payload.take() {
-                        let cursor_pos = self.iris_overlay.cursor_pos();
-                        let is_over_viewport = cursor_pos.x >= self.last_viewport_rect.x
-                            && cursor_pos.x <= self.last_viewport_rect.right()
-                            && cursor_pos.y >= self.last_viewport_rect.y
-                            && cursor_pos.y <= self.last_viewport_rect.bottom();
                         if is_over_viewport
                             && self.last_viewport_rect.width > 20.0
                             && self.last_viewport_rect.height > 20.0
@@ -149,7 +168,7 @@ impl EngineUi {
                             };
 
                             log::info!(
-                                "Asset '{}' dropped onto viewport at {:?}",
+                                "[DRAG-DROP] Asset '{}' dropped onto viewport at {:?}",
                                 payload.name,
                                 world_pos
                             );
@@ -157,9 +176,19 @@ impl EngineUi {
                             match payload.category {
                                 crate::assets::types::AssetCategory::Models3D => {
                                     if let Some(handle) = payload.model_handle {
+                                        log::info!(
+                                            "[DRAG-DROP] Enqueueing SpawnModelAt(handle={:?}, pos={:?})",
+                                            handle,
+                                            world_pos
+                                        );
                                         ui_actions
                                             .push(EngineUiAction::SpawnModelAt(handle, world_pos));
                                     } else {
+                                        log::info!(
+                                            "[DRAG-DROP] Enqueueing SpawnModelPathAt(path={:?}, pos={:?})",
+                                            payload.path,
+                                            world_pos
+                                        );
                                         ui_actions.push(EngineUiAction::SpawnModelPathAt(
                                             payload.path,
                                             world_pos,
@@ -168,9 +197,19 @@ impl EngineUi {
                                 }
                                 crate::assets::types::AssetCategory::Textures2D => {
                                     if let Some(handle) = payload.texture_handle {
+                                        log::info!(
+                                            "[DRAG-DROP] Enqueueing SpawnSpriteAt(handle={:?}, pos={:?})",
+                                            handle,
+                                            world_pos
+                                        );
                                         ui_actions
                                             .push(EngineUiAction::SpawnSpriteAt(handle, world_pos));
                                     } else {
+                                        log::info!(
+                                            "[DRAG-DROP] Enqueueing SpawnSpritePathAt(path={:?}, pos={:?})",
+                                            payload.path,
+                                            world_pos
+                                        );
                                         ui_actions.push(EngineUiAction::SpawnSpritePathAt(
                                             payload.path,
                                             world_pos,
@@ -182,16 +221,32 @@ impl EngineUi {
                                         && crate::assets::scanner::is_scene_file_3d(&payload.path)
                                     {
                                         log::warn!(
-                                            "Cannot load 3D scene in 2D mode: {:?}",
+                                            "[DRAG-DROP] Cannot load 3D scene in 2D mode: {:?}",
                                             payload.path
                                         );
                                     } else {
+                                        log::info!(
+                                            "[DRAG-DROP] Enqueueing LoadSceneFromPath(path={:?})",
+                                            payload.path
+                                        );
                                         ui_actions
                                             .push(EngineUiAction::LoadSceneFromPath(payload.path));
                                     }
                                 }
-                                _ => {}
+                                _ => {
+                                    log::warn!(
+                                        "[DRAG-DROP] Unhandled asset category for drop: {:?}",
+                                        payload.category
+                                    );
+                                }
                             }
+                        } else {
+                            log::warn!(
+                                "[DRAG-DROP] Drop ignored: is_over_viewport={}, vp_size=({:.1}x{:.1})",
+                                is_over_viewport,
+                                self.last_viewport_rect.width,
+                                self.last_viewport_rect.height
+                            );
                         }
                     }
                 }

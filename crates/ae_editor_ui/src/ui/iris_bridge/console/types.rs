@@ -240,8 +240,6 @@ pub struct ConsolePanelParams<'a> {
     pub panel_rect: Rect,
     /// Slice of active in-memory log entries.
     pub entries: &'a [ConsoleEntry],
-    /// Current vertical scroll offset in physical pixels.
-    pub scroll_y: f32,
     /// Active log severity filter.
     pub filter: ConsoleFilterLevel,
     /// Substring search query for filtering log targets and messages.
@@ -252,8 +250,6 @@ pub struct ConsolePanelParams<'a> {
     pub cursor_pos: Point,
     /// Caret blink phase indicator for text inputs.
     pub blink_caret: bool,
-    /// Whether the scrollbar thumb is currently being dragged.
-    pub is_scrollbar_dragging: bool,
     /// Autonomous focus state machine providing SSOT for panel inputs.
     pub focus_state: &'a FocusState<FocusTarget>,
     /// Byte offset of the text cursor inside [`Self::search_query`].
@@ -263,16 +259,12 @@ pub struct ConsolePanelParams<'a> {
 /// Persistent interactive state for the Developer Console panel overlay.
 #[derive(Debug, Clone)]
 pub struct ConsolePanelState {
-    /// Common panel interaction state (scroll_y, search, actions).
+    /// Common panel interaction state (search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), ConsoleAction>,
     /// Active log level severity filter.
     pub filter: ConsoleFilterLevel,
     /// Whether Developer Console automatically scrolls down when new logs arrive.
     pub auto_scroll: bool,
-    /// Maximum vertical scroll limit computed during layout.
-    pub max_scroll_y: f32,
-    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
-    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Active screen bounding rectangle of the Developer Console panel.
     pub panel_rect: Option<irisui::prelude::Rect>,
     /// Last recorded log entries count for detecting new incoming console logs.
@@ -287,8 +279,6 @@ impl Default for ConsolePanelState {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             filter: ConsoleFilterLevel::All,
             auto_scroll: true,
-            max_scroll_y: 0.0,
-            scroll_state: irisui::prelude::ScrollAreaState::default(),
             panel_rect: None,
             last_entries_count: 0,
             last_filter: ConsoleFilterLevel::All,

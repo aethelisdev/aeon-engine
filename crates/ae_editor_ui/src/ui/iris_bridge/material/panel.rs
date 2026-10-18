@@ -55,10 +55,9 @@ pub fn build_material_panel(
                     let has_sprite = params.world.get::<&ae_core::ecs::SpriteId>(entity).is_ok();
 
                     if has_model {
-                        panel_scope.scroll_area_with_offset(
+                        panel_scope.scroll_area(
                             "MaterialViewport",
                             MATERIAL_TAG_VIEWPORT,
-                            Some(params.scroll_y),
                             Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
                             |vp_scope| {
                                 let submesh_params = SubmeshViewParams {
@@ -71,10 +70,9 @@ pub fn build_material_panel(
                             },
                         );
                     } else if has_sprite {
-                        panel_scope.scroll_area_with_offset(
+                        panel_scope.scroll_area(
                             "MaterialViewport",
                             MATERIAL_TAG_VIEWPORT,
-                            Some(params.scroll_y),
                             Some((MATERIAL_TAG_SCROLLBAR_TRACK, MATERIAL_TAG_SCROLLBAR_THUMB)),
                             |vp_scope| {
                                 let sprite_params = SpriteViewParams {

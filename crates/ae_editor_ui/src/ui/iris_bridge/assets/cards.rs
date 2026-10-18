@@ -58,6 +58,8 @@ pub fn build_asset_grid_cards_scope(
         return;
     }
 
+    let scroll_y = scope.tree().scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
+
     scope
         .container_tagged_resp(
             "AssetGridContainer",
@@ -65,7 +67,7 @@ pub fn build_asset_grid_cards_scope(
                 .flex_col()
                 .width(vp_rect.width)
                 .height(vp_rect.height)
-                .scroll_offset_y(params.scroll_y)
+                .scroll_offset_y(scroll_y)
                 .clip_children(true),
             WidgetRole::ScrollAreaViewport,
             ASSETS_TAG_CONTENT_VIEWPORT,
@@ -73,14 +75,15 @@ pub fn build_asset_grid_cards_scope(
                 for (item_idx, card_rect) in asset_responsive_grid().compute_visible_cells(
                     vp_rect,
                     params.filtered_items.len(),
-                    params.scroll_y,
+                    scroll_y,
                 ) {
+                    let card_pos =
+                        Point::new(card_rect.x - vp_rect.x, card_rect.y - vp_rect.y + scroll_y);
                     render_grid_card(
                         grid_scope,
                         item_idx as u32,
                         &params.filtered_items[item_idx],
-                        card_rect,
-                        vp_rect,
+                        card_pos,
                         params,
                         actions,
                     );
@@ -117,8 +120,7 @@ fn render_grid_card(
     scope: &mut UiScope<'_>,
     item_idx: u32,
     item: &crate::assets::types::AssetItem,
-    card_rect: Rect,
-    vp_rect: Rect,
+    card_pos: Point,
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
@@ -128,10 +130,7 @@ fn render_grid_card(
         item,
         params.thumbnail_layers.get(&item.path).copied(),
         params.selected_asset == Some(&item.path),
-        Point::new(
-            card_rect.x - vp_rect.x,
-            card_rect.y - vp_rect.y + params.scroll_y,
-        ),
+        card_pos,
         actions,
     )
     .context_menu(scope, |menu| {
@@ -165,8 +164,6 @@ mod tests {
             show_engine_content: false,
             sidebar_width: 180.0,
             sidebar_collapsed: false,
-            scroll_y: 0.0,
-            tree_scroll_y: 0.0,
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,

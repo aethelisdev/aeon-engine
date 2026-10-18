@@ -39,13 +39,11 @@ fn test_console_click_target_routing() {
     let params = ConsolePanelParams {
         panel_rect,
         entries: &entries,
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::All,
         search_query: "test",
         auto_scroll: true,
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
@@ -87,13 +85,11 @@ fn test_console_virtualized_empty_and_matching() {
     let params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 400.0, 200.0),
         entries: &entries,
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::Error,
         search_query: "",
         auto_scroll: true,
         cursor_pos: Point::new(50.0, 50.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
@@ -116,13 +112,11 @@ fn test_console_panel_clipping_and_clear_action() {
     let params = ConsolePanelParams {
         panel_rect,
         entries: &entries,
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::All,
         search_query: "",
         auto_scroll: true,
         cursor_pos: Point::new(15.0, 15.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
@@ -170,13 +164,11 @@ fn test_console_scrollbar_rendered_when_content_overflows() {
     let params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 400.0, 200.0),
         entries: &entries,
-        scroll_y: 50.0,
         filter: ConsoleFilterLevel::All,
         search_query: "",
         auto_scroll: false,
         cursor_pos: Point::new(395.0, 80.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
@@ -219,13 +211,11 @@ fn test_console_toolbar_buttons_and_search_hover_styling() {
     let params = ConsolePanelParams {
         panel_rect: Rect::new(0.0, 0.0, 600.0, 300.0),
         entries: &[],
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::All,
         search_query: "",
         auto_scroll: true,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
@@ -277,13 +267,11 @@ fn test_console_toolbar_action_unification() {
     let params = ConsolePanelParams {
         panel_rect,
         entries: &[],
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::All,
         search_query: "existing_query",
         auto_scroll: true,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };
@@ -354,13 +342,11 @@ fn test_console_search_focused_caret_positioning() {
     let params = ConsolePanelParams {
         panel_rect,
         entries: &[],
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::All,
         search_query: "error_trace",
         auto_scroll: true,
         cursor_pos: Point::new(0.0, 0.0),
         blink_caret: true,
-        is_scrollbar_dragging: false,
         focus_state: &focus_state,
         cursor_byte_idx: 5,
     };
@@ -404,13 +390,11 @@ fn test_console_declarative_action_generation() {
     let params = ConsolePanelParams {
         panel_rect,
         entries: &[],
-        scroll_y: 0.0,
         filter: ConsoleFilterLevel::All,
         search_query: "",
         auto_scroll: true,
         cursor_pos: Point::new(10.0, 10.0),
         blink_caret: false,
-        is_scrollbar_dragging: false,
         focus_state: &FocusState::new(),
         cursor_byte_idx: 0,
     };

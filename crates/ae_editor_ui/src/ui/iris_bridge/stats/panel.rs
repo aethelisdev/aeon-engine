@@ -16,13 +16,11 @@ use super::types::{STATS_TAG_PANEL_ROOT, StatsPanelAction, StatsPanelParams};
 use irisui::prelude::*;
 
 /// Builds the complete Performance Stats & Telemetry panel tree purely using [`UiScope`].
-///
-/// Returns the computed maximum vertical scroll extent in physical pixels.
 pub fn build_stats_panel(
     scope: &mut UiScope<'_>,
     params: &StatsPanelParams<'_>,
     actions: &mut Vec<StatsPanelAction>,
-) -> f32 {
+) {
     let card_w = (params.panel_rect.width - 12.0).max(10.0);
 
     scope
@@ -30,20 +28,10 @@ pub fn build_stats_panel(
         .tagged(STATS_TAG_PANEL_ROOT)
         .background(Color::rgba(0.06, 0.07, 0.09, 1.0))
         .show(|panel_scope| {
-            // Scrollable telemetry viewport container
-            let mut vp_style = Style::new()
-                .clip_children(true)
-                .flex_col()
-                .width(params.panel_rect.width)
-                .gap(6.0)
-                .padding_insets(Insets::new(6.0, 6.0, 6.0, 6.0));
-            vp_style.scroll_offset_y = params.scroll_y;
-
-            panel_scope.container_tagged(
+            panel_scope.scroll_area(
                 "StatsViewport",
-                vp_style,
-                WidgetRole::ScrollAreaViewport,
                 super::types::STATS_TAG_VIEWPORT,
+                None,
                 |vp_scope| {
                     // 1. Frame Pacing & Stutter Analyzer Card
                     build_stats_card(
@@ -101,13 +89,6 @@ pub fn build_stats_panel(
                 },
             );
         });
-
-    let content_h = scope
-        .tree()
-        .find_node_by_tag(super::types::STATS_TAG_VIEWPORT)
-        .map(|vp_id| measure_content_height(scope.tree(), vp_id))
-        .unwrap_or(0.0);
-    (content_h - params.panel_rect.height).max(0.0)
 }
 
 /// Helper function building a dark styled card container with an icon, title header, and content slot.

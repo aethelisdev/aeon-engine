@@ -26,7 +26,6 @@ fn create_default_test_params<'a>(
         inspector_color_hex: "#ffffff",
         saved_swatches: swatches,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         active_dropdown: None,
         active_submenu: None,
         is_add_menu_open: false,

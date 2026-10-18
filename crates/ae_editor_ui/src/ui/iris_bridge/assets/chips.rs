@@ -150,8 +150,6 @@ mod tests {
             show_engine_content: false,
             sidebar_width: 180.0,
             sidebar_collapsed: false,
-            scroll_y: 0.0,
-            tree_scroll_y: 0.0,
             cursor_pos: Point::new(10.0, 10.0),
             blink_caret: false,
             active_context_menu: None,

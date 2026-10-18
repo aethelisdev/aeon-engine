@@ -303,6 +303,8 @@ pub fn build_preferences_dialog(
                     // Vertical Divider
                     body.vertical_divider(content_h, Color::rgba(0.20, 0.22, 0.30, 0.70));
 
+                    let current_scroll = body.tree().scroll_offset(PREF_TAG_CONTENT_VIEW);
+
                     // Right Content Area (Clipped Viewport)
                     body.container_tagged(
                         "PreferencesContentArea",
@@ -310,7 +312,7 @@ pub fn build_preferences_dialog(
                             .width(content_w)
                             .height(content_h)
                             .clip_children(true)
-                            .scroll_offset_y(params.scroll_offset_y)
+                            .scroll_offset_y(current_scroll)
                             .padding_insets(Insets::new(14.0, 18.0, 14.0, 18.0)),
                         WidgetRole::ScrollAreaViewport,
                         PREF_TAG_CONTENT_VIEW,
@@ -356,6 +358,8 @@ pub fn build_preferences_dialog(
         .find_node_by_tag(PREF_TAG_CARD)
         .unwrap_or_default();
 
+    let current_scroll = root_scope.tree().scroll_offset(PREF_TAG_CONTENT_VIEW);
+
     // Measure dynamic accumulated height of all tab content sections from layout pass
     let measured_total_h = root_scope
         .tree()
@@ -365,7 +369,7 @@ pub fn build_preferences_dialog(
             node.children
                 .iter()
                 .filter_map(|&cid| root_scope.tree().get(cid))
-                .map(|child| child.computed_rect.bottom() + params.scroll_offset_y - content_rect.y)
+                .map(|child| child.computed_rect.bottom() + current_scroll - content_rect.y)
                 .fold(0.0_f32, f32::max)
         })
         .unwrap_or(0.0);
@@ -374,6 +378,7 @@ pub fn build_preferences_dialog(
         .max(tab_virtual_height(params.active_tab))
         .max(content_h);
     let max_scroll_y = (total_h - content_h).max(0.0);
+    let safe_scroll = current_scroll.clamp(0.0, max_scroll_y);
 
     // Register measured content size and scroll boundaries on the viewport node
     root_scope.tree_mut().set_content_size(
@@ -383,20 +388,32 @@ pub fn build_preferences_dialog(
     root_scope
         .tree_mut()
         .set_max_scroll(PREF_TAG_CONTENT_VIEW, max_scroll_y);
+    root_scope
+        .tree_mut()
+        .set_scroll_offset(PREF_TAG_CONTENT_VIEW, safe_scroll);
 
     // 4. Custom Scrollbar Indicator if virtual height exceeds content height
     if total_h > content_h {
         let style = preferences_scroll_style();
-        if let Some(geom) = ScrollBarGeometry::compute_vertical(
-            content_rect,
-            total_h,
-            params.scroll_offset_y,
-            &style,
-        ) {
+        if let Some(geom) =
+            ScrollBarGeometry::compute_vertical(content_rect, total_h, safe_scroll, &style)
+        {
+            let is_scrollbar_dragging =
+                root_scope
+                    .tree()
+                    .event_state
+                    .pointer_capture
+                    .is_some_and(|cid| {
+                        root_scope
+                            .tree()
+                            .get(cid)
+                            .is_some_and(|n| n.tag == PREF_TAG_SCROLLBAR_THUMB)
+                    });
+
             root_scope.scrollbar_vertical(
                 geom,
                 Rect::ZERO,
-                params.is_scrollbar_dragging,
+                is_scrollbar_dragging,
                 Some(params.cursor_pos),
                 PREF_TAG_SCROLLBAR_TRACK,
                 PREF_TAG_SCROLLBAR_THUMB,

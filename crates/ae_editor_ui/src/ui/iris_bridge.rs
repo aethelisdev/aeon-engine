@@ -25,7 +25,6 @@ pub mod overlay_tree;
 pub mod panel_render;
 pub mod preferences;
 pub mod render;
-pub mod scroll;
 pub mod stats;
 pub mod status_bar;
 pub mod theme;

@@ -330,7 +330,6 @@ mod tests {
             inspector_color_hex: "#ffffff",
             saved_swatches: &swatches,
             cursor_pos: Point::new(0.0, 0.0),
-            scroll_y: 0.0,
             active_dropdown: None,
             active_submenu: Some(ComponentCategory::Physics),
             is_add_menu_open: true,

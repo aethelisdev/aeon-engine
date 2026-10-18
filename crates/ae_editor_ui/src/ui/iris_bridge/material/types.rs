@@ -137,12 +137,8 @@ pub struct MaterialPanelParams<'a> {
     pub models: &'a ae_renderer::asset::AssetStorage<ae_renderer::render::ModelAsset>,
     /// Current mouse cursor position in window coordinates.
     pub cursor_pos: Point,
-    /// Current vertical scroll offset of the scrollable content view.
-    pub scroll_y: f32,
     /// Tagged interaction events emitted during this frame for declarative widgets.
     pub events: &'a [(u64, InteractionEvent)],
-    /// Whether the scrollbar thumb is currently being dragged by the mouse.
-    pub is_scrollbar_dragging: bool,
 }
 
 /// Interactive user actions dispatched from the Material & Surface Studio panel.
@@ -166,14 +162,12 @@ pub enum MaterialAction {
     PickAndSetSubmeshTexture(ae_renderer::asset::AssetHandle, usize),
     /// Adds a default Color component to the selected entity.
     AddColorComponent(hecs::Entity),
-    /// Scrolls the panel content container vertically by delta pixels.
-    Scroll(f32),
 }
 
 /// Persistent interactive state for the Material & Surface Studio panel overlay.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct MaterialPanelState {
-    /// Common panel interaction state (scroll_y, search, actions).
+    /// Common panel interaction state (search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), MaterialAction>,
     /// Selected entity handle cached for material panel interactions.
     pub selected_entity: Option<hecs::Entity>,
@@ -181,29 +175,10 @@ pub struct MaterialPanelState {
     pub last_selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
-    /// Maximum vertical scroll limit computed during layout.
-    pub max_scroll_y: f32,
-    /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
-    pub scroll_state: irisui::prelude::ScrollAreaState,
     /// Active screen bounding rectangle of the Material Studio panel.
     pub panel_rect: Option<Rect>,
     /// Active model asset handle inspected, if any.
     pub active_model: Option<ae_renderer::asset::AssetHandle>,
-}
-
-impl Default for MaterialPanelState {
-    fn default() -> Self {
-        Self {
-            interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
-            selected_entity: None,
-            last_selected_entity: None,
-            pending_interaction_events: Vec::new(),
-            max_scroll_y: 0.0,
-            scroll_state: irisui::prelude::ScrollAreaState::default(),
-            panel_rect: None,
-            active_model: None,
-        }
-    }
 }
 
 impl std::ops::Deref for MaterialPanelState {
@@ -235,10 +210,7 @@ impl MaterialPanelState {
 
     /// Synchronizes internal cached snapshot values against active frame parameters.
     pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        if self.selected_entity != params.scene.selected_entity {
-            self.selected_entity = params.scene.selected_entity;
-            self.scroll_y = 0.0;
-        }
+        self.selected_entity = params.scene.selected_entity;
         self.last_selected_entity = params.scene.selected_entity;
     }
 

@@ -303,10 +303,6 @@ pub struct PreferencesParams<'a> {
     pub window_pos: Option<Point>,
     /// Currently active sidebar tab index (0..=9).
     pub active_tab: u8,
-    /// Vertical scroll offset in physical pixels for the content area.
-    pub scroll_offset_y: f32,
-    /// Whether the scrollbar thumb is actively being dragged with the left mouse button.
-    pub is_scrollbar_dragging: bool,
     /// Currently open dropdown menu identifier, if any.
     pub active_dropdown: Option<PreferencesDropdownId>,
     /// Bounding rectangle of the trigger button that opened the active dropdown.
@@ -410,13 +406,6 @@ impl PreferencesDialogState {
     #[inline]
     pub fn reset_scroll(&mut self) {
         self.scroll_state.reset();
-        self.interactions.scroll_y = 0.0;
-    }
-
-    /// Synchronizes current scroll offset from autonomous [`ScrollAreaState`] into panel interaction state.
-    #[inline]
-    pub fn sync_scroll_y(&mut self) {
-        self.interactions.scroll_y = self.scroll_state.scroll_y;
     }
 }
 

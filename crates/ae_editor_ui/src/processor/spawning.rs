@@ -34,7 +34,7 @@ pub fn handle_spawn_model_at(
     }
 
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name(base_name),
+        ae_core::ecs::Name(base_name.clone()),
         ae_core::ecs::ModelId(mid),
         ae_core::ecs::Position {
             x: pos[0],
@@ -54,6 +54,13 @@ pub fn handle_spawn_model_at(
             z: 0.0,
         },
     ));
+    log::info!(
+        "[SPAWN] hecs::World::spawn succeeded! Entity={:?}, Name='{}', ModelId={:?}, Pos={:?}",
+        new_entity,
+        base_name,
+        mid,
+        pos
+    );
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
     ae_editor::history::push_undo(
         ctx.editor,
@@ -89,7 +96,7 @@ pub fn handle_spawn_sprite_at(
     }
 
     let new_entity = ctx.world.spawn((
-        ae_core::ecs::Name(base_name),
+        ae_core::ecs::Name(base_name.clone()),
         ae_core::ecs::SpriteId(tid),
         ae_core::ecs::Position {
             x: pos[0],
@@ -108,6 +115,13 @@ pub fn handle_spawn_sprite_at(
             z: 0.0,
         },
     ));
+    log::info!(
+        "[SPAWN] hecs::World::spawn succeeded! Entity={:?}, Name='{}', SpriteId={:?}, Pos={:?}",
+        new_entity,
+        base_name,
+        tid,
+        pos
+    );
     let snap = ae_editor::undo_redo::EntitySnapshot::capture(ctx.world, new_entity);
     ae_editor::history::push_undo(
         ctx.editor,

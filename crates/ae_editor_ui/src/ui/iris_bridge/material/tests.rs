@@ -42,9 +42,7 @@ fn test_material_panel_build_empty_state() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
 
     let mut actions = Vec::new();
@@ -72,9 +70,7 @@ fn test_material_panel_build_no_geometry() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
 
     let mut actions = Vec::new();
@@ -104,9 +100,7 @@ fn test_material_panel_build_sprite_view() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
 
     let mut actions = Vec::new();
@@ -200,9 +194,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
 
     let mut actions = Vec::new();
@@ -236,9 +228,7 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
     let mut actions_0 = Vec::new();
     build_material_panel(
@@ -252,9 +242,10 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         find_node_by_tag(&tree, root, MATERIAL_TAG_SPRITE_CHANGE).expect("Button must exist");
     let y_0 = change_btn_0.y;
 
-    // 2. Build with scroll_y = 50.0
+    // 2. Build with tree scroll offset = 50.0
     let mut tree_scroll = UiTree::new();
     let root_scroll = tree_scroll.create_root().unwrap();
+    tree_scroll.set_scroll_offset(MATERIAL_TAG_VIEWPORT, 50.0);
     let params_50 = MaterialPanelParams {
         panel_rect,
         entity: Some(ent),
@@ -262,9 +253,7 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 50.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
     let mut actions_50 = Vec::new();
     build_material_panel(
@@ -291,9 +280,7 @@ fn test_material_panel_scroll_offset_and_empty_centering() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &[],
-        is_scrollbar_dragging: false,
     };
     let mut actions_empty = Vec::new();
     build_material_panel(
@@ -375,9 +362,7 @@ fn test_material_panel_declarative_actions_dispatch() {
         textures: &textures,
         models: &models,
         cursor_pos: Point::new(0.0, 0.0),
-        scroll_y: 0.0,
         events: &events,
-        is_scrollbar_dragging: false,
     };
 
     let mut actions = Vec::new();

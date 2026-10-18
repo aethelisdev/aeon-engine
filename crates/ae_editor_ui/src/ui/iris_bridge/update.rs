@@ -63,8 +63,11 @@ impl IrisEditorOverlay {
     /// Automatically routes interactions to the active [`OverlayTree`](super::overlay_tree::OverlayTree) when modals
     /// or dropdown menus are open, or directly to the primary retained [`UiTree`].
     pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
-        // Track logical cursor coordinates for layout and inspection queries
-        if let UiEvent::MouseMove { point } = event {
+        // Track logical cursor coordinates for layout, drag-drop, and inspection queries
+        if let UiEvent::MouseMove { point }
+        | UiEvent::MouseDown { point, .. }
+        | UiEvent::MouseUp { point, .. } = event
+        {
             self.chrome.cursor_pos = *point;
         }
 
@@ -77,6 +80,11 @@ impl IrisEditorOverlay {
         let dispatch = target_tree.dispatch_event(event);
 
         if dispatch.is_consumed() || !self.pending_actions.is_empty() {
+            if dispatch.target_tag == super::console::types::CONSOLE_TAG_VIEWPORT
+                && dispatch.scroll_delta.1 > 0.0
+            {
+                self.console.auto_scroll = false;
+            }
             self.notifier.tag_all();
             self.chrome.needs_layout_rebuild = true;
         }
@@ -173,7 +181,6 @@ impl IrisEditorOverlay {
             || self.chrome.last_floating_count != floating_count
             || self.modals.last_modal_active != modal_active
             || self.preferences.last_tab != self.preferences.tab
-            || (self.preferences.scroll_y - self.preferences.last_scroll_y).abs() > 0.001
             || self.menubar.active_menu.is_some()
             || self.tree.needs_rebuild()
             || self.chrome.active_dock_overflow.is_some()
@@ -202,14 +209,14 @@ impl IrisEditorOverlay {
             self.focus_manager.has_focus() && (blink_caret != self.chrome.last_blink_caret);
 
         if !self.chrome.always_rebuild && !self.notifier.is_any_dirty() && !self.tree.is_empty() {
-            if self.chrome.needs_scroll_sync || self.has_any_scroll_changed() {
-                self.sync_tree_scroll_offsets(&params);
+            if self.chrome.needs_scroll_sync {
                 self.command_list.clear();
                 if let Some(root) = self.tree.root() {
                     self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
                 }
                 self.chrome.last_blink_caret = blink_caret;
                 self.composite_active_layers();
+                self.chrome.needs_scroll_sync = false;
             } else if (hover_target_changed || focus_target_changed || blink_changed)
                 && let Some(root) = self.tree.root()
             {
@@ -268,8 +275,7 @@ impl IrisEditorOverlay {
             || self.inspector.active_dropdown.is_some()
             || params.dialogs.show_preferences != self.preferences.card_rect.is_some()
             || (params.dialogs.show_preferences
-                && (self.preferences.last_tab != self.preferences.tab
-                    || (self.preferences.scroll_y - self.preferences.last_scroll_y).abs() > 0.001))
+                && self.preferences.last_tab != self.preferences.tab)
             || self.chrome.needs_layout_rebuild
             || self.chrome.needs_scroll_sync;
 
@@ -362,7 +368,9 @@ impl IrisEditorOverlay {
         self.timeline.selected_entity = params.scene.selected_entity;
         if self.material.selected_entity != params.scene.selected_entity {
             self.material.selected_entity = params.scene.selected_entity;
-            self.material.scroll_y = 0.0;
+            if let Some(tree) = self.panel_tree_mut(PanelId::MaterialEditor) {
+                tree.set_scroll_offset(super::material::types::MATERIAL_TAG_VIEWPORT, 0.0);
+            }
         }
 
         // Safely commit pending inspector edits on selection change
@@ -611,14 +619,6 @@ impl IrisEditorOverlay {
         self.chrome.last_floating_count = floating_count;
         self.modals.last_modal_active = modal_active;
         self.preferences.last_tab = self.preferences.tab;
-        self.preferences.last_scroll_y = self.preferences.scroll_y;
-        self.material.last_scroll_y = self.material.scroll_y;
-        self.stats.last_scroll_y = self.stats.scroll_y;
-        self.hierarchy.last_scroll_y = self.hierarchy.scroll_y;
-        self.console.interactions.last_scroll_y = self.console.interactions.scroll_y;
-        self.inspector.interactions.last_scroll_y = self.inspector.scroll_y;
-        self.assets.interactions.last_scroll_y = self.assets.scroll_y;
-        self.assets.last_tree_scroll_y = self.assets.tree_scroll_y;
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
         self.chrome.last_has_drag_payload = has_drag_payload;
         self.chrome.last_cursor_pos = self.cursor_pos();

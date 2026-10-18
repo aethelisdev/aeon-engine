@@ -532,6 +532,45 @@ impl<'a> UiScope<'a> {
 
         (frame, slice)
     }
+
+    /// Computes the visible range of items `start_idx..end_idx` for virtualized collections
+    /// by autonomously reading the enclosing scroll container's scroll offset and available viewport height.
+    ///
+    /// Eliminates manual viewport height subtractions and explicit tag querying from panel callers.
+    ///
+    /// # Arguments
+    /// * `item_height` - Uniform vertical height (stride) of each item in logical pixels.
+    /// * `total_count` - Total number of items in the underlying collection.
+    pub fn visible_range(&self, item_height: f32, total_count: usize) -> std::ops::Range<usize> {
+        if total_count == 0 || item_height <= 0.0 {
+            return 0..0;
+        }
+
+        let mut scroll_y = 0.0;
+        let mut vp_h = 400.0;
+
+        let mut current = Some(self.parent);
+        while let Some(curr_id) = current {
+            if let Some(node) = self.tree.get(curr_id) {
+                if node.role == WidgetRole::ScrollAreaViewport || node.style.clip_children {
+                    scroll_y = if node.tag != 0 {
+                        self.tree.scroll_offset(node.tag)
+                    } else {
+                        node.style.scroll_offset_y
+                    };
+                    vp_h = self.resolve_available_height(node.tag);
+                    break;
+                }
+                current = node.parent;
+            } else {
+                break;
+            }
+        }
+
+        let vlist = VirtualList::new(total_count, item_height).with_overscan(2);
+        let slice = vlist.compute_slice(vp_h, scroll_y);
+        slice.start_idx..slice.end_idx
+    }
 }
 
 #[inline]
@@ -729,5 +768,27 @@ mod tests {
             thumb_node.is_some(),
             "autonomous scrollbar thumb should be emitted for overflowing content"
         );
+    }
+
+    #[test]
+    fn test_autonomous_visible_range() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("root must exist");
+
+        let test_tag = 0x9020;
+        tree.set_viewport_size(test_tag, iris_core::Size::new(200.0, 300.0));
+        tree.set_scroll_offset(test_tag, 100.0);
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.scroll_area("Container", test_tag, None, |s| {
+            // 20px item height, 100 items
+            let range = s.visible_range(20.0, 100);
+            assert!(range.start > 0);
+            assert!(range.end <= 100);
+            assert!(range.contains(&5)); // 5 * 20 = 100px
+            range
+        });
+
+        assert_eq!(resp.viewport_height, 300.0);
     }
 }

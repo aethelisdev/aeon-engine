@@ -594,8 +594,6 @@ pub struct InspectorPanelParams<'a> {
     pub saved_swatches: &'a [[f32; 4]],
     /// Current mouse cursor position in global screen coordinates.
     pub cursor_pos: Point,
-    /// Vertical scroll offset in pixels.
-    pub scroll_y: f32,
     /// Active open dropdown identifier (if any).
     pub active_dropdown: Option<InspectorDropdownId>,
     /// Active open Add Component category flyout (if any).

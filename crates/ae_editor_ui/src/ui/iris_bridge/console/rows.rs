@@ -60,17 +60,14 @@ pub fn build_console_rows(panel_scope: &mut UiScope<'_>, params: &ConsolePanelPa
     }
 
     // 2. Delegate windowing, overscan, and sub-pixel scrolling to pure declarative virtual_scroll_area
-    let effective_scroll_y = if params.auto_scroll {
-        f32::MAX
-    } else {
-        params.scroll_y
-    };
-
-    let config = VirtualScrollConfig::fixed(total_filtered, CONSOLE_ROW_HEIGHT)
+    let mut config = VirtualScrollConfig::fixed(total_filtered, CONSOLE_ROW_HEIGHT)
         .with_overscan(2)
         .with_bg(Color::rgba(0.05, 0.06, 0.08, 0.98))
-        .with_scrollbar_tags(CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SCROLLBAR_THUMB)
-        .with_scroll_y(effective_scroll_y);
+        .with_scrollbar_tags(CONSOLE_TAG_SCROLLBAR_TRACK, CONSOLE_TAG_SCROLLBAR_THUMB);
+
+    if params.auto_scroll {
+        config = config.with_scroll_y(f32::MAX);
+    }
 
     panel_scope.virtual_scroll_area(
         "ConsoleViewport",

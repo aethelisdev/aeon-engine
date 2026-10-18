@@ -155,10 +155,6 @@ impl IrisOverlayEventResult {
 pub struct PanelInteractionState<TTargets, TAction> {
     /// Cached interaction and hit-testing targets from the latest layout/render pass.
     pub targets: Option<TTargets>,
-    /// Content area vertical scroll offset.
-    pub scroll_y: f32,
-    /// Last synchronized vertical scroll offset for detecting in-place scroll deltas.
-    pub last_scroll_y: f32,
     /// Encapsulated interactive text input editing state with selection, caret navigation and clipboard.
     pub search_input: irisui::prelude::TextInputState,
     /// Queue of dispatched actions waiting to be consumed by the editor workbench.
@@ -169,8 +165,6 @@ impl<TTargets, TAction> Default for PanelInteractionState<TTargets, TAction> {
     fn default() -> Self {
         Self {
             targets: None,
-            scroll_y: 0.0,
-            last_scroll_y: 0.0,
             search_input: irisui::prelude::TextInputState::default(),
             actions: Vec::new(),
         }

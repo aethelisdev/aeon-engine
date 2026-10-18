@@ -107,7 +107,8 @@ pub fn build_asset_list_table_scope(
     // 2. Table Data Rows via iris-widgets VirtualList
     let available_table_h = (vp_rect.height - (LIST_HEADER_HEIGHT + 8.0)).max(10.0);
     let vlist = VirtualList::new(params.filtered_items.len(), LIST_ROW_HEIGHT + 2.0);
-    let slice = vlist.compute_slice(available_table_h, params.scroll_y);
+    let scroll_y = scope.tree().scroll_offset(ASSETS_TAG_CONTENT_VIEWPORT);
+    let slice = vlist.compute_slice(available_table_h, scroll_y);
 
     let total_content_h = vlist.total_content_height();
     scope
@@ -119,7 +120,7 @@ pub fn build_asset_list_table_scope(
                 .clip_children(true)
                 .margin_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
                 .gap(2.0)
-                .scroll_offset_y(params.scroll_y),
+                .scroll_offset_y(scroll_y),
             WidgetRole::ScrollAreaViewport,
             ASSETS_TAG_CONTENT_VIEWPORT,
             |rows_scope| {
@@ -204,8 +205,6 @@ mod tests {
             show_engine_content: false,
             sidebar_width: 180.0,
             sidebar_collapsed: false,
-            scroll_y: 0.0,
-            tree_scroll_y: 0.0,
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,

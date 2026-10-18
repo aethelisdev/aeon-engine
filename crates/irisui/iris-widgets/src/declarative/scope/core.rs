@@ -378,6 +378,13 @@ impl<'a> UiScope<'a> {
                 .event_state
                 .frame_secondary_clicked_id
                 .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
+        let is_drag_released = self.tree.event_state.frame_drag_released_id == Some(id)
+            || (tag != 0 && self.tree.event_state.frame_drag_released_tag == Some(tag))
+            || self
+                .tree
+                .event_state
+                .frame_drag_released_id
+                .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
         let is_dragged = drag_delta.is_some()
             || self.tree.event_state.pointer_capture == Some(id)
             || (tag != 0 && self.tree.event_state.pointer_capture_tag == Some(tag))
@@ -405,8 +412,11 @@ impl<'a> UiScope<'a> {
         if is_dragged {
             flags = flags.union(ResponseFlags::DRAGGED);
         }
+        if is_drag_released {
+            flags = flags.union(ResponseFlags::DRAG_RELEASED);
+        }
 
-        let pointer_pos = if clicked || double_clicked || secondary_clicked {
+        let pointer_pos = if clicked || double_clicked || secondary_clicked || is_drag_released {
             self.tree
                 .event_state
                 .frame_clicked_pos

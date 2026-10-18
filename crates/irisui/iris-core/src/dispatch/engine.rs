@@ -41,6 +41,8 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
         tree.event_state.frame_double_clicked_tag = None;
         tree.event_state.frame_secondary_clicked_id = None;
         tree.event_state.frame_secondary_clicked_tag = None;
+        tree.event_state.frame_drag_released_id = None;
+        tree.event_state.frame_drag_released_tag = None;
     }
 
     match event {
@@ -63,8 +65,11 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
 
 /// Processes cursor motion inputs, updating hover states and servicing active pointer capture.
 fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
+    tree.event_state.frame_drag_released_id = None;
+    tree.event_state.frame_drag_released_tag = None;
+
     // 1. Pointer capture overrides normal hit-testing (drag gesture in progress)
-    let captured_id = tree
+    let mut captured_id = tree
         .event_state
         .pointer_capture
         .filter(|&id| tree.get(id).is_some())
@@ -74,6 +79,48 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             tree.event_state.pointer_capture = Some(id);
             Some(id)
         });
+
+    // Autonomous drag capture inception: If a button was pressed down and mouse moved past drag threshold,
+    // establish pointer capture on the pressed interactive/tagged widget node
+    let pressed_id = tree
+        .event_state
+        .pressed
+        .filter(|&id| tree.get(id).is_some())
+        .or_else(|| {
+            let tag = tree.event_state.pressed_tag?;
+            let id = tree.find_node_by_tag(tag)?;
+            tree.event_state.pressed = Some(id);
+            Some(id)
+        });
+
+    if captured_id.is_none()
+        && let Some(pressed_id) = pressed_id
+        && tree.event_state.pressed_button == Some(MouseButton::Left)
+        && let Some(origin) = tree.event_state.press_origin
+    {
+        let dx = point.x - origin.x;
+        let dy = point.y - origin.y;
+        if (dx * dx + dy * dy) > 9.0 {
+            let is_draggable = tree.event_state.pressed_tag.is_some()
+                || tree.get(pressed_id).is_some_and(|n| {
+                    n.tag != 0 || n.role.is_interactive() || n.role == WidgetRole::ModalTitlebar
+                });
+            if is_draggable {
+                let capture_tag = tree.event_state.pressed_tag.or_else(|| {
+                    let n = tree.get(pressed_id)?;
+                    if n.tag != 0 {
+                        Some(n.tag)
+                    } else {
+                        let anc = tree.resolve_ancestor_tag(pressed_id);
+                        if anc != 0 { Some(anc) } else { None }
+                    }
+                });
+                tree.event_state.pointer_capture = Some(pressed_id);
+                tree.event_state.pointer_capture_tag = capture_tag;
+                captured_id = Some(pressed_id);
+            }
+        }
+    }
 
     if let Some(captured_id) = captured_id
         && let Some((role, cursor, tag, rect)) = tree.get(captured_id).map(|node| {
@@ -162,6 +209,8 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     tree.event_state.frame_double_clicked_tag = None;
     tree.event_state.frame_secondary_clicked_id = None;
     tree.event_state.frame_secondary_clicked_tag = None;
+    tree.event_state.frame_drag_released_id = None;
+    tree.event_state.frame_drag_released_tag = None;
     tree.event_state.frame_clicked_pos = None;
     tree.event_state.frame_drag_delta = None;
 
@@ -339,6 +388,15 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             (dx * dx + dy * dy) > 9.0 // > 3.0 px drag threshold
         }) || tree.event_state.frame_drag_delta.is_some();
 
+        let captured_tag = if tag != 0 {
+            Some(tag)
+        } else {
+            tree.event_state.pointer_capture_tag.or_else(|| {
+                let anc = tree.resolve_ancestor_tag(captured_id);
+                if anc != 0 { Some(anc) } else { None }
+            })
+        };
+
         tree.event_state.pointer_capture = None;
         tree.event_state.pointer_capture_tag = None;
         tree.event_state.pressed = None;
@@ -349,6 +407,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         tree.event_state.frame_drag_delta = None;
 
         let mut flags = ResponseFlags::empty();
+
         if !is_drag_gesture && original_button == Some(button) {
             match button {
                 MouseButton::Left => {
@@ -368,6 +427,11 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 }
                 _ => {}
             }
+        } else if is_drag_gesture && original_button == Some(button) {
+            flags = flags.union(ResponseFlags::DRAG_RELEASED);
+            tree.event_state.frame_drag_released_id = Some(captured_id);
+            tree.event_state.frame_drag_released_tag = captured_tag;
+            tree.event_state.frame_clicked_pos = Some(point);
         }
 
         return DispatchResult {

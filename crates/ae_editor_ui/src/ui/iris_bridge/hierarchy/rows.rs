@@ -295,8 +295,7 @@ pub fn build_hierarchy_rows(
     let config = VirtualScrollConfig::fixed(total_filtered, HIERARCHY_ROW_STRIDE)
         .with_overscan(2)
         .with_bg(Color::TRANSPARENT)
-        .with_scrollbar_tags(HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_SCROLLBAR_THUMB)
-        .with_scroll_y(params.scroll_y);
+        .with_scrollbar_tags(HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_SCROLLBAR_THUMB);
 
     let tree_config = TreeViewConfig::default()
         .with_name("HierarchyEntityRow")
@@ -542,14 +541,12 @@ mod tests {
             search_query: "",
             is_editing: true,
             is_2d: true,
-            scroll_y: 0.0,
             active_submenu: None,
             active_sub_submenu: None,
             is_add_menu_open: false,
             active_context_menu: None,
             cursor_pos: Point::new(-1.0, -1.0),
             blink_caret: false,
-            is_scrollbar_dragging: false,
             focus_state: &FocusState::new(),
             cursor_byte_idx: 0,
             ctrl_held: false,

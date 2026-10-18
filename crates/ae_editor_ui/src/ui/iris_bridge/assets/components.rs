@@ -377,6 +377,7 @@ pub fn asset_grid_card(
             },
         )
         .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
+        .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag))
         .on_double_click(|| {
             actions.push(AssetsPanelAction::SpawnAsset(
                 item.path.clone(),
@@ -507,6 +508,7 @@ pub fn asset_list_row(
             },
         )
         .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
+        .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag))
         .on_any_click(|| actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone()))))
 }
 

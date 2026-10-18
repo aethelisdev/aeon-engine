@@ -324,7 +324,6 @@ impl EngineUi {
                 iris_bridge::MaterialAction::AddColorComponent(ent) => {
                     ui_actions.push(EngineUiAction::AddComponent(ent, "Color"));
                 }
-                iris_bridge::MaterialAction::Scroll(_) => {}
             }
         }
     }

@@ -23,7 +23,6 @@ impl IrisEditorOverlay {
             let local_stats_rect = Rect::new(0.0, 0.0, stats_rect.width, stats_rect.height);
             let stats_params = StatsPanelParams {
                 panel_rect: local_stats_rect,
-                scroll_y: self.stats.scroll_y,
                 cursor_pos: self.cursor_pos(),
                 wireframe_enabled: params.viewport.wireframe_enabled,
                 grid_enabled: params.viewport.grid_enabled,
@@ -42,9 +41,7 @@ impl IrisEditorOverlay {
                 selected_entity: params.scene.selected_entity,
             };
 
-            let max_scroll =
-                stats::build_stats_panel(scope, &stats_params, &mut self.stats.actions);
-            self.stats.max_scroll = max_scroll;
+            stats::build_stats_panel(scope, &stats_params, &mut self.stats.actions);
             self.stats.last_rect = Some(stats_rect);
             self.stats.frame_ring_buffer = Some(*params.telemetry.frame_pacing);
             self.chrome.last_zoom_factor = params.context.zoom_factor;
@@ -78,14 +75,12 @@ impl IrisEditorOverlay {
                 search_query: hierarchy.interactions.search_input.text(),
                 is_editing: params.context.is_editing,
                 is_2d: params.context.is_2d_mode,
-                scroll_y: hierarchy.scroll_y,
                 active_submenu: hierarchy.active_submenu,
                 active_sub_submenu: hierarchy.active_sub_submenu,
                 is_add_menu_open: hierarchy.is_add_menu_open,
                 active_context_menu: hierarchy.active_context_menu,
                 cursor_pos,
                 blink_caret,
-                is_scrollbar_dragging: hierarchy.scroll_state.is_dragging(),
                 focus_state,
                 cursor_byte_idx: hierarchy.interactions.search_input.cursor_byte_idx,
                 ctrl_held,
@@ -99,7 +94,6 @@ impl IrisEditorOverlay {
                 &mut hierarchy.interactions.actions,
                 &mut hierarchy.tree_state,
             );
-            self.hierarchy.max_scroll = scope.tree().max_scroll(hierarchy::HIERARCHY_TAG_VIEWPORT);
             self.hierarchy.last_rect = Some(hierarchy_rect);
         } else {
             self.hierarchy.last_rect = None;
@@ -155,7 +149,6 @@ impl IrisEditorOverlay {
                 inspector_color_hex: params.panel_data.inspector_color_hex,
                 saved_swatches: params.panel_data.saved_swatches,
                 cursor_pos: self.cursor_pos(),
-                scroll_y: self.inspector.scroll_y,
                 active_dropdown: self.inspector.active_dropdown,
                 active_submenu: self.inspector.active_submenu,
                 is_add_menu_open: self.inspector.is_add_menu_open,
@@ -210,22 +203,17 @@ impl IrisEditorOverlay {
             let console_params = super::console::ConsolePanelParams {
                 panel_rect: local_console_rect,
                 entries: params.panel_data.console_entries,
-                scroll_y: self.console.scroll_y,
                 filter: self.console.filter,
                 search_query: self.console.search_input.text(),
                 auto_scroll: self.console.auto_scroll,
                 cursor_pos: self.cursor_pos(),
                 blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-                is_scrollbar_dragging: self.console.scroll_state.is_dragging(),
                 focus_state: &self.focus_state,
                 cursor_byte_idx: self.console.search_input.cursor_byte_idx,
             };
 
             let mut actions = Vec::new();
             super::console::build_console_panel(scope, &console_params, &mut actions);
-            self.console.max_scroll_y = scope
-                .tree()
-                .max_scroll(super::console::CONSOLE_TAG_VIEWPORT);
 
             let has_console_actions = !actions.is_empty();
             for action in actions {
@@ -237,7 +225,11 @@ impl IrisEditorOverlay {
                         ae_editor::editor_logger::LOGGER
                             .log_count
                             .store(0, std::sync::atomic::Ordering::Relaxed);
-                        self.console.interactions.scroll_y = 0.0;
+                        if let Some(tree) =
+                            self.panel_tree_mut(crate::ui::panel_layout::PanelId::Console)
+                        {
+                            tree.set_scroll_offset(super::console::CONSOLE_TAG_VIEWPORT, 0.0);
+                        }
                     }
                     super::console::ConsoleAction::SetFilter(level) => {
                         self.console.filter = level;
@@ -348,8 +340,6 @@ impl IrisEditorOverlay {
                 show_engine_content: params.panel_data.asset_browser.show_engine_content,
                 sidebar_width: params.panel_data.asset_browser.sidebar_width,
                 sidebar_collapsed: params.panel_data.asset_browser.sidebar_collapsed,
-                scroll_y: self.assets.interactions.scroll_y,
-                tree_scroll_y: self.assets.tree_scroll_y,
                 cursor_pos,
                 blink_caret,
                 active_context_menu: self.assets.context_menu.as_ref(),
@@ -473,7 +463,6 @@ impl IrisEditorOverlay {
     ) {
         if let Some(material_rect) = params.panel_rects.material {
             let events = std::mem::take(&mut self.material.pending_interaction_events);
-            let is_scrollbar_dragging = self.material.scroll_state.is_dragging();
 
             let local_material_rect =
                 Rect::new(0.0, 0.0, material_rect.width, material_rect.height);
@@ -484,9 +473,7 @@ impl IrisEditorOverlay {
                 textures: params.panel_data.textures,
                 models: params.panel_data.models,
                 cursor_pos: self.cursor_pos(),
-                scroll_y: self.material.scroll_y,
                 events: &events,
-                is_scrollbar_dragging,
             };
 
             super::material::build_material_panel(
@@ -494,9 +481,6 @@ impl IrisEditorOverlay {
                 &material_params,
                 &mut self.material.interactions.actions,
             );
-            self.material.max_scroll_y = scope
-                .tree()
-                .max_scroll(super::material::MATERIAL_TAG_VIEWPORT);
             self.material.panel_rect = Some(material_rect);
             self.material.active_model = params
                 .scene

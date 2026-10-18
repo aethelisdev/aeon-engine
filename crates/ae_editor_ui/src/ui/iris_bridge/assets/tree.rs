@@ -111,18 +111,14 @@ pub fn build_folder_tree_sidebar_scope(
                 },
             );
 
-            // 3. Scrollable Tree Viewport
-            sidebar.container_tagged(
+            // 3. Declarative Autonomous Scrollable Tree Viewport
+            sidebar.scroll_area(
                 "FolderTreeViewport",
-                Style::new()
-                    .flex_col()
-                    .clip_children(true)
-                    .flex_grow(1.0)
-                    .scroll_offset_y(params.tree_scroll_y)
-                    .width(sidebar_rect.width)
-                    .padding_insets(Insets::new(4.0, 0.0, 0.0, 0.0)),
-                WidgetRole::ScrollAreaViewport,
                 ASSETS_TAG_TREE_VIEWPORT,
+                Some((
+                    super::types::ASSETS_TAG_TREE_SCROLLBAR_TRACK,
+                    super::types::ASSETS_TAG_TREE_SCROLLBAR_THUMB,
+                )),
                 |viewport| {
                     render_folder_recursive(
                         viewport,
@@ -238,8 +234,6 @@ mod tests {
             show_engine_content: false,
             sidebar_width: 180.0,
             sidebar_collapsed: false,
-            scroll_y: 0.0,
-            tree_scroll_y: 0.0,
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
@@ -309,8 +303,6 @@ mod tests {
                 show_engine_content: false,
                 sidebar_width: 180.0,
                 sidebar_collapsed: false,
-                scroll_y: 0.0,
-                tree_scroll_y: 0.0,
                 cursor_pos: Point::new(0.0, 0.0),
                 blink_caret: false,
                 active_context_menu: None,
@@ -365,8 +357,6 @@ mod tests {
             show_engine_content: false,
             sidebar_width: 180.0,
             sidebar_collapsed: false,
-            scroll_y: 0.0,
-            tree_scroll_y: 0.0,
             cursor_pos: Point::new(0.0, 0.0),
             blink_caret: false,
             active_context_menu: None,
