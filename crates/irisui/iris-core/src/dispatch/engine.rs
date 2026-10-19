@@ -262,7 +262,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
-        // If clicking on non-button child of a ModalTitlebar or NumericInput (e.g. title text label or inner numeric text), bubble target to interactive ancestor
+        // If clicking on non-button child of a ModalTitlebar, NumericInput, or ColorPickerArea, bubble target to interactive ancestor
         let (effective_target_id, effective_role) = if role != WidgetRole::Button {
             if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
             {
@@ -271,11 +271,25 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                 tree.find_ancestor_with_role(target_id, WidgetRole::NumericInput)
             {
                 (num_id, WidgetRole::NumericInput)
+            } else if let Some(cp_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::ColorPickerArea)
+            {
+                (cp_id, WidgetRole::ColorPickerArea)
             } else {
                 (target_id, role)
             }
         } else {
             (target_id, role)
+        };
+
+        let effective_tag = if let Some(n) = tree.get(effective_target_id)
+            && n.tag != 0
+        {
+            n.tag
+        } else if tag != 0 {
+            tag
+        } else {
+            tree.resolve_ancestor_tag(target_id)
         };
 
         // Special case: Autonomous ScrollBarThumb capture inception
@@ -310,10 +324,11 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                     .unwrap_or(0.0);
             }
         } else if (effective_role == WidgetRole::NumericInput
-            || effective_role == WidgetRole::ModalTitlebar)
+            || effective_role == WidgetRole::ModalTitlebar
+            || effective_role == WidgetRole::ColorPickerArea)
             && button == MouseButton::Left
         {
-            // Autonomous pointer capture inception for drag scrubbers and draggable modal titlebars
+            // Autonomous pointer capture inception for drag scrubbers, draggable modal titlebars, and color pickers
             tree.event_state.pointer_capture = Some(effective_target_id);
             tree.event_state.pointer_capture_tag = if effective_tag != 0 {
                 Some(effective_tag)

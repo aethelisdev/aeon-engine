@@ -62,6 +62,7 @@ pub fn resolve_inspector_tag_click(
     }
 
     if resolve_appearance_color_swatch_tag(hit_tag) {
+        out_actions.push(InspectorAction::ToggleColorPicker);
         return true;
     }
 

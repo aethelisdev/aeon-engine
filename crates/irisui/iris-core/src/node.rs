@@ -51,6 +51,8 @@ pub enum WidgetRole {
     Checkbox,
     /// Color preview swatch or palette picker box.
     ColorSwatch,
+    /// Interactive 2D saturation-value box or vertical hue spectrum area for color picking.
+    ColorPickerArea,
     /// Docking panel tab header button.
     DockTab,
     /// Docking panel horizontal splitter divider line.
@@ -167,7 +169,8 @@ impl WidgetRole {
             | WidgetRole::TextInputCaret
             | WidgetRole::ScrollAreaViewport
             | WidgetRole::ScrollBarTrack
-            | WidgetRole::ScrollBarThumb => UiLayer::Content,
+            | WidgetRole::ScrollBarThumb
+            | WidgetRole::ColorPickerArea => UiLayer::Content,
             WidgetRole::FloatingWindow => UiLayer::Floating,
             WidgetRole::ModalWindow | WidgetRole::ModalTitlebar => UiLayer::Modal,
             WidgetRole::DropdownPopup
@@ -190,6 +193,7 @@ impl WidgetRole {
             | WidgetRole::DockTab => Some(WidgetCursor::Pointer),
             WidgetRole::TextInput => Some(WidgetCursor::Text),
             WidgetRole::NumericInput => Some(WidgetCursor::EwResize),
+            WidgetRole::ColorPickerArea => Some(WidgetCursor::Crosshair),
             WidgetRole::DockSplitterHorizontal => Some(WidgetCursor::ColResize),
             WidgetRole::DockSplitterVertical => Some(WidgetCursor::RowResize),
             _ => None,
@@ -211,6 +215,7 @@ impl WidgetRole {
                 | WidgetRole::TextInput
                 | WidgetRole::NumericInput
                 | WidgetRole::ColorSwatch
+                | WidgetRole::ColorPickerArea
                 | WidgetRole::DockTab
                 | WidgetRole::DockSplitterHorizontal
                 | WidgetRole::DockSplitterVertical

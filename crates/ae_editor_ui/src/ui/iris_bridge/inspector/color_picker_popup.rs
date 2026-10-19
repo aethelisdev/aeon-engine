@@ -27,6 +27,7 @@ pub fn build_color_picker_popup(
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
     panel_tree: Option<&UiTree>,
+    actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
     if !params.is_color_picker_open {
         return None;
@@ -109,7 +110,7 @@ pub fn build_color_picker_popup(
                             .align_items(AlignItems::Center)
                             .justify_content(JustifyContent::Center);
 
-                        header.container_tagged(
+                        let close_resp = header.container_tagged(
                             "ColorPickerCloseButton",
                             close_style,
                             WidgetRole::Button,
@@ -125,134 +126,44 @@ pub fn build_color_picker_popup(
                                 );
                             },
                         );
+                        if close_resp.response.clicked() {
+                            actions.push(super::types::InspectorAction::ToggleColorPicker);
+                        }
                     });
 
-                    // 2. Middle Row: 2D SV Box + Vertical Hue Bar
-                    let middle_style = Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .gap(8.0)
-                        .height(130.0);
+                    // 2. Middle Row: Declarative 2D HSV ColorPicker Widget
+                    let mut hsv_state = HsvColorPickerState {
+                        hue: params.inspector_hsv[0],
+                        saturation: params.inspector_hsv[1],
+                        value: params.inspector_hsv[2],
+                        alpha: 1.0,
+                    };
 
-                    let hue = params.inspector_hsv[0];
-                    let saturation = params.inspector_hsv[1];
-                    let value = params.inspector_hsv[2];
+                    let picker_resp = card.add(
+                        ColorPicker::new(&mut hsv_state)
+                            .sv_size(160.0, 130.0)
+                            .hue_width(18.0)
+                            .gap(8.0)
+                            .tags(
+                                TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
+                                TAG_INSPECTOR_COLOR_PICKER_HUE_BAR,
+                            ),
+                    );
 
-                    card.container_named("ColorPickerMiddleRow", middle_style, |middle| {
-                        // 2a. 2D SV Box
-                        let sv_w = 160.0;
-                        let sv_h = 130.0;
-                        let sv_style = Style::new()
-                            .width(sv_w)
-                            .height(sv_h)
-                            .border(1.0, Color::rgba(0.25, 0.28, 0.35, 0.90))
-                            .border_radius(4.0)
-                            .clip_children(true);
+                    if picker_resp.changed()
+                        && let Some(entity) = params.selected_entity
+                    {
+                        actions.push(super::types::InspectorAction::LiveSetObjectColor(
+                            entity,
+                            picker_resp.color(),
+                        ));
+                    }
 
-                        middle.container_tagged(
-                            "ColorPickerSvContainer",
-                            sv_style,
-                            WidgetRole::Button,
-                            TAG_INSPECTOR_COLOR_PICKER_SV_BOX,
-                            |sv_box| {
-                                // Tech Debt: 234-node HSV color picker cell explosion is temporary;
-                                // will be replaced by a single GPU SDF gradient quad/shader primitive in irisui.
-                                let grid_nx = 16;
-                                let grid_ny = 13;
-                                let cell_w = sv_w / (grid_nx as f32);
-                                let cell_h = sv_h / (grid_ny as f32);
-
-                                for j in 0..grid_ny {
-                                    for i in 0..grid_nx {
-                                        let s = (i as f32 + 0.5) / (grid_nx as f32);
-                                        let v = 1.0 - (j as f32 + 0.5) / (grid_ny as f32);
-                                        let col = hsv_to_rgb(hue, s, v);
-
-                                        let cell_style = Style::new()
-                                            .position_absolute()
-                                            .left((i as f32) * cell_w)
-                                            .top((j as f32) * cell_h)
-                                            .width(cell_w + 0.2)
-                                            .height(cell_h + 0.2)
-                                            .background(col);
-
-                                        sv_box.empty_box_passive(cell_style);
-                                    }
-                                }
-
-                                // Indicator Ring
-                                let ring_size = 10.0;
-                                let ring_x = (saturation * sv_w - ring_size * 0.5)
-                                    .clamp(0.0, sv_w - ring_size);
-                                let ring_y = ((1.0 - value) * sv_h - ring_size * 0.5)
-                                    .clamp(0.0, sv_h - ring_size);
-                                let ring_style = Style::new()
-                                    .position_absolute()
-                                    .left(ring_x)
-                                    .top(ring_y)
-                                    .width(ring_size)
-                                    .height(ring_size)
-                                    .border(2.0, Color::WHITE)
-                                    .border_radius(5.0)
-                                    .box_shadow(0.0, 1.0, 3.0, Color::rgba(0.0, 0.0, 0.0, 0.90));
-
-                                sv_box.empty_box_passive(ring_style);
-                            },
-                        );
-
-                        // 2b. Vertical Hue Bar
-                        let hue_w = 18.0;
-                        let hue_style = Style::new()
-                            .width(hue_w)
-                            .height(sv_h)
-                            .border(1.0, Color::rgba(0.25, 0.28, 0.35, 0.90))
-                            .border_radius(4.0)
-                            .clip_children(true);
-
-                        middle.container_tagged(
-                            "ColorPickerHueContainer",
-                            hue_style,
-                            WidgetRole::Button,
-                            TAG_INSPECTOR_COLOR_PICKER_HUE_BAR,
-                            |hue_bar| {
-                                // Tech Debt: 234-node HSV color picker cell explosion is temporary;
-                                // will be replaced by a single GPU SDF gradient quad/shader primitive in irisui.
-                                let hue_steps = 26;
-                                let step_h = sv_h / (hue_steps as f32);
-
-                                for step in 0..hue_steps {
-                                    let h_val = (step as f32 + 0.5) / (hue_steps as f32) * 360.0;
-                                    let col = hsv_to_rgb(h_val, 1.0, 1.0);
-
-                                    let strip_style = Style::new()
-                                        .position_absolute()
-                                        .left(0.0)
-                                        .top((step as f32) * step_h)
-                                        .width(hue_w)
-                                        .height(step_h + 0.2)
-                                        .background(col);
-
-                                    hue_bar.empty_box_passive(strip_style);
-                                }
-
-                                // Hue Indicator Line
-                                let ind_h = 4.0;
-                                let ind_y =
-                                    (hue / 360.0 * sv_h - ind_h * 0.5).clamp(0.0, sv_h - ind_h);
-                                let ind_style = Style::new()
-                                    .position_absolute()
-                                    .left(0.0)
-                                    .top(ind_y)
-                                    .width(hue_w)
-                                    .height(ind_h)
-                                    .background(Color::WHITE)
-                                    .border(1.0, Color::BLACK)
-                                    .border_radius(1.0);
-
-                                hue_bar.empty_box_passive(ind_style);
-                            },
-                        );
-                    });
+                    if picker_resp.drag_released()
+                        && let Some(entity) = params.selected_entity
+                    {
+                        actions.push(super::types::InspectorAction::CommitColorEdit(entity));
+                    }
 
                     // 3. Bottom Preview Row: Live Color Swatch and HEX string
                     let preview_style = Style::new()
@@ -262,7 +173,7 @@ pub fn build_color_picker_popup(
                         .height(24.0);
 
                     card.container_named("ColorPickerPreviewRow", preview_style, |bottom| {
-                        let current_col = hsv_to_rgb(hue, saturation, value);
+                        let current_col = picker_resp.color();
                         let swatch_style = Style::new()
                             .width(42.0)
                             .height(20.0)
@@ -336,7 +247,12 @@ pub fn handle_color_edit_action(
             let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
             *inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
             let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
-            *inspector_hsv = [h, s, v];
+            let preserved_hue = if s < 1e-3 || v < 1e-3 {
+                inspector_hsv[0]
+            } else {
+                h
+            };
+            *inspector_hsv = [preserved_hue, s, v];
         }
         super::types::InspectorAction::CommitColorEdit(entity) => {
             if let Some((snap_entity, start_col)) = color_edit_start.take()
@@ -422,7 +338,8 @@ mod tests {
             blink_caret: false,
         };
 
-        build_color_picker_popup(&mut tree, root, &params, None);
+        let mut actions = Vec::new();
+        build_color_picker_popup(&mut tree, root, &params, None, &mut actions);
 
         let popup_card = tree
             .iter()

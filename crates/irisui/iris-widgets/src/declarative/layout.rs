@@ -26,6 +26,7 @@ pub fn layout_subtree(tree: &mut UiTree, root_id: WidgetId, bounds: Rect) {
     };
     if node_tag != 0 {
         tree.set_viewport_size(node_tag, bounds.size());
+        tree.set_tag_rect(node_tag, bounds);
     }
     let pad = tree.get(root_id).map_or(Insets::ZERO, |n| n.style.padding);
     let scroll_offset_y = tree.get(root_id).map_or(0.0, |n| n.style.scroll_offset_y);

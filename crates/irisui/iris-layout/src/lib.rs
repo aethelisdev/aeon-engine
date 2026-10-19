@@ -182,6 +182,10 @@ impl LayoutEngine {
         if let Some(node) = tree.get_mut(current_id) {
             node.computed_rect = rect;
             node.clear_dirty(DirtyFlags::LAYOUT);
+            let tag = node.tag;
+            if tag != 0 {
+                tree.set_tag_rect(tag, rect);
+            }
         }
 
         let scroll_offset_y = tree

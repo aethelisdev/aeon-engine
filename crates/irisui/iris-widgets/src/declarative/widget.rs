@@ -11,6 +11,8 @@
 pub mod button;
 pub mod checkbox;
 pub mod chip;
+pub mod color_picker;
+pub mod color_swatch;
 pub mod combobox;
 pub mod drag_vec3;
 pub mod empty_box;
@@ -22,6 +24,8 @@ pub mod toolbar_button;
 pub use button::Button;
 pub use checkbox::Checkbox;
 pub use chip::Chip;
+pub use color_picker::{ColorPicker, ColorPickerResponse};
+pub use color_swatch::ColorSwatch;
 pub use combobox::{ComboBox, ComboBoxResponse};
 pub use drag_vec3::{DragVec3, Vec3Response};
 pub use empty_box::EmptyBox;

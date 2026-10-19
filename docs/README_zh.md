@@ -67,7 +67,7 @@ cargo run -p ae_engine --release
 
 ## 开源协议
 
-## 编辑器界面 — IrisUI
+## 编辑器界面 - IrisUI
 
 Aeon Engine 的编辑器由 IrisUI 驱动。IrisUI 是一个使用 Rust 从零构建的自定义 GPU 加速 UI 框架。
 

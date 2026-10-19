@@ -6,7 +6,7 @@
 use crate::dirty::DirtyFlags;
 use crate::dispatch::EventState;
 use crate::error::IrisCoreError;
-use crate::geometry::Size;
+use crate::geometry::{Rect, Size};
 use crate::id::WidgetId;
 use crate::node::WidgetNode;
 use slotmap::SlotMap;
@@ -36,6 +36,8 @@ pub struct UiTree {
     pub active_menu_bar_tag: Option<u64>,
     /// Persistent 64-bit semantic tag identifying the currently opened combobox dropdown menu, if any.
     pub active_combobox_tag: Option<u64>,
+    /// Persistent state map tracking computed bounding rectangles across tree rebuilds, keyed by 64-bit semantic tag.
+    pub tag_rects: HashMap<u64, Rect>,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
 }
@@ -54,6 +56,7 @@ impl UiTree {
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
             active_combobox_tag: None,
+            tag_rects: HashMap::new(),
             theme: crate::theme::Theme::default(),
         }
     }

@@ -342,6 +342,29 @@ impl EngineUi {
                     self.iris_overlay.notifier.tag_all();
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }
+                InspectorAction::ToggleColorPicker => {
+                    self.iris_overlay.inspector.is_color_picker_open =
+                        !self.iris_overlay.inspector.is_color_picker_open;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                InspectorAction::FocusHexInput => {
+                    if let Some(entity) = self.selected_entity {
+                        let c = world
+                            .get::<&ae_core::ecs::Color>(entity)
+                            .map(|col| [col.r, col.g, col.b, col.a])
+                            .unwrap_or([0.60, 0.75, 0.95, 1.0]);
+                        let hex = format!(
+                            "#{:02x}{:02x}{:02x}",
+                            (c[0] * 255.0).round() as u8,
+                            (c[1] * 255.0).round() as u8,
+                            (c[2] * 255.0).round() as u8
+                        );
+                        self.iris_overlay.inspector.hex_buffer = Some((entity, hex));
+                        self.iris_overlay.notifier.tag_all();
+                        self.iris_overlay.chrome.needs_layout_rebuild = true;
+                    }
+                }
                 InspectorAction::CloseAddSubmenu => {
                     self.iris_overlay.inspector.active_submenu = None;
                     self.iris_overlay.notifier.tag_all();

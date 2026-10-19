@@ -79,6 +79,9 @@ impl IrisEditorOverlay {
                         self.inspector.is_add_menu_open = false;
                         self.inspector.active_submenu = None;
                     }
+                    if self.inspector.is_color_picker_open {
+                        self.inspector.is_color_picker_open = false;
+                    }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                     return super::types::IrisOverlayEventResult::consumed(true);
@@ -93,6 +96,9 @@ impl IrisEditorOverlay {
                 if self.inspector.is_add_menu_open {
                     self.inspector.is_add_menu_open = false;
                     self.inspector.active_submenu = None;
+                }
+                if self.inspector.is_color_picker_open {
+                    self.inspector.is_color_picker_open = false;
                 }
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;

@@ -790,6 +790,8 @@ fn test_declarative_flex_wrap_row_layout() {
 
 mod autonomous_layout_tests;
 mod collapsing_tests;
+mod color_picker_tests;
+mod color_swatch_tests;
 mod context_menu_tests;
 mod hierarchical_seed_tests;
 mod input_box_tests;

@@ -8,6 +8,7 @@
 //!
 
 use super::registry::ComponentRenderContext;
+use super::types::InspectorAction;
 use irisui::prelude::*;
 
 use super::tags::{
@@ -107,21 +108,31 @@ pub fn build_appearance_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderC
         .map(|c| Color::rgba(c.r, c.g, c.b, c.a))
         .unwrap_or(Color::rgba(0.60, 0.75, 0.95, 1.0));
 
+    let entity = ctx.entity;
+    let is_color_picker_open = ctx.params.is_color_picker_open;
+    let inspector_color_hex = ctx.params.inspector_color_hex;
+    let active_hex_buffer = ctx.params.active_hex_buffer;
+    let blink_caret = ctx.params.blink_caret;
+    let saved_swatches = ctx.params.saved_swatches;
+    let mut actions = ctx.actions.take();
+
     scope.card_named("AppearanceCard", "🎨 Appearance", |card| {
         render_object_color_row(
             card,
             obj_color,
-            ctx.params.is_color_picker_open,
-            ctx.params.inspector_color_hex,
-            ctx.params.active_hex_buffer,
-            ctx.params.blink_caret,
-            ctx.params.cursor_pos,
+            is_color_picker_open,
+            inspector_color_hex,
+            active_hex_buffer,
+            blink_caret,
+            actions.as_deref_mut(),
         );
 
-        render_palette_action_row(card, ctx.params.cursor_pos);
+        render_palette_action_row(card, obj_color, actions.as_deref_mut());
 
-        render_palette_swatches(card, ctx.params.saved_swatches, ctx.params.cursor_pos);
+        render_palette_swatches(card, entity, saved_swatches, actions.as_deref_mut());
     });
+
+    ctx.actions = actions;
 }
 
 /// Renders Row 1: Object Color swatch pill and live HEX text input field.
@@ -132,7 +143,7 @@ fn render_object_color_row(
     color_hex: &str,
     active_hex_buffer: Option<&str>,
     blink_caret: bool,
-    _cursor_pos: Point,
+    mut actions: Option<&mut Vec<InspectorAction>>,
 ) {
     let row_style = Style::new()
         .flex_row()
@@ -150,24 +161,17 @@ fn render_object_color_row(
             Style::new().width(75.0).height(22.0),
         );
 
-        let swatch_tag = appearance_color_swatch_tag();
-        let is_swatch_hovered = row.is_tag_hovered(swatch_tag);
-        let swatch_border = if is_swatch_hovered || is_color_picker_open {
-            Color::rgba(1.0, 1.0, 1.0, 0.95)
-        } else {
-            Color::rgba(0.85, 0.88, 0.95, 0.70)
-        };
-        let swatch_style = Style::new()
-            .width(38.0)
-            .height(18.0)
-            .background(obj_color)
-            .border(1.0, swatch_border)
-            .border_radius(5.0);
-        row.add(
-            EmptyBox::new("ColorSwatchBox", swatch_style)
-                .role(WidgetRole::Button)
-                .tag(swatch_tag),
-        );
+        if row
+            .add(
+                ColorSwatch::new(obj_color)
+                    .active(is_color_picker_open)
+                    .tag(appearance_color_swatch_tag()),
+            )
+            .clicked()
+            && let Some(ref mut act) = actions
+        {
+            act.push(InspectorAction::ToggleColorPicker);
+        }
 
         row.label_styled_passive(
             "HexPrefixLabel",
@@ -221,32 +225,42 @@ fn render_object_color_row(
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center);
 
-        row.container_tagged(
-            "HexInputBox",
-            hex_box_style,
-            WidgetRole::TextInput,
-            hex_tag,
-            |hex_scope| {
-                let hex_text_col = if is_hex_focused {
-                    Color::WHITE
-                } else {
-                    Color::rgba(0.886, 0.894, 0.918, 1.0)
-                };
-                hex_scope.label_styled_passive(
-                    "HexInputText",
-                    hex_display_str,
-                    10.5,
-                    hex_text_col,
-                    TextAlign::Center,
-                    Style::new().flex_grow(1.0).height(22.0),
-                );
-            },
-        );
+        if row
+            .container_tagged_resp(
+                "HexInputBox",
+                hex_box_style,
+                WidgetRole::TextInput,
+                hex_tag,
+                |hex_scope| {
+                    let hex_text_col = if is_hex_focused {
+                        Color::WHITE
+                    } else {
+                        Color::rgba(0.886, 0.894, 0.918, 1.0)
+                    };
+                    hex_scope.label_styled_passive(
+                        "HexInputText",
+                        hex_display_str,
+                        10.5,
+                        hex_text_col,
+                        TextAlign::Center,
+                        Style::new().flex_grow(1.0).height(22.0),
+                    );
+                },
+            )
+            .clicked()
+            && let Some(ref mut act) = actions
+        {
+            act.push(InspectorAction::FocusHexInput);
+        }
     });
 }
 
 /// Renders Row 2: Add to palette (+) and clear custom palette (🗑) action buttons.
-fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) {
+fn render_palette_action_row(
+    scope: &mut UiScope<'_>,
+    obj_color: Color,
+    mut actions: Option<&mut Vec<InspectorAction>>,
+) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -263,97 +277,38 @@ fn render_palette_action_row(scope: &mut UiScope<'_>, _cursor_pos: Point) {
             Style::new().width(88.0).height(22.0),
         );
 
-        let btn_size = 18.0;
+        if row
+            .add(
+                Button::new("+")
+                    .size(18.0, 18.0)
+                    .tag(appearance_add_palette_tag()),
+            )
+            .clicked()
+            && let Some(ref mut act) = actions
+        {
+            act.push(InspectorAction::AddColorToPalette(obj_color));
+        }
 
-        let add_tag = appearance_add_palette_tag();
-        let is_add_hovered = row.is_tag_hovered(add_tag);
-        let (add_bg, add_border, add_text_col) = if is_add_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-                Color::WHITE,
+        if row
+            .add(
+                Button::new("🗑")
+                    .size(18.0, 18.0)
+                    .tag(appearance_clear_palette_tag()),
             )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-                Color::rgba(0.82, 0.84, 0.88, 1.0),
-            )
-        };
-        let add_style = Style::new()
-            .width(btn_size)
-            .height(btn_size)
-            .background(add_bg)
-            .border(1.0, add_border)
-            .border_radius(5.0)
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center);
-        row.container_tagged(
-            "AddPaletteBtn",
-            add_style,
-            WidgetRole::Button,
-            add_tag,
-            |b| {
-                b.label_styled_passive(
-                    "AddPaletteText",
-                    "+",
-                    13.0,
-                    add_text_col,
-                    TextAlign::Center,
-                    Style::new().height(btn_size),
-                );
-            },
-        );
-
-        let clr_tag = appearance_clear_palette_tag();
-        let is_clr_hovered = row.is_tag_hovered(clr_tag);
-        let (clr_bg, clr_border, clr_text_col) = if is_clr_hovered {
-            (
-                Color::rgba(0.35, 0.10, 0.10, 0.95),
-                Color::rgba(0.70, 0.18, 0.18, 0.85),
-                Color::rgba(1.0, 0.40, 0.40, 1.0),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-                Color::rgba(0.70, 0.73, 0.80, 0.90),
-            )
-        };
-        let clr_style = Style::new()
-            .width(btn_size)
-            .height(btn_size)
-            .background(clr_bg)
-            .border(1.0, clr_border)
-            .border_radius(5.0)
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center);
-        row.container_tagged(
-            "ClearPaletteBtn",
-            clr_style,
-            WidgetRole::Button,
-            clr_tag,
-            |b| {
-                b.label_styled_passive(
-                    "ClearPaletteText",
-                    "🗑",
-                    10.5,
-                    clr_text_col,
-                    TextAlign::Center,
-                    Style::new().height(btn_size),
-                );
-            },
-        );
+            .clicked()
+            && let Some(ref mut act) = actions
+        {
+            act.push(InspectorAction::ClearCustomPalette);
+        }
     });
 }
 
 /// Renders Row 3+: Palette swatches inside a multi-line wrapping flex container.
 fn render_palette_swatches(
     scope: &mut UiScope<'_>,
+    entity: hecs::Entity,
     saved_swatches: &[[f32; 4]],
-    _cursor_pos: Point,
+    mut actions: Option<&mut Vec<InspectorAction>>,
 ) {
     let swatch_size = 16.0;
     let swatch_gap = 6.0;
@@ -367,46 +322,36 @@ fn render_palette_swatches(
     scope.container_named("PaletteSwatches", container_style, |wrap_scope| {
         for (idx, &col) in DEFAULT_PALETTE.iter().enumerate() {
             let tag = appearance_palette_swatch_tag(idx);
-            let is_hovered = wrap_scope.is_tag_hovered(tag);
-            let border_col = if is_hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.212, 0.220, 0.259, 0.85)
-            };
-            let sw_style = Style::new()
-                .width(swatch_size)
-                .height(swatch_size)
-                .background(col)
-                .border(1.0, border_col)
-                .border_radius(3.0);
-            wrap_scope.add(
-                EmptyBox::new("PaletteSwatch", sw_style)
-                    .role(WidgetRole::Button)
-                    .tag(tag),
-            );
+            if wrap_scope
+                .add(
+                    ColorSwatch::new(col)
+                        .size(swatch_size, swatch_size)
+                        .corner_radius(3.0)
+                        .tag(tag),
+                )
+                .clicked()
+                && let Some(ref mut act) = actions
+            {
+                act.push(InspectorAction::SetObjectColor(entity, col));
+            }
         }
 
         for (custom_idx, &s) in saved_swatches.iter().enumerate() {
             let global_idx = 7 + custom_idx;
             let col = Color::rgba(s[0], s[1], s[2], s[3]);
             let tag = appearance_palette_swatch_tag(global_idx);
-            let is_hovered = wrap_scope.is_tag_hovered(tag);
-            let border_col = if is_hovered {
-                Color::WHITE
-            } else {
-                Color::rgba(0.35, 0.38, 0.45, 0.85)
-            };
-            let sw_style = Style::new()
-                .width(swatch_size)
-                .height(swatch_size)
-                .background(col)
-                .border(1.0, border_col)
-                .border_radius(3.0);
-            wrap_scope.add(
-                EmptyBox::new("PaletteSwatch", sw_style)
-                    .role(WidgetRole::Button)
-                    .tag(tag),
-            );
+            if wrap_scope
+                .add(
+                    ColorSwatch::new(col)
+                        .size(swatch_size, swatch_size)
+                        .corner_radius(3.0)
+                        .tag(tag),
+                )
+                .clicked()
+                && let Some(ref mut act) = actions
+            {
+                act.push(InspectorAction::SetObjectColor(entity, col));
+            }
         }
     });
 }

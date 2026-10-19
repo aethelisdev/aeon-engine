@@ -124,6 +124,35 @@ impl<'a> UiScope<'a> {
         }
     }
 
+    /// Returns the accumulated screen-space origin `(x, y)` of this scope's parent hierarchy.
+    ///
+    /// Climbs the ancestor chain to sum explicit positioning and computed offsets.
+    #[must_use]
+    pub fn parent_screen_origin(&self) -> Point {
+        let mut curr = Some(self.parent);
+        let mut x = 0.0;
+        let mut y = 0.0;
+        while let Some(id) = curr {
+            if let Some(node) = self.tree.get(id) {
+                if node.computed_rect.width > 0.0 && node.computed_rect.height > 0.0 {
+                    x += node.computed_rect.x;
+                    y += node.computed_rect.y;
+                    break;
+                }
+                if let Some(left) = node.style.inset_left {
+                    x += left;
+                }
+                if let Some(top) = node.style.inset_top {
+                    y += top;
+                }
+                curr = node.parent;
+            } else {
+                break;
+            }
+        }
+        Point::new(x, y)
+    }
+
     /// Adds a configurable widget to this scope using the unified builder pattern.
     ///
     /// Enables declarative expression chaining without combinatorial method proliferation:
@@ -416,7 +445,12 @@ impl<'a> UiScope<'a> {
             flags = flags.union(ResponseFlags::DRAG_RELEASED);
         }
 
-        let pointer_pos = if clicked || double_clicked || secondary_clicked || is_drag_released {
+        let pointer_pos = if is_dragged {
+            self.tree
+                .event_state
+                .last_pointer_pos
+                .or(self.tree.event_state.frame_clicked_pos)
+        } else if clicked || double_clicked || secondary_clicked || is_drag_released {
             self.tree
                 .event_state
                 .frame_clicked_pos

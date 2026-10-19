@@ -232,4 +232,19 @@ impl UiTree {
     pub fn set_theme(&mut self, theme: crate::theme::Theme) {
         self.theme = theme;
     }
+
+    /// Returns the cached screen-space bounding rectangle of a tagged node from previous layout passes, if any.
+    #[inline]
+    #[must_use]
+    pub fn tag_rect(&self, tag: u64) -> Option<Rect> {
+        self.tag_rects.get(&tag).copied()
+    }
+
+    /// Stores the resolved screen-space bounding rectangle for a tagged node.
+    #[inline]
+    pub fn set_tag_rect(&mut self, tag: u64, rect: Rect) {
+        if tag != 0 && rect.width > 0.0 && rect.height > 0.0 {
+            self.tag_rects.insert(tag, rect);
+        }
+    }
 }

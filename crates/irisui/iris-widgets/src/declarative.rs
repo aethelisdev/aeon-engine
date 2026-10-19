@@ -34,6 +34,7 @@ pub use types::{
     ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
 };
 pub use widget::{
-    Button, Checkbox, Chip, ComboBox, ComboBoxResponse, DragVec3, EmptyBox, NumericDrag,
-    ScalarResponse, ScrollAreaView, Toolbar, ToolbarButton, Vec3Response, Widget,
+    Button, Checkbox, Chip, ColorPicker, ColorPickerResponse, ColorSwatch, ComboBox,
+    ComboBoxResponse, DragVec3, EmptyBox, NumericDrag, ScalarResponse, ScrollAreaView, Toolbar,
+    ToolbarButton, Vec3Response, Widget,
 };

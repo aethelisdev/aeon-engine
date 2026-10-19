@@ -103,7 +103,7 @@ pub fn build_inspector_overlays(
     } else if params.active_dropdown.is_some() {
         dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params, panel_tree)
     } else if params.is_color_picker_open {
-        color_picker_popup::build_color_picker_popup(tree, parent_id, params, panel_tree)
+        color_picker_popup::build_color_picker_popup(tree, parent_id, params, panel_tree, actions)
     } else {
         None
     }
