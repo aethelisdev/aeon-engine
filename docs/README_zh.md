@@ -67,6 +67,23 @@ cargo run -p ae_engine --release
 
 ## 开源协议
 
+## 编辑器界面 — IrisUI
+
+Aeon Engine 的编辑器由 IrisUI 驱动。IrisUI 是一个使用 Rust 从零构建的自定义 GPU 加速 UI 框架。
+
+IrisUI 将多保留式树（Multi-Retained Tree）架构、细粒度失效追踪（Invalidation）、基于 Taffy 的 Flexbox/Grid 布局，以及原生 GPU SDF（有符号距离场）渲染整合在一起。
+
+### 核心特性
+- **多保留式树架构**： 持久化的 UI 节点树、保留的组件状态，以及细粒度的变更追踪。
+- **增量布局计算**： 集成 Taffy 以支持 Flexbox 和 Grid，并通过缓存机制同步 UI 树。
+- **原生 GPU SDF 渲染**： 使用实例化四边形（Instanced Quads）绘制圆角矩形、边框和阴影。
+- **批量渲染（Batching）**： 将连续的 UI 图元合并为统一的绘制命令。
+- **自定义停靠系统（iris-dock）**： 支持可停靠面板、标签页布局、拖放式面板调整，以及独立的停靠树。
+- **多视口支持**： 支持独立视口，并可在相应平台上使用独立的原生窗口。
+- **文本渲染**： 使用 cosmic-text 和 glyphon 实现文本整形与 GPU 字形渲染。
+
+IrisUI 为 Aeon Engine 的整个编辑器界面提供支持，包括场景层级面板、属性检查器、资源浏览器、性能面板和编辑器窗口。
+
 Aeon Engine 源码基于 **Mozilla Public License 2.0 (MPL 2.0)** 协议授权。
 
 - **独立开发者与创作者**：可自由使用 Aeon Engine 构建商业化、闭源的游戏项目，无需公开自身的游戏逻辑或业务源码。

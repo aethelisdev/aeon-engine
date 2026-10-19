@@ -148,7 +148,8 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     }
 
     // Build the cascading add menu via declarative UiScope
-    add_menu::build_add_component_menu(&mut tree, root, &params, Some(&panel_tree));
+    let mut actions = Vec::new();
+    add_menu::build_add_component_menu(&mut tree, root, &params, Some(&panel_tree), &mut actions);
 
     // Find Physics category card item
     let mut physics_cat_node = None;

@@ -331,6 +331,7 @@ impl<'a> UiScope<'a> {
             node.set_name(name);
             node.set_style(style);
             node.set_role(role);
+            node.computed_rect = bounds;
         }
         let _ = self.tree.add_child(self.parent, node_id);
 

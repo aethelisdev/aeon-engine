@@ -43,7 +43,7 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
 
     assert!(
         menu_rects.len() >= 2,
@@ -133,7 +133,7 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
 
     assert!(menu_rects.len() >= 2);
     let add_menu_rect = menu_rects[0];
@@ -180,7 +180,7 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
 
     assert_eq!(
         menu_rects.len(),
@@ -267,7 +267,7 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
 
     // Verify popup cards exist and have DropdownPopup role
     let mut popup_cards = 0;
@@ -309,7 +309,7 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
 
     assert_eq!(menu_rects.len(), 2);
 
@@ -359,7 +359,7 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
 
     assert!(!menu_rects.is_empty());
     let root_rect = menu_rects[0];

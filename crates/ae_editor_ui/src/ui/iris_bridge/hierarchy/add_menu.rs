@@ -250,20 +250,24 @@ pub fn build_add_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
+    panel_tree: Option<&UiTree>,
 ) -> Vec<Rect> {
     if !params.is_add_menu_open {
         return Vec::new();
     }
 
+    let anchor = panel_tree
+        .and_then(|pt| pt.node_rect_tagged(HIERARCHY_TAG_ADD_BUTTON, params.panel_rect.origin()))
+        .filter(|r| r.width > 0.0 && r.height > 0.0)
+        .unwrap_or(Rect::new(
+            (params.panel_rect.x + params.panel_rect.width - 56.0).max(params.panel_rect.x + 60.0),
+            params.panel_rect.y + 4.0,
+            24.0,
+            24.0,
+        ));
+
     CascadingMenuBuilder::new(
-        tree.node_rect_tagged(HIERARCHY_TAG_ADD_BUTTON, params.panel_rect.origin())
-            .unwrap_or(Rect::new(
-                (params.panel_rect.x + params.panel_rect.width - 56.0)
-                    .max(params.panel_rect.x + 60.0),
-                params.panel_rect.y + 4.0,
-                24.0,
-                24.0,
-            )),
+        anchor,
         &get_hierarchy_add_menu_items(params.is_2d),
         &params
             .active_submenu

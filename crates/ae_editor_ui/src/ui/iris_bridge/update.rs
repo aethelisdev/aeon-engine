@@ -71,6 +71,35 @@ impl IrisEditorOverlay {
             self.chrome.cursor_pos = *point;
         }
 
+        if self.overlay_tree.is_open() {
+            if let UiEvent::MouseDown { point, .. } = event {
+                let dismiss_res = self.overlay_tree.handle_pointer_down(*point);
+                if dismiss_res == super::overlay_tree::OverlayDismissResult::Dismissed {
+                    if self.inspector.is_add_menu_open {
+                        self.inspector.is_add_menu_open = false;
+                        self.inspector.active_submenu = None;
+                    }
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                    return super::types::IrisOverlayEventResult::consumed(true);
+                }
+            } else if let UiEvent::KeyboardInput {
+                key: KeyCode::Escape,
+                is_pressed: true,
+                ..
+            } = event
+            {
+                self.overlay_tree.close();
+                if self.inspector.is_add_menu_open {
+                    self.inspector.is_add_menu_open = false;
+                    self.inspector.active_submenu = None;
+                }
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
+                return super::types::IrisOverlayEventResult::consumed(true);
+            }
+        }
+
         let target_tree = if self.overlay_tree.is_open() {
             self.overlay_tree.tree_mut()
         } else {
@@ -79,7 +108,15 @@ impl IrisEditorOverlay {
 
         let dispatch = target_tree.dispatch_event(event);
 
-        if dispatch.is_consumed() || !self.pending_actions.is_empty() {
+        let is_overlay_motion = self.overlay_tree.is_open()
+            && matches!(event, UiEvent::MouseMove { point } if self.overlay_tree.contains_point(*point));
+
+        let should_wake = dispatch.is_consumed()
+            || !self.pending_actions.is_empty()
+            || self.inspector.has_pending_actions()
+            || is_overlay_motion;
+
+        if should_wake {
             if dispatch.target_tag == super::console::types::CONSOLE_TAG_VIEWPORT
                 && dispatch.scroll_delta.1 > 0.0
             {
@@ -89,7 +126,7 @@ impl IrisEditorOverlay {
             self.chrome.needs_layout_rebuild = true;
         }
 
-        super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed())
+        super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed() || is_overlay_motion)
     }
 
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.

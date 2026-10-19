@@ -266,10 +266,15 @@ impl IrisEditorOverlay {
                 .tree_mut()
                 .root()
                 .unwrap_or_else(|| self.overlay_tree.tree_mut().create_root().unwrap_or(root));
+            let hier_tree = self
+                .panels
+                .get(crate::ui::panel_layout::PanelId::Hierarchy.id_str())
+                .and_then(|p| p.tree());
             let menu_rects = hierarchy::build_hierarchy_overlays(
                 self.overlay_tree.tree_mut(),
                 overlay_root,
                 &hier_params,
+                hier_tree,
             );
             if self.hierarchy.is_add_menu_open || self.hierarchy.active_context_menu.is_some() {
                 self.overlay_tree.open(
@@ -325,36 +330,9 @@ impl IrisEditorOverlay {
                 .filter(|(ent, _)| Some(*ent) == params.scene.selected_entity)
                 .map(|(_, s)| s.as_str());
 
-            let insp_params = inspector::types::InspectorPanelParams {
-                panel_rect: insp_rect,
-                world: params.scene.world,
-                selected_entity: params.scene.selected_entity,
-                inspector_euler: params.panel_data.inspector_euler,
-                inspector_color_hex: params.panel_data.inspector_color_hex,
-                saved_swatches: params.panel_data.saved_swatches,
-                cursor_pos: cursor,
-                active_dropdown: self.inspector.active_dropdown,
-                active_submenu: self.inspector.active_submenu,
-                is_add_menu_open: self.inspector.is_add_menu_open,
-                is_color_picker_open: self.inspector.is_color_picker_open,
-                active_number_input: num_input_ref,
-                active_text_input: text_input_ref,
-                active_rename_buffer: rename_buf_ref,
-                is_rename_all_selected: self.inspector.rename_is_all_selected
-                    && rename_buf_ref.is_some(),
-                active_hex_buffer: hex_buf_ref,
-                inspector_hsv: self.inspector.hsv,
-                blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
-            };
-
             let is_inspector_popup_open = self.inspector.is_add_menu_open
                 || self.inspector.active_dropdown.is_some()
                 || self.inspector.is_color_picker_open;
-
-            let insp_panel_tree = self
-                .panels
-                .get(crate::ui::PanelId::Inspector.id_str())
-                .and_then(|p| p.tree());
 
             if is_inspector_popup_open {
                 let overlay_root =
@@ -362,15 +340,54 @@ impl IrisEditorOverlay {
                         self.overlay_tree.tree_mut().create_root().unwrap_or(root)
                     });
 
-                if let Some(bounds) = inspector::build_inspector_overlays(
-                    self.overlay_tree.tree_mut(),
-                    overlay_root,
-                    &insp_params,
-                    insp_panel_tree,
-                ) {
-                    let overlay_kind = if self.inspector.is_add_menu_open {
+                let mut inspector_overlay_actions = Vec::new();
+                let bounds_opt = {
+                    let insp_params = inspector::types::InspectorPanelParams {
+                        panel_rect: insp_rect,
+                        world: params.scene.world,
+                        selected_entity: params.scene.selected_entity,
+                        inspector_euler: params.panel_data.inspector_euler,
+                        inspector_color_hex: params.panel_data.inspector_color_hex,
+                        saved_swatches: params.panel_data.saved_swatches,
+                        cursor_pos: cursor,
+                        active_dropdown: self.inspector.active_dropdown,
+                        active_submenu: self.inspector.active_submenu,
+                        is_add_menu_open: self.inspector.is_add_menu_open,
+                        is_color_picker_open: self.inspector.is_color_picker_open,
+                        active_number_input: num_input_ref,
+                        active_text_input: text_input_ref,
+                        active_rename_buffer: rename_buf_ref,
+                        is_rename_all_selected: self.inspector.rename_is_all_selected
+                            && rename_buf_ref.is_some(),
+                        active_hex_buffer: hex_buf_ref,
+                        inspector_hsv: self.inspector.hsv,
+                        blink_caret: (self.start_time.elapsed().as_millis() / 500)
+                            .is_multiple_of(2),
+                    };
+
+                    let insp_tree = self
+                        .panels
+                        .get(crate::ui::panel_layout::PanelId::Inspector.id_str())
+                        .and_then(|p| p.tree());
+                    inspector::build_inspector_overlays(
+                        self.overlay_tree.tree_mut(),
+                        overlay_root,
+                        &insp_params,
+                        insp_tree,
+                        &mut inspector_overlay_actions,
+                    )
+                };
+
+                let is_add_open = self.inspector.is_add_menu_open;
+                let is_dropdown_open = self.inspector.active_dropdown.is_some();
+                self.inspector
+                    .actions
+                    .append(&mut inspector_overlay_actions);
+
+                if let Some(bounds) = bounds_opt {
+                    let overlay_kind = if is_add_open {
                         super::overlay_tree::ActiveOverlay::InspectorAddComponent
-                    } else if self.inspector.active_dropdown.is_some() {
+                    } else if is_dropdown_open {
                         super::overlay_tree::ActiveOverlay::InspectorDropdown
                     } else {
                         super::overlay_tree::ActiveOverlay::InspectorColorPicker

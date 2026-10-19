@@ -62,7 +62,14 @@ pub fn build_inspector_footer(
             .border(1.0, add_border)
             .border_radius(5.0);
 
-        if !params.is_add_menu_open {
+        let is_add_pressed =
+            row.tree().event_state.pressed_tag == Some(TAG_INSPECTOR_ADD_COMPONENT);
+
+        if is_add_pressed {
+            add_btn_style = add_btn_style
+                .background(Color::rgba(0.090, 0.098, 0.118, 1.0))
+                .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
+        } else if !params.is_add_menu_open {
             add_btn_style = add_btn_style
                 .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
                 .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95));
@@ -116,11 +123,17 @@ pub fn build_inspector_footer(
             },
         );
         if add_resp.clicked() {
-            actions.push(InspectorAction::OpenAddComponentMenu(Point::ZERO));
+            if params.is_add_menu_open {
+                actions.push(InspectorAction::CloseAddComponentMenu);
+            } else {
+                actions.push(InspectorAction::OpenAddComponentMenu(Point::ZERO));
+            }
         }
 
         // 2. `💾 Save as Prefab` Button
-        let save_btn_style = Style::new()
+        let is_save_pressed = row.tree().event_state.pressed_tag == Some(TAG_INSPECTOR_SAVE_PREFAB);
+
+        let mut save_btn_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
@@ -132,6 +145,12 @@ pub fn build_inspector_footer(
             .hover_background(Color::rgba(0.200, 0.208, 0.235, 1.0))
             .hover_border(1.0, Color::rgba(0.271, 0.282, 0.329, 0.95))
             .border_radius(5.0);
+
+        if is_save_pressed {
+            save_btn_style = save_btn_style
+                .background(Color::rgba(0.090, 0.098, 0.118, 1.0))
+                .border(1.0, Color::rgba(0.0, 0.85, 1.0, 0.85));
+        }
 
         let save_resp = row.container_tagged_resp(
             "SavePrefabBtn",

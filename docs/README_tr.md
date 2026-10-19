@@ -68,6 +68,24 @@ cargo run -p ae_engine --release
 - **Gereksiz karmaşıklıktan kaçınmak**
 - **Açık Kaynak**
 
+## Editör Arayüzü — IrisUI
+
+Aeon Engine'in editörü, Rust ile sıfırdan geliştirilmiş, GPU hızlandırmalı özel bir arayüz kütüphanesi olan IrisUI tarafından desteklenmektedir.
+
+IrisUI; çoklu retained tree mimarisini, ayrıntılı değişiklik takibini (invalidation), Taffy tabanlı Flexbox/Grid yerleşimini ve GPU üzerinde çalışan SDF (Signed Distance Field) tabanlı çizim sistemini bir araya getirir.
+
+### Temel Özellikler
+
+- **Çoklu retained tree mimarisi**: Kalıcı widget ağaçları, korunan durum bilgileri ve ayrıntılı değişiklik takibi.
+- **Artımlı yerleşim hesaplama**: Flexbox ve Grid desteği için Taffy entegrasyonu ve önbellekli ağaç senkronizasyonu.
+- **GPU tabanlı SDF çizimi**: Yuvarlatılmış dikdörtgenler, kenarlıklar ve gölgeler, instanced quad'lar kullanılarak GPU üzerinde çizilir.
+- **Toplu çizim (Batching)**: Ardışık UI öğeleri birleştirilerek çizim komutlarının ve CPU tarafındaki iş yükünün azaltılması hedeflenir.
+- **Özel docking sistemi (iris-dock)**: Yerleştirilebilir paneller, sekmeli düzenler, sürükle-bırak ile panel taşıma ve bağımsız dock ağaçları.
+- **Çoklu viewport desteği**: Bağımsız dock ağaçları, ayrılabilir editör panelleri ve ikincil pencereler.
+- **Metin işleme**: Metin şekillendirme ve GPU tabanlı glif çizimi için cosmic-text ve glyphon kullanılır.
+
+IrisUI; sahne hiyerarşisi, özellik denetleyicileri (inspector), varlık tarayıcısı (asset browser), performans panelleri ve bağımsız editör pencereleri dâhil olmak üzere Aeon Engine'in editör arayüzünün tamamında kullanılır.
+
 ## Lisans
 
 Aeon Engine kaynak kodu **Mozilla Public License 2.0 (MPL 2.0)** altında lisanslanmıştır.

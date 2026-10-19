@@ -389,7 +389,7 @@ impl IrisEditorOverlay {
     #[inline]
     #[must_use]
     pub fn has_pending_actions(&self) -> bool {
-        !self.pending_actions.is_empty()
+        !self.pending_actions.is_empty() || self.inspector.has_pending_actions()
     }
 
     /// Returns the current logical cursor position.

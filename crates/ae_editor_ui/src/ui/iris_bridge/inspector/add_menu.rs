@@ -183,6 +183,7 @@ pub fn build_add_component_menu(
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
     panel_tree: Option<&UiTree>,
+    actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
     if !params.is_add_menu_open {
         return None;
@@ -190,7 +191,7 @@ pub fn build_add_component_menu(
 
     match get_add_component_menu_items(params.world, params.selected_entity) {
         menu_items if !menu_items.is_empty() => {
-            render_add_component_scope(tree, parent_id, params, panel_tree, &menu_items)
+            render_add_component_scope(tree, parent_id, params, panel_tree, &menu_items, actions)
         }
         _ => None,
     }
@@ -202,14 +203,11 @@ fn render_add_component_scope(
     params: &InspectorPanelParams<'_>,
     panel_tree: Option<&UiTree>,
     menu_items: &[CascadingMenuItem],
+    actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
-    render_add_component_popups(
-        render_add_component_menu_card(tree, parent_id, params, panel_tree, menu_items),
-        tree,
-        parent_id,
-        params,
-        menu_items,
-    )
+    let card_rect =
+        render_add_component_menu_card(tree, parent_id, params, panel_tree, menu_items, actions);
+    render_add_component_popups(card_rect, tree, parent_id, params, menu_items, actions)
 }
 
 fn render_add_component_menu_card(
@@ -218,25 +216,29 @@ fn render_add_component_menu_card(
     params: &InspectorPanelParams<'_>,
     panel_tree: Option<&UiTree>,
     menu_items: &[CascadingMenuItem],
+    actions: &mut Vec<super::types::InspectorAction>,
 ) -> Rect {
+    let anchor_rect = panel_tree
+        .and_then(|ptree| {
+            ptree.node_rect_tagged(TAG_INSPECTOR_ADD_COMPONENT, params.panel_rect.origin())
+        })
+        .filter(|r| r.width > 0.0 && r.height > 0.0)
+        .unwrap_or(Rect::new(
+            params.panel_rect.x + 8.0,
+            params.panel_rect.bottom() - 32.0,
+            140.0,
+            24.0,
+        ));
+
     UiScope::new(tree, parent_id)
         .popup_anchored_with_placement(
             "AddComponentMenu",
-            panel_tree
-                .and_then(|ptree| {
-                    ptree.node_rect_tagged(TAG_INSPECTOR_ADD_COMPONENT, params.panel_rect.origin())
-                })
-                .unwrap_or(Rect::new(
-                    params.panel_rect.x + 8.0,
-                    params.panel_rect.bottom() - 32.0,
-                    140.0,
-                    24.0,
-                )),
+            anchor_rect,
             175.0,
             PopupPlacement::Above,
             |card| {
                 for item in menu_items {
-                    card.dropdown_item(
+                    let resp = card.dropdown_item(
                         item.tag,
                         match &item.icon {
                             Some(CascadingMenuIcon::Text(t)) => t,
@@ -246,6 +248,12 @@ fn render_add_component_menu_card(
                         Some("▶"),
                         true,
                     );
+                    if (resp.hovered() || resp.clicked())
+                        && let Some(cat) = ComponentCategory::from_tag(item.tag)
+                        && params.active_submenu != Some(cat)
+                    {
+                        actions.push(super::types::InspectorAction::OpenAddSubmenu(cat));
+                    }
                 }
             },
         )
@@ -259,6 +267,7 @@ fn render_add_component_popups(
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
     menu_items: &[CascadingMenuItem],
+    actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
     Some(
         params
@@ -288,7 +297,7 @@ fn render_add_component_popups(
                                     195.0,
                                     |sub_card| {
                                         for child in children {
-                                            sub_card.dropdown_item(
+                                            let child_resp = sub_card.dropdown_item(
                                                 child.tag,
                                                 match &child.icon {
                                                     Some(CascadingMenuIcon::Text(t)) => t,
@@ -298,6 +307,21 @@ fn render_add_component_popups(
                                                 None,
                                                 true,
                                             );
+                                            if child_resp.clicked() {
+                                                if let Some(comp_name) =
+                                                    resolve_component_name_from_tag(child.tag)
+                                                    && let Some(entity) = params.selected_entity
+                                                {
+                                                    actions.push(
+                                                        super::types::InspectorAction::AddComponent(
+                                                            entity, comp_name,
+                                                        ),
+                                                    );
+                                                }
+                                                actions.push(
+                                                    super::types::InspectorAction::CloseAddComponentMenu,
+                                                );
+                                            }
                                         }
                                     },
                                 )
@@ -343,7 +367,8 @@ mod tests {
             blink_caret: false,
         };
 
-        build_add_component_menu(&mut tree, root, &params, None);
+        let mut actions = Vec::new();
+        build_add_component_menu(&mut tree, root, &params, None, &mut actions);
 
         assert_eq!(
             tree.node_named("AddComponentMenu")

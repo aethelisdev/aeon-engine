@@ -67,6 +67,24 @@ cargo run -p ae_engine --release
 * **Avoiding unnecessary complexity**
 * **Open Source**
 
+## IrisUI — Native GPU UI Framework
+
+Aeon Engine's editor is powered by IrisUI, a custom UI framework built from scratch in Rust.
+
+IrisUI combines a multi-retained widget tree architecture with fine-grained invalidation, Taffy-based Flexbox/Grid layout, and GPU-native SDF rendering.
+
+### Key Features
+
+- **Persistent widget trees** with generational IDs and cached state
+- **Fine-grained layout**, rendering, and theme invalidation
+- **SDF-based** rounded rectangles, borders, and shadows
+- **Instanced rendering** and batched draw commands
+- **Custom docking system** (iris-dock): Dockable panels, tabbed layouts, drag-and-drop panel rearrangement, and independent dock trees.
+- **Multi-viewport support** and independent docking trees
+- **Text rendering** powered by cosmic-text and glyphon
+
+IrisUI was designed around the needs of Aeon Engine's editor, including its scene hierarchy, inspectors, asset browser, performance panels, and floating windows.
+
 ## License
 
 The Aeon Engine source code is licensed under the **Mozilla Public License 2.0 (MPL 2.0)**.

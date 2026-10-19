@@ -325,6 +325,28 @@ impl EngineUi {
                 InspectorAction::Unparent(entity) => {
                     ui_actions.push(EngineUiAction::UnparentEntity(entity));
                 }
+                InspectorAction::OpenAddComponentMenu(_) => {
+                    self.iris_overlay.inspector.is_add_menu_open = true;
+                    self.iris_overlay.inspector.active_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                InspectorAction::CloseAddComponentMenu => {
+                    self.iris_overlay.inspector.is_add_menu_open = false;
+                    self.iris_overlay.inspector.active_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                InspectorAction::OpenAddSubmenu(category) => {
+                    self.iris_overlay.inspector.active_submenu = Some(category);
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                InspectorAction::CloseAddSubmenu => {
+                    self.iris_overlay.inspector.active_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
                 _ => {}
             }
         }
