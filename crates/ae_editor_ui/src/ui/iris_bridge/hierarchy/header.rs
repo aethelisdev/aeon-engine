@@ -47,7 +47,10 @@ pub fn build_hierarchy_header(
         .with_icon("🔍")
         .with_cursor_byte_idx(params.cursor_byte_idx)
         .with_clear_tag(HIERARCHY_TAG_SEARCH_CLEAR);
-        bar.input_box_tagged(&search_props, HIERARCHY_TAG_SEARCH_INPUT);
+        let _ = bar.input_box_tagged(&search_props, HIERARCHY_TAG_SEARCH_INPUT);
+        if bar.tree().event_state.frame_clicked_tag == Some(HIERARCHY_TAG_SEARCH_CLEAR) {
+            actions.push(HierarchyAction::ClearSearchQuery);
+        }
 
         // 2. "➕" Add Entity Button
         let (add_bg, add_border, add_icon_col, is_active) = if params.is_add_menu_open {

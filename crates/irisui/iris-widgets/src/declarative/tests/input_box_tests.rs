@@ -166,7 +166,7 @@ fn test_text_input_first_click_selects_all_and_selection_capsule() {
     // Must be in active text edit mode with is_all_selected = true
     assert_eq!(
         tree.event_state.active_text_edit,
-        Some((tag, text.len(), true))
+        Some((tag, text.clone(), text.len(), true))
     );
 
     // Must contain a SelectionCapsule child
@@ -199,7 +199,7 @@ fn test_text_input_arrow_keys_switch_to_caret_mode() {
 
     // Step 1: Simulate active all-selected state
     tree.event_state.focused_tag = Some(tag);
-    tree.event_state.active_text_edit = Some((tag, text.len(), true));
+    tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), true));
 
     // Step 2: Press ArrowLeft
     tree.event_state.frame_key = Some(iris_core::event::KeyCode::ArrowLeft);
@@ -211,7 +211,10 @@ fn test_text_input_arrow_keys_switch_to_caret_mode() {
     }
 
     // ArrowLeft on all-selected should set is_all_selected = false and cursor = 0
-    assert_eq!(tree.event_state.active_text_edit, Some((tag, 0, false)));
+    assert_eq!(
+        tree.event_state.active_text_edit,
+        Some((tag, text.clone(), 0, false))
+    );
 
     let box_id = tree.find_node_by_tag(tag).expect("Box node must exist");
     let box_node = tree.get(box_id).expect("Box node must exist");
@@ -243,7 +246,7 @@ fn test_text_input_typing_overwrites_all_selected() {
 
     // All selected state
     tree.event_state.focused_tag = Some(tag);
-    tree.event_state.active_text_edit = Some((tag, text.len(), true));
+    tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), true));
 
     // Type character 'A'
     tree.event_state.frame_text_input = Some("A".to_string());
@@ -257,7 +260,10 @@ fn test_text_input_typing_overwrites_all_selected() {
 
     // Text must now be overwritten to "A", cursor at 1, is_all_selected = false
     assert_eq!(text, "A");
-    assert_eq!(tree.event_state.active_text_edit, Some((tag, 1, false)));
+    assert_eq!(
+        tree.event_state.active_text_edit,
+        Some((tag, "A".to_string(), 1, false))
+    );
 }
 
 #[test]
@@ -268,7 +274,7 @@ fn test_text_input_enter_submits_and_clears_focus() {
     let mut text = "Dynamic Cube".to_string();
 
     tree.event_state.focused_tag = Some(tag);
-    tree.event_state.active_text_edit = Some((tag, text.len(), false));
+    tree.event_state.active_text_edit = Some((tag, text.clone(), text.len(), false));
 
     // Press Enter
     tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
@@ -320,4 +326,80 @@ fn test_input_box_custom_caret_color() {
 
     let caret_node = tree.get(caret_id).expect("Caret node exists");
     assert_eq!(caret_node.style.background_color, custom_color);
+}
+
+#[test]
+fn test_input_box_tagged_live_typing_and_clear() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let tag = 0x5010;
+    let clear_tag = 0x5011;
+
+    // Step 1: Initial render with empty query
+    let props = crate::declarative::scope::InputBoxProps::new("", "Search...", 200.0, false, false)
+        .with_clear_tag(clear_tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.input_box_tagged(&props, tag);
+    }
+
+    // Step 2: Click on input box to focus and start text edit
+    let box_id = tree.find_node_by_tag(tag).expect("Box node exists");
+    tree.event_state.frame_clicked_id = Some(box_id);
+    tree.event_state.frame_clicked_tag = Some(tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(resp.clicked());
+    }
+
+    assert_eq!(tree.event_state.focused_tag, Some(tag));
+    assert!(tree.event_state.active_text_edit.is_some());
+    assert_eq!(tree.event_state.text_edit_buffer(tag), Some(""));
+
+    // Step 3: Type character 'A'
+    tree.clear_frame_clicks();
+    tree.event_state.frame_text_input = Some("A".to_string());
+    tree.event_state.frame_key_pressed = true;
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(resp.changed(), "Typing must emit changed response flag");
+    }
+
+    assert_eq!(tree.event_state.text_edit_buffer(tag), Some("A"));
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(1));
+
+    // Step 4: Type character 's'
+    tree.clear_frame_clicks();
+    tree.event_state.frame_text_input = Some("s".to_string());
+    tree.event_state.frame_key_pressed = true;
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(resp.changed());
+    }
+
+    assert_eq!(tree.event_state.text_edit_buffer(tag), Some("As"));
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(2));
+
+    // Step 5: Click clear button (clear_tag)
+    tree.clear_frame_clicks();
+    tree.event_state.frame_clicked_tag = Some(clear_tag);
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.input_box_tagged(&props, tag);
+        assert!(
+            resp.changed(),
+            "Clicking clear must wipe buffer and emit changed"
+        );
+    }
+
+    assert_eq!(tree.event_state.text_edit_buffer(tag), Some(""));
+    assert_eq!(tree.event_state.text_edit_cursor(tag), Some(0));
 }

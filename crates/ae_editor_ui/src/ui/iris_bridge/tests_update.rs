@@ -66,3 +66,41 @@ fn test_focus_manager_text_input_focus() {
     assert!(!focus_mgr.has_focus());
     assert_eq!(focus_mgr.focused_tag(), None);
 }
+
+#[test]
+fn test_live_search_query_filtering_sync() {
+    use super::hierarchy::{HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT};
+    use irisui::prelude::UiTree;
+
+    let mut tree = UiTree::new();
+    tree.event_state
+        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "aadsadsa", 8, false);
+
+    // Verify buffer resolution
+    let buf = tree
+        .event_state
+        .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT);
+    assert_eq!(buf, Some("aadsadsa"));
+
+    // Verify filtering predicate
+    let query_lower = buf.unwrap().trim().to_lowercase();
+    let entity_names = ["Ground Plane", "Dynamic Cube", "Sun"];
+    let matching: Vec<_> = entity_names
+        .iter()
+        .filter(|name| name.to_lowercase().contains(&query_lower))
+        .copied()
+        .collect();
+    assert!(
+        matching.is_empty(),
+        "None of the scene entities should match 'aadsadsa'"
+    );
+
+    // Verify clear tag wipes EventState buffer
+    tree.event_state.frame_clicked_tag = Some(HIERARCHY_TAG_SEARCH_CLEAR);
+    tree.event_state.clear_text_edit();
+    assert_eq!(
+        tree.event_state
+            .text_edit_buffer(HIERARCHY_TAG_SEARCH_INPUT),
+        None
+    );
+}

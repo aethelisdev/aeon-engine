@@ -400,10 +400,18 @@ impl IrisEditorOverlay {
             self.overlay_tree.close();
         }
 
-        if !self
+        let is_assets_editing = self
             .focus_manager
             .is_tag_focused(super::assets::ASSETS_TAG_SEARCH_INPUT)
-        {
+            || self
+                .focus_state
+                .is_tag_focused(super::assets::ASSETS_TAG_SEARCH_INPUT)
+            || self
+                .tree
+                .event_state
+                .text_edit_buffer(super::assets::ASSETS_TAG_SEARCH_INPUT)
+                .is_some();
+        if !is_assets_editing {
             self.assets
                 .search_input
                 .set_text(&params.panel_data.asset_browser.search_query);

@@ -246,7 +246,12 @@ pub fn build_hierarchy_rows(
     actions: &mut Vec<HierarchyAction>,
     tree_state: &mut TreeState<hecs::Entity>,
 ) {
-    let query_lower = params.search_query.trim().to_lowercase();
+    let query_from_event = scope
+        .tree()
+        .event_state
+        .text_edit_buffer(super::types::HIERARCHY_TAG_SEARCH_INPUT);
+    let active_query = query_from_event.unwrap_or(params.search_query);
+    let query_lower = active_query.trim().to_lowercase();
 
     // 1. Collect indices of matching entities
     let mut matching_indices: Vec<usize> = Vec::with_capacity(rows.len());

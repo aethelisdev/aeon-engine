@@ -101,8 +101,8 @@ pub struct EventState {
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
     pub active_numeric_edit: Option<(u64, String, usize, bool)>,
-    /// Active autonomous inline text input editing session: `(tag, cursor_byte_idx, is_all_selected)`.
-    pub active_text_edit: Option<(u64, usize, bool)>,
+    /// Active autonomous inline text input editing session: `(tag, buffer, cursor_byte_idx, is_all_selected)`.
+    pub active_text_edit: Option<(u64, String, usize, bool)>,
     /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
     /// and is actively recognized as an ongoing dragging gesture.
     pub is_pointer_drag_active: bool,
@@ -226,6 +226,7 @@ impl EventState {
         &mut self,
         node_id: Option<WidgetId>,
         tag: u64,
+        initial_text: &str,
         cursor_idx: usize,
         is_all_selected: bool,
     ) {
@@ -235,8 +236,34 @@ impl EventState {
         if tag != 0 {
             self.focused_tag = Some(tag);
         }
-        self.active_text_edit = Some((tag, cursor_idx, is_all_selected));
+        self.active_text_edit = Some((tag, initial_text.to_string(), cursor_idx, is_all_selected));
         self.active_numeric_edit = None;
+    }
+
+    /// Returns the active text edit buffer for the specified semantic tag, if currently editing.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_buffer(&self, tag: u64) -> Option<&str> {
+        if let Some((t, ref buf, ..)) = self.active_text_edit
+            && t == tag
+        {
+            Some(buf.as_str())
+        } else {
+            None
+        }
+    }
+
+    /// Returns the active text edit cursor byte index for the specified semantic tag, if currently editing.
+    #[inline]
+    #[must_use]
+    pub fn text_edit_cursor(&self, tag: u64) -> Option<usize> {
+        if let Some((t, _, cur, ..)) = self.active_text_edit
+            && t == tag
+        {
+            Some(cur)
+        } else {
+            None
+        }
     }
 
     /// Activates an autonomous inline numeric editing session and synchronizes focus to the target widget and tag.

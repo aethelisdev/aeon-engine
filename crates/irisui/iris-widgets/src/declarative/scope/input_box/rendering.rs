@@ -10,7 +10,7 @@
 use super::interaction::{find_cursor_idx_at_x, process_text_input_keys};
 use super::types::{InputBoxProps, calculate_visible_slice_and_caret};
 use crate::declarative::scope::core::UiScope;
-use crate::declarative::types::WidgetResponse;
+use crate::declarative::types::{ResponseFlags, WidgetResponse};
 use iris_core::{
     AlignItems, Color, JustifyContent, Style, TextAlign, WidgetCursor, WidgetId, WidgetRole,
 };
@@ -113,7 +113,7 @@ impl<'a> UiScope<'a> {
             };
             self.tree
                 .event_state
-                .start_text_edit(Some(node_id), edit_key, cur_idx, all_sel);
+                .start_text_edit(Some(node_id), edit_key, text, cur_idx, all_sel);
         }
 
         let is_focused = self
@@ -138,8 +138,9 @@ impl<'a> UiScope<'a> {
                 .tree
                 .event_state
                 .active_text_edit
+                .as_ref()
                 .filter(|(k, ..)| *k == edit_key)
-                .map(|(_, c, s)| (c, s))
+                .map(|(_, _, c, s)| (*c, *s))
                 .unwrap_or((text.len(), false));
 
             let key_pressed = self.tree.event_state.frame_key_pressed;
@@ -160,7 +161,7 @@ impl<'a> UiScope<'a> {
             } else {
                 self.tree
                     .event_state
-                    .start_text_edit(Some(node_id), edit_key, cur, all_sel);
+                    .start_text_edit(Some(node_id), edit_key, text, cur, all_sel);
             }
             (cur, all_sel)
         } else {
@@ -356,20 +357,141 @@ impl<'a> UiScope<'a> {
             node.tag = tag;
         }
         let _ = self.tree.add_child(self.parent, box_id);
+
+        let edit_key = if tag != 0 { tag } else { box_id.as_ffi() };
+        let font_size = props.font_size;
+        let text_start_x = if props.icon.is_some() { 26.0 } else { 8.0 };
+
         let (clicked, hovered, _) = self.check_interaction(box_id);
-        if clicked {
-            self.tree.event_state.focused = Some(box_id);
-            self.tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+
+        let is_editing_this = self
+            .tree
+            .event_state
+            .active_text_edit
+            .as_ref()
+            .is_some_and(|(k, ..)| *k == edit_key);
+
+        let is_clicked_outside = if let Some(clicked_tag) = self.tree.event_state.frame_clicked_tag
+        {
+            tag != 0 && clicked_tag != tag && Some(clicked_tag) != props.clear_tag
+        } else if let Some(clicked_id) = self.tree.event_state.frame_clicked_id {
+            clicked_id != box_id && !self.tree.is_descendant_of(clicked_id, box_id)
+        } else {
+            false
+        };
+
+        if is_clicked_outside && is_editing_this {
+            self.tree.event_state.clear_text_edit();
         }
 
-        let border_color = if props.is_focused {
+        if clicked {
+            let (cur_idx, all_sel, initial_text) = if !is_editing_this {
+                (props.text.len(), true, props.text.to_string())
+            } else {
+                let active_buf = self
+                    .tree
+                    .event_state
+                    .text_edit_buffer(edit_key)
+                    .unwrap_or(props.text)
+                    .to_string();
+                let mut cur = active_buf.len();
+                if let Some(click_pos) = self.tree.event_state.frame_clicked_pos
+                    && let Some(node) = self.tree.get(box_id)
+                    && node.computed_rect.width > 0.0
+                {
+                    let rel_x = click_pos.x - (node.computed_rect.x + text_start_x);
+                    cur = find_cursor_idx_at_x(&active_buf, rel_x, font_size);
+                }
+                (cur, false, active_buf)
+            };
+            self.tree.event_state.start_text_edit(
+                Some(box_id),
+                edit_key,
+                &initial_text,
+                cur_idx,
+                all_sel,
+            );
+        }
+
+        let is_focused = self
+            .tree
+            .event_state
+            .active_text_edit
+            .as_ref()
+            .is_some_and(|(k, ..)| *k == edit_key);
+
+        if is_focused {
+            self.tree.event_state.focused = Some(box_id);
+            if tag != 0 {
+                self.tree.event_state.focused_tag = Some(tag);
+            }
+        }
+
+        let mut changed = false;
+        let mut submitted = false;
+
+        let (active_text, cursor_idx, is_all_sel) = if is_focused {
+            let edit_session = self.tree.event_state.active_text_edit.take();
+            if let Some((k, mut buffer, mut cur, mut all_sel)) = edit_session {
+                if let Some(clear_tag) = props.clear_tag
+                    && self.tree.event_state.frame_clicked_tag == Some(clear_tag)
+                {
+                    buffer.clear();
+                    cur = 0;
+                    all_sel = false;
+                    changed = true;
+                }
+
+                let key_pressed = self.tree.event_state.frame_key_pressed;
+                let key = self.tree.event_state.frame_key;
+                let incoming = self.tree.event_state.frame_text_input.as_deref();
+
+                let res = process_text_input_keys(
+                    &mut buffer,
+                    &mut cur,
+                    &mut all_sel,
+                    key_pressed,
+                    key,
+                    incoming,
+                );
+
+                if res.changed {
+                    changed = true;
+                }
+                if res.submitted {
+                    submitted = true;
+                }
+
+                if res.should_clear_focus {
+                    self.tree.event_state.clear_text_edit();
+                    (buffer, cur, all_sel)
+                } else {
+                    let active_buf_clone = buffer.clone();
+                    self.tree.event_state.active_text_edit = Some((k, buffer, cur, all_sel));
+                    (active_buf_clone, cur, all_sel)
+                }
+            } else {
+                (props.text.to_string(), props.cursor_byte_idx, false)
+            }
+        } else {
+            (props.text.to_string(), props.cursor_byte_idx, false)
+        };
+
+        let is_still_focused = self
+            .tree
+            .event_state
+            .active_text_edit
+            .as_ref()
+            .is_some_and(|(k, ..)| *k == edit_key);
+
+        let border_color = if is_still_focused || props.is_focused {
             Color::rgba(0.0, 0.90, 1.0, 0.95)
         } else if hovered {
             Color::rgba(0.35, 0.40, 0.52, 0.95)
         } else {
             Color::rgba(0.20, 0.23, 0.30, 0.60)
         };
-        let bg_color = if hovered {
+        let bg_color = if hovered || is_still_focused {
             Color::rgba(0.08, 0.09, 0.12, 0.98)
         } else {
             Color::rgba(0.06, 0.07, 0.09, 0.95)
@@ -423,9 +545,7 @@ impl<'a> UiScope<'a> {
             let _ = self.tree.add_child(box_id, icon_id);
         }
 
-        let text_start_x = if props.icon.is_some() { 26.0 } else { 8.0 };
-
-        let pad_end = if props.clear_tag.is_some() && !props.text.is_empty() {
+        let pad_end = if props.clear_tag.is_some() && !active_text.is_empty() {
             24.0
         } else {
             8.0
@@ -436,28 +556,39 @@ impl<'a> UiScope<'a> {
             0.0
         };
 
-        let font_size = props.font_size;
+        let effective_cursor_idx = if is_still_focused {
+            cursor_idx
+        } else {
+            props.cursor_byte_idx
+        };
+
         let (visible_start, visible_end, caret_offset) =
-            if !props.text.is_empty() && max_visible_w > 0.0 {
+            if !active_text.is_empty() && max_visible_w > 0.0 {
                 calculate_visible_slice_and_caret(
-                    props.text,
-                    props.cursor_byte_idx,
+                    &active_text,
+                    effective_cursor_idx,
                     font_size,
                     max_visible_w,
                 )
-            } else if !props.text.is_empty() {
-                let valid_idx = props.cursor_byte_idx.min(props.text.len());
-                let offset = iris_text::measure_text_advance(&props.text[..valid_idx], font_size);
-                (0, props.text.len(), offset)
+            } else if !active_text.is_empty() {
+                let valid_idx = effective_cursor_idx.min(active_text.len());
+                let offset = iris_text::measure_text_advance(&active_text[..valid_idx], font_size);
+                (0, active_text.len(), offset)
             } else {
                 (0, 0, 0.0)
             };
 
-        if let Some((start_byte, end_byte)) = props.selection
-            && !props.text.is_empty()
+        let effective_selection = if is_still_focused && is_all_sel {
+            Some((0, active_text.len()))
+        } else {
+            props.selection
+        };
+
+        if let Some((start_byte, end_byte)) = effective_selection
+            && !active_text.is_empty()
         {
-            let start_byte = start_byte.min(props.text.len());
-            let end_byte = end_byte.min(props.text.len());
+            let start_byte = start_byte.min(active_text.len());
+            let end_byte = end_byte.min(active_text.len());
             let (sel_min_b, sel_max_b) = if start_byte <= end_byte {
                 (start_byte, end_byte)
             } else {
@@ -467,11 +598,11 @@ impl<'a> UiScope<'a> {
             let sel_vis_max = sel_max_b.max(visible_start).min(visible_end);
             if sel_vis_max > sel_vis_min {
                 let sel_start_x = iris_text::measure_text_advance(
-                    &props.text[visible_start..sel_vis_min],
+                    &active_text[visible_start..sel_vis_min],
                     font_size,
                 );
                 let sel_end_x = iris_text::measure_text_advance(
-                    &props.text[visible_start..sel_vis_max],
+                    &active_text[visible_start..sel_vis_max],
                     font_size,
                 );
                 let sel_w = (sel_end_x - sel_start_x).max(2.0);
@@ -495,10 +626,10 @@ impl<'a> UiScope<'a> {
             }
         }
 
-        let display_text = if props.text.is_empty() {
+        let display_text = if active_text.is_empty() {
             props.placeholder
         } else {
-            &props.text[visible_start..visible_end]
+            &active_text[visible_start..visible_end]
         };
 
         let text_id = self.tree.create_node();
@@ -510,7 +641,7 @@ impl<'a> UiScope<'a> {
             node.font_size = font_size;
             node.line_height = 24.0;
             node.text_align = TextAlign::Left;
-            node.text_color = if props.text.is_empty() {
+            node.text_color = if active_text.is_empty() {
                 Color::rgba(0.42, 0.45, 0.55, 1.0)
             } else {
                 Color::rgba(0.92, 0.94, 0.98, 1.0)
@@ -527,30 +658,31 @@ impl<'a> UiScope<'a> {
         }
         let _ = self.tree.add_child(box_id, text_id);
 
-        let caret_x = text_start_x + caret_offset;
-
-        let caret_id = self.tree.create_node();
-        let caret_color = props.caret_color.unwrap_or(self.theme().text_caret);
-        if let Some(node) = self.tree.get_mut(caret_id) {
-            node.set_name("TextInputCaret");
-            node.role = WidgetRole::TextInputCaret;
-            node.interactive = false;
-            node.tag = caret_offset.to_bits() as u64;
-            node.set_style(
-                Style::new()
-                    .position_absolute()
-                    .left(caret_x)
-                    .top(5.0)
-                    .width(1.5)
-                    .height(14.0)
-                    .background(caret_color)
-                    .border_radius(0.75),
-            );
+        if (is_still_focused || props.is_focused) && props.cursor_blink_visible {
+            let caret_x = text_start_x + caret_offset;
+            let caret_id = self.tree.create_node();
+            let caret_color = props.caret_color.unwrap_or(self.theme().text_caret);
+            if let Some(node) = self.tree.get_mut(caret_id) {
+                node.set_name("TextInputCaret");
+                node.role = WidgetRole::TextInputCaret;
+                node.interactive = false;
+                node.tag = caret_offset.to_bits() as u64;
+                node.set_style(
+                    Style::new()
+                        .position_absolute()
+                        .left(caret_x)
+                        .top(5.0)
+                        .width(1.5)
+                        .height(14.0)
+                        .background(caret_color)
+                        .border_radius(0.75),
+                );
+            }
+            let _ = self.tree.add_child(box_id, caret_id);
         }
-        let _ = self.tree.add_child(box_id, caret_id);
 
         if let Some(clear_tag) = props.clear_tag
-            && !props.text.is_empty()
+            && !active_text.is_empty()
         {
             let clear_id = self.tree.create_node();
             if let Some(node) = self.tree.get_mut(clear_id) {
@@ -580,6 +712,16 @@ impl<'a> UiScope<'a> {
             let _ = self.tree.add_child(box_id, clear_id);
         }
 
-        self.response(box_id)
+        let mut response = self.response(box_id);
+        if changed {
+            response.flags = response.flags.union(ResponseFlags::CHANGED);
+        }
+        if submitted {
+            response.flags = response.flags.union(ResponseFlags::SUBMITTED);
+        }
+        if is_still_focused {
+            response.flags = response.flags.union(ResponseFlags::FOCUSED);
+        }
+        response
     }
 }

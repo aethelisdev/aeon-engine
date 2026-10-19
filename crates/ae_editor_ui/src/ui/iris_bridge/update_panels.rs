@@ -62,6 +62,30 @@ impl IrisEditorOverlay {
             && hierarchy_rect.height > 20.0
         {
             let local_hier_rect = Rect::new(0.0, 0.0, hierarchy_rect.width, hierarchy_rect.height);
+
+            // Sync live text edit buffer from IrisUI EventState if active
+            if let Some(buf) = scope
+                .tree()
+                .event_state
+                .text_edit_buffer(hierarchy::HIERARCHY_TAG_SEARCH_INPUT)
+            {
+                self.hierarchy.interactions.search_input.set_text(buf);
+                self.hierarchy.search_input.set_text(buf);
+                if let Some(cur) = scope
+                    .tree()
+                    .event_state
+                    .text_edit_cursor(hierarchy::HIERARCHY_TAG_SEARCH_INPUT)
+                {
+                    self.hierarchy.interactions.search_input.cursor_byte_idx = cur;
+                    self.hierarchy.search_input.cursor_byte_idx = cur;
+                }
+            } else if scope.tree().event_state.frame_clicked_tag
+                == Some(hierarchy::HIERARCHY_TAG_SEARCH_CLEAR)
+            {
+                self.hierarchy.interactions.search_input.clear();
+                self.hierarchy.search_input.clear();
+            }
+
             let cursor_pos = self.cursor_pos();
             let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
             let ctrl_held = self.chrome.ctrl_held;
@@ -94,6 +118,47 @@ impl IrisEditorOverlay {
                 &mut hierarchy.interactions.actions,
                 &mut hierarchy.tree_state,
             );
+
+            // Resync immediately after building hierarchy in case key events were processed in input_box_tagged
+            if let Some(buf) = scope
+                .tree()
+                .event_state
+                .text_edit_buffer(hierarchy::HIERARCHY_TAG_SEARCH_INPUT)
+            {
+                self.hierarchy.interactions.search_input.set_text(buf);
+                self.hierarchy.search_input.set_text(buf);
+                if let Some(cur) = scope
+                    .tree()
+                    .event_state
+                    .text_edit_cursor(hierarchy::HIERARCHY_TAG_SEARCH_INPUT)
+                {
+                    self.hierarchy.interactions.search_input.cursor_byte_idx = cur;
+                    self.hierarchy.search_input.cursor_byte_idx = cur;
+                }
+            }
+
+            let mut should_clear = false;
+            let mut set_query = None;
+            for action in &self.hierarchy.interactions.actions {
+                match action {
+                    hierarchy::HierarchyAction::ClearSearchQuery => {
+                        should_clear = true;
+                    }
+                    hierarchy::HierarchyAction::SetSearchQuery(q) => {
+                        set_query = Some(q.clone());
+                    }
+                    _ => {}
+                }
+            }
+            if should_clear {
+                self.hierarchy.interactions.search_input.clear();
+                self.hierarchy.search_input.clear();
+                scope.tree_mut().event_state.clear_text_edit();
+            } else if let Some(q) = set_query {
+                self.hierarchy.interactions.search_input.set_text(&q);
+                self.hierarchy.search_input.set_text(&q);
+            }
+
             self.hierarchy.last_rect = Some(hierarchy_rect);
         } else {
             self.hierarchy.last_rect = None;
@@ -200,6 +265,27 @@ impl IrisEditorOverlay {
         {
             self.console.panel_rect = Some(console_rect);
             let local_console_rect = Rect::new(0.0, 0.0, console_rect.width, console_rect.height);
+
+            // Sync live text edit buffer from IrisUI EventState if active
+            if let Some(buf) = scope
+                .tree()
+                .event_state
+                .text_edit_buffer(super::console::CONSOLE_TAG_SEARCH_INPUT)
+            {
+                self.console.search_input.set_text(buf);
+                if let Some(cur) = scope
+                    .tree()
+                    .event_state
+                    .text_edit_cursor(super::console::CONSOLE_TAG_SEARCH_INPUT)
+                {
+                    self.console.search_input.cursor_byte_idx = cur;
+                }
+            } else if scope.tree().event_state.frame_clicked_tag
+                == Some(super::console::CONSOLE_TAG_SEARCH_CLEAR)
+            {
+                self.console.search_input.clear();
+            }
+
             let console_params = super::console::ConsolePanelParams {
                 panel_rect: local_console_rect,
                 entries: params.panel_data.console_entries,
@@ -214,6 +300,22 @@ impl IrisEditorOverlay {
 
             let mut actions = Vec::new();
             super::console::build_console_panel(scope, &console_params, &mut actions);
+
+            // Resync immediately after building console in case key events were processed in input_box_tagged
+            if let Some(buf) = scope
+                .tree()
+                .event_state
+                .text_edit_buffer(super::console::CONSOLE_TAG_SEARCH_INPUT)
+            {
+                self.console.search_input.set_text(buf);
+                if let Some(cur) = scope
+                    .tree()
+                    .event_state
+                    .text_edit_cursor(super::console::CONSOLE_TAG_SEARCH_INPUT)
+                {
+                    self.console.search_input.cursor_byte_idx = cur;
+                }
+            }
 
             let has_console_actions = !actions.is_empty();
             for action in actions {
@@ -242,6 +344,7 @@ impl IrisEditorOverlay {
                     }
                     super::console::ConsoleAction::ClearSearch => {
                         self.console.search_input.clear();
+                        scope.tree_mut().event_state.clear_text_edit();
                     }
                     super::console::ConsoleAction::CopyLog(_) => {}
                 }
@@ -265,6 +368,29 @@ impl IrisEditorOverlay {
             && assets_rect.width > 20.0
             && assets_rect.height > 20.0
         {
+            // Sync live text edit buffer from IrisUI EventState if active
+            if let Some(buf) = scope
+                .tree()
+                .event_state
+                .text_edit_buffer(super::assets::ASSETS_TAG_SEARCH_INPUT)
+            {
+                self.assets.search_input.set_text(buf);
+                self.assets.interactions.search_input.set_text(buf);
+                if let Some(cur) = scope
+                    .tree()
+                    .event_state
+                    .text_edit_cursor(super::assets::ASSETS_TAG_SEARCH_INPUT)
+                {
+                    self.assets.search_input.cursor_byte_idx = cur;
+                    self.assets.interactions.search_input.cursor_byte_idx = cur;
+                }
+            } else if scope.tree().event_state.frame_clicked_tag
+                == Some(super::assets::ASSETS_TAG_SEARCH_CLEAR)
+            {
+                self.assets.search_input.clear();
+                self.assets.interactions.search_input.clear();
+            }
+
             let is_root_folder =
                 params.panel_data.asset_browser.current_folder == std::path::Path::new("assets");
             let query_lower = self.assets.search_input.text().trim().to_ascii_lowercase();
@@ -358,6 +484,24 @@ impl IrisEditorOverlay {
                 &mut actions,
             );
 
+            // Resync immediately after building assets panel
+            if let Some(buf) = scope
+                .tree()
+                .event_state
+                .text_edit_buffer(super::assets::ASSETS_TAG_SEARCH_INPUT)
+            {
+                self.assets.search_input.set_text(buf);
+                self.assets.interactions.search_input.set_text(buf);
+                if let Some(cur) = scope
+                    .tree()
+                    .event_state
+                    .text_edit_cursor(super::assets::ASSETS_TAG_SEARCH_INPUT)
+                {
+                    self.assets.search_input.cursor_byte_idx = cur;
+                    self.assets.interactions.search_input.cursor_byte_idx = cur;
+                }
+            }
+
             for action in actions {
                 match action {
                     super::assets::AssetsPanelAction::NavigateFolder(ref path) => {
@@ -383,6 +527,8 @@ impl IrisEditorOverlay {
                     }
                     super::assets::AssetsPanelAction::ClearSearch => {
                         self.assets.interactions.search_input.clear();
+                        self.assets.search_input.clear();
+                        scope.tree_mut().event_state.clear_text_edit();
                         self.assets.actions.push(action);
                         self.notifier.tag_all();
                     }
