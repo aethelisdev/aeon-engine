@@ -6,6 +6,7 @@
 //! Provides generationally tracked unique keys for UI tree nodes, eliminating
 //! stale reference bugs and raw pointer lifecycle issues without unsafe code.
 
+pub use slotmap::Key;
 use slotmap::new_key_type;
 
 new_key_type! {
@@ -14,4 +15,13 @@ new_key_type! {
     /// `WidgetId` is used to index into the central `UiTree` arena without relying
     /// on raw pointers, preventing dangling references and ensuring memory safety.
     pub struct WidgetId;
+}
+
+impl WidgetId {
+    /// Returns the internal generational key representation as a 64-bit integer.
+    #[inline]
+    #[must_use]
+    pub fn as_ffi(&self) -> u64 {
+        <Self as slotmap::Key>::data(self).as_ffi()
+    }
 }

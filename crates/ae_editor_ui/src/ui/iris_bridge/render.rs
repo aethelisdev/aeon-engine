@@ -54,7 +54,7 @@ impl IrisEditorOverlay {
         let mut options = TreeCompilerOptions::new()
             .with_clip(clip_rect)
             .with_hovered_tag(self.chrome.hovered_tag)
-            .with_focused_tag(self.focus_manager.focused_tag)
+            .with_focused_tag(self.tree.event_state.focused_tag)
             .with_blink_caret(self.chrome.last_blink_caret)
             .with_custom_drawer(&mut custom_drawer);
 
@@ -139,7 +139,7 @@ impl IrisEditorOverlay {
                         tree,
                         bounds,
                         self.chrome.hovered_tag,
-                        self.focus_manager.focused_tag,
+                        tree.event_state.focused_tag,
                         self.chrome.last_blink_caret,
                         Some(&mut stats_drawer),
                     );
@@ -148,7 +148,7 @@ impl IrisEditorOverlay {
                         tree,
                         bounds,
                         self.chrome.hovered_tag,
-                        self.focus_manager.focused_tag,
+                        tree.event_state.focused_tag,
                         self.chrome.last_blink_caret,
                     );
                 }
@@ -160,7 +160,7 @@ impl IrisEditorOverlay {
             self.compositor.append_overlay_tree(
                 self.overlay_tree.tree(),
                 self.chrome.hovered_tag,
-                self.focus_manager.focused_tag,
+                self.overlay_tree.tree().event_state.focused_tag,
                 self.chrome.last_blink_caret,
             );
         }

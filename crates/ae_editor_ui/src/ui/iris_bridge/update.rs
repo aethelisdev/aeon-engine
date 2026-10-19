@@ -247,9 +247,10 @@ impl IrisEditorOverlay {
         }
 
         let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
-        let focus_target_changed = self.focus_manager.focused_tag != self.chrome.last_focused_tag;
-        let blink_changed =
-            self.focus_manager.has_focus() && (blink_caret != self.chrome.last_blink_caret);
+        let current_focused_tag = self.tree.event_state.focused_tag;
+        let focus_target_changed = current_focused_tag != self.chrome.last_focused_tag;
+        let has_text_focus = self.is_any_text_input_focused() || current_focused_tag.is_some();
+        let blink_changed = has_text_focus && (blink_caret != self.chrome.last_blink_caret);
 
         if !self.chrome.always_rebuild && !self.notifier.is_any_dirty() && !self.tree.is_empty() {
             if self.chrome.needs_scroll_sync {
@@ -272,7 +273,7 @@ impl IrisEditorOverlay {
             self.chrome.last_cursor_pos = self.cursor_pos();
             self.chrome.last_hovered_tag = self.chrome.hovered_tag;
             self.chrome.last_hovered_panel = self.chrome.hovered_panel;
-            self.chrome.last_focused_tag = self.focus_manager.focused_tag;
+            self.chrome.last_focused_tag = current_focused_tag;
             self.chrome.last_blink_caret = blink_caret;
             return;
         }
@@ -667,7 +668,7 @@ impl IrisEditorOverlay {
         self.chrome.last_cursor_pos = self.cursor_pos();
         self.chrome.last_hovered_tag = self.chrome.hovered_tag;
         self.chrome.last_hovered_panel = self.chrome.hovered_panel;
-        self.chrome.last_focused_tag = self.focus_manager.focused_tag;
+        self.chrome.last_focused_tag = self.tree.event_state.focused_tag;
         self.chrome.last_blink_caret = blink_caret;
         self.chrome.needs_layout_rebuild = false;
         self.chrome.needs_scroll_sync = false;

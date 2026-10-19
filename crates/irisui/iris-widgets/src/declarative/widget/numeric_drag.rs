@@ -273,14 +273,21 @@ impl<'a> Widget for NumericDrag<'a> {
                         *is_all_sel = false;
                         *cursor = buf.len();
                     }
+                    scope.tree.event_state.focused = Some(pill_id);
+                    if tag != 0 {
+                        scope.tree.event_state.focused_tag = Some(tag);
+                    }
                 } else {
                     let initial_buf =
                         crate::declarative::types::format_compact_float(*self.value, self.decimals);
                     let len = initial_buf.len();
-                    scope.tree.event_state.active_numeric_edit =
-                        Some((tag, initial_buf, len, true));
-                    scope.tree.event_state.focused = Some(pill_id);
-                    scope.tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+                    scope.tree.event_state.start_numeric_edit(
+                        Some(pill_id),
+                        tag,
+                        initial_buf,
+                        len,
+                        true,
+                    );
                 }
             }
 
@@ -296,6 +303,13 @@ impl<'a> Widget for NumericDrag<'a> {
                 .active_numeric_edit
                 .as_ref()
                 .is_some_and(|(t, ..)| *t == tag);
+
+            if is_editing_this_pill {
+                scope.tree.event_state.focused = Some(pill_id);
+                if tag != 0 {
+                    scope.tree.event_state.focused_tag = Some(tag);
+                }
+            }
 
             let is_clicked_outside =
                 if let Some(clicked_tag) = scope.tree.event_state.frame_clicked_tag {
@@ -705,13 +719,17 @@ impl<'a> Widget for NumericDrag<'a> {
                     *is_all_sel = false;
                     *cursor = buf.len();
                 }
+                row.tree.event_state.focused = Some(pill_id);
+                if tag != 0 {
+                    row.tree.event_state.focused_tag = Some(tag);
+                }
             } else {
                 let initial_buf =
                     crate::declarative::types::format_compact_float(*self.value, self.decimals);
                 let len = initial_buf.len();
-                row.tree.event_state.active_numeric_edit = Some((tag, initial_buf, len, true));
-                row.tree.event_state.focused = Some(pill_id);
-                row.tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+                row.tree
+                    .event_state
+                    .start_numeric_edit(Some(pill_id), tag, initial_buf, len, true);
             }
         }
 
@@ -727,6 +745,13 @@ impl<'a> Widget for NumericDrag<'a> {
             .active_numeric_edit
             .as_ref()
             .is_some_and(|(t, ..)| *t == tag);
+
+        if is_editing_this_pill {
+            row.tree.event_state.focused = Some(pill_id);
+            if tag != 0 {
+                row.tree.event_state.focused_tag = Some(tag);
+            }
+        }
 
         let is_clicked_outside = if let Some(clicked_tag) = row.tree.event_state.frame_clicked_tag {
             clicked_tag != tag

@@ -313,7 +313,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
-        // If clicking on non-button child of a ModalTitlebar, NumericInput, or ColorPickerArea, bubble target to interactive ancestor
+        // If clicking on non-button child of a ModalTitlebar, NumericInput, ColorPickerArea, or TextInput, bubble target to interactive ancestor
         let (effective_target_id, effective_role) = if role != WidgetRole::Button {
             if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
             {
@@ -326,6 +326,10 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                 tree.find_ancestor_with_role(target_id, WidgetRole::ColorPickerArea)
             {
                 (cp_id, WidgetRole::ColorPickerArea)
+            } else if let Some(ti_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::TextInput)
+            {
+                (ti_id, WidgetRole::TextInput)
             } else {
                 (target_id, role)
             }
@@ -341,6 +345,13 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             tag
         } else {
             tree.resolve_ancestor_tag(target_id)
+        };
+
+        tree.event_state.focused = Some(effective_target_id);
+        tree.event_state.focused_tag = if effective_tag != 0 {
+            Some(effective_tag)
+        } else {
+            None
         };
 
         // Special case: Autonomous ScrollBarThumb capture inception
@@ -481,16 +492,15 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 MouseButton::Left => {
                     flags = flags.union(ResponseFlags::CLICKED);
                     tree.event_state.frame_clicked_id = Some(captured_id);
-                    tree.event_state.frame_clicked_tag = if tag != 0 { Some(tag) } else { None };
+                    tree.event_state.frame_clicked_tag = captured_tag;
                     tree.event_state.frame_clicked_pos = Some(point);
                     tree.event_state.focused = Some(captured_id);
-                    tree.event_state.focused_tag = if tag != 0 { Some(tag) } else { None };
+                    tree.event_state.focused_tag = captured_tag;
                 }
                 MouseButton::Right => {
                     flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
                     tree.event_state.frame_secondary_clicked_id = Some(captured_id);
-                    tree.event_state.frame_secondary_clicked_tag =
-                        if tag != 0 { Some(tag) } else { None };
+                    tree.event_state.frame_secondary_clicked_tag = captured_tag;
                     tree.event_state.frame_clicked_pos = Some(point);
                 }
                 _ => {}
@@ -577,8 +587,14 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             match button {
                 MouseButton::Left => {
                     flags = flags.union(ResponseFlags::CLICKED);
-                    tree.event_state.frame_clicked_id = Some(target_id);
+                    tree.event_state.frame_clicked_id = Some(effective_target_id);
                     tree.event_state.frame_clicked_tag = if effective_tag != 0 {
+                        Some(effective_tag)
+                    } else {
+                        None
+                    };
+                    tree.event_state.focused = Some(effective_target_id);
+                    tree.event_state.focused_tag = if effective_tag != 0 {
                         Some(effective_tag)
                     } else {
                         None
@@ -807,6 +823,9 @@ fn handle_keyboard(
         if let Some(tag) = tree.event_state.focused_tag {
             tree.find_node_by_tag(tag)
         } else if let Some((tag, ..)) = tree.event_state.active_numeric_edit {
+            tree.event_state.focused_tag = Some(tag);
+            tree.find_node_by_tag(tag)
+        } else if let Some((tag, ..)) = tree.event_state.active_text_edit {
             tree.event_state.focused_tag = Some(tag);
             tree.find_node_by_tag(tag)
         } else {

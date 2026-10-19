@@ -101,6 +101,8 @@ pub struct EventState {
     pub active_context_menu: Option<PopupMenuState>,
     /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
     pub active_numeric_edit: Option<(u64, String, usize, bool)>,
+    /// Active autonomous inline text input editing session: `(tag, cursor_byte_idx, is_all_selected)`.
+    pub active_text_edit: Option<(u64, usize, bool)>,
     /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
     /// and is actively recognized as an ongoing dragging gesture.
     pub is_pointer_drag_active: bool,
@@ -140,6 +142,7 @@ impl EventState {
             frame_key_pressed: false,
             active_context_menu: None,
             active_numeric_edit: None,
+            active_text_edit: None,
             is_pointer_drag_active: false,
         }
     }
@@ -212,6 +215,84 @@ impl EventState {
         self.focused = None;
         self.focused_tag = None;
         self.active_numeric_edit = None;
+        self.active_text_edit = None;
+    }
+
+    /// Activates an autonomous inline text editing session and synchronizes focus to the target widget and tag.
+    ///
+    /// Sets [`Self::focused`], [`Self::focused_tag`], and [`Self::active_text_edit`], while clearing any active numeric edit.
+    #[inline]
+    pub fn start_text_edit(
+        &mut self,
+        node_id: Option<WidgetId>,
+        tag: u64,
+        cursor_idx: usize,
+        is_all_selected: bool,
+    ) {
+        if let Some(id) = node_id {
+            self.focused = Some(id);
+        }
+        if tag != 0 {
+            self.focused_tag = Some(tag);
+        }
+        self.active_text_edit = Some((tag, cursor_idx, is_all_selected));
+        self.active_numeric_edit = None;
+    }
+
+    /// Activates an autonomous inline numeric editing session and synchronizes focus to the target widget and tag.
+    ///
+    /// Sets [`Self::focused`], [`Self::focused_tag`], and [`Self::active_numeric_edit`], while clearing any active text edit.
+    #[inline]
+    pub fn start_numeric_edit(
+        &mut self,
+        node_id: Option<WidgetId>,
+        tag: u64,
+        buffer: String,
+        cursor_idx: usize,
+        is_all_selected: bool,
+    ) {
+        if let Some(id) = node_id {
+            self.focused = Some(id);
+        }
+        if tag != 0 {
+            self.focused_tag = Some(tag);
+        }
+        self.active_numeric_edit = Some((tag, buffer, cursor_idx, is_all_selected));
+        self.active_text_edit = None;
+    }
+
+    /// Clears any active text editing session and releases focus if owned by the current edit tag.
+    #[inline]
+    pub fn clear_text_edit(&mut self) {
+        if let Some((tag, ..)) = self.active_text_edit
+            && self.focused_tag == Some(tag)
+        {
+            self.focused = None;
+            self.focused_tag = None;
+        }
+        self.active_text_edit = None;
+    }
+
+    /// Clears any active numeric editing session and releases focus if owned by the current edit tag.
+    #[inline]
+    pub fn clear_numeric_edit(&mut self) {
+        if let Some((tag, ..)) = self.active_numeric_edit
+            && self.focused_tag == Some(tag)
+        {
+            self.focused = None;
+            self.focused_tag = None;
+        }
+        self.active_numeric_edit = None;
+    }
+
+    /// Returns `true` if any widget node, semantic tag, numeric edit, or text edit currently holds keyboard focus.
+    #[inline]
+    #[must_use]
+    pub fn has_focus(&self) -> bool {
+        self.focused.is_some()
+            || self.focused_tag.is_some()
+            || self.active_numeric_edit.is_some()
+            || self.active_text_edit.is_some()
     }
 
     /// Closes the active context menu popup, if one is currently opened.

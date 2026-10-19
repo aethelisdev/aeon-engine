@@ -51,6 +51,8 @@ pub struct Theme {
     pub text_secondary: Color,
     /// Dimmed subtle text color for placeholders, units, and secondary hints.
     pub text_muted: Color,
+    /// Vertical blinking caret indicator color for focused text inputs.
+    pub text_caret: Color,
 
     /// Primary brand / interactive cyan accent color.
     pub accent: Color,
@@ -114,6 +116,7 @@ impl Theme {
             text_primary: Color::rgba(0.98, 0.99, 1.0, 1.0),
             text_secondary: Color::rgba(0.85, 0.88, 0.95, 1.0),
             text_muted: Color::rgba(0.55, 0.58, 0.68, 1.0),
+            text_caret: Color::rgba(0.24, 0.52, 0.95, 1.0),
 
             accent: Color::rgba(0.0, 0.898, 1.0, 1.0),
             accent_hover: Color::rgba(0.25, 0.94, 1.0, 1.0),
@@ -157,6 +160,7 @@ impl Theme {
             text_primary: Color::rgba(0.98, 0.99, 1.0, 1.0),
             text_secondary: Color::rgba(0.85, 0.88, 0.95, 1.0),
             text_muted: Color::rgba(0.55, 0.58, 0.68, 1.0),
+            text_caret: Color::rgba(0.24, 0.52, 0.95, 1.0),
 
             accent: Color::rgba(0.0, 0.898, 1.0, 1.0),
             accent_hover: Color::rgba(0.25, 0.94, 1.0, 1.0),
@@ -174,5 +178,17 @@ impl Theme {
             corner_radius_md: 4.0,
             corner_radius_lg: 8.0,
         }
+    }
+
+    /// Sets the vertical blinking text caret color in-place.
+    pub fn set_text_caret(&mut self, color: Color) {
+        self.text_caret = color;
+    }
+
+    /// Builder method to customize the vertical blinking text caret color.
+    #[must_use]
+    pub fn with_text_caret(mut self, color: Color) -> Self {
+        self.text_caret = color;
+        self
     }
 }
