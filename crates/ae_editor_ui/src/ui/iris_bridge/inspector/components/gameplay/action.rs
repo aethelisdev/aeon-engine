@@ -69,35 +69,37 @@ impl ComponentInspectorHandler for CharacterActionHandler {
             // Speed / Range [ 50 ] m/s
             let speed_id = InspectorNumberInputId::ActionSpeedRange;
             let custom_speed = format!("{:.0}", speed);
-            if card
-                .add(
-                    NumericDrag::new("Speed / Range:", &mut speed)
-                        .tag(encode_inspector_number_input_tag(speed_id))
-                        .label_width(label_w)
-                        .box_width(box_w)
-                        .unit("m/s")
-                        .custom_text(&custom_speed)
-                        .edit_state(ctx.edit_state(speed_id)),
-                )
-                .changed()
-            {
+            let resp_speed = card.add(
+                NumericDrag::new("Speed / Range:", &mut speed)
+                    .tag(encode_inspector_number_input_tag(speed_id))
+                    .label_width(label_w)
+                    .box_width(box_w)
+                    .unit("m/s")
+                    .custom_text(&custom_speed)
+                    .edit_state(ctx.edit_state(speed_id)),
+            );
+            if resp_speed.changed() {
                 ctx.set_number(speed_id, speed);
+            }
+            if resp_speed.committed() {
+                ctx.commit_number(speed_id);
             }
 
             // Cooldown [ 0.20 ] s
             let cd_id = InspectorNumberInputId::ActionCooldown;
-            if card
-                .add(
-                    NumericDrag::new("Cooldown:", &mut cooldown)
-                        .tag(encode_inspector_number_input_tag(cd_id))
-                        .label_width(label_w)
-                        .box_width(box_w)
-                        .unit("s")
-                        .edit_state(ctx.edit_state(cd_id)),
-                )
-                .changed()
-            {
+            let resp_cd = card.add(
+                NumericDrag::new("Cooldown:", &mut cooldown)
+                    .tag(encode_inspector_number_input_tag(cd_id))
+                    .label_width(label_w)
+                    .box_width(box_w)
+                    .unit("s")
+                    .edit_state(ctx.edit_state(cd_id)),
+            );
+            if resp_cd.changed() {
                 ctx.set_number(cd_id, cooldown);
+            }
+            if resp_cd.committed() {
+                ctx.commit_number(cd_id);
             }
         });
     }

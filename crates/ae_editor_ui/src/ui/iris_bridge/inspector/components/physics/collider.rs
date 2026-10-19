@@ -128,33 +128,35 @@ impl ComponentInspectorHandler for ColliderHandler {
                     for (id, lbl, val) in &mut rows {
                         let tag = encode_inspector_number_input_tag(*id);
                         let edit = ctx.edit_state(*id);
-                        if card
-                            .add(
-                                NumericDrag::new(lbl, val)
-                                    .tag(tag)
-                                    .label_width(label_w)
-                                    .box_width(box_w)
-                                    .edit_state(edit),
-                            )
-                            .changed()
-                        {
+                        let resp = card.add(
+                            NumericDrag::new(lbl, val)
+                                .tag(tag)
+                                .label_width(label_w)
+                                .box_width(box_w)
+                                .edit_state(edit),
+                        );
+                        if resp.changed() {
                             ctx.set_number(*id, **val);
+                        }
+                        if resp.committed() {
+                            ctx.commit_number(*id);
                         }
                     }
                 }
                 ae_core::ecs::ColliderShape::Sphere { mut radius } => {
                     let id_r = InspectorNumberInputId::ColliderRadius;
-                    if card
-                        .add(
-                            NumericDrag::new("Radius:", &mut radius)
-                                .tag(encode_inspector_number_input_tag(id_r))
-                                .label_width(label_w)
-                                .box_width(box_w)
-                                .edit_state(ctx.edit_state(id_r)),
-                        )
-                        .changed()
-                    {
+                    let resp = card.add(
+                        NumericDrag::new("Radius:", &mut radius)
+                            .tag(encode_inspector_number_input_tag(id_r))
+                            .label_width(label_w)
+                            .box_width(box_w)
+                            .edit_state(ctx.edit_state(id_r)),
+                    );
+                    if resp.changed() {
                         ctx.set_number(id_r, radius);
+                    }
+                    if resp.committed() {
+                        ctx.commit_number(id_r);
                     }
                 }
                 ae_core::ecs::ColliderShape::Capsule {
@@ -182,17 +184,18 @@ impl ComponentInspectorHandler for ColliderHandler {
                     for (id, lbl, val) in &mut rows {
                         let tag = encode_inspector_number_input_tag(*id);
                         let edit = ctx.edit_state(*id);
-                        if card
-                            .add(
-                                NumericDrag::new(lbl, val)
-                                    .tag(tag)
-                                    .label_width(label_w)
-                                    .box_width(box_w)
-                                    .edit_state(edit),
-                            )
-                            .changed()
-                        {
+                        let resp = card.add(
+                            NumericDrag::new(lbl, val)
+                                .tag(tag)
+                                .label_width(label_w)
+                                .box_width(box_w)
+                                .edit_state(edit),
+                        );
+                        if resp.changed() {
                             ctx.set_number(*id, **val);
+                        }
+                        if resp.committed() {
+                            ctx.commit_number(*id);
                         }
                     }
                 }
@@ -200,31 +203,33 @@ impl ComponentInspectorHandler for ColliderHandler {
             }
 
             let id_f = InspectorNumberInputId::ColliderFriction;
-            if card
-                .add(
-                    NumericDrag::new("Friction:", &mut friction)
-                        .tag(encode_inspector_number_input_tag(id_f))
-                        .label_width(label_w)
-                        .box_width(box_w)
-                        .edit_state(ctx.edit_state(id_f)),
-                )
-                .changed()
-            {
+            let resp_f = card.add(
+                NumericDrag::new("Friction:", &mut friction)
+                    .tag(encode_inspector_number_input_tag(id_f))
+                    .label_width(label_w)
+                    .box_width(box_w)
+                    .edit_state(ctx.edit_state(id_f)),
+            );
+            if resp_f.changed() {
                 ctx.set_number(id_f, friction);
+            }
+            if resp_f.committed() {
+                ctx.commit_number(id_f);
             }
 
             let id_re = InspectorNumberInputId::ColliderRestitution;
-            if card
-                .add(
-                    NumericDrag::new("Restitution:", &mut restitution)
-                        .tag(encode_inspector_number_input_tag(id_re))
-                        .label_width(label_w)
-                        .box_width(box_w)
-                        .edit_state(ctx.edit_state(id_re)),
-                )
-                .changed()
-            {
+            let resp_re = card.add(
+                NumericDrag::new("Restitution:", &mut restitution)
+                    .tag(encode_inspector_number_input_tag(id_re))
+                    .label_width(label_w)
+                    .box_width(box_w)
+                    .edit_state(ctx.edit_state(id_re)),
+            );
+            if resp_re.changed() {
                 ctx.set_number(id_re, restitution);
+            }
+            if resp_re.committed() {
+                ctx.commit_number(id_re);
             }
 
             render_declarative_checkbox_row(

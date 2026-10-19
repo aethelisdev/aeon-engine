@@ -8,7 +8,7 @@
 
 use crate::declarative::{
     UiScope,
-    widget::{Button, Checkbox},
+    widget::{Button, Checkbox, NumericDrag},
 };
 use iris_core::event::{MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};
@@ -264,10 +264,10 @@ fn test_declarative_numeric_drag_changed_response() {
 
     let start_pt = Point::new(30.0, 25.0);
 
-    // 2. MouseMove over scrubber -> Hovered and EwResize cursor
+    // 2. MouseMove over scrubber -> Hovered and Default cursor (no resize until drag begins)
     let move_res = tree.dispatch_event(&UiEvent::MouseMove { point: start_pt });
     assert_eq!(move_res.target, Some(drag_id));
-    assert_eq!(move_res.cursor, Some(WidgetCursor::EwResize));
+    assert_eq!(move_res.cursor, Some(WidgetCursor::Default));
 
     {
         let mut scope = UiScope::new(&mut tree, root);
@@ -429,6 +429,24 @@ fn test_declarative_text_input_autonomous_focus_and_text() {
         let resp = scope.text_input("Arama...", &mut search_query);
         assert!(resp.changed());
         assert_eq!(search_query, "Ae");
+    }
+
+    // 5b. Key release event for 'e' -> Must NOT duplicate input (prevent double-typing)
+    let release_res = tree.dispatch_event(&UiEvent::KeyboardInput {
+        key: KeyCode::Character('e'),
+        text: Some("e".to_string()),
+        is_pressed: false,
+    });
+    assert!(release_res.is_consumed());
+
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.text_input("Arama...", &mut search_query);
+        assert!(!resp.changed(), "Key release must NOT trigger text change");
+        assert_eq!(
+            search_query, "Ae",
+            "Text must not be duplicated on key release"
+        );
     }
 
     // 6. Backspace key -> Pop last character in-place and report changed
@@ -899,4 +917,171 @@ fn test_numeric_input_child_node_click_bubbles_capture() {
         Some(num_tag),
         "Pointer capture tag must reflect the parent NumericInput's semantic tag"
     );
+}
+
+/// Verifies that micro-motion (<=3.0px) during a press on [`NumericDrag`] confirms a click gesture
+/// rather than triggering premature scrubbing, and that drag threshold (>3.0px) activates dragging.
+#[test]
+fn test_numeric_input_click_vs_drag_threshold_isolation() {
+    use crate::declarative::widget::numeric_drag::NumericDrag;
+    use iris_core::WidgetCursor;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+    let mut val = 42.0_f32;
+    let tag = 0xbeef_1234_5678_u64;
+
+    // 1. Initial build
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+    }
+    let pill_id = tree.find_node_by_tag(tag).expect("Pill must exist");
+    if let Some(node) = tree.get_mut(pill_id) {
+        node.computed_rect = Rect::new(10.0, 10.0, 80.0, 24.0);
+    }
+
+    // 2. MouseDown within pill
+    let down_res = tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    });
+    assert!(down_res.is_consumed());
+    assert!(!tree.event_state.is_pointer_drag_active);
+
+    // 3. Micro-move (1.0px delta) -> should NOT trigger drag or EwResize cursor
+    let micro_move_res = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(21.0, 20.0),
+    });
+    assert!(micro_move_res.is_consumed());
+    assert!(!tree.event_state.is_pointer_drag_active);
+    assert_ne!(
+        micro_move_res.cursor,
+        Some(WidgetCursor::EwResize),
+        "Micro-motion must not display EwResize cursor"
+    );
+    assert!(tree.event_state.frame_drag_delta.is_none());
+
+    // 4. MouseUp within threshold -> MUST confirm click and start active_numeric_edit
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(21.0, 20.0),
+    });
+    assert!(up_res.is_consumed());
+    assert!(
+        up_res.response.is_some_and(|r| r.clicked()),
+        "Release within threshold must register as a CLICK"
+    );
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(tag));
+
+    // 5. Subsequent scope build enters editing mode
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+        assert!(resp.clicked());
+        assert!(tree.event_state.active_numeric_edit.is_some());
+    }
+}
+
+#[test]
+fn test_numeric_drag_typing_buffering_and_enter_commit() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let tag = 4242u64;
+    let mut val = 100.0f32;
+
+    // 1. Initial click enters active edit session
+    tree.event_state.frame_clicked_tag = Some(tag);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+        assert!(resp.clicked());
+        assert!(tree.event_state.active_numeric_edit.is_some());
+    }
+
+    // 2. Typing '5' replaces buffer (all selected), val MUST NOT CHANGE yet
+    tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_key_pressed = true;
+    tree.event_state.frame_text_input = Some("5".to_string());
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+        assert!(!resp.changed(), "Typing must NOT apply value immediately");
+        assert_eq!(val, 100.0, "Original value must be preserved while typing");
+    }
+
+    // 3. Typing '-10' into the buffer, val MUST STILL NOT CHANGE
+    tree.event_state.frame_key_pressed = true;
+    tree.event_state.frame_text_input = Some("-10".to_string());
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+        assert!(!resp.changed(), "Typing must NOT apply value immediately");
+        assert_eq!(val, 100.0, "Original value must be preserved while typing");
+    }
+
+    // Verify buffer holds "5-10"
+    assert_eq!(
+        tree.event_state
+            .active_numeric_edit
+            .as_ref()
+            .map(|(_, b, ..)| b.as_str()),
+        Some("5-10")
+    );
+
+    // 4. Press Enter -> MUST calculate 5-10 = -5.0, set changed=true, and close edit session
+    tree.event_state.frame_key_pressed = true;
+    tree.event_state.frame_text_input = None;
+    tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+        assert!(resp.changed(), "Enter MUST commit the numeric edit");
+        assert_eq!(val, -5.0, "Math expression 5-10 must evaluate to -5.0");
+        assert!(
+            tree.event_state.active_numeric_edit.is_none(),
+            "Enter must close editing"
+        );
+    }
+}
+
+#[test]
+fn test_numeric_drag_blur_commit() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root");
+    let tag = 5555u64;
+    let mut val = 0.0f32;
+
+    // 1. Initial click enters active edit session
+    tree.event_state.frame_clicked_tag = Some(tag);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+    }
+
+    // 2. Type "20+15"
+    tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_key_pressed = true;
+    tree.event_state.frame_text_input = Some("20+15".to_string());
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let _ = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+    }
+    assert_eq!(val, 0.0);
+
+    // 3. Click outside on untagged container
+    tree.event_state.frame_key_pressed = false;
+    tree.event_state.frame_text_input = None;
+    tree.event_state.frame_clicked_tag = None;
+    tree.event_state.frame_clicked_id = Some(root);
+    {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(NumericDrag::new("TestVal", &mut val).tag(tag));
+        assert!(resp.changed(), "Blur MUST commit the numeric edit");
+        assert_eq!(val, 35.0, "Math expression 20+15 must evaluate to 35.0");
+        assert!(
+            tree.event_state.active_numeric_edit.is_none(),
+            "Blur must close editing"
+        );
+    }
 }

@@ -131,32 +131,34 @@ impl ComponentInspectorHandler for PhysicsMaterialHandler {
 
             // Row 2: Friction
             let fric_id = InspectorNumberInputId::PhysMatFriction;
-            if card
-                .add(
-                    NumericDrag::new("Friction:", &mut friction)
-                        .tag(encode_inspector_number_input_tag(fric_id))
-                        .label_width(85.0)
-                        .box_width(44.0)
-                        .edit_state(ctx.edit_state(fric_id)),
-                )
-                .changed()
-            {
+            let resp_fric = card.add(
+                NumericDrag::new("Friction:", &mut friction)
+                    .tag(encode_inspector_number_input_tag(fric_id))
+                    .label_width(85.0)
+                    .box_width(44.0)
+                    .edit_state(ctx.edit_state(fric_id)),
+            );
+            if resp_fric.changed() {
                 ctx.set_number(fric_id, friction);
+            }
+            if resp_fric.committed() {
+                ctx.commit_number(fric_id);
             }
 
             // Row 3: Restitution (Bounciness)
             let rest_id = InspectorNumberInputId::PhysMatRestitution;
-            if card
-                .add(
-                    NumericDrag::new("Restitution (Bounciness):", &mut restitution)
-                        .tag(encode_inspector_number_input_tag(rest_id))
-                        .label_width(155.0)
-                        .box_width(44.0)
-                        .edit_state(ctx.edit_state(rest_id)),
-                )
-                .changed()
-            {
+            let resp_rest = card.add(
+                NumericDrag::new("Restitution (Bounciness):", &mut restitution)
+                    .tag(encode_inspector_number_input_tag(rest_id))
+                    .label_width(155.0)
+                    .box_width(44.0)
+                    .edit_state(ctx.edit_state(rest_id)),
+            );
+            if resp_rest.changed() {
                 ctx.set_number(rest_id, restitution);
+            }
+            if resp_rest.committed() {
+                ctx.commit_number(rest_id);
             }
         });
     }

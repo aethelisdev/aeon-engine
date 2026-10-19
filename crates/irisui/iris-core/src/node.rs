@@ -192,7 +192,7 @@ impl WidgetRole {
             | WidgetRole::ColorSwatch
             | WidgetRole::DockTab => Some(WidgetCursor::Pointer),
             WidgetRole::TextInput => Some(WidgetCursor::Text),
-            WidgetRole::NumericInput => Some(WidgetCursor::EwResize),
+            WidgetRole::NumericInput => None,
             WidgetRole::ColorPickerArea => Some(WidgetCursor::Crosshair),
             WidgetRole::DockSplitterHorizontal => Some(WidgetCursor::ColResize),
             WidgetRole::DockSplitterVertical => Some(WidgetCursor::RowResize),

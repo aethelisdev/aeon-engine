@@ -28,6 +28,8 @@ pub struct Vec3Response {
     pub response: WidgetResponse,
     /// 0-indexed axis that changed during this frame (0 for X, 1 for Y, 2 for Z).
     pub changed_axis: Option<usize>,
+    /// 0-indexed axis that was committed during this frame (via Enter, blur, or drag release).
+    pub committed_axis: Option<usize>,
     /// Whether the dedicated reset button was clicked during this frame.
     pub reset_clicked: bool,
     /// Whether any axis input in this row is currently being actively edited via keyboard input.
@@ -74,6 +76,23 @@ impl Vec3Response {
     #[must_use]
     pub const fn reset_clicked(&self) -> bool {
         self.reset_clicked
+    }
+
+    /// Returns whether any axis value in the vector was committed during this frame.
+    #[inline]
+    #[must_use]
+    pub fn committed(&self) -> bool {
+        self.response
+            .flags
+            .contains(iris_core::response::ResponseFlags::SUBMITTED)
+            || self.committed_axis.is_some()
+    }
+
+    /// Returns the 0-indexed axis that was committed during this frame, if any.
+    #[inline]
+    #[must_use]
+    pub const fn committed_axis(&self) -> Option<usize> {
+        self.committed_axis
     }
 }
 
@@ -213,6 +232,7 @@ impl<'a> Widget for DragVec3<'a> {
         Vec3Response {
             response: prop_resp.response,
             changed_axis: prop_resp.changed_axis,
+            committed_axis: prop_resp.committed_axis,
             reset_clicked: prop_resp.reset_clicked,
             editing_text: is_any_editing,
             axes: prop_resp.axes,
@@ -276,5 +296,36 @@ mod tests {
 
         assert_eq!(values, [10.0, 20.0, 30.0]);
         assert_eq!(resp.changed_axis(), None);
+    }
+
+    #[test]
+    fn test_drag_vec3_enter_confirmation_and_committed_axis() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node");
+
+        let mut values = [1.0, 2.0, 3.0];
+        let label = "TransformPos";
+        let base_tag = {
+            let scope = UiScope::new(&mut tree, root);
+            scope.tag_for(label)
+        };
+        let y_axis_tag =
+            crate::declarative::scope::properties::vectors::property_vec3_axis_tag(base_tag, 1);
+
+        // Simulate active editing session on Y axis
+        tree.event_state.active_numeric_edit = Some((y_axis_tag, "45.0".to_string(), 4, false));
+        tree.event_state.focused_tag = Some(y_axis_tag);
+        tree.event_state.frame_key = Some(iris_core::event::KeyCode::Enter);
+        tree.event_state.frame_key_pressed = true;
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.add(DragVec3::new(label, &mut values).speed(0.1));
+
+        assert_eq!(values, [1.0, 45.0, 3.0]);
+        assert!(resp.changed());
+        assert!(resp.committed());
+        assert_eq!(resp.changed_axis(), Some(1));
+        assert_eq!(resp.committed_axis(), Some(1));
+        assert!(tree.event_state.active_numeric_edit.is_none());
     }
 }

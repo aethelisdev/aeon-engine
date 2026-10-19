@@ -68,55 +68,55 @@ impl ComponentInspectorHandler for LightHandler {
             );
 
             // Row 1: Light Offset Y
-            if card
-                .add(
-                    NumericDrag::new("Light Offset Y:", &mut pos[1])
-                        .label_width(95.0)
-                        .box_width(44.0)
-                        .tag(encode_inspector_number_input_tag(
-                            InspectorNumberInputId::LightOffsetY,
-                        ))
-                        .edit_state(ctx.edit_state(InspectorNumberInputId::LightOffsetY)),
-                )
-                .changed()
-            {
-                ctx.set_number(InspectorNumberInputId::LightOffsetY, pos[1]);
+            let id_offset = InspectorNumberInputId::LightOffsetY;
+            let resp_offset = card.add(
+                NumericDrag::new("Light Offset Y:", &mut pos[1])
+                    .label_width(95.0)
+                    .box_width(44.0)
+                    .tag(encode_inspector_number_input_tag(id_offset))
+                    .edit_state(ctx.edit_state(id_offset)),
+            );
+            if resp_offset.changed() {
+                ctx.set_number(id_offset, pos[1]);
+            }
+            if resp_offset.committed() {
+                ctx.commit_number(id_offset);
             }
 
             // Row 2: Color R
-            if card
-                .add(
-                    NumericDrag::new("Color R:", &mut col[0])
-                        .label_width(95.0)
-                        .box_width(44.0)
-                        .range(0.0..=1.0)
-                        .speed(0.01)
-                        .tag(encode_inspector_number_input_tag(
-                            InspectorNumberInputId::LightColorR,
-                        ))
-                        .edit_state(ctx.edit_state(InspectorNumberInputId::LightColorR)),
-                )
-                .changed()
-            {
-                ctx.set_number(InspectorNumberInputId::LightColorR, col[0]);
+            let id_r = InspectorNumberInputId::LightColorR;
+            let resp_r = card.add(
+                NumericDrag::new("Color R:", &mut col[0])
+                    .label_width(95.0)
+                    .box_width(44.0)
+                    .range(0.0..=1.0)
+                    .speed(0.01)
+                    .tag(encode_inspector_number_input_tag(id_r))
+                    .edit_state(ctx.edit_state(id_r)),
+            );
+            if resp_r.changed() {
+                ctx.set_number(id_r, col[0]);
+            }
+            if resp_r.committed() {
+                ctx.commit_number(id_r);
             }
 
             // Row 3: Color G
-            if card
-                .add(
-                    NumericDrag::new("Color G:", &mut col[1])
-                        .label_width(95.0)
-                        .box_width(44.0)
-                        .range(0.0..=1.0)
-                        .speed(0.01)
-                        .tag(encode_inspector_number_input_tag(
-                            InspectorNumberInputId::LightColorG,
-                        ))
-                        .edit_state(ctx.edit_state(InspectorNumberInputId::LightColorG)),
-                )
-                .changed()
-            {
-                ctx.set_number(InspectorNumberInputId::LightColorG, col[1]);
+            let id_g = InspectorNumberInputId::LightColorG;
+            let resp_g = card.add(
+                NumericDrag::new("Color G:", &mut col[1])
+                    .label_width(95.0)
+                    .box_width(44.0)
+                    .range(0.0..=1.0)
+                    .speed(0.01)
+                    .tag(encode_inspector_number_input_tag(id_g))
+                    .edit_state(ctx.edit_state(id_g)),
+            );
+            if resp_g.changed() {
+                ctx.set_number(id_g, col[1]);
+            }
+            if resp_g.committed() {
+                ctx.commit_number(id_g);
             }
         });
     }

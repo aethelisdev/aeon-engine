@@ -115,34 +115,36 @@ impl ComponentInspectorHandler for UiPanelHandler {
 
             // Row 1: Border Width
             let bw_id = InspectorNumberInputId::UiBorderWidth;
-            if card
-                .add(
-                    NumericDrag::new("Border Width", &mut border_w)
-                        .tag(encode_inspector_number_input_tag(bw_id))
-                        .label_width(80.0)
-                        .box_width(60.0)
-                        .unit("px")
-                        .edit_state(ctx.edit_state(bw_id)),
-                )
-                .changed()
-            {
+            let resp_bw = card.add(
+                NumericDrag::new("Border Width", &mut border_w)
+                    .tag(encode_inspector_number_input_tag(bw_id))
+                    .label_width(80.0)
+                    .box_width(60.0)
+                    .unit("px")
+                    .edit_state(ctx.edit_state(bw_id)),
+            );
+            if resp_bw.changed() {
                 ctx.set_number(bw_id, border_w);
+            }
+            if resp_bw.committed() {
+                ctx.commit_number(bw_id);
             }
 
             // Row 2: Corner Radius
             let cr_id = InspectorNumberInputId::UiCornerRadius;
-            if card
-                .add(
-                    NumericDrag::new("Corner Radius", &mut radius)
-                        .tag(encode_inspector_number_input_tag(cr_id))
-                        .label_width(80.0)
-                        .box_width(60.0)
-                        .unit("px")
-                        .edit_state(ctx.edit_state(cr_id)),
-                )
-                .changed()
-            {
+            let resp_cr = card.add(
+                NumericDrag::new("Corner Radius", &mut radius)
+                    .tag(encode_inspector_number_input_tag(cr_id))
+                    .label_width(80.0)
+                    .box_width(60.0)
+                    .unit("px")
+                    .edit_state(ctx.edit_state(cr_id)),
+            );
+            if resp_cr.changed() {
                 ctx.set_number(cr_id, radius);
+            }
+            if resp_cr.committed() {
+                ctx.commit_number(cr_id);
             }
         });
     }
@@ -296,18 +298,19 @@ impl ComponentInspectorHandler for UiTextHandler {
 
             // Row 2: Font Size
             let fs_id = InspectorNumberInputId::UiFontSize;
-            if card
-                .add(
-                    NumericDrag::new("Font Size", &mut font_size)
-                        .tag(encode_inspector_number_input_tag(fs_id))
-                        .label_width(80.0)
-                        .box_width(60.0)
-                        .unit("pt")
-                        .edit_state(ctx.edit_state(fs_id)),
-                )
-                .changed()
-            {
+            let resp_fs = card.add(
+                NumericDrag::new("Font Size", &mut font_size)
+                    .tag(encode_inspector_number_input_tag(fs_id))
+                    .label_width(80.0)
+                    .box_width(60.0)
+                    .unit("pt")
+                    .edit_state(ctx.edit_state(fs_id)),
+            );
+            if resp_fs.changed() {
                 ctx.set_number(fs_id, font_size);
+            }
+            if resp_fs.committed() {
+                ctx.commit_number(fs_id);
             }
 
             // Row 3: Text Alignment Dropdown

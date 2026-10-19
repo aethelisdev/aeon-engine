@@ -31,7 +31,8 @@ pub use scope::{
     resolve_property_vec3_tag,
 };
 pub use types::{
-    ScopeId, WidgetResponse, combine_seeds, hash_label, hash_label_with_seed, split_label_id,
+    ScopeId, WidgetResponse, combine_seeds, eval_numeric_expression, format_compact_float,
+    hash_label, hash_label_with_seed, split_label_id,
 };
 pub use widget::{
     Button, Checkbox, Chip, ColorPicker, ColorPickerResponse, ColorSwatch, ComboBox,

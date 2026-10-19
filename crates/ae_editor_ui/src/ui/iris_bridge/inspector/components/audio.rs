@@ -194,34 +194,36 @@ impl ComponentInspectorHandler for AudioSourceHandler {
 
             // Row 2: Volume
             let vol_id = InspectorNumberInputId::AudioVolume;
-            if card
-                .add(
-                    NumericDrag::new("Volume:", &mut volume)
-                        .range(0.0..=1.0)
-                        .tag(encode_inspector_number_input_tag(vol_id))
-                        .label_width(55.0)
-                        .box_width(48.0)
-                        .edit_state(ctx.edit_state(vol_id)),
-                )
-                .changed()
-            {
+            let resp_vol = card.add(
+                NumericDrag::new("Volume:", &mut volume)
+                    .range(0.0..=1.0)
+                    .tag(encode_inspector_number_input_tag(vol_id))
+                    .label_width(55.0)
+                    .box_width(48.0)
+                    .edit_state(ctx.edit_state(vol_id)),
+            );
+            if resp_vol.changed() {
                 ctx.set_number(vol_id, volume);
+            }
+            if resp_vol.committed() {
+                ctx.commit_number(vol_id);
             }
 
             // Row 3: Pitch
             let pitch_id = InspectorNumberInputId::AudioPitch;
-            if card
-                .add(
-                    NumericDrag::new("Pitch:", &mut pitch)
-                        .range(0.1..=10.0)
-                        .tag(encode_inspector_number_input_tag(pitch_id))
-                        .label_width(55.0)
-                        .box_width(48.0)
-                        .edit_state(ctx.edit_state(pitch_id)),
-                )
-                .changed()
-            {
+            let resp_pitch = card.add(
+                NumericDrag::new("Pitch:", &mut pitch)
+                    .range(0.1..=10.0)
+                    .tag(encode_inspector_number_input_tag(pitch_id))
+                    .label_width(55.0)
+                    .box_width(48.0)
+                    .edit_state(ctx.edit_state(pitch_id)),
+            );
+            if resp_pitch.changed() {
                 ctx.set_number(pitch_id, pitch);
+            }
+            if resp_pitch.committed() {
+                ctx.commit_number(pitch_id);
             }
 
             // Row 4: Spatial 3D Audio

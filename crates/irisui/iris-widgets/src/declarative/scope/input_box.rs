@@ -117,7 +117,9 @@ impl<'a> UiScope<'a> {
         let mut changed = false;
 
         if is_focused {
-            if let Some(ref incoming) = self.tree.event_state.frame_text_input {
+            if self.tree.event_state.frame_key_pressed
+                && let Some(ref incoming) = self.tree.event_state.frame_text_input
+            {
                 text.push_str(incoming);
                 changed = true;
             } else if let Some(key) = self.tree.event_state.frame_key

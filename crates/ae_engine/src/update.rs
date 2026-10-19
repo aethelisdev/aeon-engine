@@ -50,70 +50,72 @@ impl AeEngine {
         self.ui.selected_entity = self.editor.selected_entities.first().copied();
 
         // Keyboard Shortcuts (Ctrl+C, Ctrl+V, Ctrl+O, F2, Ctrl+Z, Ctrl+Y, Ctrl+D, Delete, W/E/R/F)
-        let shortcut_res = ae_editor::shortcuts::process_shortcuts(
-            &self.input,
-            &mut self.ecs.world,
-            &mut self.editor,
-            &mut self.ui.selected_entity,
-            self.mode,
-        );
+        if !self.ui.wants_keyboard_input() {
+            let shortcut_res = ae_editor::shortcuts::process_shortcuts(
+                &self.input,
+                &mut self.ecs.world,
+                &mut self.editor,
+                &mut self.ui.selected_entity,
+                self.mode,
+            );
 
-        if shortcut_res.trigger_undo {
-            self.undo();
-        }
-        if shortcut_res.trigger_redo {
-            self.redo();
-        }
-        if shortcut_res.trigger_open_scene_dialog {
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.ui.scene_dialog_receivers.push(rx);
-            let is_2d = self.dimension_mode.is_2d();
-            rayon::spawn(move || {
-                let (filter_name, extensions) = if is_2d {
-                    ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..])
-                } else {
-                    ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..])
-                };
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter(filter_name, extensions)
-                    .pick_file()
-                {
-                    let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::LoadFrom(path));
-                }
-            });
-        }
-        if shortcut_res.trigger_save_scene_as
-            || (shortcut_res.trigger_save_scene && self.editor.active_scene_path.is_none())
-        {
-            let (tx, rx) = std::sync::mpsc::channel();
-            self.ui.scene_dialog_receivers.push(rx);
-            let is_2d = self.dimension_mode.is_2d();
-            rayon::spawn(move || {
-                let (filter_name, extensions, default_name) = if is_2d {
-                    ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..], "scene.ae2d")
-                } else {
-                    ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..], "scene.ae3d")
-                };
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter(filter_name, extensions)
-                    .set_file_name(default_name)
-                    .save_file()
-                {
-                    let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::SaveTo(path));
-                }
-            });
-        } else if shortcut_res.trigger_save_scene
-            && let Some(path) = self.editor.active_scene_path.as_ref()
-        {
-            self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::SaveSceneToPath(
-                path.clone(),
-            )]);
-        }
-        if shortcut_res.trigger_focus_selected {
-            self.focus_selected();
-        }
-        if let Some(gm) = shortcut_res.new_gizmo_mode {
-            self.ui.gizmo_mode = gm;
+            if shortcut_res.trigger_undo {
+                self.undo();
+            }
+            if shortcut_res.trigger_redo {
+                self.redo();
+            }
+            if shortcut_res.trigger_open_scene_dialog {
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.ui.scene_dialog_receivers.push(rx);
+                let is_2d = self.dimension_mode.is_2d();
+                rayon::spawn(move || {
+                    let (filter_name, extensions) = if is_2d {
+                        ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..])
+                    } else {
+                        ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..])
+                    };
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter(filter_name, extensions)
+                        .pick_file()
+                    {
+                        let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::LoadFrom(path));
+                    }
+                });
+            }
+            if shortcut_res.trigger_save_scene_as
+                || (shortcut_res.trigger_save_scene && self.editor.active_scene_path.is_none())
+            {
+                let (tx, rx) = std::sync::mpsc::channel();
+                self.ui.scene_dialog_receivers.push(rx);
+                let is_2d = self.dimension_mode.is_2d();
+                rayon::spawn(move || {
+                    let (filter_name, extensions, default_name) = if is_2d {
+                        ("Aeon 2D Scene (*.ae2d)", &["ae2d", "aee"][..], "scene.ae2d")
+                    } else {
+                        ("Aeon 3D Scene (*.ae3d)", &["ae3d", "aee"][..], "scene.ae3d")
+                    };
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter(filter_name, extensions)
+                        .set_file_name(default_name)
+                        .save_file()
+                    {
+                        let _ = tx.send(ae_editor_ui::ui::SceneDialogAction::SaveTo(path));
+                    }
+                });
+            } else if shortcut_res.trigger_save_scene
+                && let Some(path) = self.editor.active_scene_path.as_ref()
+            {
+                self.process_ui_actions(vec![ae_editor_ui::ui::EngineUiAction::SaveSceneToPath(
+                    path.clone(),
+                )]);
+            }
+            if shortcut_res.trigger_focus_selected {
+                self.focus_selected();
+            }
+            if let Some(gm) = shortcut_res.new_gizmo_mode {
+                self.ui.gizmo_mode = gm;
+            }
         }
 
         if self.mode == EngineMode::Play {

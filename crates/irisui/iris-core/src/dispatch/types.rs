@@ -99,6 +99,11 @@ pub struct EventState {
     pub frame_key_pressed: bool,
     /// Active context menu or popup anchor state, if one is currently opened.
     pub active_context_menu: Option<PopupMenuState>,
+    /// Active autonomous inline numeric input editing session: `(tag, buffer, cursor_idx, is_all_selected)`.
+    pub active_numeric_edit: Option<(u64, String, usize, bool)>,
+    /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
+    /// and is actively recognized as an ongoing dragging gesture.
+    pub is_pointer_drag_active: bool,
 }
 
 impl EventState {
@@ -134,6 +139,8 @@ impl EventState {
             frame_text_input: None,
             frame_key_pressed: false,
             active_context_menu: None,
+            active_numeric_edit: None,
+            is_pointer_drag_active: false,
         }
     }
 
@@ -164,6 +171,7 @@ impl EventState {
         self.frame_key = None;
         self.frame_text_input = None;
         self.frame_key_pressed = false;
+        self.is_pointer_drag_active = false;
     }
 
     /// Clears any confirmed click state recorded for the current frame.
@@ -203,6 +211,7 @@ impl EventState {
     pub fn clear_focus(&mut self) {
         self.focused = None;
         self.focused_tag = None;
+        self.active_numeric_edit = None;
     }
 
     /// Closes the active context menu popup, if one is currently opened.

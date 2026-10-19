@@ -57,12 +57,28 @@ pub fn winit_to_ui_event(event: &WindowEvent, cursor_pos: Point) -> Option<UiEve
             })
         }
         WindowEvent::KeyboardInput { event: key_ev, .. } => {
+            let is_pressed = key_ev.state == ElementState::Pressed;
             let (key, mapped_text) = winit_key_to_iris(&key_ev.logical_key);
-            let text = key_ev.text.as_ref().map(|t| t.to_string()).or(mapped_text);
+            let text = if is_pressed {
+                if matches!(
+                    key,
+                    IrisKeyCode::Enter
+                        | IrisKeyCode::Escape
+                        | IrisKeyCode::Backspace
+                        | IrisKeyCode::Delete
+                        | IrisKeyCode::Tab
+                ) {
+                    None
+                } else {
+                    key_ev.text.as_ref().map(|t| t.to_string()).or(mapped_text)
+                }
+            } else {
+                None
+            };
             Some(UiEvent::KeyboardInput {
                 key,
                 text,
-                is_pressed: key_ev.state == ElementState::Pressed,
+                is_pressed,
             })
         }
         WindowEvent::Ime(ime) => Some(UiEvent::Ime(winit_ime_to_iris(ime))),
@@ -88,22 +104,22 @@ pub fn winit_mouse_button_to_iris(button: WinitMouseButton) -> IrisMouseButton {
 pub fn winit_key_to_iris(key: &Key) -> (IrisKeyCode, Option<String>) {
     match key {
         Key::Named(named) => {
-            let code = match named {
-                NamedKey::Backspace => IrisKeyCode::Backspace,
-                NamedKey::Delete => IrisKeyCode::Delete,
-                NamedKey::Enter => IrisKeyCode::Enter,
-                NamedKey::Escape => IrisKeyCode::Escape,
-                NamedKey::ArrowLeft => IrisKeyCode::ArrowLeft,
-                NamedKey::ArrowRight => IrisKeyCode::ArrowRight,
-                NamedKey::ArrowUp => IrisKeyCode::ArrowUp,
-                NamedKey::ArrowDown => IrisKeyCode::ArrowDown,
-                NamedKey::Home => IrisKeyCode::Home,
-                NamedKey::End => IrisKeyCode::End,
-                NamedKey::Tab => IrisKeyCode::Tab,
-                NamedKey::Space => IrisKeyCode::Space,
-                _ => IrisKeyCode::Other,
+            let (code, text) = match named {
+                NamedKey::Backspace => (IrisKeyCode::Backspace, None),
+                NamedKey::Delete => (IrisKeyCode::Delete, None),
+                NamedKey::Enter => (IrisKeyCode::Enter, None),
+                NamedKey::Escape => (IrisKeyCode::Escape, None),
+                NamedKey::ArrowLeft => (IrisKeyCode::ArrowLeft, None),
+                NamedKey::ArrowRight => (IrisKeyCode::ArrowRight, None),
+                NamedKey::ArrowUp => (IrisKeyCode::ArrowUp, None),
+                NamedKey::ArrowDown => (IrisKeyCode::ArrowDown, None),
+                NamedKey::Home => (IrisKeyCode::Home, None),
+                NamedKey::End => (IrisKeyCode::End, None),
+                NamedKey::Tab => (IrisKeyCode::Tab, None),
+                NamedKey::Space => (IrisKeyCode::Space, Some(" ".to_string())),
+                _ => (IrisKeyCode::Other, None),
             };
-            (code, None)
+            (code, text)
         }
         Key::Character(s) => {
             let mut chars = s.chars();

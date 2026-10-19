@@ -242,8 +242,12 @@ fn render_declarative_dual_number_row(
                 drag = drag.custom_text(&formatted);
             }
 
-            if row.add(drag).changed() {
+            let resp = row.add(drag);
+            if resp.changed() {
                 ctx.set_number(input_id, *val);
+            }
+            if resp.committed() {
+                ctx.commit_number(input_id);
             }
         };
 

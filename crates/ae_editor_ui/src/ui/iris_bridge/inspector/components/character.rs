@@ -117,8 +117,12 @@ impl ComponentInspectorHandler for CharacterControllerHandler {
                     formatted = format!("{:.0}°", current_val);
                     drag = drag.custom_text(&formatted);
                 }
-                if card.add(drag).changed() {
+                let resp = card.add(drag);
+                if resp.changed() {
                     ctx.set_number(*id, **val);
+                }
+                if resp.committed() {
+                    ctx.commit_number(*id);
                 }
             }
 

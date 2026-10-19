@@ -88,6 +88,14 @@ impl<'a> ComponentRenderContext<'a> {
         }
     }
 
+    /// Pushes a numeric value commit action finalizing an edit session and producing an undo/redo command snapshot.
+    #[inline]
+    pub fn commit_number(&mut self, id: InspectorNumberInputId) {
+        if let Some(actions) = &mut self.actions {
+            actions.push(InspectorAction::CommitNumberEdit(self.entity, id));
+        }
+    }
+
     /// Queries the active inline keyboard editing state for a numeric property.
     #[inline]
     #[must_use]

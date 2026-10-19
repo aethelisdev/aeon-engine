@@ -444,6 +444,18 @@ impl IrisEditorOverlay {
             || self.inspector.hex_buffer.is_some()
             || self.modals.is_new_folder_active
             || self.modals.is_rename_active
+            || self.tree.event_state.active_numeric_edit.is_some()
+            || self
+                .overlay_tree
+                .tree()
+                .event_state
+                .active_numeric_edit
+                .is_some()
+            || self.panels.iter().any(|panel| {
+                panel
+                    .tree()
+                    .is_some_and(|t| t.event_state.active_numeric_edit.is_some())
+            })
     }
 
     /// Configures whether the editor UI overlay reconstructs the tree on every frame (immediate mode)

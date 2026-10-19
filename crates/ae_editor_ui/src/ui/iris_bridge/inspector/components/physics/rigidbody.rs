@@ -93,31 +93,33 @@ impl ComponentInspectorHandler for RigidBodyHandler {
             );
 
             let mass_id = InspectorNumberInputId::RigidBodyMass;
-            if card
-                .add(
-                    NumericDrag::new("Mass:", &mut mass)
-                        .tag(encode_inspector_number_input_tag(mass_id))
-                        .label_width(55.0)
-                        .box_width(44.0)
-                        .edit_state(ctx.edit_state(mass_id)),
-                )
-                .changed()
-            {
+            let resp_mass = card.add(
+                NumericDrag::new("Mass:", &mut mass)
+                    .tag(encode_inspector_number_input_tag(mass_id))
+                    .label_width(55.0)
+                    .box_width(44.0)
+                    .edit_state(ctx.edit_state(mass_id)),
+            );
+            if resp_mass.changed() {
                 ctx.set_number(mass_id, mass);
+            }
+            if resp_mass.committed() {
+                ctx.commit_number(mass_id);
             }
 
             let grav_id = InspectorNumberInputId::RigidBodyGravity;
-            if card
-                .add(
-                    NumericDrag::new("Gravity:", &mut gravity_scale)
-                        .tag(encode_inspector_number_input_tag(grav_id))
-                        .label_width(55.0)
-                        .box_width(44.0)
-                        .edit_state(ctx.edit_state(grav_id)),
-                )
-                .changed()
-            {
+            let resp_grav = card.add(
+                NumericDrag::new("Gravity:", &mut gravity_scale)
+                    .tag(encode_inspector_number_input_tag(grav_id))
+                    .label_width(55.0)
+                    .box_width(44.0)
+                    .edit_state(ctx.edit_state(grav_id)),
+            );
+            if resp_grav.changed() {
                 ctx.set_number(grav_id, gravity_scale);
+            }
+            if resp_grav.committed() {
+                ctx.commit_number(grav_id);
             }
         });
     }

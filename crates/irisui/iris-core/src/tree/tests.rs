@@ -143,7 +143,7 @@ fn test_tree_cursor_at_layered_priority() {
     assert_eq!(tree.cursor_at(Point::new(150.0, 115.0)), WidgetCursor::Text);
     assert_eq!(
         tree.cursor_at(Point::new(350.0, 115.0)),
-        WidgetCursor::EwResize
+        WidgetCursor::Default
     );
     assert_eq!(tree.cursor_at(Point::new(450.0, 115.0)), WidgetCursor::Grab);
     assert_eq!(

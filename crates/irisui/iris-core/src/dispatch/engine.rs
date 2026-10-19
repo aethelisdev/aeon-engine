@@ -43,6 +43,7 @@ pub fn dispatch_ui_event(tree: &mut UiTree, event: &UiEvent) -> DispatchResult {
         tree.event_state.frame_secondary_clicked_tag = None;
         tree.event_state.frame_drag_released_id = None;
         tree.event_state.frame_drag_released_tag = None;
+        tree.event_state.is_pointer_drag_active = false;
     }
 
     match event {
@@ -136,29 +137,79 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
         if role == WidgetRole::ScrollBarThumb
             && let Some(press_origin) = tree.event_state.press_origin
         {
+            tree.event_state.is_pointer_drag_active = true;
             let delta_y = point.y - press_origin.y;
             let initial_scroll = tree.event_state.initial_scroll_y;
             update_scrollbar_drag(tree, captured_id, delta_y, initial_scroll);
+        } else if role == WidgetRole::ColorPickerArea {
+            tree.event_state.is_pointer_drag_active = true;
+        } else if role == WidgetRole::NumericInput {
+            // Dual click-to-edit vs drag scrubber:
+            // Dragging only activates once pointer moves past 3.0px threshold (dist_sq > 9.0)
+            let is_past_threshold = tree.event_state.press_origin.is_some_and(|origin| {
+                let dx = point.x - origin.x;
+                let dy = point.y - origin.y;
+                (dx * dx + dy * dy) > 9.0
+            });
+            if is_past_threshold {
+                tree.event_state.is_pointer_drag_active = true;
+            }
+        } else {
+            let is_past_threshold = tree.event_state.press_origin.is_none_or(|origin| {
+                let dx = point.x - origin.x;
+                let dy = point.y - origin.y;
+                (dx * dx + dy * dy) > 9.0
+            });
+            if is_past_threshold {
+                tree.event_state.is_pointer_drag_active = true;
+            }
         }
 
-        let delta = if let Some(last_pos) = tree.event_state.last_pointer_pos {
-            Point::new(point.x - last_pos.x, point.y - last_pos.y)
-        } else if let Some(origin) = tree.event_state.press_origin {
-            Point::new(point.x - origin.x, point.y - origin.y)
-        } else {
-            Point::ZERO
-        };
-        tree.event_state.frame_drag_delta = Some(delta);
-        tree.event_state.last_pointer_pos = Some(point);
+        let is_editing_numeric = role == WidgetRole::NumericInput
+            && tree
+                .event_state
+                .active_numeric_edit
+                .as_ref()
+                .is_some_and(|(t, ..)| *t != 0 && (tag == 0 || *t == tag));
 
-        let flags = ResponseFlags::HOVERED | ResponseFlags::DRAGGED;
+        let effective_cursor = if is_editing_numeric {
+            Some(WidgetCursor::Text)
+        } else if tree.event_state.is_pointer_drag_active {
+            if role == WidgetRole::NumericInput {
+                Some(WidgetCursor::EwResize)
+            } else {
+                cursor
+            }
+        } else {
+            cursor
+        };
+
+        let mut flags = ResponseFlags::HOVERED;
+        if tree.event_state.pressed_button.is_some() {
+            flags = flags.union(ResponseFlags::PRESSED);
+        }
+
+        if tree.event_state.is_pointer_drag_active && !is_editing_numeric {
+            let delta = if let Some(last_pos) = tree.event_state.last_pointer_pos {
+                Point::new(point.x - last_pos.x, point.y - last_pos.y)
+            } else if let Some(origin) = tree.event_state.press_origin {
+                Point::new(point.x - origin.x, point.y - origin.y)
+            } else {
+                Point::ZERO
+            };
+            tree.event_state.frame_drag_delta = Some(delta);
+            tree.event_state.last_pointer_pos = Some(point);
+            flags = flags.union(ResponseFlags::DRAGGED);
+        } else {
+            tree.event_state.frame_drag_delta = None;
+        }
 
         return DispatchResult {
             consumed: true,
             needs_redraw: true,
             target: Some(captured_id),
             target_tag: tag,
-            cursor,
+            cursor: effective_cursor,
             response: Some(WidgetResponse::from_flags(captured_id, rect, flags)),
             scroll_delta: (0.0, 0.0),
             key: None,
@@ -397,11 +448,12 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
     if let Some((captured_id, tag, rect, cursor)) = captured_info {
         let press_origin = tree.event_state.press_origin;
         let original_button = tree.event_state.pressed_button;
-        let is_drag_gesture = press_origin.is_some_and(|origin| {
-            let dx = point.x - origin.x;
-            let dy = point.y - origin.y;
-            (dx * dx + dy * dy) > 9.0 // > 3.0 px drag threshold
-        }) || tree.event_state.frame_drag_delta.is_some();
+        let is_drag_gesture = tree.event_state.is_pointer_drag_active
+            || press_origin.is_some_and(|origin| {
+                let dx = point.x - origin.x;
+                let dy = point.y - origin.y;
+                (dx * dx + dy * dy) > 9.0 // > 3.0 px drag threshold
+            });
 
         let captured_tag = if tag != 0 {
             Some(tag)
@@ -420,6 +472,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         tree.event_state.last_pointer_pos = None;
         tree.event_state.initial_scroll_y = 0.0;
         tree.event_state.frame_drag_delta = None;
+        tree.event_state.is_pointer_drag_active = false;
 
         let mut flags = ResponseFlags::empty();
 
@@ -750,12 +803,31 @@ fn handle_keyboard(
         };
     }
 
-    if let Some(focused_id) = tree.event_state.focused {
+    let target_id = tree.event_state.focused.or_else(|| {
+        if let Some(tag) = tree.event_state.focused_tag {
+            tree.find_node_by_tag(tag)
+        } else if let Some((tag, ..)) = tree.event_state.active_numeric_edit {
+            tree.event_state.focused_tag = Some(tag);
+            tree.find_node_by_tag(tag)
+        } else {
+            None
+        }
+    });
+
+    if let Some(focused_id) = target_id {
+        tree.event_state.focused = Some(focused_id);
         tree.event_state.frame_key = Some(key);
-        tree.event_state.frame_text_input = text.clone();
+        tree.event_state.frame_text_input = if is_pressed { text.clone() } else { None };
         tree.event_state.frame_key_pressed = is_pressed;
 
-        let tag = tree.event_state.focused_tag.unwrap_or(0);
+        let tag = tree
+            .event_state
+            .focused_tag
+            .or_else(|| tree.get(focused_id).map(|n| n.tag).filter(|&t| t != 0))
+            .unwrap_or(0);
+        if tag != 0 && tree.event_state.focused_tag.is_none() {
+            tree.event_state.focused_tag = Some(tag);
+        }
         let rect = tree
             .get(focused_id)
             .map(|n| n.computed_rect)
@@ -771,6 +843,9 @@ fn handle_keyboard(
         {
             flags = flags.union(ResponseFlags::CHANGED);
         }
+        if is_pressed && key == KeyCode::Enter {
+            flags = flags.union(ResponseFlags::SUBMITTED);
+        }
 
         DispatchResult {
             consumed: true,
@@ -782,7 +857,7 @@ fn handle_keyboard(
             scroll_delta: (0.0, 0.0),
             key: Some(key),
             is_key_pressed: is_pressed,
-            text_input: text,
+            text_input: if is_pressed { text } else { None },
         }
     } else {
         tree.event_state.frame_key = None;

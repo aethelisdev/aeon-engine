@@ -71,17 +71,18 @@ impl ComponentInspectorHandler for VelocityHandler {
             for (lbl, val, input_id) in &mut row_defs {
                 let tag = encode_inspector_number_input_tag(*input_id);
                 let edit = ctx.edit_state(*input_id);
-                if card
-                    .add(
-                        NumericDrag::new(lbl, val)
-                            .tag(tag)
-                            .label_width(20.0)
-                            .box_width(44.0)
-                            .edit_state(edit),
-                    )
-                    .changed()
-                {
+                let resp = card.add(
+                    NumericDrag::new(lbl, val)
+                        .tag(tag)
+                        .label_width(20.0)
+                        .box_width(44.0)
+                        .edit_state(edit),
+                );
+                if resp.changed() {
                     ctx.set_number(*input_id, **val);
+                }
+                if resp.committed() {
+                    ctx.commit_number(*input_id);
                 }
             }
         });

@@ -178,8 +178,9 @@ fn test_keyboard_key_translations() {
     let (key_tab, _) = winit_key_to_iris(&Key::Named(NamedKey::Tab));
     assert_eq!(key_tab, KeyCode::Tab);
 
-    let (key_space, _) = winit_key_to_iris(&Key::Named(NamedKey::Space));
+    let (key_space, space_text) = winit_key_to_iris(&Key::Named(NamedKey::Space));
     assert_eq!(key_space, KeyCode::Space);
+    assert_eq!(space_text, Some(" ".to_string()));
 
     let (key_char, text) = winit_key_to_iris(&Key::Character(SmolStr::new("x")));
     assert_eq!(key_char, KeyCode::Character('x'));

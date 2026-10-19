@@ -147,4 +147,49 @@ mod tests {
         assert_eq!(euler[1], -135.0, "RotY incorrect on negative!");
         assert_eq!(euler[2], 0.0, "RotZ flipped in euler on negative!");
     }
+
+    #[test]
+    fn test_commit_number_edit_action_lifecycle() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Position::new(1.0, 2.0, 3.0),));
+
+        let registry = ae_core::registry::ComponentRegistry::global();
+        let comp_name = "Position";
+        let handler = registry
+            .get_by_name(comp_name)
+            .expect("Position component must be registered in ComponentRegistry");
+
+        let old_bytes = handler
+            .capture(&world, entity)
+            .expect("Position should be captured");
+
+        // Mutate position
+        let mut euler = [0.0; 3];
+        handle_set_number_value(
+            &world,
+            entity,
+            InspectorNumberInputId::PosX,
+            10.0,
+            &mut euler,
+        );
+
+        let new_bytes = handler
+            .capture(&world, entity)
+            .expect("New position should be captured");
+        assert_ne!(old_bytes, new_bytes);
+
+        // Verify that applying old_bytes restores original value (Undo)
+        handler
+            .apply(&mut world, entity, &old_bytes)
+            .expect("Apply must succeed");
+        let restored_x = read_inspector_number_value(&world, entity, InspectorNumberInputId::PosX);
+        assert!((restored_x - 1.0).abs() < 1e-4);
+
+        // Verify that applying new_bytes re-applies mutated value (Redo)
+        handler
+            .apply(&mut world, entity, &new_bytes)
+            .expect("Apply must succeed");
+        let redone_x = read_inspector_number_value(&world, entity, InspectorNumberInputId::PosX);
+        assert!((redone_x - 10.0).abs() < 1e-4);
+    }
 }

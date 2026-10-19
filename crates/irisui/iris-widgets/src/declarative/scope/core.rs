@@ -415,15 +415,16 @@ impl<'a> UiScope<'a> {
                 .frame_drag_released_id
                 .is_some_and(|cid| self.tree.is_direct_interaction_ancestor(cid, id));
         let is_dragged = drag_delta.is_some()
-            || self.tree.event_state.pointer_capture == Some(id)
-            || (tag != 0 && self.tree.event_state.pointer_capture_tag == Some(tag))
-            || (tag != 0
-                && self
-                    .tree
-                    .event_state
-                    .pointer_capture
-                    .and_then(|cid| self.tree.get(cid))
-                    .is_some_and(|n| n.tag == tag));
+            || (self.tree.event_state.is_pointer_drag_active
+                && (self.tree.event_state.pointer_capture == Some(id)
+                    || (tag != 0 && self.tree.event_state.pointer_capture_tag == Some(tag))
+                    || (tag != 0
+                        && self
+                            .tree
+                            .event_state
+                            .pointer_capture
+                            .and_then(|cid| self.tree.get(cid))
+                            .is_some_and(|n| n.tag == tag))));
 
         let mut flags = ResponseFlags::empty();
         if clicked {
@@ -517,7 +518,10 @@ impl<'a> UiScope<'a> {
                     .focused
                     .and_then(|fid| self.tree.get(fid))
                     .is_some_and(|n| n.tag == tag));
-        if matches_focus && let Some(ref text) = self.tree.event_state.frame_text_input {
+        if matches_focus
+            && self.tree.event_state.frame_key_pressed
+            && let Some(ref text) = self.tree.event_state.frame_text_input
+        {
             return Some(text.as_str());
         }
 

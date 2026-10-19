@@ -7,20 +7,34 @@
 //! declarative [`UiScope`] cards and property row primitives.
 
 use super::registry::ComponentRenderContext;
+use super::tags::encode_inspector_number_input_tag;
 use super::types::{InspectorAction, InspectorNumberInputId, TransformAxisType};
 use irisui::prelude::*;
+
+/// Configuration descriptor for rendering a 3D vector numeric input row in the Transform card.
+pub struct Vec3NumericRowConfig<'a> {
+    /// Visual label prefix for the entire row (e.g. "Position", "Rotation", "Scale").
+    pub title: &'static str,
+    /// Drag sensitivity step applied per pixel of mouse travel.
+    pub speed: f32,
+    /// Number of fractional decimal digits displayed.
+    pub decimals: usize,
+    /// Default values restored when the reset button is triggered.
+    pub reset_val: [f32; 3],
+    /// Retained text input edit states for active field entry.
+    pub edit_states: [Option<NumericInputEditState<'a>>; 3],
+    /// Semantic Inspector number input IDs for each axis channel.
+    pub ids: [InspectorNumberInputId; 3],
+}
 
 /// Renders a 3-channel vector row using autonomous [`NumericDrag`] widgets and a reset button.
 fn render_vec3_numeric_row(
     card: &mut UiScope<'_>,
-    title: &str,
     values: &mut [f32; 3],
-    speed: f32,
-    decimals: usize,
-    reset_val: [f32; 3],
-    edit_states: [Option<NumericInputEditState<'_>>; 3],
-) -> (bool, bool) {
+    config: Vec3NumericRowConfig<'_>,
+) -> (bool, Option<usize>, bool) {
     let mut changed = false;
+    let mut committed_axis = None;
     let mut reset_clicked = false;
 
     let row_style = Style::new()
@@ -30,7 +44,7 @@ fn render_vec3_numeric_row(
         .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
         .gap(4.0);
 
-    let (box_names, reset_name): ([&'static str; 3], &'static str) = match title {
+    let (box_names, reset_name): ([&'static str; 3], &'static str) = match config.title {
         "Position" => (
             [
                 "NumBox_Position_X",
@@ -57,7 +71,7 @@ fn render_vec3_numeric_row(
     card.container_named("Vec3Row", row_style, |row| {
         row.label_styled_passive(
             "RowLabel",
-            title,
+            config.title,
             11.0,
             row.theme().text_muted,
             TextAlign::Left,
@@ -72,19 +86,23 @@ fn render_vec3_numeric_row(
         row.container_named("Slot", slot_style, |slot| {
             let prefixes = ["X", "Y", "Z"];
             for i in 0..3 {
-                let tag = slot.tag_for(box_names[i]);
+                let tag = encode_inspector_number_input_tag(config.ids[i]);
                 let mut drag = NumericDrag::new(prefixes[i], &mut values[i])
                     .name(box_names[i])
                     .tag(tag)
-                    .speed(speed)
-                    .decimals(decimals)
+                    .speed(config.speed)
+                    .decimals(config.decimals)
                     .label_width(12.0)
                     .box_width(52.0);
-                if let Some(es) = edit_states[i] {
+                if let Some(es) = config.edit_states[i] {
                     drag = drag.edit_state(Some(es));
                 }
-                if slot.add(drag).changed() {
+                let resp = slot.add(drag);
+                if resp.changed() {
                     changed = true;
+                }
+                if resp.committed() {
+                    committed_axis = Some(i);
                 }
             }
 
@@ -95,14 +113,14 @@ fn render_vec3_numeric_row(
                     .tag(slot.tag_for("Reset")),
             );
             if reset_resp.clicked() {
-                *values = reset_val;
+                *values = config.reset_val;
                 changed = true;
                 reset_clicked = true;
             }
         });
     });
 
-    (changed, reset_clicked)
+    (changed, committed_axis, reset_clicked)
 }
 
 /// Builds the `📐 Transform` card declaratively in the `UiTree` and returns the measured height.
@@ -143,101 +161,147 @@ pub fn build_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRenderCo
         .map(|s| [s.x, s.y, s.z])
         .unwrap_or([1.0, 1.0, 1.0]);
 
+    let initial_pos = pos;
+    let initial_rot = rot;
+    let initial_scale = scale;
+
     scope.card_named("TransformCard", "📐 Transform", |card| {
-        let (pos_changed, pos_reset) = render_vec3_numeric_row(
+        let (pos_changed, pos_committed, pos_reset) = render_vec3_numeric_row(
             card,
-            "Position",
             &mut pos,
-            0.1,
-            3,
-            [0.0, 0.0, 0.0],
-            [
-                ctx.edit_state(InspectorNumberInputId::PosX),
-                ctx.edit_state(InspectorNumberInputId::PosY),
-                ctx.edit_state(InspectorNumberInputId::PosZ),
-            ],
+            Vec3NumericRowConfig {
+                title: "Position",
+                speed: 0.1,
+                decimals: 2,
+                reset_val: [0.0, 0.0, 0.0],
+                edit_states: [
+                    ctx.edit_state(InspectorNumberInputId::PosX),
+                    ctx.edit_state(InspectorNumberInputId::PosY),
+                    ctx.edit_state(InspectorNumberInputId::PosZ),
+                ],
+                ids: [
+                    InspectorNumberInputId::PosX,
+                    InspectorNumberInputId::PosY,
+                    InspectorNumberInputId::PosZ,
+                ],
+            },
         );
-        if pos_changed {
-            if let Ok(mut p) = ctx.world.get::<&mut ae_core::ecs::Position>(ctx.entity) {
-                p.x = pos[0];
-                p.y = pos[1];
-                p.z = pos[2];
-            }
-            if pos_reset {
-                ctx.push_action(InspectorAction::ResetTransform(
-                    ctx.entity,
-                    TransformAxisType::Position,
-                ));
-            } else {
-                ctx.set_number(InspectorNumberInputId::PosX, pos[0]);
-                ctx.set_number(InspectorNumberInputId::PosY, pos[1]);
-                ctx.set_number(InspectorNumberInputId::PosZ, pos[2]);
+        if pos_reset {
+            ctx.push_action(InspectorAction::ResetTransform(
+                ctx.entity,
+                TransformAxisType::Position,
+            ));
+        } else if pos_changed {
+            let ids = [
+                InspectorNumberInputId::PosX,
+                InspectorNumberInputId::PosY,
+                InspectorNumberInputId::PosZ,
+            ];
+            for i in 0..3 {
+                if (pos[i] - initial_pos[i]).abs() > f32::EPSILON {
+                    ctx.set_number(ids[i], pos[i]);
+                }
             }
         }
+        if let Some(axis) = pos_committed {
+            let id = match axis {
+                0 => InspectorNumberInputId::PosX,
+                1 => InspectorNumberInputId::PosY,
+                _ => InspectorNumberInputId::PosZ,
+            };
+            ctx.commit_number(id);
+        }
 
-        let (rot_changed, rot_reset) = render_vec3_numeric_row(
+        let (rot_changed, rot_committed, rot_reset) = render_vec3_numeric_row(
             card,
-            "Rotation",
             &mut rot,
-            0.5,
-            1,
-            [0.0, 0.0, 0.0],
-            [
-                ctx.edit_state(InspectorNumberInputId::RotX),
-                ctx.edit_state(InspectorNumberInputId::RotY),
-                ctx.edit_state(InspectorNumberInputId::RotZ),
-            ],
+            Vec3NumericRowConfig {
+                title: "Rotation",
+                speed: 0.5,
+                decimals: 1,
+                reset_val: [0.0, 0.0, 0.0],
+                edit_states: [
+                    ctx.edit_state(InspectorNumberInputId::RotX),
+                    ctx.edit_state(InspectorNumberInputId::RotY),
+                    ctx.edit_state(InspectorNumberInputId::RotZ),
+                ],
+                ids: [
+                    InspectorNumberInputId::RotX,
+                    InspectorNumberInputId::RotY,
+                    InspectorNumberInputId::RotZ,
+                ],
+            },
         );
-        if rot_changed {
-            let quat =
-                crate::ui::iris_bridge::inspector::euler_deg_to_quaternion(rot[0], rot[1], rot[2]);
-            if let Ok(mut r) = ctx.world.get::<&mut ae_core::ecs::Rotation>(ctx.entity) {
-                r.x = quat.x;
-                r.y = quat.y;
-                r.z = quat.z;
-                r.w = quat.w;
-            }
-            if rot_reset {
-                ctx.push_action(InspectorAction::ResetTransform(
-                    ctx.entity,
-                    TransformAxisType::Rotation,
-                ));
-            } else {
-                ctx.set_number(InspectorNumberInputId::RotX, rot[0]);
-                ctx.set_number(InspectorNumberInputId::RotY, rot[1]);
-                ctx.set_number(InspectorNumberInputId::RotZ, rot[2]);
+        if rot_reset {
+            ctx.push_action(InspectorAction::ResetTransform(
+                ctx.entity,
+                TransformAxisType::Rotation,
+            ));
+        } else if rot_changed {
+            let ids = [
+                InspectorNumberInputId::RotX,
+                InspectorNumberInputId::RotY,
+                InspectorNumberInputId::RotZ,
+            ];
+            for i in 0..3 {
+                if (rot[i] - initial_rot[i]).abs() > f32::EPSILON {
+                    ctx.set_number(ids[i], rot[i]);
+                }
             }
         }
+        if let Some(axis) = rot_committed {
+            let id = match axis {
+                0 => InspectorNumberInputId::RotX,
+                1 => InspectorNumberInputId::RotY,
+                _ => InspectorNumberInputId::RotZ,
+            };
+            ctx.commit_number(id);
+        }
 
-        let (scale_changed, scale_reset) = render_vec3_numeric_row(
+        let (scale_changed, scale_committed, scale_reset) = render_vec3_numeric_row(
             card,
-            "Scale",
             &mut scale,
-            0.01,
-            3,
-            [1.0, 1.0, 1.0],
-            [
-                ctx.edit_state(InspectorNumberInputId::ScaleX),
-                ctx.edit_state(InspectorNumberInputId::ScaleY),
-                ctx.edit_state(InspectorNumberInputId::ScaleZ),
-            ],
+            Vec3NumericRowConfig {
+                title: "Scale",
+                speed: 0.01,
+                decimals: 2,
+                reset_val: [1.0, 1.0, 1.0],
+                edit_states: [
+                    ctx.edit_state(InspectorNumberInputId::ScaleX),
+                    ctx.edit_state(InspectorNumberInputId::ScaleY),
+                    ctx.edit_state(InspectorNumberInputId::ScaleZ),
+                ],
+                ids: [
+                    InspectorNumberInputId::ScaleX,
+                    InspectorNumberInputId::ScaleY,
+                    InspectorNumberInputId::ScaleZ,
+                ],
+            },
         );
-        if scale_changed {
-            if let Ok(mut s) = ctx.world.get::<&mut ae_core::ecs::Scale>(ctx.entity) {
-                s.x = scale[0];
-                s.y = scale[1];
-                s.z = scale[2];
+        if scale_reset {
+            ctx.push_action(InspectorAction::ResetTransform(
+                ctx.entity,
+                TransformAxisType::Scale,
+            ));
+        } else if scale_changed {
+            let ids = [
+                InspectorNumberInputId::ScaleX,
+                InspectorNumberInputId::ScaleY,
+                InspectorNumberInputId::ScaleZ,
+            ];
+            for i in 0..3 {
+                if (scale[i] - initial_scale[i]).abs() > f32::EPSILON {
+                    ctx.set_number(ids[i], scale[i]);
+                }
             }
-            if scale_reset {
-                ctx.push_action(InspectorAction::ResetTransform(
-                    ctx.entity,
-                    TransformAxisType::Scale,
-                ));
-            } else {
-                ctx.set_number(InspectorNumberInputId::ScaleX, scale[0]);
-                ctx.set_number(InspectorNumberInputId::ScaleY, scale[1]);
-                ctx.set_number(InspectorNumberInputId::ScaleZ, scale[2]);
-            }
+        }
+        if let Some(axis) = scale_committed {
+            let id = match axis {
+                0 => InspectorNumberInputId::ScaleX,
+                1 => InspectorNumberInputId::ScaleY,
+                _ => InspectorNumberInputId::ScaleZ,
+            };
+            ctx.commit_number(id);
         }
     });
 }
@@ -497,5 +561,66 @@ mod tests {
         tree.assert_node_text("NumBox_Rotation_X", "-34.0");
         tree.assert_node_text("NumBox_Rotation_Y", "120.0");
         tree.assert_node_text("NumBox_Rotation_Z", "0.0");
+    }
+
+    #[test]
+    fn test_transform_card_tags_encoded_correctly() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root must be created");
+        let mut world = hecs::World::new();
+        let entity = world.spawn((
+            Name("TagEntity".to_string()),
+            Position::new(1.0, 2.0, 3.0),
+            Rotation::identity(),
+            Scale::one(),
+        ));
+        let euler = [0.0, 0.0, 0.0];
+        let swatches = [];
+        let params = InspectorPanelParams {
+            panel_rect: Rect::new(0.0, 0.0, 320.0, 800.0),
+            world: &world,
+            selected_entity: Some(entity),
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+            cursor_pos: Point::new(0.0, 0.0),
+            active_dropdown: None,
+            active_submenu: None,
+            is_add_menu_open: false,
+            is_color_picker_open: false,
+            active_number_input: None,
+            active_text_input: None,
+            active_rename_buffer: None,
+            is_rename_all_selected: false,
+            active_hex_buffer: None,
+            inspector_hsv: [0.0, 0.0, 1.0],
+            blink_caret: false,
+        };
+
+        let mut ctx = ComponentRenderContext::new(entity, &world, &params, 6.0, 10.0, 308.0);
+        let mut scope = UiScope::new(&mut tree, root);
+        build_transform_card(&mut scope, &mut ctx);
+
+        let pairs = [
+            ("NumBox_Position_X", InspectorNumberInputId::PosX),
+            ("NumBox_Position_Y", InspectorNumberInputId::PosY),
+            ("NumBox_Position_Z", InspectorNumberInputId::PosZ),
+            ("NumBox_Rotation_X", InspectorNumberInputId::RotX),
+            ("NumBox_Rotation_Y", InspectorNumberInputId::RotY),
+            ("NumBox_Rotation_Z", InspectorNumberInputId::RotZ),
+            ("NumBox_Scale_X", InspectorNumberInputId::ScaleX),
+            ("NumBox_Scale_Y", InspectorNumberInputId::ScaleY),
+            ("NumBox_Scale_Z", InspectorNumberInputId::ScaleZ),
+        ];
+
+        for (name, id) in pairs {
+            let node = tree.assert_node(name, WidgetRole::NumericInput);
+            assert_eq!(
+                node.tag,
+                encode_inspector_number_input_tag(id),
+                "Tag for {} must match encode_inspector_number_input_tag",
+                name
+            );
+        }
     }
 }

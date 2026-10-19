@@ -44,6 +44,8 @@ bitflags! {
         const LOST_FOCUS = 1 << 10;
         /// Active pointer drag gesture was released during this frame (drop trigger).
         const DRAG_RELEASED = 1 << 11;
+        /// Widget value was explicitly committed/submitted via Enter key confirmation.
+        const SUBMITTED = 1 << 12;
     }
 }
 
@@ -313,6 +315,23 @@ impl WidgetResponse {
             self.flags = self.flags.union(ResponseFlags::DRAG_RELEASED);
         } else {
             self.flags = self.flags.difference(ResponseFlags::DRAG_RELEASED);
+        }
+        self
+    }
+
+    /// Returns `true` if the widget was submitted or confirmed via Enter key during this frame.
+    #[inline]
+    pub const fn submitted(&self) -> bool {
+        self.flags.contains(ResponseFlags::SUBMITTED)
+    }
+
+    /// Sets the submitted state flag and returns updated response.
+    #[inline]
+    pub const fn with_submitted(mut self, submitted: bool) -> Self {
+        if submitted {
+            self.flags = self.flags.union(ResponseFlags::SUBMITTED);
+        } else {
+            self.flags = self.flags.difference(ResponseFlags::SUBMITTED);
         }
         self
     }
