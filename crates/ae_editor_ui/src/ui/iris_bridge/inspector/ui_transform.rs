@@ -167,13 +167,15 @@ pub fn build_ui_transform_card(scope: &mut UiScope<'_>, ctx: &mut ComponentRende
         );
 
         // Row 6: Visibility Checkbox
-        render_declarative_checkbox_row(
+        let resp_visible = render_declarative_checkbox_row(
             card,
             ComponentCheckboxId::UiVisible,
             "Visible",
             visible,
-            false,
         );
+        if resp_visible.clicked() {
+            ctx.toggle_checkbox(ComponentCheckboxId::UiVisible);
+        }
     });
 }
 

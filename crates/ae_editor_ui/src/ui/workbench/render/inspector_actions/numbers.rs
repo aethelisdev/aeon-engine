@@ -192,4 +192,67 @@ mod tests {
         let redone_x = read_inspector_number_value(&world, entity, InspectorNumberInputId::PosX);
         assert!((redone_x - 10.0).abs() < 1e-4);
     }
+
+    #[test]
+    fn test_checkbox_toggle_action_lifecycle() {
+        let mut world = hecs::World::new();
+        let entity = world.spawn((ae_core::ecs::Collider {
+            shape: ae_core::ecs::ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            },
+            friction: 0.7,
+            restitution: 0.0,
+            is_sensor: false,
+        },));
+
+        let registry = ae_core::registry::ComponentRegistry::global();
+        let comp_name = "Collider";
+        let handler = registry
+            .get_by_name(comp_name)
+            .expect("Collider component must be registered in ComponentRegistry");
+
+        let old_bytes = handler
+            .capture(&world, entity)
+            .expect("Collider should be captured");
+
+        // Toggle is_sensor
+        if let Ok(mut c) = world.get::<&mut ae_core::ecs::Collider>(entity) {
+            c.is_sensor = !c.is_sensor;
+        }
+
+        let new_bytes = handler
+            .capture(&world, entity)
+            .expect("Toggled collider should be captured");
+        assert_ne!(old_bytes, new_bytes);
+
+        // Verify that is_sensor is true
+        assert!(
+            world
+                .get::<&ae_core::ecs::Collider>(entity)
+                .unwrap()
+                .is_sensor
+        );
+
+        // Verify Undo: restore old bytes restores is_sensor = false
+        handler
+            .apply(&mut world, entity, &old_bytes)
+            .expect("Apply must succeed");
+        assert!(
+            !world
+                .get::<&ae_core::ecs::Collider>(entity)
+                .unwrap()
+                .is_sensor
+        );
+
+        // Verify Redo: restore new bytes restores is_sensor = true
+        handler
+            .apply(&mut world, entity, &new_bytes)
+            .expect("Apply must succeed");
+        assert!(
+            world
+                .get::<&ae_core::ecs::Collider>(entity)
+                .unwrap()
+                .is_sensor
+        );
+    }
 }

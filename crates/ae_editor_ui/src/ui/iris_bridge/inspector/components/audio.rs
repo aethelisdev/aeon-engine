@@ -227,31 +227,37 @@ impl ComponentInspectorHandler for AudioSourceHandler {
             }
 
             // Row 4: Spatial 3D Audio
-            render_declarative_checkbox_row(
+            let resp_spatial = render_declarative_checkbox_row(
                 card,
                 ComponentCheckboxId::AudioSpatial,
                 "Spatial 3D Audio",
                 is_spatial,
-                false,
             );
+            if resp_spatial.clicked() {
+                ctx.toggle_checkbox(ComponentCheckboxId::AudioSpatial);
+            }
 
             // Row 5: Looping
-            render_declarative_checkbox_row(
+            let resp_loop = render_declarative_checkbox_row(
                 card,
                 ComponentCheckboxId::AudioLoop,
                 "Looping",
                 looping,
-                false,
             );
+            if resp_loop.clicked() {
+                ctx.toggle_checkbox(ComponentCheckboxId::AudioLoop);
+            }
 
             // Row 6: Play on Start
-            render_declarative_checkbox_row(
+            let resp_play = render_declarative_checkbox_row(
                 card,
                 ComponentCheckboxId::AudioPlayOnStart,
                 "Play on Start",
                 play_on_start,
-                false,
             );
+            if resp_play.clicked() {
+                ctx.toggle_checkbox(ComponentCheckboxId::AudioPlayOnStart);
+            }
         });
     }
 

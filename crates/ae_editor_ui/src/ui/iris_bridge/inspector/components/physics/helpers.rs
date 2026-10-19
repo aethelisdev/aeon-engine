@@ -175,87 +175,28 @@ pub fn render_declarative_combobox_row(
     }
 }
 
-/// Renders a standardized boolean toggle checkbox row in a declarative [`UiScope`].
+/// Renders a standardized interactive checkbox row using the autonomous [`Checkbox`] widget.
 ///
-/// Displays a 14x14 pixel checkbox box with an accent border, checkmark glyph (`✓`),
-/// and a companion descriptive label. Tags the checkbox box with [`encode_component_checkbox_tag`]
-/// for direct O(1) hit-testing.
+/// Encapsulates persistent 64-bit tag encoding, hover states, border highlights, and click detection
+/// using the unified declarative IrisUI widget framework.
 ///
 /// # Arguments
-/// * `scope` - Active declarative UI scope.
+/// * `scope` - Active declarative scope in which to mount the checkbox.
 /// * `cb_id` - Semantic component checkbox identifier.
-/// * `label` - Human-readable label displayed next to the checkbox.
+/// * `label` - Descriptive text displayed next to the indicator box.
 /// * `is_checked` - Current boolean state of the property.
-/// * `is_hovered` - Whether the mouse cursor is currently hovering over the checkbox.
 ///
-/// Returns the allocated [`WidgetId`] of the checkbox container box.
+/// Returns the resulting [`WidgetResponse`] capturing click and hover interaction signals.
 pub fn render_declarative_checkbox_row(
     scope: &mut UiScope<'_>,
     cb_id: ComponentCheckboxId,
     label: &'static str,
     is_checked: bool,
-    is_hovered: bool,
-) {
-    let row_style = Style::new()
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .height(20.0)
-        .gap(8.0);
-
-    scope.container_named("CheckboxRow", row_style, |row| {
-        let (bg, border) = if is_checked {
-            (
-                Color::rgba(0.20, 0.28, 0.38, 1.0),
-                Color::rgba(0.40, 0.55, 0.75, 0.95),
-            )
-        } else if is_hovered {
-            (
-                Color::rgba(0.200, 0.208, 0.235, 1.0),
-                Color::rgba(0.271, 0.282, 0.329, 0.95),
-            )
-        } else {
-            (
-                Color::rgba(0.157, 0.165, 0.188, 0.98),
-                Color::rgba(0.212, 0.220, 0.259, 0.85),
-            )
-        };
-
-        let box_style = Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .justify_content(JustifyContent::Center)
-            .width(14.0)
-            .height(14.0)
-            .background(bg)
-            .border(1.0, border)
-            .border_radius(3.0);
-
-        row.container_tagged(
-            "CheckboxBox",
-            box_style,
-            WidgetRole::Checkbox,
-            encode_component_checkbox_tag(cb_id),
-            |box_scope| {
-                if is_checked {
-                    box_scope.label_styled_passive(
-                        "Checkmark",
-                        "✓",
-                        10.0,
-                        Color::WHITE,
-                        TextAlign::Center,
-                        Style::new().width(14.0).height(14.0),
-                    );
-                }
-            },
-        );
-
-        row.label_styled_passive(
-            "CheckboxLabel",
-            label,
-            11.0,
-            row.theme().text_muted,
-            TextAlign::Left,
-            Style::new().flex_grow(1.0),
-        );
-    });
+) -> WidgetResponse {
+    let tag = encode_component_checkbox_tag(cb_id);
+    scope.add(
+        Checkbox::new(label, is_checked)
+            .name("CheckboxBox")
+            .tag(tag),
+    )
 }

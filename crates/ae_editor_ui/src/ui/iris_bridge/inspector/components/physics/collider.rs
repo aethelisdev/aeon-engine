@@ -232,13 +232,15 @@ impl ComponentInspectorHandler for ColliderHandler {
                 ctx.commit_number(id_re);
             }
 
-            render_declarative_checkbox_row(
+            let resp_sensor = render_declarative_checkbox_row(
                 card,
                 ComponentCheckboxId::ColliderIsSensor,
                 "Is Sensor (Trigger)",
                 is_sensor,
-                false,
             );
+            if resp_sensor.clicked() {
+                ctx.toggle_checkbox(ComponentCheckboxId::ColliderIsSensor);
+            }
         });
     }
 

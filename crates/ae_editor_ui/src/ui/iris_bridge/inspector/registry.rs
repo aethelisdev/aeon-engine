@@ -96,6 +96,14 @@ impl<'a> ComponentRenderContext<'a> {
         }
     }
 
+    /// Pushes a checkbox toggle action for the inspected entity.
+    #[inline]
+    pub fn toggle_checkbox(&mut self, cb_id: super::types::ComponentCheckboxId) {
+        if let Some(actions) = &mut self.actions {
+            actions.push(InspectorAction::ToggleCheckbox(self.entity, cb_id));
+        }
+    }
+
     /// Queries the active inline keyboard editing state for a numeric property.
     #[inline]
     #[must_use]

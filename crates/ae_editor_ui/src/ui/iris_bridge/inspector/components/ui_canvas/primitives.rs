@@ -474,13 +474,15 @@ impl ComponentInspectorHandler for UiButtonHandler {
                 false,
             );
 
-            render_declarative_checkbox_row(
+            let resp_enabled = render_declarative_checkbox_row(
                 card,
                 ComponentCheckboxId::UiInteractable,
                 "Enabled",
                 is_enabled,
-                false,
             );
+            if resp_enabled.clicked() {
+                ctx.toggle_checkbox(ComponentCheckboxId::UiInteractable);
+            }
         });
     }
 
