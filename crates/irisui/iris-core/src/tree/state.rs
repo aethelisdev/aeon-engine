@@ -83,6 +83,27 @@ impl UiTree {
         self.active_combobox_tag = None;
     }
 
+    /// Closes all active popups, context menus, combobox dropdowns, and menu bar dropdowns.
+    ///
+    /// Returns `true` if any open popup or menu state was dismissed.
+    #[inline]
+    pub fn close_all_popups(&mut self) -> bool {
+        let had_popup = self.has_open_popup();
+        self.active_menu_bar_tag = None;
+        self.active_combobox_tag = None;
+        self.event_state.active_context_menu = None;
+        had_popup
+    }
+
+    /// Returns whether any popup, context menu, combobox dropdown, or menu bar dropdown is currently open.
+    #[inline]
+    #[must_use]
+    pub fn has_open_popup(&self) -> bool {
+        self.event_state.active_context_menu.is_some()
+            || self.active_menu_bar_tag.is_some()
+            || self.active_combobox_tag.is_some()
+    }
+
     /// Returns the persistent vertical scroll position for the given semantic `tag`.
     ///
     /// Defaults to `0.0` if this tag has never been scrolled.

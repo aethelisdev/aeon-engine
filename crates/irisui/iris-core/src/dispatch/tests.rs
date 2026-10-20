@@ -5,7 +5,7 @@
 
 use crate::event::{ImeEvent, KeyCode, MouseButton, UiEvent};
 use crate::geometry::{Point, Rect, Size};
-use crate::node::WidgetRole;
+use crate::node::{UiLayer, WidgetRole};
 use crate::tree::UiTree;
 
 #[test]
@@ -960,4 +960,108 @@ fn test_text_input_focus_consumes_all_character_keys() {
         "Text input MUST consume character typing keys ('w')"
     );
     assert!(res_w.response.map(|r| r.changed()).unwrap_or(false));
+}
+
+#[test]
+fn test_autonomous_outside_click_dismisses_popups() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn = tree.create_node();
+    tree.add_child(root, btn).unwrap();
+    {
+        let b = tree.get_mut(btn).unwrap();
+        b.visible = true;
+        b.interactive = true;
+        b.role = WidgetRole::Button;
+        b.computed_rect = Rect::new(10.0, 10.0, 80.0, 30.0);
+        b.tag = 100;
+    }
+
+    // 1. Open both menu bar and combobox popups
+    tree.set_active_menu(Some(50));
+    tree.set_active_combobox(Some(60));
+    assert!(tree.has_open_popup());
+
+    // 2. Click outside (on empty canvas area)
+    let outside_click = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(400.0, 400.0),
+    };
+    let res = tree.dispatch_event(&outside_click);
+    assert!(res.is_consumed());
+    assert!(res.needs_redraw);
+    assert!(!tree.has_open_popup());
+    assert_eq!(tree.active_menu_bar_tag, None);
+    assert_eq!(tree.active_combobox_tag, None);
+}
+
+#[test]
+fn test_autonomous_click_inside_popup_retains_open_state() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let popup_node = tree.create_node();
+    tree.add_child(root, popup_node).unwrap();
+    {
+        let p = tree.get_mut(popup_node).unwrap();
+        p.visible = true;
+        p.interactive = true;
+        p.role = WidgetRole::DropdownPopup;
+        p.layer = UiLayer::Popup;
+        p.computed_rect = Rect::new(100.0, 50.0, 150.0, 200.0);
+        p.tag = 777;
+    }
+
+    let popup_item = tree.create_node();
+    tree.add_child(popup_node, popup_item).unwrap();
+    {
+        let pi = tree.get_mut(popup_item).unwrap();
+        pi.visible = true;
+        pi.interactive = true;
+        pi.role = WidgetRole::Button;
+        pi.computed_rect = Rect::new(105.0, 55.0, 140.0, 24.0);
+        pi.tag = 778;
+    }
+
+    tree.set_active_combobox(Some(777));
+    assert!(tree.has_open_popup());
+
+    // Click inside the popup item
+    let inside_click = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(120.0, 65.0),
+    };
+    let res = tree.dispatch_event(&inside_click);
+    assert!(res.is_consumed());
+    // Combobox state must NOT be cleared by clicks inside
+    assert!(tree.is_combobox_open(777));
+}
+
+#[test]
+fn test_autonomous_escape_key_dismisses_all_popups() {
+    let mut tree = UiTree::new();
+    let _root = tree.create_root().unwrap();
+
+    tree.set_active_menu(Some(42));
+    tree.set_active_combobox(Some(84));
+    assert!(tree.has_open_popup());
+
+    let esc_ev = UiEvent::KeyboardInput {
+        key: KeyCode::Escape,
+        text: None,
+        is_pressed: true,
+    };
+    let res = tree.dispatch_event(&esc_ev);
+
+    assert!(
+        res.is_consumed(),
+        "Escape must consume the event when a popup is active"
+    );
+    assert!(res.needs_redraw, "Escape dismiss must request redraw");
+    assert!(
+        !tree.has_open_popup(),
+        "All popups must be closed on Escape"
+    );
+    assert_eq!(tree.active_menu_bar_tag, None);
+    assert_eq!(tree.active_combobox_tag, None);
 }

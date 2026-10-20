@@ -212,3 +212,60 @@ fn test_wants_pointer_at_evaluation() {
     // Empty root background -> does not want pointer
     assert!(!tree.wants_pointer_at(Point::new(10.0, 10.0)));
 }
+
+#[test]
+fn test_hit_test_elevated_overlay_scissor_decoupling() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+    }
+
+    // Parent container with clip_children = true restricting bounds to (0, 0, 100, 100)
+    let parent = tree.create_node();
+    if let Some(node) = tree.get_mut(parent) {
+        node.computed_rect = Rect::new(0.0, 0.0, 100.0, 100.0);
+        node.style.clip_children = true;
+    }
+    tree.add_child(root, parent).unwrap();
+
+    // Cascading submenu elevated overlay placed outside parent's scissor boundary
+    let elevated_submenu = tree.create_node();
+    if let Some(node) = tree.get_mut(elevated_submenu) {
+        node.computed_rect = Rect::new(120.0, 40.0, 100.0, 100.0);
+        node.role = WidgetRole::DropdownPopup;
+        node.layer = UiLayer::Popup;
+        node.interactive = true;
+    }
+    tree.add_child(parent, elevated_submenu).unwrap();
+
+    // Point inside elevated submenu outside parent's bounds: Scissor must NOT clip elevated overlay
+    let hit = tree.hit_test_layered(Point::new(130.0, 50.0));
+    assert_eq!(
+        hit,
+        Some(elevated_submenu),
+        "Elevated overlay must break out of parent scissor boundaries during hit-testing"
+    );
+}
+
+#[test]
+fn test_wants_pointer_at_with_open_popup() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+    }
+
+    assert!(!tree.wants_pointer_at(Point::new(20.0, 20.0)));
+
+    // Open a menu dropdown
+    tree.set_active_menu(Some(42));
+    assert!(
+        tree.wants_pointer_at(Point::new(20.0, 20.0)),
+        "Tree must capture pointer when a menu popup is open"
+    );
+
+    // Dismiss popups
+    tree.close_all_popups();
+    assert!(!tree.wants_pointer_at(Point::new(20.0, 20.0)));
+}

@@ -111,4 +111,60 @@ mod tests {
         let res_up = dispatch_winit_event(&mut tree, &mut state, &up_ev);
         assert!(res_up.is_consumed());
     }
+
+    #[test]
+    fn test_dispatch_winit_escape_dismisses_popup() {
+        use crate::adapter::winit_key_to_iris;
+        use iris_core::event::UiEvent;
+        use winit::keyboard::{Key, NamedKey};
+
+        let mut tree = UiTree::new();
+        let _root = tree.create_root().expect("Root node created");
+
+        tree.set_active_menu(Some(99));
+        assert!(tree.has_open_popup());
+
+        // Verify logical Escape key translates accurately to iris KeyCode::Escape
+        let (key_code, text) = winit_key_to_iris(&Key::Named(NamedKey::Escape));
+        assert_eq!(key_code, iris_core::event::KeyCode::Escape);
+        assert_eq!(text, None);
+
+        // Dispatch translated event into the tree
+        let ui_event = UiEvent::KeyboardInput {
+            key: key_code,
+            text,
+            is_pressed: true,
+        };
+        let res = tree.dispatch_event(&ui_event);
+        assert!(
+            res.is_consumed(),
+            "Escape must consume event when popup is open"
+        );
+        assert!(res.needs_redraw, "Escape dismiss must trigger redraw");
+        assert!(!tree.has_open_popup(), "Menu must be closed after Escape");
+    }
+
+    #[test]
+    fn test_dispatch_winit_outside_click_dismisses_popup() {
+        let mut tree = UiTree::new();
+        let mut state = WinitState::new(1.0);
+        let _root = tree.create_root().expect("Root node created");
+
+        tree.set_active_combobox(Some(101));
+        assert!(tree.has_open_popup());
+
+        let outside_click = WindowEvent::MouseInput {
+            device_id: DeviceId::dummy(),
+            state: ElementState::Pressed,
+            button: MouseButton::Left,
+        };
+
+        let res = dispatch_winit_event(&mut tree, &mut state, &outside_click);
+        assert!(res.is_consumed());
+        assert!(res.needs_redraw);
+        assert!(
+            !tree.has_open_popup(),
+            "Combobox must be closed after outside click"
+        );
+    }
 }

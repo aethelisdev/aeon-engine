@@ -94,9 +94,7 @@ impl UiTree {
     #[must_use]
     pub fn needs_rebuild(&self) -> bool {
         self.event_state.has_frame_interactions()
-            || self.active_menu_bar_tag.is_some()
-            || self.active_combobox_tag.is_some()
-            || self.event_state.active_context_menu.is_some()
+            || self.has_open_popup()
             || self.has_dirty_nodes(DirtyFlags::LAYOUT | DirtyFlags::PAINT)
     }
 

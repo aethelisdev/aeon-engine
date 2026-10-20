@@ -267,21 +267,51 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
 
     let hit_id = tree.hit_test_layered(point);
 
-    // Autonomous context menu dismiss when clicking outside its bounds
-    if let Some(active) = tree.event_state.active_context_menu {
-        let is_inside_menu = if let Some(menu_cid) = active.container_id {
-            hit_id == Some(menu_cid)
-                || hit_id.is_some_and(|hid| {
-                    tree.is_descendant_of(hid, menu_cid)
-                        || tree.get(hid).is_some_and(|n| n.layer == UiLayer::Popup)
-                })
+    // Autonomous popup, context menu, combobox, and menu bar dismiss when clicking outside
+    let had_popups_dismissed = if tree.has_open_popup() {
+        let is_inside_open_popup = if let Some(hid) = hit_id {
+            // Check if clicked widget is inside the context menu container
+            let inside_context_menu = if let Some(active) = tree.event_state.active_context_menu {
+                if let Some(menu_cid) = active.container_id {
+                    hid == menu_cid || tree.is_descendant_of(hid, menu_cid)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            // Check if clicked widget belongs to a popup layer or elevated dropdown role
+            let is_popup_widget = tree.effective_layer(hid) >= UiLayer::Popup
+                || tree
+                    .find_ancestor_with_role(hid, WidgetRole::DropdownPopup)
+                    .is_some()
+                || tree.get(hid).is_some_and(|n| {
+                    matches!(
+                        n.role,
+                        WidgetRole::DropdownPopup
+                            | WidgetRole::ModalWindow
+                            | WidgetRole::FloatingWindow
+                            | WidgetRole::Tooltip
+                    ) || (tree.active_menu_bar_tag.is_some()
+                        && Some(n.tag) == tree.active_menu_bar_tag)
+                        || (tree.active_combobox_tag.is_some()
+                            && Some(n.tag) == tree.active_combobox_tag)
+                });
+
+            inside_context_menu || is_popup_widget
         } else {
-            hit_id.is_some_and(|hid| tree.get(hid).is_some_and(|n| n.layer == UiLayer::Popup))
+            false
         };
-        if !is_inside_menu {
-            tree.event_state.active_context_menu = None;
+
+        if !is_inside_open_popup {
+            tree.close_all_popups()
+        } else {
+            false
         }
-    }
+    } else {
+        false
+    };
 
     tree.event_state.pressed = hit_id;
     tree.event_state.pressed_button = Some(button);
@@ -415,8 +445,8 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
         let flags = ResponseFlags::HOVERED | ResponseFlags::PRESSED;
 
         DispatchResult {
-            consumed: is_interactive,
-            needs_redraw: is_interactive,
+            consumed: is_interactive || had_popups_dismissed,
+            needs_redraw: is_interactive || had_popups_dismissed,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -429,7 +459,15 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
     } else {
         // Clicking on empty area clears active keyboard and tag focus
         tree.event_state.clear_focus();
-        DispatchResult::ignored()
+        if had_popups_dismissed {
+            DispatchResult {
+                consumed: true,
+                needs_redraw: true,
+                ..DispatchResult::ignored()
+            }
+        } else {
+            DispatchResult::ignored()
+        }
     }
 }
 
@@ -808,8 +846,8 @@ fn handle_keyboard(
     tree.event_state.frame_clicked_tag = None;
     tree.event_state.frame_drag_delta = None;
 
-    if is_pressed && key == KeyCode::Escape && tree.event_state.active_context_menu.is_some() {
-        tree.event_state.active_context_menu = None;
+    if is_pressed && key == KeyCode::Escape && tree.has_open_popup() {
+        tree.close_all_popups();
         return DispatchResult {
             consumed: true,
             needs_redraw: true,

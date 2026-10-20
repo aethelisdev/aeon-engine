@@ -169,12 +169,17 @@ impl UiTree {
             *has_active_modal = true;
         }
 
+        let is_elevated_root = node.layer > inherited_layer
+            || matches!(
+                node.role,
+                WidgetRole::DropdownPopup
+                    | WidgetRole::ModalWindow
+                    | WidgetRole::FloatingWindow
+                    | WidgetRole::Tooltip
+            );
+
         // Elevated overlay layers break out of parent scissor boundaries
-        let effective_clip = if effective_layer > inherited_layer {
-            None
-        } else {
-            clip_rect
-        };
+        let effective_clip = if is_elevated_root { None } else { clip_rect };
 
         let child_clip = if node.style.clip_children {
             match effective_clip {
@@ -234,11 +239,16 @@ impl UiTree {
             inherited_layer
         };
 
-        let effective_clip = if effective_layer > inherited_layer {
-            None
-        } else {
-            clip_rect
-        };
+        let is_elevated_root = node.layer > inherited_layer
+            || matches!(
+                node.role,
+                WidgetRole::DropdownPopup
+                    | WidgetRole::ModalWindow
+                    | WidgetRole::FloatingWindow
+                    | WidgetRole::Tooltip
+            );
+
+        let effective_clip = if is_elevated_root { None } else { clip_rect };
 
         let child_clip = if node.style.clip_children {
             match effective_clip {
@@ -393,7 +403,7 @@ impl UiTree {
     pub fn wants_pointer_at(&self, point: Point) -> bool {
         if self.event_state.pointer_capture.is_some()
             || self.event_state.pointer_capture_tag.is_some()
-            || self.event_state.active_context_menu.is_some()
+            || self.has_open_popup()
         {
             return true;
         }
