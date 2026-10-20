@@ -100,6 +100,7 @@ impl IrisEditorOverlay {
                 ..
             } = event
             {
+                let active = self.overlay_tree.active_overlay().cloned();
                 self.overlay_tree.close();
                 if self.inspector.is_add_menu_open {
                     self.inspector.is_add_menu_open = false;
@@ -118,20 +119,59 @@ impl IrisEditorOverlay {
                 }
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
-                return super::types::IrisOverlayEventResult::consumed(true);
+                let mut res = super::types::IrisOverlayEventResult::consumed(true);
+                match active {
+                    Some(super::overlay_tree::ActiveOverlay::Modal(
+                        super::overlay_tree::ModalKind::About,
+                    )) => {
+                        res.close_about = true;
+                    }
+                    Some(super::overlay_tree::ActiveOverlay::Modal(
+                        super::overlay_tree::ModalKind::Preferences,
+                    )) => {
+                        res.close_preferences = true;
+                        res.preferences_action = Some(super::preferences::PreferencesAction::Close);
+                    }
+                    Some(super::overlay_tree::ActiveOverlay::Modal(
+                        super::overlay_tree::ModalKind::DeleteConfirmation,
+                    )) => {
+                        res.cancel_delete = true;
+                    }
+                    Some(super::overlay_tree::ActiveOverlay::Modal(
+                        super::overlay_tree::ModalKind::NewFolder,
+                    )) => {
+                        res.cancel_new_folder = true;
+                    }
+                    Some(super::overlay_tree::ActiveOverlay::Modal(
+                        super::overlay_tree::ModalKind::Rename,
+                    )) => {
+                        res.cancel_rename = true;
+                    }
+                    _ => {
+                        if self.modals.is_about_active {
+                            res.close_about = true;
+                        }
+                    }
+                }
+                self.assets.preview_modal = None;
+                return res;
             }
         }
 
-        let target_tree = if self.overlay_tree.is_open() {
-            self.overlay_tree.tree_mut()
-        } else {
-            &mut self.tree
-        };
-
-        let dispatch = target_tree.dispatch_event(event);
-
-        let is_overlay_motion = self.overlay_tree.is_open()
+        let is_overlay_open = self.overlay_tree.is_open();
+        let is_overlay_motion = is_overlay_open
             && matches!(event, UiEvent::MouseMove { point } if self.overlay_tree.contains_point(*point));
+
+        let (dispatch, clicked_tag) = if is_overlay_open {
+            let tree = self.overlay_tree.tree_mut();
+            let d = tree.dispatch_event(event);
+            let tag = tree.event_state.frame_clicked_tag;
+            (d, tag)
+        } else {
+            let d = self.tree.dispatch_event(event);
+            let tag = self.tree.event_state.frame_clicked_tag;
+            (d, tag)
+        };
 
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()
@@ -149,7 +189,109 @@ impl IrisEditorOverlay {
             self.chrome.needs_layout_rebuild = true;
         }
 
-        super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed() || is_overlay_motion)
+        let mut result = super::types::IrisOverlayEventResult::consumed(
+            dispatch.is_consumed() || is_overlay_motion,
+        );
+
+        // Evaluate modal actions and button triggers in overlay tree or base tree (STRICTLY on clicks, never on hover)
+        if let Some(clicked_tag) = clicked_tag
+            && clicked_tag != 0
+        {
+            let active_modal = if let Some(super::overlay_tree::ActiveOverlay::Modal(k)) =
+                self.overlay_tree.active_overlay()
+            {
+                Some(*k)
+            } else {
+                None
+            };
+
+            match clicked_tag {
+                irisui::prelude::MODAL_TAG_CLOSE => {
+                    result.consumed = true;
+                    self.overlay_tree.close();
+                    match active_modal {
+                        Some(super::overlay_tree::ModalKind::About) => result.close_about = true,
+                        Some(super::overlay_tree::ModalKind::Preferences) => {
+                            result.close_preferences = true;
+                            result.preferences_action =
+                                Some(super::preferences::PreferencesAction::Close);
+                        }
+                        Some(super::overlay_tree::ModalKind::DeleteConfirmation) => {
+                            result.cancel_delete = true
+                        }
+                        Some(super::overlay_tree::ModalKind::NewFolder) => {
+                            result.cancel_new_folder = true
+                        }
+                        Some(super::overlay_tree::ModalKind::Rename) => result.cancel_rename = true,
+                        _ => {
+                            if self.modals.is_about_active {
+                                result.close_about = true;
+                            }
+                        }
+                    }
+                    self.assets.preview_modal = None;
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                }
+                irisui::prelude::MODAL_TAG_CANCEL => {
+                    result.consumed = true;
+                    self.overlay_tree.close();
+                    match active_modal {
+                        Some(super::overlay_tree::ModalKind::DeleteConfirmation) => {
+                            result.cancel_delete = true
+                        }
+                        Some(super::overlay_tree::ModalKind::NewFolder) => {
+                            result.cancel_new_folder = true
+                        }
+                        Some(super::overlay_tree::ModalKind::Rename) => result.cancel_rename = true,
+                        _ => {}
+                    }
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                }
+                irisui::prelude::MODAL_TAG_CONFIRM => {
+                    result.consumed = true;
+                    self.overlay_tree.close();
+                    match active_modal {
+                        Some(super::overlay_tree::ModalKind::About) => result.close_about = true,
+                        Some(super::overlay_tree::ModalKind::NewFolder) => {
+                            result.create_folder =
+                                Some(self.modals.new_folder_input.text().to_string());
+                        }
+                        Some(super::overlay_tree::ModalKind::Rename) => {
+                            result.apply_rename = Some(self.modals.rename_input.text().to_string());
+                        }
+                        _ => {
+                            if self.modals.is_about_active {
+                                result.close_about = true;
+                            }
+                        }
+                    }
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                }
+                irisui::prelude::MODAL_TAG_DANGER => {
+                    result.consumed = true;
+                    self.overlay_tree.close();
+                    if active_modal == Some(super::overlay_tree::ModalKind::DeleteConfirmation) {
+                        result.confirm_delete = true;
+                    }
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                }
+                super::preferences::PREF_TAG_CLOSE => {
+                    result.consumed = true;
+                    self.overlay_tree.close();
+                    result.close_preferences = true;
+                    result.preferences_action = Some(super::preferences::PreferencesAction::Close);
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
+                }
+                _ => {}
+            }
+        }
+
+        result
     }
 
     /// Reconstructs and resolves layout for the top menu bar, active dropdown, modals, and bottom status bar.

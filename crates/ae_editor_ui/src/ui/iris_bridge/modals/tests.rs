@@ -372,3 +372,47 @@ fn test_modals_state_sync_from_dialogs_authoritative_retention() {
     assert!(!state.is_rename_active);
     assert!(!state.is_loading_active);
 }
+
+#[test]
+fn test_modal_close_button_tag_and_layer() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn_id = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp = scope.modal_close_button();
+        resp.id
+    };
+    let node = tree.get(btn_id).unwrap();
+    assert_eq!(node.tag, MODAL_TAG_CLOSE);
+    assert_eq!(node.layer, UiLayer::Modal);
+    assert!(node.interactive);
+    assert_eq!(node.role, WidgetRole::Button);
+}
+
+#[test]
+fn test_modal_action_buttons_layer_and_tags() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let (confirm_id, cancel_id, danger_id) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let confirm = scope.modal_confirm_button("Confirm", 100.0);
+        let cancel = scope.modal_cancel_button("Cancel", 100.0);
+        let danger = scope.modal_danger_button("Delete", 100.0);
+        (confirm.id, cancel.id, danger.id)
+    };
+
+    let c_node = tree.get(confirm_id).unwrap();
+    assert_eq!(c_node.tag, MODAL_TAG_CONFIRM);
+    assert_eq!(c_node.layer, UiLayer::Modal);
+    assert!(c_node.interactive);
+
+    let can_node = tree.get(cancel_id).unwrap();
+    assert_eq!(can_node.tag, MODAL_TAG_CANCEL);
+    assert_eq!(can_node.layer, UiLayer::Modal);
+    assert!(can_node.interactive);
+
+    let d_node = tree.get(danger_id).unwrap();
+    assert_eq!(d_node.tag, MODAL_TAG_DANGER);
+    assert_eq!(d_node.layer, UiLayer::Modal);
+    assert!(d_node.interactive);
+}

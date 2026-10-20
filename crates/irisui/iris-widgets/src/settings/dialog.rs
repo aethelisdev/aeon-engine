@@ -134,6 +134,8 @@ impl<'a> TabbedDialogBuilder<'a> {
             node.set_name("PreferencesCloseButton");
             node.interactive = true;
             node.role = WidgetRole::Button;
+            node.tag = crate::modal::MODAL_TAG_CLOSE;
+            node.layer = UiLayer::Modal;
             node.cursor = Some(WidgetCursor::Pointer);
             node.computed_rect = close_btn_rect;
             let bg = if is_close_hovered {
