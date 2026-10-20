@@ -3,7 +3,7 @@
 
 //! Text section and measurement descriptors for typography rendering.
 
-use iris_core::{Color, Rect, TextAlign, TextWrap};
+use iris_core::{Color, Rect, TextAlign, TextWrap, UiLayer};
 use std::borrow::Cow;
 
 /// A descriptor containing text content, styling, color, and bounding constraints.
@@ -25,10 +25,12 @@ pub struct TextSection<'a> {
     pub bounds: Rect,
     /// Optional scissor clipping rectangle in screen-space coordinates.
     pub clip_bounds: Option<Rect>,
+    /// Stacking context layer determining rendering and occlusion priority.
+    pub layer: UiLayer,
 }
 
 impl<'a> TextSection<'a> {
-    /// Creates a new `TextSection` with default typography metrics.
+    /// Creates a new `TextSection` with default typography metrics on [`UiLayer::Content`].
     #[inline]
     pub fn new(text: impl Into<Cow<'a, str>>, bounds: Rect) -> Self {
         Self {
@@ -40,7 +42,15 @@ impl<'a> TextSection<'a> {
             wrap: TextWrap::Auto,
             bounds,
             clip_bounds: None,
+            layer: UiLayer::Content,
         }
+    }
+
+    /// Sets the stacking context layer for this text section.
+    #[inline]
+    pub fn with_layer(mut self, layer: UiLayer) -> Self {
+        self.layer = layer;
+        self
     }
 
     /// Sets the font size and line height.

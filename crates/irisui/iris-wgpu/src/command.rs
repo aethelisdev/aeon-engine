@@ -117,6 +117,21 @@ impl DrawCommandList {
         });
     }
 
+    /// Resets the hardware scissor rectangle to full screen dimensions.
+    #[inline]
+    pub fn push_reset_scissor(&mut self) {
+        self.commands.push(DrawCommand::ResetScissor);
+    }
+
+    /// Returns `true` if this command list contains no draw commands or instances.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty()
+            && self.quads.is_empty()
+            && self.texture_quads.is_empty()
+            && self.external_texture_quads.is_empty()
+    }
+
     /// Merges another `DrawCommandList` onto the end of this list, rebasing batch indices.
     ///
     /// Preserves exact Z-ordering while shifting batch start indices and texture instance pointers

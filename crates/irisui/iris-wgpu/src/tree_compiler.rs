@@ -139,7 +139,25 @@ pub fn compile_tree_draw_commands_into(
     };
     populate_layer_commands(tree, root_id, &mut ctx, &mut layer_lists);
     output.clear();
-    for list in layer_lists {
+
+    let mut had_scissor = options.initial_clip.is_some();
+    for (layer_idx, list) in layer_lists.into_iter().enumerate() {
+        if list.is_empty() {
+            continue;
+        }
+        // When transitioning to elevated overlay layers (Modal, Popup, Tooltip), ensure any
+        // hardware scissor pushed by lower content layers is reset so overlays are never cut off.
+        if layer_idx >= UiLayer::Modal.index() && had_scissor {
+            output.push_reset_scissor();
+            had_scissor = false;
+        }
+        if list
+            .commands
+            .iter()
+            .any(|c| matches!(c, crate::command::DrawCommand::SetScissor { .. }))
+        {
+            had_scissor = true;
+        }
         output.append(list);
     }
 }
@@ -192,9 +210,21 @@ fn populate_layer_commands(
         ctx.inherited_layer
     };
 
+    // A node is an elevated overlay root if its explicit layer exceeds the inherited layer,
+    // or if its semantic role designates an independent floating/overlay container
+    // (DropdownPopup, ModalWindow, FloatingWindow, Tooltip).
+    let is_elevated_root = node.layer > ctx.inherited_layer
+        || matches!(
+            node.role,
+            WidgetRole::DropdownPopup
+                | WidgetRole::ModalWindow
+                | WidgetRole::FloatingWindow
+                | WidgetRole::Tooltip
+        );
+
     // Decouple scissor clip when transitioning into an elevated overlay layer
     // so that child popups or modal cards are not clipped by parent panel boundaries.
-    let effective_clip = if effective_layer > ctx.inherited_layer {
+    let effective_clip = if is_elevated_root {
         None
     } else {
         ctx.clip_rect
@@ -532,5 +562,153 @@ mod tests {
             .with_blink_caret(false);
         let blink_off_cmds = compile_tree_draw_commands(&tree, root, &mut blink_off_options);
         assert_eq!(blink_off_cmds.quads.len(), 1);
+    }
+
+    #[test]
+    fn test_tree_compiler_all_layers_strict_order() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1000.0, 1000.0);
+            node.style = Style::new().background(Color::BLACK);
+            node.layer = UiLayer::Background;
+        }
+
+        // Add nodes in reverse order: Tooltip (5), Popup (4), Modal (3), Floating (2), Content (1)
+        let tooltip = tree.create_node();
+        if let Some(node) = tree.get_mut(tooltip) {
+            node.computed_rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+            node.style = Style::new().background(Color::rgb(0.9, 0.9, 0.9));
+            node.layer = UiLayer::Tooltip;
+        }
+        let _ = tree.add_child(root, tooltip);
+
+        let popup = tree.create_node();
+        if let Some(node) = tree.get_mut(popup) {
+            node.computed_rect = Rect::new(0.0, 0.0, 150.0, 150.0);
+            node.style = Style::new().background(Color::rgb(0.8, 0.8, 0.8));
+            node.layer = UiLayer::Popup;
+        }
+        let _ = tree.add_child(root, popup);
+
+        let modal = tree.create_node();
+        if let Some(node) = tree.get_mut(modal) {
+            node.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
+            node.style = Style::new().background(Color::rgb(0.7, 0.7, 0.7));
+            node.layer = UiLayer::Modal;
+        }
+        let _ = tree.add_child(root, modal);
+
+        let floating = tree.create_node();
+        if let Some(node) = tree.get_mut(floating) {
+            node.computed_rect = Rect::new(0.0, 0.0, 400.0, 400.0);
+            node.style = Style::new().background(Color::rgb(0.6, 0.6, 0.6));
+            node.layer = UiLayer::Floating;
+        }
+        let _ = tree.add_child(root, floating);
+
+        let content = tree.create_node();
+        if let Some(node) = tree.get_mut(content) {
+            node.computed_rect = Rect::new(0.0, 0.0, 500.0, 500.0);
+            node.style = Style::new().background(Color::rgb(0.5, 0.5, 0.5));
+            node.layer = UiLayer::Content;
+        }
+        let _ = tree.add_child(root, content);
+
+        let mut options = TreeCompilerOptions::new();
+        let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+        // All 6 quads must be present in exact ascending layer order
+        assert_eq!(cmd_list.quads.len(), 6);
+        assert_eq!(cmd_list.quads[0].rect[2], 1000.0); // Background (0)
+        assert_eq!(cmd_list.quads[1].rect[2], 500.0); // Content (1)
+        assert_eq!(cmd_list.quads[2].rect[2], 400.0); // Floating (2)
+        assert_eq!(cmd_list.quads[3].rect[2], 300.0); // Modal (3)
+        assert_eq!(cmd_list.quads[4].rect[2], 150.0); // Popup (4)
+        assert_eq!(cmd_list.quads[5].rect[2], 50.0); // Tooltip (5)
+    }
+
+    #[test]
+    fn test_tree_compiler_nested_submenu_clip_decoupling() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.style = Style::new().background(Color::BLACK);
+            node.layer = UiLayer::Background;
+        }
+
+        // Panel with clip_children = true
+        let panel = tree.create_node();
+        if let Some(node) = tree.get_mut(panel) {
+            node.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
+            node.style = Style::new().clip_children(true);
+            node.layer = UiLayer::Content;
+        }
+        let _ = tree.add_child(root, panel);
+
+        // Parent popup with clip_children = true
+        let parent_popup = tree.create_node();
+        if let Some(node) = tree.get_mut(parent_popup) {
+            node.computed_rect = Rect::new(200.0, 200.0, 150.0, 150.0);
+            node.role = WidgetRole::DropdownPopup;
+            node.style = Style::new().background(Color::BLUE).clip_children(true);
+            node.layer = UiLayer::Popup;
+        }
+        let _ = tree.add_child(panel, parent_popup);
+
+        // Cascading child submenu sticking out to (340, 220, 120, 100)
+        let submenu = tree.create_node();
+        if let Some(node) = tree.get_mut(submenu) {
+            node.computed_rect = Rect::new(340.0, 220.0, 120.0, 100.0);
+            node.role = WidgetRole::DropdownPopup;
+            node.style = Style::new().background(Color::RED);
+            node.layer = UiLayer::Popup;
+        }
+        let _ = tree.add_child(parent_popup, submenu);
+
+        let mut options = TreeCompilerOptions::new();
+        let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+        // Both popups must be decoupled from the panel's clip (0, 0, 300, 300)
+        // Parent popup has clip_rect = [0.0, 0.0, 0.0, 0.0]
+        // Submenu has clip_rect = [0.0, 0.0, 0.0, 0.0] because it is an elevated root (DropdownPopup)
+        let parent_quad = cmd_list.quads.iter().find(|q| q.rect[2] == 150.0).unwrap();
+        assert_eq!(parent_quad.clip_rect, [0.0, 0.0, 0.0, 0.0]);
+
+        let submenu_quad = cmd_list.quads.iter().find(|q| q.rect[2] == 120.0).unwrap();
+        assert_eq!(submenu_quad.clip_rect, [0.0, 0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_tree_compiler_hardware_scissor_reset_on_elevated_layer() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.style = Style::new().background(Color::BLACK);
+            node.layer = UiLayer::Content;
+        }
+
+        let popup = tree.create_node();
+        if let Some(node) = tree.get_mut(popup) {
+            node.computed_rect = Rect::new(100.0, 100.0, 200.0, 200.0);
+            node.style = Style::new().background(Color::BLUE);
+            node.layer = UiLayer::Popup;
+        }
+        let _ = tree.add_child(root, popup);
+
+        // Pass an initial clip (simulating host panel scissor)
+        let mut options =
+            TreeCompilerOptions::new().with_clip(Some(Rect::new(0.0, 0.0, 300.0, 300.0)));
+        let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+        // The command stream must contain a ResetScissor command before or when drawing elevated layers
+        assert!(
+            cmd_list
+                .commands
+                .iter()
+                .any(|c| matches!(c, crate::command::DrawCommand::ResetScissor))
+        );
     }
 }

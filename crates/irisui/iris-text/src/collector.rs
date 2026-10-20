@@ -120,14 +120,20 @@ pub fn collect_text_sections_with_options<'a>(
     // Step 1: Discover all opaque occluders with tree traversal order
     let mut occluders = Vec::with_capacity(32);
     let mut counter = 0usize;
-    discover_layer_occluders(tree, root, UiLayer::Content, &mut counter, &mut occluders);
+    discover_layer_occluders(
+        tree,
+        root,
+        UiLayer::Background,
+        &mut counter,
+        &mut occluders,
+    );
 
-    // Step 2: Recursively extract text sections with occlusion clipping and culling
-    let mut sections = Vec::with_capacity(64);
+    // Step 2: Recursively extract text sections with occlusion clipping and culling into discrete layer buckets
+    let mut layer_sections: [Vec<TextSection<'a>>; 6] = Default::default();
     let mut text_counter = 0usize;
     let ctx = CollectionContext {
         clip_rect: None,
-        inherited_layer: UiLayer::Content,
+        inherited_layer: UiLayer::Background,
         inherited_hovered: false,
         inherited_focused: false,
         hovered_tag: options.hovered_tag,
@@ -138,7 +144,13 @@ pub fn collect_text_sections_with_options<'a>(
         occluders: &occluders,
         extra_occluders: &options.extra_occluders,
     };
-    collect_node_text(tree, root, &ctx, &mut text_counter, &mut sections);
+    collect_node_text(tree, root, &ctx, &mut text_counter, &mut layer_sections);
+
+    let total_count: usize = layer_sections.iter().map(|s| s.len()).sum();
+    let mut sections = Vec::with_capacity(total_count);
+    for layer in layer_sections {
+        sections.extend(layer);
+    }
 
     sections
 }
@@ -169,7 +181,10 @@ fn discover_layer_occluders(
 
     let is_layer_container = matches!(
         node.role,
-        WidgetRole::DropdownPopup | WidgetRole::ModalWindow | WidgetRole::FloatingWindow
+        WidgetRole::DropdownPopup
+            | WidgetRole::ModalWindow
+            | WidgetRole::FloatingWindow
+            | WidgetRole::Tooltip
     ) || effective_layer >= UiLayer::Floating;
 
     // An occluder MUST be a recognized top-level container AND strictly opaque (alpha >= 0.90).
@@ -208,7 +223,7 @@ fn collect_node_text<'a>(
     current: WidgetId,
     ctx: &CollectionContext<'_>,
     counter: &mut usize,
-    sections: &mut Vec<TextSection<'a>>,
+    layer_sections: &mut [Vec<TextSection<'a>>; 6],
 ) {
     let Some(node) = tree.get(current) else {
         return;
@@ -226,9 +241,21 @@ fn collect_node_text<'a>(
         ctx.inherited_layer
     };
 
+    // A node is an elevated overlay root if its explicit layer exceeds the inherited layer,
+    // or if its semantic role designates an independent floating/overlay container
+    // (DropdownPopup, ModalWindow, FloatingWindow, Tooltip).
+    let is_elevated_root = node.layer > ctx.inherited_layer
+        || matches!(
+            node.role,
+            WidgetRole::DropdownPopup
+                | WidgetRole::ModalWindow
+                | WidgetRole::FloatingWindow
+                | WidgetRole::Tooltip
+        );
+
     // Decouple scissor clip when transitioning into an elevated overlay layer (e.g. Popup or Modal)
     // so that child popups or modal cards are not clipped by parent panel boundaries.
-    let incoming_clip = if effective_layer > ctx.inherited_layer {
+    let incoming_clip = if is_elevated_root {
         None
     } else {
         ctx.clip_rect
@@ -438,8 +465,9 @@ fn collect_node_text<'a>(
                     wrap: node.text_wrap,
                     bounds: node.computed_rect,
                     clip_bounds: effective_clip,
+                    layer: effective_layer,
                 };
-                sections.push(section);
+                layer_sections[effective_layer.index()].push(section);
             }
         }
     }
@@ -459,7 +487,7 @@ fn collect_node_text<'a>(
     };
 
     for &child_id in &node.children {
-        collect_node_text(tree, child_id, &child_ctx, counter, sections);
+        collect_node_text(tree, child_id, &child_ctx, counter, layer_sections);
     }
 }
 
@@ -662,5 +690,117 @@ mod tests {
             .with_blink_caret(false);
         let blink_off_sections = collect_text_sections_with_options(&tree, &blink_off_opts);
         assert_eq!(blink_off_sections.len(), 1);
+    }
+
+    #[test]
+    fn test_collect_text_layer_sorting_order() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.layer = UiLayer::Background;
+        }
+
+        // Add nodes in reverse/scrambled layer order: Tooltip, Modal, Content, Popup, Background
+        let tooltip_node = tree.create_node();
+        if let Some(node) = tree.get_mut(tooltip_node) {
+            node.computed_rect = Rect::new(10.0, 10.0, 100.0, 20.0);
+            node.text = Some("Tooltip Text".to_string());
+            node.layer = UiLayer::Tooltip;
+        }
+        tree.add_child(root, tooltip_node).unwrap();
+
+        let modal_node = tree.create_node();
+        if let Some(node) = tree.get_mut(modal_node) {
+            node.computed_rect = Rect::new(10.0, 40.0, 100.0, 20.0);
+            node.text = Some("Modal Text".to_string());
+            node.layer = UiLayer::Modal;
+        }
+        tree.add_child(root, modal_node).unwrap();
+
+        let content_node = tree.create_node();
+        if let Some(node) = tree.get_mut(content_node) {
+            node.computed_rect = Rect::new(10.0, 70.0, 100.0, 20.0);
+            node.text = Some("Content Text".to_string());
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, content_node).unwrap();
+
+        let popup_node = tree.create_node();
+        if let Some(node) = tree.get_mut(popup_node) {
+            node.computed_rect = Rect::new(10.0, 100.0, 100.0, 20.0);
+            node.text = Some("Popup Text".to_string());
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(root, popup_node).unwrap();
+
+        let bg_node = tree.create_node();
+        if let Some(node) = tree.get_mut(bg_node) {
+            node.computed_rect = Rect::new(10.0, 130.0, 100.0, 20.0);
+            node.text = Some("Background Text".to_string());
+            node.layer = UiLayer::Background;
+        }
+        tree.add_child(root, bg_node).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 5);
+        // Strict layer elevation ordering: Background (0) -> Content (1) -> Modal (3) -> Popup (4) -> Tooltip (5)
+        assert_eq!(sections[0].text, "Background Text");
+        assert_eq!(sections[0].layer, UiLayer::Background);
+
+        assert_eq!(sections[1].text, "Content Text");
+        assert_eq!(sections[1].layer, UiLayer::Content);
+
+        assert_eq!(sections[2].text, "Modal Text");
+        assert_eq!(sections[2].layer, UiLayer::Modal);
+
+        assert_eq!(sections[3].text, "Popup Text");
+        assert_eq!(sections[3].layer, UiLayer::Popup);
+
+        assert_eq!(sections[4].text, "Tooltip Text");
+        assert_eq!(sections[4].layer, UiLayer::Tooltip);
+    }
+
+    #[test]
+    fn test_collect_text_scissor_bypass_for_elevated_layer() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+            node.layer = UiLayer::Background;
+        }
+
+        // Panel bounded at (0, 0, 300, 300) with clip_children = true
+        let panel = tree.create_node();
+        if let Some(node) = tree.get_mut(panel) {
+            node.computed_rect = Rect::new(0.0, 0.0, 300.0, 300.0);
+            node.style.clip_children = true;
+            node.layer = UiLayer::Content;
+        }
+        tree.add_child(root, panel).unwrap();
+
+        // Popup placed at (250, 250, 200, 150) - sticking out to (450, 400)
+        let popup = tree.create_node();
+        if let Some(node) = tree.get_mut(popup) {
+            node.computed_rect = Rect::new(250.0, 250.0, 200.0, 150.0);
+            node.role = WidgetRole::DropdownPopup;
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(panel, popup).unwrap();
+
+        // Label inside popup placed at (320, 320, 100, 20) - entirely outside parent panel bounds!
+        let popup_label = tree.create_node();
+        if let Some(node) = tree.get_mut(popup_label) {
+            node.computed_rect = Rect::new(320.0, 320.0, 100.0, 20.0);
+            node.text = Some("Flyout Label".to_string());
+            node.layer = UiLayer::Popup;
+        }
+        tree.add_child(popup, popup_label).unwrap();
+
+        let sections = collect_text_sections(&tree);
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].text, "Flyout Label");
+        // Scissor clip must be None (decoupled from panel), NOT clipped by parent panel (0, 0, 300, 300)
+        assert_eq!(sections[0].clip_bounds, None);
     }
 }

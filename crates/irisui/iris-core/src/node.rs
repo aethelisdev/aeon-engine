@@ -71,6 +71,8 @@ pub enum WidgetRole {
     ScrollBarTrack,
     /// Draggable vertical or horizontal scrollbar thumb handle indicator.
     ScrollBarThumb,
+    /// Floating transient indicator or hint balloon elevated to topmost Z-index.
+    Tooltip,
 }
 
 /// Canonical hardware mouse cursor shapes supported across the Iris UI ecosystem.
@@ -178,6 +180,7 @@ impl WidgetRole {
             | WidgetRole::DropdownIcon
             | WidgetRole::DropdownShortcut
             | WidgetRole::DropdownLabel => UiLayer::Popup,
+            WidgetRole::Tooltip => UiLayer::Tooltip,
         }
     }
 
