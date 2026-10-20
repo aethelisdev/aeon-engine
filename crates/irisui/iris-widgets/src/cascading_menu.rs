@@ -428,6 +428,45 @@ impl<'a> CascadingMenuBuilder<'a> {
         let mut cur_y = card_rect.y + 4.0;
         let target_active_tag = self.active_path.get(level_index).copied();
 
+        let effective_cursor = if self.cursor_pos.x >= 0.0 && self.cursor_pos.y >= 0.0 {
+            self.cursor_pos
+        } else {
+            ctx.tree.cursor_position().unwrap_or(self.cursor_pos)
+        };
+
+        // If pointer is inside this card, pre-evaluate which branch or leaf is hovered
+        if card_rect.contains_point(effective_cursor) {
+            let mut hovered_branch = None;
+            let mut has_hovered_item = false;
+            let mut check_y = card_rect.y + 4.0;
+            for it in items {
+                if it.is_separator {
+                    check_y += self.style.separator_height;
+                    continue;
+                }
+                let it_rect = Rect::new(
+                    card_rect.x + self.style.item_padding_x,
+                    check_y,
+                    menu_w - (self.style.item_padding_x * 2.0),
+                    self.style.row_height,
+                );
+                if it.is_enabled && it_rect.contains_point(effective_cursor) {
+                    has_hovered_item = true;
+                    if it.has_submenu() {
+                        hovered_branch = Some(it.tag);
+                    }
+                    break;
+                }
+                check_y += self.style.row_height;
+            }
+
+            if let Some(branch_tag) = hovered_branch {
+                ctx.tree.set_active_submenu(level_index as u64, branch_tag);
+            } else if has_hovered_item {
+                ctx.tree.close_submenu(level_index as u64);
+            }
+        }
+
         for item in items {
             if item.is_separator {
                 let sep_rect = Rect::new(card_rect.x + 6.0, cur_y + 2.0, menu_w - 12.0, 1.0);
@@ -454,8 +493,9 @@ impl<'a> CascadingMenuBuilder<'a> {
                 self.style.row_height,
             );
 
-            let is_hovered = item.is_enabled && item_rect.contains_point(self.cursor_pos);
-            let is_branch_active = target_active_tag == Some(item.tag);
+            let is_hovered = item.is_enabled && item_rect.contains_point(effective_cursor);
+            let is_branch_active = target_active_tag == Some(item.tag)
+                || ctx.tree.is_submenu_open(level_index as u64, item.tag);
 
             let bg = if !item.is_enabled {
                 self.style.item_idle_bg
@@ -813,5 +853,61 @@ mod tests {
             root_rect.x,
             sub_rect.x
         );
+    }
+
+    #[test]
+    fn test_cascading_menu_autonomous_hover_activation() {
+        let mut tree = UiTree::new();
+        let root = tree.create_node();
+        let _ = tree.set_root(root);
+        if let Some(node) = tree.get_mut(root) {
+            node.computed_rect = Rect::new(0.0, 0.0, 1920.0, 1080.0);
+        }
+
+        let items = vec![
+            CascadingMenuItem::branch(
+                "Mesh",
+                None,
+                100,
+                vec![CascadingMenuItem::item("Static Mesh", 101)],
+            ),
+            CascadingMenuItem::item("Light", 200),
+        ];
+
+        // 1. Initial build with cursor far away: active_submenus is empty, only root is rendered
+        let frame1 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 100.0, 24.0), &items, &[])
+            .cursor_pos(Point::new(-10.0, -10.0))
+            .build(&mut tree, root)
+            .expect("Menu builds");
+        assert_eq!(frame1.rendered_popup_rects.len(), 1);
+        assert!(!tree.is_submenu_open(0, 100));
+
+        // 2. Build with cursor hovering over the first branch item row
+        let root_rect = frame1.root_rect;
+        let hover_point = Point::new(root_rect.x + 20.0, root_rect.y + 12.0);
+        let frame2 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 100.0, 24.0), &items, &[])
+            .cursor_pos(hover_point)
+            .build(&mut tree, root)
+            .expect("Menu builds");
+
+        assert!(
+            tree.is_submenu_open(0, 100),
+            "Hovering over branch item must autonomously activate submenu"
+        );
+        assert_eq!(
+            frame2.rendered_popup_rects.len(),
+            2,
+            "Submenu must be rendered autonomously on hover"
+        );
+
+        // 3. Hovering over non-branch leaf closes previous submenu
+        let hover_leaf = Point::new(root_rect.x + 20.0, root_rect.y + 34.0);
+        let frame3 = CascadingMenuBuilder::new(Rect::new(100.0, 50.0, 100.0, 24.0), &items, &[])
+            .cursor_pos(hover_leaf)
+            .build(&mut tree, root)
+            .expect("Menu builds");
+
+        assert!(!tree.is_submenu_open(0, 100));
+        assert_eq!(frame3.rendered_popup_rects.len(), 1);
     }
 }

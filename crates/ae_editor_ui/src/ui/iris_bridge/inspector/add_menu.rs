@@ -13,9 +13,6 @@ use super::tags::{TAG_ADD_MENU_COMPONENT_BASE, TAG_INSPECTOR_ADD_COMPONENT};
 use super::types::{ComponentCategory, InspectorPanelParams};
 use irisui::prelude::*;
 
-/// Standard row height for Add Component menu items in logical pixels.
-pub const ADD_MENU_ITEM_HEIGHT: f32 = 24.0;
-
 /// Computes a stable, collision-resistant 64-bit FNV-1a hash tag for an attachable component type name.
 ///
 /// Masks the 64-bit hash into a 24-bit range and prefixes it with [`TAG_ADD_MENU_COMPONENT_BASE`]
@@ -207,7 +204,7 @@ fn render_add_component_scope(
 ) -> Option<Rect> {
     let card_rect =
         render_add_component_menu_card(tree, parent_id, params, panel_tree, menu_items, actions);
-    render_add_component_popups(card_rect, tree, parent_id, params, menu_items, actions)
+    Some(card_rect)
 }
 
 fn render_add_component_menu_card(
@@ -230,23 +227,60 @@ fn render_add_component_menu_card(
             24.0,
         ));
 
-    UiScope::new(tree, parent_id)
-        .popup_anchored_with_placement(
-            "AddComponentMenu",
-            anchor_rect,
-            175.0,
-            PopupPlacement::Above,
-            |card| {
-                for item in menu_items {
-                    let resp = card.dropdown_item(
-                        item.tag,
-                        match &item.icon {
-                            Some(CascadingMenuIcon::Text(t)) => t,
-                            _ => "",
-                        },
+    let parent_tag = hash_label("AddComponentMenu");
+    if let Some(cat) = params.active_submenu {
+        tree.set_active_submenu(parent_tag, cat.to_tag());
+    }
+
+    let card_resp = UiScope::new(tree, parent_id).popup_anchored_with_placement(
+        "AddComponentMenu",
+        anchor_rect,
+        175.0,
+        PopupPlacement::Above,
+        |card| {
+            for item in menu_items {
+                let icon_str = match &item.icon {
+                    Some(CascadingMenuIcon::Text(t)) => *t,
+                    _ => "",
+                };
+                if item.has_submenu() {
+                    let resp = card.submenu_named(
+                        "AddComponentSubmenu",
                         &item.label,
-                        Some("▶"),
-                        true,
+                        Some(icon_str),
+                        item.tag,
+                        |sub_card| {
+                            if let Some(children) = &item.submenu {
+                                for child in children {
+                                    let c_icon = match &child.icon {
+                                        Some(CascadingMenuIcon::Text(t)) => *t,
+                                        _ => "",
+                                    };
+                                    let child_resp = sub_card.dropdown_item(
+                                        child.tag,
+                                        c_icon,
+                                        &child.label,
+                                        None,
+                                        true,
+                                    );
+                                    if child_resp.clicked() {
+                                        if let Some(comp_name) =
+                                            resolve_component_name_from_tag(child.tag)
+                                            && let Some(entity) = params.selected_entity
+                                        {
+                                            actions.push(
+                                                super::types::InspectorAction::AddComponent(
+                                                    entity, comp_name,
+                                                ),
+                                            );
+                                        }
+                                        actions.push(
+                                            super::types::InspectorAction::CloseAddComponentMenu,
+                                        );
+                                    }
+                                }
+                            }
+                        },
                     );
                     if (resp.hovered() || resp.clicked())
                         && let Some(cat) = ComponentCategory::from_tag(item.tag)
@@ -254,84 +288,23 @@ fn render_add_component_menu_card(
                     {
                         actions.push(super::types::InspectorAction::OpenAddSubmenu(cat));
                     }
+                } else {
+                    let resp = card.dropdown_item(item.tag, icon_str, &item.label, None, true);
+                    if resp.clicked() {
+                        actions.push(super::types::InspectorAction::CloseAddComponentMenu);
+                    }
                 }
-            },
-        )
-        .response
-        .rect
-}
+            }
+        },
+    );
 
-fn render_add_component_popups(
-    card_rect: Rect,
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    params: &InspectorPanelParams<'_>,
-    menu_items: &[CascadingMenuItem],
-    actions: &mut Vec<super::types::InspectorAction>,
-) -> Option<Rect> {
-    Some(
-        params
-            .active_submenu
-            .and_then(|active_cat| {
-                menu_items
-                    .iter()
-                    .position(|i| i.tag == active_cat.to_tag())
-                    .and_then(|cat_idx| {
-                        menu_items[cat_idx].submenu.as_ref().map(|children| {
-                            UiScope::new(tree, parent_id)
-                                .dropdown_menu_card_named(
-                                    "AddComponentSubmenu",
-                                    if card_rect.right() + 195.0 > params.panel_rect.right() {
-                                        (card_rect.x - 195.0 - 4.0).max(params.panel_rect.x + 4.0)
-                                    } else {
-                                        card_rect.right() + 4.0
-                                    },
-                                    (card_rect.y + 4.0 + cat_idx as f32 * ADD_MENU_ITEM_HEIGHT)
-                                        .min(
-                                            params.panel_rect.bottom()
-                                                - (children.len() as f32 * ADD_MENU_ITEM_HEIGHT
-                                                    + 8.0)
-                                                - 10.0,
-                                        )
-                                        .max(params.panel_rect.y + 10.0),
-                                    195.0,
-                                    |sub_card| {
-                                        for child in children {
-                                            let child_resp = sub_card.dropdown_item(
-                                                child.tag,
-                                                match &child.icon {
-                                                    Some(CascadingMenuIcon::Text(t)) => t,
-                                                    _ => "",
-                                                },
-                                                &child.label,
-                                                None,
-                                                true,
-                                            );
-                                            if child_resp.clicked() {
-                                                if let Some(comp_name) =
-                                                    resolve_component_name_from_tag(child.tag)
-                                                    && let Some(entity) = params.selected_entity
-                                                {
-                                                    actions.push(
-                                                        super::types::InspectorAction::AddComponent(
-                                                            entity, comp_name,
-                                                        ),
-                                                    );
-                                                }
-                                                actions.push(
-                                                    super::types::InspectorAction::CloseAddComponentMenu,
-                                                );
-                                            }
-                                        }
-                                    },
-                                )
-                                .response
-                                .rect
-                        })
-                    })
-            })
-            .map_or(card_rect, |sub_rect| card_rect.union(sub_rect)),
-    )
+    let card_rect = card_resp.response.rect;
+    if let Some(sub_id) = tree.find_node_by_name("AddComponentSubmenu")
+        && let Some(sub_node) = tree.get(sub_id)
+    {
+        return card_rect.union(sub_node.computed_rect);
+    }
+    card_rect
 }
 
 #[cfg(test)]

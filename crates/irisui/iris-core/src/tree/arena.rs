@@ -36,6 +36,8 @@ pub struct UiTree {
     pub active_menu_bar_tag: Option<u64>,
     /// Persistent 64-bit semantic tag identifying the currently opened combobox dropdown menu, if any.
     pub active_combobox_tag: Option<u64>,
+    /// Persistent map tracking active cascading submenus (parent menu tag -> active child submenu tag).
+    pub active_submenus: HashMap<u64, u64>,
     /// Persistent state map tracking computed bounding rectangles across tree rebuilds, keyed by 64-bit semantic tag.
     pub tag_rects: HashMap<u64, Rect>,
     /// Active visual theme tokens governing surface colors, text, and metrics.
@@ -56,6 +58,7 @@ impl UiTree {
             max_scrolls: HashMap::new(),
             active_menu_bar_tag: None,
             active_combobox_tag: None,
+            active_submenus: HashMap::new(),
             tag_rects: HashMap::new(),
             theme: crate::theme::Theme::default(),
         }

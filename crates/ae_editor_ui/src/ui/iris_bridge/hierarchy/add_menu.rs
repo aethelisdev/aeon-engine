@@ -271,20 +271,18 @@ pub fn build_add_menu(
         ));
 
     let menu_items = get_hierarchy_add_menu_items(params.is_2d);
-    let mut rendered_rects = Vec::new();
-
     let root_rect = render_root_add_menu(tree, parent_id, anchor, &menu_items, params, actions);
-    rendered_rects.push(root_rect);
-
-    render_cascading_submenus(
-        root_rect,
-        tree,
-        parent_id,
-        &menu_items,
-        params,
-        actions,
-        &mut rendered_rects,
-    );
+    let mut rendered_rects = vec![root_rect];
+    if let Some(sub_id) = tree.find_node_by_name("HierarchySubmenu")
+        && let Some(sub_node) = tree.get(sub_id)
+    {
+        rendered_rects.push(sub_node.computed_rect);
+    }
+    if let Some(s2_id) = tree.find_node_by_name("HierarchySubSubmenu")
+        && let Some(s2_node) = tree.get(s2_id)
+    {
+        rendered_rects.push(s2_node.computed_rect);
+    }
 
     rendered_rects
 }
@@ -297,6 +295,14 @@ fn render_root_add_menu(
     params: &HierarchyPanelParams<'_>,
     actions: &mut Vec<HierarchyAction>,
 ) -> Rect {
+    let parent_tag = hash_label("HierarchyAddMenu");
+    if let Some(sub) = params.active_submenu {
+        tree.set_active_submenu(parent_tag, sub.to_tag());
+    }
+    if let (Some(sub), Some(s2)) = (params.active_submenu, params.active_sub_submenu) {
+        tree.set_active_submenu(sub.to_tag(), s2.to_tag());
+    }
+
     UiScope::new(tree, parent_id)
         .popup_anchored_with_placement(
             "HierarchyAddMenu",
@@ -311,15 +317,101 @@ fn render_root_add_menu(
                     }
 
                     let icon_str = match &item.icon {
-                        Some(CascadingMenuIcon::Text(t)) => t,
+                        Some(CascadingMenuIcon::Text(t)) => *t,
                         _ => "",
                     };
 
                     if item.has_submenu() {
                         let is_branch_active =
                             params.active_submenu.map(|s| s.to_tag()) == Some(item.tag);
-                        let resp =
-                            card.dropdown_item(item.tag, icon_str, &item.label, Some("▶"), true);
+                        let resp = card.submenu_named(
+                            "HierarchySubmenu",
+                            &item.label,
+                            Some(icon_str),
+                            item.tag,
+                            |sub_card| {
+                                if let Some(children) = &item.submenu {
+                                    for child in children {
+                                        if child.is_separator {
+                                            sub_card.separator();
+                                            continue;
+                                        }
+                                        let c_icon = match &child.icon {
+                                            Some(CascadingMenuIcon::Text(t)) => *t,
+                                            _ => "",
+                                        };
+                                        if child.has_submenu() {
+                                            let is_s2_active =
+                                                params.active_sub_submenu.map(|s| s.to_tag())
+                                                    == Some(child.tag);
+                                            let sub_resp = sub_card.submenu_named(
+                                                "HierarchySubSubmenu",
+                                                &child.label,
+                                                Some(c_icon),
+                                                child.tag,
+                                                |s2_card| {
+                                                    if let Some(s2_children) = &child.submenu {
+                                                        for s2_child in s2_children {
+                                                            if s2_child.is_separator {
+                                                                s2_card.separator();
+                                                                continue;
+                                                            }
+                                                            let s2_icon = match &s2_child.icon {
+                                                                Some(CascadingMenuIcon::Text(
+                                                                    t,
+                                                                )) => *t,
+                                                                _ => "",
+                                                            };
+                                                            let s2_resp = s2_card.dropdown_item(
+                                                                s2_child.tag,
+                                                                s2_icon,
+                                                                &s2_child.label,
+                                                                None,
+                                                                true,
+                                                            );
+                                                            if s2_resp.clicked() {
+                                                                if let Some(act) =
+                                                                    get_hierarchy_add_menu_action(
+                                                                        s2_child.tag,
+                                                                    )
+                                                                {
+                                                                    actions.push(act);
+                                                                }
+                                                                actions.push(
+                                                                    HierarchyAction::CloseAddMenu,
+                                                                );
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                            );
+                                            if (sub_resp.hovered() || sub_resp.clicked())
+                                                && !is_s2_active
+                                                && let Some(s2) = AddSubmenuId::from_tag(child.tag)
+                                            {
+                                                actions.push(HierarchyAction::OpenSubSubmenu(s2));
+                                            }
+                                        } else {
+                                            let sub_resp = sub_card.dropdown_item(
+                                                child.tag,
+                                                c_icon,
+                                                &child.label,
+                                                None,
+                                                true,
+                                            );
+                                            if sub_resp.clicked() {
+                                                if let Some(act) =
+                                                    get_hierarchy_add_menu_action(child.tag)
+                                                {
+                                                    actions.push(act);
+                                                }
+                                                actions.push(HierarchyAction::CloseAddMenu);
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        );
                         if (resp.hovered() || resp.clicked())
                             && !is_branch_active
                             && let Some(sub) = AddSubmenuId::from_tag(item.tag)
@@ -340,162 +432,4 @@ fn render_root_add_menu(
         )
         .response
         .rect
-}
-
-fn render_cascading_submenus(
-    root_rect: Rect,
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    menu_items: &[CascadingMenuItem],
-    params: &HierarchyPanelParams<'_>,
-    actions: &mut Vec<HierarchyAction>,
-    rendered_rects: &mut Vec<Rect>,
-) {
-    let Some(active_sub) = params.active_submenu else {
-        return;
-    };
-    let Some(branch_idx) = menu_items.iter().position(|i| i.tag == active_sub.to_tag()) else {
-        return;
-    };
-    let Some(children) = menu_items[branch_idx].submenu.as_ref() else {
-        return;
-    };
-
-    let (win_w, win_h) = tree
-        .root()
-        .and_then(|r| tree.get(r))
-        .map(|n| (n.computed_rect.width, n.computed_rect.height))
-        .filter(|&(w, h)| w > 10.0 && h > 10.0)
-        .unwrap_or((1920.0, 1080.0));
-
-    let sub_w = 195.0;
-    let sub_x = if root_rect.right() + sub_w > win_w - 6.0 {
-        (root_rect.x - sub_w - 4.0).max(6.0)
-    } else {
-        root_rect.right() + 4.0
-    };
-    let row_h = 24.0;
-    let approx_h = (children.len() as f32 * row_h) + 12.0;
-    let sub_y = (root_rect.y + 4.0 + branch_idx as f32 * row_h)
-        .min(win_h - approx_h - 10.0)
-        .max(10.0);
-
-    let sub_rect = UiScope::new(tree, parent_id)
-        .dropdown_menu_card_named("HierarchySubmenu", sub_x, sub_y, sub_w, |sub_card| {
-            for child in children {
-                if child.is_separator {
-                    sub_card.separator();
-                    continue;
-                }
-                let icon_str = match &child.icon {
-                    Some(CascadingMenuIcon::Text(t)) => t,
-                    _ => "",
-                };
-                if child.has_submenu() {
-                    let is_s2_active =
-                        params.active_sub_submenu.map(|s| s.to_tag()) == Some(child.tag);
-                    let resp =
-                        sub_card.dropdown_item(child.tag, icon_str, &child.label, Some("▶"), true);
-                    if (resp.hovered() || resp.clicked())
-                        && !is_s2_active
-                        && let Some(s2) = AddSubmenuId::from_tag(child.tag)
-                    {
-                        actions.push(HierarchyAction::OpenSubSubmenu(s2));
-                    }
-                } else {
-                    let resp =
-                        sub_card.dropdown_item(child.tag, icon_str, &child.label, None, true);
-                    if resp.clicked() {
-                        if let Some(act) = get_hierarchy_add_menu_action(child.tag) {
-                            actions.push(act);
-                        }
-                        actions.push(HierarchyAction::CloseAddMenu);
-                    }
-                }
-            }
-        })
-        .response
-        .rect;
-
-    rendered_rects.push(sub_rect);
-
-    let mut ctx = SubSubmenuRenderContext {
-        sub_rect,
-        children,
-        params,
-        actions,
-        win_w,
-        win_h,
-        rendered_rects,
-    };
-    render_sub_submenus(tree, parent_id, &mut ctx);
-}
-
-/// Rendering context descriptor for tertiary cascading sub-submenus.
-struct SubSubmenuRenderContext<'a, 'b> {
-    sub_rect: Rect,
-    children: &'a [CascadingMenuItem],
-    params: &'a HierarchyPanelParams<'b>,
-    actions: &'a mut Vec<HierarchyAction>,
-    win_w: f32,
-    win_h: f32,
-    rendered_rects: &'a mut Vec<Rect>,
-}
-
-fn render_sub_submenus(
-    tree: &mut UiTree,
-    parent_id: WidgetId,
-    ctx: &mut SubSubmenuRenderContext<'_, '_>,
-) {
-    let Some(active_s2) = ctx.params.active_sub_submenu else {
-        return;
-    };
-    let Some(s2_idx) = ctx
-        .children
-        .iter()
-        .position(|c| c.tag == active_s2.to_tag())
-    else {
-        return;
-    };
-    let Some(s2_children) = ctx.children[s2_idx].submenu.as_ref() else {
-        return;
-    };
-
-    let s2_w = 205.0;
-    let s2_x = if ctx.sub_rect.right() + s2_w > ctx.win_w - 6.0 {
-        (ctx.sub_rect.x - s2_w - 4.0).max(6.0)
-    } else {
-        ctx.sub_rect.right() + 4.0
-    };
-    let row_h = 24.0;
-    let s2_approx_h = (s2_children.len() as f32 * row_h) + 12.0;
-    let s2_y = (ctx.sub_rect.y + 4.0 + s2_idx as f32 * row_h)
-        .min(ctx.win_h - s2_approx_h - 10.0)
-        .max(10.0);
-
-    let s2_rect = UiScope::new(tree, parent_id)
-        .dropdown_menu_card_named("HierarchySubSubmenu", s2_x, s2_y, s2_w, |s2_card| {
-            for s2_child in s2_children {
-                if s2_child.is_separator {
-                    s2_card.separator();
-                    continue;
-                }
-                let icon_str = match &s2_child.icon {
-                    Some(CascadingMenuIcon::Text(t)) => t,
-                    _ => "",
-                };
-                let resp =
-                    s2_card.dropdown_item(s2_child.tag, icon_str, &s2_child.label, None, true);
-                if resp.clicked() {
-                    if let Some(act) = get_hierarchy_add_menu_action(s2_child.tag) {
-                        ctx.actions.push(act);
-                    }
-                    ctx.actions.push(HierarchyAction::CloseAddMenu);
-                }
-            }
-        })
-        .response
-        .rect;
-
-    ctx.rendered_rects.push(s2_rect);
 }

@@ -92,6 +92,7 @@ impl UiTree {
         self.active_menu_bar_tag = None;
         self.active_combobox_tag = None;
         self.event_state.active_context_menu = None;
+        self.active_submenus.clear();
         had_popup
     }
 
@@ -102,6 +103,32 @@ impl UiTree {
         self.event_state.active_context_menu.is_some()
             || self.active_menu_bar_tag.is_some()
             || self.active_combobox_tag.is_some()
+            || !self.active_submenus.is_empty()
+    }
+
+    /// Returns whether the submenu identified by semantic `submenu_tag` branching from `parent_tag` is currently opened.
+    #[inline]
+    #[must_use]
+    pub fn is_submenu_open(&self, parent_tag: u64, submenu_tag: u64) -> bool {
+        self.active_submenus.get(&parent_tag) == Some(&submenu_tag)
+    }
+
+    /// Sets the active submenu identified by `submenu_tag` branching from the given `parent_tag`.
+    #[inline]
+    pub fn set_active_submenu(&mut self, parent_tag: u64, submenu_tag: u64) {
+        self.active_submenus.insert(parent_tag, submenu_tag);
+    }
+
+    /// Closes any opened submenu branching from `parent_tag`.
+    #[inline]
+    pub fn close_submenu(&mut self, parent_tag: u64) {
+        self.active_submenus.remove(&parent_tag);
+    }
+
+    /// Closes all active cascading submenus across the entire tree.
+    #[inline]
+    pub fn clear_all_submenus(&mut self) {
+        self.active_submenus.clear();
     }
 
     /// Returns the persistent vertical scroll position for the given semantic `tag`.

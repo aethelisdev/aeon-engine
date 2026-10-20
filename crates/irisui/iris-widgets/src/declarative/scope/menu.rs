@@ -268,10 +268,23 @@ impl<'a> UiScope<'a> {
         let mut child_scope = self.child_scope_seeded(node_id, child_seed);
         let inner = f(&mut child_scope);
         let height = crate::declarative::layout::measure_height(self.tree, node_id);
-        let bounds = Rect::new(x, y, width, height);
+        let window_h = self
+            .tree
+            .root()
+            .and_then(|r| self.tree.get(r))
+            .map(|n| n.computed_rect.height)
+            .filter(|&h| h > 10.0)
+            .unwrap_or(1080.0);
+        let clamped_y = if y + height > window_h - 6.0 {
+            (window_h - height - 6.0).max(6.0)
+        } else {
+            y
+        };
+        let bounds = Rect::new(x, clamped_y, width, height);
         crate::declarative::layout_subtree(self.tree, node_id, bounds);
         if let Some(node) = self.tree.get_mut(node_id) {
             node.computed_rect = bounds;
+            node.style.inset_top = Some(clamped_y);
             node.style.height = Some(height);
         }
         if let Some(cursor) = self.tree.cursor_position() {
@@ -313,8 +326,48 @@ impl<'a> UiScope<'a> {
                 None
             };
         }
+        let (parent_rect, cur_y) = if let Some(parent_node) = self.tree.get(self.parent) {
+            let p_rect = parent_node.computed_rect;
+            let mut y_offset = p_rect.y + 4.0;
+            for child_id in &parent_node.children {
+                if let Some(child) = self.tree.get(*child_id) {
+                    if child.role == WidgetRole::Separator {
+                        y_offset += 7.0;
+                    } else {
+                        y_offset += 24.0;
+                    }
+                }
+            }
+            (p_rect, y_offset)
+        } else {
+            (Rect::ZERO, 0.0)
+        };
+
+        let initial_rect = if parent_rect.width > 0.0 {
+            Rect::new(
+                parent_rect.x + 4.0,
+                cur_y,
+                (parent_rect.width - 8.0).max(0.0),
+                24.0,
+            )
+        } else {
+            Rect::ZERO
+        };
+
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.computed_rect = initial_rect;
+        }
+
         let _ = self.tree.add_child(self.parent, node_id);
-        let (clicked, hovered, _) = self.check_interaction(node_id);
+        let (clicked, mut hovered, _) = self.check_interaction(node_id);
+
+        if !hovered
+            && enabled
+            && let Some(cursor) = self.tree.cursor_position()
+            && initial_rect.contains_point(cursor)
+        {
+            hovered = true;
+        }
 
         let theme = self.theme();
         let (text_color, bg) = if !enabled {
@@ -405,6 +458,147 @@ impl<'a> UiScope<'a> {
         }
 
         WidgetResponse::new(node_id, clicked, hovered, false)
+    }
+
+    /// Emits an elevated, cascading branching submenu item row with a custom popup container debug name.
+    ///
+    /// When the pointer hovers over this row or when its submenu branch is active,
+    /// a secondary floating popup card container is autonomously positioned and rendered
+    /// using smart placement (auto-flip right/left and vertical boundary clamping).
+    ///
+    /// # Arguments
+    /// * `popup_name` - Debug node name assigned to the child submenu popup card.
+    /// * `label` - Primary menu action text displayed on this row.
+    /// * `icon` - Optional leading icon symbol.
+    /// * `tag` - Semantic identifier constant assigned to this submenu branch.
+    /// * `f` - Scoped closure populating items inside the child submenu popup card.
+    pub fn submenu_named<R, F>(
+        &mut self,
+        popup_name: &'static str,
+        label: impl Into<String>,
+        icon: Option<&str>,
+        tag: u64,
+        f: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let label_str = label.into();
+        let icon_str = icon.unwrap_or("");
+        let parent_card_id = self.parent;
+        let parent_card_rect = self
+            .tree
+            .get(parent_card_id)
+            .map(|n| n.computed_rect)
+            .unwrap_or(Rect::ZERO);
+
+        let parent_tag = if let Some(n) = self.tree.get(parent_card_id) {
+            if n.tag != 0 {
+                n.tag
+            } else {
+                let name = n.name.as_deref().unwrap_or("MenuCard");
+                crate::declarative::types::hash_label(name)
+            }
+        } else {
+            0
+        };
+
+        // 1. Emit the interactive row in the current menu card
+        let resp = self.dropdown_item(tag, icon_str, &label_str, Some("▶"), true);
+
+        // 2. Check autonomous hover activation
+        let is_hovered = resp.hovered()
+            || self.tree.cursor_position().is_some_and(|c| {
+                self.tree
+                    .get(resp.id)
+                    .is_some_and(|n| n.computed_rect.contains_point(c))
+            });
+
+        if is_hovered {
+            self.tree.set_active_submenu(parent_tag, tag);
+        }
+
+        let is_branch_active = self.tree.is_submenu_open(parent_tag, tag);
+
+        // 3. If active, autonomously compute smart placement and render child popup
+        if is_branch_active {
+            let item_rect = self
+                .tree
+                .get(resp.id)
+                .map(|n| n.computed_rect)
+                .unwrap_or(Rect::ZERO);
+
+            let (window_w, _window_h) = if let Some(root_id) = self.tree.root() {
+                let r = self
+                    .tree
+                    .get(root_id)
+                    .map(|n| n.computed_rect)
+                    .unwrap_or(Rect::ZERO);
+                if r.width > 0.0 && r.height > 0.0 {
+                    (r.width, r.height)
+                } else {
+                    (1920.0, 1080.0)
+                }
+            } else {
+                (1920.0, 1080.0)
+            };
+
+            let sub_w = if parent_card_rect.width > 0.0 {
+                parent_card_rect.width
+            } else {
+                185.0
+            };
+
+            // Smart horizontal placement: try right first, auto-flip to left if overflowing
+            let mut sub_x = parent_card_rect.right() + 2.0;
+            if sub_x + sub_w > window_w - 6.0 {
+                let left_candidate = parent_card_rect.x - sub_w - 2.0;
+                if left_candidate >= 6.0 {
+                    sub_x = left_candidate;
+                } else {
+                    sub_x = (window_w - sub_w - 6.0).max(6.0);
+                }
+            }
+
+            // Smart vertical placement: align with item top, clamp if overflowing
+            let sub_y = (item_rect.y - 4.0).max(6.0);
+
+            // Submenu card node created as an elevated overlay attached to root
+            let root_anchor = self.tree.root().unwrap_or(parent_card_id);
+            let mut sub_scope = UiScope::new(self.tree, root_anchor);
+            sub_scope.dropdown_menu_card_named(popup_name, sub_x, sub_y, sub_w, |card| {
+                if let Some(n) = card.tree.get_mut(card.parent) {
+                    n.tag = tag;
+                }
+                f(card)
+            });
+        }
+
+        resp
+    }
+
+    /// Emits an elevated, cascading branching submenu item row.
+    ///
+    /// When the pointer hovers over this row or when its submenu branch is active,
+    /// a secondary floating popup card container is autonomously positioned and rendered
+    /// using smart placement (auto-flip right/left and vertical boundary clamping).
+    ///
+    /// # Arguments
+    /// * `label` - Primary menu action text displayed on this row.
+    /// * `icon` - Optional leading icon symbol.
+    /// * `tag` - Semantic identifier constant assigned to this submenu branch.
+    /// * `f` - Scoped closure populating items inside the child submenu popup card.
+    pub fn submenu<R, F>(
+        &mut self,
+        label: impl Into<String>,
+        icon: Option<&str>,
+        tag: u64,
+        f: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        self.submenu_named("CascadingSubmenuPopup", label, icon, tag, f)
     }
 
     /// Emits a subtle horizontal divider line separating dropdown item groups.
