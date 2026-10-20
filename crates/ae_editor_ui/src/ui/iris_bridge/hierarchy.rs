@@ -16,9 +16,12 @@ pub mod rows;
 #[cfg(test)]
 pub mod tests;
 #[cfg(test)]
+pub mod tests_add_menu;
+#[cfg(test)]
 pub mod tests_navigation;
 pub mod types;
 
+pub use add_menu::{build_add_menu, get_hierarchy_add_menu_action, get_hierarchy_add_menu_items};
 pub use panel::{build_hierarchy_overlays, build_hierarchy_panel};
 pub use types::{
     AddSubmenuId, HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HIERARCHY_TAG_ADD_BUTTON,

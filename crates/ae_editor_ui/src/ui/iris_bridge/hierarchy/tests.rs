@@ -43,7 +43,8 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
+    let mut actions = Vec::new();
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
 
     assert!(
         menu_rects.len() >= 2,
@@ -133,7 +134,8 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
+    let mut actions = Vec::new();
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
 
     assert!(menu_rects.len() >= 2);
     let add_menu_rect = menu_rects[0];
@@ -180,7 +182,8 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
+    let mut actions = Vec::new();
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
 
     assert_eq!(
         menu_rects.len(),
@@ -267,7 +270,8 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
+    let mut actions = Vec::new();
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
 
     // Verify popup cards exist and have DropdownPopup role
     let mut popup_cards = 0;
@@ -309,7 +313,8 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
+    let mut actions = Vec::new();
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
 
     assert_eq!(menu_rects.len(), 2);
 
@@ -359,7 +364,8 @@ fn test_hierarchy_add_menu_click_submenu_item() {
         cursor_byte_idx: 0,
     };
 
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None);
+    let mut actions = Vec::new();
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
 
     assert!(!menu_rects.is_empty());
     let root_rect = menu_rects[0];
@@ -404,7 +410,9 @@ fn test_hierarchy_context_menu_builder_and_hit_testing() {
         cursor_byte_idx: 0,
     };
 
-    let card_rect_opt = super::context_menu::build_context_menu(&mut tree, root_id, &params);
+    let mut actions = Vec::new();
+    let card_rect_opt =
+        super::context_menu::build_context_menu(&mut tree, root_id, &params, &mut actions);
 
     assert!(card_rect_opt.is_some());
     let card_rect = card_rect_opt.unwrap();

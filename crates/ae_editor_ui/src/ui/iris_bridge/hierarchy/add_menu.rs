@@ -243,7 +243,10 @@ pub fn get_hierarchy_add_menu_items(is_2d: bool) -> Vec<CascadingMenuItem> {
     }
 }
 
-/// Builds the cascading `➕` Add Menu in the [`UiTree`] using [`CascadingMenuBuilder`].
+/// Builds the cascading `➕` Add Menu in the [`UiTree`] using pure declarative [`UiScope`] popups.
+///
+/// Dispatches menu actions, submenu activations, and dismiss triggers autonomously via
+/// [`WidgetResponse`] without leaking event loop machinery to the engine layer.
 ///
 /// Returns the list of bounding [`Rect`]s for all open cascading menu levels.
 pub fn build_add_menu(
@@ -251,6 +254,7 @@ pub fn build_add_menu(
     parent_id: WidgetId,
     params: &HierarchyPanelParams<'_>,
     panel_tree: Option<&UiTree>,
+    actions: &mut Vec<HierarchyAction>,
 ) -> Vec<Rect> {
     if !params.is_add_menu_open {
         return Vec::new();
@@ -266,20 +270,232 @@ pub fn build_add_menu(
             24.0,
         ));
 
-    CascadingMenuBuilder::new(
-        anchor,
-        &get_hierarchy_add_menu_items(params.is_2d),
-        &params
-            .active_submenu
-            .map(|sub| {
-                params
-                    .active_sub_submenu
-                    .map_or_else(|| vec![sub.to_tag()], |s2| vec![sub.to_tag(), s2.to_tag()])
-            })
-            .unwrap_or_default(),
-    )
-    .cursor_pos(params.cursor_pos)
-    .name("HierarchyAddMenu")
-    .build(tree, parent_id)
-    .map_or_else(Vec::new, |frame| frame.rendered_popup_rects)
+    let menu_items = get_hierarchy_add_menu_items(params.is_2d);
+    let mut rendered_rects = Vec::new();
+
+    let root_rect = render_root_add_menu(tree, parent_id, anchor, &menu_items, params, actions);
+    rendered_rects.push(root_rect);
+
+    render_cascading_submenus(
+        root_rect,
+        tree,
+        parent_id,
+        &menu_items,
+        params,
+        actions,
+        &mut rendered_rects,
+    );
+
+    rendered_rects
+}
+
+fn render_root_add_menu(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    anchor_rect: Rect,
+    menu_items: &[CascadingMenuItem],
+    params: &HierarchyPanelParams<'_>,
+    actions: &mut Vec<HierarchyAction>,
+) -> Rect {
+    UiScope::new(tree, parent_id)
+        .popup_anchored_with_placement(
+            "HierarchyAddMenu",
+            anchor_rect,
+            185.0,
+            PopupPlacement::Below,
+            |card| {
+                for item in menu_items {
+                    if item.is_separator {
+                        card.separator();
+                        continue;
+                    }
+
+                    let icon_str = match &item.icon {
+                        Some(CascadingMenuIcon::Text(t)) => t,
+                        _ => "",
+                    };
+
+                    if item.has_submenu() {
+                        let is_branch_active =
+                            params.active_submenu.map(|s| s.to_tag()) == Some(item.tag);
+                        let resp =
+                            card.dropdown_item(item.tag, icon_str, &item.label, Some("▶"), true);
+                        if (resp.hovered() || resp.clicked())
+                            && !is_branch_active
+                            && let Some(sub) = AddSubmenuId::from_tag(item.tag)
+                        {
+                            actions.push(HierarchyAction::OpenSubmenu(sub));
+                        }
+                    } else {
+                        let resp = card.dropdown_item(item.tag, icon_str, &item.label, None, true);
+                        if resp.clicked() {
+                            if let Some(act) = get_hierarchy_add_menu_action(item.tag) {
+                                actions.push(act);
+                            }
+                            actions.push(HierarchyAction::CloseAddMenu);
+                        }
+                    }
+                }
+            },
+        )
+        .response
+        .rect
+}
+
+fn render_cascading_submenus(
+    root_rect: Rect,
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    menu_items: &[CascadingMenuItem],
+    params: &HierarchyPanelParams<'_>,
+    actions: &mut Vec<HierarchyAction>,
+    rendered_rects: &mut Vec<Rect>,
+) {
+    let Some(active_sub) = params.active_submenu else {
+        return;
+    };
+    let Some(branch_idx) = menu_items.iter().position(|i| i.tag == active_sub.to_tag()) else {
+        return;
+    };
+    let Some(children) = menu_items[branch_idx].submenu.as_ref() else {
+        return;
+    };
+
+    let (win_w, win_h) = tree
+        .root()
+        .and_then(|r| tree.get(r))
+        .map(|n| (n.computed_rect.width, n.computed_rect.height))
+        .filter(|&(w, h)| w > 10.0 && h > 10.0)
+        .unwrap_or((1920.0, 1080.0));
+
+    let sub_w = 195.0;
+    let sub_x = if root_rect.right() + sub_w > win_w - 6.0 {
+        (root_rect.x - sub_w - 4.0).max(6.0)
+    } else {
+        root_rect.right() + 4.0
+    };
+    let row_h = 24.0;
+    let approx_h = (children.len() as f32 * row_h) + 12.0;
+    let sub_y = (root_rect.y + 4.0 + branch_idx as f32 * row_h)
+        .min(win_h - approx_h - 10.0)
+        .max(10.0);
+
+    let sub_rect = UiScope::new(tree, parent_id)
+        .dropdown_menu_card_named("HierarchySubmenu", sub_x, sub_y, sub_w, |sub_card| {
+            for child in children {
+                if child.is_separator {
+                    sub_card.separator();
+                    continue;
+                }
+                let icon_str = match &child.icon {
+                    Some(CascadingMenuIcon::Text(t)) => t,
+                    _ => "",
+                };
+                if child.has_submenu() {
+                    let is_s2_active =
+                        params.active_sub_submenu.map(|s| s.to_tag()) == Some(child.tag);
+                    let resp =
+                        sub_card.dropdown_item(child.tag, icon_str, &child.label, Some("▶"), true);
+                    if (resp.hovered() || resp.clicked())
+                        && !is_s2_active
+                        && let Some(s2) = AddSubmenuId::from_tag(child.tag)
+                    {
+                        actions.push(HierarchyAction::OpenSubSubmenu(s2));
+                    }
+                } else {
+                    let resp =
+                        sub_card.dropdown_item(child.tag, icon_str, &child.label, None, true);
+                    if resp.clicked() {
+                        if let Some(act) = get_hierarchy_add_menu_action(child.tag) {
+                            actions.push(act);
+                        }
+                        actions.push(HierarchyAction::CloseAddMenu);
+                    }
+                }
+            }
+        })
+        .response
+        .rect;
+
+    rendered_rects.push(sub_rect);
+
+    let mut ctx = SubSubmenuRenderContext {
+        sub_rect,
+        children,
+        params,
+        actions,
+        win_w,
+        win_h,
+        rendered_rects,
+    };
+    render_sub_submenus(tree, parent_id, &mut ctx);
+}
+
+/// Rendering context descriptor for tertiary cascading sub-submenus.
+struct SubSubmenuRenderContext<'a, 'b> {
+    sub_rect: Rect,
+    children: &'a [CascadingMenuItem],
+    params: &'a HierarchyPanelParams<'b>,
+    actions: &'a mut Vec<HierarchyAction>,
+    win_w: f32,
+    win_h: f32,
+    rendered_rects: &'a mut Vec<Rect>,
+}
+
+fn render_sub_submenus(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    ctx: &mut SubSubmenuRenderContext<'_, '_>,
+) {
+    let Some(active_s2) = ctx.params.active_sub_submenu else {
+        return;
+    };
+    let Some(s2_idx) = ctx
+        .children
+        .iter()
+        .position(|c| c.tag == active_s2.to_tag())
+    else {
+        return;
+    };
+    let Some(s2_children) = ctx.children[s2_idx].submenu.as_ref() else {
+        return;
+    };
+
+    let s2_w = 205.0;
+    let s2_x = if ctx.sub_rect.right() + s2_w > ctx.win_w - 6.0 {
+        (ctx.sub_rect.x - s2_w - 4.0).max(6.0)
+    } else {
+        ctx.sub_rect.right() + 4.0
+    };
+    let row_h = 24.0;
+    let s2_approx_h = (s2_children.len() as f32 * row_h) + 12.0;
+    let s2_y = (ctx.sub_rect.y + 4.0 + s2_idx as f32 * row_h)
+        .min(ctx.win_h - s2_approx_h - 10.0)
+        .max(10.0);
+
+    let s2_rect = UiScope::new(tree, parent_id)
+        .dropdown_menu_card_named("HierarchySubSubmenu", s2_x, s2_y, s2_w, |s2_card| {
+            for s2_child in s2_children {
+                if s2_child.is_separator {
+                    s2_card.separator();
+                    continue;
+                }
+                let icon_str = match &s2_child.icon {
+                    Some(CascadingMenuIcon::Text(t)) => t,
+                    _ => "",
+                };
+                let resp =
+                    s2_card.dropdown_item(s2_child.tag, icon_str, &s2_child.label, None, true);
+                if resp.clicked() {
+                    if let Some(act) = get_hierarchy_add_menu_action(s2_child.tag) {
+                        ctx.actions.push(act);
+                    }
+                    ctx.actions.push(HierarchyAction::CloseAddMenu);
+                }
+            }
+        })
+        .response
+        .rect;
+
+    ctx.rendered_rects.push(s2_rect);
 }

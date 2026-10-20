@@ -82,6 +82,14 @@ impl IrisEditorOverlay {
                     if self.inspector.is_color_picker_open {
                         self.inspector.is_color_picker_open = false;
                     }
+                    if self.hierarchy.is_add_menu_open {
+                        self.hierarchy.is_add_menu_open = false;
+                        self.hierarchy.active_submenu = None;
+                        self.hierarchy.active_sub_submenu = None;
+                    }
+                    if self.hierarchy.active_context_menu.is_some() {
+                        self.hierarchy.active_context_menu = None;
+                    }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                     return super::types::IrisOverlayEventResult::consumed(true);
@@ -99,6 +107,14 @@ impl IrisEditorOverlay {
                 }
                 if self.inspector.is_color_picker_open {
                     self.inspector.is_color_picker_open = false;
+                }
+                if self.hierarchy.is_add_menu_open {
+                    self.hierarchy.is_add_menu_open = false;
+                    self.hierarchy.active_submenu = None;
+                    self.hierarchy.active_sub_submenu = None;
+                }
+                if self.hierarchy.active_context_menu.is_some() {
+                    self.hierarchy.active_context_menu = None;
                 }
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
@@ -120,6 +136,7 @@ impl IrisEditorOverlay {
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()
             || self.inspector.has_pending_actions()
+            || self.hierarchy.has_pending_actions()
             || is_overlay_motion;
 
         if should_wake {
@@ -249,7 +266,7 @@ impl IrisEditorOverlay {
         let blink_caret = (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2);
         let current_focused_tag = self.tree.event_state.focused_tag;
         let focus_target_changed = current_focused_tag != self.chrome.last_focused_tag;
-        let has_text_focus = self.is_any_text_input_focused() || current_focused_tag.is_some();
+        let has_text_focus = self.is_any_text_input_focused();
         let blink_changed = has_text_focus && (blink_caret != self.chrome.last_blink_caret);
 
         if !self.chrome.always_rebuild && !self.notifier.is_any_dirty() && !self.tree.is_empty() {
@@ -317,6 +334,8 @@ impl IrisEditorOverlay {
             || self.inspector.is_add_menu_open
             || self.inspector.is_color_picker_open
             || self.inspector.active_dropdown.is_some()
+            || self.hierarchy.is_add_menu_open
+            || self.hierarchy.active_context_menu.is_some()
             || params.dialogs.show_preferences != self.preferences.card_rect.is_some()
             || (params.dialogs.show_preferences
                 && self.preferences.last_tab != self.preferences.tab)
@@ -395,6 +414,15 @@ impl IrisEditorOverlay {
                         | super::overlay_tree::ActiveOverlay::InspectorColorPicker
                         | super::overlay_tree::ActiveOverlay::InspectorDropdown
                 )
+            )
+        {
+            self.overlay_tree.close();
+        }
+        if !self.hierarchy.is_add_menu_open
+            && self.hierarchy.active_context_menu.is_none()
+            && matches!(
+                self.overlay_tree.active_overlay(),
+                Some(super::overlay_tree::ActiveOverlay::HierarchyContextMenu)
             )
         {
             self.overlay_tree.close();

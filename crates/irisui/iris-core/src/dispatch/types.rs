@@ -322,6 +322,15 @@ impl EventState {
             || self.active_text_edit.is_some()
     }
 
+    /// Returns `true` if an active inline text editing buffer or numeric editing buffer currently holds keyboard focus.
+    ///
+    /// Distinct from generic widget focus (`has_focus`), which tracks keyboard navigation targets like buttons or tabs.
+    #[inline]
+    #[must_use]
+    pub fn has_text_input_focus(&self) -> bool {
+        self.active_text_edit.is_some() || self.active_numeric_edit.is_some()
+    }
+
     /// Closes the active context menu popup, if one is currently opened.
     #[inline]
     pub fn close_context_menu(&mut self) {

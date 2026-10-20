@@ -169,6 +169,7 @@ fn test_ui_tree_dispatch_event_keyboard_and_ime() {
         let node = tree.get_mut(input_box).unwrap();
         node.visible = true;
         node.interactive = true;
+        node.role = WidgetRole::TextInput;
         node.computed_rect = Rect::new(10.0, 10.0, 200.0, 30.0);
         node.tag = 999;
     }
@@ -847,4 +848,116 @@ fn test_autonomous_drag_capture_and_release() {
     assert_eq!(tree.event_state.frame_drag_released_id, Some(card));
     assert_eq!(tree.event_state.frame_drag_released_tag, Some(0xAA01));
     assert_eq!(tree.event_state.pointer_capture, None);
+}
+
+#[test]
+fn test_button_focus_does_not_consume_character_keys_such_as_wasd() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn = tree.create_node();
+    tree.add_child(root, btn).unwrap();
+
+    {
+        let b = tree.get_mut(btn).unwrap();
+        b.visible = true;
+        b.interactive = true;
+        b.role = WidgetRole::Button;
+        b.computed_rect = Rect::new(10.0, 10.0, 80.0, 30.0);
+        b.tag = 100;
+    }
+
+    // 1. Click button -> button becomes focused
+    let click = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    };
+    let res = tree.dispatch_event(&click);
+    assert!(res.is_consumed());
+    assert_eq!(tree.event_state.focused, Some(btn));
+    assert_eq!(tree.event_state.focused_tag, Some(100));
+
+    // Verify tree reports NO text input focus on button
+    assert!(!tree.is_text_input_focused());
+    assert!(!tree.event_state.has_text_input_focus());
+
+    // 2. Press 'W' key -> Must NOT be consumed by button! (Crucial for 3D camera / game controls)
+    let key_w = UiEvent::KeyboardInput {
+        key: KeyCode::Character('w'),
+        text: Some("w".to_string()),
+        is_pressed: true,
+    };
+    let res_w = tree.dispatch_event(&key_w);
+    assert!(
+        !res_w.is_consumed(),
+        "Character keys ('W') must NOT be consumed by non-text widgets like buttons"
+    );
+
+    // 3. Press 'A', 'S', 'D' keys -> Must NOT be consumed
+    for k in ['a', 's', 'd'] {
+        let key_evt = UiEvent::KeyboardInput {
+            key: KeyCode::Character(k),
+            text: Some(k.to_string()),
+            is_pressed: true,
+        };
+        let res_k = tree.dispatch_event(&key_evt);
+        assert!(
+            !res_k.is_consumed(),
+            "Camera navigation key ('{k}') must NOT be swallowed by button focus"
+        );
+    }
+
+    // 4. Press Space or Enter -> Consumed and triggers Clicked on button
+    let key_space = UiEvent::KeyboardInput {
+        key: KeyCode::Space,
+        text: None,
+        is_pressed: true,
+    };
+    let res_space = tree.dispatch_event(&key_space);
+    assert!(
+        res_space.is_consumed(),
+        "Space key on focused button must be consumed"
+    );
+    assert!(res_space.response.map(|r| r.clicked()).unwrap_or(false));
+}
+
+#[test]
+fn test_text_input_focus_consumes_all_character_keys() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let input = tree.create_node();
+    tree.add_child(root, input).unwrap();
+
+    {
+        let inp = tree.get_mut(input).unwrap();
+        inp.visible = true;
+        inp.interactive = true;
+        inp.role = WidgetRole::TextInput;
+        inp.computed_rect = Rect::new(10.0, 10.0, 150.0, 30.0);
+        inp.tag = 200;
+    }
+
+    // 1. Click text input -> input becomes focused
+    let click = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    };
+    let res = tree.dispatch_event(&click);
+    assert!(res.is_consumed());
+    assert_eq!(tree.event_state.focused, Some(input));
+
+    // Verify tree reports active text input focus
+    assert!(tree.is_text_input_focused());
+
+    // 2. Press 'W' key -> MUST be consumed by text input
+    let key_w = UiEvent::KeyboardInput {
+        key: KeyCode::Character('w'),
+        text: Some("w".to_string()),
+        is_pressed: true,
+    };
+    let res_w = tree.dispatch_event(&key_w);
+    assert!(
+        res_w.is_consumed(),
+        "Text input MUST consume character typing keys ('w')"
+    );
+    assert!(res_w.response.map(|r| r.changed()).unwrap_or(false));
 }

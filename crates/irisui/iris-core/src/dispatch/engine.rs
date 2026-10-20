@@ -852,31 +852,69 @@ fn handle_keyboard(
             .map(|n| n.computed_rect)
             .unwrap_or(crate::geometry::Rect::ZERO);
 
+        let node_role = tree.get(focused_id).map(|n| n.role);
+        let has_text_edit = tree.event_state.active_text_edit.is_some();
+        let has_numeric_edit = tree.event_state.active_numeric_edit.is_some();
+        let is_text_role = matches!(
+            node_role,
+            Some(WidgetRole::TextInput | WidgetRole::NumericInput)
+        );
+        let is_text_input = has_text_edit || has_numeric_edit || is_text_role;
+
         let mut flags = ResponseFlags::FOCUSED;
-        if is_pressed
-            && (text.is_some()
-                || matches!(
-                    key,
-                    KeyCode::Backspace | KeyCode::Delete | KeyCode::Enter | KeyCode::Space
-                ))
-        {
-            flags = flags.union(ResponseFlags::CHANGED);
-        }
-        if is_pressed && key == KeyCode::Enter {
-            flags = flags.union(ResponseFlags::SUBMITTED);
+        let consumed;
+
+        if is_text_input {
+            consumed = true;
+            if is_pressed
+                && (text.is_some()
+                    || matches!(
+                        key,
+                        KeyCode::Backspace | KeyCode::Delete | KeyCode::Enter | KeyCode::Space
+                    ))
+            {
+                flags = flags.union(ResponseFlags::CHANGED);
+            }
+            if is_pressed && key == KeyCode::Enter {
+                flags = flags.union(ResponseFlags::SUBMITTED);
+            }
+        } else {
+            // Non-text widgets (buttons, panels, rows) only consume activation and navigation keys
+            consumed = match key {
+                KeyCode::Enter | KeyCode::Space => {
+                    if matches!(
+                        node_role,
+                        Some(WidgetRole::Button | WidgetRole::Checkbox | WidgetRole::DropdownItem)
+                    ) {
+                        if is_pressed {
+                            flags = flags.union(ResponseFlags::CLICKED);
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+                KeyCode::Tab | KeyCode::Escape => true,
+                _ => false,
+            };
+
+            if !consumed {
+                tree.event_state.frame_key = None;
+                tree.event_state.frame_text_input = None;
+            }
         }
 
         DispatchResult {
-            consumed: true,
-            needs_redraw: is_pressed,
+            consumed,
+            needs_redraw: is_pressed && consumed,
             target: Some(focused_id),
             target_tag: tag,
             cursor: None,
             response: Some(WidgetResponse::from_flags(focused_id, rect, flags)),
             scroll_delta: (0.0, 0.0),
-            key: Some(key),
+            key: if consumed { Some(key) } else { None },
             is_key_pressed: is_pressed,
-            text_input: if is_pressed { text } else { None },
+            text_input: if is_pressed && consumed { text } else { None },
         }
     } else {
         tree.event_state.frame_key = None;

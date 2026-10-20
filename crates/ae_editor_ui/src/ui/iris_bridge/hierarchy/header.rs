@@ -98,7 +98,11 @@ pub fn build_hierarchy_header(
             },
         );
         if add_resp.clicked() {
-            actions.push(HierarchyAction::OpenAddMenu(None));
+            if params.is_add_menu_open {
+                actions.push(HierarchyAction::CloseAddMenu);
+            } else {
+                actions.push(HierarchyAction::OpenAddMenu(None));
+            }
         }
 
         // 3. "🗑" Delete Entity Button (Permanently visible)

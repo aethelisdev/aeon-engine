@@ -270,12 +270,18 @@ impl IrisEditorOverlay {
                 .panels
                 .get(crate::ui::panel_layout::PanelId::Hierarchy.id_str())
                 .and_then(|p| p.tree());
+            let mut hierarchy_overlay_actions = Vec::new();
             let menu_rects = hierarchy::build_hierarchy_overlays(
                 self.overlay_tree.tree_mut(),
                 overlay_root,
                 &hier_params,
                 hier_tree,
+                &mut hierarchy_overlay_actions,
             );
+            self.hierarchy
+                .interactions
+                .actions
+                .append(&mut hierarchy_overlay_actions);
             if self.hierarchy.is_add_menu_open || self.hierarchy.active_context_menu.is_some() {
                 self.overlay_tree.open(
                     super::overlay_tree::ActiveOverlay::HierarchyContextMenu,

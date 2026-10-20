@@ -7,6 +7,7 @@ use crate::dispatch::{DispatchResult, dispatch_ui_event};
 use crate::event::UiEvent;
 use crate::geometry::{Point, Rect, Size};
 use crate::id::WidgetId;
+use crate::node::WidgetRole;
 
 use super::arena::UiTree;
 
@@ -246,5 +247,28 @@ impl UiTree {
         if tag != 0 && rect.width > 0.0 && rect.height > 0.0 {
             self.tag_rects.insert(tag, rect);
         }
+    }
+
+    /// Evaluates whether an active text or numeric input widget currently possesses keyboard focus.
+    ///
+    /// Checks autonomous editing buffers ([`crate::dispatch::EventState::has_text_input_focus`])
+    /// and whether the currently focused node possesses a [`WidgetRole::TextInput`] or [`WidgetRole::NumericInput`] role.
+    #[must_use]
+    pub fn is_text_input_focused(&self) -> bool {
+        if self.event_state.has_text_input_focus() {
+            return true;
+        }
+        if let Some(id) = self.event_state.focused
+            && let Some(node) = self.nodes.get(id)
+        {
+            return node.role == WidgetRole::TextInput || node.role == WidgetRole::NumericInput;
+        }
+        if let Some(tag) = self.event_state.focused_tag
+            && let Some(id) = self.find_node_by_tag(tag)
+            && let Some(node) = self.nodes.get(id)
+        {
+            return node.role == WidgetRole::TextInput || node.role == WidgetRole::NumericInput;
+        }
+        false
     }
 }

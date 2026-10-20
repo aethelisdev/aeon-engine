@@ -141,11 +141,21 @@ impl IrisEditorOverlay {
             let mut set_query = None;
             for action in &self.hierarchy.interactions.actions {
                 match action {
-                    hierarchy::HierarchyAction::ClearSearchQuery => {
-                        should_clear = true;
+                    hierarchy::HierarchyAction::ClearSearchQuery => should_clear = true,
+                    hierarchy::HierarchyAction::SetSearchQuery(q) => set_query = Some(q.clone()),
+                    hierarchy::HierarchyAction::OpenAddMenu(_) => {
+                        self.hierarchy.is_add_menu_open = true;
+                        self.hierarchy.active_submenu = None;
+                        self.hierarchy.active_sub_submenu = None;
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
                     }
-                    hierarchy::HierarchyAction::SetSearchQuery(q) => {
-                        set_query = Some(q.clone());
+                    hierarchy::HierarchyAction::CloseAddMenu => {
+                        self.hierarchy.is_add_menu_open = false;
+                        self.hierarchy.active_submenu = None;
+                        self.hierarchy.active_sub_submenu = None;
+                        self.notifier.tag_all();
+                        self.chrome.needs_layout_rebuild = true;
                     }
                     _ => {}
                 }

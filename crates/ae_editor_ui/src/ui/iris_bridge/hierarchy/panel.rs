@@ -55,15 +55,16 @@ pub fn build_hierarchy_overlays(
     overlay_root: WidgetId,
     params: &HierarchyPanelParams<'_>,
     panel_tree: Option<&UiTree>,
+    actions: &mut Vec<HierarchyAction>,
 ) -> Vec<Rect> {
     let mut rects = Vec::new();
     // 1. Right-Click Entity Context Menu (if open)
-    if let Some(ctx_rect) = build_context_menu(tree, overlay_root, params) {
+    if let Some(ctx_rect) = build_context_menu(tree, overlay_root, params, actions) {
         rects.push(ctx_rect);
     }
 
     // 2. Cascading `➕` Add Entity Dropdown Menu (if open)
-    let add_rects = build_add_menu(tree, overlay_root, params, panel_tree);
+    let add_rects = build_add_menu(tree, overlay_root, params, panel_tree, actions);
     rects.extend(add_rects);
     rects
 }

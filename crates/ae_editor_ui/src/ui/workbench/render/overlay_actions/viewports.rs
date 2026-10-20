@@ -173,6 +173,41 @@ impl EngineUi {
                 iris_bridge::HierarchyAction::Explode => {
                     ui_actions.push(EngineUiAction::Explode);
                 }
+                iris_bridge::HierarchyAction::OpenAddMenu(_) => {
+                    self.iris_overlay.hierarchy.is_add_menu_open = true;
+                    self.iris_overlay.hierarchy.active_submenu = None;
+                    self.iris_overlay.hierarchy.active_sub_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                iris_bridge::HierarchyAction::CloseAddMenu => {
+                    self.iris_overlay.hierarchy.is_add_menu_open = false;
+                    self.iris_overlay.hierarchy.active_submenu = None;
+                    self.iris_overlay.hierarchy.active_sub_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                iris_bridge::HierarchyAction::OpenSubmenu(sub) => {
+                    self.iris_overlay.hierarchy.activate_submenu(sub);
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                iris_bridge::HierarchyAction::CloseSubmenu => {
+                    self.iris_overlay.hierarchy.active_submenu = None;
+                    self.iris_overlay.hierarchy.active_sub_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                iris_bridge::HierarchyAction::OpenSubSubmenu(sub) => {
+                    self.iris_overlay.hierarchy.activate_submenu(sub);
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
+                iris_bridge::HierarchyAction::CloseSubSubmenu => {
+                    self.iris_overlay.hierarchy.active_sub_submenu = None;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
                 _ => {}
             }
         }
