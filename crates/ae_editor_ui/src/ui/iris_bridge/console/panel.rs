@@ -85,10 +85,7 @@ pub fn build_console_panel(
                     .with_icon("🔍")
                     .with_cursor_byte_idx(params.cursor_byte_idx)
                     .with_clear_tag(CONSOLE_TAG_SEARCH_CLEAR);
-                    let search_resp = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
-                    if search_resp.clicked() {
-                        actions.push(ConsoleAction::FocusSearch);
-                    }
+                    let _ = tb.input_box_tagged(&search_props, CONSOLE_TAG_SEARCH_INPUT);
                     if tb.tree().event_state.frame_clicked_tag == Some(CONSOLE_TAG_SEARCH_CLEAR) {
                         actions.push(ConsoleAction::ClearSearch);
                     }

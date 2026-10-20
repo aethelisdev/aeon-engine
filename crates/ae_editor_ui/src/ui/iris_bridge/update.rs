@@ -100,6 +100,8 @@ impl IrisEditorOverlay {
                 ..
             } = event
             {
+                self.clear_focus();
+                self.tree.event_state.clear_text_edit();
                 let active = self.overlay_tree.active_overlay().cloned();
                 self.overlay_tree.close();
                 if self.inspector.is_add_menu_open {
@@ -172,6 +174,10 @@ impl IrisEditorOverlay {
             let tag = self.tree.event_state.frame_clicked_tag;
             (d, tag)
         };
+
+        if self.tree.event_state.active_text_edit.is_none() && self.focus_state.has_focus() {
+            self.clear_focus();
+        }
 
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()

@@ -114,7 +114,7 @@ fn build_search_box(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
-    let search_resp = scope.input_box_tagged(
+    let _ = scope.input_box_tagged(
         &InputBoxProps::new(
             params.search_query,
             "Search assets...",
@@ -127,9 +127,6 @@ fn build_search_box(
         .with_clear_tag(ASSETS_TAG_SEARCH_CLEAR),
         ASSETS_TAG_SEARCH_INPUT,
     );
-    if search_resp.clicked() {
-        actions.push(AssetsPanelAction::FocusSearch);
-    }
     if scope.tree().event_state.frame_clicked_tag == Some(ASSETS_TAG_SEARCH_CLEAR) {
         actions.push(AssetsPanelAction::ClearSearch);
     }

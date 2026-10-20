@@ -84,6 +84,8 @@ impl IrisEditorOverlay {
             {
                 self.hierarchy.interactions.search_input.clear();
                 self.hierarchy.search_input.clear();
+                self.clear_focus();
+                scope.tree_mut().event_state.clear_text_edit();
             }
 
             let cursor_pos = self.cursor_pos();
@@ -163,6 +165,7 @@ impl IrisEditorOverlay {
             if should_clear {
                 self.hierarchy.interactions.search_input.clear();
                 self.hierarchy.search_input.clear();
+                self.clear_focus();
                 scope.tree_mut().event_state.clear_text_edit();
             } else if let Some(q) = set_query {
                 self.hierarchy.interactions.search_input.set_text(&q);
@@ -294,6 +297,8 @@ impl IrisEditorOverlay {
                 == Some(super::console::CONSOLE_TAG_SEARCH_CLEAR)
             {
                 self.console.search_input.clear();
+                self.clear_focus();
+                scope.tree_mut().event_state.clear_text_edit();
             }
 
             let console_params = super::console::ConsolePanelParams {
@@ -354,6 +359,7 @@ impl IrisEditorOverlay {
                     }
                     super::console::ConsoleAction::ClearSearch => {
                         self.console.search_input.clear();
+                        self.clear_focus();
                         scope.tree_mut().event_state.clear_text_edit();
                     }
                     super::console::ConsoleAction::CopyLog(_) => {}
@@ -399,6 +405,8 @@ impl IrisEditorOverlay {
             {
                 self.assets.search_input.clear();
                 self.assets.interactions.search_input.clear();
+                self.clear_focus();
+                scope.tree_mut().event_state.clear_text_edit();
             }
 
             let is_root_folder =
@@ -538,6 +546,7 @@ impl IrisEditorOverlay {
                     super::assets::AssetsPanelAction::ClearSearch => {
                         self.assets.interactions.search_input.clear();
                         self.assets.search_input.clear();
+                        self.clear_focus();
                         scope.tree_mut().event_state.clear_text_edit();
                         self.assets.actions.push(action);
                         self.notifier.tag_all();

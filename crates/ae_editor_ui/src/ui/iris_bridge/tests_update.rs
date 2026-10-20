@@ -104,3 +104,48 @@ fn test_live_search_query_filtering_sync() {
         None
     );
 }
+
+#[test]
+fn test_search_input_focus_blur_lifecycle() {
+    use super::assets::ASSETS_TAG_SEARCH_INPUT;
+    use super::console::CONSOLE_TAG_SEARCH_INPUT;
+    use super::hierarchy::HIERARCHY_TAG_SEARCH_INPUT;
+    use irisui::prelude::UiTree;
+
+    let mut tree = UiTree::new();
+    assert!(!tree.is_text_input_focused());
+
+    // 1. Assets search editing starts
+    tree.event_state
+        .start_text_edit(None, ASSETS_TAG_SEARCH_INPUT, "mesh", 4, false);
+    assert!(tree.is_text_input_focused());
+
+    // Blur / click outside clears text edit
+    tree.event_state.clear_text_edit();
+    assert!(
+        !tree.is_text_input_focused(),
+        "Blurring assets search must immediately release text input focus"
+    );
+
+    // 2. Console search editing starts
+    tree.event_state
+        .start_text_edit(None, CONSOLE_TAG_SEARCH_INPUT, "warn", 4, false);
+    assert!(tree.is_text_input_focused());
+
+    tree.event_state.clear_text_edit();
+    assert!(
+        !tree.is_text_input_focused(),
+        "Blurring console search must immediately release text input focus"
+    );
+
+    // 3. Hierarchy search editing starts
+    tree.event_state
+        .start_text_edit(None, HIERARCHY_TAG_SEARCH_INPUT, "cube", 4, false);
+    assert!(tree.is_text_input_focused());
+
+    tree.event_state.clear_text_edit();
+    assert!(
+        !tree.is_text_input_focused(),
+        "Blurring hierarchy search must immediately release text input focus"
+    );
+}
