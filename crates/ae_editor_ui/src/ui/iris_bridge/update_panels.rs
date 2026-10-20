@@ -668,12 +668,15 @@ impl IrisEditorOverlay {
                 is_add_menu_open: self.ui_designer.is_add_menu_open,
             };
 
-            let metrics = super::ui_designer::build_ui_designer_panel(
+            let _metrics = super::ui_designer::build_ui_designer_panel(
                 scope,
                 &designer_params,
-                &mut self.ui_designer.drag_contexts,
+                &mut self.ui_designer,
             );
-            self.ui_designer.canvas_metrics = metrics;
+            if self.ui_designer.has_pending_actions() {
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
+            }
         } else {
             self.ui_designer.drag_contexts.clear();
             self.ui_designer.canvas_metrics = Default::default();

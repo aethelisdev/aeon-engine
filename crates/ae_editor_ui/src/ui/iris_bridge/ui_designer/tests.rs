@@ -45,15 +45,15 @@ fn test_ui_designer_panel_build() {
         is_add_menu_open: false,
     };
 
-    let mut contexts = Vec::new();
+    let mut designer = UiDesignerPanelState::default();
     let metrics =
-        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
 
     assert_eq!(metrics.panel_rect, panel_rect);
     assert!(metrics.canvas_rect.width > 0.0);
     assert!(metrics.canvas_rect.height > 0.0);
     assert!(metrics.base_scale > 0.0);
-    assert_eq!(contexts.len(), 0);
+    assert_eq!(designer.drag_contexts.len(), 0);
 
     // Verify layout was properly finalized across the entire subtree
     let root_node = tree.get(root).expect("Root node must exist");
@@ -129,12 +129,12 @@ fn test_ui_designer_canvas_projection() {
         is_add_menu_open: false,
     };
 
-    let mut contexts = Vec::new();
+    let mut designer = UiDesignerPanelState::default();
     let metrics =
-        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
 
-    assert_eq!(contexts.len(), 1);
-    let found = &contexts[0];
+    assert_eq!(designer.drag_contexts.len(), 1);
+    let found = &designer.drag_contexts[0];
     assert_eq!(found.entity, ent);
     assert_eq!(found.initial_offset, [12.0, 34.0]);
     assert!(metrics.canvas_rect.width > 0.0);
@@ -168,9 +168,10 @@ fn test_ui_designer_click_hit_testing() {
         is_add_menu_open: false,
     };
 
-    let mut contexts = Vec::new();
+    let mut designer = UiDesignerPanelState::default();
     let metrics =
-        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
+    let contexts = designer.drag_contexts.clone();
     assert_eq!(contexts.len(), 1);
 
     // Click on aspect ratio button via tag
@@ -339,9 +340,9 @@ fn test_ui_designer_toolbar_tags() {
         is_add_menu_open: false,
     };
 
-    let mut contexts = Vec::new();
+    let mut designer = UiDesignerPanelState::default();
     let _metrics =
-        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
 
     // Verify all toolbar controls have been created with their designated 64-bit tags
     let required_tags = [
@@ -395,7 +396,6 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
     let panel_rect = Rect::new(0.0, 0.0, 1200.0, 800.0);
 
     // Initial build with element selected and hovered
-    let mut contexts = Vec::new();
     let params_selected = UiDesignerPanelParams {
         panel_rect,
         world: &world,
@@ -405,10 +405,11 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
         is_aspect_dropdown_open: false,
         is_add_menu_open: true,
     };
+    let mut designer = UiDesignerPanelState::default();
     let metrics = build_ui_designer_panel(
         &mut UiScope::new(&mut tree, root),
         &params_selected,
-        &mut contexts,
+        &mut designer,
     );
 
     // 1. Verify AddElementPopup is anchored to the Add Element button's computed rect
@@ -450,7 +451,7 @@ fn test_ui_designer_element_click_not_occluded_by_selection_and_popup_anchored_c
         elem_center,
         Some(&hit_target),
         &metrics,
-        &contexts,
+        &designer.drag_contexts,
         false,
         false,
     );
@@ -482,9 +483,9 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
         is_add_menu_open: true,
     };
 
-    let mut contexts = Vec::new();
+    let mut designer = UiDesignerPanelState::default();
     let _metrics =
-        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut contexts);
+        build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
 
     // Verify target dropdown item exists and has active hover styling
     let (_, item_node) = tree
@@ -513,7 +514,7 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
         Point::new(10.0, 10.0),
         Some(&hit_info),
         &_metrics,
-        &contexts,
+        &designer.drag_contexts,
         false,
         true,
     );
@@ -524,4 +525,42 @@ fn test_ui_designer_popup_items_hover_and_click_routing() {
             super::types::UiElementType::Panel
         ))
     );
+}
+
+#[test]
+fn test_ui_designer_declarative_toolbar_dispatch() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node creation must succeed");
+    let world = hecs::World::new();
+    let state = UiDesignerState::default();
+    let panel_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+
+    let params = UiDesignerPanelParams {
+        panel_rect,
+        world: &world,
+        selected_entity: None,
+        cursor_pos: Point::new(0.0, 0.0),
+        state: &state,
+        is_aspect_dropdown_open: false,
+        is_add_menu_open: false,
+    };
+
+    let mut designer = UiDesignerPanelState::default();
+
+    // 1. Initial build: toolbar rendered
+    build_ui_designer_panel(&mut UiScope::new(&mut tree, root), &params, &mut designer);
+
+    // 2. Dispatch actions directly and verify state synchronization
+    designer.dispatch(UiDesignerAction::ToggleAspectDropdown);
+    assert!(designer.is_aspect_open);
+    assert!(!designer.is_add_menu_open);
+
+    designer.dispatch(UiDesignerAction::ToggleAddMenu);
+    assert!(!designer.is_aspect_open);
+    assert!(designer.is_add_menu_open);
+
+    designer.dispatch(UiDesignerAction::CycleGridSnap);
+    let actions = designer.take_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0], UiDesignerAction::CycleGridSnap);
 }

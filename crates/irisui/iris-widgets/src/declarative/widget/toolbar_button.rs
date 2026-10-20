@@ -81,6 +81,9 @@ impl Widget for ToolbarButton {
         if let Some(node) = scope.tree.get_mut(node_id) {
             node.set_name(self.name);
             node.tag = resolved_tag;
+            node.interactive = true;
+            node.role = WidgetRole::Button;
+            node.cursor = Some(WidgetCursor::Pointer);
         }
         let _ = scope.tree.add_child(scope.parent, node_id);
         let (clicked, hovered, _) = scope.check_interaction(node_id);
@@ -88,9 +91,6 @@ impl Widget for ToolbarButton {
         let theme = scope.theme();
 
         if let Some(node) = scope.tree.get_mut(node_id) {
-            node.interactive = true;
-            node.role = WidgetRole::Button;
-            node.cursor = Some(WidgetCursor::Pointer);
             node.set_text(visible_text.to_string());
             node.font_size = 11.0;
             node.line_height = 24.0;

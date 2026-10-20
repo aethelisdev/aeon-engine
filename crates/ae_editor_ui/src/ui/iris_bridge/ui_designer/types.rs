@@ -304,4 +304,36 @@ impl UiDesignerPanelState {
         }
         dirty
     }
+
+    /// Dispatches a UI Designer action directly to the action queue and updates popup visibility.
+    ///
+    /// Coordinates immediate local dropdown state changes and enqueues actionable mutations
+    /// for downstream workbench synchronization.
+    pub fn dispatch(&mut self, action: UiDesignerAction) {
+        match action {
+            UiDesignerAction::ToggleAspectDropdown => {
+                self.is_aspect_open = !self.is_aspect_open;
+                self.is_add_menu_open = false;
+            }
+            UiDesignerAction::ToggleAddMenu => {
+                self.is_add_menu_open = !self.is_add_menu_open;
+                self.is_aspect_open = false;
+            }
+            UiDesignerAction::ClosePopups => {
+                self.is_aspect_open = false;
+                self.is_add_menu_open = false;
+            }
+            UiDesignerAction::SetAspectRatio(_) => {
+                self.is_aspect_open = false;
+                self.push_action(action);
+            }
+            UiDesignerAction::SpawnElement(_) => {
+                self.is_add_menu_open = false;
+                self.push_action(action);
+            }
+            _ => {
+                self.push_action(action);
+            }
+        }
+    }
 }

@@ -177,6 +177,12 @@ impl<TTargets, TAction> PanelInteractionState<TTargets, TAction> {
         std::mem::take(&mut self.actions)
     }
 
+    /// Appends a dispatched action to the pending queue.
+    #[inline]
+    pub fn push_action(&mut self, action: TAction) {
+        self.actions.push(action);
+    }
+
     /// Resets transient per-frame interaction targets.
     pub fn clear_targets(&mut self) {
         self.targets = None;

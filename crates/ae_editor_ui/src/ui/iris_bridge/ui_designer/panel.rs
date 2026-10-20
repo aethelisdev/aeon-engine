@@ -13,7 +13,7 @@ use super::popups::{build_add_element_popup, build_aspect_ratio_popup};
 use super::toolbar::build_designer_toolbar;
 use super::types::{
     UI_DESIGNER_TAG_PANEL_ROOT, UiDesignerCanvasMetrics, UiDesignerPanelParams,
-    UiElementDragContext,
+    UiDesignerPanelState,
 };
 use irisui::prelude::*;
 
@@ -21,9 +21,9 @@ use irisui::prelude::*;
 pub fn build_ui_designer_panel(
     scope: &mut UiScope<'_>,
     params: &UiDesignerPanelParams<'_>,
-    out_contexts: &mut Vec<UiElementDragContext>,
+    designer: &mut UiDesignerPanelState,
 ) -> UiDesignerCanvasMetrics {
-    out_contexts.clear();
+    designer.drag_contexts.clear();
 
     let canvas_metrics = scope
         .panel("UiDesignerPanelRoot")
@@ -33,23 +33,29 @@ pub fn build_ui_designer_panel(
         .border(1.0, Color::rgba(0.14, 0.15, 0.18, 0.70))
         .show(|panel_scope| {
             // ── 1. Virtual Canvas & Elements Viewport ──────────────────────────
-            let metrics = build_designer_canvas(panel_scope, params, out_contexts);
+            let metrics = build_designer_canvas(panel_scope, params, designer);
 
             // ── 2. Elevated 34px Top Control Bar ──────────────────────────────
-            build_designer_toolbar(panel_scope, params);
+            build_designer_toolbar(panel_scope, params, designer);
             metrics
         })
         .inner;
 
+    designer.canvas_metrics = canvas_metrics;
+
     // ── 4. Dropdown Popups (Rendered on top in UiLayer::Popup via UiScope) ────
-    build_ui_designer_overlays(scope, params);
+    build_ui_designer_overlays(scope, params, designer);
 
     canvas_metrics
 }
 
 /// Builds top-level floating popups (Aspect Ratio and Add Element palettes)
 /// into the designated overlay or portal scope, preventing panel scissor clipping (Mine 2).
-pub fn build_ui_designer_overlays(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
-    build_aspect_ratio_popup(scope, params);
-    build_add_element_popup(scope, params);
+pub fn build_ui_designer_overlays(
+    scope: &mut UiScope<'_>,
+    params: &UiDesignerPanelParams<'_>,
+    designer: &mut UiDesignerPanelState,
+) {
+    build_aspect_ratio_popup(scope, params, designer);
+    build_add_element_popup(scope, params, designer);
 }

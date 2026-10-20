@@ -11,8 +11,9 @@
 use super::anchors::{AnchorGuideParams, build_anchor_pin_and_guide};
 use super::toolbar::UI_DESIGNER_TOOLBAR_HEIGHT;
 use super::types::{
-    UI_DESIGNER_TAG_CANVAS_BOARD, UI_DESIGNER_TAG_LETTERBOX, UiDesignerCanvasMetrics,
-    UiDesignerPanelParams, UiElementDragContext, encode_element_tag,
+    UI_DESIGNER_TAG_CANVAS_BOARD, UI_DESIGNER_TAG_LETTERBOX, UiDesignerAction,
+    UiDesignerCanvasMetrics, UiDesignerPanelParams, UiDesignerPanelState, UiElementDragContext,
+    encode_element_tag,
 };
 use ae_core::ecs::UiElement;
 use ae_core::ui::{UiDrawCommand, UiLayoutResolver, UiTextAlignment};
@@ -22,7 +23,7 @@ use irisui::prelude::*;
 pub fn build_designer_canvas(
     scope: &mut UiScope<'_>,
     params: &UiDesignerPanelParams<'_>,
-    out_contexts: &mut Vec<UiElementDragContext>,
+    designer: &mut UiDesignerPanelState,
 ) -> UiDesignerCanvasMetrics {
     let avail_w = params.panel_rect.width;
     let avail_h = (params.panel_rect.height - UI_DESIGNER_TOOLBAR_HEIGHT).max(10.0);
@@ -242,8 +243,8 @@ pub fn build_designer_canvas(
                         let local_h = (local_max.y - local_min.y).max(1.0);
                         let local_elem_rect = Rect::new(local_min.x, local_min.y, local_w, local_h);
 
-                        let elem_idx = out_contexts.len();
-                        out_contexts.push(UiElementDragContext {
+                        let elem_idx = designer.drag_contexts.len();
+                        designer.drag_contexts.push(UiElementDragContext {
                             entity: ent,
                             anchor_origin: elem.anchor.compute_origin(screen_w, screen_h),
                             initial_offset: elem.offset,
@@ -268,11 +269,15 @@ pub fn build_designer_canvas(
                             .height(local_elem_rect.height)
                             .background(Color::TRANSPARENT);
 
-                        canvas_scope.add(
-                            EmptyBox::new("UiCanvasElement", elem_style)
-                                .role(WidgetRole::Button)
-                                .tag(elem_tag),
-                        );
+                        canvas_scope
+                            .add(
+                                EmptyBox::new("UiCanvasElement", elem_style)
+                                    .role(WidgetRole::Button)
+                                    .tag(elem_tag),
+                            )
+                            .on_click(|| {
+                                designer.dispatch(UiDesignerAction::SelectEntity(Some(ent)));
+                            });
 
                         if is_selected {
                             // Glowing cyan selection outline (Passive: non-blocking hit-test)

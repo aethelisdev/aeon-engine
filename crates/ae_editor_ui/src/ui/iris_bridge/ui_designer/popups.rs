@@ -8,8 +8,8 @@
 //!
 
 use super::types::{
-    CanvasAspectRatio, UiDesignerPanelParams, UiElementType, make_add_item_tag,
-    make_aspect_item_tag,
+    CanvasAspectRatio, UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelState,
+    UiElementType, make_add_item_tag, make_aspect_item_tag,
 };
 use irisui::prelude::*;
 
@@ -36,7 +36,11 @@ pub const UI_ELEMENT_TYPES: [UiElementType; 10] = [
 ];
 
 /// Builds the Aspect Ratio dropdown menu popup if open.
-pub fn build_aspect_ratio_popup(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
+pub fn build_aspect_ratio_popup(
+    scope: &mut UiScope<'_>,
+    params: &UiDesignerPanelParams<'_>,
+    designer: &mut UiDesignerPanelState,
+) {
     if !params.is_aspect_dropdown_open {
         return;
     }
@@ -66,22 +70,29 @@ pub fn build_aspect_ratio_popup(scope: &mut UiScope<'_>, params: &UiDesignerPane
         popup_w,
         |popup_scope| {
             for (idx, preset) in ASPECT_RATIO_PRESETS.iter().enumerate() {
-                let is_selected = *preset == params.state.aspect_ratio;
+                let preset = *preset;
+                let is_selected = preset == params.state.aspect_ratio;
                 let shortcut = if is_selected { Some("✓") } else { None };
-                popup_scope.dropdown_item(
-                    make_aspect_item_tag(idx),
-                    "",
-                    preset.label(),
-                    shortcut,
-                    true,
-                );
+                popup_scope
+                    .dropdown_item(
+                        make_aspect_item_tag(idx),
+                        "",
+                        preset.label(),
+                        shortcut,
+                        true,
+                    )
+                    .on_click(|| designer.dispatch(UiDesignerAction::SetAspectRatio(preset)));
             }
         },
     );
 }
 
 /// Builds the `➕ Add Element` palette popup if open.
-pub fn build_add_element_popup(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
+pub fn build_add_element_popup(
+    scope: &mut UiScope<'_>,
+    params: &UiDesignerPanelParams<'_>,
+    designer: &mut UiDesignerPanelState,
+) {
     if params.is_add_menu_open {
         scope.popup_anchored_named(
             "AddElementPopup",
@@ -97,13 +108,16 @@ pub fn build_add_element_popup(scope: &mut UiScope<'_>, params: &UiDesignerPanel
             200.0,
             |popup_scope| {
                 for (idx, elem_type) in UI_ELEMENT_TYPES.iter().enumerate() {
-                    popup_scope.dropdown_item(
-                        make_add_item_tag(idx),
-                        elem_type.icon(),
-                        elem_type.label(),
-                        None,
-                        true,
-                    );
+                    let elem_type = *elem_type;
+                    popup_scope
+                        .dropdown_item(
+                            make_add_item_tag(idx),
+                            elem_type.icon(),
+                            elem_type.label(),
+                            None,
+                            true,
+                        )
+                        .on_click(|| designer.dispatch(UiDesignerAction::SpawnElement(elem_type)));
                 }
             },
         );

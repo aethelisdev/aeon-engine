@@ -12,7 +12,7 @@ use super::types::{
     UI_DESIGNER_TAG_ADD_ELEMENT_BTN, UI_DESIGNER_TAG_ANCHORS_BTN, UI_DESIGNER_TAG_ASPECT_BTN,
     UI_DESIGNER_TAG_GRID_BTN, UI_DESIGNER_TAG_SNAP_BTN, UI_DESIGNER_TAG_TOOLBAR,
     UI_DESIGNER_TAG_ZOOM_IN, UI_DESIGNER_TAG_ZOOM_OUT, UI_DESIGNER_TAG_ZOOM_RESET,
-    UiDesignerPanelParams,
+    UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelState,
 };
 use irisui::prelude::*;
 
@@ -20,7 +20,11 @@ use irisui::prelude::*;
 pub const UI_DESIGNER_TOOLBAR_HEIGHT: f32 = 34.0;
 
 /// Builds the 34px elevated top control bar in the declarative [`UiScope`] tree.
-pub fn build_designer_toolbar(scope: &mut UiScope<'_>, params: &UiDesignerPanelParams<'_>) {
+pub fn build_designer_toolbar(
+    scope: &mut UiScope<'_>,
+    params: &UiDesignerPanelParams<'_>,
+    designer: &mut UiDesignerPanelState,
+) {
     let tb_style = Style::new()
         .position_absolute()
         .left(0.0)
@@ -47,7 +51,8 @@ pub fn build_designer_toolbar(scope: &mut UiScope<'_>, params: &UiDesignerPanelP
                 ToolbarButton::new(aspect_label)
                     .width(142.0)
                     .tag(UI_DESIGNER_TAG_ASPECT_BTN),
-            );
+            )
+            .on_click(|| designer.dispatch(UiDesignerAction::ToggleAspectDropdown));
 
             tb.vertical_divider(20.0, Color::rgba(0.22, 0.25, 0.32, 0.80));
 
@@ -56,20 +61,29 @@ pub fn build_designer_toolbar(scope: &mut UiScope<'_>, params: &UiDesignerPanelP
                 ToolbarButton::new("−")
                     .width(24.0)
                     .tag(UI_DESIGNER_TAG_ZOOM_OUT),
-            );
+            )
+            .on_click(|| {
+                let new_zoom = (params.state.zoom - 0.1).clamp(0.2, 5.0);
+                designer.dispatch(UiDesignerAction::SetZoom(new_zoom));
+            });
 
             let zoom_text = format!("{:.0}%", params.state.zoom * 100.0);
             tb.add(
                 ToolbarButton::new(zoom_text)
                     .width(50.0)
                     .tag(UI_DESIGNER_TAG_ZOOM_RESET),
-            );
+            )
+            .on_click(|| designer.dispatch(UiDesignerAction::ResetView));
 
             tb.add(
                 ToolbarButton::new("+")
                     .width(24.0)
                     .tag(UI_DESIGNER_TAG_ZOOM_IN),
-            );
+            )
+            .on_click(|| {
+                let new_zoom = (params.state.zoom + 0.1).clamp(0.2, 5.0);
+                designer.dispatch(UiDesignerAction::SetZoom(new_zoom));
+            });
 
             tb.vertical_divider(20.0, Color::rgba(0.22, 0.25, 0.32, 0.80));
 
@@ -82,19 +96,23 @@ pub fn build_designer_toolbar(scope: &mut UiScope<'_>, params: &UiDesignerPanelP
                 ToolbarButton::new(snap_text)
                     .width(82.0)
                     .tag(UI_DESIGNER_TAG_SNAP_BTN),
-            );
+            )
+            .on_click(|| designer.dispatch(UiDesignerAction::CycleGridSnap));
 
             // ── 4. Anchors & Grid Toggles ─────────────────────────────────────────
             tb.add(
                 ToolbarButton::new("⚓ Anchors")
                     .active(params.state.show_anchor_guides)
                     .tag(UI_DESIGNER_TAG_ANCHORS_BTN),
-            );
+            )
+            .on_click(|| designer.dispatch(UiDesignerAction::ToggleAnchorGuides));
+
             tb.add(
                 ToolbarButton::new("⊞ Grid")
                     .active(params.state.show_grid)
                     .tag(UI_DESIGNER_TAG_GRID_BTN),
-            );
+            )
+            .on_click(|| designer.dispatch(UiDesignerAction::ToggleGrid));
 
             tb.vertical_divider(20.0, Color::rgba(0.22, 0.25, 0.32, 0.80));
 
@@ -105,7 +123,8 @@ pub fn build_designer_toolbar(scope: &mut UiScope<'_>, params: &UiDesignerPanelP
                     .fill(Color::rgba(0.20, 0.90, 0.60, 0.25))
                     .text_color(Color::rgba(0.20, 0.90, 0.60, 1.0))
                     .tag(UI_DESIGNER_TAG_ADD_ELEMENT_BTN),
-            );
+            )
+            .on_click(|| designer.dispatch(UiDesignerAction::ToggleAddMenu));
         },
     );
 }

@@ -68,7 +68,7 @@ cargo run -p ae_engine --release
 - **Gereksiz karmaşıklıktan kaçınmak**
 - **Açık Kaynak**
 
-## Editör Arayüzü — IrisUI
+## Editör Arayüzü - IrisUI
 
 Aeon Engine'in editörü, Rust ile sıfırdan geliştirilmiş, GPU hızlandırmalı özel bir arayüz kütüphanesi olan IrisUI tarafından desteklenmektedir.
 

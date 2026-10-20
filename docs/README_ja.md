@@ -67,7 +67,7 @@ cargo run -p ae_engine --release
 
 ## ライセンス
 
-## エディター UI — IrisUI
+## エディター UI - IrisUI
 
 Aeon Engine のエディターは、Rust でゼロから開発された独自の GPU アクセラレーション対応 UI フレームワーク IrisUI によって動作します。
 
