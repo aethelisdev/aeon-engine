@@ -60,8 +60,8 @@ pub use declarative::{
 pub use grid_view::ResponsiveGrid;
 pub use input::{TextInputState, copy_to_clipboard, get_clipboard_text};
 pub use modal::{
-    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
-    ModalDialogAction, ModalDialogStyle, evaluate_modal_tag,
+    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_INPUT,
+    MODAL_TAG_SCRIM, ModalDialogAction, ModalDialogStyle, evaluate_modal_tag,
 };
 pub use numeric_input::{NumericInputEditState, NumericInputStyle};
 pub use panel::PanelBuilder;

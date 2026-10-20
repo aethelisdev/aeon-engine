@@ -18,6 +18,8 @@ pub const MODAL_TAG_CONFIRM: u64 = 0xF003;
 pub const MODAL_TAG_CANCEL: u64 = 0xF004;
 /// Persistent semantic tag for modal destructive danger confirm action buttons.
 pub const MODAL_TAG_DANGER: u64 = 0xF005;
+/// Persistent semantic tag for modal text input fields.
+pub const MODAL_TAG_INPUT: u64 = 0xF006;
 
 /// High-level semantic actions triggered by modal dialog clicks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

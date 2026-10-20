@@ -54,7 +54,6 @@ impl IrisEditorOverlay {
         let is_cursor_occluded = ctx.is_cursor_occluded;
 
         let elapsed_secs = self.start_time.elapsed().as_secs_f32();
-        let cursor_blink_visible = (self.start_time.elapsed().as_millis() / 530).is_multiple_of(2);
 
         self.overlay_tree.tree_mut().clear();
         self.overlay_tree.close();
@@ -164,18 +163,11 @@ impl IrisEditorOverlay {
 
         // 4. New Folder Modal
         if let Some(parent_path) = params.dialogs.new_folder_parent {
-            let input_name = self.modals.new_folder_input.text();
-            let text_width = self
-                .text_system
-                .measure_text(input_name, 12.0, 28.0, None)
-                .width;
             build_new_folder_modal(
                 self.overlay_tree.tree_mut(),
                 modals::FolderModalParams {
                     parent_path,
-                    input_text: input_name,
-                    text_width,
-                    cursor_blink_visible,
+                    input_text: &mut self.modals.new_folder_input.buffer,
                     screen_width,
                     screen_height,
                     cursor_pos: cursor,
@@ -198,19 +190,12 @@ impl IrisEditorOverlay {
 
         // 5. Rename Modal
         if let Some((target_path, is_folder)) = params.dialogs.rename_target {
-            let input_name = self.modals.rename_input.text();
-            let text_width = self
-                .text_system
-                .measure_text(input_name, 12.0, 28.0, None)
-                .width;
             build_rename_modal(
                 self.overlay_tree.tree_mut(),
                 modals::RenameModalParams {
                     target_path,
-                    input_text: input_name,
-                    text_width,
+                    input_text: &mut self.modals.rename_input.buffer,
                     is_folder,
-                    cursor_blink_visible,
                     screen_width,
                     screen_height,
                     cursor_pos: cursor,

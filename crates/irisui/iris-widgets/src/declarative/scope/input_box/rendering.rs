@@ -65,11 +65,15 @@ impl<'a> UiScope<'a> {
     ) -> WidgetResponse {
         let node_id = self.tree.create_node();
         let placeholder_str = placeholder.into();
+        let parent_layer = self.tree.effective_layer(self.parent);
 
         let _ = self.tree.add_child(self.parent, node_id);
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name("TextInput");
             node.tag = tag;
+            if parent_layer == iris_core::UiLayer::Modal {
+                node.layer = iris_core::UiLayer::Modal;
+            }
         }
 
         let edit_key = if tag != 0 { tag } else { node_id.as_ffi() };
@@ -306,9 +310,19 @@ impl<'a> UiScope<'a> {
         cursor_blink_visible: bool,
     ) -> WidgetId {
         let box_id = self.tree.create_node();
+        let parent_layer = self
+            .tree
+            .get(self.parent)
+            .map(|p| p.layer)
+            .unwrap_or(iris_core::UiLayer::Content);
         if let Some(node) = self.tree.get_mut(box_id) {
             node.role = WidgetRole::TextInput;
+            node.interactive = true;
+            node.tag = crate::modal::MODAL_TAG_INPUT;
             node.cursor = Some(WidgetCursor::Text);
+            if parent_layer == iris_core::UiLayer::Modal {
+                node.layer = iris_core::UiLayer::Modal;
+            }
             node.set_style(
                 Style::new()
                     .height(28.0)
@@ -322,6 +336,9 @@ impl<'a> UiScope<'a> {
         let text_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(text_id) {
             node.role = WidgetRole::Default;
+            if parent_layer == iris_core::UiLayer::Modal {
+                node.layer = iris_core::UiLayer::Modal;
+            }
             let display = if text.is_empty() { placeholder } else { text };
             node.set_text(display);
             node.font_size = 12.0;
@@ -341,6 +358,9 @@ impl<'a> UiScope<'a> {
             let caret_id = self.tree.create_node();
             if let Some(node) = self.tree.get_mut(caret_id) {
                 node.role = WidgetRole::TextInputCaret;
+                if parent_layer == iris_core::UiLayer::Modal {
+                    node.layer = iris_core::UiLayer::Modal;
+                }
                 node.tag = caret_offset.to_bits() as u64;
                 node.set_style(Style::new().background(caret_color).border_radius(0.75));
             }
@@ -353,8 +373,16 @@ impl<'a> UiScope<'a> {
     /// Emits a text input box with placeholder, explicit width, and caret blink indicator, tagged with a semantic tag.
     pub fn input_box_tagged(&mut self, props: &InputBoxProps<'_>, tag: u64) -> WidgetResponse {
         let box_id = self.tree.create_node();
+        let parent_layer = self
+            .tree
+            .get(self.parent)
+            .map(|p| p.layer)
+            .unwrap_or(iris_core::UiLayer::Content);
         if let Some(node) = self.tree.get_mut(box_id) {
             node.tag = tag;
+            if parent_layer == iris_core::UiLayer::Modal {
+                node.layer = iris_core::UiLayer::Modal;
+            }
         }
         let _ = self.tree.add_child(self.parent, box_id);
 

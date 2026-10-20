@@ -86,12 +86,8 @@ pub fn build_delete_modal(
 pub struct FolderModalParams<'a> {
     /// Target parent directory where the new subfolder will be created.
     pub parent_path: &'a Path,
-    /// Currently typed folder name string.
-    pub input_text: &'a str,
-    /// Measured horizontal text width in physical pixels.
-    pub text_width: f32,
-    /// Whether the text editing caret should be drawn this frame (blink cycle).
-    pub cursor_blink_visible: bool,
+    /// Mutable folder name string buffer bound to the declarative input field.
+    pub input_text: &'a mut String,
     /// Viewport width in physical pixels.
     pub screen_width: f32,
     /// Viewport height in physical pixels.
@@ -104,14 +100,10 @@ pub struct FolderModalParams<'a> {
 pub struct RenameModalParams<'a> {
     /// Target path of the file or folder being renamed.
     pub target_path: &'a Path,
-    /// Currently typed new name string.
-    pub input_text: &'a str,
-    /// Measured horizontal text width in physical pixels.
-    pub text_width: f32,
+    /// Mutable rename string buffer bound to the declarative input field.
+    pub input_text: &'a mut String,
     /// Whether the target is a folder (true) or an asset file (false).
     pub is_folder: bool,
-    /// Whether the text editing caret should be drawn this frame (blink cycle).
-    pub cursor_blink_visible: bool,
     /// Viewport width in physical pixels.
     pub screen_width: f32,
     /// Viewport height in physical pixels.
@@ -165,12 +157,7 @@ pub fn build_new_folder_modal(tree: &mut UiTree, params: FolderModalParams<'_>) 
                         Color::rgba(0.60, 0.62, 0.70, 1.0),
                         format!("Location: {}", params.parent_path.display()),
                     );
-                    col.input_box(
-                        params.input_text,
-                        "Enter folder name...",
-                        params.text_width,
-                        params.cursor_blink_visible,
-                    );
+                    col.text_input("Enter folder name...", params.input_text);
                 });
 
                 // 3. Footer Bar: Cancel and Confirm action buttons
@@ -228,12 +215,12 @@ pub fn build_rename_modal(tree: &mut UiTree, params: RenameModalParams<'_>) {
                         Color::rgba(0.60, 0.62, 0.70, 1.0),
                         format!("Target: {}", params.target_path.display()),
                     );
-                    col.input_box(
-                        params.input_text,
-                        "Enter new name...",
-                        params.text_width,
-                        params.cursor_blink_visible,
-                    );
+                    let placeholder = if params.is_folder {
+                        "Enter new folder name..."
+                    } else {
+                        "Enter new file name..."
+                    };
+                    col.text_input(placeholder, params.input_text);
                 });
 
                 // 3. Footer Bar: Cancel and Confirm action buttons

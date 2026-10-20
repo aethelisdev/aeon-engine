@@ -17,13 +17,12 @@ fn test_new_folder_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
     let _root = tree.create_root().expect("Root node must be created");
 
+    let mut folder_name = "characters".to_string();
     build_new_folder_modal(
         &mut tree,
         FolderModalParams {
             parent_path: Path::new("assets/models"),
-            input_text: "characters",
-            text_width: 60.0,
-            cursor_blink_visible: true,
+            input_text: &mut folder_name,
             screen_width: 1920.0,
             screen_height: 1080.0,
             cursor_pos: Point::new(0.0, 0.0),
@@ -64,14 +63,13 @@ fn test_rename_modal_text_sections_not_occluded() {
     let mut tree = UiTree::new();
     let _root = tree.create_root().expect("Root node must be created");
 
+    let mut asset_name = "albedo.png".to_string();
     build_rename_modal(
         &mut tree,
         RenameModalParams {
             target_path: Path::new("assets/textures/diffuse.png"),
-            input_text: "albedo.png",
-            text_width: 70.0,
+            input_text: &mut asset_name,
             is_folder: false,
-            cursor_blink_visible: false,
             screen_width: 1920.0,
             screen_height: 1080.0,
             cursor_pos: Point::new(0.0, 0.0),
@@ -415,4 +413,36 @@ fn test_modal_action_buttons_layer_and_tags() {
     assert_eq!(d_node.tag, MODAL_TAG_DANGER);
     assert_eq!(d_node.layer, UiLayer::Modal);
     assert!(d_node.interactive);
+}
+
+#[test]
+fn test_modal_input_box_tag_and_layer() {
+    let mut tree = UiTree::new();
+    let _root = tree.create_root().unwrap();
+    let mut folder_name = "NewFolder".to_string();
+    build_new_folder_modal(
+        &mut tree,
+        FolderModalParams {
+            parent_path: Path::new("assets/scenes"),
+            input_text: &mut folder_name,
+            screen_width: 1920.0,
+            screen_height: 1080.0,
+            cursor_pos: Point::new(0.0, 0.0),
+        },
+    );
+
+    let input_node = tree
+        .node_named("TextInput")
+        .expect("Node with name 'TextInput' must exist");
+
+    assert_eq!(input_node.role, WidgetRole::TextInput);
+    assert!(
+        input_node.interactive,
+        "Modal text input must be interactive"
+    );
+    assert_eq!(
+        input_node.layer,
+        UiLayer::Modal,
+        "Modal text input must inherit Modal layer"
+    );
 }
