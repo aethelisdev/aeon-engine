@@ -9,7 +9,7 @@ use super::compass;
 use super::play_hud;
 use super::popup;
 use super::toolbar;
-use super::types::ViewportHudParams;
+use super::types::{ViewportHudParams, ViewportHudState};
 use irisui::prelude::*;
 
 /// Builds the complete Viewport HUD overlay hierarchy into the UI Tree.
@@ -17,14 +17,18 @@ use irisui::prelude::*;
 /// Dispatches declarative HUD components: top-left floating toolbar, top-right
 /// 3D navigation compass, bottom-right camera info HUD, and optional active dropdown popups.
 /// Builds viewport HUD overlays purely through a declarative [`UiScope`].
-pub fn build_viewport_hud_scope(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
+pub fn build_viewport_hud_scope(
+    scope: &mut UiScope<'_>,
+    params: &ViewportHudParams<'_>,
+    hud: &mut ViewportHudState,
+) {
     if params.viewport_rect.width < 20.0 || params.viewport_rect.height < 20.0 {
         return;
     }
 
     if params.is_editing {
         // 1. Top-left floating toolbar
-        toolbar::build_viewport_toolbar(scope, params);
+        toolbar::build_viewport_toolbar(scope, params, hud);
 
         // In 2D dimension mode, 3D compass and 3D camera Euler angle telemetry are hidden
         if !params.is_2d {
@@ -35,13 +39,13 @@ pub fn build_viewport_hud_scope(scope: &mut UiScope<'_>, params: &ViewportHudPar
             camera_hud::build_camera_hud(scope, params);
         }
 
-        // 4. Resolve complete HUD layout and hover reconciliation across viewport bounds
-        scope.finish_layout(params.viewport_rect);
-
-        // 5. Active dropdown popup if open
+        // 4. Active dropdown popup if open (rendered before layout resolution so popup receives full layout & hover passes)
         if let Some(active_dd) = params.active_dropdown {
-            popup::render_viewport_hud_dropdown_popup(scope, active_dd, params);
+            popup::render_viewport_hud_dropdown_popup(scope, active_dd, params, hud);
         }
+
+        // 5. Resolve complete HUD layout and hover reconciliation across viewport bounds
+        scope.finish_layout(params.viewport_rect);
     } else {
         // Play Mode HUD & In-Game Pause Menu Overlay
         play_hud::build_play_hud(scope, params);
@@ -53,9 +57,14 @@ pub fn build_viewport_hud_scope(scope: &mut UiScope<'_>, params: &ViewportHudPar
 /// Builds the interactive Viewport HUD overlay directly into the UI tree.
 ///
 /// Subtree layout and hover states are resolved declaratively across the viewport bounds.
-pub fn build_viewport_hud(tree: &mut UiTree, parent_id: WidgetId, params: &ViewportHudParams<'_>) {
+pub fn build_viewport_hud(
+    tree: &mut UiTree,
+    parent_id: WidgetId,
+    params: &ViewportHudParams<'_>,
+    hud: &mut ViewportHudState,
+) {
     let mut scope = UiScope::new(tree, parent_id);
-    build_viewport_hud_scope(&mut scope, params);
+    build_viewport_hud_scope(&mut scope, params, hud);
 }
 
 #[cfg(test)]
@@ -108,7 +117,8 @@ mod tests {
             is_2d: false,
         };
 
-        build_viewport_hud(&mut tree, root, &params);
+        let mut hud = ViewportHudState::default();
+        build_viewport_hud(&mut tree, root, &params, &mut hud);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
         // Verifies toolbar is present
@@ -140,7 +150,8 @@ mod tests {
             is_2d: true,
         };
 
-        build_viewport_hud(&mut tree, root, &params);
+        let mut hud = ViewportHudState::default();
+        build_viewport_hud(&mut tree, root, &params, &mut hud);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
         // In 2D mode, 3D camera and shading dropdowns are suppressed, gizmo tools remain
@@ -179,7 +190,8 @@ mod tests {
             is_2d: false,
         };
 
-        build_viewport_hud(&mut tree, root, &params);
+        let mut hud = ViewportHudState::default();
+        build_viewport_hud(&mut tree, root, &params, &mut hud);
 
         let tags: Vec<u64> = tree.iter().map(|(_, n)| n.tag).collect();
         // In play mode, edit toolbar and compass are hidden, pause menu items are shown

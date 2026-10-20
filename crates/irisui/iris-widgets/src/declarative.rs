@@ -37,5 +37,5 @@ pub use types::{
 pub use widget::{
     Button, Checkbox, Chip, ColorPicker, ColorPickerResponse, ColorSwatch, ComboBox,
     ComboBoxResponse, DragVec3, EmptyBox, NumericDrag, ScalarResponse, ScrollAreaView, Toolbar,
-    ToolbarButton, Vec3Response, Widget,
+    ToolbarButton, ToolbarGroup, ToolbarGroupScope, ToolbarScope, Vec3Response, Widget,
 };

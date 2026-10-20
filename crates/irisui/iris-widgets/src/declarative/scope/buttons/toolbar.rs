@@ -9,11 +9,12 @@
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;
 use iris_core::{
-    AlignItems, Color, CornerRadii, JustifyContent, Style, TextAlign, WidgetCursor, WidgetRole,
+    AlignItems, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, WidgetCursor,
+    WidgetRole,
 };
 
 impl<'a> UiScope<'a> {
-    /// Emits a 32×32 pixel square toolbar icon button for gizmos, tools, and coordinate toggles.
+    /// Emits a 32×32 pixel square toolbar icon button for tools, modes, and action toggles.
     ///
     /// Provides built-in hover lifting, active state coloring, and pointer cursor styling.
     ///
@@ -96,14 +97,14 @@ impl<'a> UiScope<'a> {
         WidgetResponse::new(btn_id, clicked, hovered, false)
     }
 
-    /// Emits a viewport toolbar mode selector button (e.g. Camera Mode or Shading Mode).
+    /// Emits a toolbar mode selector button with optional leading icon and text label (e.g. for dropdown triggers).
     ///
     /// # Arguments
     /// * `icon_uv` - Optional leading icon texture UV coordinates.
     /// * `label` - Caption text displayed on the mode button.
     /// * `tag` - Semantic tag for tracking interactions.
     /// * `is_open` - Whether the dropdown popup associated with this mode is open.
-    /// * `width` - Explicit button width in logical points.
+    /// * `width` - Explicit button width in logical points, or `0.0` for auto-sizing with padding.
     /// * `radii` - Corner radii styling.
     pub fn toolbar_mode_button(
         &mut self,
@@ -144,10 +145,14 @@ impl<'a> UiScope<'a> {
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center)
                 .gap(4.0)
-                .width(width)
-                .height(32.0)
+                .height(30.0)
                 .background(bg)
                 .corner_radii(radii);
+            if width > 0.0 {
+                style = style.width(width);
+            } else {
+                style = style.padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0));
+            }
             if !is_open {
                 style = style.hover_background(Color::rgba(0.20, 0.23, 0.30, 0.90));
             }

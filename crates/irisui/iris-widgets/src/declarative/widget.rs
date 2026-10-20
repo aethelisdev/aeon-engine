@@ -31,7 +31,7 @@ pub use drag_vec3::{DragVec3, Vec3Response};
 pub use empty_box::EmptyBox;
 pub use numeric_drag::{NumericDrag, ScalarResponse};
 pub use scroll_area::ScrollAreaView;
-pub use toolbar::Toolbar;
+pub use toolbar::{Toolbar, ToolbarGroup, ToolbarGroupScope, ToolbarScope};
 pub use toolbar_button::ToolbarButton;
 
 use super::scope::core::UiScope;

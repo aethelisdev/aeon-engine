@@ -34,6 +34,7 @@ impl IrisEditorOverlay {
 
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
+        let hud = &mut self.viewport_hud;
 
         scope.container_passive(root_style, |vp_scope| {
             if params.viewport.has_viewport_texture {
@@ -78,10 +79,10 @@ impl IrisEditorOverlay {
                     is_editing: params.context.is_editing,
                     is_2d: params.context.is_2d_mode,
                 },
+                hud,
             );
         });
 
-        self.viewport_hud.camera_angles =
-            (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
+        hud.camera_angles = (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
     }
 }

@@ -47,6 +47,10 @@ pub const TAG_PLAY_RESUME: u64 = 2040;
 pub const TAG_PLAY_EXIT: u64 = 2041;
 /// Semantic tag for the Play Mode aiming crosshair canvas.
 pub const TAG_PLAY_CROSSHAIR: u64 = 2050;
+/// Base semantic tag for camera mode dropdown popup items (2100..2104).
+pub const TAG_POPUP_CAMERA_BASE: u64 = 2100;
+/// Base semantic tag for shading mode dropdown popup items (2200..2201).
+pub const TAG_POPUP_SHADING_BASE: u64 = 2200;
 
 /// Identifies active floating dropdown menus in the Viewport HUD.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +83,8 @@ pub enum ViewportHudAction {
     SnapCamera(SceneViewSnap),
     /// Toggles wireframe overlay rendering mode.
     ToggleWireframe,
+    /// Sets explicit wireframe overlay rendering state.
+    SetWireframe(bool),
     /// Sets active transform gizmo operation mode.
     SetGizmoMode(GizmoMode),
     /// Toggles coordinate frame between World and Local space.
@@ -123,6 +129,193 @@ pub struct ViewportHudParams<'a> {
     pub is_2d: bool,
 }
 
+/// Cardinal and projection-mode classifications for camera display presentation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CameraViewOrientation {
+    /// 2D project or dimension mode.
+    TwoDimensional,
+    /// 3D Perspective projection mode.
+    Perspective,
+    /// Orthographic Top cardinal projection.
+    Top,
+    /// Orthographic Front cardinal projection.
+    Front,
+    /// Orthographic Right cardinal projection.
+    Right,
+    /// General custom Orthographic 3D projection.
+    Orthographic,
+}
+
+impl CameraViewOrientation {
+    /// Classifies active camera orientation and projection mode.
+    #[must_use]
+    pub fn from_camera(camera: &Camera, is_2d: bool) -> Self {
+        if is_2d {
+            Self::TwoDimensional
+        } else if camera.mode == ProjectionMode::Perspective {
+            Self::Perspective
+        } else if camera.pitch.0 < -1.5 {
+            Self::Top
+        } else if camera.pitch.0.abs() < 0.1 && camera.yaw.0 > 1.5 {
+            Self::Front
+        } else if camera.pitch.0.abs() < 0.1 && camera.yaw.0.abs() < 0.1 {
+            Self::Right
+        } else {
+            Self::Orthographic
+        }
+    }
+
+    /// Returns UI caption text for this orientation.
+    #[inline]
+    #[must_use]
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::TwoDimensional => "2D",
+            Self::Perspective => "Perspective",
+            Self::Top => "Top",
+            Self::Front => "Front",
+            Self::Right => "Right",
+            Self::Orthographic => "Orthographic",
+        }
+    }
+
+    /// Returns explicit button width in logical points.
+    #[inline]
+    #[must_use]
+    pub const fn width(&self) -> f32 {
+        match self {
+            Self::TwoDimensional => 44.0,
+            Self::Top => 54.0,
+            Self::Front | Self::Right => 58.0,
+            Self::Perspective | Self::Orthographic => 116.0,
+        }
+    }
+
+    /// Returns optional icon UV coordinates for leading cube icon.
+    #[inline]
+    #[must_use]
+    pub const fn icon_uv(&self) -> Option<[f32; 4]> {
+        match self {
+            Self::Perspective => Some(crate::ui::iris_bridge::icons::ICON_CUBE),
+            _ => None,
+        }
+    }
+
+    /// Returns semantic tag for the camera mode dropdown trigger.
+    #[inline]
+    #[must_use]
+    pub const fn tag(&self) -> u64 {
+        match self {
+            Self::TwoDimensional => 0,
+            _ => crate::ui::iris_bridge::viewport_hud::TAG_VIEWPORT_CAMERA_MODE,
+        }
+    }
+
+    /// Returns corner radii for the camera mode button within the segmented view modes container.
+    #[inline]
+    #[must_use]
+    pub const fn corner_radii(&self) -> CornerRadii {
+        match self {
+            Self::TwoDimensional => CornerRadii::all(3.0),
+            _ => CornerRadii::new(3.0, 0.0, 0.0, 3.0),
+        }
+    }
+}
+
+/// Shading display mode presentation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShadingViewMode {
+    /// Lit PBR shading mode.
+    Lit,
+    /// Wireframe overlay mode.
+    Wireframe,
+}
+
+impl ShadingViewMode {
+    /// Constructs shading mode presentation from wireframe active flag.
+    #[inline]
+    #[must_use]
+    pub const fn from_wireframe(wireframe_enabled: bool) -> Self {
+        if wireframe_enabled {
+            Self::Wireframe
+        } else {
+            Self::Lit
+        }
+    }
+
+    /// Returns caption text.
+    #[inline]
+    #[must_use]
+    pub const fn label(&self) -> &'static str {
+        match self {
+            Self::Lit => "Lit",
+            Self::Wireframe => "Wireframe",
+        }
+    }
+
+    /// Returns button width in logical points.
+    #[inline]
+    #[must_use]
+    pub const fn width(&self) -> f32 {
+        match self {
+            Self::Lit => 62.0,
+            Self::Wireframe => 96.0,
+        }
+    }
+
+    /// Returns mode icon UV coordinates.
+    #[inline]
+    #[must_use]
+    pub const fn icon_uv(&self) -> [f32; 4] {
+        match self {
+            Self::Lit => crate::ui::iris_bridge::icons::ICON_LIGHT,
+            Self::Wireframe => crate::ui::iris_bridge::icons::ICON_WIREFRAME,
+        }
+    }
+
+    /// Returns corner radii for the shading mode button (rounded on right corners).
+    #[inline]
+    #[must_use]
+    pub const fn corner_radii(&self) -> CornerRadii {
+        CornerRadii::new(0.0, 3.0, 3.0, 0.0)
+    }
+}
+
+impl<'a> ViewportHudParams<'a> {
+    /// Returns camera view orientation classification.
+    #[inline]
+    #[must_use]
+    pub fn camera_orientation(&self) -> CameraViewOrientation {
+        CameraViewOrientation::from_camera(self.camera, self.is_2d)
+    }
+
+    /// Returns shading view mode classification.
+    #[inline]
+    #[must_use]
+    pub const fn shading_mode(&self) -> ShadingViewMode {
+        ShadingViewMode::from_wireframe(self.wireframe_enabled)
+    }
+
+    /// Returns the exact required pixel width of the View Modes group container (including 2px border and 1px divider).
+    #[inline]
+    #[must_use]
+    pub fn view_modes_group_width(&self) -> f32 {
+        let cam_w = self.camera_orientation().width();
+        if self.is_2d {
+            cam_w + 2.0
+        } else {
+            cam_w + 1.0 + self.shading_mode().width() + 2.0
+        }
+    }
+
+    /// Returns the total required width for the floating toolbar strip.
+    #[inline]
+    #[must_use]
+    pub fn toolbar_total_width(&self) -> f32 {
+        self.view_modes_group_width() + 8.0 + 140.0 + 8.0 + 32.0
+    }
+}
+
 /// Persistent interactive state and dirty-tracking cache for the 3D Viewport HUD overlay.
 #[derive(Debug, Default, Clone)]
 pub struct ViewportHudState {
@@ -159,6 +352,12 @@ pub struct ViewportHudState {
 }
 
 impl ViewportHudState {
+    /// Dispatches a user interaction action directly onto the pending Viewport HUD action queue.
+    #[inline]
+    pub fn dispatch(&mut self, action: ViewportHudAction) {
+        self.actions.push(action);
+    }
+
     /// Consumes and returns all pending dispatched Viewport HUD actions.
     pub fn take_actions(&mut self) -> Vec<ViewportHudAction> {
         std::mem::take(&mut self.actions)

@@ -47,9 +47,15 @@ impl EngineUi {
                             iris_bridge::ViewportHudAction::ToggleWireframe => {
                                 self.wireframe_enabled = !self.wireframe_enabled;
                             }
+                            iris_bridge::ViewportHudAction::SetWireframe(enabled) => {
+                                self.wireframe_enabled = enabled;
+                            }
                             _ => {}
                         }
                     }
+                }
+                iris_bridge::ViewportHudAction::SetWireframe(enabled) => {
+                    self.wireframe_enabled = enabled;
                 }
                 iris_bridge::ViewportHudAction::SetCameraMode(cmode) => {
                     ui_actions.push(EngineUiAction::SetCameraMode(cmode));

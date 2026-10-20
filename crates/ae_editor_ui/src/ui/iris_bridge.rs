@@ -89,5 +89,6 @@ pub use ui_designer::{
     is_ui_designer_tag,
 };
 pub use viewport_hud::{
-    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, build_viewport_hud,
+    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
+    build_viewport_hud,
 };
