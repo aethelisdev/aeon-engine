@@ -25,7 +25,7 @@ pub mod scroll_area;
 pub mod settings;
 pub mod tree_view;
 
-pub use canvas::ChartDrawer;
+pub use canvas::{ChartDrawer, ImmediateCanvas};
 
 pub use cascading_menu::{
     CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,

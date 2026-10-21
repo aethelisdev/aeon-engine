@@ -42,6 +42,8 @@ pub struct UiTree {
     pub tag_rects: HashMap<u64, Rect>,
     /// Set of widget IDs acting as invalidation boundaries that are currently marked dirty.
     pub dirty_boundaries: std::collections::HashSet<WidgetId>,
+    /// Volatile immediate-mode canvas drawing primitives registered for high-frequency widgets.
+    pub volatile_canvas_commands: HashMap<WidgetId, Vec<crate::canvas::CanvasPrimitive>>,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
 }
@@ -63,6 +65,7 @@ impl UiTree {
             active_submenus: HashMap::new(),
             tag_rects: HashMap::new(),
             dirty_boundaries: std::collections::HashSet::new(),
+            volatile_canvas_commands: HashMap::new(),
             theme: crate::theme::Theme::default(),
         }
     }
@@ -77,6 +80,7 @@ impl UiTree {
         self.nodes.clear();
         self.root = None;
         self.dirty_boundaries.clear();
+        self.volatile_canvas_commands.clear();
     }
 
     /// Clears transient frame click and gesture records recorded for the current frame.
@@ -246,6 +250,7 @@ impl UiTree {
 
         for node_id in to_remove {
             self.dirty_boundaries.remove(&node_id);
+            self.volatile_canvas_commands.remove(&node_id);
             self.nodes.remove(node_id);
         }
 
@@ -260,5 +265,39 @@ impl UiTree {
                 self.collect_subtree(child_id, list);
             }
         }
+    }
+
+    /// Appends an immediate volatile canvas primitive to the command list of the given widget node.
+    #[inline]
+    pub fn add_canvas_primitive(
+        &mut self,
+        id: WidgetId,
+        primitive: crate::canvas::CanvasPrimitive,
+    ) {
+        self.volatile_canvas_commands
+            .entry(id)
+            .or_default()
+            .push(primitive);
+    }
+
+    /// Returns the volatile canvas primitives registered for the given widget node, if any.
+    #[inline]
+    #[must_use]
+    pub fn canvas_primitives(&self, id: WidgetId) -> Option<&[crate::canvas::CanvasPrimitive]> {
+        self.volatile_canvas_commands
+            .get(&id)
+            .map(|cmds| cmds.as_slice())
+    }
+
+    /// Clears all volatile canvas commands for a specific widget node.
+    #[inline]
+    pub fn clear_canvas_primitives_for(&mut self, id: WidgetId) {
+        self.volatile_canvas_commands.remove(&id);
+    }
+
+    /// Clears all volatile canvas commands across the entire tree.
+    #[inline]
+    pub fn clear_all_canvas_primitives(&mut self) {
+        self.volatile_canvas_commands.clear();
     }
 }

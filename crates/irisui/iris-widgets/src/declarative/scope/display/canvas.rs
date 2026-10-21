@@ -7,7 +7,9 @@
 //!
 
 use crate::declarative::scope::core::UiScope;
-use iris_core::{Color, Point, Rect, Style, TextAlign, WidgetCursor, WidgetRole};
+use iris_core::{
+    Color, Point, Rect, Size, Style, TextAlign, WidgetCursor, WidgetResponse, WidgetRole,
+};
 
 impl<'a> UiScope<'a> {
     /// Emits a blinking text input caret cursor node with [`WidgetRole::TextInputCaret`].
@@ -190,5 +192,90 @@ impl<'a> UiScope<'a> {
             );
         }
         let _ = self.tree.add_child(self.parent, thumb_id);
+    }
+
+    /// Emits a volatile immediate-mode canvas surface for high-frequency dynamic rendering.
+    ///
+    /// Ideal for oscilloscope curves, profiler telemetry charts, audio waveforms, and timeline scrubbers.
+    /// The closure receives an [`ImmediateCanvas`](crate::canvas::ImmediateCanvas) allowing direct emission of geometric primitives
+    /// without creating child nodes in the [`UiTree`](iris_core::UiTree) or triggering Taffy layout dirty flags.
+    ///
+    /// # Arguments
+    /// * `size` - Layout dimensions (width and height) reserved for the canvas container.
+    /// * `draw_fn` - Immediate drawing closure executed to populate per-frame volatile primitives.
+    pub fn immediate_canvas<F>(&mut self, size: Size, draw_fn: F) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
+        self.immediate_canvas_named("ImmediateCanvas", size, draw_fn)
+    }
+
+    /// Emits a volatile immediate-mode canvas surface with a diagnostic debug name.
+    ///
+    /// # Arguments
+    /// * `name` - Diagnostic name assigned to the host widget node.
+    /// * `size` - Layout dimensions (width and height) reserved for the canvas container.
+    /// * `draw_fn` - Immediate drawing closure executed to populate per-frame volatile primitives.
+    pub fn immediate_canvas_named<F>(
+        &mut self,
+        name: &'static str,
+        size: Size,
+        draw_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
+        let tag = self.tag_for(name);
+        self.immediate_canvas_tagged(name, tag, size, draw_fn)
+    }
+
+    /// Emits a volatile immediate-mode canvas surface with explicit semantic tag and debug name.
+    ///
+    /// # Arguments
+    /// * `name` - Diagnostic name assigned to the host widget node.
+    /// * `tag` - 64-bit semantic identifier for hit-testing and tag bounding retrieval.
+    /// * `size` - Layout dimensions (width and height) reserved for the canvas container.
+    /// * `draw_fn` - Immediate drawing closure executed to populate per-frame volatile primitives.
+    pub fn immediate_canvas_tagged<F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        size: Size,
+        draw_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
+        let node_id = self.tree.create_node();
+        let parent_layer = self
+            .tree
+            .get(self.parent)
+            .map(|p| p.layer)
+            .unwrap_or_default();
+
+        let bounds = self
+            .tree
+            .tag_rects
+            .get(&tag)
+            .copied()
+            .unwrap_or_else(|| Rect::new(0.0, 0.0, size.width, size.height));
+
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(name);
+            node.tag = tag;
+            node.role = WidgetRole::ImmediateCanvas;
+            node.interactive = true;
+            node.layer = parent_layer;
+            node.computed_rect = bounds;
+            node.set_style(Style::new().width(size.width).height(size.height));
+        }
+
+        let _ = self.tree.add_child(self.parent, node_id);
+        self.tree.clear_canvas_primitives_for(node_id);
+
+        let mut canvas = crate::canvas::ImmediateCanvas::new(self.tree, node_id, bounds);
+        draw_fn(&mut canvas);
+
+        self.response(node_id)
     }
 }

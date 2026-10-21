@@ -39,6 +39,8 @@ pub enum WidgetRole {
     FloatingWindow,
     /// Canvas for drawing real-time audio or profiler oscilloscope curves.
     OscilloscopeCanvas,
+    /// High-frequency immediate canvas surface rendering volatile primitives (graphs, waves, timelines).
+    ImmediateCanvas,
     /// Clickable menu bar header button (e.g. File, Edit, View, Window, Help).
     MenuBarItem,
     /// General-purpose clickable push button or action control.
@@ -157,6 +159,7 @@ impl WidgetRole {
             WidgetRole::Default
             | WidgetRole::Separator
             | WidgetRole::OscilloscopeCanvas
+            | WidgetRole::ImmediateCanvas
             | WidgetRole::MenuBarItem
             | WidgetRole::Button
             | WidgetRole::TextInput

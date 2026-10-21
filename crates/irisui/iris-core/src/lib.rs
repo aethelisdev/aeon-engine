@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod canvas;
 pub mod color;
 pub mod dirty;
 pub mod dispatch;
@@ -25,6 +26,7 @@ pub mod style;
 pub mod theme;
 pub mod tree;
 
+pub use canvas::CanvasPrimitive;
 pub use color::Color;
 pub use dirty::DirtyFlags;
 pub use dispatch::{DispatchResult, EventState, PopupMenuState};

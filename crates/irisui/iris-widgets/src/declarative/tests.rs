@@ -4,8 +4,8 @@
 //! # Declarative Subsystem Unit Tests
 
 use crate::declarative::{
-    TooltipExt, UiScope, layout_subtree,
-    widget::{Button, EmptyBox, ScrollAreaView, Toolbar, ToolbarButton},
+    UiScope, layout_subtree,
+    widget::{Button, ScrollAreaView, Toolbar, ToolbarButton},
 };
 use iris_core::{CornerRadii, InteractionEvent, MouseButton, Point, Rect, UiTree, WidgetRole};
 
@@ -739,110 +739,15 @@ fn test_declarative_text_wrap_multi_line_height_measurement() {
     assert_eq!(node.computed_rect.width, 150.0);
 }
 
-#[test]
-fn test_declarative_flex_wrap_row_layout() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root exists");
-    let mut scope = UiScope::new(&mut tree, root);
-
-    let mut item_ids = Vec::new();
-    let row_style = iris_core::Style::new()
-        .flex_row()
-        .flex_wrap(iris_core::FlexWrap::Wrap)
-        .gap(6.0);
-
-    scope.container_named("WrapContainer", row_style, |wrap_scope| {
-        for i in 0..5 {
-            let item_style = iris_core::Style::new().width(20.0).height(16.0);
-            let item_resp = wrap_scope.add(EmptyBox::new("WrapItem", item_style).tag(0x9000 + i));
-            let id = item_resp.id;
-            item_ids.push(id);
-        }
-    });
-
-    let bounds = Rect::new(0.0, 0.0, 50.0, 200.0);
-    scope.finish_layout(bounds);
-
-    // With bounds width 50.0, item width 20.0 and gap 6.0:
-    // Line 1: Item 0 (x=0..20), Item 1 (x=26..46).
-    // Item 2 doesn't fit in 50 (26+20+6=52 > 50), so it wraps to Line 2!
-    // Line 2: Item 2 (x=0..20, y=22), Item 3 (x=26..46, y=22).
-    // Line 3: Item 4 (x=0..20, y=44).
-    let r0 = tree.get(item_ids[0]).unwrap().computed_rect;
-    let r1 = tree.get(item_ids[1]).unwrap().computed_rect;
-    let r2 = tree.get(item_ids[2]).unwrap().computed_rect;
-    let r3 = tree.get(item_ids[3]).unwrap().computed_rect;
-    let r4 = tree.get(item_ids[4]).unwrap().computed_rect;
-
-    assert_eq!(r0.x, 0.0);
-    assert_eq!(r0.y, 0.0);
-    assert_eq!(r1.x, 26.0);
-    assert_eq!(r1.y, 0.0);
-
-    assert_eq!(r2.x, 0.0);
-    assert_eq!(r2.y, 22.0); // 16.0 + 6.0 = 22.0
-    assert_eq!(r3.x, 26.0);
-    assert_eq!(r3.y, 22.0);
-
-    assert_eq!(r4.x, 0.0);
-    assert_eq!(r4.y, 44.0); // 22.0 + 22.0 = 44.0
-}
-
-#[test]
-fn test_declarative_tooltip_attaches_and_renders_on_hover() {
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("Root should be created");
-
-    // 1. Build a button with a tooltip
-    let btn_id = {
-        let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.button("Save File");
-        resp.tooltip(&mut scope, "Saves current project (Ctrl+S)");
-        resp.id
-    };
-
-    // Before hover timer triggers, no tooltip node exists under root
-    assert_eq!(tree.get(root).unwrap().children.len(), 1);
-
-    // Simulate hover timer expiration for this button
-    let now = std::time::Instant::now();
-    let delay = std::time::Duration::from_millis(400);
-    tree.event_state.active_tooltip = Some(iris_core::dispatch::TooltipState {
-        target_id: btn_id,
-        target_tag: tree.get(btn_id).unwrap().tag,
-        anchor_pos: Point::new(50.0, 50.0),
-        hover_start: now - delay - std::time::Duration::from_millis(50),
-        delay,
-        is_open: true,
-    });
-
-    // 2. Re-render UI frame with active tooltip
-    let _ = {
-        let mut scope = UiScope::new(&mut tree, root);
-        let resp = scope.button("Save File");
-        resp.tooltip(&mut scope, "Saves current project (Ctrl+S)");
-        resp.id
-    };
-
-    // Now a tooltip overlay card node exists on UiLayer::Tooltip
-    let root_node = tree.get(root).unwrap();
-    let tooltip_node_id = root_node.children.iter().copied().find(|&id| {
-        tree.get(id)
-            .is_some_and(|n| n.layer == iris_core::UiLayer::Tooltip)
-    });
-    assert!(
-        tooltip_node_id.is_some(),
-        "Tooltip node must be attached to root on UiLayer::Tooltip"
-    );
-}
-
 mod autonomous_layout_tests;
 mod collapsing_tests;
 mod color_picker_tests;
 mod color_swatch_tests;
 mod context_menu_tests;
 mod hierarchical_seed_tests;
+mod immediate_canvas_tests;
 mod input_box_tests;
 mod property_tests;
 mod response_tests;
 mod spacing_and_child_event_tests;
+mod tooltip_tests;

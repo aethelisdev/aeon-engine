@@ -8,7 +8,7 @@
 //! and floating dropdown menus without requiring manual calls to `scope.finish_layout(rect)`.
 //!
 
-use crate::declarative::UiScope;
+use crate::declarative::{EmptyBox, UiScope};
 use iris_core::{Color, Point, Rect, Style, UiTree, WidgetRole};
 
 #[test]
@@ -128,4 +128,48 @@ fn test_dropdown_menu_card_autonomous_layout() {
     assert_eq!(dd_node.computed_rect.y, 40.0);
     assert_eq!(dd_node.computed_rect.width, 160.0);
     assert!(dd_node.computed_rect.height > 0.0);
+}
+
+#[test]
+fn test_declarative_flex_wrap_row_layout() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root exists");
+    let mut scope = UiScope::new(&mut tree, root);
+
+    let mut item_ids = Vec::new();
+    let row_style = iris_core::Style::new()
+        .flex_row()
+        .flex_wrap(iris_core::FlexWrap::Wrap)
+        .gap(6.0);
+
+    scope.container_named("WrapContainer", row_style, |wrap_scope| {
+        for i in 0..5 {
+            let item_style = iris_core::Style::new().width(20.0).height(16.0);
+            let item_resp = wrap_scope.add(EmptyBox::new("WrapItem", item_style).tag(0x9000 + i));
+            let id = item_resp.id;
+            item_ids.push(id);
+        }
+    });
+
+    let bounds = Rect::new(0.0, 0.0, 50.0, 200.0);
+    scope.finish_layout(bounds);
+
+    let r0 = tree.get(item_ids[0]).unwrap().computed_rect;
+    let r1 = tree.get(item_ids[1]).unwrap().computed_rect;
+    let r2 = tree.get(item_ids[2]).unwrap().computed_rect;
+    let r3 = tree.get(item_ids[3]).unwrap().computed_rect;
+    let r4 = tree.get(item_ids[4]).unwrap().computed_rect;
+
+    assert_eq!(r0.x, 0.0);
+    assert_eq!(r0.y, 0.0);
+    assert_eq!(r1.x, 26.0);
+    assert_eq!(r1.y, 0.0);
+
+    assert_eq!(r2.x, 0.0);
+    assert_eq!(r2.y, 22.0); // 16.0 + 6.0 = 22.0
+    assert_eq!(r3.x, 26.0);
+    assert_eq!(r3.y, 22.0);
+
+    assert_eq!(r4.x, 0.0);
+    assert_eq!(r4.y, 44.0); // 22.0 + 22.0 = 44.0
 }
