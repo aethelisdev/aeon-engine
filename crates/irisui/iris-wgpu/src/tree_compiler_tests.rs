@@ -362,3 +362,93 @@ fn test_tree_compiler_immediate_canvas_primitives() {
     // 3 quads should be generated from immediate canvas primitives
     assert_eq!(cmd_list.quads.len(), 3);
 }
+
+#[test]
+fn test_tree_compiler_role_based_layer_elevation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 500.0, 500.0);
+        node.style = Style::new().background(Color::BLACK);
+        // Explicitly leaves layer as Content (default)
+    }
+
+    // Role-inferred elevated popup without explicit set_layer call
+    let popup = tree.create_node();
+    if let Some(node) = tree.get_mut(popup) {
+        node.computed_rect = Rect::new(10.0, 10.0, 100.0, 100.0);
+        node.style = Style::new().background(Color::RED);
+        node.role = WidgetRole::DropdownPopup;
+        // layer is left as default Content
+    }
+    let _ = tree.add_child(root, popup);
+
+    let mut options = TreeCompilerOptions::new();
+    let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+    // Two quads compiled in strict Z-order: Content (root) then Popup (role-inferred)
+    assert_eq!(cmd_list.quads.len(), 2);
+    assert_eq!(cmd_list.quads[0].rect[2], 500.0);
+    assert_eq!(cmd_list.quads[1].rect[2], 100.0);
+}
+
+#[test]
+fn test_tree_compiler_layer_range_filtering_with_scissor() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 600.0, 600.0);
+        node.style = Style::new().background(Color::BLACK);
+        node.layer = UiLayer::Content;
+    }
+
+    let modal = tree.create_node();
+    if let Some(node) = tree.get_mut(modal) {
+        node.computed_rect = Rect::new(50.0, 50.0, 200.0, 200.0);
+        node.style = Style::new().background(Color::GREEN);
+        node.layer = UiLayer::Modal;
+    }
+    let _ = tree.add_child(root, modal);
+
+    // Initial clip provided, but only elevated overlays (Modal..Tooltip) requested
+    let mut options = TreeCompilerOptions::new()
+        .with_clip(Some(Rect::new(0.0, 0.0, 300.0, 300.0)))
+        .with_layer_range(UiLayer::Modal, UiLayer::Tooltip);
+    let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+    // Only modal should be compiled
+    assert_eq!(cmd_list.quads.len(), 1);
+    assert_eq!(cmd_list.quads[0].rect[2], 200.0);
+
+    // Initial SetScissor should NOT be emitted because base layers were excluded
+    let has_set_scissor = cmd_list
+        .commands
+        .iter()
+        .any(|c| matches!(c, crate::command::DrawCommand::SetScissor { .. }));
+    assert!(!has_set_scissor);
+}
+
+#[test]
+fn test_tree_compiler_scissor_cleanliness_at_end() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 400.0, 400.0);
+        node.style = Style::new().background(Color::BLACK);
+        node.layer = UiLayer::Content;
+    }
+
+    // Clip provided for content-only tree
+    let mut options = TreeCompilerOptions::new().with_clip(Some(Rect::new(0.0, 0.0, 200.0, 200.0)));
+    let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+    // Must start with SetScissor and end with ResetScissor
+    assert!(matches!(
+        cmd_list.commands.first(),
+        Some(crate::command::DrawCommand::SetScissor { .. })
+    ));
+    assert!(matches!(
+        cmd_list.commands.last(),
+        Some(crate::command::DrawCommand::ResetScissor)
+    ));
+}

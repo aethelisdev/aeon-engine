@@ -150,7 +150,22 @@ pub fn compile_tree_draw_commands_into(
     populate_layer_commands(tree, root_id, &mut ctx, &mut layer_lists);
     output.clear();
 
-    let mut had_scissor = options.initial_clip.is_some();
+    let mut had_scissor = false;
+    if let Some(clip) = options.initial_clip {
+        // Only apply initial hardware scissor if compiling base/content layers
+        let includes_base_layers = options
+            .layer_range
+            .is_none_or(|(min, _)| min < UiLayer::Modal);
+        if includes_base_layers {
+            let sx = clip.x.max(0.0).floor() as u32;
+            let sy = clip.y.max(0.0).floor() as u32;
+            let sw = clip.width.max(1.0).ceil() as u32;
+            let sh = clip.height.max(1.0).ceil() as u32;
+            output.push_scissor(sx, sy, sw, sh);
+            had_scissor = true;
+        }
+    }
+
     for (layer_idx, list) in layer_lists.into_iter().enumerate() {
         if let Some((min_layer, max_layer)) = options.layer_range
             && (layer_idx < min_layer.index() || layer_idx > max_layer.index())
@@ -174,6 +189,11 @@ pub fn compile_tree_draw_commands_into(
             had_scissor = true;
         }
         output.append(list);
+    }
+
+    // Ensure hardware scissor does not leak into subsequent frame operations
+    if had_scissor {
+        output.push_reset_scissor();
     }
 }
 
@@ -219,16 +239,22 @@ fn populate_layer_commands(
         return;
     }
 
-    let effective_layer = if node.layer > ctx.inherited_layer {
+    let explicit_or_default_layer = if node.layer != UiLayer::Content {
         node.layer
+    } else {
+        node.role.default_layer()
+    };
+
+    let effective_layer = if explicit_or_default_layer > ctx.inherited_layer {
+        explicit_or_default_layer
     } else {
         ctx.inherited_layer
     };
 
-    // A node is an elevated overlay root if its explicit layer exceeds the inherited layer,
+    // A node is an elevated overlay root if its explicit or role-inferred layer exceeds the inherited layer,
     // or if its semantic role designates an independent floating/overlay container
     // (DropdownPopup, ModalWindow, FloatingWindow, Tooltip).
-    let is_elevated_root = node.layer > ctx.inherited_layer
+    let is_elevated_root = effective_layer > ctx.inherited_layer
         || matches!(
             node.role,
             WidgetRole::DropdownPopup
