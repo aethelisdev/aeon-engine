@@ -93,6 +93,7 @@ impl UiTree {
         self.active_combobox_tag = None;
         self.event_state.active_context_menu = None;
         self.active_submenus.clear();
+        self.event_state.close_tooltip();
         had_popup
     }
 
@@ -104,6 +105,56 @@ impl UiTree {
             || self.active_menu_bar_tag.is_some()
             || self.active_combobox_tag.is_some()
             || !self.active_submenus.is_empty()
+    }
+
+    /// Returns `true` if an autonomous tooltip is currently open and actively visible.
+    #[inline]
+    #[must_use]
+    pub fn has_open_tooltip(&self) -> bool {
+        self.event_state.has_open_tooltip()
+    }
+
+    /// Closes any active or pending tooltip display.
+    #[inline]
+    pub fn close_tooltip(&mut self) {
+        self.event_state.close_tooltip();
+    }
+
+    /// Checks if a tooltip is currently open for the given widget identifier or semantic tag,
+    /// promoting pending hover states to active if the delay threshold has elapsed.
+    #[inline]
+    pub fn is_tooltip_open_for(&mut self, target_id: WidgetId, target_tag: u64) -> bool {
+        if let Some(ref mut tooltip) = self.event_state.active_tooltip {
+            let is_match = tooltip.target_id == target_id
+                || (target_tag != 0 && tooltip.target_tag == target_tag);
+            if is_match {
+                if !tooltip.is_open
+                    && std::time::Instant::now().duration_since(tooltip.hover_start)
+                        >= tooltip.delay
+                {
+                    tooltip.is_open = true;
+                }
+                return tooltip.is_open;
+            }
+        }
+        false
+    }
+
+    /// Checks active hover timers against the current monotonic timestamp, promoting
+    /// pending tooltips to open state if their delay duration has elapsed.
+    ///
+    /// Returns `true` if a pending tooltip transitioned from closed to open, indicating
+    /// that an immediate visual redraw should occur.
+    #[inline]
+    pub fn check_hover_timers(&mut self, now: std::time::Instant) -> bool {
+        if let Some(ref mut tooltip) = self.event_state.active_tooltip
+            && !tooltip.is_open
+            && now.duration_since(tooltip.hover_start) >= tooltip.delay
+        {
+            tooltip.is_open = true;
+            return true;
+        }
+        false
     }
 
     /// Returns whether the submenu identified by semantic `submenu_tag` branching from `parent_tag` is currently opened.

@@ -21,6 +21,29 @@ pub const DOUBLE_CLICK_MAX_DELAY_MS: u128 = 400;
 /// Maximum allowable squared Euclidean distance in pixels between consecutive clicks for double-click.
 pub const DOUBLE_CLICK_MAX_DISTANCE_SQ: f32 = 25.0;
 
+/// Default duration in milliseconds an element must remain hovered before an autonomous tooltip opens.
+pub const TOOLTIP_DEFAULT_HOVER_DELAY_MS: u64 = 400;
+
+/// Persistent tracking state of active pointer hover and autonomous tooltip display.
+///
+/// Records the hovered widget node, its semantic tag, the anchor coordinate where hover began,
+/// and the timestamp of hover inception to enforce non-blocking delayed activation.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TooltipState {
+    /// Widget node identifier currently underneath the pointer.
+    pub target_id: WidgetId,
+    /// Semantic 64-bit tag of the target widget node, if assigned (`0` if none).
+    pub target_tag: u64,
+    /// Absolute cursor screen position when hover started or tooltip anchored.
+    pub anchor_pos: Point,
+    /// Timestamp when pointer hover over this widget began.
+    pub hover_start: Instant,
+    /// Configured duration threshold before tooltip is presented.
+    pub delay: std::time::Duration,
+    /// Whether the tooltip has passed its hover delay and is actively visible.
+    pub is_open: bool,
+}
+
 /// Persistent state tracking the currently open popup or context menu.
 ///
 /// Maintained across frames to support retained popup flyouts, contextual actions,
@@ -106,6 +129,8 @@ pub struct EventState {
     /// Whether the active pointer interaction has exceeded the drag threshold (>3px)
     /// and is actively recognized as an ongoing dragging gesture.
     pub is_pointer_drag_active: bool,
+    /// Active or pending tooltip state tracking hover duration and anchor coordinates.
+    pub active_tooltip: Option<TooltipState>,
 }
 
 impl EventState {
@@ -144,6 +169,7 @@ impl EventState {
             active_numeric_edit: None,
             active_text_edit: None,
             is_pointer_drag_active: false,
+            active_tooltip: None,
         }
     }
 
@@ -175,6 +201,7 @@ impl EventState {
         self.frame_text_input = None;
         self.frame_key_pressed = false;
         self.is_pointer_drag_active = false;
+        self.active_tooltip = None;
     }
 
     /// Clears any confirmed click state recorded for the current frame.
@@ -345,6 +372,32 @@ impl EventState {
             None => false,
         }
     }
+
+    /// Closes any active or pending tooltip display.
+    #[inline]
+    pub fn close_tooltip(&mut self) {
+        self.active_tooltip = None;
+    }
+
+    /// Returns `true` if a tooltip is currently active and passed its hover delay.
+    #[inline]
+    #[must_use]
+    pub fn has_open_tooltip(&self) -> bool {
+        self.active_tooltip.as_ref().is_some_and(|t| t.is_open)
+    }
+
+    /// Returns `true` if a tooltip is currently open for the given widget identifier or semantic tag.
+    #[inline]
+    #[must_use]
+    pub fn is_tooltip_open_for(&self, target_id: WidgetId, target_tag: u64) -> bool {
+        if let Some(ref tooltip) = self.active_tooltip
+            && tooltip.is_open
+        {
+            return tooltip.target_id == target_id
+                || (target_tag != 0 && tooltip.target_tag == target_tag);
+        }
+        false
+    }
 }
 
 /// Comprehensive outcome of dispatching a [`crate::event::UiEvent`] through the hierarchical UI graph.
@@ -374,6 +427,8 @@ pub struct DispatchResult {
     pub is_key_pressed: bool,
     /// Printable text or committed character string delivered by typing or IME input.
     pub text_input: Option<String>,
+    /// Optional timeout delay until the next required UI tick (e.g. for tooltip hover timer).
+    pub next_timeout: Option<std::time::Duration>,
 }
 
 impl DispatchResult {
@@ -391,6 +446,7 @@ impl DispatchResult {
             key: None,
             is_key_pressed: false,
             text_input: None,
+            next_timeout: None,
         }
     }
 
@@ -408,6 +464,7 @@ impl DispatchResult {
             key: None,
             is_key_pressed: false,
             text_input: None,
+            next_timeout: None,
         }
     }
 
@@ -456,6 +513,13 @@ impl DispatchResult {
     #[inline]
     pub fn with_text(mut self, text: Option<String>) -> Self {
         self.text_input = text;
+        self
+    }
+
+    /// Attaches a scheduled timer wake-up duration to this dispatch result.
+    #[inline]
+    pub const fn with_next_timeout(mut self, timeout: Option<std::time::Duration>) -> Self {
+        self.next_timeout = timeout;
         self
     }
 }

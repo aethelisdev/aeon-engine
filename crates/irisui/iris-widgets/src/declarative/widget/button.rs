@@ -39,6 +39,7 @@ pub struct Button {
     is_flex: bool,
     icon_uv: Option<[f32; 4]>,
     icon_size: Option<f32>,
+    tooltip: Option<String>,
 }
 
 impl Button {
@@ -66,6 +67,7 @@ impl Button {
             is_flex: false,
             icon_uv: None,
             icon_size: None,
+            tooltip: None,
         }
     }
 
@@ -209,6 +211,21 @@ impl Button {
         self.style = Some(style);
         self
     }
+
+    /// Sets an optional tooltip text displayed on hover after the delay threshold.
+    #[inline]
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    /// Alias for [`Self::tooltip`] conforming to egui standard convention.
+    #[inline]
+    #[must_use]
+    pub fn on_hover_text(self, text: impl Into<String>) -> Self {
+        self.tooltip(text)
+    }
 }
 
 impl Widget for Button {
@@ -338,6 +355,12 @@ impl Widget for Button {
             }
 
             node.style = base_style;
+        }
+
+        if let Some(tip) = self.tooltip {
+            scope.tooltip_for(node_id, move |ui| {
+                ui.tooltip_label(tip);
+            });
         }
 
         let mut resp = WidgetResponse::new(node_id, clicked, hovered, false);

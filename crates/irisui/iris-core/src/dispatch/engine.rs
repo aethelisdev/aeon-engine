@@ -9,7 +9,10 @@
 
 use std::time::Instant;
 
-use super::types::{DOUBLE_CLICK_MAX_DELAY_MS, DOUBLE_CLICK_MAX_DISTANCE_SQ, DispatchResult};
+use super::types::{
+    DOUBLE_CLICK_MAX_DELAY_MS, DOUBLE_CLICK_MAX_DISTANCE_SQ, DispatchResult,
+    TOOLTIP_DEFAULT_HOVER_DELAY_MS, TooltipState,
+};
 use crate::event::{ImeEvent, KeyCode, MouseButton, UiEvent};
 use crate::geometry::Point;
 use crate::id::WidgetId;
@@ -215,12 +218,17 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             key: None,
             is_key_pressed: false,
             text_input: None,
+            next_timeout: None,
         };
     }
 
     // 2. Perform layered hit-testing against active tree
     let hit_id = tree.hit_test_layered(point);
     tree.event_state.hovered = hit_id;
+
+    let now = std::time::Instant::now();
+    let mut next_timeout = None;
+    let mut needs_redraw = false;
 
     if let Some(target_id) = hit_id {
         // Find cursor override traversing upward if child does not specify one
@@ -230,6 +238,45 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             .map(|n| (n.tag, n.computed_rect))
             .unwrap_or((0, crate::geometry::Rect::ZERO));
 
+        // Evaluate autonomous hover timer and tooltip state
+        let is_same_target = if let Some(ref current) = tree.event_state.active_tooltip {
+            current.target_id == target_id
+                || (tag != 0 && current.target_tag == tag)
+                || (current.target_tag != 0
+                    && tree.resolve_ancestor_tag(target_id) == current.target_tag)
+                || tree.is_descendant_of(target_id, current.target_id)
+        } else {
+            false
+        };
+
+        if is_same_target {
+            if let Some(ref mut tooltip) = tree.event_state.active_tooltip {
+                let elapsed = now.duration_since(tooltip.hover_start);
+                if !tooltip.is_open {
+                    if elapsed >= tooltip.delay {
+                        tooltip.is_open = true;
+                        needs_redraw = true;
+                    } else {
+                        next_timeout = Some(tooltip.delay.saturating_sub(elapsed));
+                    }
+                }
+            }
+        } else {
+            if tree.event_state.has_open_tooltip() {
+                needs_redraw = true;
+            }
+            let default_delay = std::time::Duration::from_millis(TOOLTIP_DEFAULT_HOVER_DELAY_MS);
+            next_timeout = Some(default_delay);
+            tree.event_state.active_tooltip = Some(TooltipState {
+                target_id,
+                target_tag: tag,
+                anchor_pos: point,
+                hover_start: now,
+                delay: default_delay,
+                is_open: false,
+            });
+        }
+
         let mut flags = ResponseFlags::HOVERED;
         if tree.event_state.pressed == Some(target_id) {
             flags = flags.union(ResponseFlags::PRESSED);
@@ -237,7 +284,7 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
 
         DispatchResult {
             consumed: false, // Normal hover motion does not consume the event
-            needs_redraw: false,
+            needs_redraw,
             target: Some(target_id),
             target_tag: tag,
             cursor,
@@ -246,14 +293,32 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
             key: None,
             is_key_pressed: false,
             text_input: None,
+            next_timeout,
         }
     } else {
-        DispatchResult::ignored()
+        if tree.event_state.has_open_tooltip() {
+            needs_redraw = true;
+        }
+        tree.event_state.active_tooltip = None;
+        DispatchResult {
+            consumed: false,
+            needs_redraw,
+            target: None,
+            target_tag: 0,
+            cursor: None,
+            response: None,
+            scroll_delta: (0.0, 0.0),
+            key: None,
+            is_key_pressed: false,
+            text_input: None,
+            next_timeout: None,
+        }
     }
 }
 
 /// Processes mouse button press inputs, initiating press states, focus, and drag capture.
 fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> DispatchResult {
+    tree.close_tooltip();
     tree.event_state.frame_clicked_id = None;
     tree.event_state.frame_clicked_tag = None;
     tree.event_state.frame_double_clicked_id = None;
@@ -455,6 +520,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             key: None,
             is_key_pressed: false,
             text_input: None,
+            next_timeout: None,
         }
     } else {
         // Clicking on empty area clears active keyboard and tag focus
@@ -561,6 +627,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             key: None,
             is_key_pressed: false,
             text_input: None,
+            next_timeout: None,
         };
     }
 
@@ -703,6 +770,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 key: None,
                 is_key_pressed: false,
                 text_input: None,
+                next_timeout: None,
             }
         } else {
             DispatchResult {
@@ -720,6 +788,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                 key: None,
                 is_key_pressed: false,
                 text_input: None,
+                next_timeout: None,
             }
         }
     } else {
@@ -806,6 +875,7 @@ fn handle_mouse_scroll(
                         key: None,
                         is_key_pressed: false,
                         text_input: None,
+                        next_timeout: None,
                     };
                 } else {
                     return DispatchResult {
@@ -823,6 +893,7 @@ fn handle_mouse_scroll(
                         key: None,
                         is_key_pressed: false,
                         text_input: None,
+                        next_timeout: None,
                     };
                 }
             }
@@ -846,8 +917,9 @@ fn handle_keyboard(
     tree.event_state.frame_clicked_tag = None;
     tree.event_state.frame_drag_delta = None;
 
-    if is_pressed && key == KeyCode::Escape && tree.has_open_popup() {
+    if is_pressed && key == KeyCode::Escape && (tree.has_open_popup() || tree.has_open_tooltip()) {
         tree.close_all_popups();
+        tree.close_tooltip();
         return DispatchResult {
             consumed: true,
             needs_redraw: true,
@@ -953,6 +1025,7 @@ fn handle_keyboard(
             key: if consumed { Some(key) } else { None },
             is_key_pressed: is_pressed,
             text_input: if is_pressed && consumed { text } else { None },
+            next_timeout: None,
         }
     } else {
         tree.event_state.frame_key = None;
@@ -1001,6 +1074,7 @@ fn handle_ime(tree: &mut UiTree, ime_event: ImeEvent) -> DispatchResult {
             key: None,
             is_key_pressed: false,
             text_input: committed_text,
+            next_timeout: None,
         }
     } else {
         tree.event_state.frame_key = None;

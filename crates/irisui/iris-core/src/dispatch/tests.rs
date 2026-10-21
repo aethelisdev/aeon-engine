@@ -1065,3 +1065,126 @@ fn test_autonomous_escape_key_dismisses_all_popups() {
     assert_eq!(tree.active_menu_bar_tag, None);
     assert_eq!(tree.active_combobox_tag, None);
 }
+
+#[test]
+fn test_tooltip_hover_timer_and_activation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn = tree.create_node();
+    tree.add_child(root, btn).unwrap();
+
+    let btn_node = tree.get_mut(btn).unwrap();
+    btn_node.visible = true;
+    btn_node.interactive = true;
+    btn_node.computed_rect = Rect::new(50.0, 50.0, 100.0, 30.0);
+    btn_node.tag = 101;
+
+    // 1. Move cursor over button -> Hover initiated, tooltip pending
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(60.0, 60.0),
+    };
+    let res = tree.dispatch_event(&move_ev);
+    assert!(!res.needs_redraw);
+    assert_eq!(res.target, Some(btn));
+    assert!(res.next_timeout.is_some());
+    assert!(!tree.has_open_tooltip());
+
+    // 2. Before delay expires: tooltip is not open
+    assert!(!tree.is_tooltip_open_for(btn, 101));
+
+    // 3. Time advances past 400ms delay threshold
+    let future_time = std::time::Instant::now() + std::time::Duration::from_millis(450);
+    let woke = tree.check_hover_timers(future_time);
+    assert!(
+        woke,
+        "check_hover_timers must return true on transition to open"
+    );
+    assert!(tree.has_open_tooltip());
+    assert!(tree.is_tooltip_open_for(btn, 101));
+}
+
+#[test]
+fn test_tooltip_dismiss_on_mouse_down_and_escape() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn = tree.create_node();
+    tree.add_child(root, btn).unwrap();
+
+    let btn_node = tree.get_mut(btn).unwrap();
+    btn_node.visible = true;
+    btn_node.interactive = true;
+    btn_node.computed_rect = Rect::new(10.0, 10.0, 80.0, 24.0);
+    btn_node.tag = 202;
+
+    // Move over button and force open tooltip
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(20.0, 20.0),
+    });
+    let future_time = std::time::Instant::now() + std::time::Duration::from_millis(450);
+    tree.check_hover_timers(future_time);
+    assert!(tree.has_open_tooltip());
+
+    // MouseDown immediately dismisses tooltip
+    let down_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    };
+    let _ = tree.dispatch_event(&down_ev);
+    assert!(!tree.has_open_tooltip(), "MouseDown must dismiss tooltip");
+
+    // MouseUp release
+    let up_ev = UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: Point::new(20.0, 20.0),
+    };
+    let _ = tree.dispatch_event(&up_ev);
+
+    // Re-hover and force open again
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(25.0, 22.0),
+    });
+    tree.check_hover_timers(std::time::Instant::now() + std::time::Duration::from_millis(450));
+    assert!(tree.has_open_tooltip());
+
+    // Escape dismisses tooltip
+    let esc_ev = UiEvent::KeyboardInput {
+        key: KeyCode::Escape,
+        text: None,
+        is_pressed: true,
+    };
+    let res = tree.dispatch_event(&esc_ev);
+    assert!(res.is_consumed());
+    assert!(res.needs_redraw);
+    assert!(!tree.has_open_tooltip(), "Escape must dismiss tooltip");
+}
+
+#[test]
+fn test_tooltip_closes_when_mouse_leaves() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let btn = tree.create_node();
+    tree.add_child(root, btn).unwrap();
+
+    let btn_node = tree.get_mut(btn).unwrap();
+    btn_node.visible = true;
+    btn_node.interactive = true;
+    btn_node.computed_rect = Rect::new(0.0, 0.0, 50.0, 50.0);
+
+    // Hover button
+    let _ = tree.dispatch_event(&UiEvent::MouseMove {
+        point: Point::new(25.0, 25.0),
+    });
+    tree.check_hover_timers(std::time::Instant::now() + std::time::Duration::from_millis(450));
+    assert!(tree.has_open_tooltip());
+
+    // Move mouse out to empty space -> Tooltip closed and redraw requested
+    let move_out = UiEvent::MouseMove {
+        point: Point::new(200.0, 200.0),
+    };
+    let res = tree.dispatch_event(&move_out);
+    assert!(
+        res.needs_redraw,
+        "Exiting hover target must trigger redraw to erase tooltip"
+    );
+    assert!(!tree.has_open_tooltip());
+}

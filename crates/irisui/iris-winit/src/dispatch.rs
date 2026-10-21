@@ -36,8 +36,35 @@ pub fn dispatch_winit_event(
     state: &mut WinitState,
     event: &WindowEvent,
 ) -> DispatchResult {
-    if let Some(ui_event) = state.on_window_event(event) {
+    let mut res = if let Some(ui_event) = state.on_window_event(event) {
         tree.dispatch_event(&ui_event)
+    } else {
+        DispatchResult::ignored()
+    };
+
+    if tree.check_hover_timers(std::time::Instant::now()) {
+        res.needs_redraw = true;
+    }
+
+    res
+}
+
+/// Polls active UI timers (such as hover delays for tooltips).
+///
+/// Intended to be called on timer wakeups or event loop idle passes (e.g. `AboutToWait` in Winit)
+/// to detect hover timer expirations without requiring pointer movement.
+///
+/// Returns a [`DispatchResult`] with `needs_redraw: true` if an autonomous tooltip or UI transition
+/// was activated, prompting the host window to request a redraw.
+pub fn poll_timers(tree: &mut UiTree, _state: &mut WinitState) -> DispatchResult {
+    let now = std::time::Instant::now();
+    let woke = tree.check_hover_timers(now);
+    if woke {
+        DispatchResult {
+            consumed: false,
+            needs_redraw: true,
+            ..DispatchResult::ignored()
+        }
     } else {
         DispatchResult::ignored()
     }
@@ -166,5 +193,35 @@ mod tests {
             !tree.has_open_popup(),
             "Combobox must be closed after outside click"
         );
+    }
+
+    #[test]
+    fn test_dispatch_winit_poll_timers_and_hover() {
+        let mut tree = UiTree::new();
+        let mut state = WinitState::new(1.0);
+        let root = tree.create_root().expect("Root node created");
+        let btn = tree.create_node();
+        tree.add_child(root, btn).expect("Child added");
+
+        let node = tree.get_mut(btn).expect("Node exists");
+        node.visible = true;
+        node.interactive = true;
+        node.computed_rect = Rect::new(50.0, 50.0, 100.0, 30.0);
+
+        // Move over button
+        let move_ev = WindowEvent::CursorMoved {
+            device_id: DeviceId::dummy(),
+            position: PhysicalPosition::new(60.0, 60.0),
+        };
+        let res = dispatch_winit_event(&mut tree, &mut state, &move_ev);
+        assert!(!res.needs_redraw);
+
+        // Fast forward time past 400ms delay threshold and poll timers
+        let target_time = std::time::Instant::now() + std::time::Duration::from_millis(450);
+        tree.check_hover_timers(target_time);
+
+        let poll_res = poll_timers(&mut tree, &mut state);
+        assert!(tree.has_open_tooltip());
+        assert!(!poll_res.is_consumed());
     }
 }

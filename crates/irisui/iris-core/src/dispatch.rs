@@ -19,5 +19,5 @@ mod tests;
 pub use engine::dispatch_ui_event;
 pub use types::{
     DOUBLE_CLICK_MAX_DELAY_MS, DOUBLE_CLICK_MAX_DISTANCE_SQ, DispatchResult, EventState,
-    PopupMenuState,
+    PopupMenuState, TOOLTIP_DEFAULT_HOVER_DELAY_MS, TooltipState,
 };

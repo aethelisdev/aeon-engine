@@ -22,6 +22,7 @@ pub struct ToolbarButton {
     width: Option<f32>,
     tag: Option<u64>,
     is_active: bool,
+    tooltip: Option<String>,
 }
 
 impl ToolbarButton {
@@ -34,6 +35,7 @@ impl ToolbarButton {
             width: None,
             tag: None,
             is_active: false,
+            tooltip: None,
         }
     }
 
@@ -67,6 +69,21 @@ impl ToolbarButton {
     pub fn active(mut self, active: bool) -> Self {
         self.is_active = active;
         self
+    }
+
+    /// Sets an optional tooltip text displayed on hover after the delay threshold.
+    #[inline]
+    #[must_use]
+    pub fn tooltip(mut self, text: impl Into<String>) -> Self {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    /// Alias for [`Self::tooltip`] conforming to egui standard convention.
+    #[inline]
+    #[must_use]
+    pub fn on_hover_text(self, text: impl Into<String>) -> Self {
+        self.tooltip(text)
     }
 }
 
@@ -131,6 +148,12 @@ impl Widget for ToolbarButton {
             }
 
             node.set_style(style);
+        }
+
+        if let Some(tip) = self.tooltip {
+            scope.tooltip_for(node_id, move |ui| {
+                ui.tooltip_label(tip);
+            });
         }
 
         let mut resp = WidgetResponse::new(node_id, clicked, hovered, false);

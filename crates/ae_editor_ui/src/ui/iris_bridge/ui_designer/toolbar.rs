@@ -50,7 +50,8 @@ pub fn build_designer_toolbar(
             tb.add(
                 ToolbarButton::new(aspect_label)
                     .width(142.0)
-                    .tag(UI_DESIGNER_TAG_ASPECT_BTN),
+                    .tag(UI_DESIGNER_TAG_ASPECT_BTN)
+                    .tooltip("Select viewport aspect ratio preset"),
             )
             .on_click(|| designer.dispatch(UiDesignerAction::ToggleAspectDropdown));
 
@@ -60,7 +61,8 @@ pub fn build_designer_toolbar(
             tb.add(
                 ToolbarButton::new("−")
                     .width(24.0)
-                    .tag(UI_DESIGNER_TAG_ZOOM_OUT),
+                    .tag(UI_DESIGNER_TAG_ZOOM_OUT)
+                    .tooltip("Zoom out canvas"),
             )
             .on_click(|| {
                 let new_zoom = (params.state.zoom - 0.1).clamp(0.2, 5.0);
@@ -71,14 +73,16 @@ pub fn build_designer_toolbar(
             tb.add(
                 ToolbarButton::new(zoom_text)
                     .width(50.0)
-                    .tag(UI_DESIGNER_TAG_ZOOM_RESET),
+                    .tag(UI_DESIGNER_TAG_ZOOM_RESET)
+                    .tooltip("Reset canvas zoom to 100% and center view"),
             )
             .on_click(|| designer.dispatch(UiDesignerAction::ResetView));
 
             tb.add(
                 ToolbarButton::new("+")
                     .width(24.0)
-                    .tag(UI_DESIGNER_TAG_ZOOM_IN),
+                    .tag(UI_DESIGNER_TAG_ZOOM_IN)
+                    .tooltip("Zoom in canvas"),
             )
             .on_click(|| {
                 let new_zoom = (params.state.zoom + 0.1).clamp(0.2, 5.0);
@@ -95,7 +99,8 @@ pub fn build_designer_toolbar(
             tb.add(
                 ToolbarButton::new(snap_text)
                     .width(82.0)
-                    .tag(UI_DESIGNER_TAG_SNAP_BTN),
+                    .tag(UI_DESIGNER_TAG_SNAP_BTN)
+                    .tooltip("Toggle grid snap interval (Free, 8px, 16px, 32px)"),
             )
             .on_click(|| designer.dispatch(UiDesignerAction::CycleGridSnap));
 
@@ -103,14 +108,16 @@ pub fn build_designer_toolbar(
             tb.add(
                 ToolbarButton::new("⚓ Anchors")
                     .active(params.state.show_anchor_guides)
-                    .tag(UI_DESIGNER_TAG_ANCHORS_BTN),
+                    .tag(UI_DESIGNER_TAG_ANCHORS_BTN)
+                    .tooltip("Toggle anchor guides and snap visualization"),
             )
             .on_click(|| designer.dispatch(UiDesignerAction::ToggleAnchorGuides));
 
             tb.add(
                 ToolbarButton::new("⊞ Grid")
                     .active(params.state.show_grid)
-                    .tag(UI_DESIGNER_TAG_GRID_BTN),
+                    .tag(UI_DESIGNER_TAG_GRID_BTN)
+                    .tooltip("Toggle canvas background alignment grid"),
             )
             .on_click(|| designer.dispatch(UiDesignerAction::ToggleGrid));
 
@@ -122,7 +129,8 @@ pub fn build_designer_toolbar(
                     .width(118.0)
                     .fill(Color::rgba(0.20, 0.90, 0.60, 0.25))
                     .text_color(Color::rgba(0.20, 0.90, 0.60, 1.0))
-                    .tag(UI_DESIGNER_TAG_ADD_ELEMENT_BTN),
+                    .tag(UI_DESIGNER_TAG_ADD_ELEMENT_BTN)
+                    .tooltip("Open UI element creation palette"),
             )
             .on_click(|| designer.dispatch(UiDesignerAction::ToggleAddMenu));
         },
