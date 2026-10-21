@@ -64,13 +64,21 @@ impl LayoutEngine {
         self.last_available_size = None;
     }
 
-    /// Computes layout for the entire UI tree if layout dirty flags are set.
+    /// Computes layout for the entire UI tree if layout dirty flags are set, leveraging
+    /// invalidation boundary caching when changes are isolated to individual panels.
     ///
-    /// If no nodes have the `LAYOUT` dirty flag set and available size matches,
-    /// this function returns immediately with near **0.00 ms** CPU time.
+    /// # Fast Paths
+    /// 1. **Zero-Dirty Skip**: If no nodes have `LAYOUT` or `CHILDREN` dirty flags set and the available
+    ///    dimensions match the previous frame, returns immediately in near **0.00 ms** with zero traversal.
+    /// 2. **Invalidation Boundary Sub-Tree Resolution**: If the container size is unchanged, the root
+    ///    layout is clean, and dirty nodes are strictly contained within registered [`UiTree::dirty_boundaries`],
+    ///    only those isolated subtrees are recalculated in-place. Sibling panels and higher-level chrome
+    ///    are preserved from cache without Taffy recomputations.
+    /// 3. **Full Re-layout**: If the window size changed or non-boundary nodes are dirty, synchronizes the
+    ///    complete hierarchy and computes global layout.
     ///
     /// # Errors
-    /// Returns `LayoutError::Taffy` if internal layout resolution encounters invalid constraints.
+    /// Returns [`LayoutError::Taffy`] if internal layout resolution encounters invalid constraints.
     pub fn compute_layout(
         &mut self,
         tree: &mut UiTree,
@@ -80,13 +88,54 @@ impl LayoutEngine {
             return Ok(());
         };
 
-        // Fast path: If layout is not dirty and size matches, return immediately (0.00ms)
+        // Fast path 1: If layout is completely clean and size matches, return immediately (0.00ms)
         if self.last_available_size == Some(available_size)
             && !tree.has_dirty_nodes(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN)
         {
             return Ok(());
         }
+
+        let is_same_size = self.last_available_size == Some(available_size);
+        let root_is_dirty = tree.get(root_id).is_none_or(|n| {
+            n.dirty
+                .intersects(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN)
+        });
+
+        // Fast path 2: Invalidation Boundaries - if window size matches, root is clean,
+        // and isolated boundary subtrees are dirty, recalculate only those subtrees!
+        if is_same_size && !root_is_dirty && !tree.dirty_boundaries.is_empty() {
+            let mut stack_buf = [WidgetId::default(); 8];
+            let count = tree.dirty_boundaries.len();
+            let mut all_ok = true;
+
+            if count <= 8 {
+                for (i, &id) in tree.dirty_boundaries.iter().enumerate() {
+                    stack_buf[i] = id;
+                }
+                for id in stack_buf.iter().take(count) {
+                    if self.compute_boundary_subtree(tree, *id).is_err() {
+                        all_ok = false;
+                        break;
+                    }
+                }
+            } else {
+                let boundaries: Vec<WidgetId> = tree.dirty_boundaries.iter().copied().collect();
+                for id in boundaries {
+                    if self.compute_boundary_subtree(tree, id).is_err() {
+                        all_ok = false;
+                        break;
+                    }
+                }
+            }
+
+            if all_ok && !tree.has_dirty_nodes(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN) {
+                tree.clear_dirty_boundaries();
+                return Ok(());
+            }
+        }
+
         self.last_available_size = Some(available_size);
+        tree.clear_dirty_boundaries();
 
         // Synchronize Taffy tree structure with UiTree
         self.sync_tree(tree, root_id)?;
@@ -108,6 +157,60 @@ impl LayoutEngine {
 
         // Write back computed coordinates to UiTree nodes recursively without allocating temporary vectors
         self.apply_layout(tree, root_id, 0.0, 0.0);
+
+        Ok(())
+    }
+
+    /// Computes layout exclusively for an isolated invalidation boundary subtree.
+    ///
+    /// When interactive widgets (sliders, text inputs, hover buttons) change within a panel,
+    /// this function recalculates layout for that boundary's subtree using its established
+    /// screen coordinates and dimensions without invalidating or traversing the rest of the UI tree.
+    ///
+    /// # Performance
+    /// Recalculates only the affected subtree in $O(M)$ time (where $M \ll N$ is the number of nodes
+    /// in the boundary) and preserves cached layout coordinates for all sibling panels, achieving
+    /// near **0.00 ms** CPU layout cost during continuous dragging or hovering.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError::Taffy`] if the boundary node does not exist in the tree or has non-positive dimensions.
+    pub fn compute_boundary_subtree(
+        &mut self,
+        tree: &mut UiTree,
+        boundary_id: WidgetId,
+    ) -> Result<(), LayoutError> {
+        let Some(boundary_node) = tree.get(boundary_id) else {
+            return Err(LayoutError::Taffy(format!(
+                "Boundary node {:?} not found in tree",
+                boundary_id
+            )));
+        };
+
+        let boundary_rect = boundary_node.computed_rect;
+        if boundary_rect.width <= 0.0 || boundary_rect.height <= 0.0 {
+            return Err(LayoutError::Taffy(format!(
+                "Boundary node {:?} has non-positive dimensions ({:?}); full layout required",
+                boundary_id, boundary_rect
+            )));
+        }
+
+        let parent_x = boundary_rect.x;
+        let parent_y = boundary_rect.y;
+
+        // Synchronize boundary subtree with Taffy
+        let boundary_taffy_node = self.sync_tree(tree, boundary_id)?;
+
+        let available_space = tf::Size {
+            width: tf::AvailableSpace::Definite(boundary_rect.width),
+            height: tf::AvailableSpace::Definite(boundary_rect.height),
+        };
+
+        self.taffy
+            .compute_layout(boundary_taffy_node, available_space)
+            .map_err(|e| LayoutError::Taffy(format!("{:?}", e)))?;
+
+        // Apply updated coordinates to the boundary subtree
+        self.apply_layout(tree, boundary_id, parent_x, parent_y);
 
         Ok(())
     }
@@ -181,7 +284,7 @@ impl LayoutEngine {
 
         if let Some(node) = tree.get_mut(current_id) {
             node.computed_rect = rect;
-            node.clear_dirty(DirtyFlags::LAYOUT);
+            node.clear_dirty(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN);
             let tag = node.tag;
             if tag != 0 {
                 tree.set_tag_rect(tag, rect);
@@ -405,5 +508,107 @@ mod tests {
         let c_rect = tree.get(child).unwrap().computed_rect;
         // child starts at y = 0.0 - scroll_offset_y (25.0) = -25.0
         assert_eq!(c_rect.y, -25.0);
+    }
+
+    #[test]
+    fn test_layout_computation_invalidation_boundary_isolation() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+
+        // Root row holding Panel A and Panel B
+        if let Some(node) = tree.get_mut(root) {
+            node.set_style(Style::new().flex_row().width(800.0).height(600.0));
+        }
+
+        // Panel A (Boundary)
+        let panel_a = tree.create_node();
+        tree.set_boundary(panel_a, true);
+        if let Some(node) = tree.get_mut(panel_a) {
+            node.set_style(Style::new().flex_col().width(300.0).height(600.0));
+        }
+        tree.add_child(root, panel_a).unwrap();
+
+        let a_child1 = tree.create_node();
+        if let Some(node) = tree.get_mut(a_child1) {
+            node.set_style(Style::new().width(200.0).height(50.0));
+        }
+        tree.add_child(panel_a, a_child1).unwrap();
+
+        let a_child2 = tree.create_node();
+        if let Some(node) = tree.get_mut(a_child2) {
+            node.set_style(Style::new().width(200.0).height(50.0));
+        }
+        tree.add_child(panel_a, a_child2).unwrap();
+
+        // Panel B (Boundary)
+        let panel_b = tree.create_node();
+        tree.set_boundary(panel_b, true);
+        if let Some(node) = tree.get_mut(panel_b) {
+            node.set_style(Style::new().flex_col().width(500.0).height(600.0));
+        }
+        tree.add_child(root, panel_b).unwrap();
+
+        let b_child = tree.create_node();
+        if let Some(node) = tree.get_mut(b_child) {
+            node.set_style(Style::new().width(400.0).height(100.0));
+        }
+        tree.add_child(panel_b, b_child).unwrap();
+
+        let mut engine = LayoutEngine::new();
+        assert!(
+            engine
+                .compute_layout(&mut tree, Size::new(800.0, 600.0))
+                .is_ok()
+        );
+
+        // Verify initial layout
+        assert_eq!(tree.get(panel_a).unwrap().computed_rect.x, 0.0);
+        assert_eq!(tree.get(panel_b).unwrap().computed_rect.x, 300.0);
+        assert_eq!(tree.get(a_child1).unwrap().computed_rect.y, 0.0);
+        assert_eq!(tree.get(a_child2).unwrap().computed_rect.y, 50.0);
+        assert_eq!(tree.get(b_child).unwrap().computed_rect.x, 300.0);
+
+        // Mutate a_child1 inside Panel A and mark dirty
+        if let Some(node) = tree.get_mut(a_child1) {
+            node.set_style(Style::new().width(200.0).height(90.0));
+        }
+        let boundary = tree.mark_dirty(a_child1, DirtyFlags::LAYOUT);
+        assert_eq!(boundary, Some(panel_a));
+
+        // Root and Panel B must be completely clean of layout flags
+        assert!(
+            !tree
+                .get(root)
+                .unwrap()
+                .dirty
+                .intersects(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN)
+        );
+        assert!(
+            !tree
+                .get(panel_b)
+                .unwrap()
+                .dirty
+                .intersects(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN)
+        );
+        assert_eq!(tree.dirty_boundaries().len(), 1);
+
+        // Execute incremental boundary layout
+        assert!(
+            engine
+                .compute_layout(&mut tree, Size::new(800.0, 600.0))
+                .is_ok()
+        );
+
+        // Verify that a_child2 moved down to y = 90.0
+        assert_eq!(tree.get(a_child1).unwrap().computed_rect.height, 90.0);
+        assert_eq!(tree.get(a_child2).unwrap().computed_rect.y, 90.0);
+
+        // Verify that Panel B and b_child positions were preserved untouched
+        assert_eq!(tree.get(panel_b).unwrap().computed_rect.x, 300.0);
+        assert_eq!(tree.get(b_child).unwrap().computed_rect.x, 300.0);
+
+        // dirty_boundaries set must now be clean
+        assert!(!tree.has_dirty_boundaries());
+        assert!(!tree.has_dirty_nodes(DirtyFlags::LAYOUT));
     }
 }

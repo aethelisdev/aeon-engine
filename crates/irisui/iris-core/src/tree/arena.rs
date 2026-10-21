@@ -40,6 +40,8 @@ pub struct UiTree {
     pub active_submenus: HashMap<u64, u64>,
     /// Persistent state map tracking computed bounding rectangles across tree rebuilds, keyed by 64-bit semantic tag.
     pub tag_rects: HashMap<u64, Rect>,
+    /// Set of widget IDs acting as invalidation boundaries that are currently marked dirty.
+    pub dirty_boundaries: std::collections::HashSet<WidgetId>,
     /// Active visual theme tokens governing surface colors, text, and metrics.
     pub theme: crate::theme::Theme,
 }
@@ -60,6 +62,7 @@ impl UiTree {
             active_combobox_tag: None,
             active_submenus: HashMap::new(),
             tag_rects: HashMap::new(),
+            dirty_boundaries: std::collections::HashSet::new(),
             theme: crate::theme::Theme::default(),
         }
     }
@@ -73,6 +76,7 @@ impl UiTree {
     pub fn clear(&mut self) {
         self.nodes.clear();
         self.root = None;
+        self.dirty_boundaries.clear();
     }
 
     /// Clears transient frame click and gesture records recorded for the current frame.
@@ -241,6 +245,7 @@ impl UiTree {
         self.collect_subtree(id, &mut to_remove);
 
         for node_id in to_remove {
+            self.dirty_boundaries.remove(&node_id);
             self.nodes.remove(node_id);
         }
 

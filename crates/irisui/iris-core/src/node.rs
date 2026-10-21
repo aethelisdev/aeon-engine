@@ -289,6 +289,12 @@ pub struct WidgetNode {
     pub tag: u64,
     /// Optional debug name for inspection and profiling.
     pub name: Option<String>,
+    /// Whether this node acts as an invalidation boundary for layout and dirty propagation.
+    ///
+    /// When a child node is marked dirty, upward propagation halts at the first ancestor where
+    /// `is_boundary == true`, marking that boundary node and recording it in `UiTree::dirty_boundaries`.
+    /// This allows partial sub-tree layout recalculation without invalidating the root tree.
+    pub is_boundary: bool,
 }
 
 impl WidgetNode {
@@ -327,7 +333,27 @@ impl WidgetNode {
             cursor: None,
             tag: 0,
             name: None,
+            is_boundary: false,
         }
+    }
+
+    /// Sets whether this node acts as an invalidation boundary in a fluent builder style.
+    #[inline]
+    pub fn with_boundary(mut self, is_boundary: bool) -> Self {
+        self.is_boundary = is_boundary;
+        self
+    }
+
+    /// Sets whether this node acts as an invalidation boundary.
+    #[inline]
+    pub fn set_boundary(&mut self, is_boundary: bool) {
+        self.is_boundary = is_boundary;
+    }
+
+    /// Returns `true` if this node acts as an invalidation boundary.
+    #[inline]
+    pub const fn is_boundary(&self) -> bool {
+        self.is_boundary
     }
 
     /// Sets the text wrapping configuration mode in a fluent builder style.

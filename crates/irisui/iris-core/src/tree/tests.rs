@@ -269,3 +269,148 @@ fn test_wants_pointer_at_with_open_popup() {
     tree.close_all_popups();
     assert!(!tree.wants_pointer_at(Point::new(20.0, 20.0)));
 }
+
+#[test]
+fn test_invalidation_boundary_isolation_and_propagation() {
+    use crate::dirty::DirtyFlags;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let panel_a = tree.create_node();
+    tree.set_boundary(panel_a, true);
+    assert!(tree.is_boundary(panel_a));
+    tree.add_child(root, panel_a).unwrap();
+
+    let container = tree.create_node();
+    tree.add_child(panel_a, container).unwrap();
+
+    let button = tree.create_node();
+    tree.add_child(container, button).unwrap();
+
+    let panel_b = tree.create_node();
+    tree.set_boundary(panel_b, true);
+    tree.add_child(root, panel_b).unwrap();
+
+    // Clear all dirty flags initially to simulate a settled layout pass
+    for (_, node) in tree.nodes.iter_mut() {
+        node.dirty = DirtyFlags::empty();
+    }
+    tree.clear_dirty_boundaries();
+
+    assert!(!tree.has_dirty_boundaries());
+    assert!(!tree.has_dirty_nodes(DirtyFlags::LAYOUT));
+
+    // Mark button inside panel_a dirty: Propagation MUST stop at panel_a
+    let captured_boundary = tree.mark_dirty(button, DirtyFlags::LAYOUT);
+    assert_eq!(
+        captured_boundary,
+        Some(panel_a),
+        "Dirty propagation must halt at the nearest boundary"
+    );
+
+    // Button, container, and panel_a must be dirty
+    assert!(tree.get(button).unwrap().dirty.contains(DirtyFlags::LAYOUT));
+    assert!(
+        tree.get(container)
+            .unwrap()
+            .dirty
+            .contains(DirtyFlags::LAYOUT)
+    );
+    assert!(
+        tree.get(panel_a)
+            .unwrap()
+            .dirty
+            .contains(DirtyFlags::LAYOUT)
+    );
+
+    // Root and panel_b must remain completely clean!
+    assert!(
+        tree.get(root).unwrap().dirty.is_empty(),
+        "Root node must remain clean when dirty is contained in boundary"
+    );
+    assert!(
+        tree.get(panel_b).unwrap().dirty.is_empty(),
+        "Sibling panel must remain clean"
+    );
+
+    // dirty_boundaries set must contain panel_a
+    assert_eq!(tree.dirty_boundaries().len(), 1);
+    assert!(tree.dirty_boundaries().contains(&panel_a));
+}
+
+#[test]
+fn test_invalidation_boundary_nested_boundaries() {
+    use crate::dirty::DirtyFlags;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let outer_panel = tree.create_node();
+    tree.set_boundary(outer_panel, true);
+    tree.add_child(root, outer_panel).unwrap();
+
+    let inner_scroll_area = tree.create_node();
+    tree.set_boundary(inner_scroll_area, true);
+    tree.add_child(outer_panel, inner_scroll_area).unwrap();
+
+    let item = tree.create_node();
+    tree.add_child(inner_scroll_area, item).unwrap();
+
+    for (_, node) in tree.nodes.iter_mut() {
+        node.dirty = DirtyFlags::empty();
+    }
+    tree.clear_dirty_boundaries();
+
+    // Invalidation inside inner_scroll_area must halt at inner_scroll_area, NOT outer_panel
+    let boundary = tree.mark_dirty(item, DirtyFlags::LAYOUT);
+    assert_eq!(boundary, Some(inner_scroll_area));
+    assert!(tree.dirty_boundaries().contains(&inner_scroll_area));
+    assert!(!tree.dirty_boundaries().contains(&outer_panel));
+    assert!(tree.get(outer_panel).unwrap().dirty.is_empty());
+}
+
+#[test]
+fn test_invalidation_boundary_without_boundary_propagates_to_root() {
+    use crate::dirty::DirtyFlags;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let uncontained_node = tree.create_node();
+    tree.add_child(root, uncontained_node).unwrap();
+
+    for (_, node) in tree.nodes.iter_mut() {
+        node.dirty = DirtyFlags::empty();
+    }
+    tree.clear_dirty_boundaries();
+
+    let boundary = tree.mark_dirty(uncontained_node, DirtyFlags::LAYOUT);
+    assert_eq!(
+        boundary, None,
+        "Uncontained node must propagate to root without boundary"
+    );
+    assert!(tree.get(root).unwrap().dirty.contains(DirtyFlags::LAYOUT));
+    assert!(tree.dirty_boundaries().is_empty());
+}
+
+#[test]
+fn test_find_invalidation_boundary() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    let boundary = tree.create_node();
+    tree.set_boundary(boundary, true);
+    tree.add_child(root, boundary).unwrap();
+
+    let child = tree.create_node();
+    tree.add_child(boundary, child).unwrap();
+
+    let grandchild = tree.create_node();
+    tree.add_child(child, grandchild).unwrap();
+
+    assert_eq!(tree.find_invalidation_boundary(grandchild), Some(boundary));
+    assert_eq!(tree.find_invalidation_boundary(child), Some(boundary));
+    assert_eq!(tree.find_invalidation_boundary(boundary), Some(boundary));
+    assert_eq!(tree.find_invalidation_boundary(root), None);
+}
