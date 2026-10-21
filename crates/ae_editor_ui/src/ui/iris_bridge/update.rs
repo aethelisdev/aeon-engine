@@ -52,7 +52,6 @@ impl IrisEditorOverlay {
             inspector: super::inspector::types::InspectorPanelState::default(),
             focus_manager: FocusManager::new(),
             focus_state: FocusState::new(),
-            overlay_tree: super::overlay_tree::OverlayTree::new(),
             compositor: super::compositor::TreeCompositor::new(),
             pending_actions: Vec::new(),
         }
@@ -60,8 +59,8 @@ impl IrisEditorOverlay {
 
     /// Intercepts and processes UI interaction events via autonomous Iris UI tree dispatch.
     ///
-    /// Automatically routes interactions to the active [`OverlayTree`](super::overlay_tree::OverlayTree) when modals
-    /// or dropdown menus are open, or directly to the primary retained [`UiTree`].
+    /// Interacts directly with the primary retained [`UiTree`], handling elevated modal and popup
+    /// layers transparently through the single-tree architecture.
     pub fn handle_event(&mut self, event: &UiEvent) -> super::types::IrisOverlayEventResult {
         // Track logical cursor coordinates for layout, drag-drop, and inspection queries
         if let UiEvent::MouseMove { point }
@@ -71,109 +70,85 @@ impl IrisEditorOverlay {
             self.chrome.cursor_pos = *point;
         }
 
-        if self.overlay_tree.is_open() {
-            if let UiEvent::MouseDown { point, .. } = event {
-                let dismiss_res = self.overlay_tree.handle_pointer_down(*point);
-                if dismiss_res == super::overlay_tree::OverlayDismissResult::Dismissed {
-                    if self.inspector.is_add_menu_open {
-                        self.inspector.is_add_menu_open = false;
-                        self.inspector.active_submenu = None;
-                    }
-                    if self.inspector.is_color_picker_open {
-                        self.inspector.is_color_picker_open = false;
-                    }
-                    if self.hierarchy.is_add_menu_open {
-                        self.hierarchy.is_add_menu_open = false;
-                        self.hierarchy.active_submenu = None;
-                        self.hierarchy.active_sub_submenu = None;
-                    }
-                    if self.hierarchy.active_context_menu.is_some() {
-                        self.hierarchy.active_context_menu = None;
-                    }
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                    return super::types::IrisOverlayEventResult::consumed(true);
-                }
-            } else if let UiEvent::KeyboardInput {
-                key: KeyCode::Escape,
-                is_pressed: true,
-                ..
-            } = event
-            {
-                self.clear_focus();
-                self.tree.event_state.clear_text_edit();
-                let active = self.overlay_tree.active_overlay().cloned();
-                self.overlay_tree.close();
+        if let UiEvent::KeyboardInput {
+            key: KeyCode::Escape,
+            is_pressed: true,
+            ..
+        } = event
+        {
+            self.clear_focus();
+            self.tree.event_state.clear_text_edit();
+            self.menubar.active_menu = None;
+            self.menubar.actions.clear();
+            self.menubar.dropdown_rect = None;
+            if self.inspector.is_add_menu_open {
+                self.inspector.is_add_menu_open = false;
+                self.inspector.active_submenu = None;
+            }
+            if self.inspector.is_color_picker_open {
+                self.inspector.is_color_picker_open = false;
+            }
+            if self.hierarchy.is_add_menu_open {
+                self.hierarchy.is_add_menu_open = false;
+                self.hierarchy.active_submenu = None;
+                self.hierarchy.active_sub_submenu = None;
+            }
+            if self.hierarchy.active_context_menu.is_some() {
+                self.hierarchy.active_context_menu = None;
+            }
+            self.notifier.tag_all();
+            self.chrome.needs_layout_rebuild = true;
+            let mut res = super::types::IrisOverlayEventResult::consumed(true);
+            if self.modals.is_about_active {
+                res.close_about = true;
+            } else if self.preferences.card_rect.is_some() {
+                res.close_preferences = true;
+                res.preferences_action = Some(super::preferences::PreferencesAction::Close);
+            } else if self.modals.is_delete_active {
+                res.cancel_delete = true;
+            } else if self.modals.is_new_folder_active {
+                res.cancel_new_folder = true;
+            } else if self.modals.is_rename_active {
+                res.cancel_rename = true;
+            }
+            self.assets.preview_modal = None;
+            return res;
+        }
+
+        if let UiEvent::MouseDown { point, .. } = event {
+            let hit = self.tree.hit_test_layered(*point);
+            let is_over_overlay =
+                hit.is_some_and(|h| self.tree.effective_layer(h) >= UiLayer::Modal);
+            if !is_over_overlay {
+                let mut closed_any = false;
                 if self.inspector.is_add_menu_open {
                     self.inspector.is_add_menu_open = false;
                     self.inspector.active_submenu = None;
+                    closed_any = true;
                 }
                 if self.inspector.is_color_picker_open {
                     self.inspector.is_color_picker_open = false;
+                    closed_any = true;
                 }
                 if self.hierarchy.is_add_menu_open {
                     self.hierarchy.is_add_menu_open = false;
                     self.hierarchy.active_submenu = None;
                     self.hierarchy.active_sub_submenu = None;
+                    closed_any = true;
                 }
                 if self.hierarchy.active_context_menu.is_some() {
                     self.hierarchy.active_context_menu = None;
+                    closed_any = true;
                 }
-                self.notifier.tag_all();
-                self.chrome.needs_layout_rebuild = true;
-                let mut res = super::types::IrisOverlayEventResult::consumed(true);
-                match active {
-                    Some(super::overlay_tree::ActiveOverlay::Modal(
-                        super::overlay_tree::ModalKind::About,
-                    )) => {
-                        res.close_about = true;
-                    }
-                    Some(super::overlay_tree::ActiveOverlay::Modal(
-                        super::overlay_tree::ModalKind::Preferences,
-                    )) => {
-                        res.close_preferences = true;
-                        res.preferences_action = Some(super::preferences::PreferencesAction::Close);
-                    }
-                    Some(super::overlay_tree::ActiveOverlay::Modal(
-                        super::overlay_tree::ModalKind::DeleteConfirmation,
-                    )) => {
-                        res.cancel_delete = true;
-                    }
-                    Some(super::overlay_tree::ActiveOverlay::Modal(
-                        super::overlay_tree::ModalKind::NewFolder,
-                    )) => {
-                        res.cancel_new_folder = true;
-                    }
-                    Some(super::overlay_tree::ActiveOverlay::Modal(
-                        super::overlay_tree::ModalKind::Rename,
-                    )) => {
-                        res.cancel_rename = true;
-                    }
-                    _ => {
-                        if self.modals.is_about_active {
-                            res.close_about = true;
-                        }
-                    }
+                if closed_any {
+                    self.notifier.tag_all();
+                    self.chrome.needs_layout_rebuild = true;
                 }
-                self.assets.preview_modal = None;
-                return res;
             }
         }
 
-        let is_overlay_open = self.overlay_tree.is_open();
-        let is_overlay_motion = is_overlay_open
-            && matches!(event, UiEvent::MouseMove { point } if self.overlay_tree.contains_point(*point));
-
-        let (dispatch, clicked_tag) = if is_overlay_open {
-            let tree = self.overlay_tree.tree_mut();
-            let d = tree.dispatch_event(event);
-            let tag = tree.event_state.frame_clicked_tag;
-            (d, tag)
-        } else {
-            let d = self.tree.dispatch_event(event);
-            let tag = self.tree.event_state.frame_clicked_tag;
-            (d, tag)
-        };
+        let dispatch = self.tree.dispatch_event(event);
+        let clicked_tag = self.tree.event_state.frame_clicked_tag;
 
         if self.tree.event_state.active_text_edit.is_none() && self.focus_state.has_focus() {
             self.clear_focus();
@@ -182,8 +157,7 @@ impl IrisEditorOverlay {
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()
             || self.inspector.has_pending_actions()
-            || self.hierarchy.has_pending_actions()
-            || is_overlay_motion;
+            || self.hierarchy.has_pending_actions();
 
         if should_wake {
             if dispatch.target_tag == super::console::types::CONSOLE_TAG_VIEWPORT
@@ -195,45 +169,27 @@ impl IrisEditorOverlay {
             self.chrome.needs_layout_rebuild = true;
         }
 
-        let mut result = super::types::IrisOverlayEventResult::consumed(
-            dispatch.is_consumed() || is_overlay_motion,
-        );
+        let mut result = super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed());
 
-        // Evaluate modal actions and button triggers in overlay tree or base tree (STRICTLY on clicks, never on hover)
+        // Evaluate modal actions and button triggers in unified tree (STRICTLY on clicks, never on hover)
         if let Some(clicked_tag) = clicked_tag
             && clicked_tag != 0
         {
-            let active_modal = if let Some(super::overlay_tree::ActiveOverlay::Modal(k)) =
-                self.overlay_tree.active_overlay()
-            {
-                Some(*k)
-            } else {
-                None
-            };
-
             match clicked_tag {
                 irisui::prelude::MODAL_TAG_CLOSE => {
                     result.consumed = true;
-                    self.overlay_tree.close();
-                    match active_modal {
-                        Some(super::overlay_tree::ModalKind::About) => result.close_about = true,
-                        Some(super::overlay_tree::ModalKind::Preferences) => {
-                            result.close_preferences = true;
-                            result.preferences_action =
-                                Some(super::preferences::PreferencesAction::Close);
-                        }
-                        Some(super::overlay_tree::ModalKind::DeleteConfirmation) => {
-                            result.cancel_delete = true
-                        }
-                        Some(super::overlay_tree::ModalKind::NewFolder) => {
-                            result.cancel_new_folder = true
-                        }
-                        Some(super::overlay_tree::ModalKind::Rename) => result.cancel_rename = true,
-                        _ => {
-                            if self.modals.is_about_active {
-                                result.close_about = true;
-                            }
-                        }
+                    if self.modals.is_about_active {
+                        result.close_about = true;
+                    } else if self.preferences.card_rect.is_some() {
+                        result.close_preferences = true;
+                        result.preferences_action =
+                            Some(super::preferences::PreferencesAction::Close);
+                    } else if self.modals.is_delete_active {
+                        result.cancel_delete = true;
+                    } else if self.modals.is_new_folder_active {
+                        result.cancel_new_folder = true;
+                    } else if self.modals.is_rename_active {
+                        result.cancel_rename = true;
                     }
                     self.assets.preview_modal = None;
                     self.notifier.tag_all();
@@ -241,45 +197,32 @@ impl IrisEditorOverlay {
                 }
                 irisui::prelude::MODAL_TAG_CANCEL => {
                     result.consumed = true;
-                    self.overlay_tree.close();
-                    match active_modal {
-                        Some(super::overlay_tree::ModalKind::DeleteConfirmation) => {
-                            result.cancel_delete = true
-                        }
-                        Some(super::overlay_tree::ModalKind::NewFolder) => {
-                            result.cancel_new_folder = true
-                        }
-                        Some(super::overlay_tree::ModalKind::Rename) => result.cancel_rename = true,
-                        _ => {}
+                    if self.modals.is_delete_active {
+                        result.cancel_delete = true;
+                    } else if self.modals.is_new_folder_active {
+                        result.cancel_new_folder = true;
+                    } else if self.modals.is_rename_active {
+                        result.cancel_rename = true;
                     }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
                 irisui::prelude::MODAL_TAG_CONFIRM => {
                     result.consumed = true;
-                    self.overlay_tree.close();
-                    match active_modal {
-                        Some(super::overlay_tree::ModalKind::About) => result.close_about = true,
-                        Some(super::overlay_tree::ModalKind::NewFolder) => {
-                            result.create_folder =
-                                Some(self.modals.new_folder_input.text().to_string());
-                        }
-                        Some(super::overlay_tree::ModalKind::Rename) => {
-                            result.apply_rename = Some(self.modals.rename_input.text().to_string());
-                        }
-                        _ => {
-                            if self.modals.is_about_active {
-                                result.close_about = true;
-                            }
-                        }
+                    if self.modals.is_about_active {
+                        result.close_about = true;
+                    } else if self.modals.is_new_folder_active {
+                        result.create_folder =
+                            Some(self.modals.new_folder_input.text().to_string());
+                    } else if self.modals.is_rename_active {
+                        result.apply_rename = Some(self.modals.rename_input.text().to_string());
                     }
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
                 irisui::prelude::MODAL_TAG_DANGER => {
                     result.consumed = true;
-                    self.overlay_tree.close();
-                    if active_modal == Some(super::overlay_tree::ModalKind::DeleteConfirmation) {
+                    if self.modals.is_delete_active {
                         result.confirm_delete = true;
                     }
                     self.notifier.tag_all();
@@ -287,7 +230,6 @@ impl IrisEditorOverlay {
                 }
                 super::preferences::PREF_TAG_CLOSE => {
                     result.consumed = true;
-                    self.overlay_tree.close();
                     result.close_preferences = true;
                     result.preferences_action = Some(super::preferences::PreferencesAction::Close);
                     self.notifier.tag_all();
@@ -328,27 +270,22 @@ impl IrisEditorOverlay {
             || (self.chrome.last_cursor_pos.y - cursor.y).abs() > 0.001;
 
         // Multi-Tree Hit-Testing:
-        // 1. First inspect the top-level OverlayTree (popups, dropdowns, modals)
+        // 1. First inspect elevated overlay layers (popups, dropdowns, modals) in the Shell tree
         let mut hovered_target = None;
         let mut hovered_panel = None;
 
-        if self.overlay_tree.is_open()
-            && let Some(hit) = self.overlay_tree.tree().hit_test_target(cursor)
-            && hit.tag != 0
-        {
-            hovered_target = Some(hit.tag);
+        if let Some(hit_id) = self.tree.hit_test_layered(cursor) {
+            let hit_layer = self.tree.effective_layer(hit_id);
+            if hit_layer >= UiLayer::Modal
+                && let Some(target) = self.tree.hit_test_target(cursor)
+                && target.tag != 0
+            {
+                hovered_target = Some(target.tag);
+            }
         }
 
-        // 2. Base shell tree (MenuBar, StatusBar, Viewport HUD)
-        if hovered_target.is_none() {
-            hovered_target = self
-                .tree
-                .hit_test_target(cursor)
-                .and_then(|h| if h.tag != 0 { Some(h.tag) } else { None });
-        }
-
-        // 3. Active dock panel trees (only if not occluded by an open overlay)
-        if hovered_target.is_none() && !self.overlay_tree.contains_point(cursor) {
+        // 2. Active dock panel trees (only if not occluded by an elevated overlay)
+        if hovered_target.is_none() && !self.is_point_over_overlay(cursor) {
             for &pid in crate::ui::panel_layout::PanelId::all_tool_panels() {
                 if pid == crate::ui::panel_layout::PanelId::Viewport {
                     continue;
@@ -366,12 +303,20 @@ impl IrisEditorOverlay {
             }
         }
 
+        // 3. Base shell tree (MenuBar, StatusBar, Viewport HUD)
+        if hovered_target.is_none() {
+            hovered_target = self
+                .tree
+                .hit_test_target(cursor)
+                .and_then(|h| if h.tag != 0 { Some(h.tag) } else { None });
+        }
+
         let hover_target_changed = cursor_moved && hovered_target != self.chrome.last_hovered_tag;
         self.chrome.hovered_tag = hovered_target;
 
         // When hover changes on a dock panel or overlay, tag for redraw so reactive UX styles activate instantly
         if hover_target_changed {
-            if self.overlay_tree.is_open() {
+            if self.is_point_over_overlay(cursor) {
                 self.notifier.tag_all();
             }
             if let Some(pid) = hovered_panel {
@@ -493,87 +438,10 @@ impl IrisEditorOverlay {
         if self.menubar.active_menu.is_none() {
             self.menubar.actions.clear();
             self.menubar.dropdown_rect = None;
-            if matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::MenubarDropdown(_))
-            ) {
-                self.overlay_tree.close();
-            }
         }
         if !params.dialogs.show_preferences {
             self.preferences.card_rect = None;
             self.preferences.content_rect = None;
-            if matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::Modal(
-                    super::overlay_tree::ModalKind::Preferences
-                ))
-            ) {
-                self.overlay_tree.close();
-            }
-        }
-        if !params.dialogs.show_about
-            && matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::Modal(
-                    super::overlay_tree::ModalKind::About
-                ))
-            )
-        {
-            self.overlay_tree.close();
-        }
-        if params.dialogs.delete_target.is_none()
-            && matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::Modal(
-                    super::overlay_tree::ModalKind::DeleteConfirmation
-                ))
-            )
-        {
-            self.overlay_tree.close();
-        }
-        if params.dialogs.new_folder_parent.is_none()
-            && matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::Modal(
-                    super::overlay_tree::ModalKind::NewFolder
-                ))
-            )
-        {
-            self.overlay_tree.close();
-        }
-        if params.dialogs.rename_target.is_none()
-            && matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::Modal(
-                    super::overlay_tree::ModalKind::Rename
-                ))
-            )
-        {
-            self.overlay_tree.close();
-        }
-        if !self.inspector.is_add_menu_open
-            && !self.inspector.is_color_picker_open
-            && self.inspector.active_dropdown.is_none()
-            && matches!(
-                self.overlay_tree.active_overlay(),
-                Some(
-                    super::overlay_tree::ActiveOverlay::InspectorAddComponent
-                        | super::overlay_tree::ActiveOverlay::InspectorColorPicker
-                        | super::overlay_tree::ActiveOverlay::InspectorDropdown
-                )
-            )
-        {
-            self.overlay_tree.close();
-        }
-        if !self.hierarchy.is_add_menu_open
-            && self.hierarchy.active_context_menu.is_none()
-            && matches!(
-                self.overlay_tree.active_overlay(),
-                Some(super::overlay_tree::ActiveOverlay::HierarchyContextMenu)
-            )
-        {
-            self.overlay_tree.close();
         }
 
         let is_assets_editing = self
@@ -817,11 +685,11 @@ impl IrisEditorOverlay {
                 && params.viewport.viewport_rect.height > 20.0;
             self.viewport_hud.is_active = is_viewport_active;
 
-            // 5. FLOATING OVERLAYS (Rendered on top of docked and floating panels):
-            self.build_shell_overlays(
+            // 5. SHELL DIALOGS (Modal windows rendered on elevated layers in the Shell tree):
+            self.build_shell_dialogs(
                 root,
                 &mut params,
-                super::update_overlays::ShellOverlayContext {
+                super::shell_dialogs::ShellDialogsContext {
                     screen_width,
                     screen_height,
                     cursor,
@@ -858,28 +726,28 @@ impl IrisEditorOverlay {
         self.chrome.needs_scroll_sync = false;
         self.notifier.clear_all();
         self.tree.clear_frame_clicks();
-        self.overlay_tree.tree_mut().clear_frame_clicks();
     }
 
-    /// Evaluates the active UI cursor across all composite layers (OverlayTree, Floating Windows, Dock Panels, Shell).
+    /// Evaluates the active UI cursor across all composite layers (Shell elevated layers, Floating Windows, Dock Panels, Shell base).
     ///
     /// Resolves interactive cursors in strict back-to-front Z-order using pure, hardware-abstracted
     /// [`WidgetCursor`] tokens without platform window dependencies.
     #[must_use]
     pub fn active_cursor(&self) -> WidgetCursor {
         let p = self.cursor_pos();
+        let is_overlay_hit = self.is_point_over_overlay(p);
 
-        // 1. Topmost Overlay Tree (Dropdowns, Popups, Modals)
-        if self.overlay_tree.is_open() {
-            let overlay_cursor = self.overlay_tree.tree().cursor_at(p);
-            if overlay_cursor != WidgetCursor::Default {
-                return overlay_cursor;
+        // 1. Topmost Overlay or elevated modals (checked directly from unified tree layered hit-test)
+        if is_overlay_hit {
+            let tree_cursor = self.tree.cursor_at(p);
+            if tree_cursor != WidgetCursor::Default {
+                return tree_cursor;
             }
         }
 
         // 2. Floating window 8-way resize boundary evaluation (Higher Z-layer than docked panels)
         if p.y > Self::MENUBAR_HEIGHT
-            && !self.overlay_tree.is_open()
+            && !is_overlay_hit
             && let Some(cur) = irisui::dock::evaluate_floating_resize_cursor(
                 &self.chrome.floating_window_rects,
                 p,
@@ -890,7 +758,8 @@ impl IrisEditorOverlay {
         }
 
         // 3. Docked Tool and Workspace Panels
-        if let Some(pid) = self.chrome.hovered_panel
+        if !is_overlay_hit
+            && let Some(pid) = self.chrome.hovered_panel
             && let Some(panel) = self.panels.get(pid.id_str())
             && let Some(panel_tree) = panel.tree()
             && let Some(bounds) = panel.bounds()

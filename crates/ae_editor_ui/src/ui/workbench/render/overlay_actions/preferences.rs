@@ -44,7 +44,7 @@ impl EngineUi {
                     self.preferences_tab = t;
                     self.iris_overlay.preferences.tab = t;
                     self.iris_overlay.preferences.reset_scroll();
-                    self.iris_overlay.overlay_tree.tree_mut().set_scroll_offset(
+                    self.iris_overlay.tree.set_scroll_offset(
                         crate::ui::iris_bridge::preferences::PREF_TAG_CONTENT_VIEW,
                         0.0,
                     );

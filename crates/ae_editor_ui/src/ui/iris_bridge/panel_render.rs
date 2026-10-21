@@ -241,11 +241,13 @@ mod tests {
             scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 30.0));
         }
 
-        let mut overlay_tree = UiTree::new();
-        let overlay_root = overlay_tree.create_root().unwrap();
         {
-            let mut scope = UiScope::new(&mut overlay_tree, overlay_root);
-            scope.add(Button::new("DropdownItem").tag(0xCC00_0001));
+            let mut scope = UiScope::new(&mut shell_tree, shell_root);
+            scope.add(
+                Button::new("DropdownItem")
+                    .tag(0xCC00_0001)
+                    .layer(UiLayer::Modal),
+            );
             scope.finish_layout(Rect::new(50.0, 30.0, 150.0, 200.0));
         }
 
@@ -265,8 +267,8 @@ mod tests {
         // Layer 1: Docked panel tree with hardware scissor and offset
         compositor.append_panel_tree(tree, panel_bounds, None, None, false);
 
-        // Layer 2: Overlay tree at topmost Z-order
-        compositor.append_overlay_tree(&overlay_tree, None, None, false);
+        // Layer 2: Shell overlay at topmost Z-order
+        compositor.append_shell_overlays(&shell_tree, None, None, false);
 
         // Verify compositor layers and commands
         assert_eq!(compositor.composited_layer_count, 1);
@@ -298,7 +300,6 @@ mod tests {
         let sections = TreeCompositor::collect_composited_text_sections(
             &shell_tree,
             &docked_panels,
-            &overlay_tree,
             &text_options,
         );
 

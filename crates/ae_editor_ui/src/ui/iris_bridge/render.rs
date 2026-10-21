@@ -156,14 +156,12 @@ impl IrisEditorOverlay {
         }
 
         // 3. Top-Level Overlay Layer: Modals, dropdowns, and popups rendered without scissor clipping
-        if self.overlay_tree.is_open() && self.overlay_tree.tree().root().is_some() {
-            self.compositor.append_overlay_tree(
-                self.overlay_tree.tree(),
-                self.chrome.hovered_tag,
-                self.overlay_tree.tree().event_state.focused_tag,
-                self.chrome.last_blink_caret,
-            );
-        }
+        self.compositor.append_shell_overlays(
+            &self.tree,
+            self.chrome.hovered_tag,
+            self.tree.event_state.focused_tag,
+            self.chrome.last_blink_caret,
+        );
 
         // Assign composited list back to self.command_list
         self.command_list = std::mem::take(&mut self.compositor.command_list);
@@ -184,8 +182,7 @@ impl IrisEditorOverlay {
         if !self.is_visible
             || (self.command_list.quads.is_empty()
                 && self.command_list.texture_quads.is_empty()
-                && self.tree.root().is_none()
-                && !self.overlay_tree.is_open())
+                && self.tree.root().is_none())
         {
             return;
         }
@@ -206,24 +203,6 @@ impl IrisEditorOverlay {
         }
 
         let mut extra_occluders = Vec::new();
-        if let Some(bounds) = self.overlay_tree.overlay_bounds() {
-            let is_opaque_overlay = matches!(
-                self.overlay_tree.active_overlay(),
-                Some(
-                    super::overlay_tree::ActiveOverlay::MenubarDropdown(_)
-                        | super::overlay_tree::ActiveOverlay::InspectorAddComponent
-                        | super::overlay_tree::ActiveOverlay::InspectorDropdown
-                        | super::overlay_tree::ActiveOverlay::InspectorColorPicker
-                        | super::overlay_tree::ActiveOverlay::HierarchyContextMenu
-                        | super::overlay_tree::ActiveOverlay::Modal(_)
-                        | super::overlay_tree::ActiveOverlay::UiDesignerAddElement
-                        | super::overlay_tree::ActiveOverlay::UiDesignerAspectRatio
-                )
-            );
-            if is_opaque_overlay {
-                extra_occluders.push(bounds);
-            }
-        }
         if let Some(dd_rect) = self.menubar.dropdown_rect {
             extra_occluders.push(dd_rect);
         }
@@ -250,7 +229,6 @@ impl IrisEditorOverlay {
         let sections = super::compositor::TreeCompositor::collect_composited_text_sections(
             &self.tree,
             &docked_panels,
-            self.overlay_tree.tree(),
             &text_options,
         );
 

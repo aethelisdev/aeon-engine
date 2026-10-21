@@ -38,6 +38,8 @@ pub struct TreeCompilerOptions<'a> {
     pub blink_caret: bool,
     /// Optional callback for handling custom widget roles or canvas primitives at exact Z-order.
     pub custom_drawer: Option<CustomDrawCallback<'a>>,
+    /// Optional inclusive layer elevation range `(min, max)` to compile.
+    pub layer_range: Option<(UiLayer, UiLayer)>,
 }
 
 impl<'a> TreeCompilerOptions<'a> {
@@ -45,6 +47,14 @@ impl<'a> TreeCompilerOptions<'a> {
     #[inline]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Sets an inclusive layer elevation range `(min, max)` to filter compiled commands.
+    #[must_use]
+    #[inline]
+    pub fn with_layer_range(mut self, min: UiLayer, max: UiLayer) -> Self {
+        self.layer_range = Some((min, max));
+        self
     }
 
     /// Sets the initial boundary clipping rectangle.
@@ -142,6 +152,11 @@ pub fn compile_tree_draw_commands_into(
 
     let mut had_scissor = options.initial_clip.is_some();
     for (layer_idx, list) in layer_lists.into_iter().enumerate() {
+        if let Some((min_layer, max_layer)) = options.layer_range
+            && (layer_idx < min_layer.index() || layer_idx > max_layer.index())
+        {
+            continue;
+        }
         if list.is_empty() {
             continue;
         }

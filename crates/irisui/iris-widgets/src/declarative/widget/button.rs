@@ -12,8 +12,8 @@ use super::Widget;
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};
 use iris_core::{
-    AlignItems, Border, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, WidgetCursor,
-    WidgetRole,
+    AlignItems, Border, Color, CornerRadii, Insets, JustifyContent, Style, TextAlign, UiLayer,
+    WidgetCursor, WidgetRole,
 };
 
 /// Configurable builder for interactive push buttons.
@@ -25,6 +25,7 @@ pub struct Button {
     name: &'static str,
     label: String,
     tag: Option<u64>,
+    layer: Option<UiLayer>,
     style: Option<Style>,
     fill: Option<Color>,
     text_color: Option<Color>,
@@ -53,6 +54,7 @@ impl Button {
             name: "Button",
             label: label.into(),
             tag: None,
+            layer: None,
             style: None,
             fill: None,
             text_color: None,
@@ -100,6 +102,14 @@ impl Button {
     #[must_use]
     pub fn tag(mut self, tag: u64) -> Self {
         self.tag = Some(tag);
+        self
+    }
+
+    /// Explicitly overrides the destination compositing layer (e.g. [`UiLayer::Modal`], [`UiLayer::Popup`]).
+    #[inline]
+    #[must_use]
+    pub fn layer(mut self, layer: UiLayer) -> Self {
+        self.layer = Some(layer);
         self
     }
 
@@ -300,6 +310,9 @@ impl Widget for Button {
         if let Some(node) = scope.tree.get_mut(node_id) {
             node.interactive = true;
             node.role = WidgetRole::Button;
+            if let Some(l) = self.layer {
+                node.layer = l;
+            }
             node.cursor = Some(WidgetCursor::Pointer);
             node.set_text(visible_text.to_string());
             node.font_size = if self.is_small { 10.0 } else { 11.0 };

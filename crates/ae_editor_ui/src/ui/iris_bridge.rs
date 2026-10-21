@@ -21,10 +21,10 @@ pub mod menubar;
 pub mod modals;
 /// Native docking chrome and geometry built directly into the retained Iris tree.
 pub mod native_dock;
-pub mod overlay_tree;
 pub mod panel_render;
 pub mod preferences;
 pub mod render;
+pub mod shell_dialogs;
 pub mod stats;
 pub mod status_bar;
 pub mod theme;
@@ -32,7 +32,6 @@ pub mod timeline;
 pub mod types;
 pub mod ui_designer;
 pub mod update;
-pub mod update_overlays;
 pub mod update_panels;
 pub mod viewport_content;
 pub mod viewport_hud;
@@ -63,9 +62,6 @@ pub use material::{
     handle_material_scroll,
 };
 pub use modals::*;
-pub use overlay_tree::{
-    ActiveOverlay, ModalKind, OverlayDismissPolicy, OverlayDismissResult, OverlayTree,
-};
 pub use preferences::{
     PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesToggleId,
     build_preferences_dialog,

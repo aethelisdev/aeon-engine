@@ -59,7 +59,6 @@ impl EngineUi {
         }
         if iris_res.close_preferences {
             self.show_preferences = false;
-            self.iris_overlay.overlay_tree.close();
             self.iris_overlay.preferences.drag_offset = None;
             self.iris_overlay.preferences.dropdown = None;
         }
@@ -126,7 +125,6 @@ impl EngineUi {
         }
 
         if modal_closed {
-            self.iris_overlay.overlay_tree.close();
             self.iris_overlay.notifier.tag_all();
             self.iris_overlay.chrome.needs_layout_rebuild = true;
         }

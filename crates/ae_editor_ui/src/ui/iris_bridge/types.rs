@@ -381,10 +381,8 @@ pub struct IrisEditorOverlay {
     pub focus_manager: FocusManager,
     /// Autonomous focus state machine providing SSOT for panel inputs and outside-click clearing.
     pub focus_state: FocusState<FocusTarget>,
-    /// Dedicated top-level overlay and portal tree for dropdowns, popups, and modal dialogs (Phase 5.2).
-    pub overlay_tree: super::overlay_tree::OverlayTree,
     /// Multi-tree layer compositor merging independent panel trees, floating windows,
-    /// and the topmost overlay tree (Phase 5.3).
+    /// and shell overlay layers.
     pub compositor: super::compositor::TreeCompositor,
     /// Centralized queue of pending engine UI actions emitted by panels and overlays.
     pub pending_actions: Vec<EngineUiAction>,
@@ -406,11 +404,15 @@ impl IrisEditorOverlay {
 
     /// Returns `true` if the specified point is occluded by any active top-level overlay layer.
     ///
-    /// Evaluates bounding geometry against the retained top-level [`OverlayTree`](super::overlay_tree::OverlayTree).
+    /// Evaluates bounding geometry against the elevated layers of the primary retained [`UiTree`].
     #[must_use]
     #[inline]
     pub fn is_point_over_overlay(&self, point: Point) -> bool {
-        self.overlay_tree.is_open() && self.overlay_tree.contains_point(point)
+        if let Some(hit_id) = self.tree.hit_test_layered(point) {
+            self.tree.effective_layer(hit_id) >= UiLayer::Modal
+        } else {
+            false
+        }
     }
 
     /// Returns true if the specified 64-bit semantic tag currently holds keyboard input focus.
@@ -443,7 +445,6 @@ impl IrisEditorOverlay {
     /// Checks if any search box, text field, or modal rename input currently has keyboard focus.
     pub fn is_any_text_input_focused(&self) -> bool {
         self.tree.is_text_input_focused()
-            || self.overlay_tree.tree().is_text_input_focused()
             || self.inspector.active_number_input.is_some()
             || self.inspector.active_text_input.is_some()
             || self.inspector.rename_input.is_some()

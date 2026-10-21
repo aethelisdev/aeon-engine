@@ -204,15 +204,16 @@ impl TreeCompositor {
         self.command_list.append(overlay_commands);
     }
 
-    /// Compiles the top-level overlay tree and appends it to the compositor stream at topmost Z-order.
-    pub fn append_overlay_tree(
+    /// Compiles elevated overlay layers (`UiLayer::Modal` to `UiLayer::Tooltip`) from the shell tree
+    /// and appends them to the compositor stream at topmost Z-order with scissor reset.
+    pub fn append_shell_overlays(
         &mut self,
-        overlay_tree: &UiTree,
+        shell_tree: &UiTree,
         hovered_tag: Option<u64>,
         focused_tag: Option<u64>,
         blink_caret: bool,
     ) {
-        let Some(root) = overlay_tree.root() else {
+        let Some(root) = shell_tree.root() else {
             return;
         };
 
@@ -220,10 +221,13 @@ impl TreeCompositor {
         let mut options = TreeCompilerOptions::new()
             .with_hovered_tag(hovered_tag)
             .with_focused_tag(focused_tag)
-            .with_blink_caret(blink_caret);
+            .with_blink_caret(blink_caret)
+            .with_layer_range(UiLayer::Modal, UiLayer::Tooltip);
 
-        compile_tree_draw_commands_into(overlay_tree, root, &mut options, &mut overlay_commands);
-        self.append_overlay_commands(overlay_commands);
+        compile_tree_draw_commands_into(shell_tree, root, &mut options, &mut overlay_commands);
+        if !overlay_commands.is_empty() {
+            self.append_overlay_commands(overlay_commands);
+        }
     }
 
     /// Filters out or scissoring-clips text sections that intersect with active overlay occluders (such as open menus or modal dialogs).
@@ -310,14 +314,15 @@ impl TreeCompositor {
     pub fn collect_composited_text_sections<'a>(
         shell_tree: &'a UiTree,
         docked_panels: &[(&'a UiTree, Rect)],
-        overlay_tree: &'a UiTree,
         options: &TextCollectionOptions,
     ) -> Vec<TextSection<'a>> {
         let mut all_sections = Vec::new();
 
-        // 1. Shell typography (MenuBar, StatusBar, dock chrome)
+        // 1. Shell base typography (MenuBar, StatusBar, dock chrome - Background to Floating)
         if shell_tree.root().is_some() {
-            let mut shell_sections = collect_text_sections_with_options(shell_tree, options);
+            let mut base_options = options.clone();
+            base_options.layer_range = Some((UiLayer::Background, UiLayer::Floating));
+            let mut shell_sections = collect_text_sections_with_options(shell_tree, &base_options);
             if !options.extra_occluders.is_empty() {
                 Self::occlude_text_sections(&mut shell_sections, &options.extra_occluders);
             }
@@ -333,13 +338,13 @@ impl TreeCompositor {
             }
         }
 
-        // 3. Top-level overlay typography (dropdowns, popups, modals)
+        // 3. Shell overlay typography (dropdowns, popups, modals - Modal to Tooltip)
         // Overlays reside at topmost Z-order; clear extra_occluders so their own bounds never occlude their content
-        if overlay_tree.root().is_some() {
+        if shell_tree.root().is_some() {
             let mut overlay_options = options.clone();
             overlay_options.extra_occluders.clear();
-            let overlay_sections =
-                collect_text_sections_with_options(overlay_tree, &overlay_options);
+            overlay_options.layer_range = Some((UiLayer::Modal, UiLayer::Tooltip));
+            let overlay_sections = collect_text_sections_with_options(shell_tree, &overlay_options);
             all_sections.extend(overlay_sections);
         }
 

@@ -34,6 +34,8 @@ pub struct TextCollectionOptions {
     pub focused_id: Option<WidgetId>,
     /// Whether text input caret cursors are in the active visible blink phase.
     pub blink_caret: bool,
+    /// Optional inclusive layer elevation range `(min, max)` to collect.
+    pub layer_range: Option<(UiLayer, UiLayer)>,
 }
 
 impl TextCollectionOptions {
@@ -41,6 +43,14 @@ impl TextCollectionOptions {
     #[inline]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Sets an inclusive layer elevation range `(min, max)` to filter collected typography.
+    #[must_use]
+    #[inline]
+    pub fn with_layer_range(mut self, min: UiLayer, max: UiLayer) -> Self {
+        self.layer_range = Some((min, max));
+        self
     }
 
     /// Sets the hovered semantic tag for dynamic hover text highlighting.
@@ -148,7 +158,12 @@ pub fn collect_text_sections_with_options<'a>(
 
     let total_count: usize = layer_sections.iter().map(|s| s.len()).sum();
     let mut sections = Vec::with_capacity(total_count);
-    for layer in layer_sections {
+    for (layer_idx, layer) in layer_sections.into_iter().enumerate() {
+        if let Some((min_layer, max_layer)) = options.layer_range
+            && (layer_idx < min_layer.index() || layer_idx > max_layer.index())
+        {
+            continue;
+        }
         sections.extend(layer);
     }
 
