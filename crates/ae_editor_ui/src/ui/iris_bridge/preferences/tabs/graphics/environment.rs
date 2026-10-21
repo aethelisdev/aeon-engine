@@ -6,8 +6,9 @@
 //! Renders physical Rayleigh/Mie sky scattering, ozone absorption, sun parameters,
 //! procedural clouds, and atmospheric fog declaratively using [`UiScope`] and two-way property primitives.
 
-use crate::ui::iris_bridge::preferences::components::{pref_dropdown_row, pref_section_card};
-use crate::ui::iris_bridge::preferences::types::{PreferencesDropdownId, PreferencesParams};
+use super::types::SKY_OPTIONS;
+use crate::ui::iris_bridge::preferences::components::{pref_combobox, pref_section_card};
+use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use ae_renderer::graphics_settings::SkyQuality;
 use irisui::prelude::*;
 
@@ -17,7 +18,6 @@ use irisui::prelude::*;
 /// directly to `gs` via immediate two-way property primitives without intermediary enum queues.
 pub fn build_environment_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_env");
-    let active_dropdown = params.active_dropdown;
     let gs = &mut *params.graphics_settings;
     let is_advanced_sky = gs.sky_quality != SkyQuality::Low;
 
@@ -27,13 +27,22 @@ pub fn build_environment_card(scope: &mut UiScope<'_>, params: &mut PreferencesP
         "⛅  Environment & Sky",
         is_collapsed,
         |body| {
-            pref_dropdown_row(
+            let resp = pref_combobox(
                 body,
-                PreferencesDropdownId::SkyQuality,
                 "Sky Quality",
                 gs.sky_quality.label(),
-                active_dropdown == Some(PreferencesDropdownId::SkyQuality),
+                &[
+                    "Low (Gradient)",
+                    "Medium (Fast HDR)",
+                    "High (Atmospheric 2.5D)",
+                ],
             );
+            if resp.changed()
+                && let Some(idx) = resp.selected_index()
+                && let Some(&sky) = SKY_OPTIONS.get(idx)
+            {
+                gs.sky_quality = sky;
+            }
 
             let mut sun_pitch_deg = gs.sun_pitch.to_degrees();
             body.property_slider_with_options(

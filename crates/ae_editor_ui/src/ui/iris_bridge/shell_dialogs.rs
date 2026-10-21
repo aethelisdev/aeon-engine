@@ -78,8 +78,6 @@ impl IrisEditorOverlay {
                     screen_height,
                     window_pos: self.preferences.pos,
                     active_tab: self.preferences.tab,
-                    active_dropdown: self.preferences.dropdown,
-                    dropdown_trigger_rect: self.preferences.dropdown_trigger_rect,
                     collapsed_sections: &self.preferences.collapsed_sections,
                     active_number_input,
                     blink_caret,

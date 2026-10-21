@@ -6,8 +6,8 @@
 //! Renders the snapping mode selection ComboBox and grid size slider
 //! declaratively using [`UiScope`] and two-way property primitives.
 
-use crate::ui::iris_bridge::preferences::components::{pref_dropdown_row, pref_section_card};
-use crate::ui::iris_bridge::preferences::types::{PreferencesDropdownId, PreferencesParams};
+use crate::ui::iris_bridge::preferences::components::{pref_combobox, pref_section_card};
+use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use ae_editor::snapping::SnapMode;
 use irisui::prelude::*;
 
@@ -23,7 +23,6 @@ pub const SNAP_MODE_OPTIONS: [(&str, SnapMode); 3] = [
 /// Binds grid size directly to `snapping.grid_size` via immediate two-way property primitives.
 pub fn build_snapping_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("editor_snapping");
-    let active_dropdown = params.active_dropdown;
     let snapping = &mut *params.snapping_settings;
 
     let snap_mode_label = match snapping.mode {
@@ -32,21 +31,24 @@ pub fn build_snapping_card(scope: &mut UiScope<'_>, params: &mut PreferencesPara
         SnapMode::Toggle => "Toggle",
     };
 
-    let is_dropdown_active = active_dropdown == Some(PreferencesDropdownId::SnapMode);
-
     pref_section_card(
         scope,
         "editor_snapping",
         "🧲  Snapping",
         is_collapsed,
         |body| {
-            pref_dropdown_row(
+            let resp = pref_combobox(
                 body,
-                PreferencesDropdownId::SnapMode,
                 "Snap Mode",
                 snap_mode_label,
-                is_dropdown_active,
+                &["Off", "Hold (Ctrl)", "Toggle"],
             );
+            if resp.changed()
+                && let Some(idx) = resp.selected_index()
+                && let Some(&(_, mode)) = SNAP_MODE_OPTIONS.get(idx)
+            {
+                snapping.mode = mode;
+            }
 
             let opts = PropertySliderOptions::new(0.1, 10.0, 0.05)
                 .with_format("{:.2}")

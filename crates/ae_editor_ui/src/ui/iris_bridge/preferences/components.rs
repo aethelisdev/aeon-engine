@@ -6,10 +6,7 @@
 //! Reusable, type-safe, hardware-accelerated declarative building blocks for
 //! the Preferences dialog tabs using [`UiScope`].
 
-use super::types::{
-    PreferencesDropdownId, PreferencesToggleId, encode_dropdown_tag, encode_section_tag,
-    encode_toggle_tag,
-};
+use super::types::{PreferencesToggleId, encode_section_tag, encode_toggle_tag};
 use irisui::prelude::*;
 
 /// Emits the top section heading with title, descriptive subtitle, and horizontal rule.
@@ -185,91 +182,20 @@ pub fn pref_toggle_row(
     )
 }
 
-/// Emits an interactive dropdown ComboBox row.
+/// Emits an autonomous declarative combobox row inside the Preferences dialog using [`irisui::prelude::ComboBox`].
 ///
-/// Returns the [`WidgetResponse`] of the ComboBox trigger button.
-pub fn pref_dropdown_row(
+/// Binds label, selection text, options, and returns the [`irisui::prelude::ComboBoxResponse`] containing interaction
+/// signals and selected index.
+pub fn pref_combobox<'a>(
     scope: &mut UiScope<'_>,
-    dropdown_id: PreferencesDropdownId,
     label: &'static str,
-    current_label: &str,
-    is_open: bool,
-) -> WidgetResponse {
-    let tag = encode_dropdown_tag(dropdown_id);
-    let mut combo_resp = WidgetResponse::default();
-
-    scope.container_named(
-        "PrefDropdownRow",
-        Style::new()
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .height(28.0)
-            .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0)),
-        |row| {
-            // Label
-            row.label_styled_passive(
-                "PrefDropdownLabel",
-                label,
-                11.5,
-                Color::rgba(0.78, 0.82, 0.90, 1.0),
-                TextAlign::Left,
-                Style::new().width(170.0),
-            );
-
-            // ComboBox Trigger Button
-            let (btn_bg, hover_bg) = if is_open {
-                (
-                    Color::rgba(0.18, 0.22, 0.32, 0.95),
-                    Color::rgba(0.18, 0.22, 0.32, 0.95),
-                )
-            } else {
-                (
-                    Color::rgba(0.12, 0.13, 0.17, 0.85),
-                    Color::rgba(0.16, 0.18, 0.24, 0.90),
-                )
-            };
-
-            let (border_color, hover_border_color) = if is_open {
-                (
-                    Color::rgba(0.0, 0.75, 1.0, 0.90),
-                    Color::rgba(0.0, 0.75, 1.0, 0.90),
-                )
-            } else {
-                (
-                    Color::rgba(0.22, 0.25, 0.34, 0.70),
-                    Color::rgba(0.0, 0.75, 1.0, 0.90),
-                )
-            };
-
-            let combo_text = format!("{} ▾", current_label);
-
-            combo_resp = row.container_tagged_resp(
-                "PrefComboBox",
-                Style::new()
-                    .width(180.0)
-                    .height(24.0)
-                    .background(btn_bg)
-                    .hover_background(hover_bg)
-                    .border(1.0, border_color)
-                    .hover_border(1.0, hover_border_color)
-                    .border_radius(3.0)
-                    .align_items(AlignItems::Center)
-                    .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0)),
-                WidgetRole::Button,
-                tag,
-                |btn| {
-                    btn.label_styled_hover_passive(
-                        "PrefComboText",
-                        combo_text,
-                        11.5,
-                        (Color::rgba(0.90, 0.92, 0.96, 1.0), Color::WHITE),
-                        TextAlign::Left,
-                        Style::new().flex_grow(1.0),
-                    );
-                },
-            );
-        },
-    );
-
-    combo_resp
+    selected_text: &'a str,
+    options: &'a [&'a str],
+) -> irisui::prelude::ComboBoxResponse {
+    scope.add(
+        irisui::prelude::ComboBox::new(selected_text, options)
+            .label(label)
+            .label_width(170.0)
+            .width(180.0),
+    )
 }

@@ -11,14 +11,13 @@ use super::builder::{
     calculate_preferences_drag_pos,
 };
 use super::types::{
-    PREF_TAG_CLOSE, PREF_TAG_TITLEBAR, PreferencesAction, PreferencesDropdownId, PreferencesParams,
-    PreferencesToggleId, encode_dropdown_item_tag, encode_dropdown_tag, encode_section_tag,
-    encode_tab_tag, encode_toggle_tag, is_preferences_tag, parse_dropdown_item_tag,
-    parse_dropdown_tag, parse_section_tag, parse_tab_tag, parse_toggle_tag,
+    PREF_TAG_CLOSE, PREF_TAG_TITLEBAR, PreferencesAction, PreferencesParams, PreferencesToggleId,
+    encode_section_tag, encode_tab_tag, encode_toggle_tag, is_preferences_tag, parse_section_tag,
+    parse_tab_tag, parse_toggle_tag,
 };
 use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
-use ae_renderer::graphics_settings::GraphicsSettings;
+use ae_renderer::graphics_settings::{FpsLimit, GraphicsSettings};
 use irisui::prelude::*;
 use std::collections::HashSet;
 
@@ -84,31 +83,7 @@ fn test_preferences_semantic_tags_encoding_roundtrip() {
         assert_eq!(parse_section_tag(tag), Some(sec));
     }
 
-    // 3. Dropdown tag roundtrips
-    let dropdowns = [
-        PreferencesDropdownId::UiScale,
-        PreferencesDropdownId::ShadowResolution,
-        PreferencesDropdownId::ShadowCascades,
-        PreferencesDropdownId::ShadowPcf,
-        PreferencesDropdownId::FpsLimit,
-        PreferencesDropdownId::MsaaSamples,
-        PreferencesDropdownId::SkyQuality,
-        PreferencesDropdownId::SnapMode,
-    ];
-    for &dd in &dropdowns {
-        let tag = encode_dropdown_tag(dd);
-        assert!(is_preferences_tag(tag));
-        assert_eq!(parse_dropdown_tag(tag), Some(dd));
-    }
-
-    // 4. Dropdown item tag roundtrips
-    for idx in 0..10 {
-        let tag = encode_dropdown_item_tag(idx);
-        assert!(is_preferences_tag(tag));
-        assert_eq!(parse_dropdown_item_tag(tag), Some(idx));
-    }
-
-    // 5. Toggle tag roundtrips
+    // 3. Toggle tag roundtrips
     let toggles = [
         PreferencesToggleId::LiveUpdatesEnabled,
         PreferencesToggleId::Module(ae_core::modules::EngineModule::Physics),
@@ -136,8 +111,6 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
         screen_height: 1080.0,
         window_pos: Some(Point::new(400.0, 200.0)),
         active_tab: 0,
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -241,7 +214,7 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
 }
 
 #[test]
-fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
+fn test_preferences_combobox_mounting() {
     let mut tree = UiTree::new();
     let _root_id = tree.create_root().expect("Root node creation must succeed");
 
@@ -251,14 +224,13 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
     let mut snapping_settings = SnapSettings::default();
     let mut editor_config = EditorConfig::default();
 
-    // Open Preferences dialog with Graphics tab (tab 1) and FpsLimit dropdown open
+    assert_eq!(graphics_settings.fps_limit, FpsLimit::Limit120);
+
     let params = PreferencesParams {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(400.0, 200.0)),
         active_tab: 1,
-        active_dropdown: Some(PreferencesDropdownId::FpsLimit),
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -275,57 +247,11 @@ fn test_preferences_dropdown_popup_hit_targets_and_item_selection() {
     let (_widget_id, _card_rect, _content_rect, max_scroll_y) =
         build_preferences_dialog(&mut tree, params, &mut Vec::new());
 
-    // Graphics tab total content height exceeds viewport height
     assert!(max_scroll_y > 0.0, "Graphics tab must require scrolling");
-
-    // Verify dropdown items exist with semantic tags
-    let options = PreferencesDropdownId::FpsLimit.options();
-    for (idx, _label) in options.iter().enumerate() {
-        let item_tag = encode_dropdown_item_tag(idx);
-        let found = tree.iter().any(|(_id, node)| node.tag == item_tag);
-        assert!(
-            found,
-            "Dropdown item {} must exist in declarative UiTree with tag {}",
-            idx, item_tag
-        );
-    }
-}
-
-#[test]
-fn test_dropdown_options_match_engine_spec() {
-    assert_eq!(
-        PreferencesDropdownId::ShadowResolution.options(),
-        &["Low (512)", "Medium (1024)", "High (2048)", "Ultra (4096)"]
+    assert!(
+        tree.iter().count() > 20,
+        "Preferences UiTree must contain declarative nodes mounted for Graphics tab"
     );
-    assert_eq!(
-        PreferencesDropdownId::ShadowCascades.options(),
-        &["3 Cascades (Default)", "4 Cascades (High Fidelity)"]
-    );
-    assert_eq!(
-        PreferencesDropdownId::ShadowPcf.options(),
-        &["Off (Sharp)", "3x3 Soft", "5x5 Ultra Soft"]
-    );
-    assert_eq!(
-        PreferencesDropdownId::FpsLimit.options(),
-        &["60 FPS", "120 FPS", "Uncapped"]
-    );
-    assert_eq!(
-        PreferencesDropdownId::MsaaSamples.options(),
-        &["Off (1x)", "2x", "4x (Default)"]
-    );
-    assert_eq!(
-        PreferencesDropdownId::SkyQuality.options(),
-        &[
-            "Low (Gradient)",
-            "Medium (Fast HDR)",
-            "High (Atmospheric 2.5D)",
-        ]
-    );
-    assert_eq!(
-        PreferencesDropdownId::SnapMode.options(),
-        &["Off", "Hold (Ctrl)", "Toggle"]
-    );
-    assert_eq!(PreferencesDropdownId::UiScale.options().len(), 7);
 }
 
 #[test]
@@ -347,8 +273,6 @@ fn test_preferences_scroll_translates_children_upward() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -367,8 +291,6 @@ fn test_preferences_scroll_translates_children_upward() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -433,8 +355,6 @@ fn test_preferences_declarative_text_wrap_and_scope_purity() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 9, // Modules tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -547,8 +467,6 @@ fn test_preferences_two_way_data_binding_shadows_and_bloom() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -638,8 +556,6 @@ fn test_preferences_two_way_data_binding_editor_tab() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 2, // Editor tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -695,8 +611,6 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: Some((num_box_pitch, "0.50", true)), // Selected on click
@@ -739,8 +653,6 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: None,
@@ -778,8 +690,6 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab (overflows content height)
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: None,
@@ -833,8 +743,6 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             screen_height: 1080.0,
             window_pos: None,
             active_tab: 1, // Graphics tab
-            active_dropdown: None,
-            dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -857,8 +765,6 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             screen_height: 1080.0,
             window_pos: None,
             active_tab: 1,
-            active_dropdown: None,
-            dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -902,8 +808,6 @@ fn test_sync_scroll_in_place_translates_children() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 1, // Graphics tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: None,
@@ -991,8 +895,6 @@ fn test_preferences_mouse_wheel_and_drag() {
             screen_height,
             window_pos: None,
             active_tab: 1, // Graphics tab
-            active_dropdown: None,
-            dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -1033,8 +935,6 @@ fn test_preferences_mouse_wheel_and_drag() {
             screen_height,
             window_pos: None,
             active_tab: 1, // Graphics tab
-            active_dropdown: None,
-            dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -1091,8 +991,6 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 0,
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -1127,8 +1025,6 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 0,
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -1150,40 +1046,36 @@ fn test_preferences_declarative_actions_dispatch() {
         "Clicking tab 3 must dispatch PreferencesAction::SelectTab(3)"
     );
 
-    // 3. Test Dropdown item selection declarative dispatch
-    let dd_item_tag = encode_dropdown_item_tag(2);
-    let events_dd = [(
-        dd_item_tag,
-        InteractionEvent::Click {
-            button: MouseButton::Left,
+    // 3. Test Titlebar Drag declarative dispatch
+    let events_drag = [(
+        PREF_TAG_TITLEBAR,
+        InteractionEvent::Drag {
+            delta: Point::new(10.0, 15.0),
         },
     )];
-    let params_dd = PreferencesParams {
+    let params_drag = PreferencesParams {
         screen_width: 1920.0,
         screen_height: 1080.0,
-        window_pos: None,
-        active_tab: 1,
-        active_dropdown: Some(PreferencesDropdownId::ShadowResolution),
-        dropdown_trigger_rect: None,
+        window_pos: Some(Point::new(100.0, 100.0)),
+        active_tab: 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
-        cursor_pos: Point::new(0.0, 0.0),
+        cursor_pos: Point::new(110.0, 115.0),
         zoom_factor: 1.0,
         graphics_settings: &mut gs,
         snapping_settings: &mut snapping_settings,
         editor_config: &mut editor_config,
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
-        events: &events_dd,
+        events: &events_drag,
     };
-    let mut actions_dd = Vec::new();
-    build_preferences_dialog(&mut UiTree::new(), params_dd, &mut actions_dd);
+    let mut actions_drag = Vec::new();
+    build_preferences_dialog(&mut UiTree::new(), params_drag, &mut actions_drag);
     assert!(
-        actions_dd.iter().any(|a| matches!(
-            a,
-            PreferencesAction::SelectDropdownItem(PreferencesDropdownId::ShadowResolution, 2)
-        )),
-        "Clicking dropdown item 2 must dispatch SelectDropdownItem(ShadowResolution, 2)"
+        actions_drag
+            .iter()
+            .any(|a| matches!(a, PreferencesAction::Move(_))),
+        "Dragging titlebar must dispatch PreferencesAction::Move"
     );
 }

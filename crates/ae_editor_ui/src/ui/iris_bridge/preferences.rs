@@ -23,15 +23,12 @@ pub use builder::{
     PREF_CARD_HEIGHT, PREF_CARD_WIDTH, SIDEBAR_TABS, SIDEBAR_WIDTH, TITLEBAR_HEIGHT,
     build_preferences_dialog, calculate_preferences_drag_pos,
 };
-pub use components::{pref_dropdown_row, pref_heading, pref_section_card, pref_toggle_row};
+pub use components::{pref_combobox, pref_heading, pref_section_card, pref_toggle_row};
 pub use types::{
     PHYSICS_HZ_PRESETS, PREF_SECTIONS, PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW,
-    PREF_TAG_DROPDOWN_BASE, PREF_TAG_DROPDOWN_ITEM_BASE, PREF_TAG_SCROLLBAR_THUMB,
-    PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_SECTION_BASE, PREF_TAG_TAB_BASE, PREF_TAG_TITLEBAR,
-    PREF_TAG_TOGGLE_BASE, PREFERENCES_TAG_DOMAIN, PreferencesAction, PreferencesDialogState,
-    PreferencesDropdownId, PreferencesParams, PreferencesTagTarget, PreferencesToggleId,
-    encode_dropdown_item_tag, encode_dropdown_tag, encode_section_tag, encode_tab_tag,
-    encode_toggle_tag, is_preferences_tag, parse_dropdown_item_tag, parse_dropdown_tag,
-    parse_section_tag, parse_tab_tag, parse_toggle_tag, preferences_scroll_style,
-    resolve_preferences_tag,
+    PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_SECTION_BASE, PREF_TAG_TAB_BASE,
+    PREF_TAG_TITLEBAR, PREF_TAG_TOGGLE_BASE, PREFERENCES_TAG_DOMAIN, PreferencesAction,
+    PreferencesDialogState, PreferencesParams, PreferencesTagTarget, PreferencesToggleId,
+    encode_section_tag, encode_tab_tag, encode_toggle_tag, is_preferences_tag, parse_section_tag,
+    parse_tab_tag, parse_toggle_tag, preferences_scroll_style, resolve_preferences_tag,
 };

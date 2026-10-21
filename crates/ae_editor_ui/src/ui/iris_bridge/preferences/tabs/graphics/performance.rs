@@ -6,12 +6,13 @@
 //! Renders framerate limiting, hardware MSAA samples, and HDR bloom cards
 //! declaratively using [`UiScope`].
 
-use crate::ui::iris_bridge::preferences::components::{pref_dropdown_row, pref_section_card};
-use crate::ui::iris_bridge::preferences::types::{PreferencesDropdownId, PreferencesParams};
+use super::types::{FPS_OPTIONS, MSAA_OPTIONS};
+use crate::ui::iris_bridge::preferences::components::{pref_combobox, pref_section_card};
+use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
 
 /// Builds the Performance & Framerate card declaratively using [`UiScope`].
-pub fn build_perf_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
+pub fn build_perf_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_perf");
 
     pref_section_card(
@@ -20,19 +21,24 @@ pub fn build_perf_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) 
         "⚡  Performance & Framerate",
         is_collapsed,
         |body| {
-            pref_dropdown_row(
+            let resp = pref_combobox(
                 body,
-                PreferencesDropdownId::FpsLimit,
                 "Framerate Limit",
                 params.graphics_settings.fps_limit.label(),
-                params.active_dropdown == Some(PreferencesDropdownId::FpsLimit),
+                &["60 FPS", "120 FPS", "Uncapped"],
             );
+            if resp.changed()
+                && let Some(idx) = resp.selected_index()
+                && let Some(&fps) = FPS_OPTIONS.get(idx)
+            {
+                params.graphics_settings.fps_limit = fps;
+            }
         },
     );
 }
 
 /// Builds the Anti-Aliasing (MSAA) card declaratively using [`UiScope`].
-pub fn build_aa_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
+pub fn build_aa_card(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
     let is_collapsed = params.collapsed_sections.contains("graphics_aa");
 
     let msaa_label = match params.graphics_settings.msaa_samples {
@@ -47,13 +53,18 @@ pub fn build_aa_card(scope: &mut UiScope<'_>, params: &PreferencesParams<'_>) {
         "🔍  Anti-Aliasing (MSAA)",
         is_collapsed,
         |body| {
-            pref_dropdown_row(
+            let resp = pref_combobox(
                 body,
-                PreferencesDropdownId::MsaaSamples,
                 "MSAA Samples",
                 msaa_label,
-                params.active_dropdown == Some(PreferencesDropdownId::MsaaSamples),
+                &["Off (1x)", "2x", "4x (Default)"],
             );
+            if resp.changed()
+                && let Some(idx) = resp.selected_index()
+                && let Some(&(samples, _)) = MSAA_OPTIONS.get(idx)
+            {
+                params.graphics_settings.msaa_samples = samples;
+            }
         },
     );
 }

@@ -32,8 +32,6 @@ fn test_preferences_all_ten_tabs_render_cleanly() {
             screen_height: 1080.0,
             window_pos: None,
             active_tab: tab_idx,
-            active_dropdown: None,
-            dropdown_trigger_rect: None,
             collapsed_sections: &collapsed,
             blink_caret: false,
             active_number_input: None,
@@ -122,8 +120,6 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 3, // Navigation tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -175,8 +171,6 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 7, // Input tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -214,8 +208,6 @@ fn test_preferences_keymap_scroll_covers_full_content() {
         screen_height: 1080.0,
         window_pos: None,
         active_tab: 4, // Keymap tab
-        active_dropdown: None,
-        dropdown_trigger_rect: None,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,

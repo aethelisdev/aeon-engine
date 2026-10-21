@@ -6,8 +6,8 @@
 //! Renders global engine settings, language configuration, display / UI scale settings,
 //! and viewport synchronization options declaratively using [`UiScope`].
 
-use super::super::components::{pref_dropdown_row, pref_heading, pref_section_card};
-use super::super::types::{PreferencesDropdownId, PreferencesParams};
+use super::super::components::{pref_combobox, pref_heading, pref_section_card};
+use super::super::types::{PreferencesAction, PreferencesParams};
 use irisui::prelude::*;
 
 /// Scales table supported in the UI scale ComboBox.
@@ -22,7 +22,11 @@ pub const UI_SCALES: [(f32, &str); 7] = [
 ];
 
 /// Builds the General & Interface preferences tab content declaratively using [`UiScope`].
-pub fn build_general_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'_>) {
+pub fn build_general_tab(
+    scope: &mut UiScope<'_>,
+    params: &mut PreferencesParams<'_>,
+    actions: &mut Vec<PreferencesAction>,
+) {
     pref_heading(
         scope,
         "General & Interface",
@@ -53,14 +57,23 @@ pub fn build_general_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams
                 .map(|(_, l)| *l)
                 .unwrap_or("100% (Default)");
 
-            let is_open = params.active_dropdown == Some(PreferencesDropdownId::UiScale);
-            pref_dropdown_row(
-                body,
-                PreferencesDropdownId::UiScale,
-                "Interface Scale",
-                selected_label,
-                is_open,
-            );
+            let scale_labels = [
+                "75%",
+                "80%",
+                "90%",
+                "100% (Default)",
+                "110%",
+                "125%",
+                "150%",
+            ];
+            let resp = pref_combobox(body, "Interface Scale", selected_label, &scale_labels);
+            if resp.changed()
+                && let Some(idx) = resp.selected_index()
+                && let Some(&(scale_val, _)) = UI_SCALES.get(idx)
+            {
+                params.zoom_factor = scale_val;
+                actions.push(PreferencesAction::SetUiScale(scale_val));
+            }
         },
     );
 

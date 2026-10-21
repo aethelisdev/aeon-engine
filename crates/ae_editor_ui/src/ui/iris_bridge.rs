@@ -63,8 +63,7 @@ pub use material::{
 };
 pub use modals::*;
 pub use preferences::{
-    PreferencesAction, PreferencesDropdownId, PreferencesParams, PreferencesToggleId,
-    build_preferences_dialog,
+    PreferencesAction, PreferencesParams, PreferencesToggleId, build_preferences_dialog,
 };
 pub use stats::{StatsPanelAction, StatsPanelParams, StatsPanelState, build_stats_panel};
 pub use theme::*;

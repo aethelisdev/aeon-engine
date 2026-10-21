@@ -11,7 +11,7 @@ use super::tabs::*;
 use super::types::{
     PREF_TAG_CARD, PREF_TAG_CLOSE, PREF_TAG_CONTENT_VIEW, PREF_TAG_SCROLL_CONTAINER,
     PREF_TAG_SCROLLBAR_THUMB, PREF_TAG_SCROLLBAR_TRACK, PREF_TAG_TITLEBAR, PreferencesParams,
-    encode_dropdown_item_tag, encode_tab_tag, preferences_scroll_style,
+    encode_tab_tag, preferences_scroll_style,
 };
 use irisui::prelude::*;
 
@@ -325,7 +325,7 @@ pub fn build_preferences_dialog(
                                 PREF_TAG_SCROLL_CONTAINER,
                                 |scroll_col| {
                                     match params.active_tab {
-                                        0 => build_general_tab(scroll_col, &mut params),
+                                        0 => build_general_tab(scroll_col, &mut params, actions),
                                         1 => build_graphics_tab(scroll_col, &mut params),
                                         2 => build_editor_tab(scroll_col, &mut params),
                                         3 => build_navigation_tab(scroll_col, &mut params),
@@ -419,96 +419,6 @@ pub fn build_preferences_dialog(
                 PREF_TAG_SCROLLBAR_THUMB,
             );
         }
-    }
-
-    // 5. Active Floating Dropdown Popup Menu Overlay (UiLayer::Popup)
-    if let Some(dd_id) = params.active_dropdown {
-        let options = dd_id.options();
-        let popup_w = 180.0;
-        let item_h = 24.0;
-        let popup_h = options.len() as f32 * item_h + 8.0;
-
-        // Position popup anchored directly below the ComboBox trigger button
-        let (popup_x, popup_y) = if let Some(trigger) = params.dropdown_trigger_rect {
-            let x = trigger.x.clamp(
-                content_rect.x,
-                (content_rect.right() - popup_w).max(content_rect.x),
-            );
-            // Place below trigger button, or flip above if it would overflow dialog
-            let y = if trigger.bottom() + popup_h > card_rect.bottom() - 10.0 {
-                (trigger.y - popup_h - 2.0).max(card_rect.y + TITLEBAR_HEIGHT + 4.0)
-            } else {
-                trigger.bottom() + 2.0
-            };
-            (x, y)
-        } else {
-            (
-                (params.cursor_pos.x - 20.0).clamp(
-                    content_rect.x,
-                    (content_rect.right() - popup_w).max(content_rect.x),
-                ),
-                (params.cursor_pos.y + 10.0).clamp(
-                    content_rect.y,
-                    (content_rect.bottom() - popup_h).max(content_rect.y),
-                ),
-            )
-        };
-        let popup_rect = Rect::new(popup_x, popup_y, popup_w, popup_h);
-
-        root_scope.container_tagged(
-            "PrefDropdownPopupCard",
-            Style::new()
-                .position_absolute()
-                .left(popup_x)
-                .top(popup_y)
-                .width(popup_w)
-                .height(popup_h)
-                .flex_col()
-                .padding_insets(Insets::new(4.0, 4.0, 4.0, 4.0))
-                .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-                .border(1.0, Color::rgba(0.24, 0.28, 0.38, 1.0))
-                .border_radius(5.0)
-                .box_shadow(0.0, 6.0, 16.0, Color::rgba(0.0, 0.0, 0.0, 0.80)),
-            WidgetRole::DropdownPopup,
-            0,
-            |menu| {
-                for (idx, &item_label) in options.iter().enumerate() {
-                    let item_tag = encode_dropdown_item_tag(idx);
-
-                    if menu
-                        .container_tagged_resp(
-                            "PrefDropdownMenuItem",
-                            Style::new()
-                                .flex_row()
-                                .align_items(AlignItems::Center)
-                                .height(item_h)
-                                .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-                                .border_radius(3.0)
-                                .background(Color::TRANSPARENT)
-                                .hover_background(Color::rgba(0.0, 0.65, 0.85, 0.35)),
-                            WidgetRole::DropdownItem,
-                            item_tag,
-                            |item| {
-                                item.label_styled_hover_passive(
-                                    "PrefDropdownMenuText",
-                                    item_label,
-                                    11.5,
-                                    (Color::rgba(0.85, 0.88, 0.94, 1.0), Color::WHITE),
-                                    TextAlign::Left,
-                                    Style::new().flex_grow(1.0),
-                                );
-                            },
-                        )
-                        .clicked()
-                    {
-                        actions.push(super::types::PreferencesAction::SelectDropdownItem(
-                            dd_id, idx,
-                        ));
-                    }
-                }
-                menu.finish_layout(popup_rect);
-            },
-        );
     }
 
     (card_id, card_rect, content_rect, max_scroll_y)

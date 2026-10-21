@@ -60,7 +60,6 @@ impl EngineUi {
         if iris_res.close_preferences {
             self.show_preferences = false;
             self.iris_overlay.preferences.drag_offset = None;
-            self.iris_overlay.preferences.dropdown = None;
         }
         if let Some(pref_act) = iris_res.preferences_action {
             if let crate::ui::iris_bridge::PreferencesAction::SetUiScale(s) = pref_act {

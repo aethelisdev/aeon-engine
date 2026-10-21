@@ -47,7 +47,7 @@ impl EngineUi {
         }
 
         if let Some(card_rect) = self.iris_overlay.preferences.card_rect
-            && (in_rect(card_rect) || self.iris_overlay.preferences.dropdown.is_some())
+            && in_rect(card_rect)
         {
             return true;
         }

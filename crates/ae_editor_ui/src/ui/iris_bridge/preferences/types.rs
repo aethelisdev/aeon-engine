@@ -37,10 +37,6 @@ pub const PREF_TAG_SCROLL_CONTAINER: u64 = PREFERENCES_TAG_DOMAIN | 0x0007;
 pub const PREF_TAG_TAB_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0010;
 /// Base semantic tag for collapsible card sections.
 pub const PREF_TAG_SECTION_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0100;
-/// Base semantic tag for dropdown combo box triggers.
-pub const PREF_TAG_DROPDOWN_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0200;
-/// Base semantic tag for dropdown menu item selection.
-pub const PREF_TAG_DROPDOWN_ITEM_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0300;
 /// Base semantic tag for toggle switches / checkboxes.
 pub const PREF_TAG_TOGGLE_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0400;
 
@@ -108,99 +104,6 @@ pub fn parse_section_tag(tag: u64) -> Option<&'static str> {
     None
 }
 
-/// Interactive dropdown menu identifiers in the Preferences dialog.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PreferencesDropdownId {
-    /// UI scale selection dropdown in General tab.
-    UiScale = 0,
-    /// Shadow resolution selection in Graphics tab.
-    ShadowResolution = 1,
-    /// Shadow cascade count selection in Graphics tab.
-    ShadowCascades = 2,
-    /// PCF filtering quality selection in Graphics tab.
-    ShadowPcf = 3,
-    /// Framerate limit selection in Graphics tab.
-    FpsLimit = 4,
-    /// MSAA sample count selection in Graphics tab.
-    MsaaSamples = 5,
-    /// Skybox rendering quality selection in Graphics tab.
-    SkyQuality = 6,
-    /// Snapping mode selection in Editor tab.
-    SnapMode = 7,
-}
-
-impl PreferencesDropdownId {
-    const ALL: [PreferencesDropdownId; 8] = [
-        PreferencesDropdownId::UiScale,
-        PreferencesDropdownId::ShadowResolution,
-        PreferencesDropdownId::ShadowCascades,
-        PreferencesDropdownId::ShadowPcf,
-        PreferencesDropdownId::FpsLimit,
-        PreferencesDropdownId::MsaaSamples,
-        PreferencesDropdownId::SkyQuality,
-        PreferencesDropdownId::SnapMode,
-    ];
-
-    /// Returns the static selectable string labels for this dropdown menu.
-    pub fn options(self) -> &'static [&'static str] {
-        match self {
-            Self::UiScale => &[
-                "75%",
-                "80%",
-                "90%",
-                "100% (Default)",
-                "110%",
-                "125%",
-                "150%",
-            ],
-            Self::ShadowResolution => {
-                &["Low (512)", "Medium (1024)", "High (2048)", "Ultra (4096)"]
-            }
-            Self::ShadowCascades => &["3 Cascades (Default)", "4 Cascades (High Fidelity)"],
-            Self::ShadowPcf => &["Off (Sharp)", "3x3 Soft", "5x5 Ultra Soft"],
-            Self::FpsLimit => &["60 FPS", "120 FPS", "Uncapped"],
-            Self::MsaaSamples => &["Off (1x)", "2x", "4x (Default)"],
-            Self::SkyQuality => &[
-                "Low (Gradient)",
-                "Medium (Fast HDR)",
-                "High (Atmospheric 2.5D)",
-            ],
-            Self::SnapMode => &["Off", "Hold (Ctrl)", "Toggle"],
-        }
-    }
-}
-
-/// Encodes a dropdown identifier into a semantic tag.
-#[inline]
-pub fn encode_dropdown_tag(dd: PreferencesDropdownId) -> u64 {
-    PREF_TAG_DROPDOWN_BASE | (dd as u64)
-}
-
-/// Decodes a dropdown identifier from a semantic tag if valid.
-#[inline]
-pub fn parse_dropdown_tag(tag: u64) -> Option<PreferencesDropdownId> {
-    if (tag & 0xFFFF_FFFF_FFFF_FF00) == PREF_TAG_DROPDOWN_BASE {
-        let idx = (tag & 0xFF) as usize;
-        return PreferencesDropdownId::ALL.get(idx).copied();
-    }
-    None
-}
-
-/// Encodes a dropdown item index into a semantic tag.
-#[inline]
-pub fn encode_dropdown_item_tag(item_idx: usize) -> u64 {
-    PREF_TAG_DROPDOWN_ITEM_BASE | (item_idx as u64)
-}
-
-/// Decodes a dropdown item index from a semantic tag if valid.
-#[inline]
-pub fn parse_dropdown_item_tag(tag: u64) -> Option<usize> {
-    if (tag & 0xFFFF_FFFF_FFFF_FF00) == PREF_TAG_DROPDOWN_ITEM_BASE {
-        return Some((tag & 0xFF) as usize);
-    }
-    None
-}
-
 /// Interactive checkbox / toggle identifiers in the Preferences dialog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreferencesToggleId {
@@ -226,18 +129,17 @@ pub fn encode_toggle_tag(toggle: PreferencesToggleId) -> u64 {
 /// Decodes a toggle identifier from a semantic tag if valid.
 #[inline]
 pub fn parse_toggle_tag(tag: u64) -> Option<PreferencesToggleId> {
-    if (tag & 0xFFFF_FFFF_FFFF_FF00) == PREF_TAG_TOGGLE_BASE {
-        let id = tag & 0xFF;
-        return match id {
-            0 => Some(PreferencesToggleId::LiveUpdatesEnabled),
-            10 => Some(PreferencesToggleId::Module(EngineModule::Physics)),
-            11 => Some(PreferencesToggleId::Module(EngineModule::Audio)),
-            12 => Some(PreferencesToggleId::Module(EngineModule::Render)),
-            13 => Some(PreferencesToggleId::Module(EngineModule::Render2D)),
-            _ => None,
-        };
+    if (tag & 0xFFFF_FFFF_FFFF_FF00) != PREF_TAG_TOGGLE_BASE {
+        return None;
     }
-    None
+    match tag & 0xFF {
+        0 => Some(PreferencesToggleId::LiveUpdatesEnabled),
+        10 => Some(PreferencesToggleId::Module(EngineModule::Physics)),
+        11 => Some(PreferencesToggleId::Module(EngineModule::Audio)),
+        12 => Some(PreferencesToggleId::Module(EngineModule::Render)),
+        13 => Some(PreferencesToggleId::Module(EngineModule::Render2D)),
+        _ => None,
+    }
 }
 
 /// Strongly typed semantic hit target within the Preferences configuration dialog.
@@ -255,10 +157,6 @@ pub enum PreferencesTagTarget {
     Tab(u8),
     /// Collapsible section card header by static name.
     Section(&'static str),
-    /// Dropdown ComboBox trigger button by identifier.
-    Dropdown(PreferencesDropdownId),
-    /// Dropdown ComboBox menu item by selection index.
-    DropdownItem(usize),
     /// Checkbox or engine module toggle by identifier.
     Toggle(PreferencesToggleId),
 }
@@ -279,10 +177,6 @@ pub fn resolve_preferences_tag(tag: u64) -> Option<PreferencesTagTarget> {
                 Some(PreferencesTagTarget::Tab(tab_idx))
             } else if let Some(sec_id) = parse_section_tag(tag) {
                 Some(PreferencesTagTarget::Section(sec_id))
-            } else if let Some(dd_id) = parse_dropdown_tag(tag) {
-                Some(PreferencesTagTarget::Dropdown(dd_id))
-            } else if let Some(item_idx) = parse_dropdown_item_tag(tag) {
-                Some(PreferencesTagTarget::DropdownItem(item_idx))
             } else {
                 parse_toggle_tag(tag).map(PreferencesTagTarget::Toggle)
             }
@@ -303,10 +197,6 @@ pub struct PreferencesParams<'a> {
     pub window_pos: Option<Point>,
     /// Currently active sidebar tab index (0..=9).
     pub active_tab: u8,
-    /// Currently open dropdown menu identifier, if any.
-    pub active_dropdown: Option<PreferencesDropdownId>,
-    /// Bounding rectangle of the trigger button that opened the active dropdown.
-    pub dropdown_trigger_rect: Option<Rect>,
     /// Set of currently collapsed card/section identifiers.
     pub collapsed_sections: &'a HashSet<&'static str>,
     /// Currently active inline numeric text editing state: `(target_tag, current_string_buffer, is_all_selected)`.
@@ -340,14 +230,10 @@ pub enum PreferencesAction {
     SelectTab(u8),
     /// Toggle expansion / folding of a card section.
     ToggleSection(&'static str),
-    /// Open or close a dropdown ComboBox.
-    ToggleDropdown(Option<PreferencesDropdownId>),
     /// Set UI scale factor (e.g. 0.75, 1.0, 1.25).
     SetUiScale(f32),
     /// Toggle a boolean setting or engine module.
     Toggle(PreferencesToggleId),
-    /// Select item index in an open dropdown.
-    SelectDropdownItem(PreferencesDropdownId, usize),
     /// Reposition the floating modal dialog window during titlebar dragging.
     Move(Point),
 }
@@ -381,10 +267,6 @@ pub struct PreferencesDialogState {
     pub tab: u8,
     /// Previously rendered tab index in Preferences to trigger reactive invalidation on tab switches.
     pub last_tab: u8,
-    /// Currently open dropdown ComboBox in the Preferences dialog.
-    pub dropdown: Option<PreferencesDropdownId>,
-    /// Bounding rectangle of the button that triggered the currently open dropdown.
-    pub dropdown_trigger_rect: Option<Rect>,
     /// Currently active continuous slider or float drag semantic tag.
     pub active_drag_tag: Option<u64>,
     /// Autonomous scroll state managing scroll_y and pointer capture thumb dragging.
@@ -451,16 +333,6 @@ mod tests {
         assert_eq!(
             resolve_preferences_tag(encode_section_tag("general_scale")),
             Some(PreferencesTagTarget::Section("general_scale"))
-        );
-        assert_eq!(
-            resolve_preferences_tag(encode_dropdown_tag(PreferencesDropdownId::UiScale)),
-            Some(PreferencesTagTarget::Dropdown(
-                PreferencesDropdownId::UiScale
-            ))
-        );
-        assert_eq!(
-            resolve_preferences_tag(encode_dropdown_item_tag(3)),
-            Some(PreferencesTagTarget::DropdownItem(3))
         );
         assert_eq!(
             resolve_preferences_tag(encode_toggle_tag(PreferencesToggleId::LiveUpdatesEnabled)),
