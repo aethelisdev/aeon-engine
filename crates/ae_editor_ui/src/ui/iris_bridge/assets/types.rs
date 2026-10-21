@@ -577,14 +577,6 @@ pub fn truncate_display_name(text: &str, max_chars: usize, keep_chars: usize) ->
 pub struct AssetsPanelState {
     /// Common panel interaction state (scroll_y, search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), AssetsPanelAction>,
-    /// Bounding rectangle of the Asset Browser panel from the last layout pass.
-    pub panel_rect: Option<Rect>,
-    /// Bounding rectangle of the folder tree sidebar if active.
-    pub sidebar_rect: Option<Rect>,
-    /// Bounding rectangle of the scrollable content viewport.
-    pub content_viewport_rect: Option<Rect>,
-    /// Bounding rectangle of the active floating right-click context menu card, if open.
-    pub context_menu_card_rect: Option<Rect>,
     /// Current folder path in Asset Browser panel.
     pub current_folder: PathBuf,
     /// Double-click tracking state for asset spawning.
@@ -601,10 +593,16 @@ pub struct AssetsPanelState {
     pub next_thumbnail_layer: u32,
     /// Cached filtered asset items from the active frame for O(1) semantic hit-testing.
     pub filtered_items_cache: Vec<AssetItem>,
-    /// Cached subfolders from the active frame for O(1) semantic hit-testing.
-    pub subfolders_cache: Vec<PathBuf>,
     /// Last recorded directory items count for detecting file additions or deletions.
     pub last_cached_items_count: usize,
+    /// Last processed search query for filter dirty detection.
+    pub last_search_query: String,
+    /// Last processed asset category filter.
+    pub last_active_category: AssetCategory,
+    /// Last recorded 2D mode status.
+    pub last_is_2d_mode: bool,
+    /// Last recorded engine content visibility status.
+    pub last_show_engine_content: bool,
     /// Active hierarchical folder tree state managing directory expansion and selection.
     pub tree_state: TreeState<PathBuf>,
 }
@@ -613,10 +611,6 @@ impl Default for AssetsPanelState {
     fn default() -> Self {
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
-            panel_rect: None,
-            sidebar_rect: None,
-            content_viewport_rect: None,
-            context_menu_card_rect: None,
             current_folder: PathBuf::from("assets"),
             click_tracker: AssetClickTracker::default(),
             context_menu: None,
@@ -625,8 +619,11 @@ impl Default for AssetsPanelState {
             thumbnail_layers: HashMap::new(),
             next_thumbnail_layer: 32,
             filtered_items_cache: Vec::new(),
-            subfolders_cache: Vec::new(),
             last_cached_items_count: 0,
+            last_search_query: String::new(),
+            last_active_category: AssetCategory::All,
+            last_is_2d_mode: false,
+            last_show_engine_content: false,
             tree_state: {
                 let mut ts = TreeState::default();
                 ts.set_expanded(PathBuf::from("assets"), true);

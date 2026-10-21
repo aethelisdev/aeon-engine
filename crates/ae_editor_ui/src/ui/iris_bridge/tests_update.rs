@@ -288,3 +288,90 @@ fn test_unified_tree_layout_and_layer_compilation() {
         "Unified text sections must encompass all nodes (menubar + 2 panel rows + modal)"
     );
 }
+
+#[test]
+fn test_render_custom_panel_dispatch() {
+    use irisui::prelude::{DockPanel, PanelRegistry, WidgetId};
+
+    struct DynamicPluginPanel {
+        rendered: bool,
+    }
+
+    impl DockPanel for DynamicPluginPanel {
+        fn id(&self) -> &str {
+            "dynamic_plugin"
+        }
+        fn title(&self) -> &str {
+            "Plugin"
+        }
+        fn render(&mut self, _tree: &mut UiTree, _parent: WidgetId, _bounds: Rect) {
+            self.rendered = true;
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+    }
+
+    let mut registry = PanelRegistry::default();
+    registry.register(DynamicPluginPanel { rendered: false });
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root widget");
+
+    let panel = registry.get_downcast_mut::<DynamicPluginPanel>("dynamic_plugin");
+    assert!(panel.is_some());
+    let p = panel.unwrap();
+    p.render(&mut tree, root, Rect::new(0.0, 0.0, 200.0, 200.0));
+    assert!(p.rendered);
+}
+
+#[test]
+fn test_stats_visual_sampling_cadence() {
+    let mut last_fps_refresh = std::time::Instant::now();
+    let mut stats_displayed_fps = 60.0;
+    let mut stats_frame_counter: u32 = 0;
+
+    for _ in 0..30 {
+        stats_frame_counter += 1;
+    }
+
+    assert!(last_fps_refresh.elapsed().as_secs_f32() < 0.25);
+    assert_eq!(stats_displayed_fps, 60.0);
+
+    let fake_past = std::time::Instant::now()
+        .checked_sub(std::time::Duration::from_millis(300))
+        .unwrap_or(last_fps_refresh);
+    last_fps_refresh = fake_past;
+
+    let elapsed = std::time::Instant::now()
+        .duration_since(last_fps_refresh)
+        .as_secs_f32();
+    assert!(elapsed >= 0.25);
+
+    if elapsed >= 0.25 {
+        stats_displayed_fps = stats_frame_counter as f32 / elapsed;
+        stats_frame_counter = 0;
+    }
+    assert!(stats_displayed_fps > 90.0 && stats_displayed_fps < 110.0);
+    assert_eq!(stats_frame_counter, 0);
+}
+
+#[test]
+fn test_ui_notifier_panel_tag_redraw() {
+    use crate::ui::panel_layout::PanelId;
+    use irisui::prelude::UiNotifier;
+
+    let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
+    assert!(!notifier.is_any_dirty());
+
+    notifier.tag_redraw(PanelId::Console);
+    assert!(notifier.is_any_dirty());
+    assert!(notifier.is_dirty(PanelId::Console));
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
+
+    notifier.clear_all();
+    assert!(!notifier.is_any_dirty());
+}

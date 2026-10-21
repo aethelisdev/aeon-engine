@@ -153,6 +153,18 @@ impl<'a> UiScope<'a> {
         Point::new(x, y)
     }
 
+    /// Returns the computed physical layout bounds of this scope's parent node if present.
+    ///
+    /// Retrieves the resolved bounding rectangle ([`Node::computed_rect`]) of the parent
+    /// container within the unified [`UiTree`] coordinate space.
+    #[must_use]
+    pub fn parent_rect(&self) -> Rect {
+        self.tree
+            .get(self.parent)
+            .map(|n| n.computed_rect)
+            .unwrap_or(Rect::ZERO)
+    }
+
     /// Adds a configurable widget to this scope using the unified builder pattern.
     ///
     /// Enables declarative expression chaining without combinatorial method proliferation:

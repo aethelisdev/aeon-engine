@@ -353,8 +353,6 @@ pub struct HierarchyPanelState {
     pub active_sub_submenu: Option<AddSubmenuId>,
     /// Currently open right-click context menu in Scene Hierarchy.
     pub active_context_menu: Option<(hecs::Entity, Point)>,
-    /// Last bounding rectangle allocated for the Hierarchy panel inside docking.
-    pub last_rect: Option<Rect>,
     /// Last recorded selected entity for detecting Hierarchy selection invalidation.
     pub last_selected_entity: Option<hecs::Entity>,
     /// Last recorded entity count in ECS world for detecting hierarchy additions/deletions.
@@ -372,7 +370,6 @@ impl Default for HierarchyPanelState {
             active_submenu: None,
             active_sub_submenu: None,
             active_context_menu: None,
-            last_rect: None,
             last_selected_entity: None,
             last_entity_count: 0,
         }

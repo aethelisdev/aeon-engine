@@ -7,6 +7,7 @@
 //! draw call distribution, granular VRAM memory cards, and viewport overlay toggles.
 //!
 
+pub mod builder;
 pub mod cpu_breakdown;
 pub mod gpu_breakdown;
 pub mod graph;

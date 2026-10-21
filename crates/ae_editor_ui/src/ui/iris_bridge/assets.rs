@@ -9,6 +9,7 @@
 //! interactive quick asset preview modal, and responsive grid/table views.
 //!
 
+pub mod builder;
 pub mod card_builder;
 pub mod cards;
 pub mod chips;

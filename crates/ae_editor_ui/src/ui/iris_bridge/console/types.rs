@@ -265,8 +265,6 @@ pub struct ConsolePanelState {
     pub filter: ConsoleFilterLevel,
     /// Whether Developer Console automatically scrolls down when new logs arrive.
     pub auto_scroll: bool,
-    /// Active screen bounding rectangle of the Developer Console panel.
-    pub panel_rect: Option<irisui::prelude::Rect>,
     /// Last recorded log entries count for detecting new incoming console logs.
     pub last_entries_count: usize,
     /// Last recorded log severity filter level.
@@ -279,7 +277,6 @@ impl Default for ConsolePanelState {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             filter: ConsoleFilterLevel::All,
             auto_scroll: true,
-            panel_rect: None,
             last_entries_count: 0,
             last_filter: ConsoleFilterLevel::All,
         }

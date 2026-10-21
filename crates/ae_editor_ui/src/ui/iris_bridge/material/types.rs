@@ -175,8 +175,6 @@ pub struct MaterialPanelState {
     pub last_selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
-    /// Active screen bounding rectangle of the Material Studio panel.
-    pub panel_rect: Option<Rect>,
     /// Active model asset handle inspected, if any.
     pub active_model: Option<ae_renderer::asset::AssetHandle>,
 }

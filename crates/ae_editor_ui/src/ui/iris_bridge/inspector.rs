@@ -9,6 +9,7 @@
 
 pub mod add_menu;
 pub mod appearance;
+pub mod builder;
 pub mod color_picker_popup;
 pub mod components;
 pub mod dropdown_popup;

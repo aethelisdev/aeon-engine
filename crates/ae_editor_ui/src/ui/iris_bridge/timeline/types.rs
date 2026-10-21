@@ -319,8 +319,6 @@ pub struct TimelinePanelState {
     pub last_selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
-    /// Active docked bounding rectangle of the Animation Timeline panel.
-    pub panel_rect: Option<Rect>,
     /// Duration of the currently active animation clip in seconds.
     pub clip_duration: f32,
 }

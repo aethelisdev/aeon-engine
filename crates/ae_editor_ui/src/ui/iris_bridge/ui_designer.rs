@@ -8,6 +8,7 @@
 //!
 
 pub mod anchors;
+pub mod builder;
 pub mod canvas;
 pub mod events;
 pub mod panel;

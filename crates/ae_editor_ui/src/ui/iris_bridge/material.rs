@@ -7,6 +7,7 @@
 //! submesh alpha blending modes, 2D sprite surface settings, and hardware texture array icons.
 //!
 
+pub mod builder;
 pub mod empty_state;
 pub mod events;
 pub mod header;

@@ -78,21 +78,7 @@ impl IrisEditorOverlay {
             self.menubar.active_menu = None;
             self.menubar.actions.clear();
             self.menubar.dropdown_rect = None;
-            if self.inspector.is_add_menu_open {
-                self.inspector.is_add_menu_open = false;
-                self.inspector.active_submenu = None;
-            }
-            if self.inspector.is_color_picker_open {
-                self.inspector.is_color_picker_open = false;
-            }
-            if self.hierarchy.is_add_menu_open {
-                self.hierarchy.is_add_menu_open = false;
-                self.hierarchy.active_submenu = None;
-                self.hierarchy.active_sub_submenu = None;
-            }
-            if self.hierarchy.active_context_menu.is_some() {
-                self.hierarchy.active_context_menu = None;
-            }
+            self.close_active_popups();
             self.notifier.tag_all();
             self.chrome.needs_layout_rebuild = true;
             let mut res = super::types::IrisOverlayEventResult::consumed(true);
@@ -116,31 +102,9 @@ impl IrisEditorOverlay {
             let hit = self.tree.hit_test_layered(*point);
             let is_over_overlay =
                 hit.is_some_and(|h| self.tree.effective_layer(h) >= UiLayer::Modal);
-            if !is_over_overlay {
-                let mut closed_any = false;
-                if self.inspector.is_add_menu_open {
-                    self.inspector.is_add_menu_open = false;
-                    self.inspector.active_submenu = None;
-                    closed_any = true;
-                }
-                if self.inspector.is_color_picker_open {
-                    self.inspector.is_color_picker_open = false;
-                    closed_any = true;
-                }
-                if self.hierarchy.is_add_menu_open {
-                    self.hierarchy.is_add_menu_open = false;
-                    self.hierarchy.active_submenu = None;
-                    self.hierarchy.active_sub_submenu = None;
-                    closed_any = true;
-                }
-                if self.hierarchy.active_context_menu.is_some() {
-                    self.hierarchy.active_context_menu = None;
-                    closed_any = true;
-                }
-                if closed_any {
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                }
+            if !is_over_overlay && self.close_active_popups() {
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
             }
         }
 
@@ -467,56 +431,8 @@ impl IrisEditorOverlay {
         }
 
         // Safely commit pending inspector edits on selection change
-        if let Some(session) = self.inspector.active_number_input.take() {
-            if Some(session.entity) != params.scene.selected_entity {
-                if let Ok(v) =
-                    super::inspector::evaluate_inspector_math(&session.buffer, session.initial_val)
-                {
-                    self.inspector
-                        .actions
-                        .push(super::inspector::InspectorAction::SetNumberValue(
-                            session.entity,
-                            session.id,
-                            v,
-                        ));
-                    self.inspector.actions.push(
-                        super::inspector::InspectorAction::CommitNumberEdit(
-                            session.entity,
-                            session.id,
-                        ),
-                    );
-                } else {
-                    self.inspector.edit_start_snapshot = None;
-                }
-            } else {
-                self.inspector.active_number_input = Some(session);
-            }
-        }
-        if let Some((ent, id, buf)) = self.inspector.active_text_input.take() {
-            if Some(ent) != params.scene.selected_entity {
-                self.inspector
-                    .actions
-                    .push(super::inspector::InspectorAction::SetTextValue(
-                        ent, id, buf,
-                    ));
-            } else {
-                self.inspector.active_text_input = Some((ent, id, buf));
-            }
-        }
-        if let Some((ent, input)) = self.inspector.rename_input.take() {
-            if Some(ent) != params.scene.selected_entity {
-                let final_name = input.text().trim().to_string();
-                if !final_name.is_empty() {
-                    self.inspector
-                        .actions
-                        .push(super::inspector::InspectorAction::RenameEntity(
-                            ent, final_name,
-                        ));
-                }
-            } else {
-                self.inspector.rename_input = Some((ent, input));
-            }
-        }
+        self.inspector
+            .commit_pending_edits_on_selection_change(params.scene.selected_entity);
 
         if is_shell_dirty {
             self.tree.clear();
@@ -749,5 +665,67 @@ impl IrisEditorOverlay {
         }
 
         WidgetCursor::Default
+    }
+
+    /// Closes all transient active popups and context menus, returning `true` if any were open.
+    fn close_active_popups(&mut self) -> bool {
+        let mut closed_any = false;
+        if self.inspector.is_add_menu_open {
+            self.inspector.is_add_menu_open = false;
+            self.inspector.active_submenu = None;
+            closed_any = true;
+        }
+        if self.inspector.is_color_picker_open {
+            self.inspector.is_color_picker_open = false;
+            closed_any = true;
+        }
+        if self.hierarchy.is_add_menu_open {
+            self.hierarchy.is_add_menu_open = false;
+            self.hierarchy.active_submenu = None;
+            self.hierarchy.active_sub_submenu = None;
+            closed_any = true;
+        }
+        if self.hierarchy.active_context_menu.is_some() {
+            self.hierarchy.active_context_menu = None;
+            closed_any = true;
+        }
+        closed_any
+    }
+
+    /// Dispatches declarative rendering for an active dock leaf panel container.
+    ///
+    /// Evaluates the target [`PanelId`] and delegates to the corresponding specialized
+    /// autonomous panel builder within unified docking coordinates.
+    pub(crate) fn render_panel_by_id(
+        &mut self,
+        panel: crate::ui::panel_layout::PanelId,
+        scope: &mut UiScope<'_>,
+        params: &super::types::OverlayUpdateParams<'_>,
+    ) {
+        use crate::ui::panel_layout::PanelId;
+        match panel {
+            PanelId::Viewport => {
+                let vp_rect = if scope.parent_rect().width > 20.0 {
+                    scope.parent_rect()
+                } else {
+                    super::floating_layer::active_panel_content_rect(
+                        params.context.layout_state,
+                        PanelId::Viewport,
+                    )
+                    .unwrap_or(params.viewport.viewport_rect)
+                };
+                if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
+                    self.build_viewport_content(scope, vp_rect, params);
+                }
+            }
+            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(scope, params),
+            PanelId::Inspector => self.build_inspector_panel_if_active(scope, params),
+            PanelId::Console => self.build_console_panel_if_active(scope, params),
+            PanelId::Assets => self.build_assets_panel_if_active(scope, params),
+            PanelId::MaterialEditor => self.build_material_panel_if_active(scope, params),
+            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(scope, params),
+            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(scope, params),
+            PanelId::Stats => self.build_stats_panel_if_active(scope, params),
+        }
     }
 }

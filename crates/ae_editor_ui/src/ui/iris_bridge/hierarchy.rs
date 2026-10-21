@@ -8,6 +8,7 @@
 //!
 
 pub mod add_menu;
+pub mod builder;
 pub mod context_menu;
 pub mod footer;
 pub mod header;

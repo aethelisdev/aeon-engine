@@ -8,6 +8,7 @@
 //! adaptive time rulers, and interactive scrubbing.
 //!
 
+pub mod builder;
 pub mod events;
 pub mod lanes;
 pub mod panel;

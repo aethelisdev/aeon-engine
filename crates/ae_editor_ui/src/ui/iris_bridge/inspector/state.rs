@@ -124,4 +124,51 @@ impl InspectorPanelState {
         }
         dirty
     }
+
+    /// Commits any pending numeric, text, or rename edit sessions if the selected entity changed.
+    pub fn commit_pending_edits_on_selection_change(
+        &mut self,
+        selected_entity: Option<hecs::Entity>,
+    ) {
+        if let Some(session) = self.active_number_input.take() {
+            if Some(session.entity) != selected_entity {
+                if let Ok(v) =
+                    super::math_eval::evaluate_inspector_math(&session.buffer, session.initial_val)
+                {
+                    self.actions.push(InspectorAction::SetNumberValue(
+                        session.entity,
+                        session.id,
+                        v,
+                    ));
+                    self.actions.push(InspectorAction::CommitNumberEdit(
+                        session.entity,
+                        session.id,
+                    ));
+                } else {
+                    self.edit_start_snapshot = None;
+                }
+            } else {
+                self.active_number_input = Some(session);
+            }
+        }
+        if let Some((ent, id, buf)) = self.active_text_input.take() {
+            if Some(ent) != selected_entity {
+                self.actions
+                    .push(InspectorAction::SetTextValue(ent, id, buf));
+            } else {
+                self.active_text_input = Some((ent, id, buf));
+            }
+        }
+        if let Some((ent, input)) = self.rename_input.take() {
+            if Some(ent) != selected_entity {
+                let final_name = input.text().trim().to_string();
+                if !final_name.is_empty() {
+                    self.actions
+                        .push(InspectorAction::RenameEntity(ent, final_name));
+                }
+            } else {
+                self.rename_input = Some((ent, input));
+            }
+        }
+    }
 }
