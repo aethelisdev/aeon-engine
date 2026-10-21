@@ -452,3 +452,77 @@ fn test_tree_compiler_scissor_cleanliness_at_end() {
         Some(crate::command::DrawCommand::ResetScissor)
     ));
 }
+
+#[test]
+fn test_tree_compiler_boundary_slices_attribution() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    if let Some(node) = tree.get_mut(root) {
+        node.computed_rect = Rect::new(0.0, 0.0, 1000.0, 800.0);
+        node.style = Style::new().background(Color::BLACK);
+    }
+
+    // Boundary Panel A
+    let panel_a = tree.create_node();
+    if let Some(node) = tree.get_mut(panel_a) {
+        node.computed_rect = Rect::new(0.0, 0.0, 300.0, 800.0);
+        node.style = Style::new().background(Color::rgba(0.1, 0.1, 0.1, 1.0));
+    }
+    tree.set_boundary(panel_a, true);
+    let _ = tree.add_child(root, panel_a);
+
+    let child_a1 = tree.create_node();
+    if let Some(node) = tree.get_mut(child_a1) {
+        node.computed_rect = Rect::new(10.0, 10.0, 100.0, 30.0);
+        node.style = Style::new().background(Color::WHITE);
+    }
+    let _ = tree.add_child(panel_a, child_a1);
+
+    let child_a2 = tree.create_node();
+    if let Some(node) = tree.get_mut(child_a2) {
+        node.computed_rect = Rect::new(10.0, 50.0, 100.0, 30.0);
+        node.style = Style::new().background(Color::WHITE);
+    }
+    let _ = tree.add_child(panel_a, child_a2);
+
+    // Boundary Panel B
+    let panel_b = tree.create_node();
+    if let Some(node) = tree.get_mut(panel_b) {
+        node.computed_rect = Rect::new(300.0, 0.0, 700.0, 800.0);
+        node.style = Style::new().background(Color::rgba(0.2, 0.2, 0.2, 1.0));
+    }
+    tree.set_boundary(panel_b, true);
+    let _ = tree.add_child(root, panel_b);
+
+    let child_b1 = tree.create_node();
+    if let Some(node) = tree.get_mut(child_b1) {
+        node.computed_rect = Rect::new(310.0, 10.0, 200.0, 40.0);
+        node.style = Style::new().background(Color::BLUE);
+    }
+    let _ = tree.add_child(panel_b, child_b1);
+
+    let mut options = TreeCompilerOptions::new();
+    let cmd_list = compile_tree_draw_commands(&tree, root, &mut options);
+
+    // Total quads: 1 (root) + 3 (panel_a) + 2 (panel_b) = 6 quads
+    assert_eq!(cmd_list.quads.len(), 6);
+
+    // Boundary slices must identify panel_a (3 quads) and panel_b (2 quads)
+    let slice_a = cmd_list
+        .boundary_slices
+        .iter()
+        .find(|(id, _)| *id == panel_a)
+        .map(|(_, s)| *s)
+        .expect("panel_a boundary slice must exist");
+    assert_eq!(slice_a.count, 3);
+    assert_eq!(slice_a.start, 1);
+
+    let slice_b = cmd_list
+        .boundary_slices
+        .iter()
+        .find(|(id, _)| *id == panel_b)
+        .map(|(_, s)| *s)
+        .expect("panel_b boundary slice must exist");
+    assert_eq!(slice_b.count, 2);
+    assert_eq!(slice_b.start, 4);
+}

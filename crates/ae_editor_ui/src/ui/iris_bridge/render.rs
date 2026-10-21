@@ -197,7 +197,9 @@ impl IrisEditorOverlay {
             command_list: &self.command_list,
             text_renderer: self.text_renderer.as_ref(),
             screen_size: logical_screen_size,
+            dirty_boundaries: Some(self.tree.dirty_boundaries()),
         });
+        self.tree.clear_dirty_boundaries();
     }
 
     /// Uploads dynamic 64x64 thumbnail previews for active asset browser items into the 2D Texture Array.

@@ -28,6 +28,8 @@ pub struct IrisRenderPassParams<'a> {
     pub text_renderer: Option<&'a TextRenderer>,
     /// Target window resolution in physical pixels.
     pub screen_size: (u32, u32),
+    /// Optional invalidation boundaries that mutated this frame for partial GPU buffer uploads.
+    pub dirty_boundaries: Option<&'a std::collections::HashSet<irisui::core::WidgetId>>,
 }
 
 /// Executes an isolated Iris UI render pass on the target surface view.
@@ -44,6 +46,7 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
         command_list,
         text_renderer,
         screen_size,
+        dirty_boundaries,
     } = params;
 
     let has_quads = !command_list.commands.is_empty() || !command_list.quads.is_empty();
@@ -52,12 +55,13 @@ pub fn iris_render_pass(params: IrisRenderPassParams<'_>) {
     }
 
     if has_quads {
-        // Prepare instance and uniform GPU buffers
-        renderer.prepare_command_list(
+        // Prepare instance and uniform GPU buffers with boundary slicing and partial re-upload
+        renderer.prepare_command_list_with_dirty_boundaries(
             device,
             queue,
             [screen_size.0 as f32, screen_size.1 as f32],
             command_list,
+            dirty_boundaries,
         );
     }
 

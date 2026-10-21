@@ -124,6 +124,7 @@ struct CompilationContext<'a, 'b> {
     focused_id: Option<WidgetId>,
     blink_caret: bool,
     custom_drawer: &'b mut Option<CustomDrawCallback<'a>>,
+    current_boundary: Option<WidgetId>,
 }
 
 /// Recursively compiles a [`UiTree`] into an existing [`DrawCommandList`],
@@ -146,6 +147,11 @@ pub fn compile_tree_draw_commands_into(
         focused_id: options.focused_id,
         blink_caret: options.blink_caret,
         custom_drawer: &mut options.custom_drawer,
+        current_boundary: if tree.is_boundary(root_id) {
+            Some(root_id)
+        } else {
+            None
+        },
     };
     populate_layer_commands(tree, root_id, &mut ctx, &mut layer_lists);
     output.clear();
@@ -249,6 +255,12 @@ fn populate_layer_commands(
         explicit_or_default_layer
     } else {
         ctx.inherited_layer
+    };
+
+    let effective_boundary = if node.is_boundary {
+        Some(current)
+    } else {
+        ctx.current_boundary
     };
 
     // A node is an elevated overlay root if its explicit or role-inferred layer exceeds the inherited layer,
@@ -357,11 +369,10 @@ fn populate_layer_commands(
             || has_border
             || effective_style.box_shadow.is_some())
     {
-        target_list.push_quad(QuadInstance::from_style(
-            node.computed_rect,
-            &effective_style,
-            effective_clip,
-        ));
+        target_list.push_quad_with_boundary(
+            QuadInstance::from_style(node.computed_rect, &effective_style, effective_clip),
+            effective_boundary,
+        );
     }
 
     // 2. Atlas Texture Quad
@@ -407,7 +418,12 @@ fn populate_layer_commands(
 
     // 4. Volatile Immediate Canvas Primitives
     if let Some(canvas_primitives) = tree.canvas_primitives(current) {
-        emit_canvas_primitives(canvas_primitives, target_list, effective_clip);
+        emit_canvas_primitives(
+            canvas_primitives,
+            target_list,
+            effective_clip,
+            effective_boundary,
+        );
     }
 
     // 5. Custom Drawing Hook
@@ -420,11 +436,13 @@ fn populate_layer_commands(
     let prev_layer = ctx.inherited_layer;
     let prev_hovered = ctx.inherited_hovered;
     let prev_focused = ctx.inherited_focused;
+    let prev_boundary = ctx.current_boundary;
 
     ctx.clip_rect = child_clip;
     ctx.inherited_layer = effective_layer;
     ctx.inherited_hovered = is_hovered;
     ctx.inherited_focused = is_focused;
+    ctx.current_boundary = effective_boundary;
 
     for &child_id in &node.children {
         populate_layer_commands(tree, child_id, ctx, layer_lists);
@@ -434,6 +452,7 @@ fn populate_layer_commands(
     ctx.inherited_layer = prev_layer;
     ctx.inherited_hovered = prev_hovered;
     ctx.inherited_focused = prev_focused;
+    ctx.current_boundary = prev_boundary;
 }
 
 /// Translates volatile immediate-mode canvas primitives into instanced GPU draw quads.
@@ -441,6 +460,7 @@ fn emit_canvas_primitives(
     primitives: &[iris_core::CanvasPrimitive],
     target_list: &mut DrawCommandList,
     effective_clip: Option<Rect>,
+    boundary: Option<WidgetId>,
 ) {
     for primitive in primitives {
         match *primitive {
@@ -449,13 +469,16 @@ fn emit_canvas_primitives(
                 color,
                 corner_radius,
             } => {
-                target_list.push_quad(QuadInstance::from_style(
-                    rect,
-                    &iris_core::Style::new()
-                        .background(color)
-                        .border_radius(corner_radius),
-                    effective_clip,
-                ));
+                target_list.push_quad_with_boundary(
+                    QuadInstance::from_style(
+                        rect,
+                        &iris_core::Style::new()
+                            .background(color)
+                            .border_radius(corner_radius),
+                        effective_clip,
+                    ),
+                    boundary,
+                );
             }
             iris_core::CanvasPrimitive::Border {
                 rect,
@@ -463,13 +486,16 @@ fn emit_canvas_primitives(
                 color,
                 corner_radius,
             } => {
-                target_list.push_quad(QuadInstance::from_style(
-                    rect,
-                    &iris_core::Style::new()
-                        .border(border_width, color)
-                        .border_radius(corner_radius),
-                    effective_clip,
-                ));
+                target_list.push_quad_with_boundary(
+                    QuadInstance::from_style(
+                        rect,
+                        &iris_core::Style::new()
+                            .border(border_width, color)
+                            .border_radius(corner_radius),
+                        effective_clip,
+                    ),
+                    boundary,
+                );
             }
             iris_core::CanvasPrimitive::Line {
                 start,
@@ -482,13 +508,16 @@ fn emit_canvas_primitives(
                 let seg_w = (end.x - start.x).abs().max(thickness);
                 let seg_h = (end.y - start.y).abs().max(thickness);
 
-                target_list.push_quad(QuadInstance::from_style(
-                    Rect::new(seg_min_x, seg_min_y, seg_w, seg_h),
-                    &iris_core::Style::new()
-                        .background(color)
-                        .border_radius(thickness * 0.5),
-                    effective_clip,
-                ));
+                target_list.push_quad_with_boundary(
+                    QuadInstance::from_style(
+                        Rect::new(seg_min_x, seg_min_y, seg_w, seg_h),
+                        &iris_core::Style::new()
+                            .background(color)
+                            .border_radius(thickness * 0.5),
+                        effective_clip,
+                    ),
+                    boundary,
+                );
             }
         }
     }

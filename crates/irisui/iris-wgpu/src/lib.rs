@@ -14,14 +14,16 @@
 pub mod command;
 pub mod external_texture_pipeline;
 pub mod external_textures;
+pub mod layer_cache;
 pub mod quad;
 pub mod renderer;
 pub mod texture_pipeline;
 pub mod tree_compiler;
 
-pub use command::{DrawCommand, DrawCommandList};
+pub use command::{BoundarySlice, DrawCommand, DrawCommandList};
 pub use external_texture_pipeline::{ExternalTexturePipeline, ExternalTextureQuadInstance};
 pub use external_textures::ExternalTextures;
+pub use layer_cache::{BoundaryLayerCache, InstanceBufferTarget};
 pub use quad::QuadInstance;
 pub use renderer::IrisRenderer;
 pub use texture_pipeline::{TextureQuadInstance, TextureQuadPipeline};

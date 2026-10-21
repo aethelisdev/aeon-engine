@@ -44,6 +44,8 @@ pub struct IrisRenderer {
     pub external_pipeline: crate::external_texture_pipeline::ExternalTexturePipeline,
     /// Persistent resource table managing external texture registrations and bind groups.
     pub external_textures: crate::external_textures::ExternalTextures,
+    /// Hardware layer cache managing boundary-level GPU instance buffer slices and partial uploads.
+    pub layer_cache: crate::layer_cache::BoundaryLayerCache,
 }
 
 impl IrisRenderer {
@@ -189,6 +191,7 @@ impl IrisRenderer {
             texture_bind_group: None,
             external_pipeline,
             external_textures,
+            layer_cache: crate::layer_cache::BoundaryLayerCache::new(),
         }
     }
 
@@ -199,12 +202,26 @@ impl IrisRenderer {
     }
 
     /// Prepares buffers and uploads instance data to the GPU before rendering.
+    #[inline]
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         screen_size: [f32; 2],
         quads: &[QuadInstance],
+    ) {
+        self.prepare_with_dirty_boundaries(device, queue, screen_size, quads, &[], None);
+    }
+
+    /// Prepares buffers and uploads instance data to the GPU, supporting partial uploads for dirty boundaries.
+    pub fn prepare_with_dirty_boundaries(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        screen_size: [f32; 2],
+        quads: &[QuadInstance],
+        boundary_slices: &[(iris_core::WidgetId, crate::command::BoundarySlice)],
+        dirty_boundaries: Option<&std::collections::HashSet<iris_core::WidgetId>>,
     ) {
         let size_changed = (self.screen_size[0] - screen_size[0]).abs() > 0.001
             || (self.screen_size[1] - screen_size[1]).abs() > 0.001;
@@ -225,27 +242,21 @@ impl IrisRenderer {
             return;
         }
 
-        // Ensure instance buffer has enough capacity
-        let needed_capacity = quads.len();
-        if self.instance_capacity < needed_capacity {
-            let new_capacity = (needed_capacity * 2).max(128);
-            let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("Iris UI Instanced Quad Buffer"),
-                size: (new_capacity * std::mem::size_of::<QuadInstance>()) as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-            self.instance_buffer = Some(buffer);
-            self.instance_capacity = new_capacity;
-        }
-
-        // Upload instance data
-        if let Some(ref buffer) = self.instance_buffer {
-            queue.write_buffer(buffer, 0, bytemuck::cast_slice(quads));
-        }
+        self.layer_cache.update_instance_buffer(
+            crate::layer_cache::InstanceBufferTarget {
+                device,
+                queue,
+                buffer: &mut self.instance_buffer,
+                capacity: &mut self.instance_capacity,
+            },
+            quads,
+            boundary_slices,
+            dirty_boundaries,
+        );
     }
 
     /// Prepares buffers and uploads instance data from a `DrawCommandList` to the GPU.
+    #[inline]
     pub fn prepare_command_list(
         &mut self,
         device: &wgpu::Device,
@@ -253,7 +264,35 @@ impl IrisRenderer {
         screen_size: [f32; 2],
         command_list: &crate::command::DrawCommandList,
     ) {
-        self.prepare(device, queue, screen_size, &command_list.quads);
+        self.prepare_command_list_with_dirty_boundaries(
+            device,
+            queue,
+            screen_size,
+            command_list,
+            None,
+        );
+    }
+
+    /// Prepares buffers and uploads instance data from a `DrawCommandList` with boundary slicing and partial GPU updates.
+    ///
+    /// When `dirty_boundaries` is provided and the slice layout has not shifted, only the dirty boundary
+    /// sub-ranges are uploaded via `queue.write_buffer`, leaving clean panels untouched in GPU VRAM ($0$ transfer).
+    pub fn prepare_command_list_with_dirty_boundaries(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        screen_size: [f32; 2],
+        command_list: &crate::command::DrawCommandList,
+        dirty_boundaries: Option<&std::collections::HashSet<iris_core::WidgetId>>,
+    ) {
+        self.prepare_with_dirty_boundaries(
+            device,
+            queue,
+            screen_size,
+            &command_list.quads,
+            &command_list.boundary_slices,
+            dirty_boundaries,
+        );
 
         self.texture_pipeline.update_globals(queue, screen_size);
 

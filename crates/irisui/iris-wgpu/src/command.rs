@@ -45,6 +45,15 @@ pub enum DrawCommand {
     ResetScissor,
 }
 
+/// Describes an allocated slice of instanced quads belonging to an invalidation boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BoundarySlice {
+    /// Start index in the instanced quad buffer.
+    pub start: u32,
+    /// Number of instanced quads in this slice.
+    pub count: u32,
+}
+
 /// Ordered list of draw commands and instanced batches for pixel-accurate Z-order compositing.
 #[derive(Debug, Default)]
 pub struct DrawCommandList {
@@ -56,6 +65,8 @@ pub struct DrawCommandList {
     pub texture_quads: Vec<TextureQuadInstance>,
     /// Flattened external texture quad instances.
     pub external_texture_quads: Vec<ExternalTextureQuadInstance>,
+    /// Slices of instanced quads mapped to invalidation boundaries for partial GPU uploads.
+    pub boundary_slices: Vec<(iris_core::WidgetId, BoundarySlice)>,
 }
 
 impl DrawCommandList {
@@ -70,10 +81,24 @@ impl DrawCommandList {
         self.quads.clear();
         self.texture_quads.clear();
         self.external_texture_quads.clear();
+        self.boundary_slices.clear();
     }
 
     /// Appends an SDF quad to the active batch or begins a new batch.
+    #[inline]
     pub fn push_quad(&mut self, quad: QuadInstance) {
+        self.push_quad_with_boundary(quad, None);
+    }
+
+    /// Appends an SDF quad to the active batch, attributing ownership to a boundary.
+    ///
+    /// If the previous slice belongs to the same boundary and is contiguous, it is extended
+    /// without additional heap allocation.
+    pub fn push_quad_with_boundary(
+        &mut self,
+        quad: QuadInstance,
+        boundary: Option<iris_core::WidgetId>,
+    ) {
         let current_len = self.quads.len() as u32;
         self.quads.push(quad);
 
@@ -84,6 +109,23 @@ impl DrawCommandList {
                 start: current_len,
                 count: 1,
             });
+        }
+
+        if let Some(b_id) = boundary {
+            if let Some((last_id, last_slice)) = self.boundary_slices.last_mut()
+                && *last_id == b_id
+                && last_slice.start + last_slice.count == current_len
+            {
+                last_slice.count += 1;
+            } else {
+                self.boundary_slices.push((
+                    b_id,
+                    BoundarySlice {
+                        start: current_len,
+                        count: 1,
+                    },
+                ));
+            }
         }
     }
 
@@ -145,6 +187,23 @@ impl DrawCommandList {
         self.texture_quads.append(&mut other.texture_quads);
         self.external_texture_quads
             .append(&mut other.external_texture_quads);
+
+        for (id, slice) in other.boundary_slices {
+            if let Some((last_id, last_slice)) = self.boundary_slices.last_mut()
+                && *last_id == id
+                && last_slice.start + last_slice.count == slice.start + quad_offset
+            {
+                last_slice.count += slice.count;
+            } else {
+                self.boundary_slices.push((
+                    id,
+                    BoundarySlice {
+                        start: slice.start + quad_offset,
+                        count: slice.count,
+                    },
+                ));
+            }
+        }
 
         for mut cmd in other.commands {
             match &mut cmd {
