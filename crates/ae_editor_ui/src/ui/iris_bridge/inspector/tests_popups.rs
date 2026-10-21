@@ -52,12 +52,9 @@ fn test_inspector_dropdown_popup_declarative_scope_and_hit_testing() {
     let mut params = create_default_test_params(&world, Some(entity), &euler, &swatches);
     params.active_dropdown = Some(InspectorDropdownId::RigidBodyType);
 
-    let mut panel_tree = UiTree::new();
-    let panel_root = panel_tree.create_root().expect("panel root node");
-
-    // Build trigger anchor via declarative UiScope
+    // Build trigger anchor via declarative UiScope directly in tree
     {
-        let mut scope = UiScope::new(&mut panel_tree, panel_root);
+        let mut scope = UiScope::new(&mut tree, root);
         scope.container_tagged(
             "AnchorDropdownTrigger",
             Style::new()
@@ -83,7 +80,7 @@ fn test_inspector_dropdown_popup_declarative_scope_and_hit_testing() {
     }
 
     // Build the dropdown popup via declarative UiScope
-    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params, Some(&panel_tree));
+    dropdown_popup::build_inspector_dropdown_popup(&mut tree, root, &params);
 
     // Option 0: "Dynamic" (tag = TAG_INSPECTOR_DROPDOWN_ITEM_BASE)
     let opt0_point = Point::new(110.0, 100.0 + 24.0 + 6.0 + 10.0);
@@ -117,12 +114,9 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
     params.is_add_menu_open = true;
     params.active_submenu = Some(ComponentCategory::Physics);
 
-    let mut panel_tree = UiTree::new();
-    let panel_root = panel_tree.create_root().expect("panel root node");
-
-    // Build Add Component button anchor via declarative UiScope
+    // Build Add Component button anchor via declarative UiScope directly in tree
     {
-        let mut scope = UiScope::new(&mut panel_tree, panel_root);
+        let mut scope = UiScope::new(&mut tree, root);
         scope.container_tagged(
             "AddComponentButton",
             Style::new()
@@ -149,7 +143,7 @@ fn test_inspector_add_menu_cascading_declarative_scope_and_hit_testing() {
 
     // Build the cascading add menu via declarative UiScope
     let mut actions = Vec::new();
-    add_menu::build_add_component_menu(&mut tree, root, &params, Some(&panel_tree), &mut actions);
+    add_menu::build_add_component_menu(&mut tree, root, &params, &mut actions);
 
     // Find Physics category card item
     let mut physics_cat_node = None;
@@ -205,12 +199,9 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
     params.inspector_hsv = [180.0, 0.5, 0.8];
     params.inspector_color_hex = "#33cccc";
 
-    let mut panel_tree = UiTree::new();
-    let panel_root = panel_tree.create_root().expect("panel root node");
-
-    // Build Swatch trigger anchor via declarative UiScope
+    // Build Swatch trigger anchor via declarative UiScope directly in tree
     {
-        let mut scope = UiScope::new(&mut panel_tree, panel_root);
+        let mut scope = UiScope::new(&mut tree, root);
         scope.container_tagged(
             "ColorSwatchAnchor",
             Style::new()
@@ -237,13 +228,7 @@ fn test_inspector_color_picker_popup_declarative_scope_and_hit_testing() {
 
     // Build color picker popup via declarative UiScope
     let mut actions = Vec::new();
-    color_picker_popup::build_color_picker_popup(
-        &mut tree,
-        root,
-        &params,
-        Some(&panel_tree),
-        &mut actions,
-    );
+    color_picker_popup::build_color_picker_popup(&mut tree, root, &params, &mut actions);
 
     // Verify popup elements exist with UiLayer::Popup
     let mut sv_box_found = false;

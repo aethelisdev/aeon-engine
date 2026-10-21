@@ -26,7 +26,6 @@ pub fn build_color_picker_popup(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    panel_tree: Option<&UiTree>,
     actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
     if !params.is_color_picker_open {
@@ -35,20 +34,8 @@ pub fn build_color_picker_popup(
 
     // Anchor to the Object Color swatch rect if available, or fallback gracefully
     let swatch_tag = appearance_color_swatch_tag();
-    let anchor_rect = panel_tree
-        .and_then(|ptree| {
-            ptree
-                .iter()
-                .find(|(_, node)| node.tag == swatch_tag)
-                .map(|(_, node)| {
-                    Rect::new(
-                        params.panel_rect.x + node.computed_rect.x,
-                        params.panel_rect.y + node.computed_rect.y,
-                        node.computed_rect.width,
-                        node.computed_rect.height,
-                    )
-                })
-        })
+    let anchor_rect = tree
+        .node_rect_tagged(swatch_tag, params.panel_rect.origin())
         .unwrap_or(Rect::new(
             params.panel_rect.x + 20.0,
             params.panel_rect.y + 120.0,
@@ -339,7 +326,7 @@ mod tests {
         };
 
         let mut actions = Vec::new();
-        build_color_picker_popup(&mut tree, root, &params, None, &mut actions);
+        build_color_picker_popup(&mut tree, root, &params, &mut actions);
 
         let popup_card = tree
             .iter()

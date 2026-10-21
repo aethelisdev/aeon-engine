@@ -397,6 +397,28 @@ impl IrisEditorOverlay {
         self.chrome.cursor_pos
     }
 
+    /// Returns the active pointer capture panel, if any.
+    ///
+    /// When dragging starts (e.g. timeline scrubbing, asset dragging), pointer motion and release
+    /// events are routed exclusively to the captured panel even when the cursor leaves its bounds.
+    #[inline]
+    #[must_use]
+    pub fn pointer_capture(&self) -> Option<crate::ui::panel_layout::PanelId> {
+        self.chrome.pointer_capture
+    }
+
+    /// Locks subsequent pointer motion and release events to the specified panel.
+    #[inline]
+    pub fn set_pointer_capture(&mut self, panel_id: crate::ui::panel_layout::PanelId) {
+        self.chrome.pointer_capture = Some(panel_id);
+    }
+
+    /// Releases any active pointer capture, restoring standard hit-test routing.
+    #[inline]
+    pub fn release_pointer_capture(&mut self) {
+        self.chrome.pointer_capture = None;
+    }
+
     /// Returns `true` if the specified point is occluded by any active top-level overlay layer.
     ///
     /// Evaluates bounding geometry against the elevated layers of the primary retained [`UiTree`].

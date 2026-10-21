@@ -179,7 +179,6 @@ pub fn build_add_component_menu(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    panel_tree: Option<&UiTree>,
     actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
     if !params.is_add_menu_open {
@@ -188,7 +187,7 @@ pub fn build_add_component_menu(
 
     match get_add_component_menu_items(params.world, params.selected_entity) {
         menu_items if !menu_items.is_empty() => {
-            render_add_component_scope(tree, parent_id, params, panel_tree, &menu_items, actions)
+            render_add_component_scope(tree, parent_id, params, &menu_items, actions)
         }
         _ => None,
     }
@@ -198,12 +197,10 @@ fn render_add_component_scope(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    panel_tree: Option<&UiTree>,
     menu_items: &[CascadingMenuItem],
     actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
-    let card_rect =
-        render_add_component_menu_card(tree, parent_id, params, panel_tree, menu_items, actions);
+    let card_rect = render_add_component_menu_card(tree, parent_id, params, menu_items, actions);
     Some(card_rect)
 }
 
@@ -211,14 +208,11 @@ fn render_add_component_menu_card(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    panel_tree: Option<&UiTree>,
     menu_items: &[CascadingMenuItem],
     actions: &mut Vec<super::types::InspectorAction>,
 ) -> Rect {
-    let anchor_rect = panel_tree
-        .and_then(|ptree| {
-            ptree.node_rect_tagged(TAG_INSPECTOR_ADD_COMPONENT, params.panel_rect.origin())
-        })
+    let anchor_rect = tree
+        .node_rect_tagged(TAG_INSPECTOR_ADD_COMPONENT, params.panel_rect.origin())
         .filter(|r| r.width > 0.0 && r.height > 0.0)
         .unwrap_or(Rect::new(
             params.panel_rect.x + 8.0,
@@ -341,7 +335,7 @@ mod tests {
         };
 
         let mut actions = Vec::new();
-        build_add_component_menu(&mut tree, root, &params, None, &mut actions);
+        build_add_component_menu(&mut tree, root, &params, &mut actions);
 
         assert_eq!(
             tree.node_named("AddComponentMenu")

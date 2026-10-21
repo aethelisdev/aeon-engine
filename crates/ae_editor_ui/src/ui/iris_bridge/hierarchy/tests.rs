@@ -44,7 +44,7 @@ fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {
     };
 
     let mut actions = Vec::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut actions);
 
     assert!(
         menu_rects.len() >= 2,
@@ -135,7 +135,7 @@ fn test_hierarchy_ui_canvas_submenu_preserves_text_labels() {
     };
 
     let mut actions = Vec::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut actions);
 
     assert!(menu_rects.len() >= 2);
     let add_menu_rect = menu_rects[0];
@@ -183,7 +183,7 @@ fn test_hierarchy_hud_presets_sub_submenu_cascading_and_spawning() {
     };
 
     let mut actions = Vec::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut actions);
 
     assert_eq!(
         menu_rects.len(),
@@ -271,7 +271,7 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
     };
 
     let mut actions = Vec::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut actions);
 
     // Verify popup cards exist and have DropdownPopup role
     let mut popup_cards = 0;
@@ -314,7 +314,7 @@ fn test_hierarchy_add_menu_2d_mode_shows_2d_objects() {
     };
 
     let mut actions = Vec::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut actions);
 
     assert_eq!(menu_rects.len(), 2);
 
@@ -365,7 +365,7 @@ fn test_hierarchy_add_menu_click_submenu_item() {
     };
 
     let mut actions = Vec::new();
-    let menu_rects = build_add_menu(&mut tree, root_id, &params, None, &mut actions);
+    let menu_rects = build_add_menu(&mut tree, root_id, &params, &mut actions);
 
     assert!(!menu_rects.is_empty());
     let root_rect = menu_rects[0];

@@ -95,15 +95,14 @@ pub fn build_inspector_overlays(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    panel_tree: Option<&UiTree>,
     actions: &mut Vec<super::types::InspectorAction>,
 ) -> Option<Rect> {
     if params.is_add_menu_open {
-        add_menu::build_add_component_menu(tree, parent_id, params, panel_tree, actions)
+        add_menu::build_add_component_menu(tree, parent_id, params, actions)
     } else if params.active_dropdown.is_some() {
-        dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params, panel_tree)
+        dropdown_popup::build_inspector_dropdown_popup(tree, parent_id, params)
     } else if params.is_color_picker_open {
-        color_picker_popup::build_color_picker_popup(tree, parent_id, params, panel_tree, actions)
+        color_picker_popup::build_color_picker_popup(tree, parent_id, params, actions)
     } else {
         None
     }

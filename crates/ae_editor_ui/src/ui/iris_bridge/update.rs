@@ -462,9 +462,8 @@ impl IrisEditorOverlay {
         self.timeline.selected_entity = params.scene.selected_entity;
         if self.material.selected_entity != params.scene.selected_entity {
             self.material.selected_entity = params.scene.selected_entity;
-            if let Some(tree) = self.panel_tree_mut(PanelId::MaterialEditor) {
-                tree.set_scroll_offset(super::material::types::MATERIAL_TAG_VIEWPORT, 0.0);
-            }
+            self.tree
+                .set_scroll_offset(super::material::types::MATERIAL_TAG_VIEWPORT, 0.0);
         }
 
         // Safely commit pending inspector edits on selection change

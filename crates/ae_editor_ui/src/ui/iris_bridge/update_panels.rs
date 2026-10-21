@@ -342,11 +342,8 @@ impl IrisEditorOverlay {
                         ae_editor::editor_logger::LOGGER
                             .log_count
                             .store(0, std::sync::atomic::Ordering::Relaxed);
-                        if let Some(tree) =
-                            self.panel_tree_mut(crate::ui::panel_layout::PanelId::Console)
-                        {
-                            tree.set_scroll_offset(super::console::CONSOLE_TAG_VIEWPORT, 0.0);
-                        }
+                        self.tree
+                            .set_scroll_offset(super::console::CONSOLE_TAG_VIEWPORT, 0.0);
                     }
                     super::console::ConsoleAction::SetFilter(level) => {
                         self.console.filter = level;

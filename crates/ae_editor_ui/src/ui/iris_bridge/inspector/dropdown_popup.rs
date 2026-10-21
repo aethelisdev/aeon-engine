@@ -18,45 +18,30 @@ pub fn build_inspector_dropdown_popup(
     tree: &mut UiTree,
     parent_id: WidgetId,
     params: &InspectorPanelParams<'_>,
-    panel_tree: Option<&UiTree>,
 ) -> Option<Rect> {
     params.active_dropdown.map(|active_id| {
+        let dropdown_tag = encode_inspector_dropdown_tag(active_id);
+        let anchor_rect = tree
+            .node_rect_tagged(dropdown_tag, params.panel_rect.origin())
+            .unwrap_or(Rect::new(
+                params.panel_rect.x + 8.0,
+                params.panel_rect.y + 40.0,
+                110.0,
+                22.0,
+            ));
+        let menu_width = anchor_rect.width.max(110.0);
         UiScope::new(tree, parent_id)
-            .popup_anchored_named(
-                "InspectorDropdownPopup",
-                panel_tree
-                    .and_then(|ptree| {
-                        ptree.node_rect_tagged(
-                            encode_inspector_dropdown_tag(active_id),
-                            params.panel_rect.origin(),
-                        )
-                    })
-                    .unwrap_or(Rect::new(
-                        params.panel_rect.x + 8.0,
-                        params.panel_rect.y + 40.0,
-                        110.0,
-                        22.0,
-                    )),
-                panel_tree
-                    .and_then(|ptree| {
-                        ptree.node_rect_tagged(
-                            encode_inspector_dropdown_tag(active_id),
-                            params.panel_rect.origin(),
-                        )
-                    })
-                    .map_or(110.0, |rect| rect.width.max(110.0)),
-                |menu| {
-                    for (idx, &item_label) in get_dropdown_options(active_id).iter().enumerate() {
-                        menu.dropdown_item(
-                            TAG_INSPECTOR_DROPDOWN_ITEM_BASE + idx as u64,
-                            "",
-                            item_label,
-                            None,
-                            true,
-                        );
-                    }
-                },
-            )
+            .popup_anchored_named("InspectorDropdownPopup", anchor_rect, menu_width, |menu| {
+                for (idx, &item_label) in get_dropdown_options(active_id).iter().enumerate() {
+                    menu.dropdown_item(
+                        TAG_INSPECTOR_DROPDOWN_ITEM_BASE + idx as u64,
+                        "",
+                        item_label,
+                        None,
+                        true,
+                    );
+                }
+            })
             .response
             .rect
     })
@@ -125,7 +110,7 @@ mod tests {
             blink_caret: false,
         };
 
-        build_inspector_dropdown_popup(&mut tree, root, &params, None);
+        build_inspector_dropdown_popup(&mut tree, root, &params);
 
         let popup_node = tree
             .iter()
