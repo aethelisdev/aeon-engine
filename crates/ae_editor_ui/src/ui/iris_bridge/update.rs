@@ -3,7 +3,6 @@
 
 //! Overlay lifecycle, initialization, and tree reconstruction subsystem for Iris UI editor overlays.
 
-use super::compositor;
 use super::menubar;
 use super::preferences;
 use super::status_bar;
@@ -30,7 +29,6 @@ impl IrisEditorOverlay {
             text_renderer: None,
             command_list: DrawCommandList::new(),
             notifier: UiNotifier::new(),
-            panels: super::update_panels::create_default_panel_registry(),
             screen_width: 1920.0,
             screen_height: 1080.0,
             is_visible: true,
@@ -284,26 +282,33 @@ impl IrisEditorOverlay {
             }
         }
 
-        // 2. Active dock panel trees (only if not occluded by an elevated overlay)
-        if hovered_target.is_none() && !self.is_point_over_overlay(cursor) {
+        // 2. Active dock panel under cursor
+        if !self.is_point_over_overlay(cursor) {
             for &pid in crate::ui::panel_layout::PanelId::all_tool_panels() {
                 if pid == crate::ui::panel_layout::PanelId::Viewport {
                     continue;
                 }
-                if let Some(panel) = self.panels.get(pid.id_str())
-                    && let Some(bounds) = panel.bounds()
-                    && compositor::is_point_in_panel(cursor, bounds)
-                    && let Some(hit) = self.hit_test_panel(pid, cursor)
-                    && hit.tag != 0
+                let rect_opt = match pid {
+                    PanelId::Viewport => None,
+                    PanelId::Hierarchy => params.panel_rects.hierarchy,
+                    PanelId::Inspector => params.panel_rects.inspector,
+                    PanelId::Console => params.panel_rects.console,
+                    PanelId::Assets => params.panel_rects.assets,
+                    PanelId::MaterialEditor => params.panel_rects.material,
+                    PanelId::AnimationTimeline => params.panel_rects.timeline,
+                    PanelId::UiDesigner => params.panel_rects.ui_designer,
+                    PanelId::Stats => params.panel_rects.stats,
+                };
+                if let Some(bounds) = rect_opt
+                    && bounds.contains_point(cursor)
                 {
-                    hovered_target = Some(hit.tag);
                     hovered_panel = Some(pid);
                     break;
                 }
             }
         }
 
-        // 3. Base shell tree (MenuBar, StatusBar, Viewport HUD)
+        // 3. Unified tree hit-testing (MenuBar, StatusBar, Viewport HUD, Dock panels)
         if hovered_target.is_none() {
             hovered_target = self
                 .tree
@@ -344,12 +349,8 @@ impl IrisEditorOverlay {
             self.notifier.tag_all();
         }
 
-        // 2. Delegate panel dirty evaluations to the panel registry
-        self.sync_panel_registry_dirty(&params);
-
-        // 3. Poll panel registry: panel dirty decisions flow through the registry and tag redraws
-        self.notifier
-            .poll_registry(&self.panels, PanelId::from_id_str);
+        // 2. Poll panel dirty evaluations directly into the notifier
+        self.poll_panel_dirty(&params);
 
         if !self.is_visible {
             self.command_list.clear();
@@ -659,15 +660,6 @@ impl IrisEditorOverlay {
                             ),
                         );
 
-                for &(panel_id, panel_rect) in &dock_frame.panel_rects {
-                    if let Some(panel) = self
-                        .panels
-                        .get_downcast_mut::<super::dock_panel::EditorDockPanel>(panel_id.id_str())
-                    {
-                        panel.set_last_bounds(panel_rect);
-                    }
-                }
-
                 self.chrome.floating_window_rects = dock_frame.floating_rects.clone();
                 self.chrome.native_dock_frame = Some(dock_frame.into());
             }
@@ -757,21 +749,7 @@ impl IrisEditorOverlay {
             return cur.to_widget_cursor();
         }
 
-        // 3. Docked Tool and Workspace Panels
-        if !is_overlay_hit
-            && let Some(pid) = self.chrome.hovered_panel
-            && let Some(panel) = self.panels.get(pid.id_str())
-            && let Some(panel_tree) = panel.tree()
-            && let Some(bounds) = panel.bounds()
-        {
-            let local_p = crate::ui::iris_bridge::compositor::screen_to_panel_local(p, bounds);
-            let panel_cursor = panel_tree.cursor_at(local_p);
-            if panel_cursor != WidgetCursor::Default {
-                return panel_cursor;
-            }
-        }
-
-        // 4. Base Shell Tree (Menubar, StatusBar, Viewport HUD)
+        // 3. Unified Tree Cursor (Menubar, StatusBar, Viewport HUD, Docked Panels)
         let tree_cursor = self.tree.cursor_at(p);
         if tree_cursor != WidgetCursor::Default {
             return tree_cursor;

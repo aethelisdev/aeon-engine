@@ -20,8 +20,6 @@
 use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 
-use super::compositor;
-use super::dock_panel::EditorDockPanel;
 use super::types::IrisEditorOverlay;
 
 impl IrisEditorOverlay {
@@ -40,67 +38,31 @@ impl IrisEditorOverlay {
         self.chrome.pointer_capture = None;
     }
 
-    /// Returns an immutable reference to the independently retained [`UiTree`] owned by a panel.
-    ///
-    /// If the panel is registered and has an active tree, returns its tree; otherwise falls back
-    /// to the shell tree [`Self::tree`].
-    pub fn panel_tree(&self, panel_id: PanelId) -> &UiTree {
-        if let Some(panel) = self.panels.get(panel_id.id_str())
-            && let Some(tree) = panel.tree()
-            && tree.root().is_some()
-        {
-            tree
-        } else {
-            &self.tree
-        }
+    /// Returns an immutable reference to the retained [`UiTree`].
+    pub fn panel_tree(&self, _panel_id: PanelId) -> &UiTree {
+        &self.tree
     }
 
-    /// Returns a mutable reference to the independently retained [`UiTree`] owned by a panel, if active.
-    ///
-    /// Resolves the panel from [`Self::panels`] by string identifier and extracts its inner tree.
-    /// Returns `None` if the panel is not registered or does not own an active retained tree.
-    pub fn panel_tree_mut(&mut self, panel_id: PanelId) -> Option<&mut UiTree> {
-        self.panels
-            .get_downcast_mut::<EditorDockPanel>(panel_id.id_str())
-            .map(|panel| panel.tree_mut())
+    /// Returns a mutable reference to the retained [`UiTree`].
+    pub fn panel_tree_mut(&mut self, _panel_id: PanelId) -> Option<&mut UiTree> {
+        Some(&mut self.tree)
     }
 
-    /// Queries hit-testing on a panel's retained tree using screen-space cursor coordinates.
-    ///
-    /// Automatically converts screen coordinates to panel-local `(0, 0)` coordinates
-    /// using `screen_to_panel_local` before evaluating `UiTree::hit_test_target`.
-    pub fn hit_test_panel(&self, panel_id: PanelId, screen_point: Point) -> Option<HitTargetInfo> {
-        if let Some(panel) = self.panels.get(panel_id.id_str())
-            && let Some(tree) = panel.tree()
-            && let Some(bounds) = panel.bounds()
-            && tree.root().is_some()
-        {
-            if !compositor::is_point_in_panel(screen_point, bounds) {
-                return None;
-            }
-            let local_point = compositor::screen_to_panel_local(screen_point, bounds);
-            tree.hit_test_target(local_point)
-        } else {
-            None
-        }
+    /// Queries hit-testing on the retained tree using screen-space cursor coordinates.
+    pub fn hit_test_panel(&self, _panel_id: PanelId, screen_point: Point) -> Option<HitTargetInfo> {
+        self.tree.hit_test_target(screen_point)
     }
 
-    /// Resolves an effective 64-bit semantic tag from an ancestor widget node in a panel's tree.
-    pub fn resolve_panel_tag(&self, panel_id: PanelId, id: WidgetId) -> u64 {
-        if let Some(panel) = self.panels.get(panel_id.id_str())
-            && let Some(tree) = panel.tree()
-            && tree.root().is_some()
-        {
-            tree.resolve_ancestor_tag(id)
-        } else {
-            self.tree.resolve_ancestor_tag(id)
-        }
+    /// Resolves an effective 64-bit semantic tag from an ancestor widget node.
+    pub fn resolve_panel_tag(&self, _panel_id: PanelId, id: WidgetId) -> u64 {
+        self.tree.resolve_ancestor_tag(id)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::iris_bridge::compositor;
     use crate::ui::iris_bridge::types::IrisChromeState;
     use crate::ui::panel_layout::PanelId;
 
@@ -119,12 +81,9 @@ mod tests {
     #[test]
     fn test_panel_tree_resolution_and_hit_testing() {
         let panel_bounds = Rect::new(100.0, 50.0, 300.0, 200.0);
-        let mut panel = EditorDockPanel::new(PanelId::Console);
-        panel.set_last_bounds(panel_bounds);
-
-        let tree = panel.tree_mut();
+        let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
-        let mut scope = UiScope::new(tree, root);
+        let mut scope = UiScope::new(&mut tree, root);
         scope
             .panel("ConsoleTestRoot")
             .bounds(Rect::new(0.0, 0.0, 300.0, 200.0))
@@ -137,7 +96,7 @@ mod tests {
         // Hit-test local query with coordinate transformation: (150.0, 70.0) -> local (50.0, 20.0)
         let screen_point = Point::new(150.0, 70.0);
         let local_point = compositor::screen_to_panel_local(screen_point, panel_bounds);
-        let hit = panel.hit_test_local(local_point);
+        let hit = tree.hit_test_target(local_point);
         assert!(hit.is_some());
 
         // Hit-test outside screen bounds
@@ -187,14 +146,11 @@ mod tests {
 
         // 1. Construct panel and build nodes in local (0, 0) space
         let panel_bounds = Rect::new(100.0, 50.0, 300.0, 400.0);
-        let mut panel = EditorDockPanel::new(PanelId::Hierarchy);
-        panel.set_last_bounds(panel_bounds);
-
-        let tree = panel.tree_mut();
+        let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
 
         {
-            let mut scope = UiScope::new(tree, root);
+            let mut scope = UiScope::new(&mut tree, root);
             scope.container_tagged(
                 "HierarchyLocalContainer",
                 Style::new().width(300.0).height(400.0).flex_col(),
@@ -213,10 +169,12 @@ mod tests {
 
         // 2. Perform layout computation with LayoutEngine
         let mut text_system = irisui::text::TextSystem::new();
-        text_system.measure_subtree_text(tree, root);
+        text_system.measure_subtree_text(&mut tree, root);
         let mut layout_engine = LayoutEngine::new();
-        let layout_res =
-            layout_engine.compute_layout(tree, Size::new(panel_bounds.width, panel_bounds.height));
+        let layout_res = layout_engine.compute_layout(
+            &mut tree,
+            Size::new(panel_bounds.width, panel_bounds.height),
+        );
         assert!(layout_res.is_ok(), "Layout computation must succeed");
 
         // After compute_layout, nodes have non-zero local computed bounds
@@ -265,7 +223,7 @@ mod tests {
         compositor.append_shell_commands(shell_commands);
 
         // Layer 1: Docked panel tree with hardware scissor and offset
-        compositor.append_panel_tree(tree, panel_bounds, None, None, false);
+        compositor.append_panel_tree(&tree, panel_bounds, None, None, false);
 
         // Layer 2: Shell overlay at topmost Z-order
         compositor.append_shell_overlays(&shell_tree, None, None, false);
@@ -296,7 +254,7 @@ mod tests {
 
         // 4. Verify composited typography collection across all 3 layers
         let text_options = TextCollectionOptions::default();
-        let docked_panels = [(tree as &UiTree, panel_bounds)];
+        let docked_panels = [(&tree, panel_bounds)];
         let sections = TreeCompositor::collect_composited_text_sections(
             &shell_tree,
             &docked_panels,

@@ -335,8 +335,6 @@ pub struct IrisEditorOverlay {
     pub command_list: DrawCommandList,
     /// Selective redraw and change notification engine.
     pub notifier: UiNotifier<PanelId>,
-    /// Central registry of dockable tool and workspace panels.
-    pub panels: PanelRegistry,
     /// Creation instant used for smooth sub-second continuous UI animations.
     pub start_time: std::time::Instant,
     /// Target surface texture format.
@@ -451,10 +449,6 @@ impl IrisEditorOverlay {
             || self.inspector.hex_buffer.is_some()
             || self.modals.is_new_folder_active
             || self.modals.is_rename_active
-            || self
-                .panels
-                .iter()
-                .any(|panel| panel.tree().is_some_and(|t| t.is_text_input_focused()))
     }
 
     /// Configures whether the editor UI overlay reconstructs the tree on every frame (immediate mode)

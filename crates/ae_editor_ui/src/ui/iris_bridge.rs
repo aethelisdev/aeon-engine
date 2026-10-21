@@ -11,7 +11,6 @@ pub mod actions;
 pub mod assets;
 pub mod compositor;
 pub mod console;
-pub mod dock_panel;
 pub mod floating_layer;
 pub mod hierarchy;
 pub mod icons;
@@ -43,7 +42,6 @@ mod tests_dirty;
 mod tests_update;
 
 pub use compositor::{TreeCompositor, is_point_in_panel, screen_to_panel_local};
-pub use dock_panel::{EditorDockPanel, create_default_panel_registry};
 pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
 pub use about::build_about_dialog;

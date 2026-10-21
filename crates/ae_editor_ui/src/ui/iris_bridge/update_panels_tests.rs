@@ -4,7 +4,7 @@
 //! Unit tests verifying panel rendering dispatch, lifecycle synchronization, and FPS cadence.
 //!
 
-use super::*;
+use irisui::prelude::{DockPanel, PanelRegistry, Rect, UiNotifier, UiTree, WidgetId};
 
 #[test]
 fn test_render_custom_panel_dispatch() {
@@ -79,41 +79,17 @@ fn test_stats_visual_sampling_cadence() {
 }
 
 #[test]
-fn test_sync_panel_lifecycle_relayout_on_resize() {
+fn test_ui_notifier_panel_tag_redraw() {
     use crate::ui::panel_layout::PanelId;
-    use irisui::prelude::{LayoutEngine, UiNotifier};
 
-    let mut registry = create_default_panel_registry();
-    let mut layout_engine = LayoutEngine::new();
     let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
+    assert!(!notifier.is_any_dirty());
 
-    let initial_bounds = Rect::new(0.0, 0.0, 300.0, 200.0);
-    let resized_bounds = Rect::new(0.0, 0.0, 500.0, 350.0);
-
-    // 1. Initial build when marked dirty
-    let panel = registry
-        .get_downcast_mut::<EditorDockPanel>(PanelId::Console.id_str())
-        .expect("Console panel exists");
-    panel.mark_dirty();
-    let initial_res = panel.update_lifecycle(&mut layout_engine, initial_bounds);
-    assert_eq!(initial_res, PanelLifecycleResult::Rebuilt);
-    assert_eq!(panel.last_bounds(), Some(initial_bounds));
-
-    // Simulate successful render by render_dock_panel_into_tree
-    let _ = panel.tree_mut().create_root();
-    panel.clear_dirty();
-
-    // 2. Simulate resize: without premature set_last_bounds, update_lifecycle detects delta
-    let resize_res = panel.update_lifecycle(&mut layout_engine, resized_bounds);
-    assert_eq!(resize_res, PanelLifecycleResult::RelayoutInPlace);
-    assert_eq!(panel.last_bounds(), Some(resized_bounds));
-
-    if resize_res == PanelLifecycleResult::RelayoutInPlace {
-        notifier.tag_redraw(PanelId::Console);
-    }
+    notifier.tag_redraw(PanelId::Console);
+    assert!(notifier.is_any_dirty());
     assert!(notifier.is_dirty(PanelId::Console));
+    assert!(!notifier.is_dirty(PanelId::Hierarchy));
 
-    // 3. Repeated call with identical bounds yields Unchanged
-    let stable_res = panel.update_lifecycle(&mut layout_engine, resized_bounds);
-    assert_eq!(stable_res, PanelLifecycleResult::Unchanged);
+    notifier.clear_all();
+    assert!(!notifier.is_any_dirty());
 }

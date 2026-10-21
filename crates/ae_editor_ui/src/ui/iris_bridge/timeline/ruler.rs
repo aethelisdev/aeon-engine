@@ -257,17 +257,44 @@ pub fn render_scrubber_track(scope: &mut UiScope<'_>, params: &ScrubberTrackPara
                 );
             });
 
-            // 1. Progress fill
-            let fill_w = progress_ratio * usable_width;
-            let fill_style = Style::new()
-                .position_absolute()
-                .left(TIMELINE_SIDEBAR_WIDTH)
-                .top(0.0)
-                .width(fill_w)
-                .height(height)
-                .background(style.progress_fill_color)
-                .border_radius(style.track_border_radius);
-            track.empty_box_passive_named("TimelineProgressFill", fill_style);
+            // 1. Dynamic volatile progress fill and playhead needle via immediate_canvas
+            let scrubber_canvas_size = Size::new(params.track_width, height);
+            track.immediate_canvas_named(
+                "TimelineScrubberCanvas",
+                scrubber_canvas_size,
+                |canvas| {
+                    let track_bounds = canvas.bounds();
+                    // Progress fill
+                    let fill_w = progress_ratio * usable_width;
+                    if fill_w > 0.0 {
+                        let fill_rect = Rect::new(
+                            track_bounds.x + TIMELINE_SIDEBAR_WIDTH,
+                            track_bounds.y,
+                            fill_w,
+                            height,
+                        );
+                        canvas.fill_rect(
+                            fill_rect,
+                            style.progress_fill_color,
+                            style.track_border_radius,
+                        );
+                    }
+
+                    // Playhead needle line
+                    let needle_x = track_bounds.x
+                        + TIMELINE_SIDEBAR_WIDTH
+                        + (progress_ratio * usable_width - 1.0)
+                            .clamp(0.0, (usable_width - 2.0).max(0.0));
+                    let needle_top = Point::new(needle_x + 1.0, track_bounds.y);
+                    let needle_bottom = Point::new(needle_x + 1.0, track_bounds.y + height);
+                    canvas.draw_line(
+                        needle_top,
+                        needle_bottom,
+                        style.playhead_needle_color,
+                        style.playhead_needle_width,
+                    );
+                },
+            );
 
             // 2. Keyframe markers
             for kf in keyframes {
@@ -291,19 +318,7 @@ pub fn render_scrubber_track(scope: &mut UiScope<'_>, params: &ScrubberTrackPara
                 );
             }
 
-            // 3. Playhead needle line
-            let needle_x = TIMELINE_SIDEBAR_WIDTH
-                + (progress_ratio * usable_width - 1.0).clamp(0.0, (usable_width - 2.0).max(0.0));
-            let needle_style = Style::new()
-                .position_absolute()
-                .left(needle_x)
-                .top(0.0)
-                .width(2.0)
-                .height(height)
-                .background(style.playhead_needle_color);
-            track.empty_box_passive_named("TimelinePlayheadNeedle", needle_style);
-
-            // 4. Playhead handle cap (top indicator ▼)
+            // 3. Playhead handle cap (top indicator ▼)
             let cap_w = 12.0;
             let cap_h = 10.0;
             let cap_x = TIMELINE_SIDEBAR_WIDTH

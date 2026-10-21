@@ -16,7 +16,7 @@ impl IrisEditorOverlay {
         &mut self,
         current: WidgetId,
         clip_rect: Option<Rect>,
-        frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
+        _frame_pacing: Option<&ae_core::telemetry::FrameRingBuffer>,
     ) {
         let preview_modal = self.assets.preview_modal.as_ref();
         let compass_angles = self.viewport_hud.camera_angles;
@@ -37,16 +37,14 @@ impl IrisEditorOverlay {
                         compass_angles.0,
                         compass_angles.1,
                     );
-                } else if node.tag == super::assets::types::ASSET_PREVIEW_TAG_ORBIT {
-                    if let Some(modal) = preview_modal {
-                        super::assets::preview::append_wireframe_quads(
-                            target_list,
-                            node.computed_rect,
-                            modal,
-                        );
-                    }
-                } else if let Some(ring) = frame_pacing {
-                    super::stats::append_oscilloscope_quads(target_list, node.computed_rect, ring);
+                } else if node.tag == super::assets::types::ASSET_PREVIEW_TAG_ORBIT
+                    && let Some(modal) = preview_modal
+                {
+                    super::assets::preview::append_wireframe_quads(
+                        target_list,
+                        node.computed_rect,
+                        modal,
+                    );
                 }
             }
         };
@@ -111,50 +109,6 @@ impl IrisEditorOverlay {
         let shell_commands = std::mem::take(&mut self.command_list);
         self.compositor.append_shell_commands(shell_commands);
 
-        // 2. Docked & Floating Panel Layers: Apply hardware scissor and local-to-screen offset
-        let frame_ring = self.stats.frame_ring_buffer;
-        for panel in self.panels.iter() {
-            if let (Some(tree), Some(bounds)) = (panel.tree(), panel.bounds())
-                && tree.root().is_some()
-                && bounds.width > 1.0
-                && bounds.height > 1.0
-            {
-                if panel.id() == crate::ui::panel_layout::PanelId::Stats.id_str() {
-                    let mut stats_drawer =
-                        |target_list: &mut DrawCommandList,
-                         _id: WidgetId,
-                         node: &WidgetNode,
-                         _clip: Option<Rect>| {
-                            if node.role == WidgetRole::OscilloscopeCanvas
-                                && let Some(ref ring) = frame_ring
-                            {
-                                super::stats::append_oscilloscope_quads(
-                                    target_list,
-                                    node.computed_rect,
-                                    ring,
-                                );
-                            }
-                        };
-                    self.compositor.append_panel_tree_with_drawer(
-                        tree,
-                        bounds,
-                        self.chrome.hovered_tag,
-                        tree.event_state.focused_tag,
-                        self.chrome.last_blink_caret,
-                        Some(&mut stats_drawer),
-                    );
-                } else {
-                    self.compositor.append_panel_tree(
-                        tree,
-                        bounds,
-                        self.chrome.hovered_tag,
-                        tree.event_state.focused_tag,
-                        self.chrome.last_blink_caret,
-                    );
-                }
-            }
-        }
-
         // 3. Top-Level Overlay Layer: Modals, dropdowns, and popups rendered without scissor clipping
         self.compositor.append_shell_overlays(
             &self.tree,
@@ -215,16 +169,7 @@ impl IrisEditorOverlay {
             ..Default::default()
         };
 
-        let mut docked_panels = Vec::new();
-        for panel in self.panels.iter() {
-            if let (Some(tree), Some(bounds)) = (panel.tree(), panel.bounds())
-                && tree.root().is_some()
-                && bounds.width > 1.0
-                && bounds.height > 1.0
-            {
-                docked_panels.push((tree, bounds));
-            }
-        }
+        let docked_panels: [(&UiTree, Rect); 0] = [];
 
         let sections = super::compositor::TreeCompositor::collect_composited_text_sections(
             &self.tree,

@@ -64,19 +64,33 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
         });
 
         // ── Oscilloscope Canvas Container ──
-        let canvas_style = Style::new()
-            .height(92.0)
-            .background(Color::rgba(0.04, 0.05, 0.07, 0.95))
-            .border(1.0, Color::rgba(0.14, 0.16, 0.22, 0.85))
-            .border_radius(4.0)
-            .clip_children(true);
+        let canvas_w = (params.panel_rect.width - 24.0).max(100.0);
+        let canvas_size = Size::new(canvas_w, 92.0);
+        let pacing = params.frame_pacing;
 
-        s.canvas_named(
+        s.immediate_canvas_tagged(
             "OscilloscopeCanvas",
-            canvas_style,
-            WidgetRole::OscilloscopeCanvas,
             STATS_TAG_CANVAS,
-            None,
+            canvas_size,
+            |canvas| {
+                // Background & border
+                canvas.fill_rect(canvas.bounds(), Color::rgba(0.04, 0.05, 0.07, 0.95), 4.0);
+                canvas.stroke_rect(
+                    canvas.bounds(),
+                    Color::rgba(0.14, 0.16, 0.22, 0.85),
+                    1.0,
+                    4.0,
+                );
+
+                // Volatile chart curve
+                canvas.draw_chart_polyline(
+                    |idx| pacing.get_chronological(idx),
+                    pacing.count(),
+                    36.0,
+                    60,
+                    get_frametime_color,
+                );
+            },
         );
 
         // ── Pacing Summary Footer ──

@@ -725,143 +725,40 @@ impl IrisEditorOverlay {
         }
     }
 
-    /// Renders an external or custom panel registered in [`Self::panels`] by its identifier.
-    ///
-    /// Returns `true` if a registered panel was found and rendered, or `false` otherwise.
-    pub fn render_custom_panel(&mut self, panel_id: &str, parent: WidgetId, bounds: Rect) -> bool {
-        let (panels, tree) = (&mut self.panels, &mut self.tree);
-        if let Some(panel) = panels.get_mut(panel_id) {
-            panel.render(tree, parent, bounds);
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Synchronizes localized dirty state from specialized panel state structures into the dock panel registry.
-    ///
-    /// For each registered panel, queries its corresponding localized state's
-    /// `check_and_sync_dirty` evaluation and delegates the result to the [`EditorDockPanel`].
-    pub(crate) fn sync_panel_registry_dirty(&mut self, params: &OverlayUpdateParams<'_>) {
+    /// Evaluates localized dirty states from each specialized panel state structure
+    /// and tags changed panels in [`UiNotifier`].
+    pub(crate) fn poll_panel_dirty(&mut self, params: &OverlayUpdateParams<'_>) {
         use crate::ui::panel_layout::PanelId;
 
-        let vp_dirty = self.viewport_hud.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Viewport.id_str())
-        {
-            panel.set_dirty(vp_dirty);
+        if self.viewport_hud.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::Viewport);
         }
-
-        let mat_dirty = self.material.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::MaterialEditor.id_str())
-        {
-            panel.set_dirty(mat_dirty);
+        if self.material.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::MaterialEditor);
         }
-
-        let tl_dirty = self.timeline.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::AnimationTimeline.id_str())
-        {
-            panel.set_dirty(tl_dirty);
+        if self.timeline.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::AnimationTimeline);
         }
-
-        let ui_dirty = self.ui_designer.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::UiDesigner.id_str())
-        {
-            panel.set_dirty(ui_dirty);
+        if self.ui_designer.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::UiDesigner);
         }
-
-        let insp_dirty = self.inspector.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Inspector.id_str())
-        {
-            panel.set_dirty(insp_dirty);
+        if self.inspector.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::Inspector);
         }
-
-        let hier_dirty = self.hierarchy.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Hierarchy.id_str())
-        {
-            panel.set_dirty(hier_dirty);
+        if self.hierarchy.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::Hierarchy);
         }
-
-        let con_dirty = self.console.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Console.id_str())
-        {
-            panel.set_dirty(con_dirty);
+        if self.console.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::Console);
         }
-
-        let assets_dirty = self.assets.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Assets.id_str())
-        {
-            panel.set_dirty(assets_dirty);
+        if self.assets.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::Assets);
         }
-
-        let stats_dirty = self.stats.check_and_sync_dirty(params);
-        if let Some(panel) = self
-            .panels
-            .get_downcast_mut::<EditorDockPanel>(PanelId::Stats.id_str())
-        {
-            panel.set_dirty(stats_dirty);
-        }
-
-        self.sync_panel_registry_bounds(params);
-    }
-
-    /// Synchronizes current dock bounds rectangles into registered dock panels and advances their retained lifecycles.
-    ///
-    /// For every active tool panel, delegates bounds tracking and in-place flexbox relayout
-    /// directly to [`EditorDockPanel::update_lifecycle`]. If dimensions change, in-place relayout
-    /// is performed without allocating new widget nodes and the panel is tagged for redraw in [`UiNotifier`].
-    pub(crate) fn sync_panel_registry_bounds(&mut self, params: &OverlayUpdateParams<'_>) {
-        use crate::ui::panel_layout::PanelId;
-
-        let (panels, layout_engine, notifier) = (
-            &mut self.panels,
-            &mut self.layout_engine,
-            &mut self.notifier,
-        );
-
-        for &panel_id in PanelId::all_tool_panels() {
-            let rect_opt = match panel_id {
-                PanelId::Viewport => Some(params.viewport.viewport_rect),
-                PanelId::Hierarchy => params.panel_rects.hierarchy,
-                PanelId::Inspector => params.panel_rects.inspector,
-                PanelId::Console => params.panel_rects.console,
-                PanelId::Assets => params.panel_rects.assets,
-                PanelId::MaterialEditor => params.panel_rects.material,
-                PanelId::AnimationTimeline => params.panel_rects.timeline,
-                PanelId::UiDesigner => params.panel_rects.ui_designer,
-                PanelId::Stats => params.panel_rects.stats,
-            };
-
-            if let Some(panel) = panels.get_downcast_mut::<EditorDockPanel>(panel_id.id_str()) {
-                if let Some(rect) = rect_opt {
-                    let result = panel.update_lifecycle(layout_engine, rect);
-                    if result == PanelLifecycleResult::RelayoutInPlace {
-                        notifier.tag_redraw(panel_id);
-                    }
-                } else {
-                    panel.clear_bounds();
-                }
-            }
+        if self.stats.check_and_sync_dirty(params) {
+            self.notifier.tag_redraw(PanelId::Stats);
         }
     }
 }
-
-pub use super::dock_panel::{EditorDockPanel, PanelLifecycleResult, create_default_panel_registry};
 
 #[path = "update_panels_tests.rs"]
 #[cfg(test)]

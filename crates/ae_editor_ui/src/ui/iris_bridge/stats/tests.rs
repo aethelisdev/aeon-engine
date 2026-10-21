@@ -89,11 +89,13 @@ fn test_build_stats_panel_declarative_structure() {
         tree.node_tagged(STATS_TAG_PANEL_ROOT).is_some(),
         "STATS_TAG_PANEL_ROOT must exist in tree"
     );
-    assert_eq!(
-        tree.node_tagged(STATS_TAG_CANVAS)
-            .expect("STATS_TAG_CANVAS must exist in tree")
-            .role,
-        WidgetRole::OscilloscopeCanvas
+    let canvas_node = tree
+        .node_tagged(STATS_TAG_CANVAS)
+        .expect("STATS_TAG_CANVAS must exist in tree");
+    assert_eq!(canvas_node.role, WidgetRole::ImmediateCanvas);
+    assert!(
+        tree.canvas_primitives(canvas_node.id).is_some(),
+        "Volatile canvas primitives must be populated for ImmediateCanvas"
     );
     assert_eq!(
         tree.node_tagged(STATS_TAG_TOGGLE_WIREFRAME)

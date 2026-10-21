@@ -184,10 +184,7 @@ impl IrisEditorOverlay {
                 ctrl_held: self.chrome.ctrl_held,
                 shift_held: self.chrome.shift_held,
             };
-            let hier_tree = self
-                .panels
-                .get(crate::ui::panel_layout::PanelId::Hierarchy.id_str())
-                .and_then(|p| p.tree());
+            let hier_tree: Option<&UiTree> = None;
             let mut hierarchy_overlay_actions = Vec::new();
             hierarchy::build_hierarchy_overlays(
                 &mut self.tree,
@@ -262,10 +259,7 @@ impl IrisEditorOverlay {
                     blink_caret: (self.start_time.elapsed().as_millis() / 500).is_multiple_of(2),
                 };
 
-                let insp_tree = self
-                    .panels
-                    .get(crate::ui::panel_layout::PanelId::Inspector.id_str())
-                    .and_then(|p| p.tree());
+                let insp_tree: Option<&UiTree> = None;
                 inspector::build_inspector_overlays(
                     &mut self.tree,
                     root,

@@ -321,32 +321,18 @@ fn test_stats_state_dirty_detection() {
 }
 
 #[test]
-fn test_panel_registry_poll_flow_and_targeted_redraw() {
-    use super::dock_panel::{EditorDockPanel, create_default_panel_registry};
+fn test_ui_notifier_panel_targeted_redraw() {
     use crate::ui::panel_layout::PanelId;
-    use irisui::prelude::{DockPanel, Rect, UiNotifier, UiTree};
+    use irisui::prelude::UiNotifier;
 
-    let mut registry = create_default_panel_registry();
     let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
 
     // Initially clean notifier has no dirty panels
     assert!(!notifier.is_any_dirty());
-    notifier.poll_registry(&registry, PanelId::from_id_str);
-    assert!(!notifier.is_any_dirty());
 
-    // Mark Hierarchy and Console dirty in registry
-    let hier_panel = registry
-        .get_downcast_mut::<EditorDockPanel>(PanelId::Hierarchy.id_str())
-        .expect("Hierarchy panel must exist");
-    hier_panel.set_dirty(true);
-
-    let console_panel = registry
-        .get_downcast_mut::<EditorDockPanel>(PanelId::Console.id_str())
-        .expect("Console panel must exist");
-    console_panel.set_dirty(true);
-
-    // Poll registry into notifier
-    notifier.poll_registry(&registry, PanelId::from_id_str);
+    // Mark Hierarchy and Console dirty
+    notifier.tag_redraw(PanelId::Hierarchy);
+    notifier.tag_redraw(PanelId::Console);
 
     assert!(notifier.is_any_dirty());
     assert!(!notifier.is_global_dirty());
@@ -359,28 +345,4 @@ fn test_panel_registry_poll_flow_and_targeted_redraw() {
     // Clear and verify
     notifier.clear_all();
     assert!(!notifier.is_any_dirty());
-
-    // Test active container render on EditorDockPanel
-    let mut panel = EditorDockPanel::new(PanelId::AnimationTimeline);
-    let mut tree = UiTree::new();
-    let root = tree.create_root().expect("root widget");
-    panel.render(&mut tree, root, Rect::new(0.0, 0.0, 400.0, 300.0));
-    assert!(tree.len() >= 2);
-
-    // Test custom render callback
-    let custom_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let custom_called_clone = custom_called.clone();
-    let mut custom_panel = EditorDockPanel::new(PanelId::Inspector).with_render_callback(
-        move |tree_ref, parent_ref, _bounds| {
-            custom_called_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-            let mut scope = irisui::prelude::UiScope::new(tree_ref, parent_ref);
-            scope.container(irisui::prelude::Style::default(), |inner| {
-                inner.label("Custom Inspector");
-            });
-        },
-    );
-
-    custom_panel.render(&mut tree, root, Rect::new(0.0, 0.0, 200.0, 200.0));
-    assert!(custom_called.load(std::sync::atomic::Ordering::Relaxed));
-    assert_eq!(tree.len(), 5);
 }
