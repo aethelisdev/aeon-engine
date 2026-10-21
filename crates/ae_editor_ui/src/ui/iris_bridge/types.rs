@@ -379,9 +379,6 @@ pub struct IrisEditorOverlay {
     pub focus_manager: FocusManager,
     /// Autonomous focus state machine providing SSOT for panel inputs and outside-click clearing.
     pub focus_state: FocusState<FocusTarget>,
-    /// Multi-tree layer compositor merging independent panel trees, floating windows,
-    /// and shell overlay layers.
-    pub compositor: super::compositor::TreeCompositor,
     /// Centralized queue of pending engine UI actions emitted by panels and overlays.
     pub pending_actions: Vec<EngineUiAction>,
 }

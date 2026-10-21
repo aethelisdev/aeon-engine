@@ -50,7 +50,6 @@ impl IrisEditorOverlay {
             inspector: super::inspector::types::InspectorPanelState::default(),
             focus_manager: FocusManager::new(),
             focus_state: FocusState::new(),
-            compositor: super::compositor::TreeCompositor::new(),
             pending_actions: Vec::new(),
         }
     }
@@ -370,7 +369,6 @@ impl IrisEditorOverlay {
                     self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
                 }
                 self.chrome.last_blink_caret = blink_caret;
-                self.composite_active_layers();
                 self.chrome.needs_scroll_sync = false;
             } else if (hover_target_changed || focus_target_changed || blink_changed)
                 && let Some(root) = self.tree.root()
@@ -378,7 +376,6 @@ impl IrisEditorOverlay {
                 self.command_list.clear();
                 self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
                 self.chrome.last_blink_caret = blink_caret;
-                self.composite_active_layers();
             }
             // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
             self.chrome.last_cursor_pos = self.cursor_pos();
@@ -697,9 +694,6 @@ impl IrisEditorOverlay {
             self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
         }
         self.chrome.last_blink_caret = blink_caret;
-
-        // Composite active layers: Shell (Layer 0) + Dock Panels (Layer 1) + OverlayTree (Layer 2)
-        self.composite_active_layers();
 
         self.chrome.last_dimensions = params.context.dimensions;
         self.chrome.last_zoom_factor = params.context.zoom_factor;

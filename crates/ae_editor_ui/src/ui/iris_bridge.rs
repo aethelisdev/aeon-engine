@@ -9,7 +9,6 @@
 pub mod about;
 pub mod actions;
 pub mod assets;
-pub mod compositor;
 pub mod console;
 pub mod floating_layer;
 pub mod hierarchy;
@@ -41,7 +40,6 @@ mod tests_dirty;
 #[cfg(test)]
 mod tests_update;
 
-pub use compositor::{TreeCompositor, is_point_in_panel, screen_to_panel_local};
 pub use viewport_texture::VIEWPORT_TEXTURE_ID;
 
 pub use about::build_about_dialog;

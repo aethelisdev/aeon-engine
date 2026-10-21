@@ -97,30 +97,6 @@ impl IrisEditorOverlay {
         irisui::text::collect_text_sections_with_options(tree, &options)
     }
 
-    /// Composites all active UI layers (shell tree, independent dock panel trees, and top overlay tree)
-    /// into the internal [`TreeCompositor`] command list in strict back-to-front Z-order.
-    ///
-    /// Applies hardware scissor clipping and `(0, 0)` local-to-screen coordinate translation
-    /// per panel to prevent clipping and overflow.
-    pub fn composite_active_layers(&mut self) {
-        self.compositor.clear();
-
-        // 1. Base Layer: Shell tree commands (MenuBar, StatusBar, dock chrome)
-        let shell_commands = std::mem::take(&mut self.command_list);
-        self.compositor.append_shell_commands(shell_commands);
-
-        // 3. Top-Level Overlay Layer: Modals, dropdowns, and popups rendered without scissor clipping
-        self.compositor.append_shell_overlays(
-            &self.tree,
-            self.chrome.hovered_tag,
-            self.tree.event_state.focused_tag,
-            self.chrome.last_blink_caret,
-        );
-
-        // Assign composited list back to self.command_list
-        self.command_list = std::mem::take(&mut self.compositor.command_list);
-    }
-
     /// Renders the Iris UI overlay into the target surface framebuffer.
     pub fn render(
         &mut self,
@@ -169,13 +145,7 @@ impl IrisEditorOverlay {
             ..Default::default()
         };
 
-        let docked_panels: [(&UiTree, Rect); 0] = [];
-
-        let sections = super::compositor::TreeCompositor::collect_composited_text_sections(
-            &self.tree,
-            &docked_panels,
-            &text_options,
-        );
+        let sections = irisui::text::collect_text_sections_with_options(&self.tree, &text_options);
 
         if let Some(txt_renderer) = &mut self.text_renderer {
             txt_renderer.prepare(

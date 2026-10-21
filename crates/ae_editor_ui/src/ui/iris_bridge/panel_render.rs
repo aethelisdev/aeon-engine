@@ -62,7 +62,6 @@ impl IrisEditorOverlay {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::iris_bridge::compositor;
     use crate::ui::iris_bridge::types::IrisChromeState;
     use crate::ui::panel_layout::PanelId;
 
@@ -86,22 +85,22 @@ mod tests {
         let mut scope = UiScope::new(&mut tree, root);
         scope
             .panel("ConsoleTestRoot")
-            .bounds(Rect::new(0.0, 0.0, 300.0, 200.0))
+            .bounds(panel_bounds)
             .tagged(0xCC00_0001)
             .background(Color::BLACK)
             .show(|s| {
                 s.add(Button::new("Btn").name("TestBtn").tag(0xCC00_0002));
             });
 
-        // Hit-test local query with coordinate transformation: (150.0, 70.0) -> local (50.0, 20.0)
+        // Hit-test target query with screen coordinates: (150.0, 70.0) is inside panel_bounds
         let screen_point = Point::new(150.0, 70.0);
-        let local_point = compositor::screen_to_panel_local(screen_point, panel_bounds);
-        let hit = tree.hit_test_target(local_point);
+        assert!(panel_bounds.contains_point(screen_point));
+        let hit = tree.hit_test_target(screen_point);
         assert!(hit.is_some());
 
         // Hit-test outside screen bounds
         let outside_point = Point::new(50.0, 20.0);
-        assert!(!compositor::is_point_in_panel(outside_point, panel_bounds));
+        assert!(!panel_bounds.contains_point(outside_point));
     }
 
     #[test]
@@ -140,19 +139,20 @@ mod tests {
     }
 
     #[test]
-    fn test_dock_panels_layout_computation_and_three_layer_compositing() {
-        use crate::ui::iris_bridge::compositor::TreeCompositor;
-        use irisui::text::TextCollectionOptions;
+    fn test_unified_tree_layout_and_layer_compilation() {
+        use irisui::text::{TextCollectionOptions, collect_text_sections_with_options};
+        use irisui::wgpu_backend::{TreeCompilerOptions, compile_tree_draw_commands_into};
 
-        // 1. Construct panel and build nodes in local (0, 0) space
-        let panel_bounds = Rect::new(100.0, 50.0, 300.0, 400.0);
         let mut tree = UiTree::new();
         let root = tree.create_root().expect("root node");
 
         {
             let mut scope = UiScope::new(&mut tree, root);
+            // Shell base
+            scope.add(Button::new("TopMenubarBtn").tag(0xBB00_0001));
+            // Panel container
             scope.container_tagged(
-                "HierarchyLocalContainer",
+                "HierarchyContainer",
                 Style::new().width(300.0).height(400.0).flex_col(),
                 WidgetRole::Default,
                 0xAA00_0001,
@@ -161,127 +161,38 @@ mod tests {
                     s.add(Button::new("EntityRow2").tag(0xAA00_0003));
                 },
             );
-        }
-
-        // Before compute_layout, local nodes have zero layout dimensions
-        let root_node_before = tree.get(root).unwrap();
-        assert_eq!(root_node_before.computed_rect, Rect::ZERO);
-
-        // 2. Perform layout computation with LayoutEngine
-        let mut text_system = irisui::text::TextSystem::new();
-        text_system.measure_subtree_text(&mut tree, root);
-        let mut layout_engine = LayoutEngine::new();
-        let layout_res = layout_engine.compute_layout(
-            &mut tree,
-            Size::new(panel_bounds.width, panel_bounds.height),
-        );
-        assert!(layout_res.is_ok(), "Layout computation must succeed");
-
-        // After compute_layout, nodes have non-zero local computed bounds
-        let root_node_after = tree.get(root).unwrap();
-        assert!(
-            root_node_after.computed_rect.width >= 300.0,
-            "Root node must have computed width after layout: got {}",
-            root_node_after.computed_rect.width
-        );
-        assert!(
-            root_node_after.computed_rect.height >= 400.0,
-            "Root node must have computed height after layout: got {}",
-            root_node_after.computed_rect.height
-        );
-
-        // 3. Test multi-tree layer composition via TreeCompositor
-        let mut shell_tree = UiTree::new();
-        let shell_root = shell_tree.create_root().unwrap();
-        {
-            let mut scope = UiScope::new(&mut shell_tree, shell_root);
-            scope.add(Button::new("TopMenubarBtn").tag(0xBB00_0001));
-            scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 30.0));
-        }
-
-        {
-            let mut scope = UiScope::new(&mut shell_tree, shell_root);
+            // Modal dropdown overlay
             scope.add(
                 Button::new("DropdownItem")
                     .tag(0xCC00_0001)
                     .layer(UiLayer::Modal),
             );
-            scope.finish_layout(Rect::new(50.0, 30.0, 150.0, 200.0));
         }
 
-        let mut compositor = TreeCompositor::new();
+        // Layout computation
+        let mut text_system = irisui::text::TextSystem::new();
+        text_system.measure_subtree_text(&mut tree, root);
+        let mut layout_engine = LayoutEngine::new();
+        let layout_res = layout_engine.compute_layout(&mut tree, Size::new(1920.0, 1080.0));
+        assert!(layout_res.is_ok(), "Layout computation must succeed");
 
-        // Layer 0: Shell commands
-        let mut shell_commands = irisui::wgpu_backend::DrawCommandList::new();
-        let mut shell_options = TreeCompilerOptions::new();
-        compile_tree_draw_commands_into(
-            &shell_tree,
-            shell_root,
-            &mut shell_options,
-            &mut shell_commands,
-        );
-        compositor.append_shell_commands(shell_commands);
+        // Native tree compilation into DrawCommandList
+        let mut command_list = irisui::wgpu_backend::DrawCommandList::new();
+        let mut options = TreeCompilerOptions::new();
+        compile_tree_draw_commands_into(&tree, root, &mut options, &mut command_list);
 
-        // Layer 1: Docked panel tree with hardware scissor and offset
-        compositor.append_panel_tree(&tree, panel_bounds, None, None, false);
-
-        // Layer 2: Shell overlay at topmost Z-order
-        compositor.append_shell_overlays(&shell_tree, None, None, false);
-
-        // Verify compositor layers and commands
-        assert_eq!(compositor.composited_layer_count, 1);
         assert!(
-            !compositor.command_list.quads.is_empty(),
-            "Composited command list must contain SDF quads"
+            !command_list.quads.is_empty(),
+            "Command list must contain quads"
         );
 
-        // Verify hardware scissor was pushed for panel bounds (100, 50, 300, 400)
-        let has_scissor = compositor.command_list.commands.iter().any(|cmd| {
-            matches!(
-                cmd,
-                irisui::wgpu_backend::DrawCommand::SetScissor {
-                    x: 100,
-                    y: 50,
-                    width: 300,
-                    height: 400
-                }
-            )
-        });
-        assert!(
-            has_scissor,
-            "TreeCompositor must configure hardware scissor matching panel bounds"
-        );
-
-        // 4. Verify composited typography collection across all 3 layers
+        // Unified typography collection across all layers
         let text_options = TextCollectionOptions::default();
-        let docked_panels = [(&tree, panel_bounds)];
-        let sections = TreeCompositor::collect_composited_text_sections(
-            &shell_tree,
-            &docked_panels,
-            &text_options,
-        );
-
-        // Shell has 1 text, panel has 2 texts, overlay has 1 text = 4 sections
+        let sections = collect_text_sections_with_options(&tree, &text_options);
         assert_eq!(
             sections.len(),
             4,
-            "Composited text sections must encompass all active trees (shell + panel + overlay)"
-        );
-
-        // Panel text must be translated by panel_bounds origin (+100.0, +50.0)
-        let panel_section = sections
-            .iter()
-            .find(|s| s.text == "EntityRow1")
-            .expect("EntityRow1 must be found");
-        assert!(
-            panel_section.bounds.x >= 100.0,
-            "Panel text bounds.x must be offset by panel_bounds.x (>= 100.0), got {}",
-            panel_section.bounds.x
-        );
-        assert!(
-            panel_section.bounds.y >= 50.0,
-            "Panel text bounds.y must be offset by panel_bounds.y (>= 50.0), got {}",
-            panel_section.bounds.y
+            "Unified text sections must encompass all nodes (menubar + 2 panel rows + modal)"
         );
     }
 }
