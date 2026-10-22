@@ -64,6 +64,59 @@ impl LayoutEngine {
         self.last_available_size = None;
     }
 
+    /// Recursively untracks and removes all descendant layout nodes of the specified parent from Taffy.
+    ///
+    /// Preserves the parent node itself in the layout map, while detaching all children in Taffy
+    /// via [`taffy::TaffyTree::set_children`] and purging all descendants from [`self.node_map`]
+    /// and [`self.id_map`]. This prevents dangling layout nodes and memory leaks when a panel subtree
+    /// is invalidated and reconstructed in-place.
+    ///
+    /// # Performance
+    /// Operates in $O(M)$ time proportional only to the number of descendant nodes in the target subtree,
+    /// leaving sibling panels and chrome structures completely untouched.
+    pub fn untrack_subtree(&mut self, tree: &UiTree, parent_id: WidgetId) {
+        let Some(parent_node) = tree.get(parent_id) else {
+            return;
+        };
+
+        if let Some(&parent_taffy) = self.node_map.get(&parent_id) {
+            let _ = self.taffy.set_children(parent_taffy, &[]);
+        }
+
+        let mut descendants = Vec::new();
+        for &child_id in &parent_node.children {
+            tree.collect_subtree(child_id, &mut descendants);
+        }
+
+        for descendant_id in descendants {
+            if let Some(taffy_node) = self.node_map.remove(&descendant_id) {
+                self.id_map.remove(&taffy_node);
+                let _ = self.taffy.remove(taffy_node);
+            }
+        }
+    }
+
+    /// Returns `true` if the specified widget ID is currently tracked in the layout engine.
+    #[inline]
+    #[must_use]
+    pub fn is_tracked(&self, id: WidgetId) -> bool {
+        self.node_map.contains_key(&id)
+    }
+
+    /// Returns the total number of tracked layout nodes.
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.node_map.len()
+    }
+
+    /// Returns `true` if the layout engine contains no tracked nodes.
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.node_map.is_empty()
+    }
+
     /// Computes layout for the entire UI tree if layout dirty flags are set, leveraging
     /// invalidation boundary caching when changes are isolated to individual panels.
     ///
@@ -610,5 +663,104 @@ mod tests {
         // dirty_boundaries set must now be clean
         assert!(!tree.has_dirty_boundaries());
         assert!(!tree.has_dirty_nodes(DirtyFlags::LAYOUT));
+    }
+
+    #[test]
+    fn test_layout_untrack_subtree_removes_taffy_nodes() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().unwrap();
+
+        // Panel A (Boundary)
+        let panel_a = tree.create_node();
+        tree.set_boundary(panel_a, true);
+        if let Some(node) = tree.get_mut(panel_a) {
+            node.set_style(Style::new().flex_col().width(300.0).height(400.0));
+        }
+        tree.add_child(root, panel_a).unwrap();
+
+        let a_child1 = tree.create_node();
+        if let Some(node) = tree.get_mut(a_child1) {
+            node.set_style(Style::new().width(200.0).height(50.0));
+        }
+        tree.add_child(panel_a, a_child1).unwrap();
+
+        let a_child2 = tree.create_node();
+        if let Some(node) = tree.get_mut(a_child2) {
+            node.set_style(Style::new().width(200.0).height(50.0));
+        }
+        tree.add_child(panel_a, a_child2).unwrap();
+
+        let a_grandchild = tree.create_node();
+        if let Some(node) = tree.get_mut(a_grandchild) {
+            node.set_style(Style::new().width(100.0).height(20.0));
+        }
+        tree.add_child(a_child1, a_grandchild).unwrap();
+
+        // Panel B (Sibling)
+        let panel_b = tree.create_node();
+        tree.set_boundary(panel_b, true);
+        if let Some(node) = tree.get_mut(panel_b) {
+            node.set_style(Style::new().flex_col().width(500.0).height(400.0));
+        }
+        tree.add_child(root, panel_b).unwrap();
+
+        let b_child = tree.create_node();
+        if let Some(node) = tree.get_mut(b_child) {
+            node.set_style(Style::new().width(400.0).height(100.0));
+        }
+        tree.add_child(panel_b, b_child).unwrap();
+
+        let mut engine = LayoutEngine::new();
+        assert!(
+            engine
+                .compute_layout(&mut tree, Size::new(800.0, 600.0))
+                .is_ok()
+        );
+
+        // Before untracking: 7 total nodes tracked in engine
+        assert_eq!(engine.len(), 7);
+        assert!(engine.is_tracked(root));
+        assert!(engine.is_tracked(panel_a));
+        assert!(engine.is_tracked(a_child1));
+        assert!(engine.is_tracked(a_child2));
+        assert!(engine.is_tracked(a_grandchild));
+        assert!(engine.is_tracked(panel_b));
+        assert!(engine.is_tracked(b_child));
+
+        // Untrack subtree of Panel A
+        engine.untrack_subtree(&tree, panel_a);
+
+        // Panel A itself, Root, Panel B, and b_child MUST remain tracked
+        assert!(engine.is_tracked(root));
+        assert!(engine.is_tracked(panel_a));
+        assert!(engine.is_tracked(panel_b));
+        assert!(engine.is_tracked(b_child));
+
+        // Descendants of Panel A MUST be completely removed from Taffy tracking
+        assert!(!engine.is_tracked(a_child1));
+        assert!(!engine.is_tracked(a_child2));
+        assert!(!engine.is_tracked(a_grandchild));
+
+        // Exactly 4 nodes remain tracked: root, panel_a, panel_b, b_child
+        assert_eq!(engine.len(), 4);
+
+        // Clear children on tree to match the atomic lifecycle
+        assert!(tree.clear_children(panel_a).is_ok());
+
+        // Rebuild panel_a with a new child
+        let new_child = tree.create_node();
+        if let Some(node) = tree.get_mut(new_child) {
+            node.set_style(Style::new().width(250.0).height(75.0));
+        }
+        tree.add_child(panel_a, new_child).unwrap();
+
+        // Recalculate layout for panel_a boundary in isolation
+        assert!(engine.compute_boundary_subtree(&mut tree, panel_a).is_ok());
+
+        // Verify that new_child is now tracked and laid out
+        assert!(engine.is_tracked(new_child));
+        assert_eq!(engine.len(), 5);
+        assert_eq!(tree.get(new_child).unwrap().computed_rect.width, 250.0);
+        assert_eq!(tree.get(new_child).unwrap().computed_rect.height, 75.0);
     }
 }

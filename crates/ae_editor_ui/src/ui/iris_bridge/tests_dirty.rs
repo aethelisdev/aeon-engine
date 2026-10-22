@@ -91,7 +91,6 @@ impl TestHarness {
     fn make_params<'a>(
         &'a mut self,
         selected_entity: Option<hecs::Entity>,
-        panel_rects: OverlayPanelRects,
     ) -> OverlayUpdateParams<'a> {
         let active_entities_count = self.world.len() as usize;
         OverlayUpdateParams {
@@ -147,7 +146,6 @@ impl TestHarness {
                 gpu_adapter_name: "Mock Adapter",
                 gpu_backend: "Vulkan",
             },
-            panel_rects,
             panel_data: OverlayPanelData {
                 ui_designer_state: &self.ui_designer_state,
                 asset_browser: &self.asset_browser,
@@ -171,7 +169,7 @@ fn test_material_state_dirty_detection() {
     let entity2 = harness.world.spawn(());
 
     // Initially with entity1, is_dirty must be true (last_selected_entity is None)
-    let params = harness.make_params(Some(entity1), OverlayPanelRects::default());
+    let params = harness.make_params(Some(entity1));
     assert!(state.is_dirty(&params));
 
     // check_and_sync_dirty synchronizes and returns true
@@ -183,7 +181,7 @@ fn test_material_state_dirty_detection() {
     assert!(!state.check_and_sync_dirty(&params));
 
     // Selecting entity2 must make it dirty again
-    let params2 = harness.make_params(Some(entity2), OverlayPanelRects::default());
+    let params2 = harness.make_params(Some(entity2));
     assert!(state.is_dirty(&params2));
     assert!(state.check_and_sync_dirty(&params2));
     assert_eq!(state.last_selected_entity, Some(entity2));
@@ -195,7 +193,7 @@ fn test_timeline_state_dirty_detection() {
     let mut harness = TestHarness::default();
     let mut state = super::timeline::TimelinePanelState::default();
 
-    let params = harness.make_params(None, OverlayPanelRects::default());
+    let params = harness.make_params(None);
     assert!(!state.is_dirty(&params));
 
     // Dragging scrubber makes it dirty
@@ -217,18 +215,18 @@ fn test_viewport_hud_state_dirty_detection() {
     let mut state = super::viewport_hud::ViewportHudState::default();
 
     // Initial state with default camera has delta from (0,0,0)
-    let params = harness.make_params(None, OverlayPanelRects::default());
+    let params = harness.make_params(None);
     assert!(state.check_and_sync_dirty(&params));
     assert!(!state.is_dirty(&params));
 
     // Camera movement below 0.05 threshold is not dirty
     harness.camera.position.x += 0.01;
-    let params_sub = harness.make_params(None, OverlayPanelRects::default());
+    let params_sub = harness.make_params(None);
     assert!(!state.is_dirty(&params_sub));
 
     // Camera movement above 0.05 threshold triggers dirty
     harness.camera.position.x += 0.1;
-    let params_moved = harness.make_params(None, OverlayPanelRects::default());
+    let params_moved = harness.make_params(None);
     assert!(state.is_dirty(&params_moved));
     assert!(state.check_and_sync_dirty(&params_moved));
     assert!(!state.is_dirty(&params_moved));
@@ -239,18 +237,18 @@ fn test_hierarchy_state_dirty_detection() {
     let mut harness = TestHarness::default();
     let mut state = super::hierarchy::HierarchyPanelState::default();
 
-    let params = harness.make_params(None, OverlayPanelRects::default());
+    let params = harness.make_params(None);
     assert!(!state.is_dirty(&params));
 
     // Spawning an entity changes world.len(), triggering dirty
     let ent = harness.world.spawn(());
-    let params_spawned = harness.make_params(None, OverlayPanelRects::default());
+    let params_spawned = harness.make_params(None);
     assert!(state.is_dirty(&params_spawned));
     assert!(state.check_and_sync_dirty(&params_spawned));
     assert!(!state.is_dirty(&params_spawned));
 
     // Selecting the entity triggers dirty
-    let params_selected = harness.make_params(Some(ent), OverlayPanelRects::default());
+    let params_selected = harness.make_params(Some(ent));
     assert!(state.is_dirty(&params_selected));
     assert!(state.check_and_sync_dirty(&params_selected));
     assert!(!state.is_dirty(&params_selected));
@@ -261,7 +259,7 @@ fn test_console_state_dirty_detection() {
     let mut harness = TestHarness::default();
     let mut state = super::console::ConsolePanelState::default();
 
-    let params = harness.make_params(None, OverlayPanelRects::default());
+    let params = harness.make_params(None);
     assert!(!state.is_dirty(&params));
 
     // New console logs arrive
@@ -273,7 +271,7 @@ fn test_console_state_dirty_detection() {
             msg: "Test message".to_string(),
             timestamp: "00:00:00".to_string(),
         });
-    let params_new_log = harness.make_params(None, OverlayPanelRects::default());
+    let params_new_log = harness.make_params(None);
     assert!(state.is_dirty(&params_new_log));
     assert!(state.check_and_sync_dirty(&params_new_log));
     assert!(!state.is_dirty(&params_new_log));
@@ -290,12 +288,12 @@ fn test_assets_state_dirty_detection() {
     let mut harness = TestHarness::default();
     let mut state = super::assets::AssetsPanelState::default();
 
-    let params = harness.make_params(None, OverlayPanelRects::default());
+    let params = harness.make_params(None);
     assert!(!state.is_dirty(&params));
 
     // Changing folder triggers dirty
     harness.asset_browser.current_folder = std::path::PathBuf::from("assets/textures");
-    let params_folder = harness.make_params(None, OverlayPanelRects::default());
+    let params_folder = harness.make_params(None);
     assert!(state.is_dirty(&params_folder));
     assert!(state.check_and_sync_dirty(&params_folder));
     assert!(!state.is_dirty(&params_folder));
@@ -306,18 +304,23 @@ fn test_stats_state_dirty_detection() {
     let mut harness = TestHarness::default();
     let mut state = super::stats::StatsPanelState::default();
 
-    // When stats panel is hidden (None), it is not dirty
-    let params_hidden = harness.make_params(None, OverlayPanelRects::default());
-    assert!(!state.is_dirty(&params_hidden));
+    let params = harness.make_params(None);
 
-    // When stats panel is docked/visible, it is dirty
-    let rects = OverlayPanelRects {
-        stats: Some(Rect::new(0.0, 0.0, 300.0, 200.0)),
-        ..Default::default()
-    };
-    let params_visible = harness.make_params(None, rects);
-    assert!(state.is_dirty(&params_visible));
-    assert!(state.check_and_sync_dirty(&params_visible));
+    // Initial state immediately after creation has elapsed < 0.25s and no actions
+    assert!(!state.is_dirty(&params));
+
+    // Action dispatch triggers dirty
+    state
+        .interactions
+        .push_action(super::stats::StatsPanelAction::ToggleWireframe);
+    assert!(state.is_dirty(&params));
+    let _ = state.interactions.take_actions();
+
+    // Elapsed >= 250ms triggers dirty
+    state.last_fps_refresh = std::time::Instant::now() - std::time::Duration::from_millis(300);
+    assert!(state.is_dirty(&params));
+    assert!(state.check_and_sync_dirty(&params));
+    assert!(!state.is_dirty(&params));
 }
 
 #[test]

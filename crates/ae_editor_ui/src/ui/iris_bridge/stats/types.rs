@@ -97,8 +97,6 @@ pub struct StatsPanelParams<'a> {
 pub struct StatsPanelState {
     /// Common panel interaction state (search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), StatsPanelAction>,
-    /// Last bounding rectangle allocated for the Stats & Profiler panel.
-    pub last_rect: Option<Rect>,
     /// Accumulated frame count within the current 250ms telemetry rolling average window.
     pub frame_counter: u32,
     /// Timestamp of the last visual rolling window update for the FPS text in the Stats panel.
@@ -113,7 +111,6 @@ impl Default for StatsPanelState {
     fn default() -> Self {
         Self {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
-            last_rect: None,
             frame_counter: 0,
             last_fps_refresh: std::time::Instant::now(),
             displayed_fps: 60.0,
@@ -141,36 +138,29 @@ impl std::ops::DerefMut for StatsPanelState {
 impl StatsPanelState {
     /// Evaluates whether the Performance Stats & Telemetry panel requires an in-place repaint.
     ///
-    /// Returns `true` whenever the docked stats panel rectangle is visible.
+    /// Refreshes telemetry counters at 250ms cadence or when action events are pending.
     pub fn is_dirty(
         &self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
+        _params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
     ) -> bool {
-        self.last_rect != params.panel_rects.stats
-            || (params.panel_rects.stats.is_some()
-                && self.last_fps_refresh.elapsed().as_secs_f32() >= 0.25)
+        self.last_fps_refresh.elapsed().as_secs_f32() >= 0.25
             || self.interactions.has_pending_actions()
     }
 
     /// Synchronizes rolling FPS text windowing calculations.
     pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        if params.panel_rects.stats.is_some() {
-            if self.frame_counter == 0 {
-                self.displayed_fps = params.telemetry.fps;
-                self.last_fps_refresh = std::time::Instant::now();
-            }
-            self.frame_counter += 1;
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(self.last_fps_refresh).as_secs_f32();
-            if elapsed >= 0.25 {
-                self.displayed_fps = self.frame_counter as f32 / elapsed;
-                self.frame_counter = 0;
-                self.last_fps_refresh = now;
-            }
-        } else {
-            self.frame_counter = 0;
+        if self.frame_counter == 0 {
+            self.displayed_fps = params.telemetry.fps;
+            self.last_fps_refresh = std::time::Instant::now();
         }
-        self.last_rect = params.panel_rects.stats;
+        self.frame_counter += 1;
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.last_fps_refresh).as_secs_f32();
+        if elapsed >= 0.25 {
+            self.displayed_fps = self.frame_counter as f32 / elapsed;
+            self.frame_counter = 0;
+            self.last_fps_refresh = now;
+        }
     }
 
     /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.

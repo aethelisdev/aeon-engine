@@ -85,15 +85,6 @@ impl EngineUi {
             get_panel_rect(PanelId::Viewport).unwrap_or(Rect::new(0.0, 0.0, 0.0, 0.0))
         };
 
-        let stats_rect = get_panel_rect(PanelId::Stats);
-        let hierarchy_rect = get_panel_rect(PanelId::Hierarchy);
-        let inspector_rect = get_panel_rect(PanelId::Inspector);
-        let material_rect = get_panel_rect(PanelId::MaterialEditor);
-        let console_rect = get_panel_rect(PanelId::Console);
-        let assets_rect = get_panel_rect(PanelId::Assets);
-        let timeline_rect = get_panel_rect(PanelId::AnimationTimeline);
-        let ui_designer_rect = get_panel_rect(PanelId::UiDesigner);
-
         // Cache all active UI bounds for point occlusion testing (exclude 3D viewport canvas)
         self.ui_rects.clear();
         for leaf in &computed.leaves {
@@ -299,14 +290,6 @@ impl EngineUi {
             enabled_modules: params.enabled_modules,
             camera: params.camera,
             world: params.world,
-            stats_panel_rect: stats_rect,
-            hierarchy_panel_rect: hierarchy_rect,
-            inspector_panel_rect: inspector_rect,
-            console_panel_rect: console_rect,
-            assets_panel_rect: assets_rect,
-            timeline_panel_rect: timeline_rect,
-            material_panel_rect: material_rect,
-            ui_designer_panel_rect: ui_designer_rect,
             textures: params.textures,
             models: params.models,
             is_2d_mode: params.is_2d_mode,

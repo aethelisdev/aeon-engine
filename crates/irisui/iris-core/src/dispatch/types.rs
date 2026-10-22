@@ -245,6 +245,51 @@ impl EventState {
         self.active_text_edit = None;
     }
 
+    /// Cleans any direct references to the specified widget ID if active in interaction tracking.
+    ///
+    /// Ensures that removed or replaced widgets do not leave dangling references within pointer capture,
+    /// hover detection, keyboard focus, click records, active context menus, or tooltips.
+    #[inline]
+    pub fn untrack_widget(&mut self, id: WidgetId) {
+        if self.pointer_capture == Some(id) {
+            self.pointer_capture = None;
+        }
+        if self.hovered == Some(id) {
+            self.hovered = None;
+        }
+        if self.pressed == Some(id) {
+            self.pressed = None;
+        }
+        if self.focused == Some(id) {
+            self.focused = None;
+        }
+        if self.last_click_id == Some(id) {
+            self.last_click_id = None;
+        }
+        if self.frame_clicked_id == Some(id) {
+            self.frame_clicked_id = None;
+        }
+        if self.frame_double_clicked_id == Some(id) {
+            self.frame_double_clicked_id = None;
+        }
+        if self.frame_secondary_clicked_id == Some(id) {
+            self.frame_secondary_clicked_id = None;
+        }
+        if self.frame_drag_released_id == Some(id) {
+            self.frame_drag_released_id = None;
+        }
+        if let Some(ref menu) = self.active_context_menu
+            && menu.owner_id == id
+        {
+            self.active_context_menu = None;
+        }
+        if let Some(ref tooltip) = self.active_tooltip
+            && tooltip.target_id == id
+        {
+            self.active_tooltip = None;
+        }
+    }
+
     /// Activates an autonomous inline text editing session and synchronizes focus to the target widget and tag.
     ///
     /// Sets [`Self::focused`], [`Self::focused_tag`], and [`Self::active_text_edit`], while clearing any active numeric edit.

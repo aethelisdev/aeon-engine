@@ -251,14 +251,55 @@ impl UiTree {
         for node_id in to_remove {
             self.dirty_boundaries.remove(&node_id);
             self.volatile_canvas_commands.remove(&node_id);
+            self.event_state.untrack_widget(node_id);
             self.nodes.remove(node_id);
         }
 
         Ok(())
     }
 
-    /// Helper to recursively collect all descendant keys in a subtree.
-    pub(crate) fn collect_subtree(&self, id: WidgetId, list: &mut Vec<WidgetId>) {
+    /// Recursively removes all descendant child nodes of the specified parent node while preserving the parent itself.
+    ///
+    /// Preserves the parent node's identity, invalidation boundary status (`is_boundary`), layout style,
+    /// and pre-computed boundary coordinates, while deep-removing all children and sub-descendants from the arena.
+    /// Safely purges descendant entries from [`Self::dirty_boundaries`], [`Self::volatile_canvas_commands`],
+    /// and [`Self::event_state`] to eliminate stale references, and flags the parent node with [`DirtyFlags::CHILDREN`]
+    /// and [`DirtyFlags::LAYOUT`].
+    ///
+    /// # Errors
+    /// Returns [`IrisCoreError::NodeNotFound`] if the specified `parent_id` is not present in the tree.
+    pub fn clear_children(&mut self, parent_id: WidgetId) -> Result<(), IrisCoreError> {
+        let parent_node = self
+            .nodes
+            .get_mut(parent_id)
+            .ok_or(IrisCoreError::NodeNotFound(parent_id))?;
+
+        let children = std::mem::take(&mut parent_node.children);
+        let mut to_remove = Vec::new();
+        for child_id in children {
+            self.collect_subtree(child_id, &mut to_remove);
+        }
+
+        for node_id in to_remove {
+            self.dirty_boundaries.remove(&node_id);
+            self.volatile_canvas_commands.remove(&node_id);
+            self.event_state.untrack_widget(node_id);
+            self.nodes.remove(node_id);
+        }
+
+        self.mark_dirty(parent_id, DirtyFlags::CHILDREN | DirtyFlags::LAYOUT);
+        Ok(())
+    }
+
+    /// Recursively collects all widget node IDs within the subtree rooted at `id`, including `id` itself.
+    ///
+    /// Performs a pre-order depth-first traversal of the widget hierarchy, appending all visited
+    /// keys into the provided `list` buffer with zero intermediate heap allocations.
+    ///
+    /// # Parameters
+    /// - `id`: The root node key of the subtree to collect.
+    /// - `list`: Destination vector receiving the collected widget IDs.
+    pub fn collect_subtree(&self, id: WidgetId, list: &mut Vec<WidgetId>) {
         list.push(id);
         if let Some(node) = self.nodes.get(id) {
             for &child_id in &node.children {

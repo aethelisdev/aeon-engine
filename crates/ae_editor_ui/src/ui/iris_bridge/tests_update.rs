@@ -13,7 +13,7 @@ fn test_always_rebuild_default_and_setter() {
     let mut chrome = IrisChromeState::default();
     assert!(
         !chrome.always_rebuild,
-        "always_rebuild must default to false for retained multi-tree architecture"
+        "always_rebuild must default to false for retained solo-tree architecture"
     );
     chrome.always_rebuild = true;
     assert!(chrome.always_rebuild);

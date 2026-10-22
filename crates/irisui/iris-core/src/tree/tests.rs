@@ -414,3 +414,99 @@ fn test_find_invalidation_boundary() {
     assert_eq!(tree.find_invalidation_boundary(boundary), Some(boundary));
     assert_eq!(tree.find_invalidation_boundary(root), None);
 }
+
+#[test]
+fn test_tree_clear_children_preserves_parent_and_cleans_descendants() {
+    use crate::canvas::CanvasPrimitive;
+    use crate::color::Color;
+    use crate::dirty::DirtyFlags;
+    use crate::style::Style;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // Create a panel boundary node
+    let panel = tree.create_node();
+    tree.set_boundary(panel, true);
+    if let Some(node) = tree.get_mut(panel) {
+        node.computed_rect = Rect::new(10.0, 20.0, 300.0, 400.0);
+        node.set_style(Style::new().width(300.0).height(400.0));
+    }
+    tree.add_child(root, panel).unwrap();
+
+    // Create descendants under panel
+    let child1 = tree.create_node();
+    tree.add_child(panel, child1).unwrap();
+
+    let child2 = tree.create_node();
+    tree.set_boundary(child2, true);
+    tree.dirty_boundaries.insert(child2);
+    tree.add_child(panel, child2).unwrap();
+
+    let grandchild = tree.create_node();
+    tree.add_child(child1, grandchild).unwrap();
+
+    // Register canvas primitive on child1
+    tree.add_canvas_primitive(
+        child1,
+        CanvasPrimitive::Rect {
+            rect: Rect::new(0.0, 0.0, 10.0, 10.0),
+            color: Color::WHITE,
+            corner_radius: 0.0,
+        },
+    );
+    assert!(tree.canvas_primitives(child1).is_some());
+
+    // Setup event state pointing to descendants
+    tree.event_state.hovered = Some(child1);
+    tree.event_state.focused = Some(grandchild);
+    tree.event_state.pointer_capture = Some(child2);
+
+    // Initial assertions: 5 total nodes (root, panel, child1, child2, grandchild)
+    assert_eq!(tree.len(), 5);
+    assert_eq!(tree.get(panel).unwrap().children.len(), 2);
+    assert!(tree.dirty_boundaries.contains(&child2));
+
+    // Clear children of panel
+    let clear_res = tree.clear_children(panel);
+    assert!(clear_res.is_ok());
+
+    // 1. Parent node is strictly preserved
+    let panel_node = tree.get(panel).expect("Parent node must be preserved");
+    assert!(
+        panel_node.children.is_empty(),
+        "Parent children must be empty"
+    );
+    assert!(panel_node.is_boundary, "Boundary flag must be preserved");
+    assert_eq!(panel_node.style.width, Some(300.0));
+    assert_eq!(panel_node.style.height, Some(400.0));
+    assert_eq!(
+        panel_node.computed_rect,
+        Rect::new(10.0, 20.0, 300.0, 400.0)
+    );
+    assert!(
+        panel_node
+            .dirty
+            .contains(DirtyFlags::CHILDREN | DirtyFlags::LAYOUT)
+    );
+
+    // 2. All descendants removed from arena
+    assert!(tree.get(child1).is_none());
+    assert!(tree.get(child2).is_none());
+    assert!(tree.get(grandchild).is_none());
+    assert_eq!(tree.len(), 2, "Only root and panel remain");
+
+    // 3. Subsidiary structures purged
+    assert!(!tree.dirty_boundaries.contains(&child2));
+    assert!(tree.canvas_primitives(child1).is_none());
+
+    // 4. Event state references untracked
+    assert_eq!(tree.event_state.hovered, None);
+    assert_eq!(tree.event_state.focused, None);
+    assert_eq!(tree.event_state.pointer_capture, None);
+
+    // 5. Test error on nonexistent node
+    let dummy_id = tree.create_node();
+    tree.remove_node(dummy_id).unwrap();
+    assert!(tree.clear_children(dummy_id).is_err());
+}

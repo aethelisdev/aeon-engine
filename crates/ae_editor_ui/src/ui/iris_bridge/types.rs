@@ -248,7 +248,7 @@ pub struct IrisChromeState {
     pub hovered_tag: Option<u64>,
     /// Last hovered 64-bit semantic tag used for reactive hover state invalidation.
     pub last_hovered_tag: Option<u64>,
-    /// Currently hovered dock panel identifier resolved from multi-tree hit testing.
+    /// Currently hovered dock panel identifier resolved from dock leaf hit testing.
     pub hovered_panel: Option<PanelId>,
     /// Last hovered dock panel identifier used to detect panel-level hover transitions and tag redraws.
     pub last_hovered_panel: Option<PanelId>,
@@ -586,26 +586,6 @@ pub struct TelemetryParams<'a> {
 }
 
 /// Bounding rectangles computed by dock system for active overlay panels.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct OverlayPanelRects {
-    /// Bounds of active Stats panel, if visible.
-    pub stats: Option<Rect>,
-    /// Bounds of active Hierarchy panel, if visible.
-    pub hierarchy: Option<Rect>,
-    /// Bounds of active Inspector panel, if visible.
-    pub inspector: Option<Rect>,
-    /// Bounds of active Developer Console panel, if visible.
-    pub console: Option<Rect>,
-    /// Bounds of active Content Browser panel, if visible.
-    pub assets: Option<Rect>,
-    /// Bounds of active Timeline panel, if visible.
-    pub timeline: Option<Rect>,
-    /// Bounds of active Material panel, if visible.
-    pub material: Option<Rect>,
-    /// Bounds of active 2D Visual UI Designer panel, if visible.
-    pub ui_designer: Option<Rect>,
-}
-
 /// Subsystem data repositories and live editor caches consumed by panel builders.
 pub struct OverlayPanelData<'a> {
     /// Reference to persistent UI Designer state for canvas and toolbar rendering.
@@ -642,8 +622,6 @@ pub struct OverlayUpdateParams<'a> {
     pub preferences: OverlayPreferencesParams<'a>,
     /// Performance statistics, frame pacing, and hardware telemetry.
     pub telemetry: TelemetryParams<'a>,
-    /// Layout rectangles computed by the dock system for active panels.
-    pub panel_rects: OverlayPanelRects,
     /// Subsystem data repositories and caches consumed by panel builders.
     pub panel_data: OverlayPanelData<'a>,
 }

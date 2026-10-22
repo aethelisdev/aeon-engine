@@ -230,7 +230,7 @@ impl IrisEditorOverlay {
         let cursor_moved = (self.chrome.last_cursor_pos.x - cursor.x).abs() > 0.001
             || (self.chrome.last_cursor_pos.y - cursor.y).abs() > 0.001;
 
-        // Multi-Tree Hit-Testing:
+        // Unified Tree Hit-Testing:
         // 1. First inspect elevated overlay layers (popups, dropdowns, modals) in the Shell tree
         let mut hovered_target = None;
         let mut hovered_panel = None;
@@ -246,26 +246,12 @@ impl IrisEditorOverlay {
         }
 
         // 2. Active dock panel under cursor
-        if !self.is_point_over_overlay(cursor) {
-            for &pid in crate::ui::panel_layout::PanelId::all_tool_panels() {
-                if pid == crate::ui::panel_layout::PanelId::Viewport {
-                    continue;
-                }
-                let rect_opt = match pid {
-                    PanelId::Viewport => None,
-                    PanelId::Hierarchy => params.panel_rects.hierarchy,
-                    PanelId::Inspector => params.panel_rects.inspector,
-                    PanelId::Console => params.panel_rects.console,
-                    PanelId::Assets => params.panel_rects.assets,
-                    PanelId::MaterialEditor => params.panel_rects.material,
-                    PanelId::AnimationTimeline => params.panel_rects.timeline,
-                    PanelId::UiDesigner => params.panel_rects.ui_designer,
-                    PanelId::Stats => params.panel_rects.stats,
-                };
-                if let Some(bounds) = rect_opt
-                    && bounds.contains_point(cursor)
-                {
-                    hovered_panel = Some(pid);
+        if !self.is_point_over_overlay(cursor)
+            && let Some(dock_frame) = &self.chrome.native_dock_frame
+        {
+            for (pid, bounds) in &dock_frame.panel_rects {
+                if *pid != PanelId::Viewport && bounds.contains_point(cursor) {
+                    hovered_panel = Some(*pid);
                     break;
                 }
             }

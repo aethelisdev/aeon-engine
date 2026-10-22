@@ -19,6 +19,7 @@ use super::modals::{
 };
 use super::preferences::{self, build_preferences_dialog};
 use super::types::{IrisEditorOverlay, OverlayUpdateParams};
+use crate::ui::PanelId;
 use irisui::prelude::*;
 
 /// Geometry and environment parameters required to construct top-level floating overlays and modal dialogues.
@@ -165,7 +166,13 @@ impl IrisEditorOverlay {
         }
 
         // 7. Hierarchy Add Menu and Context Menu
-        if let Some(hier_rect) = params.panel_rects.hierarchy {
+        let hier_rect = self.chrome.native_dock_frame.as_ref().and_then(|f| {
+            f.panel_rects
+                .iter()
+                .find(|(pid, _)| *pid == PanelId::Hierarchy)
+                .map(|(_, r)| *r)
+        });
+        if let Some(hier_rect) = hier_rect {
             let hier_params = hierarchy::HierarchyPanelParams {
                 panel_rect: hier_rect,
                 world: params.scene.world,
@@ -198,7 +205,13 @@ impl IrisEditorOverlay {
         }
 
         // 8. Inspector Add Component Cascading Menu, Dropdowns, and Color Picker
-        if let Some(insp_rect) = params.panel_rects.inspector {
+        let insp_rect = self.chrome.native_dock_frame.as_ref().and_then(|f| {
+            f.panel_rects
+                .iter()
+                .find(|(pid, _)| *pid == PanelId::Inspector)
+                .map(|(_, r)| *r)
+        });
+        if let Some(insp_rect) = insp_rect {
             let num_input_ref = self
                 .inspector
                 .active_number_input
