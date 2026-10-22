@@ -139,3 +139,60 @@ fn test_immediate_canvas_polyline_and_chart_polyline() {
         .count();
     assert!(line_segments >= 3);
 }
+
+#[test]
+fn test_retained_update_canvas_by_tag_invalidation() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let canvas_tag = 0x8899_u64;
+
+    let canvas_resp = {
+        let mut ui = UiScope::new(&mut tree, root);
+        ui.immediate_canvas_tagged(
+            "LiveOscilloscope",
+            canvas_tag,
+            Size::new(240.0, 100.0),
+            |canvas| {
+                canvas.fill_rect(Rect::new(0.0, 0.0, 240.0, 100.0), Color::BLACK, 0.0);
+            },
+        )
+    };
+
+    // Simulate Taffy layout resolved bounds
+    if let Some(node) = tree.get_mut(canvas_resp.id) {
+        node.computed_rect = Rect::new(50.0, 120.0, 240.0, 100.0);
+        node.dirty = iris_core::DirtyFlags::empty();
+        node.is_boundary = true;
+    }
+    tree.clear_dirty_boundaries();
+
+    // Verify initial single primitive
+    assert_eq!(tree.canvas_primitives(canvas_resp.id).unwrap().len(), 1);
+    assert!(!tree.has_dirty_boundaries());
+
+    // Retained update on next frame via update_canvas_by_tag
+    let updated = crate::canvas::update_canvas_by_tag(&mut tree, canvas_tag, |canvas| {
+        // Must receive actual resolved bounds
+        assert_eq!(canvas.bounds(), Rect::new(50.0, 120.0, 240.0, 100.0));
+        canvas.fill_rect(canvas.bounds(), Color::BLACK, 0.0);
+        canvas.draw_line(
+            Point::new(50.0, 170.0),
+            Point::new(290.0, 170.0),
+            Color::GREEN,
+            2.0,
+        );
+    });
+    assert!(updated);
+
+    // Primitives should be exactly 2 (old primitive cleared)
+    let primitives = tree.canvas_primitives(canvas_resp.id).unwrap();
+    assert_eq!(primitives.len(), 2);
+    assert!(matches!(primitives[0], CanvasPrimitive::Rect { .. }));
+    assert!(matches!(primitives[1], CanvasPrimitive::Line { .. }));
+
+    // Boundary must be dirty with PAINT flag, but ZERO layout dirty thrashing
+    assert!(tree.dirty_boundaries().contains(&canvas_resp.id));
+    let node_dirty = tree.get(canvas_resp.id).unwrap().dirty;
+    assert!(node_dirty.contains(iris_core::DirtyFlags::PAINT));
+    assert!(!node_dirty.contains(iris_core::DirtyFlags::LAYOUT));
+}

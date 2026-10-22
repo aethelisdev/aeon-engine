@@ -128,34 +128,38 @@ impl IrisEditorOverlay {
             (physical_screen_size.1 as f32 / zoom).round().max(1.0) as u32,
         );
 
-        if self.text_renderer.is_none() {
-            self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
-        }
+        if self.chrome.needs_text_prepare || self.text_renderer.is_none() {
+            if self.text_renderer.is_none() {
+                self.text_renderer = Some(TextRenderer::new(device, queue, self.target_format));
+            }
 
-        let mut extra_occluders = Vec::new();
-        if let Some(dd_rect) = self.menubar.dropdown_rect {
-            extra_occluders.push(dd_rect);
-        }
+            let mut extra_occluders = Vec::new();
+            if let Some(dd_rect) = self.menubar.dropdown_rect {
+                extra_occluders.push(dd_rect);
+            }
 
-        let text_options = irisui::text::TextCollectionOptions {
-            hovered_tag: self.chrome.hovered_tag,
-            focused_tag: self.focus_manager.focused_tag,
-            blink_caret: self.chrome.last_blink_caret,
-            extra_occluders,
-            ..Default::default()
-        };
+            let text_options = irisui::text::TextCollectionOptions {
+                hovered_tag: self.chrome.hovered_tag,
+                focused_tag: self.focus_manager.focused_tag,
+                blink_caret: self.chrome.last_blink_caret,
+                extra_occluders,
+                ..Default::default()
+            };
 
-        let sections = irisui::text::collect_text_sections_with_options(&self.tree, &text_options);
+            let sections =
+                irisui::text::collect_text_sections_with_options(&self.tree, &text_options);
 
-        if let Some(txt_renderer) = &mut self.text_renderer {
-            txt_renderer.prepare(
-                device,
-                queue,
-                &mut self.text_system,
-                physical_screen_size,
-                zoom,
-                &sections,
-            );
+            if let Some(txt_renderer) = &mut self.text_renderer {
+                txt_renderer.prepare(
+                    device,
+                    queue,
+                    &mut self.text_system,
+                    physical_screen_size,
+                    zoom,
+                    &sections,
+                );
+            }
+            self.chrome.needs_text_prepare = false;
         }
 
         ae_renderer::render::iris_render_pass(ae_renderer::render::IrisRenderPassParams {

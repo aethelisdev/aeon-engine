@@ -178,6 +178,66 @@ impl<'a> ImmediateCanvas<'a> {
             prev_pt = Some((current_pt, val));
         }
     }
+
+    /// Clears any existing volatile primitives registered for this canvas node.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.tree.clear_canvas_primitives_for(self.node_id);
+    }
+}
+
+/// Updates volatile immediate-mode canvas primitives for a widget identified by semantic `tag` in-place.
+///
+/// Looks up the target node by tag, resolves its computed layout bounds, clears previous frame primitives,
+/// and invokes `draw_fn` with an [`ImmediateCanvas`] drawing context.
+///
+/// Marks the node and its enclosing invalidation boundary dirty with [`iris_core::DirtyFlags::PAINT`]
+/// so the GPU layer cache re-uploads the instanced quad slice on the next render pass without
+/// triggering Taffy layout recomputations or tree reconstruction.
+///
+/// # Arguments
+/// * `tree` - Mutable reference to the UI hierarchy.
+/// * `tag` - 64-bit semantic tag of the target canvas widget node.
+/// * `draw_fn` - Immediate drawing closure executed to populate live volatile primitives.
+///
+/// Returns `true` if the tagged canvas node was found and updated, or `false` if not found.
+pub fn update_canvas_by_tag<F>(tree: &mut UiTree, tag: u64, draw_fn: F) -> bool
+where
+    F: FnOnce(&mut ImmediateCanvas<'_>),
+{
+    let Some(node_id) = tree.find_node_by_tag(tag) else {
+        return false;
+    };
+    update_canvas_node(tree, node_id, draw_fn)
+}
+
+/// Updates volatile immediate-mode canvas primitives for a specific widget node in-place.
+///
+/// Resolves the node's computed layout bounds, clears previous frame primitives,
+/// and invokes `draw_fn` with an [`ImmediateCanvas`] drawing context.
+///
+/// Marks the node and its enclosing invalidation boundary dirty with [`iris_core::DirtyFlags::PAINT`]
+/// so the GPU layer cache re-uploads the instanced quad slice on the next render pass without
+/// triggering Taffy layout recomputations or tree reconstruction.
+///
+/// # Arguments
+/// * `tree` - Mutable reference to the UI hierarchy.
+/// * `node_id` - Identifier of the target canvas widget node.
+/// * `draw_fn` - Immediate drawing closure executed to populate live volatile primitives.
+///
+/// Returns `true` if the canvas node exists and was updated, or `false` if not found.
+pub fn update_canvas_node<F>(tree: &mut UiTree, node_id: WidgetId, draw_fn: F) -> bool
+where
+    F: FnOnce(&mut ImmediateCanvas<'_>),
+{
+    let Some(bounds) = tree.get(node_id).map(|n| n.computed_rect) else {
+        return false;
+    };
+    tree.clear_canvas_primitives_for(node_id);
+    let mut canvas = ImmediateCanvas::new(tree, node_id, bounds);
+    draw_fn(&mut canvas);
+    tree.mark_dirty(node_id, iris_core::DirtyFlags::PAINT);
+    true
 }
 
 /// Zero-allocation, direct GPU drawing utility for hardware-accelerated time-series and oscilloscope charts.

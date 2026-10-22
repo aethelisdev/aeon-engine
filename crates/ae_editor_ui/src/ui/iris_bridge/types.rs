@@ -260,11 +260,24 @@ pub struct IrisChromeState {
     pub last_blink_caret: bool,
     /// Active pointer capture source locking mouse move and release events to a specific panel during drag operations.
     pub pointer_capture: Option<PanelId>,
+    /// Last recorded presence of an active top menubar dropdown.
+    pub last_menu_active: bool,
+    /// Last recorded presence of inspector floating menus/popups.
+    pub last_inspector_popups: bool,
+    /// Last recorded presence of hierarchy floating menus/popups.
+    pub last_hierarchy_popups: bool,
+    /// Last recorded presence of preferences modal dialog.
+    pub last_preferences_active: bool,
     /// When set to `true`, disables retained diffing/sleeping cache and forces a full UI tree reconstruction
     /// every frame (pure immediate / always-rebuild mode).
     ///
     /// Useful for smooth animation playback and responsive UI iteration prior to modular sub-tree adoption.
     pub always_rebuild: bool,
+    /// Explicit flag requesting text section re-collection and GPU glyph font shaping.
+    ///
+    /// When `false`, the text renderer bypasses Glyphon `prepare` and directly replays
+    /// already-prepared GPU font buffers in the render pass for 1000+ FPS retained throughput.
+    pub needs_text_prepare: bool,
 }
 
 impl Default for IrisChromeState {
@@ -292,7 +305,12 @@ impl Default for IrisChromeState {
             last_focused_tag: None,
             last_blink_caret: false,
             pointer_capture: None,
+            last_menu_active: false,
+            last_inspector_popups: false,
+            last_hierarchy_popups: false,
+            last_preferences_active: false,
             always_rebuild: false,
+            needs_text_prepare: true,
         }
     }
 }

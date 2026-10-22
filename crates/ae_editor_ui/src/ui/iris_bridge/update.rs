@@ -270,11 +270,8 @@ impl IrisEditorOverlay {
         let hover_target_changed = cursor_moved && hovered_target != self.chrome.last_hovered_tag;
         self.chrome.hovered_tag = hovered_target;
 
-        // When hover changes on a dock panel or overlay, tag for redraw so reactive UX styles activate instantly
+        // When hover changes on a dock panel, tag for redraw so reactive UX styles activate instantly
         if hover_target_changed {
-            if self.is_point_over_overlay(cursor) {
-                self.notifier.tag_all();
-            }
             if let Some(pid) = hovered_panel {
                 self.notifier.tag_redraw(pid);
             }
@@ -291,10 +288,8 @@ impl IrisEditorOverlay {
             || self.modals.last_modal_active != modal_active
             || self.preferences.last_tab != self.preferences.tab
             || self.menubar.active_menu.is_some()
-            || self.tree.needs_rebuild()
             || self.chrome.active_dock_overflow.is_some()
             || self.chrome.needs_layout_rebuild
-            || self.chrome.needs_scroll_sync
             || has_drag_payload
         {
             self.notifier.tag_all();
@@ -314,32 +309,6 @@ impl IrisEditorOverlay {
         let has_text_focus = self.is_any_text_input_focused();
         let blink_changed = has_text_focus && (blink_caret != self.chrome.last_blink_caret);
 
-        if !self.chrome.always_rebuild && !self.notifier.is_any_dirty() && !self.tree.is_empty() {
-            if self.chrome.needs_scroll_sync {
-                self.command_list.clear();
-                if let Some(root) = self.tree.root() {
-                    self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
-                }
-                self.chrome.last_blink_caret = blink_caret;
-                self.chrome.needs_scroll_sync = false;
-            } else if (hover_target_changed || focus_target_changed || blink_changed)
-                && let Some(root) = self.tree.root()
-            {
-                self.command_list.clear();
-                self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
-                self.chrome.last_blink_caret = blink_caret;
-            }
-            // UI is completely clean and sleeping; zero allocations, zero panel flicker or erasure
-            self.chrome.last_cursor_pos = self.cursor_pos();
-            self.chrome.last_hovered_tag = self.chrome.hovered_tag;
-            self.chrome.last_hovered_panel = self.chrome.hovered_panel;
-            self.chrome.last_focused_tag = current_focused_tag;
-            self.chrome.last_blink_caret = blink_caret;
-            return;
-        }
-
-        let cursor = self.cursor_pos();
-
         let floating_changed = floating_count != self.chrome.last_floating_count
             || params
                 .context
@@ -350,12 +319,25 @@ impl IrisEditorOverlay {
                 .zip(&self.chrome.floating_window_rects)
                 .any(|(w, r)| w.rect != *r);
 
+        let modal_active_changed = self.modals.last_modal_active != modal_active;
+        let menu_active =
+            self.menubar.active_menu.is_some() || self.menubar.dropdown_rect.is_some();
+        let menu_changed = menu_active != self.chrome.last_menu_active;
+        let inspector_popups = self.inspector.is_add_menu_open
+            || self.inspector.is_color_picker_open
+            || self.inspector.active_dropdown.is_some();
+        let inspector_popups_changed = inspector_popups != self.chrome.last_inspector_popups;
+        let hierarchy_popups =
+            self.hierarchy.is_add_menu_open || self.hierarchy.active_context_menu.is_some();
+        let hierarchy_popups_changed = hierarchy_popups != self.chrome.last_hierarchy_popups;
+        let preferences_active = params.dialogs.show_preferences;
+        let preferences_changed = preferences_active != self.chrome.last_preferences_active
+            || (preferences_active && self.preferences.last_tab != self.preferences.tab);
+
         let is_shell_dirty = self.chrome.always_rebuild
             || self.tree.root().is_none()
+            || self.chrome.native_dock_frame.is_none()
             || self.notifier.is_global_dirty()
-            || self
-                .notifier
-                .is_dirty(crate::ui::panel_layout::PanelId::Viewport)
             || self.chrome.is_dirty(
                 params.context.dimensions,
                 params.context.zoom_factor,
@@ -370,20 +352,12 @@ impl IrisEditorOverlay {
                 .active_splitter
                 .is_some()
             || params.context.layout_state.dock_state.active_drag.is_some()
-            || self.modals.last_modal_active != modal_active
-            || modal_active
-            || self.menubar.active_menu.is_some()
-            || self.menubar.dropdown_rect.is_some()
-            || self.inspector.is_add_menu_open
-            || self.inspector.is_color_picker_open
-            || self.inspector.active_dropdown.is_some()
-            || self.hierarchy.is_add_menu_open
-            || self.hierarchy.active_context_menu.is_some()
-            || params.dialogs.show_preferences != self.preferences.card_rect.is_some()
-            || (params.dialogs.show_preferences
-                && self.preferences.last_tab != self.preferences.tab)
-            || self.chrome.needs_layout_rebuild
-            || self.chrome.needs_scroll_sync;
+            || modal_active_changed
+            || menu_changed
+            || inspector_popups_changed
+            || hierarchy_popups_changed
+            || preferences_changed
+            || self.chrome.needs_layout_rebuild;
 
         if self.menubar.active_menu.is_none() {
             self.menubar.actions.clear();
@@ -423,6 +397,11 @@ impl IrisEditorOverlay {
             .commit_pending_edits_on_selection_change(params.scene.selected_entity);
 
         if is_shell_dirty {
+            // =========================================================================
+            // Branch 1: Shell & Topology Reconstruction (tree.clear() + DockArea::show)
+            // =========================================================================
+            // Only invoked when structural topology changes (initial boot, window resize,
+            // dock splitter drag, tab docking/undocking, floating window move, modal display).
             self.tree.clear();
             self.layout_engine.clear();
 
@@ -589,14 +568,84 @@ impl IrisEditorOverlay {
                     is_cursor_occluded,
                 },
             );
-        }
 
-        // Populate DrawCommandList from resolved layout nodes (with inline oscilloscope curves)
-        self.command_list.clear();
-        if let Some(root) = self.tree.root() {
+            self.notifier.clear_all();
+            self.command_list.clear();
+            self.chrome.needs_text_prepare = true;
             self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
+        } else if self.notifier.is_any_dirty() {
+            // =========================================================================
+            // Branch 2: Isolated Partial Subtree Rebuild (Zero Shell / Tree Clearing)
+            // =========================================================================
+            // Preserves root container, MenuBar, StatusBar, dividers, Dock chrome, and sister panels.
+            // Atomically rebuilds only dirty panel leaves in place via isolated SubtreeSession.
+            if let Some(frame) = self.chrome.native_dock_frame.as_ref() {
+                let dirty_leaves: Vec<(crate::ui::panel_layout::PanelId, WidgetId)> = frame
+                    .leaf_containers
+                    .iter()
+                    .copied()
+                    .filter(|(panel_id, _)| self.notifier.is_dirty(*panel_id))
+                    .collect();
+
+                for (panel_id, leaf_id) in dirty_leaves {
+                    if let Err(err) = self.rebuild_panel_content(panel_id, leaf_id, &params) {
+                        log::warn!("Partial subtree rebuild failed for {panel_id:?}: {err:?}");
+                    }
+                }
+            }
+            self.notifier.clear_all();
+            self.chrome.needs_text_prepare = true;
+
+            self.command_list.clear();
+            if let Some(root) = self.tree.root() {
+                self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
+            }
+        } else {
+            let has_stats_canvas = self.chrome.native_dock_frame.as_ref().is_some_and(|f| {
+                f.leaf_container(crate::ui::panel_layout::PanelId::Stats)
+                    .is_some()
+            });
+            let has_viewport_canvas = self.chrome.native_dock_frame.as_ref().is_some_and(|f| {
+                f.leaf_container(crate::ui::panel_layout::PanelId::Viewport)
+                    .is_some()
+            });
+            let has_volatile_canvas = has_stats_canvas || has_viewport_canvas;
+
+            if has_stats_canvas {
+                irisui::widgets::canvas::update_canvas_by_tag(
+                    &mut self.tree,
+                    super::stats::types::STATS_TAG_CANVAS,
+                    |canvas| {
+                        super::stats::graph::draw_oscilloscope_canvas(
+                            canvas,
+                            Some(params.telemetry.frame_pacing),
+                        );
+                    },
+                );
+            }
+
+            if blink_changed || hover_target_changed || focus_target_changed {
+                self.chrome.needs_text_prepare = true;
+            }
+
+            if has_volatile_canvas
+                || self.chrome.needs_scroll_sync
+                || hover_target_changed
+                || focus_target_changed
+                || blink_changed
+            {
+                // =========================================================================
+                // Branch 3: Retained Sleep In-Place Draw Refresh (Zero Tree Mutation)
+                // =========================================================================
+                // UI tree structure is 100% preserved. In-place reactive hover styles, focus
+                // outlines, caret blinking, and live volatile canvas streams (Oscilloscope,
+                // 3D Compass) are dynamically emitted directly to DrawCommandList.
+                self.command_list.clear();
+                if let Some(root) = self.tree.root() {
+                    self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
+                }
+            }
         }
-        self.chrome.last_blink_caret = blink_caret;
 
         self.chrome.last_dimensions = params.context.dimensions;
         self.chrome.last_zoom_factor = params.context.zoom_factor;
@@ -606,11 +655,15 @@ impl IrisEditorOverlay {
         self.preferences.last_tab = self.preferences.tab;
         self.chrome.last_has_viewport_texture = params.viewport.has_viewport_texture;
         self.chrome.last_has_drag_payload = has_drag_payload;
-        self.chrome.last_cursor_pos = self.cursor_pos();
+        self.chrome.last_cursor_pos = cursor;
         self.chrome.last_hovered_tag = self.chrome.hovered_tag;
         self.chrome.last_hovered_panel = self.chrome.hovered_panel;
-        self.chrome.last_focused_tag = self.tree.event_state.focused_tag;
+        self.chrome.last_focused_tag = current_focused_tag;
         self.chrome.last_blink_caret = blink_caret;
+        self.chrome.last_menu_active = menu_active;
+        self.chrome.last_inspector_popups = inspector_popups;
+        self.chrome.last_hierarchy_popups = hierarchy_popups;
+        self.chrome.last_preferences_active = preferences_active;
         self.chrome.needs_layout_rebuild = false;
         self.chrome.needs_scroll_sync = false;
         self.notifier.clear_all();

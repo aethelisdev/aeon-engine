@@ -375,3 +375,101 @@ fn test_ui_notifier_panel_tag_redraw() {
     notifier.clear_all();
     assert!(!notifier.is_any_dirty());
 }
+
+#[test]
+fn test_update_loop_3_way_branching_and_retained_invariants() {
+    use crate::ui::iris_bridge::native_dock::NativeDockFrame;
+    use crate::ui::panel_layout::PanelId;
+    use irisui::layout::LayoutEngine;
+    use irisui::prelude::{Button, Rect, Size, SubtreeSession, UiNotifier, UiScope, UiTree};
+    use irisui::text::TextSystem;
+
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut notifier: UiNotifier<PanelId> = UiNotifier::clean();
+
+    // 1. Initial Shell Construction (Branch 1 - Shell Rebuild)
+    let root = tree.create_root().expect("root widget");
+    let (inspector_leaf, console_leaf) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp_insp = scope.panel("InspectorLeaf").show(|s| {
+            s.add(Button::new("OldInspectorBtn").tag(0x2001));
+        });
+        let resp_cons = scope.panel("ConsoleLeaf").show(|s| {
+            s.add(Button::new("ConsoleBtn").tag(0x2002));
+        });
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+        (resp_insp.response.id, resp_cons.response.id)
+    };
+
+    text_system.measure_subtree_text(&mut tree, root);
+    let _ = layout_engine.compute_layout(&mut tree, Size::new(1920.0, 1080.0));
+
+    let dock_frame = NativeDockFrame {
+        leaf_containers: vec![
+            (PanelId::Inspector, inspector_leaf),
+            (PanelId::Console, console_leaf),
+        ],
+        ..Default::default()
+    };
+
+    let initial_root_id = tree.root().expect("root exists");
+    assert_eq!(initial_root_id, root);
+
+    // 2. Branch 2: Partial Subtree Invalidation (Notifier tags ONLY Inspector)
+    notifier.tag_redraw(PanelId::Inspector);
+    assert!(notifier.is_any_dirty());
+    assert!(!notifier.is_global_dirty());
+    assert!(notifier.is_dirty(PanelId::Inspector));
+    assert!(!notifier.is_dirty(PanelId::Console));
+
+    // Simulate Branch 2 dispatch: tree.clear() is NEVER invoked!
+    let dirty_leaves: Vec<(PanelId, irisui::prelude::WidgetId)> = dock_frame
+        .leaf_containers
+        .iter()
+        .copied()
+        .filter(|(panel_id, _)| notifier.is_dirty(*panel_id))
+        .collect();
+
+    assert_eq!(dirty_leaves.len(), 1);
+    assert_eq!(dirty_leaves[0], (PanelId::Inspector, inspector_leaf));
+
+    for (panel_id, leaf_id) in dirty_leaves {
+        let session = SubtreeSession::begin(&mut tree, &mut layout_engine, leaf_id);
+        {
+            let mut leaf_scope = UiScope::new(&mut tree, leaf_id);
+            leaf_scope.add(Button::new("UpdatedInspectorBtn").tag(0x2003));
+        }
+        let finish_res = session.finish(&mut tree, &mut layout_engine, &mut text_system);
+        assert!(finish_res.is_ok(), "SubtreeSession finish must succeed");
+        notifier.clear_panel(panel_id);
+    }
+
+    // Verify Invariants after Branch 2:
+    // a. Root must be identical (zero tree clearing)
+    assert_eq!(
+        tree.root(),
+        Some(initial_root_id),
+        "Root node MUST remain untouched during partial subtree rebuild"
+    );
+    // b. Console leaf button must be completely preserved
+    assert!(
+        tree.find_node_by_tag(0x2002).is_some(),
+        "Sister panel widget must be 100% preserved"
+    );
+    // c. Inspector leaf must reflect updated button
+    assert!(
+        tree.find_node_by_tag(0x2001).is_none(),
+        "Old inspector button must be untracked and dropped"
+    );
+    assert!(
+        tree.find_node_by_tag(0x2003).is_some(),
+        "New inspector button must be present in retained tree"
+    );
+
+    // 3. Branch 3: Retained Sleep Invariant
+    assert!(!notifier.is_any_dirty());
+    // Zero mutations to tree, root unchanged, leaves untouched
+    assert_eq!(tree.root(), Some(initial_root_id));
+}

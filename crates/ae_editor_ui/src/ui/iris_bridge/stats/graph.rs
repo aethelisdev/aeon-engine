@@ -67,30 +67,13 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
         // ── Oscilloscope Canvas Container ──
         let canvas_w = (params.panel_rect.width - 24.0).max(100.0);
         let canvas_size = Size::new(canvas_w, 92.0);
-        let pacing = params.frame_pacing;
 
         s.immediate_canvas_tagged(
             "OscilloscopeCanvas",
             STATS_TAG_CANVAS,
             canvas_size,
             |canvas| {
-                // Background & border
-                canvas.fill_rect(canvas.bounds(), Color::rgba(0.04, 0.05, 0.07, 0.95), 4.0);
-                canvas.stroke_rect(
-                    canvas.bounds(),
-                    Color::rgba(0.14, 0.16, 0.22, 0.85),
-                    1.0,
-                    4.0,
-                );
-
-                // Volatile chart curve
-                canvas.draw_chart_polyline(
-                    |idx| pacing.get_chronological(idx),
-                    pacing.count(),
-                    36.0,
-                    60,
-                    get_frametime_color,
-                );
+                draw_oscilloscope_canvas(canvas, Some(params.frame_pacing));
             },
         );
 
@@ -139,6 +122,30 @@ fn build_metric_pill(scope: &mut UiScope<'_>, label: &str, value: &str, val_colo
     });
 }
 
+/// Renders the oscilloscope background, border, and dynamic frametime polyline into an [`ImmediateCanvas`].
+pub fn draw_oscilloscope_canvas(
+    canvas: &mut irisui::widgets::canvas::ImmediateCanvas<'_>,
+    pacing: Option<&FrameRingBuffer>,
+) {
+    canvas.fill_rect(canvas.bounds(), Color::rgba(0.04, 0.05, 0.07, 0.95), 4.0);
+    canvas.stroke_rect(
+        canvas.bounds(),
+        Color::rgba(0.14, 0.16, 0.22, 0.85),
+        1.0,
+        4.0,
+    );
+
+    if let Some(pacing) = pacing {
+        canvas.draw_chart_polyline(
+            |idx| pacing.get_chronological(idx),
+            pacing.count(),
+            36.0,
+            60,
+            get_frametime_color,
+        );
+    }
+}
+
 /// Directly appends the 60 oscilloscope curve quad instances to the command list using `ChartDrawer`.
 pub fn append_oscilloscope_quads(
     command_list: &mut DrawCommandList,
@@ -157,7 +164,7 @@ pub fn append_oscilloscope_quads(
 }
 
 /// Computes frametime curve segment color based on millisecond milestones.
-fn get_frametime_color(ms: f32) -> Color {
+pub(crate) fn get_frametime_color(ms: f32) -> Color {
     if ms <= 8.33 {
         Color::rgba(0.0, 0.82, 0.63, 1.0) // 120+ FPS: Mint Emerald
     } else if ms <= 16.67 {
