@@ -77,6 +77,27 @@ impl Default for TreeIndentConfig {
 }
 
 impl TreeIndentConfig {
+    /// Standard step width in physical pixels added per nesting level depth (`14.0 px`).
+    pub const DEFAULT_INDENT_STEP: f32 = 14.0;
+
+    /// Base horizontal margin in physical pixels for root tree nodes (`6.0 px`).
+    pub const DEFAULT_BASE_PADDING: f32 = 6.0;
+
+    /// Length of the horizontal L-connector arm extending from parent stem (`8.0 px`).
+    pub const DEFAULT_LINE_ARM_LENGTH: f32 = 8.0;
+
+    /// Clearance between horizontal connector arm tip and the following node icon (`4.0 px`).
+    pub const DEFAULT_LINE_ARM_GAP: f32 = 4.0;
+
+    /// Default row height for hierarchical tree rows in physical pixels (`24.0 px`).
+    pub const DEFAULT_ROW_HEIGHT: f32 = 24.0;
+
+    /// Default stroke thickness for hierarchy connector lines in physical pixels (`1.2 px`).
+    pub const DEFAULT_LINE_THICKNESS: f32 = 1.2;
+
+    /// Default color applied to hierarchy connector branch lines.
+    pub const DEFAULT_LINE_COLOR: Color = Color::rgba(0.20, 0.55, 0.90, 0.85);
+
     /// Creates a new tree indentation configuration with default engine values.
     #[inline]
     pub fn new() -> Self {

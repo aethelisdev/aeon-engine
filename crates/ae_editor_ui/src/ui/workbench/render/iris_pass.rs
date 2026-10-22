@@ -8,7 +8,7 @@
 
 use crate::ui::iris_bridge;
 use crate::ui::workbench::state::EngineUi;
-use irisui::prelude::Rect;
+use irisui::prelude::{HsvColorPickerState, Rect};
 use winit::window::Window;
 
 /// Parameters descriptor for the Iris UI overlay update and rendering pass.
@@ -123,7 +123,7 @@ impl EngineUi {
                     b: 0.95,
                     a: 1.0,
                 });
-            let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
+            let (h, s, v) = HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
             self.iris_overlay.inspector.hsv = [h, s, v];
             let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
             let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;

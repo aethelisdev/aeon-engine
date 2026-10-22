@@ -9,6 +9,7 @@
 use crate::ui::iris_bridge::inspector::TransformAxisType;
 use crate::ui::types::EngineUiAction;
 use crate::ui::workbench::state::EngineUi;
+use irisui::prelude::HsvColorPickerState;
 
 impl EngineUi {
     /// Resets Position, Rotation, or Scale transform components to canonical defaults.
@@ -108,7 +109,7 @@ impl EngineUi {
         let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
         let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
         self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
-        let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
+        let (h, s, v) = HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
         self.iris_overlay.inspector.hsv = [h, s, v];
         ui_actions.push(EngineUiAction::ModifyColor(entity, old_col, new_col));
     }

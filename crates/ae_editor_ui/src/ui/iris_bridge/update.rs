@@ -11,6 +11,8 @@ use super::types::{IrisEditorOverlay, OverlayUpdateParams};
 use crate::ui::panel_layout::PanelId;
 use irisui::prelude::*;
 use irisui::text::TextSystem;
+use irisui::widgets::controls::FocusState;
+use irisui::widgets::modal::ModalDialogAction;
 
 impl IrisEditorOverlay {
     /// Height of the top menubar panel in physical pixels.
@@ -137,7 +139,7 @@ impl IrisEditorOverlay {
             && clicked_tag != 0
         {
             match clicked_tag {
-                irisui::prelude::MODAL_TAG_CLOSE => {
+                ModalDialogAction::TAG_CLOSE => {
                     result.consumed = true;
                     if self.modals.is_about_active {
                         result.close_about = true;
@@ -156,7 +158,7 @@ impl IrisEditorOverlay {
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
-                irisui::prelude::MODAL_TAG_CANCEL => {
+                ModalDialogAction::TAG_CANCEL => {
                     result.consumed = true;
                     if self.modals.is_delete_active {
                         result.cancel_delete = true;
@@ -168,7 +170,7 @@ impl IrisEditorOverlay {
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
-                irisui::prelude::MODAL_TAG_CONFIRM => {
+                ModalDialogAction::TAG_CONFIRM => {
                     result.consumed = true;
                     if self.modals.is_about_active {
                         result.close_about = true;
@@ -181,7 +183,7 @@ impl IrisEditorOverlay {
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
-                irisui::prelude::MODAL_TAG_DANGER => {
+                ModalDialogAction::TAG_DANGER => {
                     result.consumed = true;
                     if self.modals.is_delete_active {
                         result.confirm_delete = true;

@@ -7,6 +7,7 @@
 use super::*;
 use crate::ui::types::ConsoleEntry;
 use irisui::prelude::*;
+use irisui::widgets::controls::FocusState;
 
 #[test]
 fn test_console_filter_level_matching() {

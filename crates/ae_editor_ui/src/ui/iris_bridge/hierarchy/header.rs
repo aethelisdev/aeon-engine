@@ -14,6 +14,7 @@ use super::types::{
 };
 use crate::ui::iris_bridge::icons::ICON_PLUS;
 use irisui::prelude::*;
+use irisui::widgets::declarative::InputBoxProps;
 
 /// Builds the declarative Scene Hierarchy header toolbar containing search bar,
 /// Add entity menu button, and Delete selected entity button.

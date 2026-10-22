@@ -128,6 +128,7 @@ pub fn build_about_dialog(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::modal::ModalDialogAction;
 
     #[test]
     fn test_about_dialog_declarative_structure_and_layout() {
@@ -147,11 +148,11 @@ mod tests {
         );
 
         let scrim_id = tree
-            .find_node_by_tag(MODAL_TAG_SCRIM)
+            .find_node_by_tag(ModalDialogAction::TAG_SCRIM)
             .expect("Scrim node must exist");
 
         let scrim_node = tree.get(scrim_id).expect("Scrim node must exist");
-        assert_eq!(scrim_node.tag, MODAL_TAG_SCRIM);
+        assert_eq!(scrim_node.tag, ModalDialogAction::TAG_SCRIM);
         assert_eq!(scrim_node.role, WidgetRole::ModalWindow);
         assert_eq!(scrim_node.layer, UiLayer::Modal);
         assert_eq!(
@@ -177,12 +178,12 @@ mod tests {
 
         // Verify required action tags and text exist in card subtree
         assert!(
-            tree.find_node_by_tag_in_subtree(card_id, MODAL_TAG_CLOSE)
+            tree.find_node_by_tag_in_subtree(card_id, ModalDialogAction::TAG_CLOSE)
                 .is_some(),
             "Close button with MODAL_TAG_CLOSE must exist"
         );
         assert!(
-            tree.find_node_by_tag_in_subtree(card_id, MODAL_TAG_CONFIRM)
+            tree.find_node_by_tag_in_subtree(card_id, ModalDialogAction::TAG_CONFIRM)
                 .is_some(),
             "Confirm button with MODAL_TAG_CONFIRM must exist"
         );

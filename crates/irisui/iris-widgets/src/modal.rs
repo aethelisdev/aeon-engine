@@ -34,6 +34,21 @@ pub enum ModalDialogAction {
     ScrimDismiss,
 }
 
+impl ModalDialogAction {
+    /// Persistent semantic tag for full-screen backdrop modal scrims (`0xF001`).
+    pub const TAG_SCRIM: u64 = MODAL_TAG_SCRIM;
+    /// Persistent semantic tag for modal header '✖' close buttons (`0xF002`).
+    pub const TAG_CLOSE: u64 = MODAL_TAG_CLOSE;
+    /// Persistent semantic tag for modal primary confirm action buttons (`0xF003`).
+    pub const TAG_CONFIRM: u64 = MODAL_TAG_CONFIRM;
+    /// Persistent semantic tag for modal secondary cancel action buttons (`0xF004`).
+    pub const TAG_CANCEL: u64 = MODAL_TAG_CANCEL;
+    /// Persistent semantic tag for modal destructive danger confirm action buttons (`0xF005`).
+    pub const TAG_DANGER: u64 = MODAL_TAG_DANGER;
+    /// Persistent semantic tag for modal text input fields (`0xF006`).
+    pub const TAG_INPUT: u64 = MODAL_TAG_INPUT;
+}
+
 /// Evaluates a semantic tag dispatched from a hit test to resolve modal action.
 #[inline]
 pub fn evaluate_modal_tag(tag: u64) -> Option<ModalDialogAction> {

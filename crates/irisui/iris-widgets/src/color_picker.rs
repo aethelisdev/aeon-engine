@@ -96,6 +96,20 @@ impl Default for HsvColorPickerState {
 }
 
 impl HsvColorPickerState {
+    /// Converts RGB channels `[0.0, 1.0]` to `(hue, saturation, value)`.
+    #[inline]
+    #[must_use]
+    pub fn rgb_to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+        rgb_to_hsv(r, g, b)
+    }
+
+    /// Converts `(hue, saturation, value)` to a standard [`Color`].
+    #[inline]
+    #[must_use]
+    pub fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color {
+        hsv_to_rgb(h, s, v)
+    }
+
     /// Constructs a new [`HsvColorPickerState`] from an existing [`Color`].
     #[must_use]
     pub fn from_color(color: Color) -> Self {

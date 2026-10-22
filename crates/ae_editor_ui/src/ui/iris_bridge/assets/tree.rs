@@ -205,6 +205,7 @@ fn render_folder_recursive(
 mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetViewMode};
+    use irisui::widgets::controls::FocusState;
     use std::collections::HashMap;
 
     #[test]

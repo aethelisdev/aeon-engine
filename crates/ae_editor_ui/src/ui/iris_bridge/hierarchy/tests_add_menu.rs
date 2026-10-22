@@ -14,6 +14,7 @@ use super::types::{
 };
 use hecs::World;
 use irisui::prelude::*;
+use irisui::widgets::controls::FocusState;
 
 #[test]
 fn test_hierarchy_add_button_toggle_actions() {

@@ -8,7 +8,8 @@
 //!
 
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
-use irisui::prelude::{FocusState, FocusTarget, Point, Rect, TreeState};
+use irisui::prelude::{Point, Rect, TreeState};
+use irisui::widgets::controls::{FocusState, FocusTarget};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;

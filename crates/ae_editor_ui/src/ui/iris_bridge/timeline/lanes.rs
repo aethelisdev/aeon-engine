@@ -260,6 +260,7 @@ fn render_empty_lanes_placeholder(scope: &mut UiScope<'_>, width: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::panel::PanelBuilder;
 
     #[test]
     fn test_dope_sheet_lanes_empty_declarative_build() {

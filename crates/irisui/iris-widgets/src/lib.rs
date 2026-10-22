@@ -25,73 +25,51 @@ pub mod scroll_area;
 pub mod settings;
 pub mod tree_view;
 
-pub use canvas::{ChartDrawer, ImmediateCanvas};
-
-pub use cascading_menu::{
-    CascadingMenuBuilder, CascadingMenuFrame, CascadingMenuIcon, CascadingMenuItem,
-    CascadingMenuStyle,
-};
-pub use color_picker::{ColorPickerDragMode, HsvColorPickerState, hsv_to_rgb, rgb_to_hsv};
-pub use context_menu::{
-    ContextMenuBuilder, ContextMenuHeader, ContextMenuIcon, ContextMenuItem, ContextMenuStyle,
-};
-pub use controls::{
-    FocusEventResponse, FocusModifiers, FocusPolicy, FocusState, FocusTarget, FocusableArea,
-    NUMERIC_DRAG_COARSE_MULTIPLIER, NUMERIC_DRAG_FINE_MULTIPLIER, NUMERIC_DRAG_THRESHOLD,
-    NumericDragResponse, NumericDragState, handle_focus_event, handle_focus_event_with_modifiers,
-    handle_numeric_drag_event,
-};
-pub use declarative::subtree;
-pub use declarative::{
-    Button, CONTEXT_MENU_DEFAULT_WIDTH, CONTEXT_MENU_ITEM_HEIGHT, Checkbox, Chip,
-    CollapsingBuilder, CollapsingResponse, ColorPicker, ColorPickerResponse, ColorSwatch, ComboBox,
-    ComboBoxResponse, ContainerResponseExt, ContextMenuExt, DragVec3, EmptyBox, InputBoxProps,
-    NumericDrag, PopupExt, PopupPlacement, PropertySliderOptions, PropertyTextOptions,
-    PropertyTextResponse, PropertyVec3Options, PropertyVec3Response, PropertyVec3Target,
-    ScalarResponse, ScopeId, ScrollAreaConfig, ScrollAreaView, SubtreeSession, Toolbar,
-    ToolbarButton, ToolbarGroup, ToolbarGroupScope, ToolbarScope, TooltipExt, TreeNodeProps,
-    TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps, UiScope, Vec3Response, Widget,
-    WidgetResponse, WrappedLabelDescriptor, calculate_visible_slice_and_caret, combine_seeds,
-    eval_numeric_expression, format_compact_float, hash_label, hash_label_with_seed,
-    layout_subtree, measure_content_height, measure_height, measure_height_constrained,
-    measure_text_advance, measure_width, property_vec3_axis_tag, property_vec3_reset_tag,
-    rebuild_leaf_subtree, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
-    resolve_property_vec3_tag, split_label_id,
+// Primary declarative showcase elements re-exported at crate root
+pub use declarative::scope::UiScope;
+pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
+pub use declarative::types::{ScopeId, WidgetResponse};
+pub use declarative::widget::{
+    Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DragVec3, EmptyBox, NumericDrag,
+    Toolbar, ToolbarButton, ToolbarGroup, Widget,
 };
 pub use grid_view::ResponsiveGrid;
-pub use input::{TextInputState, copy_to_clipboard, get_clipboard_text};
-pub use modal::{
-    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_INPUT,
-    MODAL_TAG_SCRIM, ModalDialogAction, ModalDialogStyle, evaluate_modal_tag,
-};
-pub use numeric_input::{NumericInputEditState, NumericInputStyle};
-pub use panel::PanelBuilder;
-pub use scroll_area::{
-    DEFAULT_SCROLL_STEP, ScrollArea, ScrollAreaBuilder, ScrollAreaFrame, ScrollAreaResponse,
-    ScrollAreaState, ScrollAreaStyle, ScrollBarGeometry, ScrollBarHit, ScrollBarVisibility,
-    ScrollDirection, ScrollResponse, ScrollbarDragState, VirtualItemHeight, VirtualList,
-    VirtualScrollConfig, VirtualScrollResponse, VirtualSlice, WheelScrollConfig,
-    WheelScrollResponse, evaluate_wheel_scroll, handle_scroll_area_event, handle_scrollbar_event,
-};
-pub use settings::{
-    SettingSectionBuilder, SettingSectionFrame, SettingSectionStyle, TabbedDialogBuilder,
-    TabbedDialogFrame, TabbedDialogStyle, TabbedDialogTab,
-};
-pub use tree_view::{
-    DEFAULT_TREE_BASE_PADDING, DEFAULT_TREE_INDENT_STEP, DEFAULT_TREE_LINE_ARM_GAP,
-    DEFAULT_TREE_LINE_ARM_LENGTH, DEFAULT_TREE_LINE_THICKNESS, DEFAULT_TREE_ROW_HEIGHT,
-    TREE_CHEVRON_ARROW_COLLAPSED, TREE_CHEVRON_ARROW_EXPANDED, TREE_CHEVRON_COLLAPSED,
-    TREE_CHEVRON_EXPANDED, TreeClickTarget, TreeConnectorGeometry, TreeIndentConfig, TreeItemInfo,
-    TreeLineHorizontal, TreeLineVertical, TreeNavResponse, TreeRowStyle, TreeSelectionModifiers,
-    TreeSelectionResponse, TreeState, compute_tree_connector_geometry, compute_tree_scroll_to_view,
-    evaluate_tree_click, handle_tree_arrow_navigation, handle_tree_foldout_click,
-    handle_tree_navigation_event, handle_tree_row_click, handle_tree_selection_event,
-    tree_chevron_arrow_glyph, tree_chevron_glyph,
-};
+pub use scroll_area::ScrollArea;
+
+/// Declarative widget prelude re-exporting only the core widgets, scope, and response types.
+///
+/// Designed to be imported via wildcard `use iris_widgets::prelude::*;` or through the `irisui` facade.
+pub mod prelude {
+    // 1. Declarative Core & Scope
+    pub use crate::declarative::scope::UiScope;
+    pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
+    pub use crate::declarative::types::{ScopeId, WidgetResponse};
+    pub use crate::declarative::widget::Widget;
+
+    // 2. Primary Showcase Widgets
+    pub use crate::declarative::widget::{
+        Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DragVec3, EmptyBox,
+        NumericDrag, Toolbar, ToolbarButton, ToolbarGroup,
+    };
+    pub use crate::grid_view::ResponsiveGrid;
+    pub use crate::scroll_area::ScrollArea;
+
+    // 3. Extension Traits
+    pub use crate::declarative::scope::{
+        ContainerResponseExt, ContextMenuExt, PopupExt, TooltipExt,
+    };
+
+    // 4. Primary Persistent State Structures
+    pub use crate::color_picker::HsvColorPickerState;
+    pub use crate::input::TextInputState;
+    pub use crate::scroll_area::ScrollAreaState;
+    pub use crate::tree_view::TreeState;
+}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::canvas::ChartDrawer;
+    use crate::input::TextInputState;
     use iris_core::Color;
 
     #[test]

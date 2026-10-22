@@ -15,6 +15,7 @@ use super::types::{
     CONSOLE_TAG_TOOLBAR, ConsoleAction, ConsoleFilterLevel, ConsoleLogCounts, ConsolePanelParams,
 };
 use irisui::prelude::*;
+use irisui::widgets::declarative::InputBoxProps;
 
 /// Height of the console header toolbar in physical pixels.
 pub const CONSOLE_TOOLBAR_HEIGHT: f32 = 34.0;

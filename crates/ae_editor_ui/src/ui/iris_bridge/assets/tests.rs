@@ -12,6 +12,8 @@ use super::types::{
 };
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::*;
+use irisui::widgets::controls::FocusState;
+use irisui::widgets::modal::ModalDialogAction;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -206,7 +208,7 @@ fn test_preview_modal_build_and_actions() {
     // Test close button on the preview modal exists in UiTree via semantic tag
     let mut close_button_found = false;
     tree.traverse_depth_first(root_id, &mut |_id, node| {
-        if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
+        if node.tag == ModalDialogAction::TAG_CLOSE {
             close_button_found = true;
         }
     });
@@ -282,11 +284,11 @@ fn test_preview_modal_declarative_scene_and_buttons_hover_reactivity() {
     tree.traverse_depth_first(root_id, &mut |_id, node| {
         if node.text.as_deref() == Some("test_level.ae3d") {
             has_test_level_title = true;
-        } else if node.tag == irisui::prelude::MODAL_TAG_CLOSE {
+        } else if node.tag == ModalDialogAction::TAG_CLOSE {
             close_rect = node.computed_rect;
         } else if node.tag == crate::ui::iris_bridge::assets::types::ASSET_PREVIEW_TAG_REVEAL {
             reveal_rect = node.computed_rect;
-        } else if node.tag == irisui::prelude::MODAL_TAG_CONFIRM {
+        } else if node.tag == ModalDialogAction::TAG_CONFIRM {
             has_action_btn = true;
         }
     });

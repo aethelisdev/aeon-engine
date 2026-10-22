@@ -98,6 +98,15 @@ pub struct NumericDragResponse {
 }
 
 impl NumericDragState {
+    /// Motion displacement threshold in logical pixels required to enter active dragging mode (`2.0 px`).
+    pub const DEFAULT_THRESHOLD: f32 = 2.0;
+
+    /// Default fine-tuning sensitivity multiplier applied when Shift is held (`0.1x`).
+    pub const DEFAULT_FINE_MULTIPLIER: f64 = 0.1;
+
+    /// Default coarse-tuning sensitivity multiplier applied when Control / Command is held (`10.0x`).
+    pub const DEFAULT_COARSE_MULTIPLIER: f64 = 10.0;
+
     /// Creates a new active numeric drag session.
     ///
     /// # Arguments

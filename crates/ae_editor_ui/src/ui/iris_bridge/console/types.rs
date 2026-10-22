@@ -8,7 +8,8 @@
 //!
 
 use crate::ui::types::ConsoleEntry;
-use irisui::prelude::{FocusState, FocusTarget, Point, Rect, UiTree, WidgetRole};
+use irisui::prelude::{Point, Rect, UiTree, WidgetRole};
+use irisui::widgets::controls::{FocusState, FocusTarget};
 
 /// Semantic hit-testing tag for the Developer Console root panel container.
 pub const CONSOLE_TAG_PANEL_ROOT: u64 = 0x5000;

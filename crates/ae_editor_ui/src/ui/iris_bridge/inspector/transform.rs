@@ -10,6 +10,7 @@ use super::registry::ComponentRenderContext;
 use super::tags::encode_inspector_number_input_tag;
 use super::types::{InspectorAction, InspectorNumberInputId, TransformAxisType};
 use irisui::prelude::*;
+use irisui::widgets::numeric_input::NumericInputEditState;
 
 /// Configuration descriptor for rendering a 3D vector numeric input row in the Transform card.
 pub struct Vec3NumericRowConfig<'a> {

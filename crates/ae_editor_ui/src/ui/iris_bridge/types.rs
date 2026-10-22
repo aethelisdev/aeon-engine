@@ -25,6 +25,8 @@ use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
 use irisui::text::{TextRenderer, TextSystem};
+use irisui::widgets::controls::{FocusState, FocusTarget};
+use irisui::widgets::declarative::hash_label;
 use std::collections::HashSet;
 use std::path::Path;
 

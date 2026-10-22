@@ -19,6 +19,7 @@ use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::{FpsLimit, GraphicsSettings};
 use irisui::prelude::*;
+use irisui::widgets::declarative::hash_label;
 use std::collections::HashSet;
 
 #[test]
@@ -604,7 +605,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
     // 1. Initial State: Graphics tab with active text input on Sun Pitch number box
     gs.sun_pitch = 0.50;
     let tag_pitch = hash_label("Sun Pitch");
-    let num_box_pitch = irisui::widgets::hash_label_with_seed(tag_pitch, "##num_box");
+    let num_box_pitch = irisui::widgets::declarative::hash_label_with_seed(tag_pitch, "##num_box");
 
     let params = PreferencesParams {
         screen_width: 1920.0,

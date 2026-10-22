@@ -13,7 +13,7 @@ use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
-use irisui::widgets::hash_label;
+use irisui::widgets::declarative::hash_label;
 use std::collections::HashSet;
 
 #[test]

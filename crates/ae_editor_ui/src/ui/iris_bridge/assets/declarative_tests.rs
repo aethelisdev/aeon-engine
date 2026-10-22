@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use irisui::prelude::*;
+use irisui::widgets::controls::FocusState;
 
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use crate::ui::iris_bridge::assets::panel::build_assets_panel;

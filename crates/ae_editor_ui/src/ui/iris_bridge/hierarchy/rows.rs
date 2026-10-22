@@ -16,6 +16,11 @@ use super::types::{
 };
 use crate::ui::iris_bridge::icons::*;
 use irisui::prelude::*;
+use irisui::widgets::declarative::{TreeRowProps, TreeViewConfig};
+use irisui::widgets::scroll_area::VirtualScrollConfig;
+use irisui::widgets::tree_view::{
+    TreeIndentConfig, TreeRowStyle, TreeSelectionModifiers, handle_tree_row_click,
+};
 use std::collections::HashMap;
 
 /// Physical height in pixels for an individual Scene Hierarchy tree row.
@@ -466,6 +471,7 @@ pub fn build_hierarchy_rows(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::controls::FocusState;
 
     #[test]
     fn test_hierarchy_tree_depth_and_expansion_invariants() {

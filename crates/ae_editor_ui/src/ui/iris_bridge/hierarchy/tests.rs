@@ -17,6 +17,7 @@ use super::types::{
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use hecs::World;
 use irisui::prelude::*;
+use irisui::widgets::controls::FocusState;
 
 #[test]
 fn test_hierarchy_add_submenu_renders_text_without_self_occlusion() {

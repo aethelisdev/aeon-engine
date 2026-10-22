@@ -7,6 +7,8 @@
 //! and interaction state models for the Iris UI GPU SDF Inspector panel.
 
 use irisui::prelude::*;
+use irisui::widgets::controls::NumericDragState;
+use irisui::widgets::numeric_input::NumericInputEditState;
 
 /// Number input field identifier inside the Inspector panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -690,8 +692,8 @@ impl InspectorNumberDragState {
 
 /// Dragging mode on the 2D HSV color picker.
 ///
-/// Aliased directly to [`irisui::prelude::ColorPickerDragMode`].
-pub type InspectorColorDragMode = irisui::prelude::ColorPickerDragMode;
+/// Aliased directly to [`irisui::widgets::color_picker::ColorPickerDragMode`].
+pub type InspectorColorDragMode = irisui::widgets::color_picker::ColorPickerDragMode;
 
 /// Active numeric text input session in Inspector.
 #[derive(Debug, Clone)]

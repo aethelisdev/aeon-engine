@@ -125,6 +125,7 @@ mod tests {
 
     #[test]
     fn test_category_chips_renders_in_tree() {
+        use irisui::widgets::controls::FocusState;
         use std::collections::HashMap;
         use std::path::Path;
 

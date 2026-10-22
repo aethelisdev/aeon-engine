@@ -9,6 +9,7 @@
 use super::tags::{TAG_INSPECTOR_ADD_COMPONENT, TAG_INSPECTOR_SAVE_PREFAB};
 use super::types::{InspectorAction, InspectorPanelParams};
 use irisui::prelude::*;
+use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
 
 /// Output node handles created during Inspector footer construction.
 /// Builds the Inspector bottom action bar declaratively into the parent [`UiScope`].

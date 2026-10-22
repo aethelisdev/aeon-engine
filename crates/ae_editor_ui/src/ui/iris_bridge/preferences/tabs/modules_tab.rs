@@ -10,6 +10,7 @@ use super::super::components::pref_heading;
 use super::super::types::{PreferencesParams, PreferencesToggleId, encode_toggle_tag};
 use ae_core::modules::EngineModule;
 use irisui::prelude::*;
+use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
 
 /// System module descriptor with UI presentation metadata.
 struct ModuleCardData {

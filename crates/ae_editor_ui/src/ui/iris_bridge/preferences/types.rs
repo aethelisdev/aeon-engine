@@ -11,6 +11,7 @@ use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
+use irisui::widgets::scroll_area::ScrollAreaStyle;
 use std::collections::HashSet;
 
 /// Preferences subsystem 64-bit semantic tag domain.

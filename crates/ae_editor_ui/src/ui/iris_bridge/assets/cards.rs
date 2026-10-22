@@ -142,6 +142,7 @@ fn render_grid_card(
 mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+    use irisui::widgets::controls::{FocusState, FocusTarget};
     use std::collections::HashMap;
     use std::path::PathBuf;
 

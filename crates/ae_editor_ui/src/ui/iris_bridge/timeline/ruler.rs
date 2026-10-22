@@ -348,6 +348,7 @@ pub fn render_scrubber_track(scope: &mut UiScope<'_>, params: &ScrubberTrackPara
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::panel::PanelBuilder;
 
     #[test]
     fn test_ruler_bar_declarative_build() {

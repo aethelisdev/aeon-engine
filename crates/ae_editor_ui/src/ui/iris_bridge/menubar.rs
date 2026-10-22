@@ -195,6 +195,7 @@ pub fn build_top_menu_bar(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::declarative::hash_label_with_seed;
 
     #[test]
     fn test_top_menu_bar_declarative_build_and_roles() {

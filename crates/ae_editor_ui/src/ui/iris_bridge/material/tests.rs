@@ -7,6 +7,7 @@
 use super::*;
 use ae_renderer::render::types::SubmeshAlphaMode;
 use irisui::prelude::*;
+use irisui::widgets::panel::PanelBuilder;
 
 fn find_tag_recursive(tree: &UiTree, node_id: WidgetId, target_tag: u64) -> bool {
     find_node_by_tag(tree, node_id, target_tag).is_some()

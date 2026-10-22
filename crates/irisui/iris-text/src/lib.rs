@@ -24,6 +24,17 @@ pub use renderer::TextRenderer;
 pub use section::TextSection;
 pub use system::{TextShapeParams, TextSystem, measure_text_advance, set_default_text_family};
 
+/// Typography engine prelude re-exporting text systems, sections, and measurement helpers.
+///
+/// Designed to be imported via wildcard `use iris_text::prelude::*;` or through the `irisui` facade.
+pub mod prelude {
+    pub use crate::{
+        TextCollectionOptions, TextMeasurer, TextRenderer, TextSection, TextShapeParams,
+        TextSystem, collect_text_sections, collect_text_sections_with_options,
+        measure_text_advance, set_default_text_family,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

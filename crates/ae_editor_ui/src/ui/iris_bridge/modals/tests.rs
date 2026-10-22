@@ -10,6 +10,7 @@
 use super::*;
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use irisui::prelude::*;
+use irisui::widgets::modal::ModalDialogAction;
 use std::path::Path;
 
 #[test]
@@ -304,14 +305,14 @@ fn test_declarative_modals_buttons_hover_reactivity() {
         ),
     );
     let del_id = tree
-        .find_node_by_tag(irisui::prelude::MODAL_TAG_SCRIM)
+        .find_node_by_tag(ModalDialogAction::TAG_SCRIM)
         .expect("Modal scrim must exist");
     assert!(tree.get(del_id).is_some());
 
     // Search for close button and danger button
     assert!(
         tree.any_in_subtree(del_id, |node| {
-            node.tag == irisui::prelude::MODAL_TAG_CLOSE
+            node.tag == ModalDialogAction::TAG_CLOSE
                 && node.text.as_deref() == Some("✕")
                 && node.style.background_color == Color::rgba(0.85, 0.22, 0.22, 0.28)
         }),
@@ -319,7 +320,7 @@ fn test_declarative_modals_buttons_hover_reactivity() {
     );
     assert!(
         tree.any_in_subtree(del_id, |node| {
-            node.tag == irisui::prelude::MODAL_TAG_DANGER
+            node.tag == ModalDialogAction::TAG_DANGER
                 && node.text.as_deref() == Some("🗑 Delete Permanently")
         }),
         "Danger confirm button must be tagged with MODAL_TAG_DANGER"
@@ -379,7 +380,7 @@ fn test_modal_close_button_tag_and_layer() {
         resp.id
     };
     let node = tree.get(btn_id).unwrap();
-    assert_eq!(node.tag, MODAL_TAG_CLOSE);
+    assert_eq!(node.tag, ModalDialogAction::TAG_CLOSE);
     assert_eq!(node.layer, UiLayer::Modal);
     assert!(node.interactive);
     assert_eq!(node.role, WidgetRole::Button);
@@ -398,17 +399,17 @@ fn test_modal_action_buttons_layer_and_tags() {
     };
 
     let c_node = tree.get(confirm_id).unwrap();
-    assert_eq!(c_node.tag, MODAL_TAG_CONFIRM);
+    assert_eq!(c_node.tag, ModalDialogAction::TAG_CONFIRM);
     assert_eq!(c_node.layer, UiLayer::Modal);
     assert!(c_node.interactive);
 
     let can_node = tree.get(cancel_id).unwrap();
-    assert_eq!(can_node.tag, MODAL_TAG_CANCEL);
+    assert_eq!(can_node.tag, ModalDialogAction::TAG_CANCEL);
     assert_eq!(can_node.layer, UiLayer::Modal);
     assert!(can_node.interactive);
 
     let d_node = tree.get(danger_id).unwrap();
-    assert_eq!(d_node.tag, MODAL_TAG_DANGER);
+    assert_eq!(d_node.tag, ModalDialogAction::TAG_DANGER);
     assert_eq!(d_node.layer, UiLayer::Modal);
     assert!(d_node.interactive);
 }

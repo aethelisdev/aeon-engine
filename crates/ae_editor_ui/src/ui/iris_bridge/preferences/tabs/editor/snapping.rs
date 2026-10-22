@@ -10,6 +10,7 @@ use crate::ui::iris_bridge::preferences::components::{pref_combobox, pref_sectio
 use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use ae_editor::snapping::SnapMode;
 use irisui::prelude::*;
+use irisui::widgets::declarative::scope::PropertySliderOptions;
 
 /// Predefined selectable snapping modes.
 pub const SNAP_MODE_OPTIONS: [(&str, SnapMode); 3] = [

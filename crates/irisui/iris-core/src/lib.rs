@@ -46,6 +46,20 @@ pub use style::{
 pub use theme::Theme;
 pub use tree::{HitTargetInfo, UiTree};
 
+/// Core prelude re-exporting essential geometry, styling, events, nodes, and tree primitives.
+///
+/// Designed to be imported via wildcard `use iris_core::prelude::*;` or through the `irisui` facade.
+pub mod prelude {
+    pub use crate::{
+        AlignItems, Border, BoxShadow, CanvasPrimitive, Color, CornerRadii, DirtyFlags,
+        DispatchResult, EventDispatcher, EventState, ExternalTextureId, FlexDirection, FlexWrap,
+        FocusManager, HitTargetInfo, HitTestResult, ImeEvent, Insets, InteractionEvent,
+        IrisCoreError, JustifyContent, KeyCode, MouseButton, Point, PopupMenuState, Position, Rect,
+        ResponseFlags, Size, Style, TextAlign, TextMeasurer, TextWrap, Theme, UiEvent, UiLayer,
+        UiTree, WidgetCursor, WidgetId, WidgetNode, WidgetResponse, WidgetRole, WidgetState,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

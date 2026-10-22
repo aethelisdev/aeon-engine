@@ -10,6 +10,7 @@ use super::types::{
     ComponentCategory, InspectorAction, InspectorNumberInputId, InspectorPanelParams,
 };
 use irisui::prelude::*;
+use irisui::widgets::numeric_input::NumericInputEditState;
 use std::sync::OnceLock;
 
 /// Shared rendering context passed into each registered component inspector handler.

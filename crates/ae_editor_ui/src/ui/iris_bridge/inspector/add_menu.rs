@@ -12,6 +12,9 @@ use super::registry::InspectorRegistry;
 use super::tags::{TAG_ADD_MENU_COMPONENT_BASE, TAG_INSPECTOR_ADD_COMPONENT};
 use super::types::{ComponentCategory, InspectorPanelParams};
 use irisui::prelude::*;
+use irisui::widgets::cascading_menu::{CascadingMenuIcon, CascadingMenuItem};
+use irisui::widgets::declarative::hash_label;
+use irisui::widgets::declarative::scope::PopupPlacement;
 
 /// Computes a stable, collision-resistant 64-bit FNV-1a hash tag for an attachable component type name.
 ///
@@ -233,8 +236,8 @@ fn render_add_component_menu_card(
         PopupPlacement::Above,
         |card| {
             for item in menu_items {
-                let icon_str = match &item.icon {
-                    Some(CascadingMenuIcon::Text(t)) => *t,
+                let icon_str = match item.icon {
+                    Some(CascadingMenuIcon::Text(t)) => t,
                     _ => "",
                 };
                 if item.has_submenu() {
@@ -246,8 +249,8 @@ fn render_add_component_menu_card(
                         |sub_card| {
                             if let Some(children) = &item.submenu {
                                 for child in children {
-                                    let c_icon = match &child.icon {
-                                        Some(CascadingMenuIcon::Text(t)) => *t,
+                                    let c_icon = match child.icon {
+                                        Some(CascadingMenuIcon::Text(t)) => t,
                                         _ => "",
                                     };
                                     let child_resp = sub_card.dropdown_item(

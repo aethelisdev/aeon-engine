@@ -21,6 +21,7 @@ use super::types::{
 use crate::assets::types::AssetViewMode;
 use crate::ui::iris_bridge::icons::{ICON_GEAR, ICON_PLUS};
 use irisui::prelude::*;
+use irisui::widgets::declarative::InputBoxProps;
 
 /// Declarative construction of the Asset Browser top toolbar.
 ///

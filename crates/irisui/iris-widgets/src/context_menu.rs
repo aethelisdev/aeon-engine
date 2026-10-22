@@ -170,6 +170,14 @@ pub struct ContextMenuStyle {
     pub separator_color: Color,
 }
 
+impl ContextMenuStyle {
+    /// Standard default width for right-click context menu popups in logical pixels (`160.0 px`).
+    pub const DEFAULT_WIDTH: f32 = 160.0;
+
+    /// Standard height for context menu item rows in logical pixels (`24.0 px`).
+    pub const DEFAULT_ITEM_HEIGHT: f32 = 24.0;
+}
+
 impl Default for ContextMenuStyle {
     fn default() -> Self {
         Self {

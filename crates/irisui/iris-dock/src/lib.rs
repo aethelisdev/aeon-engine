@@ -75,6 +75,19 @@ pub use tab_viewer::{SimpleTabViewer, TabViewer};
 pub use tree::{DockError, DockNode, DockNodeId, DockTree, SplitDirection};
 pub use viewport::{FloatingDockWindow, FloatingWindowId, MultiViewportManager};
 
+/// Docking engine prelude re-exporting docking areas, state, viewers, and chrome frames.
+///
+/// Designed to be imported via wildcard `use iris_dock::prelude::*;` or through the `irisui` facade.
+pub mod prelude {
+    pub use crate::{
+        DockArea, DockChromeFrame, DockChromeParams, DockChromeStyle, DockError,
+        DockInteractionConfig, DockLayoutOptions, DockNode, DockNodeId, DockPanel, DockResponse,
+        DockState, DockStyle, DockTree, DropZone, FloatingDockWindow, FloatingWindow,
+        FloatingWindowId, FloatingWindowStyle, MultiViewportManager, PanelRegistry,
+        SimpleTabViewer, SplitDirection, TabViewer, UiNotifier,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

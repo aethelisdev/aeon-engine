@@ -32,6 +32,18 @@ pub use tree_compiler::{
     compile_tree_draw_commands_into,
 };
 
+/// WGPU rendering backend prelude re-exporting renderer, quad instances, and draw commands.
+///
+/// Designed to be imported via wildcard `use iris_wgpu::prelude::*;` or through the `irisui` facade.
+pub mod prelude {
+    pub use crate::{
+        BoundarySlice, CustomDrawCallback, DrawCommand, DrawCommandList, ExternalTexturePipeline,
+        ExternalTextureQuadInstance, ExternalTextures, InstanceBufferTarget, IrisRenderer,
+        QuadInstance, TextureQuadInstance, TextureQuadPipeline, TreeCompilerOptions,
+        compile_tree_draw_commands, compile_tree_draw_commands_into,
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

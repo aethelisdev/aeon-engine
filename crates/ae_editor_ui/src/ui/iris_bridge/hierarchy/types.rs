@@ -7,6 +7,7 @@
 //! for the 100% Iris UI GPU-accelerated Scene Hierarchy panel.
 
 use irisui::prelude::*;
+use irisui::widgets::controls::{FocusState, FocusTarget};
 use std::path::PathBuf;
 
 /// Pre-flattened lightweight POD representation of a single entity row in the scene hierarchy tree.

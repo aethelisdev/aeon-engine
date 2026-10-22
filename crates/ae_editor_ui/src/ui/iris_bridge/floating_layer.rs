@@ -9,7 +9,9 @@
 //!
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState, PanelTabViewer};
-use irisui::dock::{FloatingWindowStyle, build_floating_windows_layer};
+use irisui::dock::{
+    FloatingWindowStyle, build_floating_windows_layer, find_active_tab_content_rect,
+};
 use irisui::prelude::*;
 
 /// Checks if a panel currently resides within any active floating window.

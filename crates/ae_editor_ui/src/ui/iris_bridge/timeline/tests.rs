@@ -5,7 +5,8 @@
 //!
 
 use super::*;
-use irisui::prelude::{PanelBuilder, Point, Rect, UiScope, UiTree};
+use irisui::prelude::{Point, Rect, UiScope, UiTree};
+use irisui::widgets::panel::PanelBuilder;
 
 #[test]
 fn test_timeline_panel_build_empty_state() {

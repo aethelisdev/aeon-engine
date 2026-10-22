@@ -18,6 +18,9 @@ use crate::ui::iris_bridge::icons::{
     ICON_WORLD,
 };
 use irisui::prelude::*;
+use irisui::widgets::declarative::{
+    TreeRowProps, TreeRowResponse, TreeViewConfig, WrappedLabelDescriptor,
+};
 use std::path::Path;
 
 /// Standard width of an asset grid card in logical pixels.

@@ -14,6 +14,7 @@
 use super::components::{ASSET_LIST_ROW_HEIGHT, asset_list_row};
 use super::types::{ASSETS_TAG_CONTENT_VIEWPORT, AssetsPanelAction, AssetsPanelParams};
 use irisui::prelude::*;
+use irisui::widgets::scroll_area::VirtualList;
 
 /// Height of an individual table row in pixels.
 pub const LIST_ROW_HEIGHT: f32 = ASSET_LIST_ROW_HEIGHT;
@@ -165,6 +166,7 @@ pub fn build_asset_list_table_scope(
 mod tests {
     use super::*;
     use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
+    use irisui::widgets::controls::FocusState;
     use std::collections::HashMap;
     use std::path::PathBuf;
 

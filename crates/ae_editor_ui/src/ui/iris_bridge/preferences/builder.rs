@@ -14,6 +14,7 @@ use super::types::{
     encode_tab_tag, preferences_scroll_style,
 };
 use irisui::prelude::*;
+use irisui::widgets::scroll_area::ScrollBarGeometry;
 
 /// Width of the preferences modal card in physical pixels.
 pub const PREF_CARD_WIDTH: f32 = 760.0;

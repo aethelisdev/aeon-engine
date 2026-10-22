@@ -307,6 +307,8 @@ pub fn render_time_readout(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use irisui::widgets::declarative::layout_subtree;
+    use irisui::widgets::panel::PanelBuilder;
 
     #[test]
     fn test_transport_toolbar_declarative_build() {

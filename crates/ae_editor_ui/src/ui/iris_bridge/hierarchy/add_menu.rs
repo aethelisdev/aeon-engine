@@ -11,6 +11,8 @@
 use super::types::{AddSubmenuId, HIERARCHY_TAG_ADD_BUTTON, HierarchyAction, HierarchyPanelParams};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_SPHERE};
 use irisui::prelude::*;
+use irisui::widgets::cascading_menu::{CascadingMenuIcon, CascadingMenuItem};
+use irisui::widgets::declarative::{PopupPlacement, hash_label};
 
 /// Resolves a numeric menu item tag into its corresponding [`HierarchyAction`].
 #[inline]
@@ -315,8 +317,8 @@ fn render_root_add_menu(
                         continue;
                     }
 
-                    let icon_str = match &item.icon {
-                        Some(CascadingMenuIcon::Text(t)) => *t,
+                    let icon_str = match item.icon {
+                        Some(CascadingMenuIcon::Text(t)) => t,
                         _ => "",
                     };
 
@@ -335,8 +337,8 @@ fn render_root_add_menu(
                                             sub_card.separator();
                                             continue;
                                         }
-                                        let c_icon = match &child.icon {
-                                            Some(CascadingMenuIcon::Text(t)) => *t,
+                                        let c_icon = match child.icon {
+                                            Some(CascadingMenuIcon::Text(t)) => t,
                                             _ => "",
                                         };
                                         if child.has_submenu() {
@@ -355,10 +357,10 @@ fn render_root_add_menu(
                                                                 s2_card.separator();
                                                                 continue;
                                                             }
-                                                            let s2_icon = match &s2_child.icon {
+                                                            let s2_icon = match s2_child.icon {
                                                                 Some(CascadingMenuIcon::Text(
                                                                     t,
-                                                                )) => *t,
+                                                                )) => t,
                                                                 _ => "",
                                                             };
                                                             let s2_resp = s2_card.dropdown_item(

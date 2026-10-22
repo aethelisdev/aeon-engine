@@ -11,6 +11,7 @@ use crate::ui::iris_bridge::preferences::components::{pref_combobox, pref_sectio
 use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use ae_renderer::graphics_settings::SkyQuality;
 use irisui::prelude::*;
+use irisui::widgets::declarative::scope::PropertySliderOptions;
 
 /// Builds the Environment & Sky configuration card declaratively using [`UiScope`].
 ///

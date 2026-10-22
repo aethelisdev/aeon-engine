@@ -8,6 +8,7 @@
 //!
 
 use irisui::prelude::*;
+use irisui::widgets::declarative::hash_label_with_seed;
 
 /// Returns the persistent 64-bit semantic tag identifying the entity rename text input box for $O(1)$ hit-testing.
 #[inline]

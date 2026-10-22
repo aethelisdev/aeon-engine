@@ -12,6 +12,8 @@ use super::types::{
     CONSOLE_TAG_VIEWPORT, ConsoleFilterExt, ConsoleLogLevel, ConsolePanelParams,
 };
 use irisui::prelude::*;
+use irisui::widgets::declarative::ScrollAreaView;
+use irisui::widgets::scroll_area::VirtualScrollConfig;
 
 /// Standard height in physical pixels for a single console log row.
 pub const CONSOLE_ROW_HEIGHT: f32 = 26.0;

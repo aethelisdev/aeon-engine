@@ -10,6 +10,7 @@
 use super::types::{STATS_TAG_CANVAS, StatsPanelParams};
 use ae_core::telemetry::FrameRingBuffer;
 use irisui::prelude::*;
+use irisui::widgets::canvas::ChartDrawer;
 
 /// Builds the Frame Pacing & Stutter Analyzer section inside the declarative stats card.
 pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {

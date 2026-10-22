@@ -11,6 +11,10 @@ use super::types::{HierarchyPanelParams, HierarchyPanelState, parse_foldout_tag}
 use crate::ui::iris_bridge::hierarchy::rows::sync_hierarchy_rows;
 use hecs::World;
 use irisui::prelude::*;
+use irisui::widgets::controls::FocusState;
+use irisui::widgets::tree_view::{
+    TreeItemInfo, TreeSelectionModifiers, handle_tree_arrow_navigation, handle_tree_row_click,
+};
 
 #[test]
 fn test_hierarchy_tree_connector_lines_and_foldout() {

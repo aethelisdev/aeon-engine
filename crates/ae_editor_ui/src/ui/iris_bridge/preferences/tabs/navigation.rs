@@ -9,6 +9,7 @@
 use crate::ui::iris_bridge::preferences::components::{pref_heading, pref_section_card};
 use crate::ui::iris_bridge::preferences::types::PreferencesParams;
 use irisui::prelude::*;
+use irisui::widgets::declarative::scope::PropertySliderOptions;
 
 /// Builds the Navigation preferences tab content declaratively using [`UiScope`].
 ///

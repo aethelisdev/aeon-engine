@@ -24,6 +24,13 @@ pub enum LayoutError {
     Taffy(String),
 }
 
+/// Layout engine prelude re-exporting the layout manager and error types.
+///
+/// Designed to be imported via wildcard `use iris_layout::prelude::*;` or through the `irisui` facade.
+pub mod prelude {
+    pub use crate::{LayoutEngine, LayoutError};
+}
+
 /// The layout manager that synchronizes the `UiTree` with Taffy's internal representation.
 pub struct LayoutEngine {
     /// Underlying Taffy layout tree.

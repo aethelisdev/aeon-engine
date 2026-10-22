@@ -12,6 +12,7 @@ use super::types::{AssetsPanelAction, AssetsPanelParams, truncate_display_name};
 use crate::assets::types::{AssetCategory, AssetItem};
 use crate::ui::iris_bridge::icons::ICON_FOLDER;
 use irisui::prelude::*;
+use irisui::widgets::context_menu::{ContextMenuBuilder, ContextMenuIcon};
 use std::path::PathBuf;
 
 /// Width of the floating context menu popup card in logical pixels.

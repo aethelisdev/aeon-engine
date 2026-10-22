@@ -16,6 +16,7 @@ use ae_editor::editor_state::EditorConfig;
 use ae_editor::snapping::SnapSettings;
 use ae_renderer::graphics_settings::GraphicsSettings;
 use irisui::prelude::*;
+use irisui::widgets::scroll_area::{ScrollAreaFrame, ScrollbarDragState};
 use std::collections::HashSet;
 
 #[test]
@@ -45,7 +46,7 @@ fn test_preferences_scroll_style_and_frame_geometry() {
 fn test_preferences_scroll_state_reset_and_sync() {
     let mut state = PreferencesDialogState::default();
     state.scroll_state.scroll_y = 250.0;
-    state.scroll_state.drag_state = Some(irisui::prelude::ScrollbarDragState::new(300.0, 250.0));
+    state.scroll_state.drag_state = Some(ScrollbarDragState::new(300.0, 250.0));
     assert!(state.scroll_state.is_dragging());
 
     state.reset_scroll();

@@ -8,6 +8,8 @@
 
 use super::types::{PreferencesToggleId, encode_section_tag, encode_toggle_tag};
 use irisui::prelude::*;
+use irisui::widgets::declarative::ComboBoxResponse;
+use irisui::widgets::declarative::scope::WrappedLabelDescriptor;
 
 /// Emits the top section heading with title, descriptive subtitle, and horizontal rule.
 pub fn pref_heading(scope: &mut UiScope<'_>, title: &'static str, subtitle: &'static str) {
@@ -191,7 +193,7 @@ pub fn pref_combobox<'a>(
     label: &'static str,
     selected_text: &'a str,
     options: &'a [&'a str],
-) -> irisui::prelude::ComboBoxResponse {
+) -> ComboBoxResponse {
     scope.add(
         irisui::prelude::ComboBox::new(selected_text, options)
             .label(label)

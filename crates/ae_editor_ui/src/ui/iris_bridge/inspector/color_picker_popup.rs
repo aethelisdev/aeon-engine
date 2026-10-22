@@ -233,7 +233,7 @@ pub fn handle_color_edit_action(
             let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
             let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
             *inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
-            let (h, s, v) = irisui::prelude::rgb_to_hsv(col.r, col.g, col.b);
+            let (h, s, v) = HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
             let preserved_hue = if s < 1e-3 || v < 1e-3 {
                 inspector_hsv[0]
             } else {
