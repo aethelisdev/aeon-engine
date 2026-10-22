@@ -25,6 +25,9 @@ pub use iris_wgpu as wgpu_backend;
 pub use iris_widgets as widgets;
 pub use iris_winit as winit;
 
+pub use iris_widgets::subtree;
+pub use iris_widgets::{SubtreeSession, rebuild_leaf_subtree};
+
 /// Fluent, comprehensive umbrella prelude re-exporting all standard Iris UI primitives.
 ///
 /// Designed to be imported as `use irisui::prelude::*;` for , idiomatic engine UI development.
@@ -110,4 +113,5 @@ pub mod prelude {
         property_vec3_reset_tag, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
         resolve_property_vec3_tag, rgb_to_hsv, tree_chevron_arrow_glyph, tree_chevron_glyph,
     };
+    pub use iris_widgets::{SubtreeSession, rebuild_leaf_subtree};
 }

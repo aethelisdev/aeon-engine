@@ -11,6 +11,7 @@
 
 pub mod layout;
 pub mod scope;
+pub mod subtree;
 #[cfg(test)]
 mod tests;
 pub mod types;
@@ -30,6 +31,7 @@ pub use scope::{
     property_vec3_reset_tag, resolve_property_vec3_for_seed, resolve_property_vec3_for_seeds,
     resolve_property_vec3_tag,
 };
+pub use subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use types::{
     ScopeId, WidgetResponse, combine_seeds, eval_numeric_expression, format_compact_float,
     hash_label, hash_label_with_seed, split_label_id,
