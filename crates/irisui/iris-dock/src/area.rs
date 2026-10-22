@@ -192,6 +192,7 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
             scope
                 .tree_mut()
                 .set_boundary(panel_content.response.id, true);
+            frame.leaf_containers.push((tab, panel_content.response.id));
         }
 
         // 2. Render all floating windows: frame chrome + active tab content
@@ -262,6 +263,9 @@ impl<'a, Tab: Clone + Copy + PartialEq> DockArea<'a, Tab> {
                         .set_boundary(floating_content.response.id, true);
 
                     frame.panel_rects.push((tab, content_rect));
+                    frame
+                        .leaf_containers
+                        .push((tab, floating_content.response.id));
                 }
             }
         }

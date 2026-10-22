@@ -131,6 +131,8 @@ fn hit_splitter(rect: Rect, dir: SplitDirection, p: Point, m: f32) -> bool {
 pub struct DockChromeFrame<T> {
     /// Content rectangle assigned to each currently active panel.
     pub panel_rects: Vec<(T, Rect)>,
+    /// Generational widget node IDs assigned to each currently active panel leaf container.
+    pub leaf_containers: Vec<(T, WidgetId)>,
     /// Click targets for rendered tab labels and their source leaf/index pairs.
     pub tab_targets: Vec<DockTabTarget<T>>,
     /// Click targets for tab close `✖` buttons.
@@ -147,6 +149,7 @@ impl<T> Default for DockChromeFrame<T> {
     fn default() -> Self {
         Self {
             panel_rects: Vec::new(),
+            leaf_containers: Vec::new(),
             tab_targets: Vec::new(),
             close_targets: Vec::new(),
             splitter_targets: Vec::new(),
@@ -162,6 +165,13 @@ impl<T: PartialEq + Copy> DockChromeFrame<T> {
         self.panel_rects
             .iter()
             .find_map(|(candidate, rect)| (*candidate == target).then_some(*rect))
+    }
+
+    /// Returns the active leaf container widget node ID for a panel, if its tab is selected in a leaf.
+    pub fn leaf_container(&self, target: T) -> Option<WidgetId> {
+        self.leaf_containers
+            .iter()
+            .find_map(|(candidate, id)| (*candidate == target).then_some(*id))
     }
 }
 

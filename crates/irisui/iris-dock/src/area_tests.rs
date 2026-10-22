@@ -524,3 +524,92 @@ fn test_dock_area_handle_event_tab_tear_off_to_floating_window() {
         Some(0)
     );
 }
+
+#[test]
+fn test_dock_area_records_leaf_container_widget_ids() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut scope = UiScope::new(&mut tree, root);
+
+    let mut dock_tree = DockTree::new();
+    let center = dock_tree.create_leaf(vec![TestPanel::Hierarchy]);
+    dock_tree.set_root(center);
+    let (_left, _right) = dock_tree
+        .split_ordered(
+            center,
+            SplitDirection::Horizontal,
+            0.5,
+            vec![TestPanel::Inspector],
+            true,
+        )
+        .unwrap();
+
+    let mut state = DockState::new(dock_tree);
+    let floating = crate::floating::FloatingWindow::new(
+        1,
+        "Console Window",
+        Rect::new(50.0, 50.0, 300.0, 200.0),
+        vec![TestPanel::Console],
+    );
+    state.floating_windows.push(floating);
+
+    let mut viewer = MockViewer {
+        rendered_hierarchy: false,
+        rendered_inspector: false,
+        rendered_console: false,
+    };
+
+    let workspace_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+    let frame = DockArea::new(&mut state)
+        .bounds(workspace_rect)
+        .show(&mut scope, &mut viewer);
+
+    // Frame must record leaf container WidgetId for each rendered panel
+    assert_eq!(frame.leaf_containers.len(), 3);
+
+    let hier_id = frame
+        .leaf_container(TestPanel::Hierarchy)
+        .expect("Hierarchy leaf container must be recorded");
+    let insp_id = frame
+        .leaf_container(TestPanel::Inspector)
+        .expect("Inspector leaf container must be recorded");
+    let console_id = frame
+        .leaf_container(TestPanel::Console)
+        .expect("Floating Console leaf container must be recorded");
+
+    // All IDs must be distinct
+    assert_ne!(hier_id, insp_id);
+    assert_ne!(hier_id, console_id);
+    assert_ne!(insp_id, console_id);
+
+    // Verify nodes in the UiTree
+    let hier_node = tree
+        .get(hier_id)
+        .expect("Hierarchy node must exist in tree");
+    assert_eq!(hier_node.name.as_deref(), Some("DockLeafPanelContent"));
+    assert!(
+        hier_node.is_boundary,
+        "Leaf node must be an invalidation boundary"
+    );
+
+    let insp_node = tree
+        .get(insp_id)
+        .expect("Inspector node must exist in tree");
+    assert_eq!(insp_node.name.as_deref(), Some("DockLeafPanelContent"));
+    assert!(
+        insp_node.is_boundary,
+        "Leaf node must be an invalidation boundary"
+    );
+
+    let console_node = tree
+        .get(console_id)
+        .expect("Console node must exist in tree");
+    assert_eq!(
+        console_node.name.as_deref(),
+        Some("FloatingLeafPanelContent")
+    );
+    assert!(
+        console_node.is_boundary,
+        "Floating leaf node must be an invalidation boundary"
+    );
+}
