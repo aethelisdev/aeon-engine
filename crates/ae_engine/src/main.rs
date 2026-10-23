@@ -80,6 +80,7 @@ impl ApplicationHandler for AeApp {
                     .with_title("Aeon Engine")
                     .with_maximized(true)
                     .with_visible(false)
+                    .with_decorations(false)
                     .with_window_icon(icon);
 
                 #[cfg(any(
@@ -253,6 +254,17 @@ impl AeApp {
                     .set_status_message(format!("Load Error: {}", e), irisui::prelude::Color::RED);
                 engine.ui.is_loading_assets = false;
             }
+        }
+
+        // Window management triggers
+        if engine.ui.pending_window_minimize {
+            engine.ui.pending_window_minimize = false;
+            engine.render_state.window.set_minimized(true);
+        }
+        if engine.ui.pending_window_maximize {
+            engine.ui.pending_window_maximize = false;
+            let is_max = engine.render_state.window.is_maximized();
+            engine.render_state.window.set_maximized(!is_max);
         }
 
         // Exit trigger

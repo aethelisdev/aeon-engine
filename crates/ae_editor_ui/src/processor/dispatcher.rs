@@ -304,6 +304,9 @@ pub fn process_ui_actions(ctx: &mut UiContext, actions: std::vec::Vec<crate::ui:
             crate::ui::EngineUiAction::InstantiatePrefab(path) => {
                 scene_io::handle_instantiate_prefab(ctx, path)
             }
+            crate::ui::EngineUiAction::Exit => {
+                ctx.ui.should_exit = true;
+            }
 
             _ => {}
         }

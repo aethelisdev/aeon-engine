@@ -8,9 +8,7 @@
 //! following layout finalization, avoiding single-frame visual delay.
 //!
 
-use crate::modal::{
-    MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER, MODAL_TAG_SCRIM,
-};
+use crate::modal::{MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER};
 use iris_core::{Color, Point, UiTree, WidgetId, WidgetRole};
 
 /// Recursively updates visual hover styling for interactive widgets in a computed subtree.
@@ -115,18 +113,16 @@ pub fn update_hover_styles_recursive(tree: &mut UiTree, current: WidgetId, curso
                 );
             node.style.box_shadow = None;
         } else if role == WidgetRole::MenuBarItem {
-            if node.text_color != Color::hex("#00e5ff") {
-                node.text_color = if is_hovered {
-                    Color::WHITE
-                } else {
-                    Color::hex("#dcdce2")
-                };
-                node.style = node.style.background(if is_hovered {
-                    Color::hex("#222634")
-                } else {
-                    Color::TRANSPARENT
-                });
-            }
+            node.text_color = if is_hovered {
+                Color::WHITE
+            } else {
+                Color::hex("#dcdce2")
+            };
+            node.style = node.style.background(if is_hovered {
+                Color::hex("#222634")
+            } else {
+                Color::TRANSPARENT
+            });
         } else if role == WidgetRole::DropdownItem && interactive {
             node.style = node.style.background(if is_hovered {
                 Color::hex("#222634")
@@ -191,12 +187,6 @@ pub fn update_hover_styles_recursive(tree: &mut UiTree, current: WidgetId, curso
                     }
                 }
             }
-        } else if role == WidgetRole::Button && tag != 0 && tag != MODAL_TAG_SCRIM {
-            node.text_color = if is_hovered {
-                Color::rgba(0.25, 0.88, 1.0, 1.0)
-            } else {
-                Color::rgba(0.0, 0.80, 0.95, 1.0)
-            };
         }
     }
 

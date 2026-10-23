@@ -324,6 +324,44 @@ impl IrisEditorOverlay {
             }
         }
 
+        // Upload Aeon Engine logo to Layer 20 of the texture array
+        const LOGO_ICON_BYTES: &[u8] = include_bytes!("../../../../../assets/icons/aeon_logo.png");
+        if let Ok(logo_img) = image::load_from_memory(LOGO_ICON_BYTES) {
+            let logo_resized = logo_img
+                .resize_exact(tile_size, tile_size, image::imageops::FilterType::Lanczos3)
+                .to_rgba8();
+            let logo_bytes = logo_resized.into_raw();
+            let logo_layer = 20u32;
+            let mips = ae_texture::generate_mipmap_chain(tile_size, tile_size, &logo_bytes);
+
+            for (mip_level, level_data) in mips.iter().enumerate() {
+                let mip_size = wgpu::Extent3d {
+                    width: level_data.width,
+                    height: level_data.height,
+                    depth_or_array_layers: 1,
+                };
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level: mip_level as u32,
+                        origin: wgpu::Origin3d {
+                            x: 0,
+                            y: 0,
+                            z: logo_layer,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &level_data.bytes,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * level_data.width),
+                        rows_per_image: Some(level_data.height),
+                    },
+                    mip_size,
+                );
+            }
+        }
+
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             label: Some("Iris UI Editor Tools Texture Array View"),
             dimension: Some(wgpu::TextureViewDimension::D2Array),

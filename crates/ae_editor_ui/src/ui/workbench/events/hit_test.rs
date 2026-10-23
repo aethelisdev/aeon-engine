@@ -104,3 +104,110 @@ impl EngineUi {
         self.wants_pointer_at(pos)
     }
 }
+
+/// Evaluates whether a cursor point falls within the outer window resize boundary margins.
+///
+/// Returns the matched [`winit::window::ResizeDirection`] and corresponding [`winit::window::CursorIcon`]
+/// for OS-level window resizing on frameless windows.
+///
+/// # Arguments
+/// * `point` - Cursor position in logical window coordinates.
+/// * `width` - Window width in logical points.
+/// * `height` - Window height in logical points.
+#[must_use]
+pub fn evaluate_window_resize_border(
+    point: Point,
+    width: f32,
+    height: f32,
+) -> Option<(winit::window::ResizeDirection, winit::window::CursorIcon)> {
+    const BORDER: f32 = 6.0;
+    const CORNER: f32 = 12.0;
+
+    if width < CORNER * 2.0 || height < CORNER * 2.0 {
+        return None;
+    }
+
+    use winit::window::{CursorIcon, ResizeDirection};
+
+    // Four corners (evaluated first with larger hit area for comfortable diagonal grabbing)
+    if point.x <= CORNER && point.y <= CORNER {
+        Some((ResizeDirection::NorthWest, CursorIcon::NwResize))
+    } else if point.x >= width - CORNER && point.y <= CORNER {
+        Some((ResizeDirection::NorthEast, CursorIcon::NeResize))
+    } else if point.x <= CORNER && point.y >= height - CORNER {
+        Some((ResizeDirection::SouthWest, CursorIcon::SwResize))
+    } else if point.x >= width - CORNER && point.y >= height - CORNER {
+        Some((ResizeDirection::SouthEast, CursorIcon::SeResize))
+    }
+    // Four outer edges
+    else if point.x <= BORDER {
+        Some((ResizeDirection::West, CursorIcon::WResize))
+    } else if point.x >= width - BORDER {
+        Some((ResizeDirection::East, CursorIcon::EResize))
+    } else if point.y <= BORDER {
+        Some((ResizeDirection::North, CursorIcon::NResize))
+    } else if point.y >= height - BORDER {
+        Some((ResizeDirection::South, CursorIcon::SResize))
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use winit::window::{CursorIcon, ResizeDirection};
+
+    #[test]
+    fn test_evaluate_window_resize_border_corners_and_edges() {
+        let (w, h) = (1000.0, 700.0);
+
+        // Center should not be resize border
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(500.0, 350.0), w, h),
+            None
+        );
+
+        // Four corners
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(2.0, 2.0), w, h),
+            Some((ResizeDirection::NorthWest, CursorIcon::NwResize))
+        );
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(995.0, 2.0), w, h),
+            Some((ResizeDirection::NorthEast, CursorIcon::NeResize))
+        );
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(2.0, 695.0), w, h),
+            Some((ResizeDirection::SouthWest, CursorIcon::SwResize))
+        );
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(995.0, 695.0), w, h),
+            Some((ResizeDirection::SouthEast, CursorIcon::SeResize))
+        );
+
+        // Four edges (away from corners)
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(2.0, 300.0), w, h),
+            Some((ResizeDirection::West, CursorIcon::WResize))
+        );
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(998.0, 300.0), w, h),
+            Some((ResizeDirection::East, CursorIcon::EResize))
+        );
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(400.0, 2.0), w, h),
+            Some((ResizeDirection::North, CursorIcon::NResize))
+        );
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(400.0, 698.0), w, h),
+            Some((ResizeDirection::South, CursorIcon::SResize))
+        );
+
+        // Edge case: tiny window smaller than twice the corner margin
+        assert_eq!(
+            evaluate_window_resize_border(Point::new(2.0, 2.0), 10.0, 10.0),
+            None
+        );
+    }
+}

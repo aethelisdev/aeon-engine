@@ -135,11 +135,7 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, node_id);
         let (clicked, hovered, _) = self.check_interaction(node_id);
 
-        let bg = if hovered {
-            Color::lerp(bg_color, Color::WHITE, 0.15)
-        } else {
-            bg_color
-        };
+        let hover_bg = Color::lerp(bg_color, Color::WHITE, 0.18);
 
         if let Some(node) = self.tree.get_mut(node_id) {
             node.interactive = true;
@@ -149,11 +145,73 @@ impl<'a> UiScope<'a> {
             node.line_height = 13.0;
             node.text_align = TextAlign::Center;
             node.text_color = text_color;
+            node.hover_text_color = Some(Color::WHITE);
             node.set_style(
                 Style::new()
                     .height(20.0)
                     .padding_insets(Insets::new(2.0, 10.0, 2.0, 10.0))
-                    .background(bg)
+                    .background(bg_color)
+                    .hover_background(hover_bg)
+                    .border_radius(3.0)
+                    .align_items(AlignItems::Center)
+                    .justify_content(JustifyContent::Center)
+                    .flex_shrink(0.0),
+            );
+        }
+        WidgetResponse::new(node_id, clicked, hovered, false)
+    }
+
+    /// Emits an industrial desktop window control button (Minimize, Maximize, Close).
+    ///
+    /// Close buttons apply an elevated danger hover tint (`#E81123`), while standard controls
+    /// apply subtle toolbar hover lightening (`rgba(1.0, 1.0, 1.0, 0.12)`).
+    ///
+    /// # Arguments
+    /// * `tag` - Interaction tag identifier for hit-testing and event tracking.
+    /// * `label` - Text glyph on the control button (e.g. `—`, `□`, `✕`).
+    /// * `is_close` - Whether this button represents the window close action.
+    pub fn menu_window_button(
+        &mut self,
+        tag: u64,
+        label: impl Into<String>,
+        is_close: bool,
+    ) -> WidgetResponse {
+        let label_str = label.into();
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.set_name(if is_close {
+                "WindowCloseButton"
+            } else {
+                "WindowControlButton"
+            });
+            node.set_role(WidgetRole::Button);
+            node.set_tag(tag);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+        let (clicked, hovered, _) = self.check_interaction(node_id);
+
+        let theme = self.theme();
+        let hover_bg = if is_close {
+            Color::hex("#E81123")
+        } else {
+            Color::rgba(1.0, 1.0, 1.0, 0.12)
+        };
+
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.interactive = true;
+            node.cursor = Some(WidgetCursor::Pointer);
+            node.set_text(label_str);
+            node.font_size = 11.0;
+            node.line_height = 13.0;
+            node.text_align = TextAlign::Center;
+            node.text_color = theme.text_secondary;
+            node.hover_text_color = Some(Color::WHITE);
+            node.set_style(
+                Style::new()
+                    .width(36.0)
+                    .height(24.0)
+                    .background(Color::TRANSPARENT)
+                    .hover_background(hover_bg)
                     .border_radius(3.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)

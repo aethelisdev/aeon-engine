@@ -65,6 +65,19 @@ impl<'a, 'b, A> MenuBarRightScope<'a, 'b, A> {
             *self.new_active_menu_tag = Some(None);
         }
     }
+
+    /// Emits an industrial desktop window control button (e.g. Minimize, Maximize/Restore, Close).
+    ///
+    /// Close buttons apply an elevated danger hover tint (`#E81123`), while standard controls
+    /// apply subtle toolbar hover lightening.
+    pub fn window_button(&mut self, label: &str, is_close: bool, action: A) {
+        let tag = hash_label_with_seed(0x5749_4E44, label);
+        let resp = self.scope.menu_window_button(tag, label, is_close);
+        if resp.clicked() {
+            *self.selected_action = Some(action);
+            *self.new_active_menu_tag = Some(None);
+        }
+    }
 }
 
 /// Scoped builder context passed to the closure of [`UiScope::menu_bar`].
@@ -125,7 +138,7 @@ impl<'a, 'b, A> MenuBarScope<'a, 'b, A> {
                 .and_then(|id| self.scope.tree.get_mut(id))
         {
             if is_active {
-                node.text_color = Color::hex("#00e5ff");
+                node.text_color = Color::WHITE;
                 node.style.background_color = Color::hex("#1e2230");
             } else {
                 node.text_color = Color::hex("#dcdce2");
@@ -195,6 +208,16 @@ impl<'a, 'b, A> MenuBarScope<'a, 'b, A> {
         };
         add_right_contents(&mut right_builder);
     }
+
+    /// Emits a leading branding or application logo icon in the top menubar.
+    ///
+    /// Automatically offsets subsequent cascading menu dropdown positions (`current_menu_x`)
+    /// so opened popups align precisely beneath their respective menu header buttons.
+    pub fn branding_icon(&mut self, icon_uv: [f32; 4], tint: Color, size: f32) {
+        let mut left_scope = self.scope.child_scope(self.left_container);
+        left_scope.icon_named("MenuBarBrandingLogo", icon_uv, tint, size);
+        self.current_menu_x += size + 8.0;
+    }
 }
 
 impl<'a> UiScope<'a> {
@@ -210,14 +233,15 @@ impl<'a> UiScope<'a> {
         F: FnOnce(&mut MenuBarScope<'_, '_, A>),
     {
         let active_tag = self.tree.active_menu_bar_tag;
+        let toolbar_bg = self.theme().toolbar_bg;
 
         let (selected_action, new_active_tag) = self
             .row_with()
             .width(width)
             .height(height)
             .space_between()
-            .padding_insets(Insets::new(0.0, 6.0, 0.0, 10.0))
-            .background(Color::rgba(0.035, 0.040, 0.050, 1.0))
+            .padding_insets(Insets::new(0.0, 8.0, 0.0, 4.0))
+            .background(toolbar_bg)
             .show(|bar| {
                 let left_container = bar.tree.create_node();
                 if let Some(left) = bar.tree.get_mut(left_container) {
@@ -238,7 +262,7 @@ impl<'a> UiScope<'a> {
                         Style::new()
                             .flex_row()
                             .align_items(AlignItems::Center)
-                            .gap(6.0),
+                            .gap(2.0),
                     );
                 }
                 let _ = bar.tree.add_child(bar.parent, right_container);
@@ -252,7 +276,7 @@ impl<'a> UiScope<'a> {
                     new_active_menu_tag: None,
                     menubar_y: 0.0,
                     menubar_height: height,
-                    current_menu_x: 6.0,
+                    current_menu_x: 8.0,
                 };
 
                 add_contents(&mut bar_scope);

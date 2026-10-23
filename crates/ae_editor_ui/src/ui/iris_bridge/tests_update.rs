@@ -34,7 +34,7 @@ fn test_collect_text_sections_with_hover_state() {
     // Without hover
     let normal = IrisEditorOverlay::collect_text_sections_from_tree(&tree, &[], &[], &[]);
     assert_eq!(normal.len(), 1);
-    assert_eq!(normal[0].color, Color::rgba(0.0, 0.88, 1.0, 1.0));
+    assert_eq!(normal[0].color, tree.theme().text_secondary);
 
     // With hover on btn_tag
     let hovered = IrisEditorOverlay::collect_text_sections_from_tree_with_hover(

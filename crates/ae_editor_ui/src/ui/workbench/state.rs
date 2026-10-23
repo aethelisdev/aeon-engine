@@ -43,6 +43,14 @@ pub struct EngineUi {
     pub pending_load_path: Option<std::path::PathBuf>,
     pub scene_dialog_receivers: Vec<std::sync::mpsc::Receiver<SceneDialogAction>>,
     pub should_exit: bool,
+    /// Pending signal to minimize the window.
+    pub pending_window_minimize: bool,
+    /// Pending signal to toggle window maximize/restore.
+    pub pending_window_maximize: bool,
+    /// Pending signal to trigger native OS window dragging.
+    pub pending_drag_window: bool,
+    /// Timestamp of the last left-click on the top menu bar (for double-click maximize detection).
+    pub last_menubar_click: Option<std::time::Instant>,
     /// Modular docking panel and tab layout state.
     pub layout_state: PanelLayoutState,
     pub hierarchy_search_query: String,
@@ -144,6 +152,10 @@ impl EngineUi {
             pending_load_path: None,
             scene_dialog_receivers: Vec::new(),
             should_exit: false,
+            pending_window_minimize: false,
+            pending_window_maximize: false,
+            pending_drag_window: false,
+            last_menubar_click: None,
             layout_state: PanelLayoutState::new_default(),
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),

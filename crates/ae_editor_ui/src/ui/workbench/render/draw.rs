@@ -226,6 +226,15 @@ impl EngineUi {
                 crate::ui::iris_bridge::DropdownAction::OpenAbout => {
                     self.show_about = true;
                 }
+                crate::ui::iris_bridge::DropdownAction::WindowMinimize => {
+                    self.pending_window_minimize = true;
+                }
+                crate::ui::iris_bridge::DropdownAction::WindowMaximize => {
+                    self.pending_window_maximize = true;
+                }
+                crate::ui::iris_bridge::DropdownAction::WindowClose => {
+                    self.should_exit = true;
+                }
             }
         }
 

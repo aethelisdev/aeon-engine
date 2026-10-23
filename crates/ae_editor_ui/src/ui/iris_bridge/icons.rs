@@ -77,6 +77,11 @@ pub const ICON_CHEVRON_DOWN: [f32; 4] = [0.0, 0.0, 1.0, 18.0];
 /// Up-pointing chevron/triangle icon for expanding sections, moving upward, or increasing values - Layer 19.
 pub const ICON_CHEVRON_UP: [f32; 4] = [0.0, 0.0, 1.0, 19.0];
 
+// ── Row 5: Application Branding & Special Identifiers (Layers 20..23) ─────────
+
+/// Aeon Engine official branding cube logo icon - Layer 20.
+pub const ICON_AEON_LOGO: [f32; 4] = [0.0, 0.0, 1.0, 20.0];
+
 /// Starting layer in the 2D Texture Array reserved for dynamically generated asset thumbnails.
 ///
 /// Layers 0..31 are strictly reserved for canonical static system, editor, and tool icons.

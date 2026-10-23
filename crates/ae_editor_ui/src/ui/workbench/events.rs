@@ -25,6 +25,32 @@ impl EngineUi {
         event: &UiEvent,
         _world: Option<&hecs::World>,
     ) -> bool {
+        let zoom = self.scale_factor();
+        let win_size = window.inner_size();
+        let screen_w = win_size.width as f32 / zoom;
+        let screen_h = win_size.height as f32 / zoom;
+
+        // 1. Frameless Window 8-way Native Edge Resizing (Top, Bottom, Left, Right and 4 Corners)
+        if !window.is_maximized() {
+            if let UiEvent::MouseMove { point } = event {
+                if let Some((_, cursor_icon)) =
+                    hit_test::evaluate_window_resize_border(*point, screen_w, screen_h)
+                {
+                    window.set_cursor(cursor_icon);
+                    return true;
+                }
+            } else if let UiEvent::MouseDown {
+                point,
+                button: irisui::prelude::MouseButton::Left,
+            } = event
+                && let Some((direction, _)) =
+                    hit_test::evaluate_window_resize_border(*point, screen_w, screen_h)
+            {
+                let _ = window.drag_resize_window(direction);
+                return true;
+            }
+        }
+
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
         self.iris_overlay.chrome.floating_window_rects = self
             .layout_state
@@ -138,8 +164,42 @@ impl EngineUi {
             self.console_last_count = 0;
         }
 
+        if iris_res.window_minimize {
+            self.pending_window_minimize = true;
+        }
+        if iris_res.window_maximize {
+            self.pending_window_maximize = true;
+        }
+        if iris_res.window_close {
+            self.should_exit = true;
+        }
+
         // Layer isolation mandate: events consumed by Iris UI overlays or panels must never leak to underlying systems
         if iris_res.consumed {
+            let active_widget_cursor = self.iris_overlay.active_cursor();
+            window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
+            self.iris_overlay.notifier.tag_all();
+            self.iris_overlay.chrome.needs_layout_rebuild = true;
+            return true;
+        }
+
+        // Native Window Title Bar Dragging & Maximize Double-Click on unconsumed MenuBar clicks
+        if let UiEvent::MouseDown {
+            point,
+            button: irisui::prelude::MouseButton::Left,
+        } = event
+            && point.y <= IrisEditorOverlay::MENUBAR_HEIGHT
+        {
+            let now = std::time::Instant::now();
+            if let Some(last_click) = self.last_menubar_click
+                && now.duration_since(last_click).as_millis() < 350
+            {
+                self.pending_window_maximize = true;
+                self.last_menubar_click = None;
+                return true;
+            }
+            self.last_menubar_click = Some(now);
+            let _ = window.drag_window();
             return true;
         }
 
@@ -148,10 +208,6 @@ impl EngineUi {
             return true;
         }
 
-        let zoom = self.scale_factor();
-        let win_size = window.inner_size();
-        let screen_w = win_size.width as f32 / zoom;
-        let screen_h = win_size.height as f32 / zoom;
         let workspace_rect = Rect::new(
             0.0,
             IrisEditorOverlay::MENUBAR_HEIGHT,

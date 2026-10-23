@@ -326,7 +326,7 @@ impl Widget for Button {
             } else if hovered || pressed {
                 theme.text_primary
             } else {
-                Color::rgba(0.0, 0.88, 1.0, 1.0)
+                theme.text_secondary
             };
 
             node.text_color = self.text_color.unwrap_or(default_text);

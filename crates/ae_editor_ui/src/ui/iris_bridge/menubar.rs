@@ -14,7 +14,7 @@ use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use irisui::prelude::*;
 
 /// Height of the top menubar panel in physical pixels.
-pub const MENUBAR_HEIGHT: f32 = 26.0;
+pub const MENUBAR_HEIGHT: f32 = 28.0;
 
 /// Default width of floating dropdown popup menus in physical pixels.
 pub const DROPDOWN_WIDTH: f32 = 260.0;
@@ -45,6 +45,9 @@ pub fn build_top_menu_bar(
 ) -> Option<DropdownAction> {
     let mut scope = UiScope::new(tree, parent_id);
     scope.menu_bar(params.screen_width, MENUBAR_HEIGHT, |bar| {
+        // 0. Application Branding Logo
+        bar.branding_icon(super::icons::ICON_AEON_LOGO, Color::hex("#E4E7EB"), 18.0);
+
         // 1. File Menu
         bar.menu("File", |m| {
             m.item_disabled("🗎", "New Project", Some("Ctrl N"));
@@ -167,7 +170,7 @@ pub fn build_top_menu_bar(
             );
         });
 
-        // 6. Right Group: Play/Stop Action Button
+        // 6. Right Group: Play/Stop Action Button & Window Management Controls
         bar.right(|right| {
             if params.is_editing {
                 right.action_button(
@@ -188,6 +191,11 @@ pub fn build_top_menu_bar(
                     )),
                 );
             }
+
+            // Window Management Controls (Minimize, Maximize/Restore, Close)
+            right.window_button("—", false, DropdownAction::WindowMinimize);
+            right.window_button("□", false, DropdownAction::WindowMaximize);
+            right.window_button("✕", true, DropdownAction::WindowClose);
         });
     })
 }
