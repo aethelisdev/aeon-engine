@@ -14,39 +14,44 @@ use super::super::icons::*;
 use super::super::theme::*;
 use super::types::*;
 
-/// Returns the engine-themed [`DockChromeStyle`] used across the editor.
+/// Returns the default engine-themed [`DockChromeStyle`] used across the editor.
 pub fn editor_dock_style() -> DockChromeStyle {
+    editor_dock_style_with_tokens(&EditorThemeTokens::default())
+}
+
+/// Returns a [`DockChromeStyle`] resolved from the specified [`EditorThemeTokens`].
+pub fn editor_dock_style_with_tokens(tokens: &EditorThemeTokens) -> DockChromeStyle {
     DockChromeStyle {
-        empty_panel_bg: Color::from_u8(16, 20, 28, 160),
-        empty_panel_border: Color::from_u8(35, 42, 55, 120),
-        panel_bg: ELEVATION_1_PANEL,
-        tab_bar_bg: ELEVATION_2_HEADER,
+        empty_panel_bg: tokens.canvas_bg,
+        empty_panel_border: tokens.splitter_idle,
+        panel_bg: tokens.panel_bg,
+        tab_bar_bg: tokens.tab_bar_bg,
         tab_bar_height: NATIVE_DOCK_TAB_HEIGHT,
-        tab_bar_baseline_color: BORDER_MICRON,
+        tab_bar_baseline_color: tokens.border_micron,
         tab_corner_radii: CornerRadii::new(4.0, 4.0, 0.0, 0.0),
-        tab_active_bg: ELEVATION_1_PANEL,
-        tab_hovered_bg: ELEVATION_3_HOVERED_PILL,
-        tab_idle_bg: ELEVATION_2_HEADER,
-        tab_active_line_color: ACCENT_CYAN,
+        tab_active_bg: tokens.tab_active_bg,
+        tab_hovered_bg: tokens.tab_hover_bg,
+        tab_idle_bg: tokens.tab_idle_bg,
+        tab_active_line_color: tokens.accent,
         tab_active_line_height: 2.0,
-        icon_active_tint: ACCENT_CYAN,
+        icon_active_tint: Color::WHITE,
         icon_hovered_tint: Color::WHITE,
-        icon_idle_tint: TEXT_REGULAR,
-        text_active_color: ACCENT_CYAN,
-        text_hovered_color: TEXT_BRIGHT,
-        text_idle_color: TEXT_MUTED,
+        icon_idle_tint: tokens.text_muted,
+        text_active_color: tokens.text_active,
+        text_hovered_color: Color::WHITE,
+        text_idle_color: tokens.text_muted,
         close_btn_hover_bg: Color::rgba(0.9, 0.2, 0.2, 0.25),
         close_btn_hover_color: Color::rgba(1.0, 0.45, 0.45, 1.0),
-        close_btn_idle_color: Color::rgba(0.65, 0.68, 0.75, 0.85),
+        close_btn_idle_color: tokens.text_muted,
         splitter_thickness: SPLITTER_THICKNESS,
-        splitter_active_color: SPLITTER_ACTIVE,
-        splitter_idle_color: SPLITTER_IDLE,
+        splitter_active_color: tokens.splitter_active,
+        splitter_idle_color: tokens.splitter_idle,
         min_shrunk_tab_width: MIN_SHRUNK_TAB_WIDTH,
         chevron_width: CHEVRON_WIDTH,
-        chevron_hovered_bg: ELEVATION_3_HOVERED_PILL,
-        chevron_idle_bg: ELEVATION_2_HEADER,
-        chevron_hovered_icon_col: ACCENT_CYAN,
-        chevron_idle_icon_col: TEXT_MUTED,
+        chevron_hovered_bg: tokens.tab_hover_bg,
+        chevron_idle_bg: tokens.tab_bar_bg,
+        chevron_hovered_icon_col: tokens.accent,
+        chevron_idle_icon_col: tokens.text_muted,
         chevron_icon_uv: Some(ICON_CHEVRON_DOWN),
     }
 }

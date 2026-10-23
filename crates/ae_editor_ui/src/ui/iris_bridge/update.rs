@@ -23,8 +23,10 @@ impl IrisEditorOverlay {
 
     /// Initializes a new Iris UI editor overlay pipeline for the specified surface format.
     pub fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
+        let mut tree = UiTree::new();
+        tree.set_theme(super::theme::EditorThemeTokens::default().to_iris_theme());
         Self {
-            tree: UiTree::new(),
+            tree,
             layout_engine: LayoutEngine::new(),
             renderer: IrisRenderer::new(device, target_format),
             text_system: TextSystem::new(),
@@ -211,6 +213,9 @@ impl IrisEditorOverlay {
         self.screen_width = screen_width;
         self.screen_height = screen_height;
 
+        let active_tokens = self.chrome.theme_preset.tokens();
+        self.tree.set_theme(active_tokens.to_iris_theme());
+
         self.modals.sync_from_dialogs(&params.dialogs);
 
         let modal_active = self.modals.is_about_active
@@ -283,6 +288,7 @@ impl IrisEditorOverlay {
 
         // 1. Genuine global shell events (only these trigger global tag_all)
         if self.chrome.last_dimensions != params.context.dimensions
+            || self.chrome.last_theme_preset != self.chrome.theme_preset
             || (self.chrome.last_zoom_factor - params.context.zoom_factor).abs() > 1e-4
             || self.chrome.last_floating_count != floating_count
             || self.modals.last_modal_active != modal_active
@@ -519,7 +525,7 @@ impl IrisEditorOverlay {
                     .is_point_over_floating_window(cursor);
 
             // 3. Declarative Docking Framework: orchestrate layout, splitters, tab bars, and leaf panel UIs via DockArea
-            let dock_style = super::native_dock::editor_dock_style();
+            let dock_style = super::native_dock::editor_dock_style_with_tokens(&active_tokens);
             let mut tree = std::mem::take(&mut self.tree);
             let root_id = tree.root().unwrap_or(root);
             {
@@ -664,6 +670,7 @@ impl IrisEditorOverlay {
         self.chrome.last_inspector_popups = inspector_popups;
         self.chrome.last_hierarchy_popups = hierarchy_popups;
         self.chrome.last_preferences_active = preferences_active;
+        self.chrome.last_theme_preset = self.chrome.theme_preset;
         self.chrome.needs_layout_rebuild = false;
         self.chrome.needs_scroll_sync = false;
         self.notifier.clear_all();

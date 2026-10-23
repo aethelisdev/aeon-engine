@@ -18,13 +18,15 @@ pub fn build_material_header(
     entity: Option<hecs::Entity>,
     world: &hecs::World,
 ) -> f32 {
+    let hdr_bg = scope.theme().toolbar_bg;
+    let hdr_border = scope.theme().toolbar_border;
     let header_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
         .justify_content(JustifyContent::SpaceBetween)
         .padding_insets(Insets::new(0.0, 8.0, 0.0, 8.0))
-        .background(Color::rgba(0.082, 0.086, 0.102, 0.98))
-        .border(1.0, Color::rgba(0.14, 0.15, 0.18, 0.90))
+        .background(hdr_bg)
+        .border(1.0, hdr_border)
         .height(MATERIAL_HEADER_HEIGHT);
 
     scope.container(header_style, |hdr| {

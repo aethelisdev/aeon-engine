@@ -130,13 +130,16 @@ pub fn build_keymap_tab(scope: &mut UiScope<'_>, _params: &PreferencesParams<'_>
         "Essential keyboard shortcuts, transform hotkeys, and viewport navigation gestures.",
     );
 
+    let card_bg = scope.theme().card_bg;
+    let card_border = scope.theme().card_border;
+
     for group in &KEYMAP_GROUPS {
         scope.container_named(
             "KeymapGroupCard",
             Style::new()
                 .flex_col()
-                .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-                .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
+                .background(card_bg)
+                .border(1.0, card_border)
                 .border_radius(6.0)
                 .padding_insets(Insets::new(12.0, 14.0, 10.0, 14.0))
                 .margin_insets(Insets::new(0.0, 0.0, 12.0, 0.0)),

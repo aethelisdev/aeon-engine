@@ -21,6 +21,8 @@ pub fn build_asset_footer_scope(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
+    let footer_bg = scope.theme().toolbar_bg;
+    let footer_border = scope.theme().toolbar_border;
     scope.container_named(
         "AssetsFooter",
         Style::new()
@@ -29,8 +31,8 @@ pub fn build_asset_footer_scope(
             .justify_content(JustifyContent::SpaceBetween)
             .padding_insets(Insets::symmetric(0.0, 8.0))
             .height(ASSETS_FOOTER_HEIGHT)
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-            .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.70)),
+            .background(footer_bg)
+            .border(1.0, footer_border),
         |footer| {
             // 1. Left Group: Sidebar Toggle + Folder Icon + Folder Path
             footer.container_named(

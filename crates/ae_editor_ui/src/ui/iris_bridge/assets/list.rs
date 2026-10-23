@@ -49,13 +49,15 @@ pub fn build_asset_list_table_scope(
     let col_act_w = (total_w - col_name_w - col_cat_w - col_size_w - col_status_w).max(80.0);
 
     // 1. Table Header Row
+    let th_bg = scope.theme().card_header_bg;
+    let th_border = scope.theme().divider;
     scope.container_named(
         "ListTableHeader",
         Style::new()
             .flex_row()
-            .background(Color::rgba(0.09, 0.10, 0.14, 0.95))
+            .background(th_bg)
             .border_radius(4.0)
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.60))
+            .border(1.0, th_border)
             .height(LIST_HEADER_HEIGHT)
             .width(total_w)
             .align_items(AlignItems::Center)

@@ -123,8 +123,8 @@ fn render_empty_selection_view(scope: &mut UiScope<'_>, params: &InspectorPanelP
         let card_style = Style::new()
             .flex_col()
             .width(params.panel_rect.width - 24.0)
-            .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
+            .background(center.theme().card_bg)
+            .border(1.0, center.theme().card_border)
             .border_radius(8.0)
             .padding_insets(Insets::new(14.0, 14.0, 14.0, 14.0))
             .gap(4.0);
@@ -216,7 +216,7 @@ mod tests {
                 .expect("EmptySelectionCard node must be created")
                 .style
                 .background_color,
-            Color::rgba(0.09, 0.10, 0.12, 0.95)
+            tree.theme().card_bg
         );
         assert_eq!(
             tree.node_named("EmptySelectionCard")

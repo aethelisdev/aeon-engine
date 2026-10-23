@@ -229,7 +229,13 @@ pub fn asset_folder_tree_item(
 }
 
 #[inline]
-fn asset_card_container_style(rel_pos: Point, is_selected: bool, cat_color: Color) -> Style {
+fn asset_card_container_style(
+    rel_pos: Point,
+    is_selected: bool,
+    cat_color: Color,
+    card_bg: Color,
+    card_border: Color,
+) -> Style {
     Style::new()
         .position_absolute()
         .left(rel_pos.x)
@@ -244,14 +250,14 @@ fn asset_card_container_style(rel_pos: Point, is_selected: bool, cat_color: Colo
         .background(if is_selected {
             Color::rgba(0.0, 0.65, 0.85, 0.12)
         } else {
-            Color::rgba(0.08, 0.09, 0.12, 0.90)
+            card_bg
         })
         .border(
             if is_selected { 1.5 } else { 1.0 },
             if is_selected {
                 Color::rgba(0.0, 0.90, 1.0, 1.0)
             } else {
-                Color::rgba(0.18, 0.20, 0.26, 0.75)
+                card_border
             },
         )
         .hover_background(if is_selected {
@@ -284,10 +290,18 @@ pub fn asset_grid_card(
     rel_pos: Point,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> WidgetResponse {
+    let card_bg = scope.theme().card_bg;
+    let card_border = scope.theme().card_border;
     scope
         .container_tagged_resp(
             "AssetGridCard",
-            asset_card_container_style(rel_pos, is_selected, resolve_category_color(item.category)),
+            asset_card_container_style(
+                rel_pos,
+                is_selected,
+                resolve_category_color(item.category),
+                card_bg,
+                card_border,
+            ),
             WidgetRole::Button,
             encode_item_tag(item_idx),
             |card| {
@@ -558,8 +572,8 @@ pub fn asset_empty_notice(scope: &mut UiScope<'_>, vp_rect: Rect, query: &str) {
                     .width(440.0)
                     .height(135.0)
                     .padding_insets(Insets::new(14.0, 20.0, 14.0, 20.0))
-                    .background(Color::rgba(0.07, 0.08, 0.11, 0.95))
-                    .border(1.0, Color::rgba(0.18, 0.22, 0.30, 0.60))
+                    .background(center_scope.theme().card_bg)
+                    .border(1.0, center_scope.theme().card_border)
                     .border_radius(6.0)
                     .clip_children(true),
                 |notice| {

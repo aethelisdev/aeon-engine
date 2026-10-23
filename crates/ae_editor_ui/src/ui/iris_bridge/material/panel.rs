@@ -25,9 +25,10 @@ pub fn build_material_panel(
     params: &MaterialPanelParams<'_>,
     actions: &mut Vec<super::types::MaterialAction>,
 ) {
+    let panel_bg = scope.theme().panel_bg;
     scope
         .panel("MaterialPanelRoot")
-        .background(Color::rgba(0.065, 0.068, 0.080, 0.98))
+        .background(panel_bg)
         .show(|panel_scope| {
             // 1. Top Header Bar
             build_material_header(panel_scope, params.entity, params.world);

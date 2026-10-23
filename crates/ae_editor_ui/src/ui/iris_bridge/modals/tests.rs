@@ -206,6 +206,7 @@ fn test_about_dialog_occludes_underlying_preferences_text() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
     let (_pref_id, pref_card_rect, _, _) =
         crate::ui::iris_bridge::preferences::builder::build_preferences_dialog(

@@ -42,7 +42,8 @@ pub const PREF_TAG_SECTION_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0100;
 pub const PREF_TAG_TOGGLE_BASE: u64 = PREFERENCES_TAG_DOMAIN | 0x0400;
 
 /// Static registry of collapsible section identifiers.
-pub const PREF_SECTIONS: [&str; 19] = [
+pub const PREF_SECTIONS: [&str; 20] = [
+    "general_theme",
     "general_scale",
     "general_viewport",
     "graphics_shadows",
@@ -220,6 +221,8 @@ pub struct PreferencesParams<'a> {
     pub enabled_modules: &'a HashSet<EngineModule>,
     /// Frame interaction events mapped by 64-bit semantic tags for declarative two-way data binding.
     pub events: &'a [(u64, InteractionEvent)],
+    /// Currently active workspace theme preset (Obsidian Deep or Cold Slate).
+    pub current_theme: crate::ui::iris_bridge::theme::ThemePreset,
 }
 
 /// Action resulting from user interaction within the Preferences dialog.
@@ -233,6 +236,8 @@ pub enum PreferencesAction {
     ToggleSection(&'static str),
     /// Set UI scale factor (e.g. 0.75, 1.0, 1.25).
     SetUiScale(f32),
+    /// Switch workspace color elevation theme preset.
+    SetTheme(crate::ui::iris_bridge::theme::ThemePreset),
     /// Toggle a boolean setting or engine module.
     Toggle(PreferencesToggleId),
     /// Reposition the floating modal dialog window during titlebar dragging.

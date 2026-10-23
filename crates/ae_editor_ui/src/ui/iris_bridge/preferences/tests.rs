@@ -123,6 +123,7 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_widget_id, card_rect, content_rect, max_scroll_y) =
@@ -243,6 +244,7 @@ fn test_preferences_combobox_mounting() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_widget_id, _card_rect, _content_rect, max_scroll_y) =
@@ -285,6 +287,7 @@ fn test_preferences_scroll_translates_children_upward() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let params_100 = PreferencesParams {
@@ -303,6 +306,7 @@ fn test_preferences_scroll_translates_children_upward() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree_0, params_0, &mut Vec::new());
@@ -367,6 +371,7 @@ fn test_preferences_declarative_text_wrap_and_scope_purity() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, _card_rect, _content_rect, max_scroll_y) =
@@ -479,6 +484,7 @@ fn test_preferences_two_way_data_binding_shadows_and_bloom() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &events,
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree, params, &mut Vec::new());
@@ -568,6 +574,7 @@ fn test_preferences_two_way_data_binding_editor_tab() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &events,
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree, params, &mut Vec::new());
@@ -623,6 +630,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree, params, &mut Vec::new());
@@ -665,6 +673,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &events,
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree_type, params_typed, &mut Vec::new());
@@ -702,6 +711,7 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, _card_rect, _content_rect, max_scroll_y) =
@@ -755,6 +765,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             enable_live_updates: false,
             enabled_modules: &enabled_modules,
             events: &[],
+            current_theme: Default::default(),
         },
         &mut Vec::new(),
     );
@@ -777,6 +788,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             enable_live_updates: false,
             enabled_modules: &enabled_modules,
             events: &[],
+            current_theme: Default::default(),
         },
         &mut Vec::new(),
     );
@@ -820,6 +832,7 @@ fn test_sync_scroll_in_place_translates_children() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, _card_rect, _content_rect, max_scroll_y) =
@@ -907,6 +920,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             enable_live_updates: false,
             enabled_modules: &enabled_modules,
             events: &[],
+            current_theme: Default::default(),
         },
         &mut Vec::new(),
     );
@@ -947,6 +961,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             enable_live_updates: false,
             enabled_modules: &enabled_modules,
             events: &[],
+            current_theme: Default::default(),
         },
         &mut Vec::new(),
     );
@@ -1003,6 +1018,7 @@ fn test_preferences_declarative_actions_dispatch() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &events_close,
+        current_theme: Default::default(),
     };
     let mut actions = Vec::new();
     build_preferences_dialog(&mut tree, params_close, &mut actions);
@@ -1037,6 +1053,7 @@ fn test_preferences_declarative_actions_dispatch() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &events_tab,
+        current_theme: Default::default(),
     };
     let mut actions_tab = Vec::new();
     build_preferences_dialog(&mut UiTree::new(), params_tab, &mut actions_tab);
@@ -1070,6 +1087,7 @@ fn test_preferences_declarative_actions_dispatch() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &events_drag,
+        current_theme: Default::default(),
     };
     let mut actions_drag = Vec::new();
     build_preferences_dialog(&mut UiTree::new(), params_drag, &mut actions_drag);

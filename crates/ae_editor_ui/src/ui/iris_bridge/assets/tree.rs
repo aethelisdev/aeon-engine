@@ -49,23 +49,27 @@ pub fn build_folder_tree_sidebar_scope(
     actions: &mut Vec<AssetsPanelAction>,
 ) {
     // 1. Sidebar Container with Hardware Scissor Clipping
+    let sidebar_bg = scope.theme().panel_bg;
+    let sidebar_border = scope.theme().panel_border;
     scope.container_named(
         "FolderTreeSidebarRoot",
         Style::new()
             .flex_col()
-            .background(Color::rgba(0.06, 0.07, 0.09, 0.98))
-            .border(1.0, Color::rgba(0.18, 0.20, 0.26, 0.70))
+            .background(sidebar_bg)
+            .border(1.0, sidebar_border)
             .clip_children(true)
             .width(sidebar_rect.width)
             .height(sidebar_rect.height),
         |sidebar| {
             // 2. Header Bar ("FOLDERS" + "+" button)
+            let header_bg = sidebar.theme().card_header_bg;
+            let header_border = sidebar.theme().divider;
             sidebar.container_named(
                 "FolderTreeHeader",
                 Style::new()
                     .flex_row()
-                    .background(Color::rgba(0.08, 0.09, 0.12, 0.95))
-                    .border(1.0, Color::rgba(0.16, 0.18, 0.24, 0.50))
+                    .background(header_bg)
+                    .border(1.0, header_border)
                     .height(FOLDER_HEADER_HEIGHT)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::SpaceBetween)

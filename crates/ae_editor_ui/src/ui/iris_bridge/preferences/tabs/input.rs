@@ -74,13 +74,16 @@ pub fn build_input_tab(scope: &mut UiScope<'_>, params: &mut PreferencesParams<'
                 ),
             ];
 
+            let card_bg = body.theme().card_bg;
+            let card_border = body.theme().card_border;
+
             for (action_name, hotkey, note) in shortcuts {
                 body.container_named(
                     "InputGestureCard",
                     Style::new()
                         .flex_col()
-                        .background(Color::rgba(0.09, 0.10, 0.14, 0.85))
-                        .border(1.0, Color::rgba(0.18, 0.20, 0.28, 0.90))
+                        .background(card_bg)
+                        .border(1.0, card_border)
                         .border_radius(6.0)
                         .padding_insets(Insets::new(8.0, 12.0, 8.0, 12.0))
                         .margin_insets(Insets::new(0.0, 0.0, 8.0, 0.0)),

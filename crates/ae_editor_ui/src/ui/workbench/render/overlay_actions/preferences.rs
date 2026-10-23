@@ -70,6 +70,11 @@ impl EngineUi {
                     }
                 },
                 iris_bridge::PreferencesAction::ToggleSection(_) => {}
+                iris_bridge::PreferencesAction::SetTheme(t) => {
+                    self.iris_overlay.chrome.theme_preset = t;
+                    self.iris_overlay.notifier.tag_all();
+                    self.iris_overlay.chrome.needs_layout_rebuild = true;
+                }
             }
         }
     }

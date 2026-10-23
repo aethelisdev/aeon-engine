@@ -75,12 +75,13 @@ pub fn build_assets_panel(
                         );
                     }
 
+                    let content_bg = body_scope.theme().panel_bg;
                     body_scope.container_named(
                         "AssetsContentArea",
                         Style::new()
                             .flex_col()
                             .flex_grow(1.0)
-                            .background(Color::rgba(0.04, 0.05, 0.07, 0.98)),
+                            .background(content_bg),
                         |content_scope| match params.view_mode {
                             AssetViewMode::Grid => {
                                 build_asset_grid_cards_scope(

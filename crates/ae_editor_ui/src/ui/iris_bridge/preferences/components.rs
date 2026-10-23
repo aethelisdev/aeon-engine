@@ -33,7 +33,7 @@ pub fn pref_heading(scope: &mut UiScope<'_>, title: &'static str, subtitle: &'st
                     .margin_insets(Insets::new(0.0, 0.0, 10.0, 0.0)),
             ),
         );
-        col.divider(Color::rgba(0.20, 0.22, 0.30, 0.70));
+        col.divider(col.theme().divider);
         col.empty_box_passive_named("PrefHeadingSpacer", Style::new().height(8.0));
     });
 }
@@ -53,13 +53,22 @@ where
 {
     let tag = encode_section_tag(sec_id);
     let mut header_resp = WidgetResponse::default();
+    let card_bg = scope.theme().card_bg;
+    let card_border = scope.theme().card_border;
+    let header_bg = scope.theme().card_header_bg;
+    let hover_bg = header_bg.lerp(Color::WHITE, 0.08);
+    let radii = if is_collapsed {
+        CornerRadii::all(5.0)
+    } else {
+        CornerRadii::new(5.0, 5.0, 0.0, 0.0)
+    };
 
     scope.container_named(
         "PrefSectionCard",
         Style::new()
             .flex_col()
-            .background(Color::rgba(0.10, 0.11, 0.14, 0.95))
-            .border(1.0, Color::rgba(0.20, 0.23, 0.30, 0.85))
+            .background(card_bg)
+            .border(1.0, card_border)
             .border_radius(6.0)
             .margin_insets(Insets::new(0.0, 0.0, 14.0, 0.0)),
         |card| {
@@ -71,9 +80,9 @@ where
                     .align_items(AlignItems::Center)
                     .height(34.0)
                     .padding_insets(Insets::new(0.0, 12.0, 0.0, 12.0))
-                    .background(Color::rgba(0.12, 0.13, 0.17, 0.85))
-                    .hover_background(Color::rgba(0.16, 0.18, 0.24, 0.90))
-                    .border_radius(5.0),
+                    .background(header_bg)
+                    .hover_background(hover_bg)
+                    .corner_radii(radii),
                 WidgetRole::Button,
                 tag,
                 |hdr| {
@@ -99,6 +108,7 @@ where
 
             // Collapsible Content Body
             if !is_collapsed {
+                card.divider(card.theme().card_border);
                 card.container_named(
                     "PrefSectionBody",
                     Style::new()
@@ -139,11 +149,15 @@ pub fn pref_toggle_row(
         WidgetRole::Checkbox,
         tag,
         |row| {
-            // Checkbox visual indicator box
             let box_bg = if is_checked {
                 Color::rgba(0.0, 0.70, 0.85, 1.0)
             } else {
-                Color::rgba(0.11, 0.12, 0.16, 1.0)
+                row.theme().button_idle_bg
+            };
+            let box_border = if is_checked {
+                Color::rgba(0.0, 0.85, 1.0, 1.0)
+            } else {
+                row.theme().button_border
             };
 
             row.container_named(
@@ -152,7 +166,7 @@ pub fn pref_toggle_row(
                     .width(16.0)
                     .height(16.0)
                     .background(box_bg)
-                    .border(1.0, Color::rgba(0.25, 0.30, 0.42, 1.0))
+                    .border(1.0, box_border)
                     .border_radius(3.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)

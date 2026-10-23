@@ -124,8 +124,8 @@ pub fn build_preferences_dialog(
             .width(PREF_CARD_WIDTH)
             .height(PREF_CARD_HEIGHT)
             .flex_col()
-            .background(Color::rgba(0.08, 0.09, 0.12, 0.98))
-            .border(1.0, Color::rgba(0.20, 0.23, 0.32, 1.0))
+            .background(root_scope.theme().modal_bg)
+            .border(1.0, root_scope.theme().modal_border)
             .border_radius(10.0)
             .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.75))
             .clip_children(true),
@@ -133,6 +133,7 @@ pub fn build_preferences_dialog(
         PREF_TAG_CARD,
         |card| {
             // 2. Titlebar Strip - unified deep black matching sidebar with matching top rounded corners
+            let titlebar_bg = card.theme().toolbar_bg;
             let titlebar_resp = card.container_tagged_resp(
                 "PreferencesTitlebar",
                 Style::new()
@@ -141,7 +142,7 @@ pub fn build_preferences_dialog(
                     .justify_content(JustifyContent::SpaceBetween)
                     .height(TITLEBAR_HEIGHT)
                     .padding_insets(Insets::new(0.0, 14.0, 0.0, 10.0))
-                    .background(Color::rgba(0.07, 0.08, 0.10, 0.98))
+                    .background(titlebar_bg)
                     .corner_radii(CornerRadii::new(10.0, 10.0, 0.0, 0.0)),
                 WidgetRole::ModalTitlebar,
                 PREF_TAG_TITLEBAR,
@@ -210,7 +211,8 @@ pub fn build_preferences_dialog(
             }
 
             // 1px Horizontal Titlebar Divider
-            card.divider(Color::rgba(0.20, 0.22, 0.30, 0.70));
+            let card_divider = card.theme().divider;
+            card.divider(card_divider);
 
             // 3. Body: Sidebar + Divider + Content View
             card.container_named(
@@ -218,6 +220,8 @@ pub fn build_preferences_dialog(
                 Style::new().flex_row().flex_grow(1.0).height(content_h),
                 |body| {
                     // Left Sidebar
+                    let sidebar_bg = body.theme().panel_bg;
+                    let text_secondary = body.theme().text_secondary;
                     body.container_named(
                         "PreferencesSidebar",
                         Style::new()
@@ -225,7 +229,7 @@ pub fn build_preferences_dialog(
                             .height(content_h)
                             .flex_col()
                             .padding_insets(Insets::new(8.0, 6.0, 8.0, 6.0))
-                            .background(Color::rgba(0.07, 0.08, 0.10, 0.90)),
+                            .background(sidebar_bg),
                         |sidebar| {
                             for &(label, tab_idx) in &SIDEBAR_TABS {
                                 let tab_tag = encode_tab_tag(tab_idx);
@@ -241,7 +245,7 @@ pub fn build_preferences_dialog(
                                     (
                                         Color::TRANSPARENT,
                                         Color::rgba(0.18, 0.20, 0.28, 0.50),
-                                        Color::rgba(0.80, 0.83, 0.90, 1.0),
+                                        text_secondary,
                                     )
                                 };
 
@@ -302,7 +306,8 @@ pub fn build_preferences_dialog(
                     );
 
                     // Vertical Divider
-                    body.vertical_divider(content_h, Color::rgba(0.20, 0.22, 0.30, 0.70));
+                    let v_divider = body.theme().divider;
+                    body.vertical_divider(content_h, v_divider);
 
                     let current_scroll = body.tree().scroll_offset(PREF_TAG_CONTENT_VIEW);
 

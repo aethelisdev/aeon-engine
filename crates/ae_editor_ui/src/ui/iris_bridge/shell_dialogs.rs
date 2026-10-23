@@ -90,6 +90,7 @@ impl IrisEditorOverlay {
                     enable_live_updates: params.context.enable_live_updates,
                     enabled_modules: params.preferences.enabled_modules,
                     events: &self.preferences.pending_interaction_events,
+                    current_theme: self.chrome.theme_preset,
                 },
                 &mut self.preferences.interactions.actions,
             );

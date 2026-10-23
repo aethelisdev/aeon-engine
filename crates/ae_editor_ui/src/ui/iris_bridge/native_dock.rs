@@ -14,6 +14,6 @@ pub mod overflow;
 pub mod tests;
 pub mod types;
 
-pub use builder::{build_native_dock, editor_dock_style};
+pub use builder::{build_native_dock, editor_dock_style, editor_dock_style_with_tokens};
 pub use overflow::build_native_dock_overflow_menu;
 pub use types::*;

@@ -70,6 +70,11 @@ impl EngineUi {
                 self.iris_overlay.preferences.tab = t;
                 self.iris_overlay.preferences.reset_scroll();
             }
+            if let crate::ui::iris_bridge::PreferencesAction::SetTheme(t) = pref_act {
+                self.iris_overlay.chrome.theme_preset = t;
+                self.iris_overlay.notifier.tag_all();
+                self.iris_overlay.chrome.needs_layout_rebuild = true;
+            }
             self.pending_preferences_actions.push(pref_act);
         }
         if iris_res.open_about {

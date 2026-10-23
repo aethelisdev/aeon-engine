@@ -14,12 +14,14 @@ use irisui::prelude::*;
 /// Builds an empty-state placeholder card when no entity is currently selected directly on [`UiScope`].
 pub fn build_no_entity_selected(scope: &mut UiScope<'_>, panel_width: f32) {
     let card_w = (panel_width - 24.0).max(100.0);
+    let card_bg = scope.theme().card_bg;
+    let card_border = scope.theme().card_border;
     let card_style = Style::new()
         .flex_col()
         .align_items(AlignItems::Center)
         .width(card_w)
-        .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
-        .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
+        .background(card_bg)
+        .border(1.0, card_border)
         .border_radius(8.0)
         .padding_insets(Insets::new(14.0, 14.0, 14.0, 14.0))
         .gap(4.0);
@@ -52,12 +54,14 @@ pub fn build_no_renderable_geometry(
     actions: &mut Vec<super::types::MaterialAction>,
 ) {
     let card_w = (panel_width - 24.0).max(100.0);
+    let card_bg = scope.theme().card_bg;
+    let card_border = scope.theme().card_border;
     let card_style = Style::new()
         .flex_col()
         .align_items(AlignItems::Center)
         .width(card_w)
-        .background(Color::rgba(0.09, 0.10, 0.12, 0.95))
-        .border(1.0, Color::rgba(0.18, 0.20, 0.25, 0.80))
+        .background(card_bg)
+        .border(1.0, card_border)
         .border_radius(8.0)
         .padding_insets(Insets::new(14.0, 14.0, 14.0, 14.0))
         .gap(4.0);

@@ -79,6 +79,7 @@ fn test_preferences_handle_scroll_area_event_wheel_scrolling() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, _card_rect, content_rect, max_scroll_y) =
@@ -140,6 +141,7 @@ fn test_preferences_handle_scroll_area_event_thumb_drag_lifecycle() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, _card_rect, content_rect, max_scroll_y) =
@@ -200,6 +202,7 @@ fn test_preferences_wheel_outside_content_is_unconsumed() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, card_rect, _content_rect, _max_scroll_y) =
@@ -247,6 +250,7 @@ fn test_preferences_titlebar_drag_interaction() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let mut actions = Vec::new();
@@ -301,6 +305,7 @@ fn test_preferences_titlebar_drag_interaction() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree, params2, &mut frame_actions);
@@ -353,6 +358,7 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let mut actions = Vec::new();
@@ -393,6 +399,7 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
     build_preferences_dialog(&mut tree, params2, &mut actions2);
     let _ = layout_engine.compute_layout(&mut tree, Size::new(1920.0, 1080.0));

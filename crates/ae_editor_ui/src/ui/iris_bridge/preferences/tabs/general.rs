@@ -77,6 +77,51 @@ pub fn build_general_tab(
         },
     );
 
+    let is_theme_collapsed = params.collapsed_sections.contains("general_theme");
+
+    pref_section_card(
+        scope,
+        "general_theme",
+        "🎨  Workspace Theme",
+        is_theme_collapsed,
+        |body| {
+            body.label_styled_passive(
+                "ThemeDesc",
+                "Select workspace color elevation palette (Obsidian Deep or Cold Slate):",
+                11.5,
+                Color::rgba(0.70, 0.73, 0.80, 1.0),
+                TextAlign::Left,
+                Style::new().margin_insets(Insets::new(0.0, 0.0, 10.0, 0.0)),
+            );
+
+            let selected_label = match params.current_theme {
+                crate::ui::iris_bridge::theme::ThemePreset::ObsidianDeep => {
+                    "Obsidian Deep (High Contrast)"
+                }
+                crate::ui::iris_bridge::theme::ThemePreset::ColdSlate => {
+                    "Cold Slate (Studio Neutral)"
+                }
+            };
+
+            let theme_labels = [
+                "Obsidian Deep (High Contrast)",
+                "Cold Slate (Studio Neutral)",
+            ];
+            let resp = pref_combobox(body, "Theme Preset", selected_label, &theme_labels);
+            if resp.changed()
+                && let Some(idx) = resp.selected_index()
+            {
+                let new_theme = if idx == 0 {
+                    crate::ui::iris_bridge::theme::ThemePreset::ObsidianDeep
+                } else {
+                    crate::ui::iris_bridge::theme::ThemePreset::ColdSlate
+                };
+                params.current_theme = new_theme;
+                actions.push(PreferencesAction::SetTheme(new_theme));
+            }
+        },
+    );
+
     let is_sync_collapsed = params.collapsed_sections.contains("general_viewport");
 
     pref_section_card(

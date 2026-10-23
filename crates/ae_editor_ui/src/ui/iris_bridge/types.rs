@@ -278,6 +278,10 @@ pub struct IrisChromeState {
     /// When `false`, the text renderer bypasses Glyphon `prepare` and directly replays
     /// already-prepared GPU font buffers in the render pass for 1000+ FPS retained throughput.
     pub needs_text_prepare: bool,
+    /// Currently active workspace theme preset (Obsidian Deep or Cold Slate).
+    pub theme_preset: super::theme::ThemePreset,
+    /// Last recorded workspace theme preset to trigger full shell rebuild on theme changes.
+    pub last_theme_preset: super::theme::ThemePreset,
 }
 
 impl Default for IrisChromeState {
@@ -311,6 +315,8 @@ impl Default for IrisChromeState {
             last_preferences_active: false,
             always_rebuild: false,
             needs_text_prepare: true,
+            theme_preset: super::theme::ThemePreset::default(),
+            last_theme_preset: super::theme::ThemePreset::default(),
         }
     }
 }
@@ -330,6 +336,7 @@ impl IrisChromeState {
     ) -> bool {
         self.always_rebuild
             || self.needs_layout_rebuild
+            || self.last_theme_preset != self.theme_preset
             || self.last_dimensions != dimensions
             || (self.last_zoom_factor - zoom_factor).abs() > 1e-4
             || self.last_floating_count != floating_count

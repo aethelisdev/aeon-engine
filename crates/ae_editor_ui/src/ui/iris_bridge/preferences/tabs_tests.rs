@@ -43,6 +43,7 @@ fn test_preferences_all_ten_tabs_render_cleanly() {
             enable_live_updates: false,
             enabled_modules: &enabled_modules,
             events: &[],
+            current_theme: Default::default(),
         };
 
         let (_card_id, card_rect, content_rect, max_scroll_y) =
@@ -131,6 +132,7 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &nav_events,
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree_nav, params_nav, &mut Vec::new());
@@ -182,6 +184,7 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &input_events,
+        current_theme: Default::default(),
     };
 
     build_preferences_dialog(&mut tree_input, params_input, &mut Vec::new());
@@ -219,6 +222,7 @@ fn test_preferences_keymap_scroll_covers_full_content() {
         enable_live_updates: false,
         enabled_modules: &enabled_modules,
         events: &[],
+        current_theme: Default::default(),
     };
 
     let (_card_id, _card_rect, content_rect, max_scroll_y) =
