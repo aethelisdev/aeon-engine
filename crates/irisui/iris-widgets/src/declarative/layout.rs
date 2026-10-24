@@ -322,14 +322,23 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
         let mut flex_grow_sum = 0.0_f32;
         let mut unconstrained_count = 0;
         for cid in &children {
+            let pad_h = tree
+                .get(*cid)
+                .map_or(0.0, |n| n.style.padding.left + n.style.padding.right);
             let flex_grow = tree.get(*cid).map_or(0.0, |n| n.style.flex_grow);
             if flex_grow > 0.0 {
                 flex_grow_sum += flex_grow;
             } else if let Some(w) = tree.get(*cid).and_then(|n| n.style.width) {
                 fixed_w += w;
+            } else if let Some(content_w) = tree
+                .get(*cid)
+                .map(|n| n.content_size.width)
+                .filter(|&w| w > 0.0)
+            {
+                fixed_w += content_w + pad_h;
             } else if let Some(text) = tree.get(*cid).and_then(|n| n.text.as_ref()) {
                 let fs = tree.get(*cid).map_or(11.0, |n| n.font_size);
-                let w = (text.len() as f32 * fs * 0.65).ceil().max(20.0);
+                let w = iris_text::measure_text_advance(text, fs).ceil() + pad_h;
                 fixed_w += w;
             } else {
                 unconstrained_count += 1;
@@ -380,14 +389,23 @@ fn assign_children(tree: &mut UiTree, parent_id: WidgetId, inner: Rect) {
             (inner.x, 0.0)
         };
         for child_id in &children {
+            let pad_h = tree
+                .get(*child_id)
+                .map_or(0.0, |n| n.style.padding.left + n.style.padding.right);
             let flex_grow = tree.get(*child_id).map_or(0.0, |n| n.style.flex_grow);
             let child_w = if flex_grow > 0.0 {
                 flex_unit * flex_grow
             } else if let Some(w) = tree.get(*child_id).and_then(|n| n.style.width) {
                 w
+            } else if let Some(content_w) = tree
+                .get(*child_id)
+                .map(|n| n.content_size.width)
+                .filter(|&w| w > 0.0)
+            {
+                content_w + pad_h
             } else if let Some(text) = tree.get(*child_id).and_then(|n| n.text.as_ref()) {
                 let fs = tree.get(*child_id).map_or(11.0, |n| n.font_size);
-                (text.len() as f32 * fs * 0.65).ceil().max(20.0)
+                iris_text::measure_text_advance(text, fs).ceil() + pad_h
             } else if flex_grow_sum > 0.0 || justify == JustifyContent::SpaceBetween {
                 let measured = measure_width(tree, *child_id);
                 if measured > 0.0 {
@@ -618,14 +636,18 @@ pub fn measure_width(tree: &UiTree, node_id: WidgetId) -> f32 {
         return w;
     }
 
+    let pad_h = node.style.padding.left + node.style.padding.right;
+
     // Leaf node: use font_size and text length if it has text, otherwise style width or 0.0
     if node.children.is_empty() {
-        return if let Some(text) = &node.text {
-            let fs = node.font_size;
-            (text.len() as f32 * fs * 0.65).ceil().max(20.0)
+        let content_w = if node.content_size.width > 0.0 {
+            node.content_size.width
+        } else if let Some(text) = &node.text {
+            iris_text::measure_text_advance(text, node.font_size).ceil()
         } else {
             node.style.width.unwrap_or(0.0)
         };
+        return content_w + pad_h;
     }
 
     let pad = node.style.padding;

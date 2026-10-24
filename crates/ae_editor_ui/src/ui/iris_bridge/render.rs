@@ -327,7 +327,8 @@ impl IrisEditorOverlay {
         // Upload Aeon Engine logo to Layer 20 of the texture array
         const LOGO_ICON_BYTES: &[u8] = include_bytes!("../../../../../assets/icons/aeon_logo.png");
         if let Ok(logo_img) = image::load_from_memory(LOGO_ICON_BYTES) {
-            let logo_resized = logo_img
+            let cropped_logo = logo_img.crop_imm(45, 65, 930, 900);
+            let logo_resized = cropped_logo
                 .resize_exact(tile_size, tile_size, image::imageops::FilterType::Lanczos3)
                 .to_rgba8();
             let logo_bytes = logo_resized.into_raw();

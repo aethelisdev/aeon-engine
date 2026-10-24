@@ -44,13 +44,14 @@ fn test_preferences_drag_position_clamping_and_smooth_boundary_motion() {
         "Preferences window must clamp smoothly to 0.0 on the left without freezing"
     );
 
-    // 3. Dragging cursor into the top menubar boundary (cursor_pos.y = 10.0 <= MENUBAR_HEIGHT 28.0)
+    // 3. Dragging cursor into the top menubar boundary (cursor_pos.y = 10.0 <= MENUBAR_HEIGHT)
     let top_cursor = Point::new(500.0, 10.0);
     let top_pos =
         calculate_preferences_drag_pos(top_cursor, drag_offset, screen_width, screen_height);
+    let expected_min_y = crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT;
     assert_eq!(
-        top_pos.y, 28.0,
-        "Preferences window y must clamp safely to 28.0 beneath menubar without freezing"
+        top_pos.y, expected_min_y,
+        "Preferences window y must clamp safely beneath menubar without freezing"
     );
 
     // 4. Dragging cursor beyond the right/bottom screen edges
@@ -62,7 +63,7 @@ fn test_preferences_drag_position_clamping_and_smooth_boundary_motion() {
         screen_height,
     );
     let expected_max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
-    let expected_max_y = (screen_height - PREF_CARD_HEIGHT).max(28.0);
+    let expected_max_y = (screen_height - PREF_CARD_HEIGHT).max(expected_min_y);
     assert_eq!(max_pos.x, expected_max_x);
     assert_eq!(max_pos.y, expected_max_y);
 }

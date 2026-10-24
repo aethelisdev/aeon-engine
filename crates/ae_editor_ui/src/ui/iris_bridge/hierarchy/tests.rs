@@ -253,7 +253,12 @@ fn test_hierarchy_add_menu_dark_styling_and_popup_roles() {
 
     let world = World::new();
     let params = HierarchyPanelParams {
-        panel_rect: Rect::new(0.0, 28.0, 260.0, 600.0),
+        panel_rect: Rect::new(
+            0.0,
+            crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
+            260.0,
+            600.0,
+        ),
         world: &world,
         selected_entity: None,
         search_query: "",

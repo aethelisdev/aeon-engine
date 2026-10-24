@@ -31,7 +31,7 @@ pub mod tree_view;
 
 pub use collapsing::{CollapsingBuilder, CollapsingResponse};
 pub use menu_bar::{
-    MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarScope, MenuScope,
+    MENUBAR_DEFAULT_HEIGHT, MENUBAR_DROPDOWN_DEFAULT_WIDTH, MenuBarBuilder, MenuBarScope, MenuScope,
 };
 pub use panel::PanelBuilder;
 pub use scroll_area::ScrollAreaConfig;

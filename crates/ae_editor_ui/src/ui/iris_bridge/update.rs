@@ -453,14 +453,6 @@ impl IrisEditorOverlay {
                 },
             );
 
-            // Pre-measure all text nodes to populate intrinsic content_size
-            self.text_system.measure_subtree_text(&mut self.tree, root);
-
-            // Compute Taffy layout for top menu bar and status bar (only 2 children for clean SpaceBetween pinning)
-            let _ = self
-                .layout_engine
-                .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
-
             // 2b. Baseline dividers under MenuBar and above StatusBar (positioned absolutely with explicit styles)
             let mut scope = UiScope::new(&mut self.tree, root);
             scope.empty_box_passive_named(
@@ -483,7 +475,14 @@ impl IrisEditorOverlay {
                     .height(1.0)
                     .background(BORDER_MICRON),
             );
-            scope.finish_layout(Rect::new(0.0, 0.0, screen_width, screen_height));
+
+            // Pre-measure all text nodes to populate intrinsic content_size
+            self.text_system.measure_subtree_text(&mut self.tree, root);
+
+            // Compute Taffy layout for top menu bar, status bar, and dividers
+            let _ = self
+                .layout_engine
+                .compute_layout(&mut self.tree, Size::new(screen_width, screen_height));
 
             // 3. Build Native Iris UI Docking Frame (Splitters, Tab Strips, Compact Snug Tabs, Active Indicators)
             let workspace_rect = Rect::new(
@@ -498,7 +497,8 @@ impl IrisEditorOverlay {
                 } else {
                     (
                         ((screen_width - preferences::PREF_CARD_WIDTH) * 0.5).max(0.0),
-                        ((screen_height - preferences::PREF_CARD_HEIGHT) * 0.5).max(28.0),
+                        ((screen_height - preferences::PREF_CARD_HEIGHT) * 0.5)
+                            .max(Self::MENUBAR_HEIGHT),
                     )
                 };
                 Some(Rect::new(

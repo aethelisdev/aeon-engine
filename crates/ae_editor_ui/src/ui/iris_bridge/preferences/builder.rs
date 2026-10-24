@@ -64,11 +64,12 @@ pub fn calculate_preferences_drag_pos(
     screen_width: f32,
     screen_height: f32,
 ) -> Point {
+    let min_y = crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT;
     let max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
-    let max_y = (screen_height - PREF_CARD_HEIGHT).max(28.0);
+    let max_y = (screen_height - PREF_CARD_HEIGHT).max(min_y);
     Point::new(
         (cursor.x - drag_offset.x).clamp(0.0, max_x).round(),
-        (cursor.y - drag_offset.y).clamp(28.0, max_y).round(),
+        (cursor.y - drag_offset.y).clamp(min_y, max_y).round(),
     )
 }
 
@@ -82,18 +83,21 @@ pub fn build_preferences_dialog(
 ) -> (WidgetId, Rect, Rect, f32) {
     let screen_width = params.screen_width;
     let screen_height = params.screen_height;
+    let min_y = crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT;
 
     let (left, top) = if let Some(pos) = params.window_pos {
         let max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
-        let max_y = (screen_height - PREF_CARD_HEIGHT).max(28.0);
+        let max_y = (screen_height - PREF_CARD_HEIGHT).max(min_y);
         (
             pos.x.clamp(0.0, max_x).round(),
-            pos.y.clamp(28.0, max_y).round(),
+            pos.y.clamp(min_y, max_y).round(),
         )
     } else {
         (
             ((screen_width - PREF_CARD_WIDTH) * 0.5).max(0.0).round(),
-            ((screen_height - PREF_CARD_HEIGHT) * 0.5).max(28.0).round(),
+            ((screen_height - PREF_CARD_HEIGHT) * 0.5)
+                .max(min_y)
+                .round(),
         )
     };
 

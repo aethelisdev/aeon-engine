@@ -174,7 +174,7 @@ fn test_material_panel_does_not_mutate_parent_rect() {
                 .left(0.0)
                 .top(0.0)
                 .width(1920.0)
-                .height(28.0),
+                .height(crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT),
             |sub| {
                 sub.label("Top Menu");
             },
@@ -186,7 +186,12 @@ fn test_material_panel_does_not_mutate_parent_rect() {
     let world = hecs::World::new();
     let textures = ae_renderer::asset::AssetStorage::new();
     let models = ae_renderer::asset::AssetStorage::new();
-    let panel_rect = Rect::new(1400.0, 28.0, 520.0, 600.0);
+    let panel_rect = Rect::new(
+        1400.0,
+        crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT,
+        520.0,
+        600.0,
+    );
 
     let params = MaterialPanelParams {
         panel_rect,
@@ -204,7 +209,15 @@ fn test_material_panel_does_not_mutate_parent_rect() {
     let root_rect = tree.get(root).unwrap().computed_rect;
     let menubar_rect = tree.get(menubar).unwrap().computed_rect;
     assert_eq!(root_rect, Rect::new(0.0, 0.0, 1920.0, 1080.0));
-    assert_eq!(menubar_rect, Rect::new(0.0, 0.0, 1920.0, 28.0));
+    assert_eq!(
+        menubar_rect,
+        Rect::new(
+            0.0,
+            0.0,
+            1920.0,
+            crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT
+        )
+    );
 }
 
 #[test]

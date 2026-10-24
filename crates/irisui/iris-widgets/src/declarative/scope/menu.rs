@@ -31,17 +31,19 @@ impl<'a> UiScope<'a> {
         self.menu_bar_item_tagged(label_str, tag, is_active)
     }
 
-    /// Emits a top application menu bar button with an explicit semantic interaction tag.
+    /// Emits a top application menu bar button with explicit tag and custom horizontal padding.
     ///
     /// # Arguments
     /// * `label` - Caption text displayed on the menu bar button.
     /// * `tag` - Explicit semantic identifier constant inspected during menu activation routing.
     /// * `is_active` - Whether the dropdown associated with this menu item is currently open.
-    pub fn menu_bar_item_tagged(
+    /// * `pad_h` - Horizontal padding in physical pixels applied symmetrically on left and right.
+    pub fn menu_bar_item_styled(
         &mut self,
         label: impl Into<String>,
         tag: u64,
         is_active: bool,
+        pad_h: f32,
     ) -> WidgetResponse {
         let label_str = label.into();
         let node_id = self.tree.create_node();
@@ -78,8 +80,8 @@ impl<'a> UiScope<'a> {
             };
             node.set_style(
                 Style::new()
-                    .height(20.0)
-                    .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
+                    .height(24.0)
+                    .padding_insets(Insets::new(3.0, pad_h, 3.0, pad_h))
                     .background(bg)
                     .hover_background(hover_bg)
                     .border_radius(theme.corner_radius_sm)
@@ -89,6 +91,21 @@ impl<'a> UiScope<'a> {
             );
         }
         WidgetResponse::new(node_id, clicked, hovered, false)
+    }
+
+    /// Emits a top application menu bar button with an explicit semantic interaction tag.
+    ///
+    /// # Arguments
+    /// * `label` - Caption text displayed on the menu bar button.
+    /// * `tag` - Explicit semantic identifier constant inspected during menu activation routing.
+    /// * `is_active` - Whether the dropdown associated with this menu item is currently open.
+    pub fn menu_bar_item_tagged(
+        &mut self,
+        label: impl Into<String>,
+        tag: u64,
+        is_active: bool,
+    ) -> WidgetResponse {
+        self.menu_bar_item_styled(label, tag, is_active, super::menu_bar::MENU_ITEM_PAD_H)
     }
 
     /// Emits a prominent top menu action button (e.g. "▶ Play" or "⏹ Stop").
@@ -148,11 +165,11 @@ impl<'a> UiScope<'a> {
             node.hover_text_color = Some(Color::WHITE);
             node.set_style(
                 Style::new()
-                    .height(20.0)
-                    .padding_insets(Insets::new(2.0, 10.0, 2.0, 10.0))
+                    .height(24.0)
+                    .padding_insets(Insets::new(3.0, 12.0, 3.0, 12.0))
                     .background(bg_color)
                     .hover_background(hover_bg)
-                    .border_radius(3.0)
+                    .border_radius(4.0)
                     .align_items(AlignItems::Center)
                     .justify_content(JustifyContent::Center)
                     .flex_shrink(0.0),
@@ -208,8 +225,8 @@ impl<'a> UiScope<'a> {
             node.hover_text_color = Some(Color::WHITE);
             node.set_style(
                 Style::new()
-                    .width(36.0)
-                    .height(24.0)
+                    .width(42.0)
+                    .height(28.0)
                     .background(Color::TRANSPARENT)
                     .hover_background(hover_bg)
                     .border_radius(3.0)
