@@ -12,7 +12,7 @@ impl RenderState {
     pub fn execute_selection_outline_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        surface_view: &wgpu::TextureView,
+        target_view: &wgpu::TextureView,
         selected_prims: &[(ae_core::ecs::Shape, Instance)],
         selected_models: &[(crate::asset::AssetHandle, Instance)],
         asset_manager: &crate::asset::AssetManager,
@@ -117,22 +117,16 @@ impl RenderState {
             }
 
             {
-                let target_view = self
-                    .viewport_texture
-                    .as_ref()
-                    .map(|vt| &vt.view)
-                    .unwrap_or(surface_view);
-
                 let mut composite_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Outline Composite Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: target_view,
                         resolve_target: None,
-                        depth_slice: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Load,
                             store: wgpu::StoreOp::Store,
                         },
+                        depth_slice: None,
                     })],
                     depth_stencil_attachment: None,
                     timestamp_writes: None,

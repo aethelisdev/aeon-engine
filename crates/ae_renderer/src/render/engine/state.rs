@@ -31,6 +31,19 @@ impl RenderFrameScratch {
         self.model_starts.clear();
         self.transparent_model_draws.clear();
     }
+
+    /// Sorts transparent model submesh draws back-to-front (descending distance) for correct alpha blending.
+    ///
+    /// Uses in-place pattern-defeating quicksort (pdqsort) with branchless IEEE-754 `f32::total_cmp`.
+    /// Runs in $O(N)$ linear time on already-sorted or nearly-sorted frames with zero heap allocations.
+    /// Handles NaN and infinity values consistently without panic or undefined sorting behavior.
+    #[inline]
+    pub fn sort_transparent_model_draws(&mut self) {
+        if self.transparent_model_draws.len() > 1 {
+            self.transparent_model_draws
+                .sort_unstable_by(|a, b| b.distance_sq.total_cmp(&a.distance_sq));
+        }
+    }
 }
 
 /// Options containing viewport visualization flags.

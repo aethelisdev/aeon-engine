@@ -361,37 +361,42 @@ impl RenderState {
                         buffer_offset,
                     });
 
-                for (submesh_index, submesh) in model.submeshes.iter().enumerate() {
-                    if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend {
-                        for (inst_idx, item) in insts.iter().enumerate() {
-                            let dx = item.world_position[0] - cam_pos.x;
-                            let dy = item.world_position[1] - cam_pos.y;
-                            let dz = item.world_position[2] - cam_pos.z;
-                            let dist_sq = dx * dx + dy * dy + dz * dz;
-                            self.frame_scratch.transparent_model_draws.push(
-                                forward::TransparentSubmeshDraw {
-                                    distance_sq: dist_sq,
-                                    handle: *handle,
-                                    submesh_index,
-                                    buffer_offset,
-                                    instance_index: inst_idx,
-                                    override_tex: item.texture,
-                                },
-                            );
+                // O(N) Camera Distance Evaluation for Transparent Submeshes
+                // If any submesh requires alpha blending, computes distance squared ONCE per instance
+                // and reuses it across all blended submeshes instead of repeating O(N * M) calculations.
+                let has_blend_submeshes = model
+                    .submeshes
+                    .iter()
+                    .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend);
+
+                if has_blend_submeshes {
+                    for (inst_idx, item) in insts.iter().enumerate() {
+                        let dx = item.world_position[0] - cam_pos.x;
+                        let dy = item.world_position[1] - cam_pos.y;
+                        let dz = item.world_position[2] - cam_pos.z;
+                        let dist_sq = dx * dx + dy * dy + dz * dz;
+
+                        for (submesh_index, submesh) in model.submeshes.iter().enumerate() {
+                            if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend {
+                                self.frame_scratch.transparent_model_draws.push(
+                                    forward::TransparentSubmeshDraw {
+                                        distance_sq: dist_sq,
+                                        handle: *handle,
+                                        submesh_index,
+                                        buffer_offset,
+                                        instance_index: inst_idx,
+                                        override_tex: item.texture,
+                                    },
+                                );
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Sort transparent model submeshes Back-to-Front (descending distance)
-        // Uses in-place pdqsort (sort_unstable_by) with branchless total_cmp.
-        // Runs in O(N) linear time on already-sorted or nearly-sorted frames without heap allocations.
-        if self.frame_scratch.transparent_model_draws.len() > 1 {
-            self.frame_scratch
-                .transparent_model_draws
-                .sort_unstable_by(|a, b| b.distance_sq.total_cmp(&a.distance_sq));
-        }
+        // Sort transparent model submeshes Back-to-Front (descending distance) using engine scratch method
+        self.frame_scratch.sort_transparent_model_draws();
 
         self.geometry.update_instances(
             &self.device,
@@ -422,11 +427,6 @@ impl RenderState {
             bytemuck::cast_slice(&[self.graphics_settings.bloom_intensity]),
         );
 
-        let AcquiredFrameSurface {
-            output,
-            surface_view,
-            acquire_wait,
-        } = self.acquire_surface_frame()?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -463,7 +463,7 @@ impl RenderState {
         );
         let shadow_pass_record_ms = shadow_timer.elapsed().as_secs_f32() * 1000.0;
 
-        // PASS 1: MAIN FORWARD PASS
+        // PASS 1: MAIN FORWARD PASS (renders to decoupled scene_texture / MSAA target)
         let main_timer = std::time::Instant::now();
         self.last_render_stats = self.execute_main_forward_pass(
             &mut encoder,
@@ -494,13 +494,27 @@ impl RenderState {
         let main_opaque_pass_record_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
         self.last_render_stats.culled_meshes = scene.culled_entities_count;
 
+        // Late Swapchain Acquisition:
+        // When decoupled ViewportTexture is active, defer swapchain surface acquisition
+        // until post-processing and outlines have recorded their commands.
+        // This avoids blocking CPU threads on VSync (FIFO/Mailbox get_current_texture stalls)
+        // during shadow cascade updates, forward pass encoding, and bloom execution.
+        let has_viewport = self.viewport_texture.is_some();
+        let early_acquired_surface = if !has_viewport {
+            Some(self.acquire_surface_frame()?)
+        } else {
+            None
+        };
+
         // BLOOM & POST PROCESS
         let post_timer = std::time::Instant::now();
-        let target_view = self
-            .viewport_texture
-            .as_ref()
-            .map(|vt| &vt.view)
-            .unwrap_or(&surface_view);
+        let target_view = if let Some(vt) = &self.viewport_texture {
+            &vt.view
+        } else if let Some(early_surface) = &early_acquired_surface {
+            &early_surface.surface_view
+        } else {
+            return Ok(());
+        };
         self.post_process.execute(
             &mut encoder,
             target_view,
@@ -511,12 +525,22 @@ impl RenderState {
         // PASS 2: SCREEN-SPACE SILHOUETTE OUTLINE PASS
         self.execute_selection_outline_pass(
             &mut encoder,
-            &surface_view,
+            target_view,
             &scene.selected_primitive_instances,
             &scene.selected_model_instances,
             asset_manager,
         );
         let post_process_pass_record_ms = post_timer.elapsed().as_secs_f32() * 1000.0;
+
+        // Acquire swapchain surface now if it was deferred during decoupled viewport rendering
+        let AcquiredFrameSurface {
+            output,
+            surface_view,
+            acquire_wait,
+        } = match early_acquired_surface {
+            Some(s) => s,
+            None => self.acquire_surface_frame()?,
+        };
 
         let ui_timer = std::time::Instant::now();
         if let Some(render_ui) = ui_renderer {
@@ -657,56 +681,5 @@ impl RenderState {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_quantize_dimension_edge_cases() {
-        assert_eq!(quantize_dimension(0, 64), 0);
-        assert_eq!(quantize_dimension(1, 64), 64);
-        assert_eq!(quantize_dimension(63, 64), 64);
-        assert_eq!(quantize_dimension(64, 64), 64);
-        assert_eq!(quantize_dimension(65, 64), 128);
-        assert_eq!(quantize_dimension(128, 64), 128);
-        assert_eq!(quantize_dimension(1000, 128), 1024);
-        assert_eq!(quantize_dimension(50, 0), 0);
-    }
-
-    #[test]
-    fn test_transparent_sort_invariants() {
-        let handle = crate::asset::AssetHandle::default();
-        let mut draws = [
-            forward::TransparentSubmeshDraw {
-                distance_sq: 10.0,
-                handle,
-                submesh_index: 0,
-                buffer_offset: 0,
-                instance_index: 0,
-                override_tex: None,
-            },
-            forward::TransparentSubmeshDraw {
-                distance_sq: 50.0,
-                handle,
-                submesh_index: 0,
-                buffer_offset: 0,
-                instance_index: 0,
-                override_tex: None,
-            },
-            forward::TransparentSubmeshDraw {
-                distance_sq: 25.0,
-                handle,
-                submesh_index: 0,
-                buffer_offset: 0,
-                instance_index: 0,
-                override_tex: None,
-            },
-        ];
-
-        draws.sort_unstable_by(|a, b| b.distance_sq.total_cmp(&a.distance_sq));
-
-        // Descending order (farthest first)
-        assert_eq!(draws[0].distance_sq, 50.0);
-        assert_eq!(draws[1].distance_sq, 25.0);
-        assert_eq!(draws[2].distance_sq, 10.0);
-    }
-}
+#[path = "pipeline/tests.rs"]
+mod tests;
