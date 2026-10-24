@@ -137,4 +137,140 @@ impl Instance {
             ],
         }
     }
+    /// Determines whether the model transformation matrix has negative scale (reflection / mirrored winding).
+    ///
+    /// Computes the determinant of the upper-left 3x3 rotation/scale submatrix.
+    #[inline]
+    pub fn is_mirrored(&self) -> bool {
+        let m = &self.model_matrix;
+        let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        det < 0.0
+    }
+}
+
+/// Pre-evaluated render instance item pairing GPU instance data with texture bindings and reflection flags.
+///
+/// Precomputing matrix reflection and texture handles decouples frame-time render loops
+/// from CPU determinant calculations and nested pattern-matching logic.
+#[derive(Copy, Clone, Debug)]
+pub struct RenderInstanceItem {
+    /// Raw GPU instance data containing model matrix and tint color.
+    pub instance: Instance,
+    /// Optional texture asset handle override for diffuse mapping.
+    pub texture: Option<crate::asset::AssetHandle>,
+    /// Precomputed indicator for negative scale reflection requiring clockwise vertex winding.
+    pub is_mirrored: bool,
+}
+
+impl RenderInstanceItem {
+    /// Constructs a new `RenderInstanceItem`, precomputing reflection parity from the instance matrix.
+    #[inline]
+    pub fn new(instance: Instance, texture: Option<crate::asset::AssetHandle>) -> Self {
+        let is_mirrored = instance.is_mirrored();
+        Self {
+            instance,
+            texture,
+            is_mirrored,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_instance(m: [[f32; 4]; 4]) -> Instance {
+        Instance {
+            model_matrix: m,
+            color: [1.0, 1.0, 1.0, 1.0],
+        }
+    }
+
+    #[test]
+    fn test_identity_matrix_is_not_mirrored() {
+        let inst = make_test_instance([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(!inst.is_mirrored());
+    }
+
+    #[test]
+    fn test_single_axis_negative_scale_is_mirrored() {
+        let inst_x = make_test_instance([
+            [-1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(inst_x.is_mirrored());
+
+        let inst_y = make_test_instance([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, -2.5, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(inst_y.is_mirrored());
+
+        let inst_z = make_test_instance([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, -0.5, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(inst_z.is_mirrored());
+    }
+
+    #[test]
+    fn test_two_axes_negative_scale_is_not_mirrored() {
+        // (-1) * (-1) * 1 = +1 (preserves winding order)
+        let inst = make_test_instance([
+            [-1.0, 0.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(!inst.is_mirrored());
+    }
+
+    #[test]
+    fn test_three_axes_negative_scale_is_mirrored() {
+        // (-1) * (-1) * (-1) = -1 (inverts winding order)
+        let inst = make_test_instance([
+            [-1.0, 0.0, 0.0, 0.0],
+            [0.0, -1.0, 0.0, 0.0],
+            [0.0, 0.0, -1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(inst.is_mirrored());
+    }
+
+    #[test]
+    fn test_zero_scale_singularity_matrix() {
+        let inst = make_test_instance([
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        assert!(!inst.is_mirrored());
+    }
+
+    #[test]
+    fn test_render_instance_item_new_caches_reflection() {
+        let inst = make_test_instance([
+            [-2.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]);
+        let item = RenderInstanceItem::new(inst, None);
+        assert!(item.is_mirrored);
+        assert_eq!(item.texture, None);
+    }
 }

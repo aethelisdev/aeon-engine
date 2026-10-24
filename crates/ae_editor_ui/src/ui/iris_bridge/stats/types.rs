@@ -29,6 +29,45 @@ pub const STATS_TAG_CANVAS: u64 = 0x5354_4154_0000_0004;
 /// Semantic tag assigned to the Stats telemetry scroll viewport container.
 pub const STATS_TAG_VIEWPORT: u64 = 0x5354_4154_0000_0005;
 
+/// Semantic tag assigned to the Average FPS & frametime telemetry label.
+pub const STATS_TAG_AVG_FPS: u64 = 0x5354_4154_0000_0010;
+
+/// Semantic tag assigned to the 1% Low FPS telemetry label.
+pub const STATS_TAG_LOW_1: u64 = 0x5354_4154_0000_0011;
+
+/// Semantic tag assigned to the 0.1% Low FPS telemetry label.
+pub const STATS_TAG_LOW_01: u64 = 0x5354_4154_0000_0012;
+
+/// Semantic tag assigned to the Frametime Jitter telemetry label.
+pub const STATS_TAG_JITTER: u64 = 0x5354_4154_0000_0013;
+
+/// Semantic tag assigned to the Frame Pacing Summary footer telemetry label.
+pub const STATS_TAG_SUMMARY: u64 = 0x5354_4154_0000_0014;
+
+/// Semantic tag assigned to the CPU Thread Balance status telemetry label.
+pub const STATS_TAG_CPU_BALANCE: u64 = 0x5354_4154_0000_0020;
+
+/// Semantic tag assigned to the CPU ECS/Logic timing telemetry label.
+pub const STATS_TAG_CPU_ECS: u64 = 0x5354_4154_0000_0021;
+
+/// Semantic tag assigned to the CPU Physics timing telemetry label.
+pub const STATS_TAG_CPU_PHYSICS: u64 = 0x5354_4154_0000_0022;
+
+/// Semantic tag assigned to the CPU Render Prep timing telemetry label.
+pub const STATS_TAG_CPU_RENDER: u64 = 0x5354_4154_0000_0023;
+
+/// Semantic tag assigned to the CPU Wait for GPU timing telemetry label.
+pub const STATS_TAG_CPU_WAIT: u64 = 0x5354_4154_0000_0024;
+
+/// Semantic tag assigned to the CPU UI/Editor timing telemetry label.
+pub const STATS_TAG_CPU_UI: u64 = 0x5354_4154_0000_0025;
+
+/// Semantic tag assigned to the CPU Total Frame timing telemetry label.
+pub const STATS_TAG_CPU_TOTAL: u64 = 0x5354_4154_0000_0026;
+
+/// Semantic tag assigned to the GPU Total Frame timing telemetry label.
+pub const STATS_TAG_GPU_TOTAL: u64 = 0x5354_4154_0000_0030;
+
 /// Returns `true` if the given 64-bit widget tag belongs to the Stats & Telemetry panel subsystem.
 #[inline]
 pub fn is_stats_tag(tag: u64) -> bool {
@@ -132,48 +171,5 @@ impl std::ops::Deref for StatsPanelState {
 impl std::ops::DerefMut for StatsPanelState {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.interactions
-    }
-}
-
-impl StatsPanelState {
-    /// Evaluates whether the Performance Stats & Telemetry panel requires an in-place repaint.
-    ///
-    /// Refreshes telemetry counters at 250ms cadence or when action events are pending.
-    pub fn is_dirty(
-        &self,
-        _params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        self.last_fps_refresh.elapsed().as_secs_f32() >= 0.25
-            || self.interactions.has_pending_actions()
-    }
-
-    /// Synchronizes rolling FPS text windowing calculations.
-    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        if self.frame_counter == 0 {
-            self.displayed_fps = params.telemetry.fps;
-            self.last_fps_refresh = std::time::Instant::now();
-        }
-        self.frame_counter += 1;
-        let now = std::time::Instant::now();
-        let elapsed = now.duration_since(self.last_fps_refresh).as_secs_f32();
-        if elapsed >= 0.25 {
-            self.displayed_fps = self.frame_counter as f32 / elapsed;
-            self.frame_counter = 0;
-            self.last_fps_refresh = now;
-        }
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(
-        &mut self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
     }
 }

@@ -16,5 +16,5 @@ pub mod viewport;
 pub use assets::{ModelAsset, ModelSubmesh, SubmeshAlphaMode, TextureAsset};
 pub use scene::RenderScene;
 pub use uniforms::{DEPTH_FORMAT, LightSpaceUniform, LightUniform, SkyUniform};
-pub use vertex::{INSTANCE_SIZE, Instance, SkinVertex, SpriteVertex, Vertex};
+pub use vertex::{INSTANCE_SIZE, Instance, RenderInstanceItem, SkinVertex, SpriteVertex, Vertex};
 pub use viewport::{FrameRenderStats, OverlayRenderer, RenderError, Viewport, ViewportRect};

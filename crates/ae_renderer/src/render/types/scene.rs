@@ -6,7 +6,7 @@
 //! Extracts visible entities from the ECS World into GPU-ready instances, applying spatial-partitioned frustum culling.
 
 use crate::render::types::uniforms::LightUniform;
-use crate::render::types::vertex::Instance;
+use crate::render::types::vertex::{Instance, RenderInstanceItem};
 
 /// Abstract representation of the scene to decouple RenderState from ECS.
 ///
@@ -14,17 +14,15 @@ use crate::render::types::vertex::Instance;
 /// sorts transparent objects back-to-front for correct alpha blending.
 pub struct RenderScene {
     pub light_uniform: LightUniform,
-    pub triangle_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    pub cube_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    pub sphere_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    pub cylinder_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    pub capsule_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    pub torus_instances: Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+    pub triangle_instances: Vec<RenderInstanceItem>,
+    pub cube_instances: Vec<RenderInstanceItem>,
+    pub sphere_instances: Vec<RenderInstanceItem>,
+    pub cylinder_instances: Vec<RenderInstanceItem>,
+    pub capsule_instances: Vec<RenderInstanceItem>,
+    pub torus_instances: Vec<RenderInstanceItem>,
     pub transparent_objs: Vec<(f32, crate::asset::AssetHandle, Instance)>,
-    pub model_instance_data: std::collections::HashMap<
-        crate::asset::AssetHandle,
-        Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    >,
+    pub model_instance_data:
+        std::collections::HashMap<crate::asset::AssetHandle, Vec<RenderInstanceItem>>,
     pub selected_primitive_instances: Vec<(ae_core::ecs::Shape, Instance)>,
     pub selected_model_instances: Vec<(crate::asset::AssetHandle, Instance)>,
     /// List of entity IDs that were determined to be visible within the camera's frustum during the culling pass.
@@ -168,7 +166,7 @@ impl RenderScene {
             Vec::with_capacity(total_ents.max(4));
         let mut model_instance_data: std::collections::HashMap<
             crate::asset::AssetHandle,
-            Vec<(Instance, Option<crate::asset::AssetHandle>)>,
+            Vec<RenderInstanceItem>,
         > = std::collections::HashMap::with_capacity(16);
         let mut selected_primitive_instances = Vec::with_capacity(selected_entities.len().max(2));
         let mut selected_model_instances = Vec::with_capacity(selected_entities.len().max(2));
@@ -393,27 +391,39 @@ impl RenderScene {
 
                 if let Some(m_handle) = active_model_handle {
                     let tex_handle = sprite_id.map(|s_id| s_id.0);
+                    let is_mirrored = if let Some(s) = scale {
+                        (s.x * s.y * s.z) < 0.0
+                    } else {
+                        instance.is_mirrored()
+                    };
+                    let render_item = RenderInstanceItem {
+                        instance,
+                        texture: tex_handle,
+                        is_mirrored,
+                    };
                     model_instance_data
                         .entry(m_handle)
                         .or_default()
-                        .push((instance, tex_handle));
+                        .push(render_item);
                 } else if let Some(s) = shape {
                     let tex_handle = sprite_id.map(|s_id| s_id.0);
+                    let is_mirrored = if let Some(s) = scale {
+                        (s.x * s.y * s.z) < 0.0
+                    } else {
+                        instance.is_mirrored()
+                    };
+                    let render_item = RenderInstanceItem {
+                        instance,
+                        texture: tex_handle,
+                        is_mirrored,
+                    };
                     match s {
-                        ae_core::ecs::Shape::Cube => cube_instances.push((instance, tex_handle)),
-                        ae_core::ecs::Shape::Triangle => {
-                            triangle_instances.push((instance, tex_handle))
-                        }
-                        ae_core::ecs::Shape::Sphere => {
-                            sphere_instances.push((instance, tex_handle))
-                        }
-                        ae_core::ecs::Shape::Cylinder => {
-                            cylinder_instances.push((instance, tex_handle))
-                        }
-                        ae_core::ecs::Shape::Capsule => {
-                            capsule_instances.push((instance, tex_handle))
-                        }
-                        ae_core::ecs::Shape::Torus => torus_instances.push((instance, tex_handle)),
+                        ae_core::ecs::Shape::Cube => cube_instances.push(render_item),
+                        ae_core::ecs::Shape::Triangle => triangle_instances.push(render_item),
+                        ae_core::ecs::Shape::Sphere => sphere_instances.push(render_item),
+                        ae_core::ecs::Shape::Cylinder => cylinder_instances.push(render_item),
+                        ae_core::ecs::Shape::Capsule => capsule_instances.push(render_item),
+                        ae_core::ecs::Shape::Torus => torus_instances.push(render_item),
                     }
                 } else if let Some(s_id) = sprite_id {
                     use cgmath::InnerSpace;

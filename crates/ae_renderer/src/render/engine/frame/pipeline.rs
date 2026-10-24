@@ -210,43 +210,84 @@ impl RenderState {
             + model_instance_data.values().map(|v| v.len()).sum::<usize>();
         let mut all_instances = Vec::with_capacity(total_instances);
         let tri_start = 0;
-        for (inst, _) in &triangle_instances {
-            all_instances.push(*inst);
+        for item in &triangle_instances {
+            all_instances.push(item.instance);
         }
         let cube_start = all_instances.len();
-        for (inst, _) in &cube_instances {
-            all_instances.push(*inst);
+        for item in &cube_instances {
+            all_instances.push(item.instance);
         }
         let sphere_start = all_instances.len();
-        for (inst, _) in &sphere_instances {
-            all_instances.push(*inst);
+        for item in &sphere_instances {
+            all_instances.push(item.instance);
         }
         let cylinder_start = all_instances.len();
-        for (inst, _) in &cylinder_instances {
-            all_instances.push(*inst);
+        for item in &cylinder_instances {
+            all_instances.push(item.instance);
         }
         let capsule_start = all_instances.len();
-        for (inst, _) in &capsule_instances {
-            all_instances.push(*inst);
+        for item in &capsule_instances {
+            all_instances.push(item.instance);
         }
         let torus_start = all_instances.len();
-        for (inst, _) in &torus_instances {
-            all_instances.push(*inst);
+        for item in &torus_instances {
+            all_instances.push(item.instance);
         }
         let sprite_start = all_instances.len();
         for (_, _, i) in &transparent_objs {
             all_instances.push(*i);
         }
-        let mut model_starts =
-            std::collections::HashMap::<crate::asset::AssetHandle, usize>::with_capacity(
-                asset_manager.models.capacity(),
-            );
+
+        let mut model_batches = Vec::with_capacity(model_instance_data.len());
+        let mut model_starts = std::collections::HashMap::with_capacity(model_instance_data.len());
+        let mut transparent_model_draws = Vec::new();
+        let cam_pos = camera.position_vec3();
+
         for (handle, insts) in &model_instance_data {
-            model_starts.insert(*handle, all_instances.len());
-            for (inst, _) in insts {
-                all_instances.push(*inst);
+            if insts.is_empty() {
+                continue;
+            }
+            if let Some(model) = asset_manager.models.get(*handle) {
+                let buffer_offset = all_instances.len();
+                model_starts.insert(*handle, buffer_offset);
+                for item in insts {
+                    all_instances.push(item.instance);
+                }
+                model_batches.push(forward::PreparedModelBatch {
+                    handle: *handle,
+                    model,
+                    instances: insts.as_slice(),
+                    buffer_offset,
+                });
+
+                for (submesh_index, submesh) in model.submeshes.iter().enumerate() {
+                    if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend {
+                        for (inst_idx, item) in insts.iter().enumerate() {
+                            let m = &item.instance.model_matrix;
+                            let inst_pos = cgmath::Vector3::new(m[3][0], m[3][1], m[3][2]);
+                            use cgmath::InnerSpace;
+                            let dist_sq = (inst_pos - cam_pos).magnitude2();
+                            transparent_model_draws.push(forward::TransparentSubmeshDraw {
+                                distance_sq: dist_sq,
+                                handle: *handle,
+                                model,
+                                submesh_index,
+                                buffer_offset,
+                                instance_index: inst_idx,
+                                override_tex: item.texture,
+                            });
+                        }
+                    }
+                }
             }
         }
+
+        // Sort transparent model submeshes Back-to-Front (descending distance)
+        transparent_model_draws.sort_by(|a, b| {
+            b.distance_sq
+                .partial_cmp(&a.distance_sq)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         self.geometry
             .update_instances(&self.device, &self.queue, &all_instances);
@@ -345,8 +386,8 @@ impl RenderState {
                 torus_start,
                 transparent_objs: &transparent_objs,
                 sprite_start,
-                model_instance_data: &model_instance_data,
-                model_starts: &model_starts,
+                model_batches: &model_batches,
+                transparent_model_draws: &transparent_model_draws,
                 overlays,
                 asset_manager,
             },

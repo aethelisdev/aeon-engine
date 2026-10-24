@@ -105,6 +105,21 @@ impl<T> DockState<T> {
         }
     }
 
+    /// Returns the current revision version of the docking hierarchy.
+    ///
+    /// The revision increments whenever tabs are switched, added, closed, moved, or split,
+    /// both in the main split tree and across all detached floating windows.
+    /// Allows host applications to detect structural tab changes in O(1) without per-frame allocations.
+    #[inline]
+    #[must_use]
+    pub fn revision(&self) -> u64 {
+        let mut rev = self.tree.revision();
+        for w in &self.floating_windows {
+            rev = rev.wrapping_add(w.tree.revision());
+        }
+        rev
+    }
+
     /// Sets the active tab on the specified leaf node.
     pub fn set_active_tab(&mut self, leaf: DockNodeId, active_tab: usize) -> Result<(), DockError> {
         self.tree.set_active_tab(leaf, active_tab)

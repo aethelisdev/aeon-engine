@@ -19,13 +19,11 @@ pub mod menubar;
 pub mod modals;
 /// Native docking chrome and geometry built directly into the retained Iris tree.
 pub mod native_dock;
-pub mod poll_dirty;
 pub mod preferences;
 pub mod render;
 pub mod shell_dialogs;
 pub mod stats;
 pub mod status_bar;
-pub mod subtree;
 pub mod theme;
 pub mod timeline;
 pub mod types;
@@ -35,8 +33,6 @@ pub mod viewport_content;
 pub mod viewport_hud;
 pub mod viewport_texture;
 
-#[cfg(test)]
-mod tests_dirty;
 #[cfg(test)]
 mod tests_update;
 

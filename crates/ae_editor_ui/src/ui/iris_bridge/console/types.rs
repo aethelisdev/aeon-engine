@@ -266,10 +266,6 @@ pub struct ConsolePanelState {
     pub filter: ConsoleFilterLevel,
     /// Whether Developer Console automatically scrolls down when new logs arrive.
     pub auto_scroll: bool,
-    /// Last recorded log entries count for detecting new incoming console logs.
-    pub last_entries_count: usize,
-    /// Last recorded log severity filter level.
-    pub last_filter: ConsoleFilterLevel,
 }
 
 impl Default for ConsolePanelState {
@@ -278,8 +274,6 @@ impl Default for ConsolePanelState {
             interactions: crate::ui::iris_bridge::types::PanelInteractionState::default(),
             filter: ConsoleFilterLevel::All,
             auto_scroll: true,
-            last_entries_count: 0,
-            last_filter: ConsoleFilterLevel::All,
         }
     }
 }
@@ -299,37 +293,3 @@ impl std::ops::DerefMut for ConsolePanelState {
 
 /// Semantic alias for [`ConsolePanelState`].
 pub type ConsoleState = ConsolePanelState;
-
-impl ConsolePanelState {
-    /// Evaluates whether the Developer Console panel requires an in-place repaint.
-    ///
-    /// Inspects whether new log entries arrived, logs were cleared, or the active
-    /// log severity filter changed.
-    pub fn is_dirty(
-        &self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        self.last_entries_count != params.panel_data.console_entries.len()
-            || self.last_filter != self.filter
-    }
-
-    /// Synchronizes internal cached snapshot values against active frame parameters.
-    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        self.last_entries_count = params.panel_data.console_entries.len();
-        self.last_filter = self.filter;
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(
-        &mut self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
-    }
-}

@@ -11,7 +11,7 @@ use crate::ui::iris_bridge::inspector::types::{
     ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorDropdownId,
     InspectorNumberDragState, InspectorNumberInputSession, InspectorTextInputId,
 };
-use crate::ui::iris_bridge::types::{OverlayUpdateParams, PanelInteractionState};
+use crate::ui::iris_bridge::types::PanelInteractionState;
 
 /// Persistent interactive state for the Scene Inspector panel overlay.
 #[derive(Debug, Default)]
@@ -52,8 +52,6 @@ pub struct InspectorPanelState {
     pub color_drag_mode: Option<InspectorColorDragMode>,
     /// Whether the floating Color Picker popup is currently open.
     pub is_color_picker_open: bool,
-    /// Last recorded selected entity for detecting Inspector invalidation.
-    pub last_selected_entity: Option<hecs::Entity>,
     /// Active ECS entity being inspected in the panel.
     pub inspected_entity: Option<hecs::Entity>,
     /// Current display name of the inspected entity.
@@ -81,20 +79,6 @@ impl std::ops::DerefMut for InspectorPanelState {
 pub type InspectorState = InspectorPanelState;
 
 impl InspectorPanelState {
-    /// Evaluates whether the Inspector panel requires an in-place repaint.
-    ///
-    /// Inspects whether the active ECS scene entity selection has changed, or if
-    /// an active text input, number drag, color editing session, or flyout menu is in progress.
-    pub fn is_dirty(&self, params: &OverlayUpdateParams<'_>) -> bool {
-        self.last_selected_entity != params.scene.selected_entity
-            || self.active_number_input.is_some()
-            || self.active_text_input.is_some()
-            || self.rename_input.is_some()
-            || self.drag_number.is_some()
-            || self.is_color_picker_open
-            || self.is_add_menu_open
-    }
-
     /// Starts an active entity rename session with full selection highlight.
     pub fn start_rename(&mut self, entity: hecs::Entity, name: &str) {
         let mut input = irisui::prelude::TextInputState::new(name);
@@ -107,22 +91,6 @@ impl InspectorPanelState {
     pub fn clear_rename(&mut self) {
         self.rename_input = None;
         self.rename_is_all_selected = false;
-    }
-
-    /// Synchronizes internal cached snapshot values against active frame parameters.
-    pub fn sync_dirty(&mut self, params: &OverlayUpdateParams<'_>) {
-        self.last_selected_entity = params.scene.selected_entity;
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(&mut self, params: &OverlayUpdateParams<'_>) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
     }
 
     /// Commits any pending numeric, text, or rename edit sessions if the selected entity changed.

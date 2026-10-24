@@ -378,7 +378,6 @@ fn test_ui_notifier_panel_tag_redraw() {
 
 #[test]
 fn test_update_loop_3_way_branching_and_retained_invariants() {
-    use crate::ui::iris_bridge::native_dock::NativeDockFrame;
     use crate::ui::panel_layout::PanelId;
     use irisui::layout::LayoutEngine;
     use irisui::prelude::{Button, Rect, Size, SubtreeSession, UiNotifier, UiScope, UiTree};
@@ -406,7 +405,7 @@ fn test_update_loop_3_way_branching_and_retained_invariants() {
     text_system.measure_subtree_text(&mut tree, root);
     let _ = layout_engine.compute_layout(&mut tree, Size::new(1920.0, 1080.0));
 
-    let dock_frame = NativeDockFrame {
+    let dock_frame = irisui::dock::DockChromeFrame {
         leaf_containers: vec![
             (PanelId::Inspector, inspector_leaf),
             (PanelId::Console, console_leaf),

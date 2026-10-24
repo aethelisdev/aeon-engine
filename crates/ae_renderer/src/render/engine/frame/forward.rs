@@ -1,44 +1,209 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
-//! Forward scene rendering pass for sky, grid, primitive meshes, 3D models, and sprites.
+//! Forward scene rendering pass for skybox, ground grid, primitives, 3D models, sprites, and editor overlays.
+//!
+//! Employs contiguous batch iteration, precomputed matrix reflection parity, and redundant state command elimination
+//! to minimize CPU-side submission overhead and GPU state thrashing.
 
 use crate::render::engine::state::{RenderOptions, RenderState};
-use crate::render::types::{INSTANCE_SIZE, Instance, OverlayRenderer};
+use crate::render::types::{
+    FrameRenderStats, INSTANCE_SIZE, Instance, ModelAsset, ModelSubmesh, OverlayRenderer,
+    RenderInstanceItem, SubmeshAlphaMode,
+};
+
+/// Prepared batch of model instances referencing cached GPU buffers and precomputed offsets.
+pub struct PreparedModelBatch<'a> {
+    /// Unique identifier of the underlying 3D model asset.
+    pub handle: crate::asset::AssetHandle,
+    /// Shared reference to the resident model geometry and submesh descriptors.
+    pub model: &'a ModelAsset,
+    /// Contiguous slice of instance items allocated for this model in the current frame.
+    pub instances: &'a [RenderInstanceItem],
+    /// Global instance offset within the GPU dynamic instance buffer.
+    pub buffer_offset: usize,
+}
+
+/// Pre-sorted transparent submesh draw call element for back-to-front depth ordering.
+pub struct TransparentSubmeshDraw<'a> {
+    /// Squared Euclidean distance from camera eye to instance world translation.
+    pub distance_sq: f32,
+    /// Handle of the resident 3D model asset.
+    pub handle: crate::asset::AssetHandle,
+    /// Reference to the target 3D model geometry.
+    pub model: &'a ModelAsset,
+    /// Index of the blended submesh within `model.submeshes`.
+    pub submesh_index: usize,
+    /// Base instance offset of the parent batch inside the GPU instance buffer.
+    pub buffer_offset: usize,
+    /// Local index of the instance item within the parent batch.
+    pub instance_index: usize,
+    /// Optional texture override specified on the entity instance.
+    pub override_tex: Option<crate::asset::AssetHandle>,
+}
 
 /// Context parameters required for executing the forward geometry and lighting pass.
 pub struct ForwardPassContext<'a> {
+    /// Viewport visual options (grid, wireframe, scale factor).
     pub options: &'a RenderOptions,
+    /// Total number of valid instances staged in the global GPU instance buffer.
     pub all_instances_len: usize,
-    pub triangle_instances: &'a [(Instance, Option<crate::asset::AssetHandle>)],
+    /// Contiguous primitive triangle instances.
+    pub triangle_instances: &'a [RenderInstanceItem],
+    /// Global instance buffer start offset for triangle primitives.
     pub tri_start: usize,
-    pub cube_instances: &'a [(Instance, Option<crate::asset::AssetHandle>)],
+    /// Contiguous primitive cube instances.
+    pub cube_instances: &'a [RenderInstanceItem],
+    /// Global instance buffer start offset for cube primitives.
     pub cube_start: usize,
-    pub sphere_instances: &'a [(Instance, Option<crate::asset::AssetHandle>)],
+    /// Contiguous primitive sphere instances.
+    pub sphere_instances: &'a [RenderInstanceItem],
+    /// Global instance buffer start offset for sphere primitives.
     pub sphere_start: usize,
-    pub cylinder_instances: &'a [(Instance, Option<crate::asset::AssetHandle>)],
+    /// Contiguous primitive cylinder instances.
+    pub cylinder_instances: &'a [RenderInstanceItem],
+    /// Global instance buffer start offset for cylinder primitives.
     pub cylinder_start: usize,
-    pub capsule_instances: &'a [(Instance, Option<crate::asset::AssetHandle>)],
+    /// Contiguous primitive capsule instances.
+    pub capsule_instances: &'a [RenderInstanceItem],
+    /// Global instance buffer start offset for capsule primitives.
     pub capsule_start: usize,
-    pub torus_instances: &'a [(Instance, Option<crate::asset::AssetHandle>)],
+    /// Contiguous primitive torus instances.
+    pub torus_instances: &'a [RenderInstanceItem],
+    /// Global instance buffer start offset for torus primitives.
     pub torus_start: usize,
+    /// Back-to-front sorted billboard sprite instances.
     pub transparent_objs: &'a [(f32, crate::asset::AssetHandle, Instance)],
+    /// Global instance buffer start offset for billboard sprites.
     pub sprite_start: usize,
-    pub model_instance_data: &'a std::collections::HashMap<
-        crate::asset::AssetHandle,
-        Vec<(Instance, Option<crate::asset::AssetHandle>)>,
-    >,
-    pub model_starts: &'a std::collections::HashMap<crate::asset::AssetHandle, usize>,
+    /// Contiguous slice of visible model batches active in the current frame.
+    pub model_batches: &'a [PreparedModelBatch<'a>],
+    /// Pre-sorted transparent model submesh draws ordered back-to-front by camera distance.
+    pub transparent_model_draws: &'a [TransparentSubmeshDraw<'a>],
+    /// Active viewport overlays (gizmos, bounds, debug visuals).
     pub overlays: &'a [&'a dyn OverlayRenderer],
+    /// Reference to the central asset manager for texture and mesh resolution.
     pub asset_manager: &'a crate::asset::AssetManager,
 }
 
+/// Active pipeline state discriminator for preventing redundant pipeline bindings.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum ActivePipeline {
+    Sky,
+    Grid,
+    RenderCcw,
+    RenderCw,
+    CutoutCcw,
+    CutoutCw,
+    Wireframe,
+    Transparent,
+    Sprite,
+}
+
+/// Tracks bound texture keys to eliminate redundant `set_bind_group(3, ...)` invocations.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum BoundTextureKey {
+    DefaultWhite,
+    Asset(crate::asset::AssetHandle),
+}
+
+/// Tracks currently bound GPU render pass state to eliminate redundant driver commands.
+#[derive(Default)]
+struct RenderPassTracker {
+    pipeline: Option<ActivePipeline>,
+    bound_texture: Option<BoundTextureKey>,
+    bound_model: Option<crate::asset::AssetHandle>,
+}
+
+impl RenderPassTracker {
+    #[inline]
+    fn set_pipeline<'a>(
+        &mut self,
+        pass: &mut wgpu::RenderPass<'a>,
+        pipeline_kind: ActivePipeline,
+        pipeline: &'a wgpu::RenderPipeline,
+    ) {
+        if self.pipeline != Some(pipeline_kind) {
+            pass.set_pipeline(pipeline);
+            self.pipeline = Some(pipeline_kind);
+        }
+    }
+
+    #[inline]
+    fn bind_texture<'a>(
+        &mut self,
+        pass: &mut wgpu::RenderPass<'a>,
+        key: BoundTextureKey,
+        bind_group: &'a wgpu::BindGroup,
+    ) {
+        if self.bound_texture != Some(key) {
+            pass.set_bind_group(3, bind_group, &[]);
+            self.bound_texture = Some(key);
+        }
+    }
+
+    #[inline]
+    fn bind_model_buffers<'a>(
+        &mut self,
+        pass: &mut wgpu::RenderPass<'a>,
+        handle: crate::asset::AssetHandle,
+        model: &'a ModelAsset,
+    ) {
+        if self.bound_model != Some(handle) {
+            pass.set_vertex_buffer(0, model.vertex_buffer.slice(..));
+            pass.set_index_buffer(model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            self.bound_model = Some(handle);
+        }
+    }
+
+    #[inline]
+    fn reset_model_buffers(&mut self) {
+        self.bound_model = None;
+    }
+}
+
+/// Resolves the texture handle and associated GPU bind group for a model submesh.
 #[inline]
-fn is_matrix_mirrored(m: &[[f32; 4]; 4]) -> bool {
-    let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
-        - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
-        + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-    det < 0.0
+fn resolve_submesh_texture<'a>(
+    model: &'a ModelAsset,
+    submesh: &ModelSubmesh,
+    override_tex: Option<crate::asset::AssetHandle>,
+    asset_manager: &'a crate::asset::AssetManager,
+    default_white: &'a wgpu::BindGroup,
+) -> (BoundTextureKey, &'a wgpu::BindGroup) {
+    let resolved_handle = override_tex.and_then(|custom_tex| {
+        if let Some(tex_idx) = submesh.texture_index {
+            if tex_idx > 0 && model.embedded_textures.len() > 1 {
+                model
+                    .embedded_textures
+                    .get(tex_idx)
+                    .copied()
+                    .filter(|h| asset_manager.textures.get(*h).is_some())
+                    .or(Some(custom_tex))
+            } else if Some(custom_tex) == model.default_texture {
+                model.embedded_textures.get(tex_idx).copied()
+            } else {
+                Some(custom_tex)
+            }
+        } else {
+            Some(custom_tex)
+        }
+    });
+
+    if let Some(handle) = resolved_handle
+        && let Some(tex) = asset_manager.textures.get(handle)
+    {
+        return (BoundTextureKey::Asset(handle), &tex.bind_group);
+    }
+
+    (BoundTextureKey::DefaultWhite, default_white)
+}
+
+/// Configuration descriptor for batching model submeshes by alpha blending mode.
+struct ModelBatchPassConfig<'a> {
+    batches: &'a [PreparedModelBatch<'a>],
+    target_mode: SubmeshAlphaMode,
+    is_cutout: bool,
 }
 
 impl RenderState {
@@ -48,8 +213,8 @@ impl RenderState {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         ctx: ForwardPassContext<'_>,
-    ) -> crate::render::types::FrameRenderStats {
-        let mut stats = crate::render::types::FrameRenderStats::default();
+    ) -> FrameRenderStats {
+        let mut stats = FrameRenderStats::default();
 
         let (color_view, resolve_target) = if self.post_process.msaa_samples > 1 {
             (
@@ -69,7 +234,7 @@ impl RenderState {
         };
 
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Main Pass"),
+            label: Some("Main Forward Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: color_view,
                 resolve_target,
@@ -96,600 +261,489 @@ impl RenderState {
         pass.set_bind_group(1, &self.uniforms.light_bind_group, &[]);
         pass.set_bind_group(2, &self.shadow.shadow_bind_group, &[]);
 
+        let mut tracker = RenderPassTracker::default();
+
         // --- SKY ---
-        pass.set_pipeline(&self.pipelines.sky_pipeline);
+        tracker.set_pipeline(&mut pass, ActivePipeline::Sky, &self.pipelines.sky_pipeline);
         pass.set_bind_group(1, &self.uniforms.sky_bind_group, &[]);
         pass.draw(0..3, 0..1);
 
-        // Restore light group for opaque geometry
+        // Restore light group for geometry passes
         pass.set_bind_group(1, &self.uniforms.light_bind_group, &[]);
 
         // --- GRID ---
         if ctx.options.grid_enabled {
-            pass.set_pipeline(&self.pipelines.grid_pipeline);
+            tracker.set_pipeline(
+                &mut pass,
+                ActivePipeline::Grid,
+                &self.pipelines.grid_pipeline,
+            );
             pass.set_vertex_buffer(0, self.geometry.grid_vertex_buffer.slice(..));
             pass.draw(0..6, 0..1);
         }
 
         if ctx.all_instances_len > 0 {
-            let draw_primitive_batch =
-                |pass: &mut wgpu::RenderPass,
-                 instances: &[(Instance, Option<crate::asset::AssetHandle>)],
-                 buf_start: usize,
-                 v_buf: &wgpu::Buffer,
-                 num_verts: u32,
-                 stats: &mut crate::render::types::FrameRenderStats| {
-                    let mut cur = 0;
-                    while cur < instances.len() {
-                        let start = cur;
-                        let tex_h = instances[cur].1;
-                        let mirrored = is_matrix_mirrored(&instances[cur].0.model_matrix);
-                        while cur < instances.len()
-                            && instances[cur].1 == tex_h
-                            && is_matrix_mirrored(&instances[cur].0.model_matrix) == mirrored
-                        {
-                            cur += 1;
-                        }
-                        let count = (cur - start) as u32;
-                        if mirrored {
-                            pass.set_pipeline(&self.pipelines.render_pipeline_cw);
-                        } else {
-                            pass.set_pipeline(&self.pipelines.render_pipeline);
-                        }
-                        let bg = tex_h
-                            .and_then(|h| ctx.asset_manager.textures.get(h))
-                            .map(|t| &t.bind_group)
-                            .unwrap_or(&self.default_white_texture.bind_group);
-                        pass.set_bind_group(3, bg, &[]);
-                        pass.set_vertex_buffer(0, v_buf.slice(..));
-                        pass.set_vertex_buffer(
-                            1,
-                            self.geometry
-                                .instance_buffer
-                                .slice(((buf_start + start) * INSTANCE_SIZE) as u64..),
-                        );
-                        pass.draw(0..num_verts, 0..count);
-                        stats.draw_calls += 1;
-                        if count > 1 {
-                            stats.instanced_draw_calls += 1;
-                        } else {
-                            stats.batched_draw_calls += 1;
-                        }
-                        stats.triangles += (num_verts as u64 / 3) * count as u64;
-                        stats.vertices += num_verts as u64 * count as u64;
-                        stats.entities_rendered += count;
-                    }
-                };
-
-            if !ctx.triangle_instances.is_empty() {
-                draw_primitive_batch(
-                    &mut pass,
-                    ctx.triangle_instances,
-                    ctx.tri_start,
-                    &self.geometry.vertex_buffer,
-                    self.geometry.triangle_num_vertices,
-                    &mut stats,
-                );
-            }
-            if !ctx.cube_instances.is_empty() {
-                draw_primitive_batch(
-                    &mut pass,
-                    ctx.cube_instances,
-                    ctx.cube_start,
-                    &self.geometry.cube_vertex_buffer,
-                    36,
-                    &mut stats,
-                );
-            }
-            if !ctx.sphere_instances.is_empty() {
-                draw_primitive_batch(
-                    &mut pass,
-                    ctx.sphere_instances,
-                    ctx.sphere_start,
-                    &self.geometry.sphere_vertex_buffer,
-                    self.geometry.sphere_num_vertices,
-                    &mut stats,
-                );
-            }
-            if !ctx.cylinder_instances.is_empty() {
-                draw_primitive_batch(
-                    &mut pass,
-                    ctx.cylinder_instances,
-                    ctx.cylinder_start,
-                    &self.geometry.cylinder_vertex_buffer,
-                    self.geometry.cylinder_num_vertices,
-                    &mut stats,
-                );
-            }
-            if !ctx.capsule_instances.is_empty() {
-                draw_primitive_batch(
-                    &mut pass,
-                    ctx.capsule_instances,
-                    ctx.capsule_start,
-                    &self.geometry.capsule_vertex_buffer,
-                    self.geometry.capsule_num_vertices,
-                    &mut stats,
-                );
-            }
-            if !ctx.torus_instances.is_empty() {
-                draw_primitive_batch(
-                    &mut pass,
-                    ctx.torus_instances,
-                    ctx.torus_start,
-                    &self.geometry.torus_vertex_buffer,
-                    self.geometry.torus_num_vertices,
-                    &mut stats,
-                );
-            }
+            // --- PRIMITIVES (OPAQUE) ---
+            self.draw_all_primitives(&mut pass, &ctx, &mut tracker, &mut stats);
 
             // --- PASS 1a: OPAQUE SUBMESHES ---
-            for (handle, m) in ctx.asset_manager.models.iter() {
-                if let Some(insts) = ctx.model_instance_data.get(&handle)
-                    && !insts.is_empty()
-                {
-                    let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
-                    let mut cur = 0;
-                    while cur < insts.len() {
-                        let start = cur;
-                        let override_tex = insts[cur].1;
-                        let mirrored = is_matrix_mirrored(&insts[cur].0.model_matrix);
-                        while cur < insts.len()
-                            && insts[cur].1 == override_tex
-                            && is_matrix_mirrored(&insts[cur].0.model_matrix) == mirrored
-                        {
-                            cur += 1;
-                        }
-                        let count = (cur - start) as u32;
-                        if mirrored {
-                            pass.set_pipeline(&self.pipelines.render_pipeline_cw);
-                        } else {
-                            pass.set_pipeline(&self.pipelines.render_pipeline);
-                        }
+            self.draw_model_batches(
+                &mut pass,
+                ModelBatchPassConfig {
+                    batches: ctx.model_batches,
+                    target_mode: SubmeshAlphaMode::Opaque,
+                    is_cutout: false,
+                },
+                &mut tracker,
+                &ctx,
+                &mut stats,
+            );
 
-                        pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                        pass.set_vertex_buffer(
-                            1,
-                            self.geometry
-                                .instance_buffer
-                                .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
-                        );
-                        pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-                        if m.submeshes.is_empty() {
-                            let bg = override_tex
-                                .and_then(|h| ctx.asset_manager.textures.get(h))
-                                .map(|t| &t.bind_group)
-                                .unwrap_or(&self.default_white_texture.bind_group);
-
-                            pass.set_bind_group(3, bg, &[]);
-                            pass.draw_indexed(0..m.num_indices, 0, 0..count);
-                            stats.draw_calls += 1;
-                            if count > 1 {
-                                stats.instanced_draw_calls += 1;
-                            } else {
-                                stats.batched_draw_calls += 1;
-                            }
-                            stats.triangles += (m.num_indices as u64 / 3) * count as u64;
-                            stats.vertices += m.raw_vertices.len() as u64 * count as u64;
-                            stats.entities_rendered += count;
-                        } else {
-                            for submesh in &m.submeshes {
-                                if submesh.alpha_mode
-                                    != crate::render::types::SubmeshAlphaMode::Opaque
-                                {
-                                    continue;
-                                }
-                                let bg = if let Some(custom_tex) = override_tex {
-                                    if let Some(tex_idx) = submesh.texture_index {
-                                        if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                            m.embedded_textures
-                                                .get(tex_idx)
-                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                                .map(|t| &t.bind_group)
-                                                .or_else(|| {
-                                                    ctx.asset_manager
-                                                        .textures
-                                                        .get(custom_tex)
-                                                        .map(|t| &t.bind_group)
-                                                })
-                                        } else if Some(custom_tex) == m.default_texture {
-                                            m.embedded_textures
-                                                .get(tex_idx)
-                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                                .map(|t| &t.bind_group)
-                                        } else {
-                                            ctx.asset_manager
-                                                .textures
-                                                .get(custom_tex)
-                                                .map(|t| &t.bind_group)
-                                        }
-                                    } else {
-                                        ctx.asset_manager
-                                            .textures
-                                            .get(custom_tex)
-                                            .map(|t| &t.bind_group)
-                                    }
-                                } else {
-                                    None
-                                }
-                                .unwrap_or(&self.default_white_texture.bind_group);
-
-                                pass.set_bind_group(3, bg, &[]);
-                                pass.draw_indexed(
-                                    submesh.start_index
-                                        ..(submesh.start_index + submesh.index_count),
-                                    0,
-                                    0..count,
-                                );
-                                stats.draw_calls += 1;
-                                if count > 1 {
-                                    stats.instanced_draw_calls += 1;
-                                } else {
-                                    stats.batched_draw_calls += 1;
-                                }
-                                stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
-                                stats.vertices += m.raw_vertices.len() as u64 * count as u64;
-                                stats.entities_rendered += count;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // --- PASS 1b: CUTOUT / MASK SUBMESHES (ALPHA TESTING WITH DEPTH WRITE) ---
-            let mut has_any_cutout_submesh = false;
-            for (handle, m) in ctx.asset_manager.models.iter() {
-                if let Some(insts) = ctx.model_instance_data.get(&handle)
-                    && !insts.is_empty()
-                    && m.submeshes
-                        .iter()
-                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
-                {
-                    has_any_cutout_submesh = true;
-                    break;
-                }
-            }
-
-            if has_any_cutout_submesh {
-                for (handle, m) in ctx.asset_manager.models.iter() {
-                    if let Some(insts) = ctx.model_instance_data.get(&handle)
-                        && !insts.is_empty()
-                        && m.submeshes
-                            .iter()
-                            .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Mask)
-                    {
-                        let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
-                        let mut cur = 0;
-                        while cur < insts.len() {
-                            let start = cur;
-                            let override_tex = insts[cur].1;
-                            let mirrored = is_matrix_mirrored(&insts[cur].0.model_matrix);
-                            while cur < insts.len()
-                                && insts[cur].1 == override_tex
-                                && is_matrix_mirrored(&insts[cur].0.model_matrix) == mirrored
-                            {
-                                cur += 1;
-                            }
-                            let count = (cur - start) as u32;
-                            if mirrored {
-                                pass.set_pipeline(&self.pipelines.cutout_pipeline_cw);
-                            } else {
-                                pass.set_pipeline(&self.pipelines.cutout_pipeline);
-                            }
-
-                            pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                            pass.set_vertex_buffer(
-                                1,
-                                self.geometry
-                                    .instance_buffer
-                                    .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
-                            );
-                            pass.set_index_buffer(
-                                m.index_buffer.slice(..),
-                                wgpu::IndexFormat::Uint32,
-                            );
-
-                            for submesh in &m.submeshes {
-                                if submesh.alpha_mode
-                                    != crate::render::types::SubmeshAlphaMode::Mask
-                                {
-                                    continue;
-                                }
-                                let bg = if let Some(custom_tex) = override_tex {
-                                    if let Some(tex_idx) = submesh.texture_index {
-                                        if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                            m.embedded_textures
-                                                .get(tex_idx)
-                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                                .map(|t| &t.bind_group)
-                                                .or_else(|| {
-                                                    ctx.asset_manager
-                                                        .textures
-                                                        .get(custom_tex)
-                                                        .map(|t| &t.bind_group)
-                                                })
-                                        } else if Some(custom_tex) == m.default_texture {
-                                            m.embedded_textures
-                                                .get(tex_idx)
-                                                .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                                .map(|t| &t.bind_group)
-                                        } else {
-                                            ctx.asset_manager
-                                                .textures
-                                                .get(custom_tex)
-                                                .map(|t| &t.bind_group)
-                                        }
-                                    } else {
-                                        ctx.asset_manager
-                                            .textures
-                                            .get(custom_tex)
-                                            .map(|t| &t.bind_group)
-                                    }
-                                } else {
-                                    None
-                                }
-                                .unwrap_or(&self.default_white_texture.bind_group);
-
-                                pass.set_bind_group(3, bg, &[]);
-                                pass.draw_indexed(
-                                    submesh.start_index
-                                        ..(submesh.start_index + submesh.index_count),
-                                    0,
-                                    0..count,
-                                );
-                                stats.draw_calls += 1;
-                                if count > 1 {
-                                    stats.instanced_draw_calls += 1;
-                                } else {
-                                    stats.batched_draw_calls += 1;
-                                }
-                                stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
-                                stats.vertices += m.raw_vertices.len() as u64 * count as u64;
-                                stats.entities_rendered += count;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if ctx.options.wireframe_enabled {
-            pass.set_pipeline(&self.pipelines.wireframe_pipeline);
-            pass.set_bind_group(3, &self.default_white_texture.bind_group, &[]);
-            if !ctx.triangle_instances.is_empty() {
-                pass.set_vertex_buffer(0, self.geometry.vertex_buffer.slice(..));
-                pass.set_vertex_buffer(
-                    1,
-                    self.geometry
-                        .instance_buffer
-                        .slice((ctx.tri_start * INSTANCE_SIZE) as u64..),
-                );
-                pass.draw(
-                    0..self.geometry.triangle_num_vertices,
-                    0..ctx.triangle_instances.len() as u32,
-                );
-            }
-            if !ctx.cube_instances.is_empty() {
-                pass.set_vertex_buffer(0, self.geometry.cube_vertex_buffer.slice(..));
-                pass.set_vertex_buffer(
-                    1,
-                    self.geometry
-                        .instance_buffer
-                        .slice((ctx.cube_start * INSTANCE_SIZE) as u64..),
-                );
-                pass.draw(0..36, 0..ctx.cube_instances.len() as u32);
-            }
-            if !ctx.sphere_instances.is_empty() {
-                pass.set_vertex_buffer(0, self.geometry.sphere_vertex_buffer.slice(..));
-                pass.set_vertex_buffer(
-                    1,
-                    self.geometry
-                        .instance_buffer
-                        .slice((ctx.sphere_start * INSTANCE_SIZE) as u64..),
-                );
-                pass.draw(
-                    0..self.geometry.sphere_num_vertices,
-                    0..ctx.sphere_instances.len() as u32,
-                );
-            }
-            if !ctx.cylinder_instances.is_empty() {
-                pass.set_vertex_buffer(0, self.geometry.cylinder_vertex_buffer.slice(..));
-                pass.set_vertex_buffer(
-                    1,
-                    self.geometry
-                        .instance_buffer
-                        .slice((ctx.cylinder_start * INSTANCE_SIZE) as u64..),
-                );
-                pass.draw(
-                    0..self.geometry.cylinder_num_vertices,
-                    0..ctx.cylinder_instances.len() as u32,
-                );
-            }
-            if !ctx.capsule_instances.is_empty() {
-                pass.set_vertex_buffer(0, self.geometry.capsule_vertex_buffer.slice(..));
-                pass.set_vertex_buffer(
-                    1,
-                    self.geometry
-                        .instance_buffer
-                        .slice((ctx.capsule_start * INSTANCE_SIZE) as u64..),
-                );
-                pass.draw(
-                    0..self.geometry.capsule_num_vertices,
-                    0..ctx.capsule_instances.len() as u32,
-                );
-            }
-            if !ctx.torus_instances.is_empty() {
-                pass.set_vertex_buffer(0, self.geometry.torus_vertex_buffer.slice(..));
-                pass.set_vertex_buffer(
-                    1,
-                    self.geometry
-                        .instance_buffer
-                        .slice((ctx.torus_start * INSTANCE_SIZE) as u64..),
-                );
-                pass.draw(
-                    0..self.geometry.torus_num_vertices,
-                    0..ctx.torus_instances.len() as u32,
-                );
-            }
-            for (handle, m) in ctx.asset_manager.models.iter() {
-                let c = ctx
-                    .model_instance_data
-                    .get(&handle)
-                    .map(|v| v.len())
-                    .unwrap_or(0) as u32;
-                if c > 0 {
-                    pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry.instance_buffer.slice(
-                            ((*ctx.model_starts.get(&handle).unwrap_or(&0)) * INSTANCE_SIZE)
-                                as u64..,
-                        ),
-                    );
-                    pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                    pass.draw_indexed(0..m.num_indices, 0, 0..c);
-                }
-            }
-        }
-
-        // --- PASS 2: TRANSPARENT SUBMESHES (ALPHA BLENDING) ---
-        let mut has_any_blend_submesh = false;
-        for (handle, m) in ctx.asset_manager.models.iter() {
-            if let Some(insts) = ctx.model_instance_data.get(&handle)
-                && !insts.is_empty()
-                && m.submeshes
+            // --- PASS 1b: CUTOUT / MASK SUBMESHES ---
+            let has_cutout = ctx.model_batches.iter().any(|b| {
+                b.model
+                    .submeshes
                     .iter()
-                    .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend)
-            {
-                has_any_blend_submesh = true;
-                break;
+                    .any(|s| s.alpha_mode == SubmeshAlphaMode::Mask)
+            });
+            if has_cutout {
+                self.draw_model_batches(
+                    &mut pass,
+                    ModelBatchPassConfig {
+                        batches: ctx.model_batches,
+                        target_mode: SubmeshAlphaMode::Mask,
+                        is_cutout: true,
+                    },
+                    &mut tracker,
+                    &ctx,
+                    &mut stats,
+                );
             }
         }
 
-        if has_any_blend_submesh {
-            pass.set_pipeline(&self.pipelines.transparent_pipeline);
-            for (handle, m) in ctx.asset_manager.models.iter() {
-                if let Some(insts) = ctx.model_instance_data.get(&handle)
-                    && !insts.is_empty()
-                    && m.submeshes
-                        .iter()
-                        .any(|s| s.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend)
-                {
-                    let start_offset = *ctx.model_starts.get(&handle).unwrap_or(&0);
-                    let mut cur = 0;
-                    while cur < insts.len() {
-                        let start = cur;
-                        let override_tex = insts[cur].1;
-                        while cur < insts.len() && insts[cur].1 == override_tex {
-                            cur += 1;
-                        }
-                        let count = (cur - start) as u32;
-
-                        pass.set_vertex_buffer(0, m.vertex_buffer.slice(..));
-                        pass.set_vertex_buffer(
-                            1,
-                            self.geometry
-                                .instance_buffer
-                                .slice(((start_offset + start) * INSTANCE_SIZE) as u64..),
-                        );
-                        pass.set_index_buffer(m.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-                        for submesh in &m.submeshes {
-                            if submesh.alpha_mode != crate::render::types::SubmeshAlphaMode::Blend {
-                                continue;
-                            }
-                            let bg = if let Some(custom_tex) = override_tex {
-                                if let Some(tex_idx) = submesh.texture_index {
-                                    if tex_idx > 0 && m.embedded_textures.len() > 1 {
-                                        m.embedded_textures
-                                            .get(tex_idx)
-                                            .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                            .map(|t| &t.bind_group)
-                                            .or_else(|| {
-                                                ctx.asset_manager
-                                                    .textures
-                                                    .get(custom_tex)
-                                                    .map(|t| &t.bind_group)
-                                            })
-                                    } else if Some(custom_tex) == m.default_texture {
-                                        m.embedded_textures
-                                            .get(tex_idx)
-                                            .and_then(|&h| ctx.asset_manager.textures.get(h))
-                                            .map(|t| &t.bind_group)
-                                    } else {
-                                        ctx.asset_manager
-                                            .textures
-                                            .get(custom_tex)
-                                            .map(|t| &t.bind_group)
-                                    }
-                                } else {
-                                    ctx.asset_manager
-                                        .textures
-                                        .get(custom_tex)
-                                        .map(|t| &t.bind_group)
-                                }
-                            } else {
-                                None
-                            }
-                            .unwrap_or(&self.default_white_texture.bind_group);
-
-                            pass.set_bind_group(3, bg, &[]);
-                            pass.draw_indexed(
-                                submesh.start_index..(submesh.start_index + submesh.index_count),
-                                0,
-                                0..count,
-                            );
-                            stats.draw_calls += 1;
-                            if count > 1 {
-                                stats.instanced_draw_calls += 1;
-                            } else {
-                                stats.batched_draw_calls += 1;
-                            }
-                            stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
-                            stats.vertices += m.raw_vertices.len() as u64 * count as u64;
-                            stats.entities_rendered += count;
-                        }
-                    }
-                }
-            }
+        // --- WIREFRAME OVERLAY ---
+        if ctx.options.wireframe_enabled {
+            self.draw_wireframe_pass(&mut pass, &ctx, &mut tracker);
         }
 
+        // --- PASS 2: TRANSPARENT SUBMESHES (BACK-TO-FRONT SORTED) ---
+        if !ctx.transparent_model_draws.is_empty() {
+            self.draw_transparent_submeshes(
+                &mut pass,
+                ctx.transparent_model_draws,
+                &mut tracker,
+                &ctx,
+                &mut stats,
+            );
+        }
+
+        // --- SPRITES (BACK-TO-FRONT SORTED) ---
         if !ctx.transparent_objs.is_empty() {
-            pass.set_pipeline(&self.pipelines.sprite_pipeline);
-            pass.set_bind_group(2, &self.uniforms.light_bind_group, &[]);
-            pass.set_vertex_buffer(0, self.geometry.quad_vertex_buffer.slice(..));
-            let mut cur = 0;
-            while cur < ctx.transparent_objs.len() {
-                let start = cur;
-                let tid = ctx.transparent_objs[cur].1;
-                while cur < ctx.transparent_objs.len() && ctx.transparent_objs[cur].1 == tid {
-                    cur += 1;
-                }
-                let count = (cur - start) as u32;
-                if let Some(t) = ctx.asset_manager.textures.get(tid) {
-                    pass.set_bind_group(1, &t.bind_group, &[]);
-                    pass.set_vertex_buffer(
-                        1,
-                        self.geometry
-                            .instance_buffer
-                            .slice(((ctx.sprite_start + start) * INSTANCE_SIZE) as u64..),
-                    );
-                    pass.draw(0..6, 0..count);
-                    stats.draw_calls += 1;
-                    stats.batched_draw_calls += 1;
-                    stats.triangles += 2 * count as u64;
-                    stats.vertices += 4 * count as u64;
-                    stats.entities_rendered += count;
-                }
-            }
+            self.draw_sprites(&mut pass, &ctx, &mut tracker, &mut stats);
         }
 
-        // Editor Overlays (gizmo, debug lines, etc.) rendered with full 4x MSAA and DepthBuffer
+        // --- EDITOR OVERLAYS ---
         for ov in ctx.overlays {
             ov.draw_overlay(&self.queue, &mut pass);
         }
 
         drop(pass);
         stats
+    }
+
+    /// Draws all primitive geometry batches (triangles, cubes, spheres, cylinders, capsules, toruses).
+    fn draw_all_primitives<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        ctx: &ForwardPassContext<'a>,
+        tracker: &mut RenderPassTracker,
+        stats: &mut FrameRenderStats,
+    ) {
+        tracker.reset_model_buffers();
+        let primitives = [
+            (
+                ctx.triangle_instances,
+                ctx.tri_start,
+                &self.geometry.vertex_buffer,
+                self.geometry.triangle_num_vertices,
+            ),
+            (
+                ctx.cube_instances,
+                ctx.cube_start,
+                &self.geometry.cube_vertex_buffer,
+                36,
+            ),
+            (
+                ctx.sphere_instances,
+                ctx.sphere_start,
+                &self.geometry.sphere_vertex_buffer,
+                self.geometry.sphere_num_vertices,
+            ),
+            (
+                ctx.cylinder_instances,
+                ctx.cylinder_start,
+                &self.geometry.cylinder_vertex_buffer,
+                self.geometry.cylinder_num_vertices,
+            ),
+            (
+                ctx.capsule_instances,
+                ctx.capsule_start,
+                &self.geometry.capsule_vertex_buffer,
+                self.geometry.capsule_num_vertices,
+            ),
+            (
+                ctx.torus_instances,
+                ctx.torus_start,
+                &self.geometry.torus_vertex_buffer,
+                self.geometry.torus_num_vertices,
+            ),
+        ];
+
+        for (instances, buf_start, v_buf, num_verts) in primitives {
+            if instances.is_empty() {
+                continue;
+            }
+            pass.set_vertex_buffer(0, v_buf.slice(..));
+            let mut cur = 0;
+            while cur < instances.len() {
+                let start = cur;
+                let tex_h = instances[cur].texture;
+                let mirrored = instances[cur].is_mirrored;
+                while cur < instances.len()
+                    && instances[cur].texture == tex_h
+                    && instances[cur].is_mirrored == mirrored
+                {
+                    cur += 1;
+                }
+                let count = (cur - start) as u32;
+
+                if mirrored {
+                    tracker.set_pipeline(
+                        pass,
+                        ActivePipeline::RenderCw,
+                        &self.pipelines.render_pipeline_cw,
+                    );
+                } else {
+                    tracker.set_pipeline(
+                        pass,
+                        ActivePipeline::RenderCcw,
+                        &self.pipelines.render_pipeline,
+                    );
+                }
+
+                let (key, bg) = match tex_h.and_then(|h| ctx.asset_manager.textures.get(h)) {
+                    Some(t) => (BoundTextureKey::Asset(tex_h.unwrap()), &t.bind_group),
+                    None => (
+                        BoundTextureKey::DefaultWhite,
+                        &self.default_white_texture.bind_group,
+                    ),
+                };
+                tracker.bind_texture(pass, key, bg);
+
+                let offset_bytes = ((buf_start + start) * INSTANCE_SIZE) as u64;
+                pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
+                pass.draw(0..num_verts, 0..count);
+
+                stats.draw_calls += 1;
+                if count > 1 {
+                    stats.instanced_draw_calls += 1;
+                } else {
+                    stats.batched_draw_calls += 1;
+                }
+                stats.triangles += (num_verts as u64 / 3) * count as u64;
+                stats.vertices += num_verts as u64 * count as u64;
+                stats.entities_rendered += count;
+            }
+        }
+    }
+
+    /// Renders 3D model submeshes for a specific alpha mode (Opaque or Mask) across all active batches.
+    fn draw_model_batches<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        config: ModelBatchPassConfig<'a>,
+        tracker: &mut RenderPassTracker,
+        ctx: &ForwardPassContext<'a>,
+        stats: &mut FrameRenderStats,
+    ) {
+        for batch in config.batches {
+            if batch.instances.is_empty() {
+                continue;
+            }
+            let has_matching_submesh = if batch.model.submeshes.is_empty() {
+                !config.is_cutout
+            } else {
+                batch
+                    .model
+                    .submeshes
+                    .iter()
+                    .any(|s| s.alpha_mode == config.target_mode)
+            };
+            if !has_matching_submesh {
+                continue;
+            }
+
+            tracker.bind_model_buffers(pass, batch.handle, batch.model);
+
+            let mut cur = 0;
+            while cur < batch.instances.len() {
+                let start = cur;
+                let override_tex = batch.instances[cur].texture;
+                let mirrored = batch.instances[cur].is_mirrored;
+                while cur < batch.instances.len()
+                    && batch.instances[cur].texture == override_tex
+                    && batch.instances[cur].is_mirrored == mirrored
+                {
+                    cur += 1;
+                }
+                let count = (cur - start) as u32;
+
+                if config.is_cutout {
+                    if mirrored {
+                        tracker.set_pipeline(
+                            pass,
+                            ActivePipeline::CutoutCw,
+                            &self.pipelines.cutout_pipeline_cw,
+                        );
+                    } else {
+                        tracker.set_pipeline(
+                            pass,
+                            ActivePipeline::CutoutCcw,
+                            &self.pipelines.cutout_pipeline,
+                        );
+                    }
+                } else if mirrored {
+                    tracker.set_pipeline(
+                        pass,
+                        ActivePipeline::RenderCw,
+                        &self.pipelines.render_pipeline_cw,
+                    );
+                } else {
+                    tracker.set_pipeline(
+                        pass,
+                        ActivePipeline::RenderCcw,
+                        &self.pipelines.render_pipeline,
+                    );
+                }
+
+                let offset_bytes = ((batch.buffer_offset + start) * INSTANCE_SIZE) as u64;
+                pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
+
+                if batch.model.submeshes.is_empty() {
+                    let (key, bg) = match override_tex
+                        .and_then(|h| ctx.asset_manager.textures.get(h))
+                    {
+                        Some(t) => (BoundTextureKey::Asset(override_tex.unwrap()), &t.bind_group),
+                        None => (
+                            BoundTextureKey::DefaultWhite,
+                            &self.default_white_texture.bind_group,
+                        ),
+                    };
+                    tracker.bind_texture(pass, key, bg);
+                    pass.draw_indexed(0..batch.model.num_indices, 0, 0..count);
+
+                    stats.draw_calls += 1;
+                    if count > 1 {
+                        stats.instanced_draw_calls += 1;
+                    } else {
+                        stats.batched_draw_calls += 1;
+                    }
+                    stats.triangles += (batch.model.num_indices as u64 / 3) * count as u64;
+                    stats.vertices += batch.model.raw_vertices.len() as u64 * count as u64;
+                    stats.entities_rendered += count;
+                } else {
+                    for submesh in &batch.model.submeshes {
+                        if submesh.alpha_mode != config.target_mode {
+                            continue;
+                        }
+                        let (key, bg) = resolve_submesh_texture(
+                            batch.model,
+                            submesh,
+                            override_tex,
+                            ctx.asset_manager,
+                            &self.default_white_texture.bind_group,
+                        );
+                        tracker.bind_texture(pass, key, bg);
+                        pass.draw_indexed(
+                            submesh.start_index..(submesh.start_index + submesh.index_count),
+                            0,
+                            0..count,
+                        );
+
+                        stats.draw_calls += 1;
+                        if count > 1 {
+                            stats.instanced_draw_calls += 1;
+                        } else {
+                            stats.batched_draw_calls += 1;
+                        }
+                        stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
+                        stats.vertices += batch.model.raw_vertices.len() as u64 * count as u64;
+                        stats.entities_rendered += count;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Renders transparent 3D model submeshes in back-to-front sorted depth order.
+    fn draw_transparent_submeshes<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        draws: &'a [TransparentSubmeshDraw<'a>],
+        tracker: &mut RenderPassTracker,
+        ctx: &ForwardPassContext<'a>,
+        stats: &mut FrameRenderStats,
+    ) {
+        tracker.set_pipeline(
+            pass,
+            ActivePipeline::Transparent,
+            &self.pipelines.transparent_pipeline,
+        );
+
+        for draw in draws {
+            tracker.bind_model_buffers(pass, draw.handle, draw.model);
+
+            let submesh = &draw.model.submeshes[draw.submesh_index];
+            let (key, bg) = resolve_submesh_texture(
+                draw.model,
+                submesh,
+                draw.override_tex,
+                ctx.asset_manager,
+                &self.default_white_texture.bind_group,
+            );
+            tracker.bind_texture(pass, key, bg);
+
+            let offset_bytes = ((draw.buffer_offset + draw.instance_index) * INSTANCE_SIZE) as u64;
+            pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
+            pass.draw_indexed(
+                submesh.start_index..(submesh.start_index + submesh.index_count),
+                0,
+                0..1,
+            );
+
+            stats.draw_calls += 1;
+            stats.batched_draw_calls += 1;
+            stats.triangles += submesh.index_count as u64 / 3;
+            stats.vertices += draw.model.raw_vertices.len() as u64;
+            stats.entities_rendered += 1;
+        }
+    }
+
+    /// Renders billboard quad sprites sorted back-to-front.
+    fn draw_sprites<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        ctx: &ForwardPassContext<'a>,
+        tracker: &mut RenderPassTracker,
+        stats: &mut FrameRenderStats,
+    ) {
+        tracker.reset_model_buffers();
+        tracker.set_pipeline(
+            pass,
+            ActivePipeline::Sprite,
+            &self.pipelines.sprite_pipeline,
+        );
+        pass.set_bind_group(2, &self.uniforms.light_bind_group, &[]);
+        pass.set_vertex_buffer(0, self.geometry.quad_vertex_buffer.slice(..));
+
+        let mut cur = 0;
+        while cur < ctx.transparent_objs.len() {
+            let start = cur;
+            let tid = ctx.transparent_objs[cur].1;
+            while cur < ctx.transparent_objs.len() && ctx.transparent_objs[cur].1 == tid {
+                cur += 1;
+            }
+            let count = (cur - start) as u32;
+            if let Some(t) = ctx.asset_manager.textures.get(tid) {
+                pass.set_bind_group(1, &t.bind_group, &[]);
+                let offset_bytes = ((ctx.sprite_start + start) * INSTANCE_SIZE) as u64;
+                pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
+                pass.draw(0..6, 0..count);
+
+                stats.draw_calls += 1;
+                stats.batched_draw_calls += 1;
+                stats.triangles += 2 * count as u64;
+                stats.vertices += 4 * count as u64;
+                stats.entities_rendered += count;
+            }
+        }
+    }
+
+    /// Renders wireframe outlines for primitive geometries and models.
+    fn draw_wireframe_pass<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        ctx: &ForwardPassContext<'a>,
+        tracker: &mut RenderPassTracker,
+    ) {
+        tracker.reset_model_buffers();
+        tracker.set_pipeline(
+            pass,
+            ActivePipeline::Wireframe,
+            &self.pipelines.wireframe_pipeline,
+        );
+        tracker.bind_texture(
+            pass,
+            BoundTextureKey::DefaultWhite,
+            &self.default_white_texture.bind_group,
+        );
+
+        let primitives = [
+            (
+                ctx.triangle_instances.len(),
+                ctx.tri_start,
+                &self.geometry.vertex_buffer,
+                self.geometry.triangle_num_vertices,
+            ),
+            (
+                ctx.cube_instances.len(),
+                ctx.cube_start,
+                &self.geometry.cube_vertex_buffer,
+                36,
+            ),
+            (
+                ctx.sphere_instances.len(),
+                ctx.sphere_start,
+                &self.geometry.sphere_vertex_buffer,
+                self.geometry.sphere_num_vertices,
+            ),
+            (
+                ctx.cylinder_instances.len(),
+                ctx.cylinder_start,
+                &self.geometry.cylinder_vertex_buffer,
+                self.geometry.cylinder_num_vertices,
+            ),
+            (
+                ctx.capsule_instances.len(),
+                ctx.capsule_start,
+                &self.geometry.capsule_vertex_buffer,
+                self.geometry.capsule_num_vertices,
+            ),
+            (
+                ctx.torus_instances.len(),
+                ctx.torus_start,
+                &self.geometry.torus_vertex_buffer,
+                self.geometry.torus_num_vertices,
+            ),
+        ];
+
+        for (count, start, v_buf, num_verts) in primitives {
+            if count > 0 {
+                pass.set_vertex_buffer(0, v_buf.slice(..));
+                let offset_bytes = (start * INSTANCE_SIZE) as u64;
+                pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
+                pass.draw(0..num_verts, 0..count as u32);
+            }
+        }
+
+        for batch in ctx.model_batches {
+            let count = batch.instances.len() as u32;
+            if count > 0 {
+                tracker.bind_model_buffers(pass, batch.handle, batch.model);
+                let offset_bytes = (batch.buffer_offset * INSTANCE_SIZE) as u64;
+                pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
+                pass.draw_indexed(0..batch.model.num_indices, 0, 0..count);
+            }
+        }
     }
 }

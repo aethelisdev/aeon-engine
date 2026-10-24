@@ -71,6 +71,9 @@ pub struct DockTree<T> {
     /// Identifier of the currently focused leaf node, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     focused_leaf: Option<DockNodeId>,
+    /// Monotonically increasing structural revision counter.
+    #[serde(default)]
+    revision: u64,
 }
 
 impl<T> Default for DockTree<T> {
@@ -86,7 +89,23 @@ impl<T> DockTree<T> {
             nodes: SlotMap::with_key(),
             root: None,
             focused_leaf: None,
+            revision: 0,
         }
+    }
+
+    /// Returns the current revision of the docking tree.
+    ///
+    /// Monotonically increments on every structural tab mutation (active tab switch, insertion, deletion, split).
+    #[inline]
+    #[must_use]
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Increments the structural revision counter.
+    #[inline]
+    pub fn bump_revision(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
     }
 
     /// Returns the root node key of the tree, if set.
@@ -99,6 +118,7 @@ impl<T> DockTree<T> {
     #[inline]
     pub fn set_root(&mut self, root_id: DockNodeId) {
         self.root = Some(root_id);
+        self.bump_revision();
     }
 
     /// Returns the key of the currently focused leaf node, if set.
@@ -149,6 +169,7 @@ impl<T> DockTree<T> {
 
     /// Creates a new terminal leaf node hosting the provided tabs.
     pub fn create_leaf(&mut self, tabs: Vec<T>) -> DockNodeId {
+        self.bump_revision();
         self.nodes.insert(DockNode::Leaf {
             tabs,
             active_tab: 0,
@@ -215,6 +236,7 @@ impl<T> DockTree<T> {
                 first: first_id,
                 second: second_id,
             };
+            self.bump_revision();
         }
 
         Ok((first_id, second_id))
@@ -330,14 +352,16 @@ impl<T> DockTree<T> {
             .nodes
             .get_mut(target_leaf)
             .ok_or(DockError::NodeNotFound)?;
-        match node {
+        let added_idx = match node {
             DockNode::Leaf { tabs, active_tab } => {
                 tabs.push(tab);
                 *active_tab = tabs.len() - 1;
                 Ok(*active_tab)
             }
             DockNode::Split { .. } => Err(DockError::ExpectedLeafNode),
-        }
+        }?;
+        self.bump_revision();
+        Ok(added_idx)
     }
 
     /// Removes a tab at the specified index from a leaf node.
@@ -346,7 +370,7 @@ impl<T> DockTree<T> {
             .nodes
             .get_mut(target_leaf)
             .ok_or(DockError::NodeNotFound)?;
-        match node {
+        let removed = match node {
             DockNode::Leaf { tabs, active_tab } => {
                 if tab_idx >= tabs.len() {
                     return Err(DockError::IndexOutOfBounds);
@@ -358,7 +382,9 @@ impl<T> DockTree<T> {
                 Ok(removed)
             }
             DockNode::Split { .. } => Err(DockError::ExpectedLeafNode),
-        }
+        }?;
+        self.bump_revision();
+        Ok(removed)
     }
 
     /// Updates the active tab index of a leaf node.
@@ -371,17 +397,24 @@ impl<T> DockTree<T> {
             .nodes
             .get_mut(target_leaf)
             .ok_or(DockError::NodeNotFound)?;
-        match node {
+        let changed = match node {
             DockNode::Leaf { tabs, active_tab } => {
                 if tab_idx < tabs.len() {
-                    *active_tab = tab_idx;
-                    Ok(())
+                    let changed = *active_tab != tab_idx;
+                    if changed {
+                        *active_tab = tab_idx;
+                    }
+                    Ok(changed)
                 } else {
                     Err(DockError::IndexOutOfBounds)
                 }
             }
             DockNode::Split { .. } => Err(DockError::ExpectedLeafNode),
+        }?;
+        if changed {
+            self.bump_revision();
         }
+        Ok(())
     }
 
     /// Searches the tree for the specified tab by value equality.
@@ -487,30 +520,38 @@ impl<T> DockTree<T> {
                 .nodes
                 .get_mut(from_leaf)
                 .ok_or(DockError::NodeNotFound)?;
-            if let DockNode::Leaf { tabs, active_tab } = node {
-                if from_idx >= tabs.len() {
-                    return Err(DockError::IndexOutOfBounds);
+            match node {
+                DockNode::Leaf { tabs, active_tab } => {
+                    if from_idx >= tabs.len() {
+                        return Err(DockError::IndexOutOfBounds);
+                    }
+                    let tab = tabs.remove(from_idx);
+                    let target_idx = to_idx.min(tabs.len());
+                    tabs.insert(target_idx, tab);
+                    *active_tab = target_idx;
+                    Ok(())
                 }
-                let tab = tabs.remove(from_idx);
-                let target_idx = to_idx.min(tabs.len());
-                tabs.insert(target_idx, tab);
-                *active_tab = target_idx;
-                Ok(())
-            } else {
-                Err(DockError::ExpectedLeafNode)
-            }
+                DockNode::Split { .. } => Err(DockError::ExpectedLeafNode),
+            }?;
+            self.bump_revision();
+            Ok(())
         } else {
             let tab = self.remove_tab(from_leaf, from_idx)?;
             let target_node = self.nodes.get_mut(to_leaf).ok_or(DockError::NodeNotFound)?;
-            if let DockNode::Leaf { tabs, active_tab } = target_node {
-                let target_idx = to_idx.min(tabs.len());
-                tabs.insert(target_idx, tab);
-                *active_tab = target_idx;
-                Ok(())
-            } else {
-                let _ = self.add_tab(from_leaf, tab);
-                Err(DockError::ExpectedLeafNode)
-            }
+            match target_node {
+                DockNode::Leaf { tabs, active_tab } => {
+                    let target_idx = to_idx.min(tabs.len());
+                    tabs.insert(target_idx, tab);
+                    *active_tab = target_idx;
+                    Ok(())
+                }
+                DockNode::Split { .. } => {
+                    let _ = self.add_tab(from_leaf, tab);
+                    Err(DockError::ExpectedLeafNode)
+                }
+            }?;
+            self.bump_revision();
+            Ok(())
         }
     }
 

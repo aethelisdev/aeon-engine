@@ -354,10 +354,6 @@ pub struct HierarchyPanelState {
     pub active_sub_submenu: Option<AddSubmenuId>,
     /// Currently open right-click context menu in Scene Hierarchy.
     pub active_context_menu: Option<(hecs::Entity, Point)>,
-    /// Last recorded selected entity for detecting Hierarchy selection invalidation.
-    pub last_selected_entity: Option<hecs::Entity>,
-    /// Last recorded entity count in ECS world for detecting hierarchy additions/deletions.
-    pub last_entity_count: usize,
 }
 
 impl Default for HierarchyPanelState {
@@ -371,8 +367,6 @@ impl Default for HierarchyPanelState {
             active_submenu: None,
             active_sub_submenu: None,
             active_context_menu: None,
-            last_selected_entity: None,
-            last_entity_count: 0,
         }
     }
 }
@@ -394,41 +388,6 @@ impl std::ops::DerefMut for HierarchyPanelState {
 }
 
 impl HierarchyPanelState {
-    /// Evaluates whether the Scene Hierarchy panel requires an in-place repaint.
-    ///
-    /// Inspects selected entity shifts, entity additions/deletions in the ECS world,
-    /// and active floating popup menus (`➕ Add Menu` or right-click context menu).
-    pub fn is_dirty(
-        &self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let world_len = params.scene.world.len() as usize;
-        self.last_selected_entity != params.scene.selected_entity
-            || self.last_entity_count != world_len
-            || self.is_add_menu_open
-            || self.active_context_menu.is_some()
-    }
-
-    /// Synchronizes internal cached snapshot values against active frame parameters.
-    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        self.last_selected_entity = params.scene.selected_entity;
-        self.last_entity_count = params.scene.world.len() as usize;
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(
-        &mut self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
-    }
-
     /// Dynamically activates a cascading submenu branch based on its hierarchical tier.
     ///
     /// Opening a primary tier submenu clears any active secondary sub-submenus,
@@ -525,7 +484,6 @@ mod tests {
     #[test]
     fn test_hierarchy_default_state() {
         let state = HierarchyPanelState::default();
-        assert_eq!(state.last_entity_count, 0);
         assert!(state.rows_cache.is_empty());
         assert!(!state.is_add_menu_open);
     }

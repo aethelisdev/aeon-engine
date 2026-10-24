@@ -57,35 +57,45 @@ pub fn build_cpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelP
                 "ECS / Logic",
                 cpu.main_logic_ms,
                 Color::rgba(0.0, 0.75, 0.90, 1.0),
+                super::types::STATS_TAG_CPU_ECS,
             ),
             (
                 "Physics Simulation",
                 cpu.physics_ms,
                 Color::rgba(0.96, 0.57, 0.12, 1.0),
+                super::types::STATS_TAG_CPU_PHYSICS,
             ),
             (
                 "Render Preparation",
                 cpu.render_prep_ms,
                 Color::rgba(0.35, 0.51, 0.94, 1.0),
+                super::types::STATS_TAG_CPU_RENDER,
             ),
             (
                 "Wait for GPU (VSync)",
                 cpu.wait_for_gpu_ms,
                 Color::rgba(0.63, 0.39, 0.86, 1.0),
+                super::types::STATS_TAG_CPU_WAIT,
             ),
             (
                 "UI / Editor Passes",
                 cpu.ui_editor_ms,
                 Color::rgba(0.86, 0.71, 0.20, 1.0),
+                super::types::STATS_TAG_CPU_UI,
             ),
         ];
 
-        for (name, val, col) in rows {
-            build_timing_row(s, name, val, col);
+        for (name, val, col, tag) in rows {
+            build_timing_row_tagged(s, name, val, col, tag);
         }
 
         // 4. Total CPU Frame Footer
-        build_total_row(s, "Total CPU Frame:", total_cpu_ms);
+        build_total_row(
+            s,
+            "Total CPU Frame:",
+            total_cpu_ms,
+            super::types::STATS_TAG_CPU_TOTAL,
+        );
     });
 }
 
@@ -111,7 +121,7 @@ fn build_thread_balance_row(scope: &mut UiScope<'_>, total_ms: f32) {
             ("Heavy Bottleneck", Color::rgba(0.92, 0.24, 0.24, 1.0))
         };
 
-        r.text_colored(status_text, status_col);
+        r.text_colored_tagged(status_text, status_col, super::types::STATS_TAG_CPU_BALANCE);
     });
 }
 
@@ -139,6 +149,17 @@ pub fn build_multi_segment_bar(scope: &mut UiScope<'_>, segments: &[(f32, Color)
 
 /// Emits a standard timing or metric row with color dot indicator, name, and right-aligned value.
 pub fn build_timing_row(scope: &mut UiScope<'_>, name: &str, val_ms: f32, dot_col: Color) {
+    build_timing_row_tagged(scope, name, val_ms, dot_col, 0);
+}
+
+/// Emits a standard timing or metric row with semantic tag for reactive in-place text updates.
+pub fn build_timing_row_tagged(
+    scope: &mut UiScope<'_>,
+    name: &str,
+    val_ms: f32,
+    dot_col: Color,
+    tag: u64,
+) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -161,12 +182,16 @@ pub fn build_timing_row(scope: &mut UiScope<'_>, name: &str, val_ms: f32, dot_co
 
         // Timing value
         let val_text = format!("{:.2} ms", val_ms);
-        r.text_colored(&val_text, Color::rgba(0.86, 0.88, 0.92, 1.0));
+        if tag != 0 {
+            r.text_colored_tagged(&val_text, Color::rgba(0.86, 0.88, 0.92, 1.0), tag);
+        } else {
+            r.text_colored(&val_text, Color::rgba(0.86, 0.88, 0.92, 1.0));
+        }
     });
 }
 
 /// Emits a summary total row with bold accent text.
-fn build_total_row(scope: &mut UiScope<'_>, label: &str, total_ms: f32) {
+fn build_total_row(scope: &mut UiScope<'_>, label: &str, total_ms: f32, tag: u64) {
     let row_style = Style::new()
         .flex_row()
         .align_items(AlignItems::Center)
@@ -179,6 +204,57 @@ fn build_total_row(scope: &mut UiScope<'_>, label: &str, total_ms: f32) {
         r.spacer();
 
         let val_text = format!("{:.2} ms", total_ms);
-        r.text_colored(&val_text, Color::rgba(0.78, 0.90, 1.0, 1.0));
+        if tag != 0 {
+            r.text_colored_tagged(&val_text, Color::rgba(0.78, 0.90, 1.0, 1.0), tag);
+        } else {
+            r.text_colored(&val_text, Color::rgba(0.78, 0.90, 1.0, 1.0));
+        }
     });
+}
+
+/// Updates CPU timing breakdown labels in-place without tree reconstruction or layout passes.
+///
+/// Returns `true` if any label was modified.
+pub fn update_cpu_breakdown_texts(
+    tree: &mut UiTree,
+    cpu: &ae_core::telemetry::CpuSyncTimings,
+) -> bool {
+    let mut changed = false;
+    let total_cpu_ms = (cpu.main_logic_ms
+        + cpu.physics_ms
+        + cpu.render_prep_ms
+        + cpu.wait_for_gpu_ms
+        + cpu.ui_editor_ms)
+        .max(0.0001);
+
+    let (status_text, _) = if total_cpu_ms < 8.33 {
+        ("Optimal (120+ FPS)", Color::rgba(0.0, 0.82, 0.63, 1.0))
+    } else if total_cpu_ms < 16.67 {
+        ("Good (60+ FPS)", Color::rgba(0.0, 0.75, 0.90, 1.0))
+    } else if total_cpu_ms < 33.33 {
+        ("Moderate Load", Color::rgba(1.0, 0.73, 0.0, 1.0))
+    } else {
+        ("Heavy Bottleneck", Color::rgba(0.92, 0.24, 0.24, 1.0))
+    };
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_BALANCE, status_text);
+
+    let ecs_text = format!("{:.2} ms", cpu.main_logic_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_ECS, &ecs_text);
+
+    let phys_text = format!("{:.2} ms", cpu.physics_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_PHYSICS, &phys_text);
+
+    let prep_text = format!("{:.2} ms", cpu.render_prep_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_RENDER, &prep_text);
+
+    let wait_text = format!("{:.2} ms", cpu.wait_for_gpu_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_WAIT, &wait_text);
+
+    let ui_text = format!("{:.2} ms", cpu.ui_editor_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_UI, &ui_text);
+
+    let total_text = format!("{:.2} ms", total_cpu_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_CPU_TOTAL, &total_text);
+
+    changed
 }

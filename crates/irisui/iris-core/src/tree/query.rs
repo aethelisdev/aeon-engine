@@ -53,6 +53,37 @@ impl UiTree {
         self.find_node_by_tag(tag).and_then(|id| self.get(id))
     }
 
+    /// Returns a mutable reference to the first node matching the specified semantic tag without requiring an intermediate ID.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag assigned to the target widget node.
+    #[inline]
+    #[must_use]
+    pub fn node_tagged_mut(&mut self, tag: u64) -> Option<&mut WidgetNode> {
+        self.find_node_by_tag(tag).and_then(|id| self.get_mut(id))
+    }
+
+    /// In-place updates the text content of the widget node tagged with `tag` if it differs from `new_text`.
+    ///
+    /// Returns `true` if the text was changed, or `false` if unchanged or the node was not found.
+    /// Eliminates full tree reconstruction and layout passes when updating dynamic telemetry labels.
+    ///
+    /// # Arguments
+    /// * `tag` - 64-bit semantic tag assigned to the target widget node.
+    /// * `new_text` - New text string to assign.
+    pub fn set_text_if_changed(&mut self, tag: u64, new_text: &str) -> bool {
+        if let Some(node) = self.node_tagged_mut(tag) {
+            if let Some(existing) = &node.text
+                && existing == new_text
+            {
+                return false;
+            }
+            node.set_text(new_text);
+            return true;
+        }
+        false
+    }
+
     /// Returns a shared reference to the first node within a subtree matching the specified name.
     ///
     /// # Arguments

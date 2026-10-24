@@ -142,6 +142,32 @@ impl<'a> UiScope<'a> {
         self.colored_label(color, text);
     }
 
+    /// Emits a static text label node with explicit foreground color and semantic tag.
+    ///
+    /// Useful for telemetry metrics, counter displays, and real-time status labels requiring in-place mutation.
+    ///
+    /// # Arguments
+    /// * `text` - Display string content.
+    /// * `color` - RGBA foreground color.
+    /// * `tag` - 64-bit semantic tag for in-place reactive updates.
+    #[inline]
+    pub fn text_colored_tagged(&mut self, text: impl Into<String>, color: Color, tag: u64) {
+        let text_str = text.into();
+        let est_w = (text_str.len() as f32 * 14.0 * 0.65).ceil().max(16.0);
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.role = WidgetRole::Default;
+            node.tag = tag;
+            node.set_text(text_str);
+            node.text_color = color;
+            node.font_size = 14.0;
+            node.line_height = 18.0;
+            node.text_align = TextAlign::Left;
+            node.set_style(Style::new().width(est_w));
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+    }
+
     /// Emits a fully customized text label node with explicit font size, foreground color, and horizontal alignment.
     ///
     /// Serves as the low-level foundation for all declarative label and heading primitives.

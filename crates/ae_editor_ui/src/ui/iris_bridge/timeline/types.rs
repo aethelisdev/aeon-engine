@@ -309,14 +309,10 @@ pub struct TimelinePanelState {
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), TimelineAction>,
     /// Whether user is actively dragging the timeline scrubber playhead needle.
     pub is_dragging: bool,
-    /// Previously cached scrubber dragging state used for retained dirty-checking.
-    pub last_is_dragging: bool,
     /// Cached hardware hit-test track bounds during active scrubber drag: `(track_x, track_width)`.
     pub active_scrubber_track: Option<(f32, f32)>,
     /// Selected entity handle cached for timeline interactions.
     pub selected_entity: Option<hecs::Entity>,
-    /// Previously baked selected entity handle used for retained dirty-checking.
-    pub last_selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Duration of the currently active animation clip in seconds.
@@ -338,41 +334,6 @@ impl std::ops::DerefMut for TimelinePanelState {
 
 /// Semantic alias for [`TimelinePanelState`].
 pub type TimelineState = TimelinePanelState;
-
-impl TimelinePanelState {
-    /// Evaluates whether the Animation Timeline panel requires an in-place repaint.
-    ///
-    /// Inspects whether the active ECS scene entity selection changed or the playhead
-    /// scrubber needle is actively being dragged by the mouse cursor.
-    pub fn is_dirty(
-        &self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        self.last_selected_entity != params.scene.selected_entity
-            || self.last_is_dragging != self.is_dragging
-    }
-
-    /// Synchronizes internal cached snapshot values against active frame parameters.
-    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        self.last_selected_entity = params.scene.selected_entity;
-        self.selected_entity = params.scene.selected_entity;
-        self.last_is_dragging = self.is_dragging;
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(
-        &mut self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
-    }
-}
 
 #[cfg(test)]
 mod tests {

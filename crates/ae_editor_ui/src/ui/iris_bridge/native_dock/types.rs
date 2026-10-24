@@ -25,8 +25,6 @@ pub const CHEVRON_WIDTH: f32 = 24.0;
 pub struct NativeDockFrame {
     /// Content rectangle assigned to each currently active panel.
     pub panel_rects: Vec<(PanelId, Rect)>,
-    /// Generational widget node IDs assigned to each currently active panel leaf container.
-    pub leaf_containers: Vec<(PanelId, WidgetId)>,
     /// Click targets for Iris-rendered tab labels and their source leaf/index pairs.
     pub tab_targets: Vec<NativeDockTabTarget>,
     /// Click targets for tab close `✖` buttons.
@@ -47,13 +45,6 @@ impl NativeDockFrame {
         self.panel_rects
             .iter()
             .find_map(|(candidate, rect)| (*candidate == panel).then_some(*rect))
-    }
-
-    /// Returns the active leaf container widget node ID for a panel, if its tab is selected in an Iris leaf.
-    pub fn leaf_container(&self, panel: PanelId) -> Option<WidgetId> {
-        self.leaf_containers
-            .iter()
-            .find_map(|(candidate, id)| (*candidate == panel).then_some(*id))
     }
 }
 
@@ -97,7 +88,6 @@ impl From<DockChromeFrame<PanelId>> for NativeDockFrame {
     fn from(chrome: DockChromeFrame<PanelId>) -> Self {
         Self {
             panel_rects: chrome.panel_rects,
-            leaf_containers: chrome.leaf_containers,
             tab_targets: chrome.tab_targets,
             close_targets: chrome.close_targets,
             splitter_targets: chrome.splitter_targets,

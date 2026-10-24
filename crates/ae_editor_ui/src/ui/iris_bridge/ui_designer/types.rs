@@ -272,39 +272,6 @@ impl std::ops::DerefMut for UiDesignerPanelState {
 }
 
 impl UiDesignerPanelState {
-    /// Evaluates whether the 2D UI Designer canvas panel requires an in-place repaint.
-    ///
-    /// Inspects active aspect ratio dropdown popup, add element palette popup, active
-    /// canvas panning interactions, or active UI element dragging operations.
-    pub fn is_dirty(
-        &self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        self.is_aspect_open
-            || self.is_add_menu_open
-            || self.is_panning
-            || self.drag_state.is_some()
-            || params.panel_data.ui_designer_state.drag_state.is_some()
-    }
-
-    /// Synchronizes internal cached snapshot values against active frame parameters.
-    pub fn sync_dirty(&mut self, _params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(
-        &mut self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
-    }
-
     /// Dispatches a UI Designer action directly to the action queue and updates popup visibility.
     ///
     /// Coordinates immediate local dropdown state changes and enqueues actionable mutations

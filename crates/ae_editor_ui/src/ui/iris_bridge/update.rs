@@ -301,9 +301,6 @@ impl IrisEditorOverlay {
             self.notifier.tag_all();
         }
 
-        // 2. Poll panel dirty evaluations directly into the notifier
-        self.poll_panel_dirty(&params);
-
         if !self.is_visible {
             self.command_list.clear();
             return;
@@ -340,10 +337,18 @@ impl IrisEditorOverlay {
         let preferences_changed = preferences_active != self.chrome.last_preferences_active
             || (preferences_active && self.preferences.last_tab != self.preferences.tab);
 
+        let dock_revision = params.context.layout_state.dock_state.revision();
+        let dock_changed = dock_revision != self.chrome.last_dock_revision;
+
+        let viewport_texture_changed =
+            params.viewport.has_viewport_texture != self.chrome.last_has_viewport_texture;
+
         let is_shell_dirty = self.chrome.always_rebuild
             || self.tree.root().is_none()
             || self.chrome.native_dock_frame.is_none()
             || self.notifier.is_global_dirty()
+            || viewport_texture_changed
+            || dock_changed
             || self.chrome.is_dirty(
                 params.context.dimensions,
                 params.context.zoom_factor,
@@ -364,6 +369,8 @@ impl IrisEditorOverlay {
             || hierarchy_popups_changed
             || preferences_changed
             || self.chrome.needs_layout_rebuild;
+
+        self.chrome.last_dock_revision = dock_revision;
 
         if self.menubar.active_menu.is_none() {
             self.menubar.actions.clear();
@@ -579,43 +586,14 @@ impl IrisEditorOverlay {
             self.command_list.clear();
             self.chrome.needs_text_prepare = true;
             self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
-        } else if self.notifier.is_any_dirty() {
-            // =========================================================================
-            // Branch 2: Isolated Partial Subtree Rebuild (Zero Shell / Tree Clearing)
-            // =========================================================================
-            // Preserves root container, MenuBar, StatusBar, dividers, Dock chrome, and sister panels.
-            // Atomically rebuilds only dirty panel leaves in place via isolated SubtreeSession.
-            if let Some(frame) = self.chrome.native_dock_frame.as_ref() {
-                let dirty_leaves: Vec<(crate::ui::panel_layout::PanelId, WidgetId)> = frame
-                    .leaf_containers
-                    .iter()
-                    .copied()
-                    .filter(|(panel_id, _)| self.notifier.is_dirty(*panel_id))
-                    .collect();
-
-                for (panel_id, leaf_id) in dirty_leaves {
-                    if let Err(err) = self.rebuild_panel_content(panel_id, leaf_id, &params) {
-                        log::warn!("Partial subtree rebuild failed for {panel_id:?}: {err:?}");
-                    }
-                }
-            }
-            self.notifier.clear_all();
-            self.chrome.needs_text_prepare = true;
-
-            self.command_list.clear();
-            if let Some(root) = self.tree.root() {
-                self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
-            }
         } else {
-            let has_stats_canvas = self.chrome.native_dock_frame.as_ref().is_some_and(|f| {
-                f.leaf_container(crate::ui::panel_layout::PanelId::Stats)
-                    .is_some()
-            });
-            let has_viewport_canvas = self.chrome.native_dock_frame.as_ref().is_some_and(|f| {
-                f.leaf_container(crate::ui::panel_layout::PanelId::Viewport)
-                    .is_some()
-            });
-            let has_volatile_canvas = has_stats_canvas || has_viewport_canvas;
+            let has_stats_canvas = self
+                .tree
+                .node_tagged(super::stats::types::STATS_TAG_CANVAS)
+                .is_some();
+            let compass_changed = self.viewport_hud.camera_angles
+                != (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
+            let has_volatile_canvas = has_stats_canvas || compass_changed;
 
             if has_stats_canvas {
                 irisui::widgets::canvas::update_canvas_by_tag(
@@ -628,6 +606,18 @@ impl IrisEditorOverlay {
                         );
                     },
                 );
+
+                let pacing_changed = super::stats::graph::update_oscilloscope_texts(
+                    &mut self.tree,
+                    params.telemetry.frame_pacing_stats,
+                );
+                let cpu_changed = super::stats::cpu_breakdown::update_cpu_breakdown_texts(
+                    &mut self.tree,
+                    params.telemetry.cpu_timings,
+                );
+                if pacing_changed || cpu_changed {
+                    self.chrome.needs_text_prepare = true;
+                }
             }
 
             if blink_changed || hover_target_changed || focus_target_changed {
@@ -655,7 +645,6 @@ impl IrisEditorOverlay {
 
         self.chrome.last_dimensions = params.context.dimensions;
         self.chrome.last_zoom_factor = params.context.zoom_factor;
-        self.inspector.last_selected_entity = params.scene.selected_entity;
         self.chrome.last_floating_count = floating_count;
         self.modals.last_modal_active = modal_active;
         self.preferences.last_tab = self.preferences.tab;

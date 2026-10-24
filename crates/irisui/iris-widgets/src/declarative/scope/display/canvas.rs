@@ -265,6 +265,7 @@ impl<'a> UiScope<'a> {
             node.tag = tag;
             node.role = WidgetRole::ImmediateCanvas;
             node.interactive = true;
+            node.is_boundary = true;
             node.layer = parent_layer;
             node.computed_rect = bounds;
             node.set_style(Style::new().width(size.width).height(size.height));

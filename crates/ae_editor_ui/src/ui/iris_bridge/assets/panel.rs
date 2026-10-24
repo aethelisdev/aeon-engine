@@ -108,7 +108,7 @@ pub fn build_assets_panel(
             build_asset_footer_scope(panel_scope, params, actions);
         });
 
-    // 6. Right-Click Floating Context Menu is rendered on top-level OverlayTree (Layer 2)
+    // 6. Right-Click Floating Context Menu is rendered on top-level UiTree (Layer 2)
     // to prevent clipping and preserve precise absolute screen coordinates.
 
     // 7. Interactive Quick Asset Preview Modal (Z-Order Highest)

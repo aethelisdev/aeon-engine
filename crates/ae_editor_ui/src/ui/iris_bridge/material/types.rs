@@ -171,8 +171,6 @@ pub struct MaterialPanelState {
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), MaterialAction>,
     /// Selected entity handle cached for material panel interactions.
     pub selected_entity: Option<hecs::Entity>,
-    /// Previously baked selected entity handle used for retained dirty-checking.
-    pub last_selected_entity: Option<hecs::Entity>,
     /// Pending tagged interaction events collected during window event routing.
     pub pending_interaction_events: Vec<(u64, InteractionEvent)>,
     /// Active model asset handle inspected, if any.
@@ -194,35 +192,3 @@ impl std::ops::DerefMut for MaterialPanelState {
 
 /// Semantic alias for [`MaterialPanelState`].
 pub type MaterialState = MaterialPanelState;
-
-impl MaterialPanelState {
-    /// Evaluates whether the Material & Surface Studio panel requires an in-place repaint.
-    ///
-    /// Inspects whether the active ECS scene entity selection has changed.
-    pub fn is_dirty(
-        &self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        self.last_selected_entity != params.scene.selected_entity
-    }
-
-    /// Synchronizes internal cached snapshot values against active frame parameters.
-    pub fn sync_dirty(&mut self, params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>) {
-        self.selected_entity = params.scene.selected_entity;
-        self.last_selected_entity = params.scene.selected_entity;
-    }
-
-    /// Evaluates `is_dirty` and automatically updates snapshot caches if dirty.
-    ///
-    /// Returns `true` if the panel state changed and requires redraw tagging.
-    pub fn check_and_sync_dirty(
-        &mut self,
-        params: &crate::ui::iris_bridge::types::OverlayUpdateParams<'_>,
-    ) -> bool {
-        let dirty = self.is_dirty(params);
-        if dirty {
-            self.sync_dirty(params);
-        }
-        dirty
-    }
-}

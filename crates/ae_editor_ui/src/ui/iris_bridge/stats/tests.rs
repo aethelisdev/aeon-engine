@@ -9,8 +9,9 @@
 
 use crate::ui::iris_bridge::stats::panel::build_stats_panel;
 use crate::ui::iris_bridge::stats::types::{
-    STATS_TAG_CANVAS, STATS_TAG_PANEL_ROOT, STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME,
-    STATS_TAG_VIEWPORT, StatsPanelAction, StatsPanelParams, StatsPanelState, is_stats_tag,
+    STATS_TAG_AVG_FPS, STATS_TAG_CANVAS, STATS_TAG_CPU_BALANCE, STATS_TAG_PANEL_ROOT,
+    STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME, STATS_TAG_VIEWPORT, StatsPanelAction,
+    StatsPanelParams, StatsPanelState, is_stats_tag,
 };
 use ae_core::telemetry::{
     CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer, GpuPassTimings, VramStats,
@@ -103,12 +104,29 @@ fn test_build_stats_panel_declarative_structure() {
             .role,
         WidgetRole::Checkbox
     );
+    assert!(
+        tree.node_tagged(STATS_TAG_AVG_FPS).is_some(),
+        "STATS_TAG_AVG_FPS must exist in tree"
+    );
+    assert!(
+        tree.node_tagged(STATS_TAG_CPU_BALANCE).is_some(),
+        "STATS_TAG_CPU_BALANCE must exist in tree"
+    );
     assert_eq!(
         tree.node_tagged(STATS_TAG_TOGGLE_GRID)
             .expect("STATS_TAG_TOGGLE_GRID must exist in tree")
             .role,
         WidgetRole::Checkbox
     );
+
+    let mut new_stats = pacing_stats;
+    new_stats.average_fps = 120.0;
+    new_stats.average_frametime_ms = 8.33;
+    let changed =
+        crate::ui::iris_bridge::stats::graph::update_oscilloscope_texts(&mut tree, &new_stats);
+    assert!(changed);
+    let fps_node = tree.node_tagged(STATS_TAG_AVG_FPS).unwrap();
+    assert_eq!(fps_node.text.as_deref(), Some("120 (8.33ms)"));
 }
 
 #[test]

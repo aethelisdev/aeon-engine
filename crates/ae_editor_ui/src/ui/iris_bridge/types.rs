@@ -294,6 +294,10 @@ pub struct IrisChromeState {
     pub theme_preset: super::theme::ThemePreset,
     /// Last recorded workspace theme preset to trigger full shell rebuild on theme changes.
     pub last_theme_preset: super::theme::ThemePreset,
+    /// Last recorded structural dock revision counter for O(1) zero-allocation tab/layout change detection.
+    pub last_dock_revision: u64,
+    /// Last instant when the performance stats telemetry text was refreshed in the UI tree.
+    pub last_stats_refresh: Option<std::time::Instant>,
 }
 
 impl Default for IrisChromeState {
@@ -329,6 +333,8 @@ impl Default for IrisChromeState {
             needs_text_prepare: true,
             theme_preset: super::theme::ThemePreset::default(),
             last_theme_preset: super::theme::ThemePreset::default(),
+            last_dock_revision: 0,
+            last_stats_refresh: None,
         }
     }
 }

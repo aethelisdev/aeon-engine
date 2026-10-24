@@ -31,6 +31,7 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
                 "Avg FPS",
                 &avg_fps_text,
                 get_fps_color(stats.average_fps),
+                super::types::STATS_TAG_AVG_FPS,
             );
 
             let low_1_text = format!("{:.0} FPS", stats.low_1_percent_fps);
@@ -39,6 +40,7 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
                 "1% Low",
                 &low_1_text,
                 get_fps_color(stats.low_1_percent_fps),
+                super::types::STATS_TAG_LOW_1,
             );
         });
 
@@ -51,6 +53,7 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
                 "0.1% Low",
                 &low_01_text,
                 get_fps_color(stats.low_0_1_percent_fps),
+                super::types::STATS_TAG_LOW_01,
             );
 
             let jitter_color = if stats.variance_ms < 1.5 {
@@ -61,7 +64,13 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
                 Color::rgba(0.92, 0.24, 0.24, 1.0)
             };
             let jitter_text = format!("±{:.2} ms", stats.variance_ms);
-            build_metric_pill(r, "Jitter", &jitter_text, jitter_color);
+            build_metric_pill(
+                r,
+                "Jitter",
+                &jitter_text,
+                jitter_color,
+                super::types::STATS_TAG_JITTER,
+            );
         });
 
         // ── Oscilloscope Canvas Container ──
@@ -97,12 +106,22 @@ pub fn build_frame_pacing_content(scope: &mut UiScope<'_>, params: &StatsPanelPa
             Color::rgba(0.92, 0.24, 0.24, 1.0)
         };
 
-        s.text_colored(&summary_text, summary_color);
+        s.text_colored_tagged(
+            &summary_text,
+            summary_color,
+            super::types::STATS_TAG_SUMMARY,
+        );
     });
 }
 
 /// Helper function to build a single metric pill container purely with flexbox.
-fn build_metric_pill(scope: &mut UiScope<'_>, label: &str, value: &str, val_color: Color) {
+fn build_metric_pill(
+    scope: &mut UiScope<'_>,
+    label: &str,
+    value: &str,
+    val_color: Color,
+    value_tag: u64,
+) {
     let pill_style = Style::new()
         .flex_row()
         .flex_grow(1.0)
@@ -115,25 +134,39 @@ fn build_metric_pill(scope: &mut UiScope<'_>, label: &str, value: &str, val_colo
 
     scope.container(pill_style, |p| {
         p.text_colored(label, Color::rgba(0.60, 0.62, 0.70, 1.0));
-
         p.spacer();
-
-        p.text_colored(value, val_color);
+        p.text_colored_tagged(value, val_color, value_tag);
     });
 }
 
-/// Renders the oscilloscope background, border, and dynamic frametime polyline into an [`ImmediateCanvas`].
+/// Renders the oscilloscope background, border, reference threshold lines, and dynamic frametime polyline.
 pub fn draw_oscilloscope_canvas(
     canvas: &mut irisui::widgets::canvas::ImmediateCanvas<'_>,
     pacing: Option<&FrameRingBuffer>,
 ) {
-    canvas.fill_rect(canvas.bounds(), Color::rgba(0.04, 0.05, 0.07, 0.95), 4.0);
-    canvas.stroke_rect(
-        canvas.bounds(),
-        Color::rgba(0.14, 0.16, 0.22, 0.85),
-        1.0,
-        4.0,
-    );
+    let b = canvas.bounds();
+    canvas.fill_rect(b, Color::rgba(0.04, 0.05, 0.07, 0.95), 4.0);
+    canvas.stroke_rect(b, Color::rgba(0.14, 0.16, 0.22, 0.85), 1.0, 4.0);
+
+    // Render milestone threshold guide lines (60 FPS and 30 FPS limits)
+    if b.height > 20.0 {
+        let ratio_60: f32 = 16.666 / 36.0;
+        let y_60 = b.y + b.height * (1.0 - ratio_60.min(1.0));
+        canvas.draw_line(
+            Point::new(b.x + 2.0, y_60),
+            Point::new(b.x + b.width - 2.0, y_60),
+            Color::rgba(0.0, 0.82, 0.63, 0.25),
+            1.0,
+        );
+        let ratio_30: f32 = 33.333 / 36.0;
+        let y_30 = b.y + b.height * (1.0 - ratio_30.min(1.0));
+        canvas.draw_line(
+            Point::new(b.x + 2.0, y_30),
+            Point::new(b.x + b.width - 2.0, y_30),
+            Color::rgba(0.92, 0.24, 0.24, 0.25),
+            1.0,
+        );
+    }
 
     if let Some(pacing) = pacing {
         canvas.draw_chart_polyline(
@@ -144,6 +177,45 @@ pub fn draw_oscilloscope_canvas(
             get_frametime_color,
         );
     }
+}
+
+/// Updates real-time telemetry text labels in-place without tree reconstruction or layout passes.
+///
+/// Returns `true` if any metric label string was modified.
+pub fn update_oscilloscope_texts(
+    tree: &mut UiTree,
+    stats: &ae_core::telemetry::FramePacingStats,
+) -> bool {
+    let mut changed = false;
+
+    let avg_fps_text = format!(
+        "{:.0} ({:.2}ms)",
+        stats.average_fps, stats.average_frametime_ms
+    );
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_AVG_FPS, &avg_fps_text);
+
+    let low_1_text = format!("{:.0} FPS", stats.low_1_percent_fps);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_LOW_1, &low_1_text);
+
+    let low_01_text = format!("{:.0} FPS", stats.low_0_1_percent_fps);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_LOW_01, &low_01_text);
+
+    let jitter_text = format!("±{:.2} ms", stats.variance_ms);
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_JITTER, &jitter_text);
+
+    let spike_count = stats.spikes_over_16ms;
+    let stutter_pct = stats.stutter_rate_percent;
+    let summary_text = if spike_count == 0 {
+        format!("✓ Spikes (>16ms): 0  •  Stutter Rate: {:.1}%", stutter_pct)
+    } else {
+        format!(
+            "⚠ Spikes (>16ms): {}  •  Stutter Rate: {:.1}%",
+            spike_count, stutter_pct
+        )
+    };
+    changed |= tree.set_text_if_changed(super::types::STATS_TAG_SUMMARY, &summary_text);
+
+    changed
 }
 
 /// Directly appends the 60 oscilloscope curve quad instances to the command list using `ChartDrawer`.

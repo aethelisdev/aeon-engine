@@ -52,13 +52,8 @@ pub struct ShadowPassParams<'a> {
     pub instance_buffer: &'a wgpu::Buffer,
     pub offsets: ShadowPassBatchOffsets,
     pub asset_manager: &'a crate::asset::AssetManager,
-    pub model_instance_data: &'a HashMap<
-        crate::asset::AssetHandle,
-        Vec<(
-            crate::render::types::Instance,
-            Option<crate::asset::AssetHandle>,
-        )>,
-    >,
+    pub model_instance_data:
+        &'a HashMap<crate::asset::AssetHandle, Vec<crate::render::types::RenderInstanceItem>>,
     pub model_starts: &'a HashMap<crate::asset::AssetHandle, usize>,
     pub default_white_texture: &'a crate::render::TextureAsset,
 }
@@ -626,8 +621,8 @@ impl ShadowSystem {
                         let mut cur = 0;
                         while cur < insts.len() {
                             let start = cur;
-                            let override_tex = insts[cur].1;
-                            while cur < insts.len() && insts[cur].1 == override_tex {
+                            let override_tex = insts[cur].texture;
+                            while cur < insts.len() && insts[cur].texture == override_tex {
                                 cur += 1;
                             }
                             let count = (cur - start) as u32;
