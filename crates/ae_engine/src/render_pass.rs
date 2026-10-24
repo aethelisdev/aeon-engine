@@ -32,6 +32,7 @@ impl AeEngine {
                 selected_primitive_instances: Vec::new(),
                 selected_model_instances: Vec::new(),
                 visible_entities: Vec::new(),
+                culled_entities_count: 0,
             };
         }
 
@@ -235,6 +236,7 @@ impl AeEngine {
                 selected_primitive_instances: Vec::new(),
                 selected_model_instances: Vec::new(),
                 visible_entities: Vec::new(),
+                culled_entities_count: 0,
             }
         };
 
@@ -337,7 +339,7 @@ impl AeEngine {
         self.ui.profiler_ui_ms = self.profiler.ui_time;
         self.ui.profiler_frame_ms = self.profiler.total_frame_time;
         self.ui.cpu_timings = self.profiler.get_cpu_sync_timings(present_wait_ms);
-        self.ui.gpu_pass_timings = self.render_state.last_gpu_pass_timings;
+        self.ui.pass_recording_timings = self.render_state.last_recording_timings;
         self.ui.frame_pacing = self.profiler.frame_pacing;
         self.ui.frame_pacing_stats = self.profiler.calculate_pacing_stats();
         self.ui.draw_call_stats = self.render_state.last_render_stats.to_breakdown();

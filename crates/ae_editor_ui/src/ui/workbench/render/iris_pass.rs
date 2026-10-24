@@ -177,7 +177,7 @@ impl EngineUi {
                     frame_pacing: &self.frame_pacing,
                     frame_pacing_stats: &self.frame_pacing_stats,
                     cpu_timings: &self.cpu_timings,
-                    gpu_pass_timings: &self.gpu_pass_timings,
+                    pass_recording_timings: &self.pass_recording_timings,
                     draw_call_stats: &self.draw_call_stats,
                     vram_stats: &self.vram_stats,
                     render_triangles: self.render_triangles as usize,

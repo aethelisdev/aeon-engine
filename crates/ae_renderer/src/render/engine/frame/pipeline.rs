@@ -10,6 +10,20 @@ use crate::render::types::{FrameRenderStats, OverlayRenderer, RenderError, Viewp
 use crate::render::viewport_texture::ViewportTexture;
 use winit::window::Window;
 
+/// Granularity in pixels for viewport texture bucket allocation to prevent GPU target thrashing during interactive resizing.
+pub const VIEWPORT_BUCKET_SIZE: u32 = 64;
+
+/// Computes the quantized bucket dimension rounded up to the nearest multiple of `bucket_size`.
+///
+/// Returns 0 if `dim` is 0 to avoid empty render target allocation.
+#[inline]
+pub fn quantize_dimension(dim: u32, bucket_size: u32) -> u32 {
+    if dim == 0 || bucket_size == 0 {
+        return 0;
+    }
+    dim.div_ceil(bucket_size) * bucket_size
+}
+
 /// Type alias for the UI render callback to reduce type complexity.
 pub type UiRenderCallback<'a> = &'a mut dyn FnMut(
     &wgpu::Device,
@@ -31,7 +45,100 @@ pub struct RenderFrameParams<'a> {
     pub ui_renderer: Option<UiRenderCallback<'a>>,
 }
 
+/// Context holding the acquired swapchain surface texture, its view, and presentation latency.
+pub(crate) struct AcquiredFrameSurface {
+    /// Active swapchain output texture acquired from the surface.
+    pub output: wgpu::SurfaceTexture,
+    /// Default texture view created for presentation rendering.
+    pub surface_view: wgpu::TextureView,
+    /// Latency elapsed during swapchain texture acquisition.
+    pub acquire_wait: std::time::Duration,
+}
+
 impl RenderState {
+    /// Evaluates the active environment color converted from sRGB to linear gamma space.
+    ///
+    /// Avoids repeating redundant perceptual powf(2.2) conversions across render passes.
+    #[inline]
+    pub fn environment_clear_color(&self) -> wgpu::Color {
+        let env = self.graphics_settings.environment_color;
+        wgpu::Color {
+            r: (env[0] as f64).powf(2.2),
+            g: (env[1] as f64).powf(2.2),
+            b: (env[2] as f64).powf(2.2),
+            a: 1.0,
+        }
+    }
+
+    /// Acquires the next swapchain surface texture, handling surface loss and reconfiguration.
+    pub(crate) fn acquire_surface_frame(&self) -> Result<AcquiredFrameSurface, RenderError> {
+        let acquire_start = std::time::Instant::now();
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(tex)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                return Err(RenderError::SurfaceLost);
+            }
+            other => return Err(RenderError::Other(format!("{:?}", other))),
+        };
+        let acquire_wait = acquire_start.elapsed();
+        let surface_view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        Ok(AcquiredFrameSurface {
+            output,
+            surface_view,
+            acquire_wait,
+        })
+    }
+
+    /// Submits the finished command encoder and presents the frame to the display subsystem.
+    ///
+    /// Aggregates surface acquisition, queue submission, and presentation latencies into `last_present_wait_secs`.
+    pub(crate) fn submit_and_present(
+        &mut self,
+        encoder: wgpu::CommandEncoder,
+        output: wgpu::SurfaceTexture,
+        acquire_wait: std::time::Duration,
+    ) {
+        let submit_start = std::time::Instant::now();
+        self.queue.submit(std::iter::once(encoder.finish()));
+        let submit_wait = submit_start.elapsed();
+
+        let present_start = std::time::Instant::now();
+        self.queue.present(output);
+        let present_wait = present_start.elapsed();
+
+        self.last_present_wait_secs = (acquire_wait + submit_wait + present_wait).as_secs_f32();
+    }
+
+    /// Encodes a single color clear render pass on the target texture view.
+    pub(crate) fn encode_clear_pass(
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        clear_color: wgpu::Color,
+        label: &'static str,
+    ) {
+        let _clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some(label),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear_color),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+    }
+
     /// Executes the full frame render pipeline: shadow pass → main pass (sky, grid,
     /// opaque geometry, wireframe, sprites, overlays) → bloom/post-process → Iris UI.
     pub fn render(&mut self, params: RenderFrameParams<'_>) -> Result<(), RenderError> {
@@ -59,31 +166,48 @@ impl RenderState {
         let vp_h = ((self.last_viewport_rect.max_y - self.last_viewport_rect.min_y) * scale)
             .max(0.0) as u32;
         if vp_w > 0 && vp_h > 0 {
+            let bucket_w = quantize_dimension(vp_w, VIEWPORT_BUCKET_SIZE);
+            let bucket_h = quantize_dimension(vp_h, VIEWPORT_BUCKET_SIZE);
+
             let needs_resize = match &self.viewport_texture {
-                Some(vt) => vt.width != vp_w || vt.height != vp_h,
+                Some(vt) => vt.width != bucket_w || vt.height != bucket_h,
                 None => true,
             };
             if needs_resize {
                 self.viewport_texture = Some(ViewportTexture::new(
                     &self.device,
+                    bucket_w,
+                    bucket_h,
                     vp_w,
                     vp_h,
                     self.config.format,
                     "Viewport Texture",
                 ));
 
-                // Re-configure post-process pipeline intermediate targets to viewport size
-                let mut vp_config = self.config.clone();
-                vp_config.width = vp_w;
-                vp_config.height = vp_h;
+                // Re-configure post-process pipeline intermediate targets to bucketed viewport size
+                let vp_config = wgpu::SurfaceConfiguration {
+                    usage: self.config.usage,
+                    format: self.config.format,
+                    width: bucket_w,
+                    height: bucket_h,
+                    present_mode: self.config.present_mode,
+                    alpha_mode: self.config.alpha_mode,
+                    view_formats: vec![],
+                    desired_maximum_frame_latency: self.config.desired_maximum_frame_latency,
+                    color_space: self.config.color_space,
+                };
                 self.post_process.resize(
                     &self.device,
                     &vp_config,
                     self.graphics_settings.msaa_samples,
                 );
+            } else if let Some(vt) = &mut self.viewport_texture {
+                vt.logical_width = vp_w;
+                vt.logical_height = vp_h;
             }
-            if self.outline.width != vp_w || self.outline.height != vp_h {
-                self.outline.resize(&self.device, &self.queue, vp_w, vp_h);
+            if self.outline.width != bucket_w || self.outline.height != bucket_h {
+                self.outline
+                    .resize(&self.device, &self.queue, bucket_w, bucket_h);
             }
         }
 
@@ -95,71 +219,34 @@ impl RenderState {
         };
 
         if !render_enabled {
-            let acquire_start = std::time::Instant::now();
-            let output = match self.surface.get_current_texture() {
-                wgpu::CurrentSurfaceTexture::Success(tex)
-                | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
-                wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
-                    self.surface.configure(&self.device, &self.config);
-                    return Err(RenderError::SurfaceLost);
-                }
-                other => return Err(RenderError::Other(format!("{:?}", other))),
-            };
-            let acquire_wait = acquire_start.elapsed();
-            let surface_view = output
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
+            let AcquiredFrameSurface {
+                output,
+                surface_view,
+                acquire_wait,
+            } = self.acquire_surface_frame()?;
             let mut encoder = self
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Encoder"),
+                    label: Some("Disabled Render Encoder"),
                 });
 
-            let env_color = self.graphics_settings.environment_color;
-            let clear_rgb = wgpu::Color {
-                r: (env_color[0] as f64).powf(2.2),
-                g: (env_color[1] as f64).powf(2.2),
-                b: (env_color[2] as f64).powf(2.2),
-                a: 1.0,
-            };
-            {
-                // Pass 1: Clear OS Surface View
-                let _clear_surface_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Clear OS Surface Pass (Render Disabled)"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &surface_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(clear_rgb),
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-            }
+            let clear_rgb = self.environment_clear_color();
+            // Pass 1: Clear OS Surface View
+            Self::encode_clear_pass(
+                &mut encoder,
+                &surface_view,
+                clear_rgb,
+                "Clear OS Surface Pass (Render Disabled)",
+            );
 
+            // Pass 2: Clear Viewport Texture (if present)
             if let Some(vt) = &self.viewport_texture {
-                // Pass 2: Clear Viewport Texture (different dimensions from surface_view)
-                let _clear_vp_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Clear Viewport Texture Pass (Render Disabled)"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &vt.view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(clear_rgb),
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+                Self::encode_clear_pass(
+                    &mut encoder,
+                    &vt.view,
+                    clear_rgb,
+                    "Clear Viewport Texture Pass (Render Disabled)",
+                );
             }
 
             if let Some(render_ui) = ui_renderer {
@@ -174,13 +261,7 @@ impl RenderState {
                 );
             }
 
-            self.queue.submit(std::iter::once(encoder.finish()));
-            let present_start = std::time::Instant::now();
-            self.queue.present(output);
-            let present_wait = present_start.elapsed();
-
-            self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
-
+            self.submit_and_present(encoder, output, acquire_wait);
             return Ok(());
         }
 
@@ -197,50 +278,62 @@ impl RenderState {
         let mut transparent_objs = scene.transparent_objs;
         let model_instance_data = scene.model_instance_data;
 
-        transparent_objs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+        if transparent_objs.len() > 1 {
+            transparent_objs.sort_unstable_by(|a, b| b.0.total_cmp(&a.0));
+        }
 
-        // Buffer Prep
-        let total_instances = triangle_instances.len()
+        self.frame_scratch.clear();
+
+        let total_primitive_instances = triangle_instances.len()
             + cube_instances.len()
             + sphere_instances.len()
             + cylinder_instances.len()
             + capsule_instances.len()
             + torus_instances.len()
-            + transparent_objs.len()
-            + model_instance_data.values().map(|v| v.len()).sum::<usize>();
-        let mut all_instances = Vec::with_capacity(total_instances);
-        let tri_start = 0;
-        for item in &triangle_instances {
-            all_instances.push(item.instance);
-        }
-        let cube_start = all_instances.len();
-        for item in &cube_instances {
-            all_instances.push(item.instance);
-        }
-        let sphere_start = all_instances.len();
-        for item in &sphere_instances {
-            all_instances.push(item.instance);
-        }
-        let cylinder_start = all_instances.len();
-        for item in &cylinder_instances {
-            all_instances.push(item.instance);
-        }
-        let capsule_start = all_instances.len();
-        for item in &capsule_instances {
-            all_instances.push(item.instance);
-        }
-        let torus_start = all_instances.len();
-        for item in &torus_instances {
-            all_instances.push(item.instance);
-        }
-        let sprite_start = all_instances.len();
-        for (_, _, i) in &transparent_objs {
-            all_instances.push(*i);
-        }
+            + transparent_objs.len();
 
-        let mut model_batches = Vec::with_capacity(model_instance_data.len());
-        let mut model_starts = std::collections::HashMap::with_capacity(model_instance_data.len());
-        let mut transparent_model_draws = Vec::new();
+        let total_model_instances: usize = model_instance_data.values().map(Vec::len).sum();
+
+        self.frame_scratch
+            .all_instances
+            .reserve(total_primitive_instances + total_model_instances);
+
+        // Buffer Prep
+        let tri_start = 0;
+        self.frame_scratch
+            .all_instances
+            .extend(triangle_instances.iter().map(|item| item.instance));
+
+        let cube_start = self.frame_scratch.all_instances.len();
+        self.frame_scratch
+            .all_instances
+            .extend(cube_instances.iter().map(|item| item.instance));
+
+        let sphere_start = self.frame_scratch.all_instances.len();
+        self.frame_scratch
+            .all_instances
+            .extend(sphere_instances.iter().map(|item| item.instance));
+
+        let cylinder_start = self.frame_scratch.all_instances.len();
+        self.frame_scratch
+            .all_instances
+            .extend(cylinder_instances.iter().map(|item| item.instance));
+
+        let capsule_start = self.frame_scratch.all_instances.len();
+        self.frame_scratch
+            .all_instances
+            .extend(capsule_instances.iter().map(|item| item.instance));
+
+        let torus_start = self.frame_scratch.all_instances.len();
+        self.frame_scratch
+            .all_instances
+            .extend(torus_instances.iter().map(|item| item.instance));
+
+        let sprite_start = self.frame_scratch.all_instances.len();
+        self.frame_scratch
+            .all_instances
+            .extend(transparent_objs.iter().map(|(_, _, i)| *i));
+
         let cam_pos = camera.position_vec3();
 
         for (handle, insts) in &model_instance_data {
@@ -248,34 +341,43 @@ impl RenderState {
                 continue;
             }
             if let Some(model) = asset_manager.models.get(*handle) {
-                let buffer_offset = all_instances.len();
-                model_starts.insert(*handle, buffer_offset);
-                for item in insts {
-                    all_instances.push(item.instance);
-                }
-                model_batches.push(forward::PreparedModelBatch {
-                    handle: *handle,
-                    model,
-                    instances: insts.as_slice(),
-                    buffer_offset,
-                });
+                let buffer_offset = self.frame_scratch.all_instances.len();
+                self.frame_scratch
+                    .model_starts
+                    .insert(*handle, buffer_offset);
+                self.frame_scratch
+                    .all_instances
+                    .extend(insts.iter().map(|item| item.instance));
+                let instance_start = self.frame_scratch.model_instances.len();
+                self.frame_scratch.model_instances.extend_from_slice(insts);
+                let instance_count = insts.len();
+
+                self.frame_scratch
+                    .model_batches
+                    .push(forward::PreparedModelBatch {
+                        handle: *handle,
+                        instance_start,
+                        instance_count,
+                        buffer_offset,
+                    });
 
                 for (submesh_index, submesh) in model.submeshes.iter().enumerate() {
                     if submesh.alpha_mode == crate::render::types::SubmeshAlphaMode::Blend {
                         for (inst_idx, item) in insts.iter().enumerate() {
-                            let m = &item.instance.model_matrix;
-                            let inst_pos = cgmath::Vector3::new(m[3][0], m[3][1], m[3][2]);
-                            use cgmath::InnerSpace;
-                            let dist_sq = (inst_pos - cam_pos).magnitude2();
-                            transparent_model_draws.push(forward::TransparentSubmeshDraw {
-                                distance_sq: dist_sq,
-                                handle: *handle,
-                                model,
-                                submesh_index,
-                                buffer_offset,
-                                instance_index: inst_idx,
-                                override_tex: item.texture,
-                            });
+                            let dx = item.world_position[0] - cam_pos.x;
+                            let dy = item.world_position[1] - cam_pos.y;
+                            let dz = item.world_position[2] - cam_pos.z;
+                            let dist_sq = dx * dx + dy * dy + dz * dz;
+                            self.frame_scratch.transparent_model_draws.push(
+                                forward::TransparentSubmeshDraw {
+                                    distance_sq: dist_sq,
+                                    handle: *handle,
+                                    submesh_index,
+                                    buffer_offset,
+                                    instance_index: inst_idx,
+                                    override_tex: item.texture,
+                                },
+                            );
                         }
                     }
                 }
@@ -283,14 +385,19 @@ impl RenderState {
         }
 
         // Sort transparent model submeshes Back-to-Front (descending distance)
-        transparent_model_draws.sort_by(|a, b| {
-            b.distance_sq
-                .partial_cmp(&a.distance_sq)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        // Uses in-place pdqsort (sort_unstable_by) with branchless total_cmp.
+        // Runs in O(N) linear time on already-sorted or nearly-sorted frames without heap allocations.
+        if self.frame_scratch.transparent_model_draws.len() > 1 {
+            self.frame_scratch
+                .transparent_model_draws
+                .sort_unstable_by(|a, b| b.distance_sq.total_cmp(&a.distance_sq));
+        }
 
-        self.geometry
-            .update_instances(&self.device, &self.queue, &all_instances);
+        self.geometry.update_instances(
+            &self.device,
+            &self.queue,
+            &self.frame_scratch.all_instances,
+        );
 
         self.uniforms.update(&self.queue, camera);
         self.uniforms
@@ -315,24 +422,15 @@ impl RenderState {
             bytemuck::cast_slice(&[self.graphics_settings.bloom_intensity]),
         );
 
-        let acquire_start = std::time::Instant::now();
-        let output = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(tex)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
-            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
-                return Err(RenderError::SurfaceLost);
-            }
-            other => return Err(RenderError::Other(format!("{:?}", other))),
-        };
-        let acquire_wait = acquire_start.elapsed();
-        let surface_view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let AcquiredFrameSurface {
+            output,
+            surface_view,
+            acquire_wait,
+        } = self.acquire_surface_frame()?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Encoder"),
+                label: Some("3D Forward Command Encoder"),
             });
 
         let shadow_timer = std::time::Instant::now();
@@ -343,7 +441,7 @@ impl RenderState {
                 primitives: &self.geometry,
                 instance_buffer: &self.geometry.instance_buffer,
                 offsets: crate::render::shadow::ShadowPassBatchOffsets {
-                    all_instances_count: all_instances.len(),
+                    all_instances_count: self.frame_scratch.all_instances.len(),
                     triangle_instances_count: triangle_instances.len(),
                     tri_start,
                     cube_instances_count: cube_instances.len(),
@@ -359,11 +457,11 @@ impl RenderState {
                 },
                 asset_manager,
                 model_instance_data: &model_instance_data,
-                model_starts: &model_starts,
+                model_starts: &self.frame_scratch.model_starts,
                 default_white_texture: &self.default_white_texture,
             },
         );
-        let shadow_pass_ms = shadow_timer.elapsed().as_secs_f32() * 1000.0;
+        let shadow_pass_record_ms = shadow_timer.elapsed().as_secs_f32() * 1000.0;
 
         // PASS 1: MAIN FORWARD PASS
         let main_timer = std::time::Instant::now();
@@ -371,7 +469,7 @@ impl RenderState {
             &mut encoder,
             forward::ForwardPassContext {
                 options,
-                all_instances_len: all_instances.len(),
+                all_instances_len: self.frame_scratch.all_instances.len(),
                 triangle_instances: &triangle_instances,
                 tri_start,
                 cube_instances: &cube_instances,
@@ -386,15 +484,15 @@ impl RenderState {
                 torus_start,
                 transparent_objs: &transparent_objs,
                 sprite_start,
-                model_batches: &model_batches,
-                transparent_model_draws: &transparent_model_draws,
+                model_batches: &self.frame_scratch.model_batches,
+                model_instances: &self.frame_scratch.model_instances,
+                transparent_model_draws: &self.frame_scratch.transparent_model_draws,
                 overlays,
                 asset_manager,
             },
         );
-        let main_opaque_pass_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
-        self.last_render_stats.culled_meshes =
-            (total_instances as u32).saturating_sub(self.last_render_stats.entities_rendered);
+        let main_opaque_pass_record_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
+        self.last_render_stats.culled_meshes = scene.culled_entities_count;
 
         // BLOOM & POST PROCESS
         let post_timer = std::time::Instant::now();
@@ -418,7 +516,7 @@ impl RenderState {
             &scene.selected_model_instances,
             asset_manager,
         );
-        let post_process_pass_ms = post_timer.elapsed().as_secs_f32() * 1000.0;
+        let post_process_pass_record_ms = post_timer.elapsed().as_secs_f32() * 1000.0;
 
         let ui_timer = std::time::Instant::now();
         if let Some(render_ui) = ui_renderer {
@@ -432,23 +530,21 @@ impl RenderState {
                 vt_view,
             );
         }
-        let ui_pass_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
+        let ui_pass_record_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
 
-        let total_gpu_ms = shadow_pass_ms + main_opaque_pass_ms + post_process_pass_ms + ui_pass_ms;
-        self.last_gpu_pass_timings = ae_core::telemetry::GpuPassTimings {
-            shadow_pass_ms,
-            main_opaque_pass_ms,
-            post_process_pass_ms,
-            ui_pass_ms,
-            total_gpu_ms,
+        let total_record_ms = shadow_pass_record_ms
+            + main_opaque_pass_record_ms
+            + post_process_pass_record_ms
+            + ui_pass_record_ms;
+        self.last_recording_timings = ae_core::telemetry::RenderPassRecordingTimings {
+            shadow_pass_record_ms,
+            main_opaque_pass_record_ms,
+            post_process_pass_record_ms,
+            ui_pass_record_ms,
+            total_record_ms,
         };
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-        let present_start = std::time::Instant::now();
-        self.queue.present(output);
-        let present_wait = present_start.elapsed();
-
-        self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
+        self.submit_and_present(encoder, output, acquire_wait);
 
         Ok(())
     }
@@ -467,59 +563,32 @@ impl RenderState {
         overlays: &[&dyn OverlayRenderer],
         ui_renderer: Option<UiRenderCallback<'_>>,
     ) -> Result<(), RenderError> {
-        let acquire_start = std::time::Instant::now();
-        let output = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(tex)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
-            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
-                return Err(RenderError::SurfaceLost);
-            }
-            other => return Err(RenderError::Other(format!("{:?}", other))),
-        };
-        let acquire_wait = acquire_start.elapsed();
-        let surface_view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let AcquiredFrameSurface {
+            output,
+            surface_view,
+            acquire_wait,
+        } = self.acquire_surface_frame()?;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("2D Command Encoder"),
             });
 
-        let env_color = self.graphics_settings.environment_color;
-        let clear_rgb = wgpu::Color {
-            r: (env_color[0] as f64).powf(2.2),
-            g: (env_color[1] as f64).powf(2.2),
-            b: (env_color[2] as f64).powf(2.2),
-            a: 1.0,
-        };
+        let clear_rgb = self.environment_clear_color();
 
         // Pass 1: Clear OS Surface View to neutral dock background
-        {
-            let surface_clear = wgpu::Color {
-                r: 0.05,
-                g: 0.05,
-                b: 0.07,
-                a: 1.0,
-            };
-            let _clear_surface_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Clear OS Surface Pass (2D)"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &surface_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(surface_clear),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-        }
+        let surface_clear = wgpu::Color {
+            r: 0.05,
+            g: 0.05,
+            b: 0.07,
+            a: 1.0,
+        };
+        Self::encode_clear_pass(
+            &mut encoder,
+            &surface_view,
+            surface_clear,
+            "Clear OS Surface Pass (2D)",
+        );
 
         // Pass 2: Render 2D Sprite Viewport Pass
         let main_timer = std::time::Instant::now();
@@ -552,13 +621,10 @@ impl RenderState {
                 ov.draw_overlay(&self.queue, &mut pass);
             }
         }
-        let main_opaque_pass_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
+        let main_opaque_pass_record_ms = main_timer.elapsed().as_secs_f32() * 1000.0;
 
         // Reset 3D render stats for 2D mode
         self.last_render_stats = FrameRenderStats::default();
-
-        // In 2D mode, post-processing composite (which consumes 3D scene_texture) is bypassed.
-        let post_process_pass_ms = 0.0;
 
         // UI pass
         let ui_timer = std::time::Instant::now();
@@ -573,24 +639,74 @@ impl RenderState {
                 vt_view,
             );
         }
-        let ui_pass_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
+        let ui_pass_record_ms = ui_timer.elapsed().as_secs_f32() * 1000.0;
 
-        let total_gpu_ms = main_opaque_pass_ms + post_process_pass_ms + ui_pass_ms;
-        self.last_gpu_pass_timings = ae_core::telemetry::GpuPassTimings {
-            shadow_pass_ms: 0.0,
-            main_opaque_pass_ms,
-            post_process_pass_ms,
-            ui_pass_ms,
-            total_gpu_ms,
+        let total_record_ms = main_opaque_pass_record_ms + ui_pass_record_ms;
+        self.last_recording_timings = ae_core::telemetry::RenderPassRecordingTimings {
+            shadow_pass_record_ms: 0.0,
+            main_opaque_pass_record_ms,
+            post_process_pass_record_ms: 0.0,
+            ui_pass_record_ms,
+            total_record_ms,
         };
 
-        self.queue.submit(std::iter::once(encoder.finish()));
-        let present_start = std::time::Instant::now();
-        self.queue.present(output);
-        let present_wait = present_start.elapsed();
-
-        self.last_present_wait_secs = (acquire_wait + present_wait).as_secs_f32();
+        self.submit_and_present(encoder, output, acquire_wait);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_quantize_dimension_edge_cases() {
+        assert_eq!(quantize_dimension(0, 64), 0);
+        assert_eq!(quantize_dimension(1, 64), 64);
+        assert_eq!(quantize_dimension(63, 64), 64);
+        assert_eq!(quantize_dimension(64, 64), 64);
+        assert_eq!(quantize_dimension(65, 64), 128);
+        assert_eq!(quantize_dimension(128, 64), 128);
+        assert_eq!(quantize_dimension(1000, 128), 1024);
+        assert_eq!(quantize_dimension(50, 0), 0);
+    }
+
+    #[test]
+    fn test_transparent_sort_invariants() {
+        let handle = crate::asset::AssetHandle::default();
+        let mut draws = [
+            forward::TransparentSubmeshDraw {
+                distance_sq: 10.0,
+                handle,
+                submesh_index: 0,
+                buffer_offset: 0,
+                instance_index: 0,
+                override_tex: None,
+            },
+            forward::TransparentSubmeshDraw {
+                distance_sq: 50.0,
+                handle,
+                submesh_index: 0,
+                buffer_offset: 0,
+                instance_index: 0,
+                override_tex: None,
+            },
+            forward::TransparentSubmeshDraw {
+                distance_sq: 25.0,
+                handle,
+                submesh_index: 0,
+                buffer_offset: 0,
+                instance_index: 0,
+                override_tex: None,
+            },
+        ];
+
+        draws.sort_unstable_by(|a, b| b.distance_sq.total_cmp(&a.distance_sq));
+
+        // Descending order (farthest first)
+        assert_eq!(draws[0].distance_sq, 50.0);
+        assert_eq!(draws[1].distance_sq, 25.0);
+        assert_eq!(draws[2].distance_sq, 10.0);
     }
 }

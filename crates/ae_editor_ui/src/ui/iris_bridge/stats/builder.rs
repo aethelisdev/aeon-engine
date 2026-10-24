@@ -38,7 +38,7 @@ impl IrisEditorOverlay {
             frame_pacing: params.telemetry.frame_pacing,
             frame_pacing_stats: params.telemetry.frame_pacing_stats,
             cpu_timings: params.telemetry.cpu_timings,
-            gpu_pass_timings: params.telemetry.gpu_pass_timings,
+            pass_recording_timings: params.telemetry.pass_recording_timings,
             draw_call_stats: params.telemetry.draw_call_stats,
             vram_stats: params.telemetry.vram_stats,
             render_triangles: params.telemetry.render_triangles as u64,

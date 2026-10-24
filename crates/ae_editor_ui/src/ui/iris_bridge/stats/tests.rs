@@ -14,7 +14,8 @@ use crate::ui::iris_bridge::stats::types::{
     StatsPanelParams, StatsPanelState, is_stats_tag,
 };
 use ae_core::telemetry::{
-    CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer, GpuPassTimings, VramStats,
+    CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer,
+    RenderPassRecordingTimings, VramStats,
 };
 use irisui::prelude::*;
 
@@ -55,7 +56,7 @@ fn test_build_stats_panel_declarative_structure() {
     let ring = FrameRingBuffer::<240>::new();
     let pacing_stats = FramePacingStats::default();
     let cpu_timings = CpuSyncTimings::default();
-    let gpu_timings = GpuPassTimings::default();
+    let pass_recording_timings = RenderPassRecordingTimings::default();
     let draw_calls = DrawCallBreakdown::default();
     let vram_stats = VramStats::default();
 
@@ -69,7 +70,7 @@ fn test_build_stats_panel_declarative_structure() {
         frame_pacing: &ring,
         frame_pacing_stats: &pacing_stats,
         cpu_timings: &cpu_timings,
-        gpu_pass_timings: &gpu_timings,
+        pass_recording_timings: &pass_recording_timings,
         draw_call_stats: &draw_calls,
         vram_stats: &vram_stats,
         render_triangles: 125000,
@@ -137,7 +138,7 @@ fn test_checkbox_children_resolve_ancestor_tag() {
     let ring = FrameRingBuffer::<240>::new();
     let pacing_stats = FramePacingStats::default();
     let cpu_timings = CpuSyncTimings::default();
-    let gpu_timings = GpuPassTimings::default();
+    let pass_recording_timings = RenderPassRecordingTimings::default();
     let draw_calls = DrawCallBreakdown::default();
     let vram_stats = VramStats::default();
 
@@ -151,7 +152,7 @@ fn test_checkbox_children_resolve_ancestor_tag() {
         frame_pacing: &ring,
         frame_pacing_stats: &pacing_stats,
         cpu_timings: &cpu_timings,
-        gpu_pass_timings: &gpu_timings,
+        pass_recording_timings: &pass_recording_timings,
         draw_call_stats: &draw_calls,
         vram_stats: &vram_stats,
         render_triangles: 125000,
@@ -202,7 +203,7 @@ fn test_stats_panel_declarative_action_generation() {
     let ring = FrameRingBuffer::<240>::new();
     let pacing_stats = FramePacingStats::default();
     let cpu_timings = CpuSyncTimings::default();
-    let gpu_timings = GpuPassTimings::default();
+    let pass_recording_timings = RenderPassRecordingTimings::default();
     let draw_calls = DrawCallBreakdown::default();
     let vram_stats = VramStats::default();
 
@@ -216,7 +217,7 @@ fn test_stats_panel_declarative_action_generation() {
         frame_pacing: &ring,
         frame_pacing_stats: &pacing_stats,
         cpu_timings: &cpu_timings,
-        gpu_pass_timings: &gpu_timings,
+        pass_recording_timings: &pass_recording_timings,
         draw_call_stats: &draw_calls,
         vram_stats: &vram_stats,
         render_triangles: 5000,

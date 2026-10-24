@@ -92,7 +92,7 @@ pub struct SkinVertex {
 
 /// Per-instance data: 4×4 model matrix + RGBA color (80 bytes per instance).
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Instance {
     pub model_matrix: [[f32; 4]; 4],
     pub color: [f32; 4],
@@ -158,6 +158,8 @@ impl Instance {
 pub struct RenderInstanceItem {
     /// Raw GPU instance data containing model matrix and tint color.
     pub instance: Instance,
+    /// World position vector extracted for sorting, spatial queries, and cache-friendly distance calculations.
+    pub world_position: [f32; 3],
     /// Optional texture asset handle override for diffuse mapping.
     pub texture: Option<crate::asset::AssetHandle>,
     /// Precomputed indicator for negative scale reflection requiring clockwise vertex winding.
@@ -165,12 +167,18 @@ pub struct RenderInstanceItem {
 }
 
 impl RenderInstanceItem {
-    /// Constructs a new `RenderInstanceItem`, precomputing reflection parity from the instance matrix.
+    /// Constructs a new `RenderInstanceItem`, precomputing reflection parity and extracting translation from the instance matrix.
     #[inline]
     pub fn new(instance: Instance, texture: Option<crate::asset::AssetHandle>) -> Self {
         let is_mirrored = instance.is_mirrored();
+        let world_position = [
+            instance.model_matrix[3][0],
+            instance.model_matrix[3][1],
+            instance.model_matrix[3][2],
+        ];
         Self {
             instance,
+            world_position,
             texture,
             is_mirrored,
         }
@@ -272,5 +280,6 @@ mod tests {
         let item = RenderInstanceItem::new(inst, None);
         assert!(item.is_mirrored);
         assert_eq!(item.texture, None);
+        assert_eq!(item.world_position, [0.0, 0.0, 0.0]);
     }
 }

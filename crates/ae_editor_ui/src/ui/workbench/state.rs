@@ -70,8 +70,8 @@ pub struct EngineUi {
     pub profiler_frame_ms: f32,
     /// Detailed CPU thread execution and synchronization stage timings
     pub cpu_timings: ae_core::telemetry::CpuSyncTimings,
-    /// Detailed GPU pass execution timings (Shadow, Main Opaque, Post-Process, UI)
-    pub gpu_pass_timings: ae_core::telemetry::GpuPassTimings,
+    /// Detailed CPU command buffer recording and pass orchestration timings
+    pub pass_recording_timings: ae_core::telemetry::RenderPassRecordingTimings,
     /// Live 240-frame ring buffer for real-time frame pacing analysis
     pub frame_pacing: ae_core::telemetry::FrameRingBuffer<240>,
     /// Precalculated statistical pacing metrics (1% Low, 0.1% Low, Jitter Variance, Spikes)
@@ -168,7 +168,7 @@ impl EngineUi {
             profiler_ui_ms: 0.0,
             profiler_frame_ms: 0.0,
             cpu_timings: ae_core::telemetry::CpuSyncTimings::default(),
-            gpu_pass_timings: ae_core::telemetry::GpuPassTimings::default(),
+            pass_recording_timings: ae_core::telemetry::RenderPassRecordingTimings::default(),
             frame_pacing: ae_core::telemetry::FrameRingBuffer::new(),
             frame_pacing_stats: ae_core::telemetry::FramePacingStats::default(),
             draw_call_stats: ae_core::telemetry::DrawCallBreakdown::default(),

@@ -3,8 +3,35 @@
 use std::sync::Arc;
 use winit::window::Window;
 
+use super::frame::forward::{PreparedModelBatch, TransparentSubmeshDraw};
 use crate::render::types::ViewportRect;
 use crate::render::viewport_texture::ViewportTexture;
+
+/// Persistent per-frame scratch buffers reused across renders to eliminate heap allocations in the hot path.
+#[derive(Default)]
+pub struct RenderFrameScratch {
+    /// Combined flat instance data uploaded to GPU instance buffer.
+    pub all_instances: Vec<crate::render::types::Instance>,
+    /// Flattened model instance items referencing textures and reflection states.
+    pub model_instances: Vec<crate::render::types::RenderInstanceItem>,
+    /// Active 3D model batches prepared for the current frame.
+    pub model_batches: Vec<PreparedModelBatch>,
+    /// Instance buffer start offsets mapped by model asset handle.
+    pub model_starts: std::collections::HashMap<crate::asset::AssetHandle, usize>,
+    /// Sorted transparent model submesh draw operations.
+    pub transparent_model_draws: Vec<TransparentSubmeshDraw>,
+}
+
+impl RenderFrameScratch {
+    /// Clears all scratch buffers while retaining allocated heap capacities.
+    pub fn clear(&mut self) {
+        self.all_instances.clear();
+        self.model_instances.clear();
+        self.model_batches.clear();
+        self.model_starts.clear();
+        self.transparent_model_draws.clear();
+    }
+}
 
 /// Options containing viewport visualization flags.
 #[derive(Clone, Copy, Debug)]
@@ -55,10 +82,12 @@ pub struct RenderState {
     pub last_present_wait_secs: f32,
     /// Live rendering and geometry metrics collected during the last frame.
     pub last_render_stats: crate::render::types::FrameRenderStats,
-    /// Measured GPU pass execution timings for the last completed frame.
-    pub last_gpu_pass_timings: ae_core::telemetry::GpuPassTimings,
+    /// Measured CPU command buffer recording and pass orchestration timings for the last completed frame.
+    pub last_recording_timings: ae_core::telemetry::RenderPassRecordingTimings,
     /// Physical GPU adapter information (name, backend, device type, driver).
     pub adapter_info: wgpu::AdapterInfo,
+    /// Persistent frame scratch buffers for zero-allocation rendering in hot paths.
+    pub frame_scratch: RenderFrameScratch,
 }
 
 impl RenderState {
@@ -130,5 +159,67 @@ impl RenderState {
             dynamic_uniform_vram_mb,
             total_vram_mb,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::asset::AssetHandle;
+    use crate::render::types::Instance;
+
+    #[test]
+    fn test_render_frame_scratch_clear_retains_capacity() {
+        let mut scratch = RenderFrameScratch::default();
+        let mut sm = slotmap::SlotMap::<AssetHandle, ()>::with_key();
+        let handles: Vec<AssetHandle> = (0..100).map(|_| sm.insert(())).collect();
+
+        for (i, &handle) in handles.iter().enumerate() {
+            scratch.all_instances.push(Instance::default());
+            scratch.model_batches.push(PreparedModelBatch {
+                handle,
+                instance_start: i,
+                instance_count: 1,
+                buffer_offset: i,
+            });
+            scratch.model_starts.insert(handle, i);
+            scratch
+                .transparent_model_draws
+                .push(TransparentSubmeshDraw {
+                    distance_sq: (i as f32) * 2.0,
+                    handle,
+                    submesh_index: 0,
+                    buffer_offset: i,
+                    instance_index: 0,
+                    override_tex: None,
+                });
+        }
+
+        assert_eq!(scratch.all_instances.len(), 100);
+        assert_eq!(scratch.model_batches.len(), 100);
+        assert_eq!(scratch.model_starts.len(), 100);
+        assert_eq!(scratch.transparent_model_draws.len(), 100);
+
+        let cap_instances = scratch.all_instances.capacity();
+        let cap_batches = scratch.model_batches.capacity();
+        let cap_starts = scratch.model_starts.capacity();
+        let cap_draws = scratch.transparent_model_draws.capacity();
+
+        assert!(cap_instances >= 100);
+        assert!(cap_batches >= 100);
+        assert!(cap_starts >= 100);
+        assert!(cap_draws >= 100);
+
+        scratch.clear();
+
+        assert_eq!(scratch.all_instances.len(), 0);
+        assert_eq!(scratch.model_batches.len(), 0);
+        assert_eq!(scratch.model_starts.len(), 0);
+        assert_eq!(scratch.transparent_model_draws.len(), 0);
+
+        assert_eq!(scratch.all_instances.capacity(), cap_instances);
+        assert_eq!(scratch.model_batches.capacity(), cap_batches);
+        assert_eq!(scratch.model_starts.capacity(), cap_starts);
+        assert_eq!(scratch.transparent_model_draws.capacity(), cap_draws);
     }
 }

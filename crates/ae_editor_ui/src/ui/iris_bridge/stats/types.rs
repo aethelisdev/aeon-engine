@@ -8,7 +8,8 @@
 //!
 
 use ae_core::telemetry::{
-    CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer, GpuPassTimings, VramStats,
+    CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer,
+    RenderPassRecordingTimings, VramStats,
 };
 use irisui::prelude::*;
 
@@ -111,8 +112,8 @@ pub struct StatsPanelParams<'a> {
     pub frame_pacing_stats: &'a FramePacingStats,
     /// CPU thread synchronization timings breakdown.
     pub cpu_timings: &'a CpuSyncTimings,
-    /// GPU render pass execution durations.
-    pub gpu_pass_timings: &'a GpuPassTimings,
+    /// CPU command buffer recording and pass orchestration durations.
+    pub pass_recording_timings: &'a RenderPassRecordingTimings,
     /// Granular draw call metrics and batch counts.
     pub draw_call_stats: &'a DrawCallBreakdown,
     /// Categorized VRAM memory consumption.

@@ -13,25 +13,25 @@ use crate::render::types::{
 };
 
 /// Prepared batch of model instances referencing cached GPU buffers and precomputed offsets.
-pub struct PreparedModelBatch<'a> {
+#[derive(Copy, Clone, Debug, Default)]
+pub struct PreparedModelBatch {
     /// Unique identifier of the underlying 3D model asset.
     pub handle: crate::asset::AssetHandle,
-    /// Shared reference to the resident model geometry and submesh descriptors.
-    pub model: &'a ModelAsset,
-    /// Contiguous slice of instance items allocated for this model in the current frame.
-    pub instances: &'a [RenderInstanceItem],
+    /// Starting index within the contiguous flattened model instance scratch slice.
+    pub instance_start: usize,
+    /// Total number of contiguous model instances belonging to this model batch.
+    pub instance_count: usize,
     /// Global instance offset within the GPU dynamic instance buffer.
     pub buffer_offset: usize,
 }
 
 /// Pre-sorted transparent submesh draw call element for back-to-front depth ordering.
-pub struct TransparentSubmeshDraw<'a> {
+#[derive(Copy, Clone, Debug, Default)]
+pub struct TransparentSubmeshDraw {
     /// Squared Euclidean distance from camera eye to instance world translation.
     pub distance_sq: f32,
     /// Handle of the resident 3D model asset.
     pub handle: crate::asset::AssetHandle,
-    /// Reference to the target 3D model geometry.
-    pub model: &'a ModelAsset,
     /// Index of the blended submesh within `model.submeshes`.
     pub submesh_index: usize,
     /// Base instance offset of the parent batch inside the GPU instance buffer.
@@ -77,9 +77,11 @@ pub struct ForwardPassContext<'a> {
     /// Global instance buffer start offset for billboard sprites.
     pub sprite_start: usize,
     /// Contiguous slice of visible model batches active in the current frame.
-    pub model_batches: &'a [PreparedModelBatch<'a>],
+    pub model_batches: &'a [PreparedModelBatch],
+    /// Flattened slice of model instance items for texture and reflection indexing.
+    pub model_instances: &'a [RenderInstanceItem],
     /// Pre-sorted transparent model submesh draws ordered back-to-front by camera distance.
-    pub transparent_model_draws: &'a [TransparentSubmeshDraw<'a>],
+    pub transparent_model_draws: &'a [TransparentSubmeshDraw],
     /// Active viewport overlays (gizmos, bounds, debug visuals).
     pub overlays: &'a [&'a dyn OverlayRenderer],
     /// Reference to the central asset manager for texture and mesh resolution.
@@ -201,7 +203,7 @@ fn resolve_submesh_texture<'a>(
 
 /// Configuration descriptor for batching model submeshes by alpha blending mode.
 struct ModelBatchPassConfig<'a> {
-    batches: &'a [PreparedModelBatch<'a>],
+    batches: &'a [PreparedModelBatch],
     target_mode: SubmeshAlphaMode,
     is_cutout: bool,
 }
@@ -301,10 +303,15 @@ impl RenderState {
 
             // --- PASS 1b: CUTOUT / MASK SUBMESHES ---
             let has_cutout = ctx.model_batches.iter().any(|b| {
-                b.model
-                    .submeshes
-                    .iter()
-                    .any(|s| s.alpha_mode == SubmeshAlphaMode::Mask)
+                ctx.asset_manager
+                    .models
+                    .get(b.handle)
+                    .map(|m| {
+                        m.submeshes
+                            .iter()
+                            .any(|s| s.alpha_mode == SubmeshAlphaMode::Mask)
+                    })
+                    .unwrap_or(false)
             });
             if has_cutout {
                 self.draw_model_batches(
@@ -467,14 +474,16 @@ impl RenderState {
         stats: &mut FrameRenderStats,
     ) {
         for batch in config.batches {
-            if batch.instances.is_empty() {
+            if batch.instance_count == 0 {
                 continue;
             }
-            let has_matching_submesh = if batch.model.submeshes.is_empty() {
+            let Some(model) = ctx.asset_manager.models.get(batch.handle) else {
+                continue;
+            };
+            let has_matching_submesh = if model.submeshes.is_empty() {
                 !config.is_cutout
             } else {
-                batch
-                    .model
+                model
                     .submeshes
                     .iter()
                     .any(|s| s.alpha_mode == config.target_mode)
@@ -483,16 +492,18 @@ impl RenderState {
                 continue;
             }
 
-            tracker.bind_model_buffers(pass, batch.handle, batch.model);
+            tracker.bind_model_buffers(pass, batch.handle, model);
 
+            let instances = &ctx.model_instances
+                [batch.instance_start..batch.instance_start + batch.instance_count];
             let mut cur = 0;
-            while cur < batch.instances.len() {
+            while cur < instances.len() {
                 let start = cur;
-                let override_tex = batch.instances[cur].texture;
-                let mirrored = batch.instances[cur].is_mirrored;
-                while cur < batch.instances.len()
-                    && batch.instances[cur].texture == override_tex
-                    && batch.instances[cur].is_mirrored == mirrored
+                let override_tex = instances[cur].texture;
+                let mirrored = instances[cur].is_mirrored;
+                while cur < instances.len()
+                    && instances[cur].texture == override_tex
+                    && instances[cur].is_mirrored == mirrored
                 {
                     cur += 1;
                 }
@@ -529,7 +540,7 @@ impl RenderState {
                 let offset_bytes = ((batch.buffer_offset + start) * INSTANCE_SIZE) as u64;
                 pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
 
-                if batch.model.submeshes.is_empty() {
+                if model.submeshes.is_empty() {
                     let (key, bg) = match override_tex
                         .and_then(|h| ctx.asset_manager.textures.get(h))
                     {
@@ -540,7 +551,7 @@ impl RenderState {
                         ),
                     };
                     tracker.bind_texture(pass, key, bg);
-                    pass.draw_indexed(0..batch.model.num_indices, 0, 0..count);
+                    pass.draw_indexed(0..model.num_indices, 0, 0..count);
 
                     stats.draw_calls += 1;
                     if count > 1 {
@@ -548,16 +559,16 @@ impl RenderState {
                     } else {
                         stats.batched_draw_calls += 1;
                     }
-                    stats.triangles += (batch.model.num_indices as u64 / 3) * count as u64;
-                    stats.vertices += batch.model.raw_vertices.len() as u64 * count as u64;
+                    stats.triangles += (model.num_indices as u64 / 3) * count as u64;
+                    stats.vertices += model.raw_vertices.len() as u64 * count as u64;
                     stats.entities_rendered += count;
                 } else {
-                    for submesh in &batch.model.submeshes {
+                    for submesh in &model.submeshes {
                         if submesh.alpha_mode != config.target_mode {
                             continue;
                         }
                         let (key, bg) = resolve_submesh_texture(
-                            batch.model,
+                            model,
                             submesh,
                             override_tex,
                             ctx.asset_manager,
@@ -577,7 +588,7 @@ impl RenderState {
                             stats.batched_draw_calls += 1;
                         }
                         stats.triangles += (submesh.index_count as u64 / 3) * count as u64;
-                        stats.vertices += batch.model.raw_vertices.len() as u64 * count as u64;
+                        stats.vertices += model.raw_vertices.len() as u64 * count as u64;
                         stats.entities_rendered += count;
                     }
                 }
@@ -589,7 +600,7 @@ impl RenderState {
     fn draw_transparent_submeshes<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
-        draws: &'a [TransparentSubmeshDraw<'a>],
+        draws: &'a [TransparentSubmeshDraw],
         tracker: &mut RenderPassTracker,
         ctx: &ForwardPassContext<'a>,
         stats: &mut FrameRenderStats,
@@ -601,11 +612,17 @@ impl RenderState {
         );
 
         for draw in draws {
-            tracker.bind_model_buffers(pass, draw.handle, draw.model);
+            let Some(model) = ctx.asset_manager.models.get(draw.handle) else {
+                continue;
+            };
+            tracker.bind_model_buffers(pass, draw.handle, model);
 
-            let submesh = &draw.model.submeshes[draw.submesh_index];
+            if draw.submesh_index >= model.submeshes.len() {
+                continue;
+            }
+            let submesh = &model.submeshes[draw.submesh_index];
             let (key, bg) = resolve_submesh_texture(
-                draw.model,
+                model,
                 submesh,
                 draw.override_tex,
                 ctx.asset_manager,
@@ -624,7 +641,7 @@ impl RenderState {
             stats.draw_calls += 1;
             stats.batched_draw_calls += 1;
             stats.triangles += submesh.index_count as u64 / 3;
-            stats.vertices += draw.model.raw_vertices.len() as u64;
+            stats.vertices += model.raw_vertices.len() as u64;
             stats.entities_rendered += 1;
         }
     }
@@ -737,12 +754,14 @@ impl RenderState {
         }
 
         for batch in ctx.model_batches {
-            let count = batch.instances.len() as u32;
-            if count > 0 {
-                tracker.bind_model_buffers(pass, batch.handle, batch.model);
+            let count = batch.instance_count as u32;
+            if count > 0
+                && let Some(model) = ctx.asset_manager.models.get(batch.handle)
+            {
+                tracker.bind_model_buffers(pass, batch.handle, model);
                 let offset_bytes = (batch.buffer_offset * INSTANCE_SIZE) as u64;
                 pass.set_vertex_buffer(1, self.geometry.instance_buffer.slice(offset_bytes..));
-                pass.draw_indexed(0..batch.model.num_indices, 0, 0..count);
+                pass.draw_indexed(0..model.num_indices, 0, 0..count);
             }
         }
     }

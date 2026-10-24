@@ -11,12 +11,14 @@ use super::cpu_breakdown::{build_multi_segment_bar, build_timing_row};
 use super::types::StatsPanelParams;
 use irisui::prelude::*;
 
-/// Builds the GPU Render Passes breakdown section inside the stats card.
+/// Builds the Render Pass Command Recording breakdown section inside the stats card.
 pub fn build_gpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelParams<'_>) {
-    let gpu = params.gpu_pass_timings;
-    let total_gpu_ms =
-        (gpu.shadow_pass_ms + gpu.main_opaque_pass_ms + gpu.post_process_pass_ms + gpu.ui_pass_ms)
-            .max(0.0001);
+    let rec = params.pass_recording_timings;
+    let total_record_ms = (rec.shadow_pass_record_ms
+        + rec.main_opaque_pass_record_ms
+        + rec.post_process_pass_record_ms
+        + rec.ui_pass_record_ms)
+        .max(0.0001);
 
     let container_style = Style::new().flex_col().gap(4.0);
 
@@ -27,44 +29,44 @@ pub fn build_gpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelP
         // 2. Multi-segmented composite bar
         let segments = [
             (
-                gpu.shadow_pass_ms / total_gpu_ms,
+                rec.shadow_pass_record_ms / total_record_ms,
                 Color::rgba(0.96, 0.57, 0.12, 1.0),
             ), // Shadow (Orange)
             (
-                gpu.main_opaque_pass_ms / total_gpu_ms,
+                rec.main_opaque_pass_record_ms / total_record_ms,
                 Color::rgba(0.35, 0.51, 0.94, 1.0),
             ), // Forward (Blue)
             (
-                gpu.post_process_pass_ms / total_gpu_ms,
+                rec.post_process_pass_record_ms / total_record_ms,
                 Color::rgba(0.86, 0.35, 0.67, 1.0),
             ), // Post-Process (Magenta)
             (
-                gpu.ui_pass_ms / total_gpu_ms,
+                rec.ui_pass_record_ms / total_record_ms,
                 Color::rgba(0.86, 0.71, 0.20, 1.0),
             ), // UI (Gold)
         ];
         build_multi_segment_bar(s, &segments);
 
-        // 3. GPU Pass Timing Rows
+        // 3. Command Recording Timing Rows
         let rows = [
             (
-                "Shadow Pass (Cascades)",
-                gpu.shadow_pass_ms,
+                "Shadow Pass Record",
+                rec.shadow_pass_record_ms,
                 Color::rgba(0.96, 0.57, 0.12, 1.0),
             ),
             (
-                "Main Forward Pass",
-                gpu.main_opaque_pass_ms,
+                "Main Forward Record",
+                rec.main_opaque_pass_record_ms,
                 Color::rgba(0.35, 0.51, 0.94, 1.0),
             ),
             (
-                "Post-Process & Outline",
-                gpu.post_process_pass_ms,
+                "Post-Process Record",
+                rec.post_process_pass_record_ms,
                 Color::rgba(0.86, 0.35, 0.67, 1.0),
             ),
             (
-                "UI Composite Pass",
-                gpu.ui_pass_ms,
+                "UI Composite Record",
+                rec.ui_pass_record_ms,
                 Color::rgba(0.86, 0.71, 0.20, 1.0),
             ),
         ];
@@ -73,8 +75,8 @@ pub fn build_gpu_breakdown_content(scope: &mut UiScope<'_>, params: &StatsPanelP
             build_timing_row(s, name, val, col);
         }
 
-        // 4. Total GPU Workload Footer
-        build_gpu_total_row(s, "Total GPU Workload:", total_gpu_ms);
+        // 4. Total Command Recording Duration
+        build_gpu_total_row(s, "Total Command Recording:", total_record_ms);
     });
 }
 

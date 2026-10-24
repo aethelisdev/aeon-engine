@@ -229,8 +229,9 @@ impl RenderState {
             supported_present_modes,
             last_present_wait_secs: 0.0,
             last_render_stats: super::types::FrameRenderStats::default(),
-            last_gpu_pass_timings: ae_core::telemetry::GpuPassTimings::default(),
+            last_recording_timings: ae_core::telemetry::RenderPassRecordingTimings::default(),
             adapter_info,
+            frame_scratch: super::engine::RenderFrameScratch::default(),
         };
         Ok((state, camera))
     }

@@ -27,6 +27,8 @@ pub struct RenderScene {
     pub selected_model_instances: Vec<(crate::asset::AssetHandle, Instance)>,
     /// List of entity IDs that were determined to be visible within the camera's frustum during the culling pass.
     pub visible_entities: Vec<hecs::Entity>,
+    /// Total number of world entities culled from the camera frustum during extraction.
+    pub culled_entities_count: u32,
 }
 
 impl RenderScene {
@@ -398,6 +400,7 @@ impl RenderScene {
                     };
                     let render_item = RenderInstanceItem {
                         instance,
+                        world_position: [p_world.x, p_world.y, p_world.z],
                         texture: tex_handle,
                         is_mirrored,
                     };
@@ -414,6 +417,7 @@ impl RenderScene {
                     };
                     let render_item = RenderInstanceItem {
                         instance,
+                        world_position: [p_world.x, p_world.y, p_world.z],
                         texture: tex_handle,
                         is_mirrored,
                     };
@@ -434,6 +438,8 @@ impl RenderScene {
             }
         }
 
+        let culled_entities_count = total_ents.saturating_sub(visible_entities.len()) as u32;
+
         Self {
             light_uniform,
             triangle_instances,
@@ -447,6 +453,7 @@ impl RenderScene {
             selected_primitive_instances,
             selected_model_instances,
             visible_entities,
+            culled_entities_count,
         }
     }
 }

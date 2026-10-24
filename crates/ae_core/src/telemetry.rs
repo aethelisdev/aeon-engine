@@ -216,25 +216,30 @@ pub struct CpuSyncTimings {
 
 impl CpuSyncTimings {
     /// Determines whether the frame bottleneck is currently CPU-bound or GPU-bound.
-    pub fn is_cpu_bound(&self, total_gpu_ms: f32) -> bool {
+    pub fn is_cpu_bound(&self, total_record_ms: f32) -> bool {
         let active_cpu = self.main_logic_ms + self.physics_ms + self.render_prep_ms;
-        active_cpu > total_gpu_ms && self.wait_for_gpu_ms < 2.0
+        active_cpu > total_record_ms && self.wait_for_gpu_ms < 2.0
     }
 }
 
-/// Individual GPU render pass execution durations (in milliseconds).
+/// Render pass command recording and dispatch durations on the CPU (in milliseconds).
+///
+/// **Critical Technical Note:**
+/// These timings measure CPU-side command buffer encoding, pass orchestration, and driver submission latency
+/// for each distinct render pass. They do **NOT** represent asynchronous GPU hardware execution time,
+/// which requires GPU hardware timestamp query sets (`wgpu::QuerySet`).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct GpuPassTimings {
-    /// Cascaded directional shadow map depth pass execution time.
-    pub shadow_pass_ms: f32,
-    /// Main forward opaque and transparent scene geometry render pass execution time.
-    pub main_opaque_pass_ms: f32,
-    /// Post-processing bloom downsampling/upsampling and selection outline pass execution time.
-    pub post_process_pass_ms: f32,
-    /// Iris UI rendering and composite pass execution time.
-    pub ui_pass_ms: f32,
-    /// Total aggregated GPU render workload duration.
-    pub total_gpu_ms: f32,
+pub struct RenderPassRecordingTimings {
+    /// Cascaded directional shadow map pass CPU command recording duration in milliseconds.
+    pub shadow_pass_record_ms: f32,
+    /// Main forward opaque, transparent, and overlay scene geometry CPU command recording duration in milliseconds.
+    pub main_opaque_pass_record_ms: f32,
+    /// Post-processing bloom and selection outline pass CPU command recording duration in milliseconds.
+    pub post_process_pass_record_ms: f32,
+    /// Iris UI composite and draw command recording duration in milliseconds.
+    pub ui_pass_record_ms: f32,
+    /// Total aggregated CPU command buffer recording and pass orchestration duration.
+    pub total_record_ms: f32,
 }
 
 /// Detailed breakdown of GPU draw calls, compute dispatches, and culling statistics.

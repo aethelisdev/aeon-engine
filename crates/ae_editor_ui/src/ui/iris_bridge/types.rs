@@ -614,8 +614,8 @@ pub struct TelemetryParams<'a> {
     pub frame_pacing_stats: &'a ae_core::telemetry::FramePacingStats,
     /// CPU thread synchronization timings breakdown.
     pub cpu_timings: &'a ae_core::telemetry::CpuSyncTimings,
-    /// GPU render pass profiling breakdown.
-    pub gpu_pass_timings: &'a ae_core::telemetry::GpuPassTimings,
+    /// CPU command buffer recording and pass orchestration timings breakdown.
+    pub pass_recording_timings: &'a ae_core::telemetry::RenderPassRecordingTimings,
     /// GPU draw calls, pipeline binds, and primitive counts.
     pub draw_call_stats: &'a ae_core::telemetry::DrawCallBreakdown,
     /// Video memory (VRAM) budget allocation breakdown.
