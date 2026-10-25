@@ -472,3 +472,111 @@ fn test_update_loop_3_way_branching_and_retained_invariants() {
     // Zero mutations to tree, root unchanged, leaves untouched
     assert_eq!(tree.root(), Some(initial_root_id));
 }
+
+#[test]
+fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
+    use crate::ui::panel_layout::PanelId;
+    use irisui::layout::LayoutEngine;
+    use irisui::prelude::*;
+    use irisui::text::TextSystem;
+    use irisui::widgets::declarative::SubtreeSession;
+
+    let mut tree = UiTree::new();
+    let mut layout_engine = LayoutEngine::new();
+    let mut text_system = TextSystem::new();
+    let mut notifier = UiNotifier::<PanelId>::new();
+
+    // 1. Initial Shell Bake (tree.clear() + full construction)
+    let root = tree.create_root().expect("root widget must exist");
+    let mut dock_frame = crate::ui::iris_bridge::native_dock::types::NativeDockFrame::default();
+
+    let (hierarchy_leaf, inspector_leaf) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let resp_h = scope.panel("HierarchyLeaf").show(|s| {
+            s.label("Hierarchy Initial");
+        });
+        let resp_i = scope.panel("InspectorLeaf").show(|s| {
+            s.label("Inspector Initial");
+        });
+        scope.finish_layout(Rect::new(0.0, 0.0, 1920.0, 1080.0));
+        (resp_h.response.id, resp_i.response.id)
+    };
+    tree.set_boundary(hierarchy_leaf, true);
+    tree.set_boundary(inspector_leaf, true);
+    text_system.measure_subtree_text(&mut tree, root);
+    let _ = layout_engine.compute_layout(&mut tree, Size::new(1920.0, 1080.0));
+
+    dock_frame
+        .leaf_containers
+        .push((PanelId::Hierarchy, hierarchy_leaf));
+    dock_frame
+        .leaf_containers
+        .push((PanelId::Inspector, inspector_leaf));
+
+    let initial_root = tree.root();
+    notifier.clear_all();
+
+    // Verify clean initial state
+    assert!(!notifier.is_global_dirty());
+    assert!(!notifier.is_any_dirty());
+
+    // 2. Interactive frame: Hierarchy panel invalidated (e.g. node expanded or selection toggled)
+    notifier.tag_redraw(PanelId::Hierarchy);
+
+    // Shell must NOT be dirty; only partial panel is dirty
+    assert!(!notifier.is_global_dirty(), "is_shell_dirty must be false");
+    assert!(notifier.is_any_dirty(), "is_any_dirty must be true");
+
+    // Execute Branch 2: Granular Subtree Invalidation
+    let dirty_panels: Vec<PanelId> = notifier.dirty_panels().iter().copied().collect();
+    assert_eq!(dirty_panels, vec![PanelId::Hierarchy]);
+
+    for pid in dirty_panels {
+        if let Some(leaf_id) = dock_frame.leaf_container(pid) {
+            let session = SubtreeSession::begin(&mut tree, &mut layout_engine, leaf_id);
+            {
+                let mut leaf_scope = UiScope::new(&mut tree, leaf_id);
+                leaf_scope.label("Hierarchy Rebuilt V2");
+            }
+            session
+                .finish(&mut tree, &mut layout_engine, &mut text_system)
+                .expect("partial layout recomputation must succeed");
+            notifier.clear_panel(pid);
+        }
+    }
+
+    // Verify invariants:
+    // a. Zero tree.clear(): Root must be identical
+    assert_eq!(
+        tree.root(),
+        initial_root,
+        "Tree root must persist across partial panel invalidation"
+    );
+
+    // b. Unmodified panel (Inspector) remains 100% untouched
+    let inspector_node = tree
+        .get(inspector_leaf)
+        .expect("inspector leaf must persist");
+    assert_eq!(inspector_node.children.len(), 1);
+    let inspector_child = tree.get(inspector_node.children[0]).expect("child exists");
+    assert_eq!(inspector_child.text.as_deref(), Some("Inspector Initial"));
+
+    // c. Modified panel (Hierarchy) reflects updated content
+    let hierarchy_node = tree
+        .get(hierarchy_leaf)
+        .expect("hierarchy leaf must persist");
+    assert_eq!(hierarchy_node.children.len(), 1);
+    let hierarchy_child = tree.get(hierarchy_node.children[0]).expect("child exists");
+    assert_eq!(
+        hierarchy_child.text.as_deref(),
+        Some("Hierarchy Rebuilt V2")
+    );
+
+    // d. Notifier is fully clean after partial rebuild
+    assert!(!notifier.is_any_dirty());
+
+    // 3. Normal idle frame: Both shell and panels are clean -> zero mutation
+    assert!(!notifier.is_global_dirty());
+    assert!(!notifier.is_any_dirty());
+    assert_eq!(tree.root(), initial_root);
+}

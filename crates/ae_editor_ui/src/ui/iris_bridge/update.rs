@@ -130,8 +130,35 @@ impl IrisEditorOverlay {
             {
                 self.console.auto_scroll = false;
             }
-            self.notifier.tag_all();
-            self.chrome.needs_layout_rebuild = true;
+
+            // Route dirty notification to the specific dock panel owning the targeted widget
+            let mut routed_to_panel = false;
+            if let Some(target_id) = dispatch.target
+                && let Some(boundary_id) = self.tree.find_invalidation_boundary(target_id)
+                && let Some(dock_frame) = &self.chrome.native_dock_frame
+                && let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
+            {
+                self.notifier.tag_redraw(panel_id);
+                routed_to_panel = true;
+            }
+
+            if self.hierarchy.has_pending_actions() {
+                self.notifier
+                    .tag_redraw(crate::ui::panel_layout::PanelId::Hierarchy);
+                routed_to_panel = true;
+            }
+            if self.inspector.has_pending_actions() {
+                self.notifier
+                    .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
+                routed_to_panel = true;
+            }
+
+            // If the event was unrouted (outside any dock leaf, e.g. MenuBar, StatusBar, Modal),
+            // escalate to global shell invalidation
+            if !routed_to_panel {
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
+            }
         }
 
         let mut result = super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed());
@@ -275,15 +302,7 @@ impl IrisEditorOverlay {
         let hover_target_changed = cursor_moved && hovered_target != self.chrome.last_hovered_tag;
         self.chrome.hovered_tag = hovered_target;
 
-        // When hover changes on a dock panel, tag for redraw so reactive UX styles activate instantly
-        if hover_target_changed {
-            if let Some(pid) = hovered_panel {
-                self.notifier.tag_redraw(pid);
-            }
-            if let Some(last_pid) = self.chrome.last_hovered_panel {
-                self.notifier.tag_redraw(last_pid);
-            }
-        }
+        // Hover transitions update reactive paint shaders in Branch 3 without rebuilding panel DOM
         self.chrome.hovered_panel = hovered_panel;
 
         // 1. Genuine global shell events (only these trigger global tag_all)
@@ -397,7 +416,27 @@ impl IrisEditorOverlay {
                 .search_input
                 .set_text(&params.panel_data.asset_browser.search_query);
         }
-        self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
+        let folder_changed =
+            self.assets.current_folder != params.panel_data.asset_browser.current_folder;
+        if folder_changed {
+            self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
+            self.notifier
+                .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+        }
+
+        let selection_changed = self.chrome.last_selected_entity != params.scene.selected_entity;
+        if selection_changed {
+            self.chrome.last_selected_entity = params.scene.selected_entity;
+            self.notifier
+                .tag_redraw(crate::ui::panel_layout::PanelId::Hierarchy);
+            self.notifier
+                .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
+            self.notifier
+                .tag_redraw(crate::ui::panel_layout::PanelId::MaterialEditor);
+            self.notifier
+                .tag_redraw(crate::ui::panel_layout::PanelId::AnimationTimeline);
+        }
+
         self.timeline.selected_entity = params.scene.selected_entity;
         if self.material.selected_entity != params.scene.selected_entity {
             self.material.selected_entity = params.scene.selected_entity;
@@ -587,6 +626,47 @@ impl IrisEditorOverlay {
             self.chrome.needs_text_prepare = true;
             self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
         } else {
+            // =========================================================================
+            // Branch 2: Granular Subtree Invalidation (Zero tree.clear(), O(M) Layout)
+            // =========================================================================
+            // When the shell layout is intact, dirty panels are rebuilt in-place within their
+            // isolated boundary leaf containers without destroying the tree or other panels.
+            let mut dirty_panels: Vec<crate::ui::panel_layout::PanelId> =
+                self.notifier.dirty_panels().iter().copied().collect();
+
+            if self.tree.has_dirty_boundaries() {
+                if let Some(dock_frame) = &self.chrome.native_dock_frame {
+                    for boundary_id in self.tree.dirty_boundaries.clone() {
+                        if let Some(panel_id) = dock_frame.tab_for_leaf_container(boundary_id)
+                            && !dirty_panels.contains(&panel_id)
+                        {
+                            dirty_panels.push(panel_id);
+                        }
+                    }
+                }
+                self.tree.clear_dirty_boundaries();
+            }
+
+            let mut rebuilt_any_panel = false;
+            for panel_id in dirty_panels {
+                if let Some(dock_frame) = &self.chrome.native_dock_frame {
+                    if let Some(leaf_id) = dock_frame.leaf_container(panel_id) {
+                        if let Err(err) = self.rebuild_panel_content(panel_id, leaf_id, &params) {
+                            log::warn!(
+                                "Failed partial subtree rebuild for panel {panel_id:?}: {err:?}"
+                            );
+                        } else {
+                            rebuilt_any_panel = true;
+                        }
+                    } else {
+                        self.notifier.clear_panel(panel_id);
+                    }
+                }
+            }
+
+            // =========================================================================
+            // Branch 3: Retained Sleep In-Place Draw Refresh (Zero Tree Mutation)
+            // =========================================================================
             let has_stats_canvas = self
                 .tree
                 .node_tagged(super::stats::types::STATS_TAG_CANVAS)
@@ -624,18 +704,13 @@ impl IrisEditorOverlay {
                 self.chrome.needs_text_prepare = true;
             }
 
-            if has_volatile_canvas
+            if rebuilt_any_panel
+                || has_volatile_canvas
                 || self.chrome.needs_scroll_sync
                 || hover_target_changed
                 || focus_target_changed
                 || blink_changed
             {
-                // =========================================================================
-                // Branch 3: Retained Sleep In-Place Draw Refresh (Zero Tree Mutation)
-                // =========================================================================
-                // UI tree structure is 100% preserved. In-place reactive hover styles, focus
-                // outlines, caret blinking, and live volatile canvas streams (Oscilloscope,
-                // 3D Compass) are dynamically emitted directly to DrawCommandList.
                 self.command_list.clear();
                 if let Some(root) = self.tree.root() {
                     self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
@@ -666,44 +741,6 @@ impl IrisEditorOverlay {
         self.tree.clear_frame_clicks();
     }
 
-    /// Evaluates the active UI cursor across all composite layers (Shell elevated layers, Floating Windows, Dock Panels, Shell base).
-    ///
-    /// Resolves interactive cursors in strict back-to-front Z-order using pure, hardware-abstracted
-    /// [`WidgetCursor`] tokens without platform window dependencies.
-    #[must_use]
-    pub fn active_cursor(&self) -> WidgetCursor {
-        let p = self.cursor_pos();
-        let is_overlay_hit = self.is_point_over_overlay(p);
-
-        // 1. Topmost Overlay or elevated modals (checked directly from unified tree layered hit-test)
-        if is_overlay_hit {
-            let tree_cursor = self.tree.cursor_at(p);
-            if tree_cursor != WidgetCursor::Default {
-                return tree_cursor;
-            }
-        }
-
-        // 2. Floating window 8-way resize boundary evaluation (Higher Z-layer than docked panels)
-        if p.y > Self::MENUBAR_HEIGHT
-            && !is_overlay_hit
-            && let Some(cur) = irisui::dock::evaluate_floating_resize_cursor(
-                &self.chrome.floating_window_rects,
-                p,
-                irisui::dock::DEFAULT_RESIZE_MARGIN,
-            )
-        {
-            return cur.to_widget_cursor();
-        }
-
-        // 3. Unified Tree Cursor (Menubar, StatusBar, Viewport HUD, Docked Panels)
-        let tree_cursor = self.tree.cursor_at(p);
-        if tree_cursor != WidgetCursor::Default {
-            return tree_cursor;
-        }
-
-        WidgetCursor::Default
-    }
-
     /// Closes all transient active popups and context menus, returning `true` if any were open.
     fn close_active_popups(&mut self) -> bool {
         let mut closed_any = false;
@@ -727,42 +764,5 @@ impl IrisEditorOverlay {
             closed_any = true;
         }
         closed_any
-    }
-
-    /// Dispatches declarative rendering for an active dock leaf panel container.
-    ///
-    /// Evaluates the target [`PanelId`] and delegates to the corresponding specialized
-    /// autonomous panel builder within unified docking coordinates.
-    pub(crate) fn render_panel_by_id(
-        &mut self,
-        panel: crate::ui::panel_layout::PanelId,
-        scope: &mut UiScope<'_>,
-        params: &super::types::OverlayUpdateParams<'_>,
-    ) {
-        use crate::ui::panel_layout::PanelId;
-        match panel {
-            PanelId::Viewport => {
-                let vp_rect = if scope.parent_rect().width > 20.0 {
-                    scope.parent_rect()
-                } else {
-                    super::floating_layer::active_panel_content_rect(
-                        params.context.layout_state,
-                        PanelId::Viewport,
-                    )
-                    .unwrap_or(params.viewport.viewport_rect)
-                };
-                if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
-                    self.build_viewport_content(scope, vp_rect, params);
-                }
-            }
-            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(scope, params),
-            PanelId::Inspector => self.build_inspector_panel_if_active(scope, params),
-            PanelId::Console => self.build_console_panel_if_active(scope, params),
-            PanelId::Assets => self.build_assets_panel_if_active(scope, params),
-            PanelId::MaterialEditor => self.build_material_panel_if_active(scope, params),
-            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(scope, params),
-            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(scope, params),
-            PanelId::Stats => self.build_stats_panel_if_active(scope, params),
-        }
     }
 }

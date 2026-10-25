@@ -51,4 +51,40 @@ impl IrisEditorOverlay {
         self.chrome.needs_text_prepare = true;
         Ok(())
     }
+
+    /// Dispatches declarative rendering for an active dock leaf panel container.
+    ///
+    /// Evaluates the target [`PanelId`] and delegates to the corresponding specialized
+    /// autonomous panel builder within unified docking coordinates.
+    pub(crate) fn render_panel_by_id(
+        &mut self,
+        panel: PanelId,
+        scope: &mut UiScope<'_>,
+        params: &OverlayUpdateParams<'_>,
+    ) {
+        match panel {
+            PanelId::Viewport => {
+                let vp_rect = if scope.parent_rect().width > 20.0 {
+                    scope.parent_rect()
+                } else {
+                    crate::ui::iris_bridge::floating_layer::active_panel_content_rect(
+                        params.context.layout_state,
+                        PanelId::Viewport,
+                    )
+                    .unwrap_or(params.viewport.viewport_rect)
+                };
+                if vp_rect.width > 20.0 && vp_rect.height > 20.0 {
+                    self.build_viewport_content(scope, vp_rect, params);
+                }
+            }
+            PanelId::Hierarchy => self.build_hierarchy_panel_if_active(scope, params),
+            PanelId::Inspector => self.build_inspector_panel_if_active(scope, params),
+            PanelId::Console => self.build_console_panel_if_active(scope, params),
+            PanelId::Assets => self.build_assets_panel_if_active(scope, params),
+            PanelId::MaterialEditor => self.build_material_panel_if_active(scope, params),
+            PanelId::AnimationTimeline => self.build_timeline_panel_if_active(scope, params),
+            PanelId::UiDesigner => self.build_ui_designer_panel_if_active(scope, params),
+            PanelId::Stats => self.build_stats_panel_if_active(scope, params),
+        }
+    }
 }

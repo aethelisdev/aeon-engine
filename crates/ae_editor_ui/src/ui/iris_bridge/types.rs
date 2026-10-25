@@ -298,6 +298,8 @@ pub struct IrisChromeState {
     pub last_dock_revision: u64,
     /// Last instant when the performance stats telemetry text was refreshed in the UI tree.
     pub last_stats_refresh: Option<std::time::Instant>,
+    /// Last recorded selected entity to trigger targeted panel redraws on selection transitions.
+    pub last_selected_entity: Option<hecs::Entity>,
 }
 
 impl Default for IrisChromeState {
@@ -335,6 +337,7 @@ impl Default for IrisChromeState {
             last_theme_preset: super::theme::ThemePreset::default(),
             last_dock_revision: 0,
             last_stats_refresh: None,
+            last_selected_entity: None,
         }
     }
 }

@@ -178,8 +178,6 @@ impl EngineUi {
         if iris_res.consumed {
             let active_widget_cursor = self.iris_overlay.active_cursor();
             window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
-            self.iris_overlay.notifier.tag_all();
-            self.iris_overlay.chrome.needs_layout_rebuild = true;
             return true;
         }
 

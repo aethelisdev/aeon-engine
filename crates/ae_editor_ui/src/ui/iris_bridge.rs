@@ -10,6 +10,7 @@ pub mod about;
 pub mod actions;
 pub mod assets;
 pub mod console;
+pub mod cursor;
 pub mod floating_layer;
 pub mod hierarchy;
 pub mod icons;
