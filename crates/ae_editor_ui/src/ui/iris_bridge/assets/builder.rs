@@ -52,8 +52,8 @@ impl IrisEditorOverlay {
         }
 
         let query_text = self.assets.interactions.search_input.text().trim();
-        let is_filter_dirty = self.assets.current_folder
-            != params.panel_data.asset_browser.current_folder
+        let is_filter_dirty = !self.assets.is_filter_initialized
+            || self.assets.current_folder != params.panel_data.asset_browser.current_folder
             || self.assets.last_search_query != query_text
             || self.assets.last_active_category != params.panel_data.asset_browser.active_category
             || self.assets.last_is_2d_mode != params.context.is_2d_mode
@@ -117,11 +117,14 @@ impl IrisEditorOverlay {
             self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
             self.assets.last_search_query = query_text.to_string();
             self.assets.last_active_category = params.panel_data.asset_browser.active_category;
+            self.assets.last_view_mode = params.panel_data.asset_browser.view_mode;
+            self.assets.last_sidebar_collapsed = params.panel_data.asset_browser.sidebar_collapsed;
             self.assets.last_is_2d_mode = params.context.is_2d_mode;
             self.assets.last_show_engine_content =
                 params.panel_data.asset_browser.show_engine_content;
             self.assets.last_cached_items_count =
                 params.panel_data.asset_browser.cached_items.len();
+            self.assets.is_filter_initialized = true;
         }
 
         self.assets.selected_asset = params.panel_data.asset_browser.selected_asset.clone();

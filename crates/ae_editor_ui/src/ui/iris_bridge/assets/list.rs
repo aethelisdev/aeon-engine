@@ -136,16 +136,24 @@ pub fn build_asset_list_table_scope(
                     .iter()
                     .enumerate()
                 {
-                    asset_list_row(
+                    let item_idx = (slice.start_idx + offset) as u32;
+                    let item_tag = super::types::encode_item_tag(item_idx);
+                    let is_clicked_this_frame =
+                        rows_scope.tree().event_state.frame_clicked_tag == Some(item_tag);
+                    let is_pressed_this_frame =
+                        rows_scope.tree().event_state.pressed_tag == Some(item_tag);
+                    let is_selected = is_clicked_this_frame
+                        || is_pressed_this_frame
+                        || params.selected_asset == Some(&item.path);
+
+                    asset_list_row(rows_scope, item_idx, item, is_selected, actions).context_menu(
                         rows_scope,
-                        (slice.start_idx + offset) as u32,
-                        item,
-                        params.selected_asset == Some(&item.path),
-                        actions,
-                    )
-                    .context_menu(rows_scope, |menu| {
-                        super::context_menu::render_asset_context_menu_items(menu, item, actions);
-                    });
+                        |menu| {
+                            super::context_menu::render_asset_context_menu_items(
+                                menu, item, actions,
+                            );
+                        },
+                    );
                 }
                 let remaining = params.filtered_items.len().saturating_sub(slice.end_idx);
                 if remaining > 0 {

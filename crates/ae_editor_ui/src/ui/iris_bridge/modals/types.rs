@@ -41,6 +41,20 @@ impl ModalsOverlayState {
         self.is_loading_active = dialogs.is_loading_assets;
     }
 
+    /// Evaluates whether any modal overlay managed by this state is currently active.
+    ///
+    /// Consolidates About, Delete Confirmation, New Folder, Rename, and Asset Loading
+    /// modal flags into a single query without inspecting internal fields individually.
+    #[inline]
+    #[must_use]
+    pub fn is_any_active(&self) -> bool {
+        self.is_about_active
+            || self.is_delete_active
+            || self.is_new_folder_active
+            || self.is_rename_active
+            || self.is_loading_active
+    }
+
     /// Sets the new folder input text, positioning the cursor at the end.
     pub fn set_new_folder_text(&mut self, text: &str) {
         self.new_folder_input.set_text(text);

@@ -123,12 +123,27 @@ impl EngineUi {
                     b: 0.95,
                     a: 1.0,
                 });
-            let (h, s, v) = HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
-            self.iris_overlay.inspector.hsv = [h, s, v];
             let r = (col.r.clamp(0.0, 1.0) * 255.0) as u8;
             let g = (col.g.clamp(0.0, 1.0) * 255.0) as u8;
             let b = (col.b.clamp(0.0, 1.0) * 255.0) as u8;
-            self.inspector_color_hex = format!("#{:02x}{:02x}{:02x}", r, g, b);
+            const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
+            let hex_bytes = [
+                b'#',
+                HEX_DIGITS[(r >> 4) as usize],
+                HEX_DIGITS[(r & 0xf) as usize],
+                HEX_DIGITS[(g >> 4) as usize],
+                HEX_DIGITS[(g & 0xf) as usize],
+                HEX_DIGITS[(b >> 4) as usize],
+                HEX_DIGITS[(b & 0xf) as usize],
+            ];
+            if self.inspector_color_hex.as_bytes() != hex_bytes {
+                let (h, s, v) = HsvColorPickerState::rgb_to_hsv(col.r, col.g, col.b);
+                self.iris_overlay.inspector.hsv = [h, s, v];
+                self.inspector_color_hex.clear();
+                if let Ok(s) = std::str::from_utf8(&hex_bytes) {
+                    self.inspector_color_hex.push_str(s);
+                }
+            }
         }
 
         self.iris_overlay

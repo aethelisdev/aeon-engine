@@ -514,6 +514,14 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
         .push((PanelId::Inspector, inspector_leaf));
 
     let initial_root = tree.root();
+    let initial_hierarchy_rect = tree
+        .get(hierarchy_leaf)
+        .expect("hierarchy leaf exists")
+        .computed_rect;
+    let initial_inspector_rect = tree
+        .get(inspector_leaf)
+        .expect("inspector leaf exists")
+        .computed_rect;
     notifier.clear_all();
 
     // Verify clean initial state
@@ -553,18 +561,23 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
         "Tree root must persist across partial panel invalidation"
     );
 
-    // b. Unmodified panel (Inspector) remains 100% untouched
+    // b. Unmodified panel (Inspector) remains 100% untouched with zero coordinate drift
     let inspector_node = tree
         .get(inspector_leaf)
         .expect("inspector leaf must persist");
+    assert_eq!(inspector_node.computed_rect, initial_inspector_rect);
     assert_eq!(inspector_node.children.len(), 1);
     let inspector_child = tree.get(inspector_node.children[0]).expect("child exists");
     assert_eq!(inspector_child.text.as_deref(), Some("Inspector Initial"));
 
-    // c. Modified panel (Hierarchy) reflects updated content
+    // c. Modified panel (Hierarchy) reflects updated content with ZERO coordinate drift
     let hierarchy_node = tree
         .get(hierarchy_leaf)
         .expect("hierarchy leaf must persist");
+    assert_eq!(
+        hierarchy_node.computed_rect, initial_hierarchy_rect,
+        "Hierarchy computed_rect must NOT drift after partial rebuild"
+    );
     assert_eq!(hierarchy_node.children.len(), 1);
     let hierarchy_child = tree.get(hierarchy_node.children[0]).expect("child exists");
     assert_eq!(
@@ -579,4 +592,121 @@ fn test_shell_dirty_vs_any_dirty_separation_zero_tree_clear() {
     assert!(!notifier.is_global_dirty());
     assert!(!notifier.is_any_dirty());
     assert_eq!(tree.root(), initial_root);
+}
+
+#[test]
+fn test_overlay_params_accessors_and_invariants() {
+    use super::params::*;
+    use crate::ui::panel_layout::PanelLayoutState;
+
+    let layout_state = PanelLayoutState::default();
+    let mut world = hecs::World::new();
+    let entity_a = world.spawn((123u32,));
+    let _entity_b = world.spawn((456u32,));
+
+    let scene = SceneParams {
+        world: &world,
+        selected_entity: Some(entity_a),
+        active_entities_count: world.len() as usize,
+    };
+    assert_eq!(scene.live_entity_count(), 2);
+
+    let mut gfx = ae_renderer::graphics_settings::GraphicsSettings::default();
+    let mut snap = ae_editor::snapping::SnapSettings::default();
+    let mut cfg = ae_editor::editor_state::EditorConfig::default();
+    let enabled_modules = std::collections::HashSet::new();
+
+    let fp = ae_core::telemetry::FrameRingBuffer::<240>::new();
+    let fp_stats = ae_core::telemetry::FramePacingStats::default();
+    let cpu = ae_core::telemetry::CpuSyncTimings::default();
+    let pass = ae_core::telemetry::RenderPassRecordingTimings::default();
+    let dc = ae_core::telemetry::DrawCallBreakdown::default();
+    let vram = ae_core::telemetry::VramStats::default();
+
+    let ui_designer_state = ae_uidesign::UiDesignerState::default();
+    let asset_browser = crate::assets::AssetBrowserState::default();
+    let textures = ae_renderer::asset::AssetStorage::new();
+    let models = ae_renderer::asset::AssetStorage::new();
+    let euler = [0.0; 3];
+    let swatches = Vec::new();
+
+    let camera = ae_renderer::camera::Camera {
+        position: cgmath::Point3::new(0.0, 2.0, 5.0),
+        yaw: cgmath::Rad(-std::f32::consts::FRAC_PI_2),
+        pitch: cgmath::Rad(0.0),
+        aspect: 16.0 / 9.0,
+        fovy: 45.0,
+        znear: 0.1,
+        zfar: 100.0,
+        mode: ae_renderer::camera::ProjectionMode::Perspective,
+        ortho_scale: 1.0,
+        target: cgmath::Point3::new(0.0, 0.0, 0.0),
+    };
+
+    let params = OverlayUpdateParams {
+        context: EditorContextParams {
+            dimensions: (1920.0, 1080.0),
+            zoom_factor: 1.25,
+            is_editing: true,
+            is_2d_mode: false,
+            layout_state: &layout_state,
+            can_undo: false,
+            can_redo: false,
+            enable_live_updates: true,
+            status_spans: None,
+        },
+        viewport: ViewportParams {
+            has_viewport_texture: true,
+            viewport_rect: Rect::new(0.0, 0.0, 800.0, 600.0),
+            camera: &camera,
+            wireframe_enabled: false,
+            grid_enabled: true,
+            gizmo_mode: ae_editor::gizmo::GizmoMode::Translate,
+            gizmo_space: ae_editor::gizmo::GizmoSpace::World,
+        },
+        scene,
+        dialogs: DialogParams {
+            show_about: false,
+            show_preferences: false,
+            delete_target: None,
+            new_folder_parent: None,
+            rename_target: None,
+            is_loading_assets: false,
+        },
+        preferences: OverlayPreferencesParams {
+            graphics_settings: &mut gfx,
+            snapping_settings: &mut snap,
+            editor_config: &mut cfg,
+            enabled_modules: &enabled_modules,
+        },
+        telemetry: TelemetryParams {
+            fps: 60.0,
+            frame_pacing: &fp,
+            frame_pacing_stats: &fp_stats,
+            cpu_timings: &cpu,
+            pass_recording_timings: &pass,
+            draw_call_stats: &dc,
+            vram_stats: &vram,
+            render_triangles: 100,
+            render_vertices: 300,
+            gpu_adapter_name: "MockGPU",
+            gpu_backend: "Vulkan",
+        },
+        panel_data: OverlayPanelData {
+            ui_designer_state: &ui_designer_state,
+            asset_browser: &asset_browser,
+            console_entries: &[],
+            textures: &textures,
+            models: &models,
+            inspector_euler: &euler,
+            inspector_color_hex: "#ffffff",
+            saved_swatches: &swatches,
+        },
+    };
+
+    assert_eq!(params.dimensions(), (1920.0, 1080.0));
+    assert_eq!(params.zoom_factor(), 1.25);
+    assert_eq!(params.world().len(), 2);
+    assert_eq!(params.selected_entity(), Some(entity_a));
+    assert!(!params.is_modal_active());
 }

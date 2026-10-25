@@ -600,10 +600,16 @@ pub struct AssetsPanelState {
     pub last_search_query: String,
     /// Last processed asset category filter.
     pub last_active_category: AssetCategory,
+    /// Last processed asset view presentation mode (Grid vs List).
+    pub last_view_mode: AssetViewMode,
+    /// Last recorded directory tree sidebar collapsed state.
+    pub last_sidebar_collapsed: bool,
     /// Last recorded 2D mode status.
     pub last_is_2d_mode: bool,
     /// Last recorded engine content visibility status.
     pub last_show_engine_content: bool,
+    /// Whether the initial filter cache has been populated.
+    pub is_filter_initialized: bool,
     /// Active hierarchical folder tree state managing directory expansion and selection.
     pub tree_state: TreeState<PathBuf>,
 }
@@ -620,9 +626,12 @@ impl Default for AssetsPanelState {
             thumbnail_layers: HashMap::new(),
             next_thumbnail_layer: 32,
             filtered_items_cache: Vec::new(),
+            is_filter_initialized: false,
             last_cached_items_count: 0,
             last_search_query: String::new(),
             last_active_category: AssetCategory::All,
+            last_view_mode: AssetViewMode::Grid,
+            last_sidebar_collapsed: false,
             last_is_2d_mode: false,
             last_show_engine_content: false,
             tree_state: {

@@ -15,13 +15,18 @@ impl EngineUi {
     ///
     /// When an asset drag finishes over the active 3D/2D Viewport canvas, computes
     /// the target world coordinates and dispatches the entity spawn action.
+    /// Returns `true` if any action was processed and state changed.
     pub fn process_assets_actions(
         &mut self,
         ui_actions: &mut Vec<EngineUiAction>,
         camera: &ae_renderer::camera::Camera,
         is_2d_mode: bool,
-    ) {
-        for action in self.iris_overlay.take_assets_actions() {
+    ) -> bool {
+        let actions = self.iris_overlay.take_assets_actions();
+        if actions.is_empty() {
+            return false;
+        }
+        for action in actions {
             match action {
                 iris_bridge::AssetsPanelAction::NavigateFolder(path) => {
                     self.asset_browser.current_folder = path;
@@ -258,5 +263,6 @@ impl EngineUi {
                 _ => {}
             }
         }
+        true
     }
 }

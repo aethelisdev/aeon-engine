@@ -425,6 +425,10 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                 tree.find_ancestor_with_role(target_id, WidgetRole::TextInput)
             {
                 (ti_id, WidgetRole::TextInput)
+            } else if !role.is_interactive()
+                && let Some(btn_id) = tree.find_ancestor_with_role(target_id, WidgetRole::Button)
+            {
+                (btn_id, WidgetRole::Button)
             } else {
                 (target_id, role)
             }
@@ -442,6 +446,12 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             tree.resolve_ancestor_tag(target_id)
         };
 
+        tree.event_state.pressed = Some(effective_target_id);
+        tree.event_state.pressed_tag = if effective_tag != 0 {
+            Some(effective_tag)
+        } else {
+            None
+        };
         tree.event_state.focused = Some(effective_target_id);
         tree.event_state.focused_tag = if effective_tag != 0 {
             Some(effective_tag)
@@ -654,25 +664,57 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             .unwrap_or((0, crate::geometry::Rect::ZERO));
         let cursor = resolve_effective_cursor(tree, target_id);
 
-        let effective_tag = if tag != 0 {
+        let role = tree
+            .get(target_id)
+            .map(|n| n.role)
+            .unwrap_or(WidgetRole::Default);
+
+        // If clicking on non-interactive child of an interactive ancestor (ModalTitlebar, NumericInput, ColorPickerArea, TextInput, or Button), bubble target
+        let (effective_target_id, effective_role) = if role != WidgetRole::Button {
+            if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
+            {
+                (tb_id, WidgetRole::ModalTitlebar)
+            } else if let Some(num_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::NumericInput)
+            {
+                (num_id, WidgetRole::NumericInput)
+            } else if let Some(cp_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::ColorPickerArea)
+            {
+                (cp_id, WidgetRole::ColorPickerArea)
+            } else if let Some(ti_id) =
+                tree.find_ancestor_with_role(target_id, WidgetRole::TextInput)
+            {
+                (ti_id, WidgetRole::TextInput)
+            } else if !role.is_interactive()
+                && let Some(btn_id) = tree.find_ancestor_with_role(target_id, WidgetRole::Button)
+            {
+                (btn_id, WidgetRole::Button)
+            } else {
+                (target_id, role)
+            }
+        } else {
+            (target_id, role)
+        };
+
+        let effective_tag = if let Some(n) = tree.get(effective_target_id)
+            && n.tag != 0
+        {
+            n.tag
+        } else if tag != 0 {
             tag
         } else {
             tree.resolve_ancestor_tag(target_id)
         };
 
-        let effective_target_id = if tag == 0 && effective_tag != 0 {
-            tree.find_node_by_tag(effective_tag).unwrap_or(target_id)
-        } else {
-            target_id
-        };
-
-        let role = tree
-            .get(target_id)
-            .map(|n| n.role)
-            .unwrap_or(WidgetRole::Default);
-        let is_interactive = role.is_interactive()
+        let is_interactive = effective_role.is_interactive()
             || effective_tag != 0
             || tree.event_state.pointer_capture.is_some();
+
+        let effective_rect = tree
+            .get(effective_target_id)
+            .map(|n| n.computed_rect)
+            .unwrap_or(rect);
 
         // Click confirmed if release target and button match initial press across frames:
         // 1. Direct WidgetId match (same generation/frame)
@@ -681,8 +723,8 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
         let matches_pressed = original_pressed == Some(target_id)
             || original_pressed == Some(effective_target_id)
             || (original_pressed_tag.is_some() && original_pressed_tag == Some(effective_tag))
-            || (original_press_origin.is_some_and(|origin| rect.contains_point(origin))
-                && rect.contains_point(point));
+            || (original_press_origin.is_some_and(|origin| effective_rect.contains_point(origin))
+                && effective_rect.contains_point(point));
 
         if matches_pressed && original_button == Some(button) {
             let mut flags = ResponseFlags::HOVERED;
@@ -705,8 +747,7 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                         None
                     };
 
-                    let is_double_click = if let (Some(last_id), Some(last_pos), Some(last_time)) = (
-                        tree.event_state.last_click_id,
+                    let is_double_click = if let (Some(last_pos), Some(last_time)) = (
                         tree.event_state.last_click_pos,
                         tree.event_state.last_click_time,
                     ) {
@@ -714,9 +755,20 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
                         let dx = point.x - last_pos.x;
                         let dy = point.y - last_pos.y;
                         let dist_sq = dx * dx + dy * dy;
-                        let id_or_tag_matches = last_id == target_id
+                        let id_or_tag_matches = tree.event_state.last_click_id == Some(target_id)
+                            || tree.event_state.last_click_id == Some(effective_target_id)
                             || (effective_tag != 0
-                                && tree.get(last_id).map_or(0, |n| n.tag) == effective_tag)
+                                && tree
+                                    .event_state
+                                    .last_click_tag
+                                    .is_some_and(|lt| lt == effective_tag))
+                            || (effective_tag != 0
+                                && tree
+                                    .event_state
+                                    .last_click_id
+                                    .and_then(|lid| tree.get(lid))
+                                    .map_or(0, |n| n.tag)
+                                    == effective_tag)
                             || rect.contains_point(last_pos);
                         id_or_tag_matches
                             && elapsed <= DOUBLE_CLICK_MAX_DELAY_MS
@@ -727,26 +779,32 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
 
                     if is_double_click {
                         flags = flags.union(ResponseFlags::DOUBLE_CLICKED);
-                        tree.event_state.frame_double_clicked_id = Some(target_id);
+                        tree.event_state.frame_double_clicked_id = Some(effective_target_id);
                         tree.event_state.frame_double_clicked_tag = if effective_tag != 0 {
                             Some(effective_tag)
                         } else {
                             None
                         };
                         tree.event_state.last_click_id = None;
+                        tree.event_state.last_click_tag = None;
                         tree.event_state.last_click_pos = None;
                         tree.event_state.last_click_time = None;
                     } else {
                         tree.event_state.frame_double_clicked_id = None;
                         tree.event_state.frame_double_clicked_tag = None;
-                        tree.event_state.last_click_id = Some(target_id);
+                        tree.event_state.last_click_id = Some(effective_target_id);
+                        tree.event_state.last_click_tag = if effective_tag != 0 {
+                            Some(effective_tag)
+                        } else {
+                            None
+                        };
                         tree.event_state.last_click_pos = Some(point);
                         tree.event_state.last_click_time = Some(Instant::now());
                     }
                 }
                 MouseButton::Right => {
                     flags = flags.union(ResponseFlags::SECONDARY_CLICKED);
-                    tree.event_state.frame_secondary_clicked_id = Some(target_id);
+                    tree.event_state.frame_secondary_clicked_id = Some(effective_target_id);
                     tree.event_state.frame_secondary_clicked_tag = if effective_tag != 0 {
                         Some(effective_tag)
                     } else {
@@ -762,10 +820,14 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             DispatchResult {
                 consumed: is_interactive,
                 needs_redraw: true,
-                target: Some(target_id),
+                target: Some(effective_target_id),
                 target_tag: effective_tag,
                 cursor,
-                response: Some(WidgetResponse::from_flags(target_id, rect, flags)),
+                response: Some(WidgetResponse::from_flags(
+                    effective_target_id,
+                    effective_rect,
+                    flags,
+                )),
                 scroll_delta: (0.0, 0.0),
                 key: None,
                 is_key_pressed: false,

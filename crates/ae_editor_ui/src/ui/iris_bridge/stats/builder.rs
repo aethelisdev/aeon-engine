@@ -51,6 +51,5 @@ impl IrisEditorOverlay {
 
         build_stats_panel(scope, &stats_params, &mut self.stats.actions);
         self.stats.frame_ring_buffer = Some(*params.telemetry.frame_pacing);
-        self.chrome.last_zoom_factor = params.context.zoom_factor;
     }
 }

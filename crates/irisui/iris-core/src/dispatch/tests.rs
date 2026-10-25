@@ -1188,3 +1188,114 @@ fn test_tooltip_closes_when_mouse_leaves() {
     );
     assert!(!tree.has_open_tooltip());
 }
+
+#[test]
+fn test_double_click_preserved_across_tree_rebuild_via_tag_and_bounds() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let card1 = tree.create_node();
+    tree.add_child(root, card1).unwrap();
+    {
+        let c = tree.get_mut(card1).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Button;
+        c.computed_rect = Rect::new(10.0, 10.0, 100.0, 100.0);
+        c.tag = 0xABCD;
+    }
+
+    // Click 1 on card1
+    let pt = Point::new(30.0, 30.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: pt,
+    });
+    let up1 = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: pt,
+    });
+    assert!(up1.is_consumed());
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(0xABCD));
+    assert_eq!(tree.event_state.last_click_tag, Some(0xABCD));
+
+    // Simulate subtree rebuild (clear children, untrack widgets, rebuild card2 with new WidgetId but same tag and rect)
+    let _ = tree.clear_children(root);
+    assert_eq!(tree.event_state.last_click_tag, Some(0xABCD));
+
+    let card2 = tree.create_node();
+    tree.add_child(root, card2).unwrap();
+    {
+        let c = tree.get_mut(card2).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Button;
+        c.computed_rect = Rect::new(10.0, 10.0, 100.0, 100.0);
+        c.tag = 0xABCD;
+    }
+
+    // Click 2 within double-click delay threshold
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: pt,
+    });
+    let up2 = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: pt,
+    });
+    assert!(up2.is_consumed());
+    assert!(
+        up2.response.unwrap().double_clicked(),
+        "Double click must be detected across tree rebuilds via persistent tag and bounds"
+    );
+    assert_eq!(tree.event_state.frame_double_clicked_tag, Some(0xABCD));
+    assert_eq!(up2.target, Some(card2));
+}
+
+#[test]
+fn test_click_on_child_container_bubbles_target_to_ancestor_button() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+    let button = tree.create_node();
+    tree.add_child(root, button).unwrap();
+    {
+        let b = tree.get_mut(button).unwrap();
+        b.visible = true;
+        b.interactive = true;
+        b.role = crate::node::WidgetRole::Button;
+        b.computed_rect = Rect::new(0.0, 0.0, 100.0, 100.0);
+        b.tag = 0x9999;
+    }
+
+    let child_box = tree.create_node();
+    tree.add_child(button, child_box).unwrap();
+    {
+        let c = tree.get_mut(child_box).unwrap();
+        c.visible = true;
+        c.interactive = true;
+        c.role = crate::node::WidgetRole::Default;
+        c.computed_rect = Rect::new(10.0, 10.0, 80.0, 80.0);
+        c.tag = 0;
+    }
+
+    let pt = Point::new(20.0, 20.0);
+    tree.dispatch_event(&UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: pt,
+    });
+    let up_res = tree.dispatch_event(&UiEvent::MouseUp {
+        button: MouseButton::Left,
+        point: pt,
+    });
+
+    assert_eq!(
+        up_res.target,
+        Some(button),
+        "DispatchResult target must bubble to the ancestor Button widget ID"
+    );
+    assert_eq!(
+        up_res.response.map(|r| r.id),
+        Some(button),
+        "WidgetResponse id must bubble to the ancestor Button widget ID"
+    );
+    assert_eq!(tree.event_state.frame_clicked_tag, Some(0x9999));
+}

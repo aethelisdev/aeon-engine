@@ -457,6 +457,9 @@ impl<'a> UiScope<'a> {
         if is_drag_released {
             flags = flags.union(ResponseFlags::DRAG_RELEASED);
         }
+        if self.is_pressed(id) {
+            flags = flags.union(ResponseFlags::PRESSED);
+        }
 
         let pointer_pos = if is_dragged {
             self.tree

@@ -230,12 +230,7 @@ impl EngineUi {
         let active_widget_cursor = dock_cursor.unwrap_or_else(|| self.iris_overlay.active_cursor());
         window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
 
-        let consumed = iris_res.consumed || dock_consumed;
-        if consumed {
-            self.iris_overlay.notifier.tag_all();
-            self.iris_overlay.chrome.needs_layout_rebuild = true;
-        }
-        consumed
+        iris_res.consumed || dock_consumed
     }
 
     /// Dispatches cursor motion and mouse button events into [`irisui::dock::DockArea::handle_event`].

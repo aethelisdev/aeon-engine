@@ -124,12 +124,18 @@ fn render_grid_card(
     params: &AssetsPanelParams<'_>,
     actions: &mut Vec<AssetsPanelAction>,
 ) {
+    let item_tag = super::types::encode_item_tag(item_idx);
+    let is_clicked_this_frame = scope.tree().event_state.frame_clicked_tag == Some(item_tag);
+    let is_pressed_this_frame = scope.tree().event_state.pressed_tag == Some(item_tag);
+    let is_selected =
+        is_clicked_this_frame || is_pressed_this_frame || params.selected_asset == Some(&item.path);
+
     asset_grid_card(
         scope,
         item_idx,
         item,
         params.thumbnail_layers.get(&item.path).copied(),
-        params.selected_asset == Some(&item.path),
+        is_selected,
         card_pos,
         actions,
     )

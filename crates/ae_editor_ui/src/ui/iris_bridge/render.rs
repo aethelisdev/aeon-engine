@@ -162,6 +162,12 @@ impl IrisEditorOverlay {
             self.chrome.needs_text_prepare = false;
         }
 
+        let dirty_boundaries = if self.chrome.needs_full_quad_upload {
+            None
+        } else {
+            Some(self.tree.dirty_boundaries())
+        };
+
         ae_renderer::render::iris_render_pass(ae_renderer::render::IrisRenderPassParams {
             device,
             queue,
@@ -171,7 +177,7 @@ impl IrisEditorOverlay {
             command_list: &self.command_list,
             text_renderer: self.text_renderer.as_ref(),
             screen_size: logical_screen_size,
-            dirty_boundaries: Some(self.tree.dirty_boundaries()),
+            dirty_boundaries,
         });
         self.tree.clear_dirty_boundaries();
     }

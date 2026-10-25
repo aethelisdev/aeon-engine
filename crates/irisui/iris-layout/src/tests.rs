@@ -322,3 +322,72 @@ fn test_layout_untrack_subtree_after_clear_children() {
     // Exactly 4 nodes remain tracked: root, panel_a, panel_b, b_child
     assert_eq!(engine.len(), 4);
 }
+
+#[test]
+fn test_compute_boundary_subtree_zero_coordinate_accumulation_across_rebuilds() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().unwrap();
+
+    // Create an offset panel with non-zero X and Y (e.g. Inspector or floating dock panel)
+    let panel = tree.create_node();
+    tree.set_boundary(panel, true);
+    if let Some(node) = tree.get_mut(panel) {
+        let style = Style::new()
+            .position_absolute()
+            .left(350.0)
+            .top(120.0)
+            .width(400.0)
+            .height(600.0)
+            .flex_col()
+            .padding(10.0);
+        node.set_style(style);
+        node.computed_rect = Rect::new(350.0, 120.0, 400.0, 600.0);
+    }
+    tree.add_child(root, panel).unwrap();
+
+    let child = tree.create_node();
+    if let Some(node) = tree.get_mut(child) {
+        node.set_style(Style::new().width(200.0).height(50.0));
+    }
+    tree.add_child(panel, child).unwrap();
+
+    let mut engine = LayoutEngine::new();
+    assert!(
+        engine
+            .compute_layout(&mut tree, Size::new(1920.0, 1080.0))
+            .is_ok()
+    );
+
+    let initial_panel_rect = tree.get(panel).unwrap().computed_rect;
+    let initial_child_rect = tree.get(child).unwrap().computed_rect;
+
+    assert_eq!(initial_panel_rect, Rect::new(350.0, 120.0, 400.0, 600.0));
+    // Child starts at panel.x + padding (350 + 10 = 360), panel.y + padding (120 + 10 = 130)
+    assert_eq!(initial_child_rect.x, 360.0);
+    assert_eq!(initial_child_rect.y, 130.0);
+
+    // Simulate 10 successive interactive rebuilds / touches on the boundary panel
+    for iteration in 1..=10 {
+        tree.mark_dirty(child, DirtyFlags::LAYOUT);
+        assert!(
+            engine.compute_boundary_subtree(&mut tree, panel).is_ok(),
+            "compute_boundary_subtree failed on iteration {iteration}"
+        );
+
+        let current_panel_rect = tree.get(panel).unwrap().computed_rect;
+        let current_child_rect = tree.get(child).unwrap().computed_rect;
+
+        assert_eq!(
+            current_panel_rect, initial_panel_rect,
+            "Panel computed_rect must NOT drift on iteration {iteration}"
+        );
+        assert_eq!(
+            current_child_rect.x, initial_child_rect.x,
+            "Child X coordinate must NOT drift on iteration {iteration}"
+        );
+        assert_eq!(
+            current_child_rect.y, initial_child_rect.y,
+            "Child Y coordinate must NOT drift on iteration {iteration}"
+        );
+    }
+}

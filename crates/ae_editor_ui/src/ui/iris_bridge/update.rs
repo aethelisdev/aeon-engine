@@ -122,7 +122,8 @@ impl IrisEditorOverlay {
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()
             || self.inspector.has_pending_actions()
-            || self.hierarchy.has_pending_actions();
+            || self.hierarchy.has_pending_actions()
+            || !self.assets.actions.is_empty();
 
         if should_wake {
             if dispatch.target_tag == super::console::types::CONSOLE_TAG_VIEWPORT
@@ -150,6 +151,12 @@ impl IrisEditorOverlay {
             if self.inspector.has_pending_actions() {
                 self.notifier
                     .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
+                routed_to_panel = true;
+            }
+            if super::assets::is_assets_tag(dispatch.target_tag) || !self.assets.actions.is_empty()
+            {
+                self.notifier
+                    .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
                 routed_to_panel = true;
             }
 
@@ -245,12 +252,7 @@ impl IrisEditorOverlay {
 
         self.modals.sync_from_dialogs(&params.dialogs);
 
-        let modal_active = self.modals.is_about_active
-            || params.dialogs.show_preferences
-            || self.modals.is_delete_active
-            || self.modals.is_new_folder_active
-            || self.modals.is_rename_active
-            || self.modals.is_loading_active;
+        let modal_active = self.modals.is_any_active() || params.dialogs.show_preferences;
 
         let floating_count = params
             .context
@@ -416,10 +418,21 @@ impl IrisEditorOverlay {
                 .search_input
                 .set_text(&params.panel_data.asset_browser.search_query);
         }
-        let folder_changed =
-            self.assets.current_folder != params.panel_data.asset_browser.current_folder;
-        if folder_changed {
-            self.assets.current_folder = params.panel_data.asset_browser.current_folder.clone();
+        let assets_dirty = self.assets.current_folder
+            != params.panel_data.asset_browser.current_folder
+            || self.assets.last_view_mode != params.panel_data.asset_browser.view_mode
+            || self.assets.last_active_category != params.panel_data.asset_browser.active_category
+            || self.assets.selected_asset != params.panel_data.asset_browser.selected_asset
+            || self.assets.last_sidebar_collapsed
+                != params.panel_data.asset_browser.sidebar_collapsed
+            || self.assets.last_show_engine_content
+                != params.panel_data.asset_browser.show_engine_content
+            || self.assets.last_cached_items_count
+                != params.panel_data.asset_browser.cached_items.len()
+            || self.assets.last_is_2d_mode != params.context.is_2d_mode
+            || !self.assets.actions.is_empty();
+
+        if assets_dirty {
             self.notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
         }
@@ -449,6 +462,7 @@ impl IrisEditorOverlay {
             .commit_pending_edits_on_selection_change(params.scene.selected_entity);
 
         if is_shell_dirty {
+            self.chrome.needs_full_quad_upload = true;
             // =========================================================================
             // Branch 1: Shell & Topology Reconstruction (tree.clear() + DockArea::show)
             // =========================================================================
@@ -704,18 +718,23 @@ impl IrisEditorOverlay {
                 self.chrome.needs_text_prepare = true;
             }
 
-            if rebuilt_any_panel
-                || has_volatile_canvas
+            let non_boundary_change = has_volatile_canvas
                 || self.chrome.needs_scroll_sync
                 || hover_target_changed
                 || focus_target_changed
-                || blink_changed
-            {
+                || blink_changed;
+
+            let should_repopulate =
+                rebuilt_any_panel || non_boundary_change || self.tree.has_dirty_boundaries();
+
+            if should_repopulate {
                 self.command_list.clear();
                 if let Some(root) = self.tree.root() {
                     self.populate_draw_commands(root, None, Some(params.telemetry.frame_pacing));
                 }
             }
+
+            self.chrome.needs_full_quad_upload = non_boundary_change;
         }
 
         self.chrome.last_dimensions = params.context.dimensions;

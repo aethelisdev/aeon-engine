@@ -113,6 +113,39 @@ impl<'a> UiScope<'a> {
         InnerResponse::new(response, inner)
     }
 
+    /// Emits a non-interactive (passive) container with a descriptive node name for tree inspection and debugging.
+    ///
+    /// The container node is marked with `interactive = false`, ensuring hardware raycasts and UI hit-testing
+    /// completely ignore this bounding box while still computing correct flexbox and scissor layout for its children.
+    ///
+    /// # Arguments
+    /// * `name` - Descriptive identifier assigned to the created UI node.
+    /// * `style` - Flexbox and visual styling properties applied to the container.
+    /// * `f` - Closure executing within the newly formed child scope.
+    pub fn container_passive_named<R, F>(
+        &mut self,
+        name: impl Into<String>,
+        style: Style,
+        f: F,
+    ) -> InnerResponse<R>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> R,
+    {
+        let name_str = name.into();
+        let node_id = self.tree.create_node();
+        if let Some(node) = self.tree.get_mut(node_id) {
+            node.interactive = false;
+            node.set_name(name_str);
+            node.set_style(style);
+        }
+        let _ = self.tree.add_child(self.parent, node_id);
+
+        let mut child_scope = self.child_scope(node_id);
+        let inner = f(&mut child_scope);
+        let response = self.response(node_id);
+        InnerResponse::new(response, inner)
+    }
+
     /// Emits an interactive container configured with a semantic tag, role, and debug name, executing a child builder closure.
     ///
     /// Used for interactive canvas panels, custom gizmo root containers, or complex compound controls that require

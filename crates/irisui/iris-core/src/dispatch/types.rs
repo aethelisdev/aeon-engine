@@ -88,6 +88,8 @@ pub struct EventState {
     pub initial_scroll_y: f32,
     /// Last confirmed click target widget ID for double-click gesture detection.
     pub last_click_id: Option<WidgetId>,
+    /// Persistent 64-bit semantic tag of the last confirmed click gesture, if assigned.
+    pub last_click_tag: Option<u64>,
     /// Screen coordinate of the last confirmed click gesture.
     pub last_click_pos: Option<Point>,
     /// Monotonic timestamp of the last confirmed click gesture.
@@ -149,6 +151,7 @@ impl EventState {
             press_origin: None,
             initial_scroll_y: 0.0,
             last_click_id: None,
+            last_click_tag: None,
             last_click_pos: None,
             last_click_time: None,
             frame_clicked_id: None,
@@ -184,6 +187,7 @@ impl EventState {
         self.press_origin = None;
         self.initial_scroll_y = 0.0;
         self.last_click_id = None;
+        self.last_click_tag = None;
         self.last_click_pos = None;
         self.last_click_time = None;
         self.frame_clicked_id = None;

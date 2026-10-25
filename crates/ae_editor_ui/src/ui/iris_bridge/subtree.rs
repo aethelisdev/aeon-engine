@@ -47,6 +47,10 @@ impl IrisEditorOverlay {
 
         finish_res?;
 
+        self.tree.set_boundary(leaf_id, true);
+        self.tree
+            .mark_dirty(leaf_id, irisui::core::DirtyFlags::PAINT);
+
         self.notifier.clear_panel(panel_id);
         self.chrome.needs_text_prepare = true;
         Ok(())

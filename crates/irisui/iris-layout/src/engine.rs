@@ -228,6 +228,11 @@ impl LayoutEngine {
     /// this function recalculates layout for that boundary's subtree using its established
     /// screen coordinates and dimensions without invalidating or traversing the rest of the UI tree.
     ///
+    /// The boundary container's absolute screen position `(boundary_rect.x, boundary_rect.y)`
+    /// is an external invariant established by the surrounding layout context and is strictly
+    /// preserved across partial rebuilds. Recursive layout updates are applied exclusively
+    /// to the boundary's descendant children relative to the boundary container's screen origin.
+    ///
     /// # Performance
     /// Recalculates only the affected subtree in $O(M)$ time (where $M \ll N$ is the number of nodes
     /// in the boundary) and preserves cached layout coordinates for all sibling panels, achieving
@@ -255,9 +260,6 @@ impl LayoutEngine {
             )));
         }
 
-        let parent_x = boundary_rect.x;
-        let parent_y = boundary_rect.y;
-
         // Synchronize boundary subtree with Taffy
         let boundary_taffy_node = self.sync_tree(tree, boundary_id)?;
 
@@ -270,8 +272,47 @@ impl LayoutEngine {
             .compute_layout(boundary_taffy_node, available_space)
             .map_err(|e| LayoutError::Taffy(format!("{:?}", e)))?;
 
-        // Apply updated coordinates to the boundary subtree
-        self.apply_layout(tree, boundary_id, parent_x, parent_y);
+        // 1. Maintain boundary container's authoritative screen coordinates and update size if resolved by Taffy
+        let boundary_size = self
+            .taffy
+            .layout(boundary_taffy_node)
+            .map_or(boundary_rect.size(), |l| {
+                Size::new(l.size.width, l.size.height)
+            });
+
+        let updated_boundary_rect = Rect::new(
+            boundary_rect.x,
+            boundary_rect.y,
+            boundary_size.width,
+            boundary_size.height,
+        );
+
+        if let Some(node) = tree.get_mut(boundary_id) {
+            node.computed_rect = updated_boundary_rect;
+            node.clear_dirty(DirtyFlags::LAYOUT | DirtyFlags::CHILDREN);
+            let tag = node.tag;
+            if tag != 0 {
+                tree.set_tag_rect(tag, updated_boundary_rect);
+            }
+        }
+        tree.dirty_boundaries.remove(&boundary_id);
+
+        // 2. Recursively apply layout to children relative to boundary container's screen origin
+        let scroll_offset_y = tree
+            .get(boundary_id)
+            .map_or(0.0, |n| n.style.scroll_offset_y);
+        let child_parent_y = boundary_rect.y - scroll_offset_y;
+        let child_parent_x = boundary_rect.x;
+
+        let child_count = tree.get(boundary_id).map_or(0, |n| n.children.len());
+        for i in 0..child_count {
+            if let Some(child_id) = tree
+                .get(boundary_id)
+                .and_then(|n| n.children.get(i).copied())
+            {
+                self.apply_layout(tree, child_id, child_parent_x, child_parent_y);
+            }
+        }
 
         Ok(())
     }

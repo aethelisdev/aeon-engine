@@ -292,7 +292,7 @@ pub fn asset_grid_card(
 ) -> WidgetResponse {
     let card_bg = scope.theme().card_bg;
     let card_border = scope.theme().card_border;
-    scope
+    let resp = scope
         .container_tagged_resp(
             "AssetGridCard",
             asset_card_container_style(
@@ -306,7 +306,7 @@ pub fn asset_grid_card(
             encode_item_tag(item_idx),
             |card| {
                 // Header Row: Category Badge + Status Dot
-                card.container_named(
+                card.container_passive_named(
                     "CardHeader",
                     Style::new()
                         .flex_row()
@@ -317,7 +317,7 @@ pub fn asset_grid_card(
                         .margin_insets(Insets::new(0.0, 0.0, 4.0, 0.0)),
                     |hdr| {
                         // Category Badge Pill
-                        hdr.container_named(
+                        hdr.container_passive_named(
                             "CardCatBadge",
                             Style::new()
                                 .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
@@ -350,7 +350,7 @@ pub fn asset_grid_card(
                 );
 
                 // Preview Box (54x54 px): Texture Thumbnail or Vector Atlas Icon
-                card.container_named(
+                card.container_passive_named(
                     "CardPreviewBox",
                     Style::new()
                         .flex_row()
@@ -400,8 +400,15 @@ pub fn asset_grid_card(
                 item.path.clone(),
                 item.category,
             ))
-        })
-        .on_any_click(|| actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone()))))
+        });
+
+    if (resp.clicked() || resp.secondary_clicked() || (resp.pressed() && !resp.dragged()))
+        && !resp.double_clicked()
+    {
+        actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+    }
+
+    resp
 }
 
 /// Emits an individual table list row with multi-column metrics and action buttons.
@@ -416,7 +423,7 @@ pub fn asset_list_row(
     is_selected: bool,
     actions: &mut Vec<AssetsPanelAction>,
 ) -> WidgetResponse {
-    scope
+    let resp = scope
         .container_tagged_resp(
             "AssetListRow",
             asset_list_row_style(is_selected),
@@ -443,7 +450,7 @@ pub fn asset_list_row(
                 );
 
                 // Category Badge
-                row.container_named(
+                row.container_passive_named(
                     "ListBadge",
                     Style::new()
                         .width(60.0)
@@ -472,7 +479,7 @@ pub fn asset_list_row(
                 );
 
                 // Status Indicator (VRAM / Memory)
-                row.container_named(
+                row.container_passive_named(
                     "ListStatus",
                     Style::new()
                         .width(64.0)
@@ -525,8 +532,15 @@ pub fn asset_list_row(
             },
         )
         .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
-        .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag))
-        .on_any_click(|| actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone()))))
+        .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag));
+
+    if (resp.clicked() || resp.secondary_clicked() || (resp.pressed() && !resp.dragged()))
+        && !resp.double_clicked()
+    {
+        actions.push(AssetsPanelAction::SelectAsset(Some(item.path.clone())));
+    }
+
+    resp
 }
 
 #[inline]
