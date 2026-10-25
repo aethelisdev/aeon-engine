@@ -10,6 +10,6 @@ license = "MPL-2.0"
 ae_core = { path = "../../ae_core" }
 ae_texture = { path = "../../ae_texture" }
 cgmath = "0.18"
-glam = "0.33.0"
+glam = { workspace = true }
 hecs = "0.11.0"
 serde = { version = "1.0.228", features = ["derive"] }

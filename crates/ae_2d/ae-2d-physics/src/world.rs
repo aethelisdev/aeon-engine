@@ -31,6 +31,8 @@ pub struct Physics2DWorld {
     pub impulse_joint_set: ImpulseJointSet,
     /// Multibody articulation joint constraint solver.
     pub multibody_joint_set: MultibodyJointSet,
+    /// Soft body constraint and simulation set.
+    pub soft_body_set: SoftBodySet,
     /// Continuous collision detection (CCD) solver.
     pub ccd_solver: CCDSolver,
 }
@@ -55,6 +57,7 @@ impl Physics2DWorld {
             narrow_phase: NarrowPhase::new(),
             impulse_joint_set: ImpulseJointSet::new(),
             multibody_joint_set: MultibodyJointSet::new(),
+            soft_body_set: SoftBodySet::new(),
             ccd_solver: CCDSolver::new(),
         }
     }
@@ -79,6 +82,7 @@ impl Physics2DWorld {
             &mut self.collider_set,
             &mut self.impulse_joint_set,
             &mut self.multibody_joint_set,
+            &mut self.soft_body_set,
             &mut self.ccd_solver,
             &physics_hooks,
             &event_handler,

@@ -36,6 +36,8 @@ pub struct PhysicsWorld {
     pub impulse_joint_set: ImpulseJointSet,
     /// Set of multibody joints.
     pub multibody_joint_set: MultibodyJointSet,
+    /// Set of simulated soft bodies.
+    pub soft_body_set: SoftBodySet,
     /// Solver for continuous collision detection (CCD).
     pub ccd_solver: CCDSolver,
     /// Mapping of ECS entities to Rapier rigid body handles.
@@ -81,6 +83,7 @@ impl PhysicsWorld {
             collider_set: ColliderSet::new(),
             impulse_joint_set: ImpulseJointSet::new(),
             multibody_joint_set: MultibodyJointSet::new(),
+            soft_body_set: SoftBodySet::new(),
             ccd_solver: CCDSolver::new(),
             entity_to_body: HashMap::new(),
             body_to_entity: HashMap::new(),
@@ -99,6 +102,7 @@ impl PhysicsWorld {
         self.narrow_phase = NarrowPhase::new();
         self.impulse_joint_set = ImpulseJointSet::new();
         self.multibody_joint_set = MultibodyJointSet::new();
+        self.soft_body_set = SoftBodySet::new();
         self.ccd_solver = CCDSolver::new();
         self.entity_to_body.clear();
         self.body_to_entity.clear();
@@ -141,7 +145,9 @@ impl PhysicsWorld {
         // 2. Setup event collector for collision and trigger events
         let (collision_send, collision_recv) = std::sync::mpsc::channel();
         let (contact_force_send, _contact_force_recv) = std::sync::mpsc::channel();
-        let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+        let (soft_body_tear_send, _soft_body_tear_recv) = std::sync::mpsc::channel();
+        let event_handler =
+            ChannelEventCollector::new(collision_send, contact_force_send, soft_body_tear_send);
 
         // 3. Step the simulator
         self.physics_pipeline.step(
@@ -154,6 +160,7 @@ impl PhysicsWorld {
             &mut self.collider_set,
             &mut self.impulse_joint_set,
             &mut self.multibody_joint_set,
+            &mut self.soft_body_set,
             &mut self.ccd_solver,
             &(),
             &event_handler,
@@ -207,7 +214,7 @@ impl PhysicsWorld {
                             let mut contact_point = None;
                             let mut normal = None;
                             if let Some(pair) = self.narrow_phase.contact_pair(h1, h2) {
-                                for manifold in &pair.manifolds {
+                                for manifold in pair.manifolds() {
                                     let n = manifold.data.normal;
                                     normal = Some([n.x, n.y, n.z]);
                                     if let Some(pt) = manifold.data.solver_contacts.first() {

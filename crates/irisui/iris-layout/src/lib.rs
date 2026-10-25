@@ -405,20 +405,20 @@ impl LayoutEngine {
                 iris_core::FlexWrap::Wrap => tf::FlexWrap::Wrap,
                 iris_core::FlexWrap::WrapReverse => tf::FlexWrap::WrapReverse,
             },
-            align_items: Some(match style.align_items {
+            align_items: match style.align_items {
                 AlignItems::FlexStart => tf::AlignItems::FLEX_START,
                 AlignItems::FlexEnd => tf::AlignItems::FLEX_END,
                 AlignItems::Center => tf::AlignItems::CENTER,
                 AlignItems::Stretch => tf::AlignItems::STRETCH,
-            }),
-            justify_content: Some(match style.justify_content {
+            },
+            justify_content: match style.justify_content {
                 JustifyContent::FlexStart => tf::JustifyContent::FLEX_START,
                 JustifyContent::FlexEnd => tf::JustifyContent::FLEX_END,
                 JustifyContent::Center => tf::JustifyContent::CENTER,
                 JustifyContent::SpaceBetween => tf::JustifyContent::SPACE_BETWEEN,
                 JustifyContent::SpaceAround => tf::JustifyContent::SPACE_AROUND,
                 JustifyContent::SpaceEvenly => tf::JustifyContent::SPACE_EVENLY,
-            }),
+            },
             gap: tf::Size {
                 width: tf::LengthPercentage::length(style.gap),
                 height: tf::LengthPercentage::length(style.gap),

@@ -8,5 +8,5 @@ license = "MPL-2.0"
 
 [dependencies]
 ae-2d-core = { path = "../ae-2d-core" }
-glam = "0.33.0"
+glam = { workspace = true }
 serde = { version = "1.0.228", features = ["derive"] }

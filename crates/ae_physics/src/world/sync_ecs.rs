@@ -42,6 +42,7 @@ impl PhysicsWorld {
                     &mut self.collider_set,
                     &mut self.impulse_joint_set,
                     &mut self.multibody_joint_set,
+                    &mut self.soft_body_set,
                     true,
                 );
             }
@@ -257,6 +258,7 @@ impl PhysicsWorld {
                                     c_h,
                                     &mut self.island_manager,
                                     &mut self.rigid_body_set,
+                                    &mut self.soft_body_set,
                                     true,
                                 );
                             }

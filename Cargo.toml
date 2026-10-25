@@ -40,7 +40,7 @@ license = "MPL-2.0"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-# Universal Ban on Linter Suppressions (Rule 11) - Zero Escape Hatches!
+# Universal Ban on Linter Suppressions - Zero Escape Hatches!
 allow_attributes = "deny"
 
 # Absolute Ban on Code Cheats, Placeholders & Debug Cruft
@@ -50,7 +50,7 @@ dbg_macro = "deny"
 print_stdout = "deny"
 print_stderr = "deny"
 
-# Strict Performance & Ownership Rules (Rule 9)
+# Strict Performance & Ownership Rules
 clone_on_copy = "deny"
 redundant_clone = "deny"
 cloned_instead_of_copied = "deny"
@@ -88,13 +88,13 @@ irisui = { path = "crates/irisui/irisui" }
 slotmap = { version = "1.1.1", features = ["serde"] }
 bitflags = "2.8"
 bytemuck = { version = "1.21.0", features = ["derive"] }
-glam = "0.33.2"
+glam = "0.33.12"
 thiserror = "2.0.12"
 log = "0.4.33"
 env_logger = "0.11"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-taffy = "0.14"
+taffy = "0.15"
 cosmic-text = "0.19.0"
 glyphon = "0.12.0"
 winit = { version = "0.30.9", features = ["rwh_06"] }
