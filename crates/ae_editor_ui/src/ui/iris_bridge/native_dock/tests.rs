@@ -415,3 +415,42 @@ fn test_dock_overflow_menu_occludes_background_text() {
         "Overflow menu items must not be occluded by their own menu rect"
     );
 }
+
+#[test]
+fn test_native_dock_frame_preserves_leaf_containers() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must be created");
+    let (dummy_id1, dummy_id2) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let c1 = scope.container(Style::new(), |s| {
+            s.label("Hierarchy Leaf Container");
+        });
+        let c2 = scope.container(Style::new(), |s| {
+            s.label("Inspector Leaf Container");
+        });
+        (c1.response.id, c2.response.id)
+    };
+
+    let mut chrome = irisui::dock::DockChromeFrame::default();
+
+    chrome.leaf_containers.push((PanelId::Hierarchy, dummy_id1));
+    chrome.leaf_containers.push((PanelId::Inspector, dummy_id2));
+
+    let frame: NativeDockFrame = chrome.into();
+
+    assert_eq!(frame.leaf_containers.len(), 2);
+    assert_eq!(frame.leaf_container(PanelId::Hierarchy), Some(dummy_id1));
+    assert_eq!(frame.leaf_container(PanelId::Inspector), Some(dummy_id2));
+    assert_eq!(frame.leaf_container(PanelId::Console), None);
+
+    assert_eq!(
+        frame.tab_for_leaf_container(dummy_id1),
+        Some(PanelId::Hierarchy)
+    );
+    assert_eq!(
+        frame.tab_for_leaf_container(dummy_id2),
+        Some(PanelId::Inspector)
+    );
+    assert!(frame.is_leaf_container(dummy_id1));
+    assert!(frame.is_leaf_container(dummy_id2));
+}

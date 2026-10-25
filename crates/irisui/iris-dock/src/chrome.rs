@@ -173,6 +173,29 @@ impl<T: PartialEq + Copy> DockChromeFrame<T> {
             .iter()
             .find_map(|(candidate, id)| (*candidate == target).then_some(*id))
     }
+
+    /// Returns the tab associated with the specified leaf container widget node ID, if present.
+    ///
+    /// Enables reverse lookup from event hit targets back to the active panel or tab.
+    pub fn tab_for_leaf_container(&self, id: WidgetId) -> Option<T> {
+        self.leaf_containers
+            .iter()
+            .find_map(|(candidate, wid)| (*wid == id).then_some(*candidate))
+    }
+
+    /// Returns `true` if the specified widget node ID matches an active leaf container.
+    #[inline]
+    #[must_use]
+    pub fn is_leaf_container(&self, id: WidgetId) -> bool {
+        self.leaf_containers.iter().any(|(_, wid)| *wid == id)
+    }
+
+    /// Returns an immutable slice of all registered `(Tab, WidgetId)` leaf containers.
+    #[inline]
+    #[must_use]
+    pub fn leaf_containers(&self) -> &[(T, WidgetId)] {
+        &self.leaf_containers
+    }
 }
 
 /// Context parameters passed into [`build_dock_chrome`].

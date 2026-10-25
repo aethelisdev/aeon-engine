@@ -5,6 +5,7 @@ use super::*;
 use crate::tree::{DockTree, SplitDirection};
 use iris_core::DirtyFlags;
 use iris_core::UiTree;
+use iris_core::WidgetId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TestPanel {
@@ -581,6 +582,28 @@ fn test_dock_area_records_leaf_container_widget_ids() {
     assert_ne!(hier_id, insp_id);
     assert_ne!(hier_id, console_id);
     assert_ne!(insp_id, console_id);
+
+    // Forward and reverse lookup consistency
+    assert_eq!(
+        frame.tab_for_leaf_container(hier_id),
+        Some(TestPanel::Hierarchy)
+    );
+    assert_eq!(
+        frame.tab_for_leaf_container(insp_id),
+        Some(TestPanel::Inspector)
+    );
+    assert_eq!(
+        frame.tab_for_leaf_container(console_id),
+        Some(TestPanel::Console)
+    );
+    assert_eq!(frame.tab_for_leaf_container(WidgetId::default()), None);
+
+    assert!(frame.is_leaf_container(hier_id));
+    assert!(frame.is_leaf_container(insp_id));
+    assert!(frame.is_leaf_container(console_id));
+    assert!(!frame.is_leaf_container(WidgetId::default()));
+
+    assert_eq!(frame.leaf_containers().len(), 3);
 
     // Verify nodes in the UiTree
     let hier_node = tree
