@@ -62,6 +62,26 @@ impl SubtreeSession {
         text_system.measure_subtree_text(tree, self.leaf_id);
         layout_engine.compute_boundary_subtree(tree, self.leaf_id)
     }
+
+    /// Atomically untracks, clears, renders, measures typography, and recomputes layout for an isolated boundary subtree.
+    ///
+    /// Coordinates the atomic invalidation, generational arena clearing, fresh widget synthesis,
+    /// typography measurement, and boundary layout resolution for a single boundary container.
+    ///
+    /// # Errors
+    /// Returns [`LayoutError`] if boundary layout computation encounters invalid geometry.
+    pub fn rebuild<F>(
+        tree: &mut UiTree,
+        layout_engine: &mut LayoutEngine,
+        text_system: &mut TextSystem,
+        boundary_id: WidgetId,
+        render_fn: F,
+    ) -> Result<(), LayoutError>
+    where
+        F: FnOnce(&mut UiScope<'_>),
+    {
+        rebuild_leaf_subtree(tree, layout_engine, text_system, boundary_id, render_fn)
+    }
 }
 
 /// Atomically untracks, clears, renders, measures typography, and recomputes layout for an isolated leaf subtree.
@@ -270,5 +290,43 @@ mod tests {
             result.is_err(),
             "Zero-dimension boundary node must return Err"
         );
+    }
+
+    #[test]
+    fn test_subtree_session_rebuild_preserves_container_style_and_geometry() {
+        use iris_core::{Color, Style};
+
+        let mut tree = UiTree::new();
+        let mut layout_engine = LayoutEngine::new();
+        let mut text_system = TextSystem::new();
+
+        let root = tree.create_root().expect("root widget node must exist");
+        let initial_rect = Rect::new(100.0, 50.0, 320.0, 480.0);
+        let custom_bg = Color::from_u8(25, 25, 30, 255);
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let res = scope.container(
+            Style::new()
+                .width(320.0)
+                .height(480.0)
+                .background(custom_bg)
+                .flex_col(),
+            |s| {
+                s.label("Old Content");
+            },
+        );
+        let leaf = res.response.id;
+
+        UiScope::new(&mut tree, leaf).finish_layout(initial_rect);
+
+        SubtreeSession::rebuild(&mut tree, &mut layout_engine, &mut text_system, leaf, |s| {
+            s.label("Fresh Content 1");
+            s.label("Fresh Content 2");
+        })
+        .expect("subtree rebuild via SubtreeSession::rebuild");
+
+        let leaf_node_after = tree.get(leaf).expect("leaf node persists");
+        assert_eq!(leaf_node_after.computed_rect, initial_rect);
+        assert_eq!(leaf_node_after.style.background_color, custom_bg);
     }
 }
