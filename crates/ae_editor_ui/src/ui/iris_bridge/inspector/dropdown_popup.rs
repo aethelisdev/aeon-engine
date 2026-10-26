@@ -22,7 +22,8 @@ pub fn build_inspector_dropdown_popup(
     params.active_dropdown.map(|active_id| {
         let dropdown_tag = encode_inspector_dropdown_tag(active_id);
         let anchor_rect = tree
-            .node_rect_tagged(dropdown_tag, params.panel_rect.origin())
+            .node_rect_tagged(dropdown_tag, Point::ZERO)
+            .or_else(|| tree.tag_rect(dropdown_tag))
             .unwrap_or(Rect::new(
                 params.panel_rect.x + 8.0,
                 params.panel_rect.y + 40.0,

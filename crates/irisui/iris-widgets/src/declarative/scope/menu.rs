@@ -350,8 +350,9 @@ impl<'a> UiScope<'a> {
             .map(|n| n.computed_rect.height)
             .filter(|&h| h > 10.0)
             .unwrap_or(1080.0);
-        let clamped_y = if y + height > window_h - 6.0 {
-            (window_h - height - 6.0).max(6.0)
+        let max_y = window_h - 28.0;
+        let clamped_y = if y + height > max_y {
+            (max_y - height).max(6.0)
         } else {
             y
         };
@@ -827,9 +828,10 @@ impl<'a> UiScope<'a> {
         let height = crate::declarative::layout::measure_height(self.tree, node_id);
 
         // Re-evaluate vertical position with accurate measured height
+        let max_y = window_h - 28.0;
         y = match placement {
             PopupPlacement::Below => {
-                if anchor_rect.bottom() + height + 4.0 > window_h - 6.0 {
+                if anchor_rect.bottom() + height + 4.0 > max_y {
                     (anchor_rect.y - height - 2.0).max(6.0)
                 } else {
                     anchor_rect.bottom() + 2.0
@@ -843,6 +845,9 @@ impl<'a> UiScope<'a> {
                 }
             }
         };
+        if y + height > max_y {
+            y = (max_y - height).max(6.0);
+        }
 
         let bounds = Rect::new(x, y, width, height);
         crate::declarative::layout_subtree(self.tree, node_id, bounds);

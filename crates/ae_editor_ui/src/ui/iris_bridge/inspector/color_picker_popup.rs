@@ -35,7 +35,8 @@ pub fn build_color_picker_popup(
     // Anchor to the Object Color swatch rect if available, or fallback gracefully
     let swatch_tag = appearance_color_swatch_tag();
     let anchor_rect = tree
-        .node_rect_tagged(swatch_tag, params.panel_rect.origin())
+        .node_rect_tagged(swatch_tag, Point::ZERO)
+        .or_else(|| tree.tag_rect(swatch_tag))
         .unwrap_or(Rect::new(
             params.panel_rect.x + 20.0,
             params.panel_rect.y + 120.0,

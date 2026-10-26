@@ -262,7 +262,8 @@ pub fn build_add_menu(
     }
 
     let anchor = tree
-        .node_rect_tagged(HIERARCHY_TAG_ADD_BUTTON, params.panel_rect.origin())
+        .node_rect_tagged(HIERARCHY_TAG_ADD_BUTTON, Point::ZERO)
+        .or_else(|| tree.tag_rect(HIERARCHY_TAG_ADD_BUTTON))
         .filter(|r| r.width > 0.0 && r.height > 0.0)
         .unwrap_or(Rect::new(
             (params.panel_rect.x + params.panel_rect.width - 56.0).max(params.panel_rect.x + 60.0),

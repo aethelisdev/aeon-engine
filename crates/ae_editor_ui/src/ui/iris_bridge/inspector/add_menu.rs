@@ -215,7 +215,8 @@ fn render_add_component_menu_card(
     actions: &mut Vec<super::types::InspectorAction>,
 ) -> Rect {
     let anchor_rect = tree
-        .node_rect_tagged(TAG_INSPECTOR_ADD_COMPONENT, params.panel_rect.origin())
+        .node_rect_tagged(TAG_INSPECTOR_ADD_COMPONENT, Point::ZERO)
+        .or_else(|| tree.tag_rect(TAG_INSPECTOR_ADD_COMPONENT))
         .filter(|r| r.width > 0.0 && r.height > 0.0)
         .unwrap_or(Rect::new(
             params.panel_rect.x + 8.0,
