@@ -42,7 +42,7 @@ fn render_vec3_numeric_row(
         .flex_row()
         .align_items(AlignItems::Center)
         .height(24.0)
-        .padding_insets(Insets::new(2.0, 4.0, 2.0, 4.0))
+        .padding_insets(Insets::new(1.0, 4.0, 1.0, 4.0))
         .gap(4.0);
 
     let (box_names, reset_name): ([&'static str; 3], &'static str) = match config.title {
@@ -82,6 +82,8 @@ fn render_vec3_numeric_row(
         let slot_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
+            .width(231.0)
+            .height(22.0)
             .gap(3.0);
 
         row.container_named("Slot", slot_style, |slot| {

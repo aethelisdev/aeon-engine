@@ -28,6 +28,7 @@ pub fn build_inspector_panel(
     scope
         .panel("InspectorPanelRoot")
         .tagged(super::tags::TAG_INSPECTOR_PANEL_ROOT)
+        .bounds(params.panel_rect)
         .background_themed(|t| t.panel_bg)
         .show(|panel_scope| {
             // 1. Check if an entity is selected

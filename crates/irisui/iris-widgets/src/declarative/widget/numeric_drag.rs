@@ -653,11 +653,20 @@ impl<'a> Widget for NumericDrag<'a> {
         }
 
         // When label is not empty, build standard property row with label + pill (+ optional unit)
+        let label_w = self.label_width.unwrap_or(55.0);
+        let box_w = self.box_width.unwrap_or(48.0);
+        let gap_w = 4.0;
+        let mut row_w = label_w + gap_w + box_w;
+        if self.unit.is_some() {
+            row_w += gap_w + 35.0;
+        }
+
         let row_style = Style::new()
             .flex_row()
             .align_items(AlignItems::Center)
+            .width(row_w)
             .height(22.0)
-            .gap(4.0);
+            .gap(gap_w);
 
         let row_id = scope.tree.create_node();
         if let Some(node) = scope.tree.get_mut(row_id) {
@@ -669,7 +678,6 @@ impl<'a> Widget for NumericDrag<'a> {
         let mut row = scope.child_scope(row_id);
 
         // 1. Left Label
-        let label_w = self.label_width.unwrap_or(55.0);
         let label_style = Style::new().width(label_w).height(22.0).flex_shrink(0.0);
         row.label_styled_passive(
             "NumLbl",

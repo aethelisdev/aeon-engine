@@ -92,6 +92,63 @@ fn test_inspector_3d_entity_renders_transform_and_appearance() {
 }
 
 #[test]
+fn test_inspector_transform_geometry_is_invariant_between_layout_passes() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let mut world = hecs::World::new();
+
+    let entity = world.spawn((
+        Name("3D Cube".to_string()),
+        Position::new(0.0, 1.0, 0.0),
+        Rotation::identity(),
+        Scale::one(),
+    ));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+
+    // Capture initial geometric positions immediately after declarative build (layout_subtree pass)
+    let pre_pos_x = tree.assert_node_rect("NumBox_Position_X");
+    let pre_pos_y = tree.assert_node_rect("NumBox_Position_Y");
+    let pre_pos_z = tree.assert_node_rect("NumBox_Position_Z");
+    let pre_reset = tree.assert_node_rect("ResetBtn_Position");
+
+    // Execute authoritative top-level Taffy solver pass
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, Size::new(800.0, 600.0));
+
+    let post_pos_x = tree.assert_node_rect("NumBox_Position_X");
+    let post_pos_y = tree.assert_node_rect("NumBox_Position_Y");
+    let post_pos_z = tree.assert_node_rect("NumBox_Position_Z");
+    let post_reset = tree.assert_node_rect("ResetBtn_Position");
+
+    // Assert absolute geometric invariance between layout passes (prevent visual hopping/jitter)
+    assert_eq!(
+        pre_pos_x, post_pos_x,
+        "Position X must remain geometrically invariant"
+    );
+    assert_eq!(
+        pre_pos_y, post_pos_y,
+        "Position Y must remain geometrically invariant"
+    );
+    assert_eq!(
+        pre_pos_z, post_pos_z,
+        "Position Z must remain geometrically invariant"
+    );
+    assert_eq!(
+        pre_reset.x, post_reset.x,
+        "Reset button X must remain geometrically invariant"
+    );
+    assert_eq!(
+        pre_reset.y, post_reset.y,
+        "Reset button Y must remain geometrically invariant"
+    );
+}
+
+#[test]
 fn test_inspector_2d_ui_entity_replaces_3d_transform_with_screen_transform() {
     let mut tree = UiTree::new();
     let root = tree.create_root().expect("root node");
