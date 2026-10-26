@@ -500,12 +500,11 @@ fn collect_node_text<'a>(
             } = prim
                 && !text.is_empty()
             {
-                let text_bounds = Rect::new(pos.x, pos.y, 400.0, *font_size + 4.0);
+                let text_bounds = Rect::new(pos.x, pos.y, 10_000.0, *font_size + 4.0);
                 let is_clipped_out = if let Some(clip) = child_clip {
-                    text_bounds.bottom() <= clip.y
-                        || text_bounds.y >= clip.bottom()
-                        || text_bounds.right() <= clip.x
-                        || text_bounds.x >= clip.right()
+                    pos.y + *font_size + 4.0 <= clip.y
+                        || pos.y >= clip.bottom()
+                        || pos.x >= clip.right()
                 } else {
                     false
                 };

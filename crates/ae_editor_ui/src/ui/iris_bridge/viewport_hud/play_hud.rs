@@ -12,9 +12,12 @@
 //! Button interactions are 100% semantic tag-driven ([`TAG_PLAY_RESUME`], [`TAG_PLAY_EXIT`]).
 //!
 
-use super::types::{TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_RESUME, ViewportHudParams};
+use super::types::{
+    TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE, TAG_PLAY_RESUME, ViewportHudParams,
+};
 use irisui::prelude::*;
 use irisui::wgpu_backend::{DrawCommandList, QuadInstance};
+use irisui::widgets::canvas::ImmediateCanvas;
 
 /// Builds the Play Mode HUD overlay (reticle canvas, quick control badge, in-game UI, and pause menu).
 ///
@@ -92,31 +95,63 @@ pub fn build_play_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
         "🏃 WASD: Move   |   ⬆ Space: Jump   |   ⏹ ESC: Exit"
     };
 
-    let badge_w = if has_action { 420.0 } else { 290.0 };
+    let text_w = irisui::text::measure_text_advance(guide_text, 11.0).ceil();
+    let pad_h = 12.0;
+    let badge_w = text_w + pad_h * 2.0;
     let badge_h = 24.0;
+    let badge_margin = 16.0;
 
     let badge_style = Style::new()
         .position_absolute()
-        .left(16.0)
-        .bottom(16.0)
-        .flex_row()
-        .align_items(AlignItems::Center)
-        .justify_content(JustifyContent::Center)
+        .left(badge_margin)
+        .bottom(badge_margin)
         .width(badge_w)
-        .height(badge_h)
-        .background(Color::rgba(0.06, 0.07, 0.10, 0.85))
-        .border(1.0, Color::rgba(0.25, 0.30, 0.42, 0.60))
-        .border_radius(5.0)
-        .box_shadow(0.0, 4.0, 12.0, Color::rgba(0.0, 0.0, 0.0, 0.60));
+        .height(badge_h);
 
-    scope.container_named("PlayGuideBadge", badge_style, |badge| {
-        badge.label_custom(
-            guide_text,
-            11.0,
-            Color::rgba(0.90, 0.93, 0.98, 1.0),
-            TextAlign::Center,
-        );
-    });
+    let badge_rect = Rect::new(
+        params.viewport_rect.x + badge_margin,
+        params.viewport_rect.bottom() - badge_h - badge_margin,
+        badge_w,
+        badge_h,
+    );
+
+    scope.immediate_canvas_styled(
+        "PlayGuideBadge",
+        TAG_PLAY_GUIDE_BADGE,
+        badge_style,
+        |canvas| {
+            draw_play_guide_canvas(canvas, guide_text, badge_rect, pad_h);
+        },
+    );
+}
+
+/// Renders the Play Mode quick controls badge onto an immediate canvas context.
+///
+/// Paints a rounded dark pill background with subtle blueish border, and draws the guide
+/// text precisely padded from the left edge with mathematically guaranteed margins.
+///
+/// # Arguments
+/// * `canvas` - Mutable reference to the immediate canvas drawing context.
+/// * `guide_text` - Human-readable keyboard shortcut guide string.
+/// * `rect` - Bounding rectangle for the badge pill.
+/// * `pad_h` - Horizontal padding in pixels from the left and right pill edges.
+pub fn draw_play_guide_canvas(
+    canvas: &mut ImmediateCanvas<'_>,
+    guide_text: &str,
+    rect: Rect,
+    pad_h: f32,
+) {
+    let bg_color = Color::rgba(0.06, 0.07, 0.10, 0.85);
+    let border_color = Color::rgba(0.25, 0.30, 0.42, 0.60);
+    let text_color = Color::rgba(0.90, 0.93, 0.98, 1.0);
+
+    // 1. Draw rounded backdrop pill and border hugging the text snugly
+    canvas.fill_rect(rect, bg_color, 5.0);
+    canvas.stroke_rect(rect, border_color, 1.0, 5.0);
+
+    // 2. Draw volatile guide text precisely padded from the left edge
+    let text_pos = Point::new(rect.x + pad_h, rect.y + 4.5);
+    canvas.draw_text(text_pos, guide_text, 11.0, text_color);
 }
 
 /// Appends hardware SDF quad commands for the center reticle crosshair in Play Mode.
@@ -457,6 +492,17 @@ mod tests {
         assert!(names.iter().any(|n| n == "PlayReticleCanvas"));
         assert!(names.iter().any(|n| n == "PlayGuideBadge"));
 
+        let badge_id = tree
+            .find_node_by_tag(TAG_PLAY_GUIDE_BADGE)
+            .expect("Play guide badge must have semantic tag");
+        let prims = tree
+            .canvas_primitives(badge_id)
+            .expect("Badge canvas primitives must exist");
+        assert!(
+            !prims.is_empty(),
+            "Badge must contain fill, stroke, and text primitives"
+        );
+
         // Verify hardware SDF crosshair quad batch generation
         let mut cmd_list = DrawCommandList::new();
         append_crosshair_quads(&mut cmd_list, Rect::new(400.0, 300.0, 32.0, 32.0));
@@ -528,7 +574,7 @@ mod tests {
             resume_node.is_some(),
             "TAG_PLAY_RESUME must be assigned to Resume button"
         );
-        let (_, r_node) = resume_node.unwrap();
+        let (_, r_node) = resume_node.expect("resume button should exist");
         assert!(r_node.computed_rect.width > 0.0 && r_node.computed_rect.height > 0.0);
 
         let exit_node = tree.iter().find(|(_, n)| n.tag == TAG_PLAY_EXIT);
@@ -536,7 +582,7 @@ mod tests {
             exit_node.is_some(),
             "TAG_PLAY_EXIT must be assigned to Exit button"
         );
-        let (_, e_node) = exit_node.unwrap();
+        let (_, e_node) = exit_node.expect("exit button should exist");
         assert!(e_node.computed_rect.width > 0.0 && e_node.computed_rect.height > 0.0);
     }
 }

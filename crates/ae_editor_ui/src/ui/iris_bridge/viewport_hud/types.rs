@@ -49,6 +49,8 @@ pub const TAG_PLAY_RESUME: u64 = 2040;
 pub const TAG_PLAY_EXIT: u64 = 2041;
 /// Semantic tag for the Play Mode aiming crosshair canvas.
 pub const TAG_PLAY_CROSSHAIR: u64 = 2050;
+/// Semantic tag for the Play Mode bottom-left quick controls guide badge immediate canvas.
+pub const TAG_PLAY_GUIDE_BADGE: u64 = 2052;
 /// Base semantic tag for camera mode dropdown popup items (2100..2104).
 pub const TAG_POPUP_CAMERA_BASE: u64 = 2100;
 /// Base semantic tag for shading mode dropdown popup items (2200..2201).
