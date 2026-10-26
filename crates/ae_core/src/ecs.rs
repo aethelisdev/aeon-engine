@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// AE Core - ECS Manager and Hierarchical Transform System.
-///
-/// Manages the `hecs::World` database and hierarchical transform updates.
+//! AE Core - ECS Manager and Hierarchical Transform System.
+//!
+//! Manages the `hecs::World` database and hierarchical transform updates.
+//!
+
+#![deny(clippy::unwrap_used)]
+
 use hecs::World;
 use serde::{Deserialize, Serialize};
 
@@ -296,7 +300,9 @@ mod tests {
 
         update_hierarchy_transforms(&mut world);
 
-        let gt = world.get::<&GlobalTransform>(entity).unwrap();
+        let gt = world
+            .get::<&GlobalTransform>(entity)
+            .expect("GlobalTransform query must succeed");
         assert_eq!(gt.0.w.x, 10.0);
         assert_eq!(gt.0.w.y, 5.0);
         assert_eq!(gt.0.w.z, -2.0);
@@ -337,7 +343,9 @@ mod tests {
 
         update_hierarchy_transforms(&mut world);
 
-        let child_gt = world.get::<&GlobalTransform>(child).unwrap();
+        let child_gt = world
+            .get::<&GlobalTransform>(child)
+            .expect("Child GlobalTransform query must succeed");
         assert_eq!(child_gt.0.w.x, 7.0);
     }
 }

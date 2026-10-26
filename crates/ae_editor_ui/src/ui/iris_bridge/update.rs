@@ -685,9 +685,49 @@ impl IrisEditorOverlay {
                 .tree
                 .node_tagged(super::stats::types::STATS_TAG_CANVAS)
                 .is_some();
+            let has_camera_hud_canvas = self
+                .tree
+                .node_tagged(super::viewport_hud::TAG_CAMERA_HUD)
+                .is_some();
+            let has_compass_canvas = self
+                .tree
+                .node_tagged(super::viewport_hud::TAG_COMPASS_CANVAS)
+                .is_some();
+            let camera_pos_changed =
+                (self.viewport_hud.camera_pos.0 - params.viewport.camera.position.x).abs() > 0.001
+                    || (self.viewport_hud.camera_pos.1 - params.viewport.camera.position.y).abs()
+                        > 0.001
+                    || (self.viewport_hud.camera_pos.2 - params.viewport.camera.position.z).abs()
+                        > 0.001;
             let compass_changed = self.viewport_hud.camera_angles
                 != (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
-            let has_volatile_canvas = has_stats_canvas || compass_changed;
+            let camera_changed = camera_pos_changed || compass_changed;
+            let has_volatile_canvas = has_stats_canvas || compass_changed || camera_changed;
+
+            if has_camera_hud_canvas && camera_changed {
+                super::viewport_hud::camera_hud::update_camera_hud(
+                    &mut self.tree,
+                    params.viewport.camera,
+                    params.viewport.viewport_rect,
+                );
+                self.viewport_hud.camera_pos = (
+                    params.viewport.camera.position.x,
+                    params.viewport.camera.position.y,
+                    params.viewport.camera.position.z,
+                );
+                self.chrome.needs_text_prepare = true;
+            }
+
+            if has_compass_canvas && compass_changed {
+                super::viewport_hud::compass::update_compass_canvas(
+                    &mut self.tree,
+                    params.viewport.camera,
+                    params.viewport.viewport_rect,
+                );
+                self.viewport_hud.camera_angles =
+                    (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
+                self.chrome.needs_text_prepare = true;
+            }
 
             if has_stats_canvas {
                 irisui::widgets::canvas::update_canvas_by_tag(

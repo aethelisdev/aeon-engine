@@ -236,11 +236,21 @@ impl<'a> UiScope<'a> {
     /// * `tag` - 64-bit semantic identifier for hit-testing and tag bounding retrieval.
     /// * `size` - Layout dimensions (width and height) reserved for the canvas container.
     /// * `draw_fn` - Immediate drawing closure executed to populate per-frame volatile primitives.
-    pub fn immediate_canvas_tagged<F>(
+    ///
+    /// Emits a volatile immediate-mode canvas surface with explicit semantic tag, diagnostic name, and custom layout style.
+    ///
+    /// Allows absolute positioning, insets, and full style control over the canvas container node.
+    ///
+    /// # Arguments
+    /// * `name` - Diagnostic name assigned to the host widget node.
+    /// * `tag` - 64-bit semantic identifier for hit-testing and tag bounding retrieval.
+    /// * `style` - Full layout style (e.g. absolute positioning, insets, dimensions).
+    /// * `draw_fn` - Immediate drawing closure executed to populate per-frame volatile primitives.
+    pub fn immediate_canvas_styled<F>(
         &mut self,
         name: &'static str,
         tag: u64,
-        size: Size,
+        style: Style,
         draw_fn: F,
     ) -> WidgetResponse
     where
@@ -253,12 +263,15 @@ impl<'a> UiScope<'a> {
             .map(|p| p.layer)
             .unwrap_or_default();
 
+        let w = style.width.unwrap_or(0.0);
+        let h = style.height.unwrap_or(0.0);
+
         let bounds = self
             .tree
             .tag_rects
             .get(&tag)
             .copied()
-            .unwrap_or_else(|| Rect::new(0.0, 0.0, size.width, size.height));
+            .unwrap_or_else(|| Rect::new(0.0, 0.0, w, h));
 
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_name(name);
@@ -268,7 +281,7 @@ impl<'a> UiScope<'a> {
             node.is_boundary = true;
             node.layer = parent_layer;
             node.computed_rect = bounds;
-            node.set_style(Style::new().width(size.width).height(size.height));
+            node.set_style(style);
         }
 
         let _ = self.tree.add_child(self.parent, node_id);
@@ -278,5 +291,30 @@ impl<'a> UiScope<'a> {
         draw_fn(&mut canvas);
 
         self.response(node_id)
+    }
+
+    /// Emits a volatile immediate-mode canvas surface with explicit semantic tag and debug name.
+    ///
+    /// # Arguments
+    /// * `name` - Diagnostic name assigned to the host widget node.
+    /// * `tag` - 64-bit semantic identifier for hit-testing and tag bounding retrieval.
+    /// * `size` - Layout dimensions (width and height) reserved for the canvas container.
+    /// * `draw_fn` - Immediate drawing closure executed to populate per-frame volatile primitives.
+    pub fn immediate_canvas_tagged<F>(
+        &mut self,
+        name: &'static str,
+        tag: u64,
+        size: Size,
+        draw_fn: F,
+    ) -> WidgetResponse
+    where
+        F: FnOnce(&mut crate::canvas::ImmediateCanvas),
+    {
+        self.immediate_canvas_styled(
+            name,
+            tag,
+            Style::new().width(size.width).height(size.height),
+            draw_fn,
+        )
     }
 }

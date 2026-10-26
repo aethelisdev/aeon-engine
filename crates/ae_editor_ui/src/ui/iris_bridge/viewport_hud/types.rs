@@ -41,6 +41,8 @@ pub const TAG_COMPASS_NEG_Y: u64 = 2034;
 pub const TAG_COMPASS_NEG_Z: u64 = 2035;
 /// Semantic tag for the Compass 3D orientation canvas background and axis lines.
 pub const TAG_COMPASS_CANVAS: u64 = 2036;
+/// Semantic tag for the Viewport camera telemetry info HUD immediate canvas.
+pub const TAG_CAMERA_HUD: u64 = 2038;
 /// Semantic tag for the In-Game Pause Resume Game button.
 pub const TAG_PLAY_RESUME: u64 = 2040;
 /// Semantic tag for the In-Game Pause Exit to Editor button.
@@ -329,6 +331,8 @@ pub struct ViewportHudState {
     pub search_query: String,
     /// Active 3D camera Euler angles `(pitch_rad, yaw_rad)` for compass line rendering.
     pub camera_angles: (f32, f32),
+    /// Active 3D camera world position `(x, y, z)` for real-time telemetry HUD updating.
+    pub camera_pos: (f32, f32, f32),
 }
 
 impl ViewportHudState {

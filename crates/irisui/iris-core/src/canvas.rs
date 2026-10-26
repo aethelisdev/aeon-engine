@@ -15,7 +15,7 @@ use crate::geometry::{Point, Rect};
 /// Designed for high-frequency (per-frame) visual components like oscilloscope graphs,
 /// audio waveforms, profiler timelines, and cursor indicators where allocating persistent
 /// retained nodes in the `UiTree` would cause unnecessary layout thrashing and garbage accumulation.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CanvasPrimitive {
     /// Solid or rounded rectangle filled with a single color.
     Rect {
@@ -48,6 +48,17 @@ pub enum CanvasPrimitive {
         /// Line stroke color.
         color: Color,
     },
+    /// Volatile immediate-mode text string rendered at absolute screen coordinates.
+    Text {
+        /// Starting top-left origin coordinate in screen pixels.
+        pos: Point,
+        /// String text content.
+        text: String,
+        /// Font size in pixels.
+        font_size: f32,
+        /// Text fill color.
+        color: Color,
+    },
 }
 
 #[cfg(test)]
@@ -73,8 +84,15 @@ mod tests {
             thickness: 2.0,
             color: Color::RED,
         };
+        let t = CanvasPrimitive::Text {
+            pos: Point::new(10.0, 10.0),
+            text: "Telemetry".to_string(),
+            font_size: 12.0,
+            color: Color::WHITE,
+        };
 
         assert_ne!(r, b);
         assert_ne!(r, l);
+        assert_ne!(r, t);
     }
 }

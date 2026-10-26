@@ -6,6 +6,7 @@
 //! Integrates with the central `ComponentRegistry` to provide 100% automated,
 //! extensible entity state capture, restoration, serialization, and undo history.
 //!
+#![deny(clippy::unwrap_used)]
 
 use ae_core::ecs::{Color, ComponentRegistry, Light, Name, Position, Rotation, Scale};
 use serde::{Deserialize, Serialize};
@@ -374,7 +375,7 @@ mod tests {
         let restored_ent = snapshot.spawn(&mut world);
         let cc = world.get::<&CharacterController>(restored_ent);
         assert!(cc.is_ok());
-        let cc = cc.unwrap();
+        let cc = cc.expect("character controller component should exist");
         assert_eq!(cc.radius, 0.4);
         assert_eq!(cc.height, 1.8);
     }
@@ -420,9 +421,27 @@ mod tests {
         assert!(snapshot.has::<Collider>());
 
         let restored_ent = snapshot.spawn(&mut world);
-        assert_eq!(world.get::<&Name>(restored_ent).unwrap().0, "ChildEntity");
-        assert_eq!(world.get::<&Parent>(restored_ent).unwrap().0, parent_entity);
-        assert_eq!(world.get::<&RigidBody>(restored_ent).unwrap().mass, 15.0);
+        assert_eq!(
+            world
+                .get::<&Name>(restored_ent)
+                .expect("restored entity name should exist")
+                .0,
+            "ChildEntity"
+        );
+        assert_eq!(
+            world
+                .get::<&Parent>(restored_ent)
+                .expect("restored entity parent should exist")
+                .0,
+            parent_entity
+        );
+        assert_eq!(
+            world
+                .get::<&RigidBody>(restored_ent)
+                .expect("restored entity rigid body should exist")
+                .mass,
+            15.0
+        );
     }
 
     /// Tests that Property::from_component enables generic single-field undo and redo.
@@ -449,13 +468,16 @@ mod tests {
             gravity_scale: 2.0,
         };
 
-        let prop = Property::from_component(&old_rb, &new_rb).unwrap();
+        let prop = Property::from_component(&old_rb, &new_rb)
+            .expect("serialization of rigid body property should succeed");
         let mut cmd = Command::Modify(entity, prop);
 
         // Apply change (redo)
         cmd.redo(&mut world);
         {
-            let current_rb = world.get::<&RigidBody>(entity).unwrap();
+            let current_rb = world
+                .get::<&RigidBody>(entity)
+                .expect("entity rigid body should exist");
             assert_eq!(current_rb.mass, 50.0);
             assert_eq!(current_rb.body_type, RigidBodyType::Dynamic);
         }
@@ -463,7 +485,9 @@ mod tests {
         // Revert change (undo)
         cmd.undo(&mut world);
         {
-            let current_rb = world.get::<&RigidBody>(entity).unwrap();
+            let current_rb = world
+                .get::<&RigidBody>(entity)
+                .expect("entity rigid body should exist after undo");
             assert_eq!(current_rb.mass, 10.0);
             assert_eq!(current_rb.body_type, RigidBodyType::Static);
         }
@@ -493,13 +517,16 @@ mod tests {
             z: -2.5,
         };
 
-        let prop = Property::from_component(&old_vel, &new_vel).unwrap();
+        let prop = Property::from_component(&old_vel, &new_vel)
+            .expect("serialization of velocity property should succeed");
         let mut cmd = Command::Modify(entity, prop);
 
         // Apply change (redo)
         cmd.redo(&mut world);
         {
-            let current_vel = world.get::<&ae_core::ecs::Velocity>(entity).unwrap();
+            let current_vel = world
+                .get::<&ae_core::ecs::Velocity>(entity)
+                .expect("entity velocity should exist");
             assert_eq!(current_vel.x, 5.0);
             assert_eq!(current_vel.y, 10.0);
             assert_eq!(current_vel.z, -2.5);
@@ -510,7 +537,9 @@ mod tests {
         let _ = world.remove_one::<ae_core::ecs::TransformDirty>(entity);
         cmd.undo(&mut world);
         {
-            let current_vel = world.get::<&ae_core::ecs::Velocity>(entity).unwrap();
+            let current_vel = world
+                .get::<&ae_core::ecs::Velocity>(entity)
+                .expect("entity velocity should exist after undo");
             assert_eq!(current_vel.x, 0.0);
             assert_eq!(current_vel.y, 0.0);
             assert_eq!(current_vel.z, 0.0);

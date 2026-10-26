@@ -84,5 +84,10 @@ impl IrisEditorOverlay {
         });
 
         hud.camera_angles = (params.viewport.camera.pitch.0, params.viewport.camera.yaw.0);
+        hud.camera_pos = (
+            params.viewport.camera.position.x,
+            params.viewport.camera.position.y,
+            params.viewport.camera.position.z,
+        );
     }
 }

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 #![deny(clippy::allow_attributes)]
 
 /// AE Editor UI — Iris UI-based panel rendering and user interface event handlers.
@@ -61,25 +62,39 @@ mod tests {
         // Process ParentEntity action logic
         let child_world = processor::transform::get_world_matrix(&world, child);
         let parent_world = processor::transform::get_world_matrix(&world, parent);
-        let parent_inv = parent_world.invert().unwrap();
+        let parent_inv = parent_world
+            .invert()
+            .expect("parent world matrix should be invertible");
 
         let new_local = parent_inv * child_world;
         let (new_pos, new_rot, new_scale) = processor::transform::decompose_matrix(new_local);
 
-        world.insert_one(child, new_pos).unwrap();
-        world.insert_one(child, new_rot).unwrap();
-        world.insert_one(child, new_scale).unwrap();
-        world.insert_one(child, Parent(parent)).unwrap();
+        world
+            .insert_one(child, new_pos)
+            .expect("child position insertion should succeed");
+        world
+            .insert_one(child, new_rot)
+            .expect("child rotation insertion should succeed");
+        world
+            .insert_one(child, new_scale)
+            .expect("child scale insertion should succeed");
+        world
+            .insert_one(child, Parent(parent))
+            .expect("child parent insertion should succeed");
 
         // Sync post-parenting hierarchy transforms
         update_hierarchy_transforms(&mut world);
 
         // Verify child's new local scale compensated for parent's 50x scale
-        let local_scale = world.get::<&Scale>(child).unwrap();
+        let local_scale = world
+            .get::<&Scale>(child)
+            .expect("child scale should exist");
         assert!((local_scale.x - 0.02).abs() < 0.001);
 
         // Verify child's world position remains EXACTLY at (10, 5, 10)
-        let child_gt = world.get::<&GlobalTransform>(child).unwrap();
+        let child_gt = world
+            .get::<&GlobalTransform>(child)
+            .expect("child global transform should exist");
         assert!((child_gt.0.w.x - 10.0).abs() < 0.001);
         assert!((child_gt.0.w.y - 5.0).abs() < 0.001);
         assert!((child_gt.0.w.z - 10.0).abs() < 0.001);
@@ -110,8 +125,10 @@ mod tests {
             z: 30.0,
         };
 
-        let old_data = serde_json::to_vec(&old_vel).unwrap();
-        let new_data = serde_json::to_vec(&new_vel).unwrap();
+        let old_data =
+            serde_json::to_vec(&old_vel).expect("serialization of old velocity should succeed");
+        let new_data =
+            serde_json::to_vec(&new_vel).expect("serialization of new velocity should succeed");
 
         // Simulate CommitComponentModify processing
         let _ = world.insert_one(entity, new_vel);
@@ -129,18 +146,34 @@ mod tests {
         assert_eq!(editor.undo_stack.len(), 1);
 
         // Verify current value
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().x, 10.0);
+        assert_eq!(
+            world
+                .get::<&Velocity>(entity)
+                .expect("velocity component should exist")
+                .x,
+            10.0
+        );
 
         // Undo
         ae_editor::history::undo(&mut editor, &mut world);
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().x, 1.0);
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().y, 2.0);
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().z, 3.0);
+        {
+            let v1 = world
+                .get::<&Velocity>(entity)
+                .expect("velocity component should exist after undo");
+            assert_eq!(v1.x, 1.0);
+            assert_eq!(v1.y, 2.0);
+            assert_eq!(v1.z, 3.0);
+        }
 
         // Redo
         ae_editor::history::redo(&mut editor, &mut world);
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().x, 10.0);
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().y, 20.0);
-        assert_eq!(world.get::<&Velocity>(entity).unwrap().z, 30.0);
+        {
+            let v2 = world
+                .get::<&Velocity>(entity)
+                .expect("velocity component should exist after redo");
+            assert_eq!(v2.x, 10.0);
+            assert_eq!(v2.y, 20.0);
+            assert_eq!(v2.z, 30.0);
+        }
     }
 }

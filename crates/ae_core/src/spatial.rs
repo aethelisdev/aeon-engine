@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
-/// AE Core - Spatial Partitioning (Spatial Grid) Module.
+//! AE Core - Spatial Partitioning (Spatial Grid) Module.
+//!
+#![deny(clippy::unwrap_used)]
+
 use hecs::Entity;
 use std::collections::HashMap;
 

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
+#![deny(clippy::allow_attributes)]
+#![deny(clippy::unwrap_used)]
+
 use super::UiContext;
 
 /// Handles spawning a 3D model asset entity into the ECS world at the default origin.

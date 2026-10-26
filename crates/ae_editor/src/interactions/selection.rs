@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+#![deny(clippy::unwrap_used)]
+
 use super::gizmo_drag::gizmo_screen_params;
 use super::viewport::{map_window_to_viewport, should_pass_to_3d};
 use crate::editor_state::EditorState;

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
+#![deny(clippy::unwrap_used)]
+
 use crate::undo_redo::{Command, EntitySnapshot};
 use hecs::Entity;
 use std::collections::{HashMap, HashSet};
@@ -197,7 +199,9 @@ mod tests {
             vel.z = 200.0;
         }
         // Despawn e2 in gameplay
-        world.despawn(e2).unwrap();
+        world
+            .despawn(e2)
+            .expect("Despawn e2 entity must succeed in test");
         // Spawn temporary gameplay bullet
         let _temp = world.spawn((Position {
             x: 1.0,
@@ -209,13 +213,17 @@ mod tests {
         editor.restore_scene(&mut world);
 
         // e1 position restored
-        let pos1 = world.get::<&Position>(e1).unwrap();
+        let pos1 = world
+            .get::<&Position>(e1)
+            .expect("e1 Position must exist after scene restore");
         assert_eq!(pos1.x, 10.0);
         assert_eq!(pos1.y, 5.0);
         assert_eq!(pos1.z, -2.0);
 
         // e1 velocity restored to initial backup value (not zeroed out)
-        let vel1 = world.get::<&Velocity>(e1).unwrap();
+        let vel1 = world
+            .get::<&Velocity>(e1)
+            .expect("e1 Velocity must exist after scene restore");
         assert_eq!(vel1.x, 1.5);
         assert_eq!(vel1.y, 2.0);
         assert_eq!(vel1.z, -3.0);

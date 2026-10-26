@@ -7,6 +7,8 @@
 //! pipeline for `hecs::World`. Enables automated snapshot capturing, state
 //! restoration, entity cloning, and serialization without hardcoded component structs.
 //!
+#![deny(clippy::allow_attributes)]
+#![deny(clippy::unwrap_used)]
 
 use std::any::{TypeId, type_name};
 use std::collections::HashMap;
@@ -493,7 +495,9 @@ mod tests {
             uv_rect: [0.1, 0.2, 0.8, 0.9],
             ..Default::default()
         };
-        world.insert_one(entity, sprite.clone()).unwrap();
+        world
+            .insert_one(entity, sprite.clone())
+            .expect("insert_one sprite must succeed in test");
 
         assert!(handler.has_component(&world, entity));
 

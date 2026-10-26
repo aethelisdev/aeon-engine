@@ -8,7 +8,9 @@
 //! hidden beneath opaque higher-layer containers (such as modal windows and popup dropdown menus).
 
 use crate::section::TextSection;
-use iris_core::{Color, Rect, TextAlign, UiLayer, UiTree, WidgetId, WidgetRole};
+use iris_core::{
+    CanvasPrimitive, Color, Rect, TextAlign, TextWrap, UiLayer, UiTree, WidgetId, WidgetRole,
+};
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy)]
@@ -483,6 +485,44 @@ fn collect_node_text<'a>(
                     layer: effective_layer,
                 };
                 layer_sections[effective_layer.index()].push(section);
+            }
+        }
+    }
+
+    // Extract volatile immediate-mode canvas text primitives if registered on this node
+    if let Some(primitives) = tree.canvas_primitives(current) {
+        for prim in primitives {
+            if let CanvasPrimitive::Text {
+                pos,
+                text,
+                font_size,
+                color,
+            } = prim
+                && !text.is_empty()
+            {
+                let text_bounds = Rect::new(pos.x, pos.y, 400.0, *font_size + 4.0);
+                let is_clipped_out = if let Some(clip) = child_clip {
+                    text_bounds.bottom() <= clip.y
+                        || text_bounds.y >= clip.bottom()
+                        || text_bounds.right() <= clip.x
+                        || text_bounds.x >= clip.right()
+                } else {
+                    false
+                };
+                if !is_clipped_out {
+                    let section = TextSection {
+                        text: Cow::Borrowed(text.as_str()),
+                        font_size: *font_size,
+                        line_height: *font_size * 1.2,
+                        color: *color,
+                        align: TextAlign::Left,
+                        wrap: TextWrap::None,
+                        bounds: text_bounds,
+                        clip_bounds: child_clip,
+                        layer: effective_layer,
+                    };
+                    layer_sections[effective_layer.index()].push(section);
+                }
             }
         }
     }

@@ -134,6 +134,29 @@ impl<'a> ImmediateCanvas<'a> {
         }
     }
 
+    /// Appends a volatile dynamic text string to the immediate canvas command buffer.
+    ///
+    /// The string is shaped and rendered directly by the typography engine without
+    /// allocating persistent child nodes or causing Taffy layout invalidations.
+    ///
+    /// # Arguments
+    /// * `pos` - Top-left origin coordinate in screen pixels.
+    /// * `text` - String text content to draw.
+    /// * `font_size` - Typography font size in pixels.
+    /// * `color` - Text foreground color.
+    #[inline]
+    pub fn draw_text(&mut self, pos: Point, text: impl Into<String>, font_size: f32, color: Color) {
+        self.tree.add_canvas_primitive(
+            self.node_id,
+            CanvasPrimitive::Text {
+                pos,
+                text: text.into(),
+                font_size,
+                color,
+            },
+        );
+    }
+
     /// Appends a volatile dynamic chart curve sampled across discrete data points.
     ///
     /// # Arguments

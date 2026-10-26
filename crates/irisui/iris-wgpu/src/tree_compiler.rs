@@ -463,7 +463,7 @@ fn emit_canvas_primitives(
     boundary: Option<WidgetId>,
 ) {
     for primitive in primitives {
-        match *primitive {
+        match primitive {
             iris_core::CanvasPrimitive::Rect {
                 rect,
                 color,
@@ -471,10 +471,10 @@ fn emit_canvas_primitives(
             } => {
                 target_list.push_quad_with_boundary(
                     QuadInstance::from_style(
-                        rect,
+                        *rect,
                         &iris_core::Style::new()
-                            .background(color)
-                            .border_radius(corner_radius),
+                            .background(*color)
+                            .border_radius(*corner_radius),
                         effective_clip,
                     ),
                     boundary,
@@ -488,10 +488,10 @@ fn emit_canvas_primitives(
             } => {
                 target_list.push_quad_with_boundary(
                     QuadInstance::from_style(
-                        rect,
+                        *rect,
                         &iris_core::Style::new()
-                            .border(border_width, color)
-                            .border_radius(corner_radius),
+                            .border(*border_width, *color)
+                            .border_radius(*corner_radius),
                         effective_clip,
                     ),
                     boundary,
@@ -505,19 +505,22 @@ fn emit_canvas_primitives(
             } => {
                 let seg_min_x = start.x.min(end.x);
                 let seg_min_y = start.y.min(end.y);
-                let seg_w = (end.x - start.x).abs().max(thickness);
-                let seg_h = (end.y - start.y).abs().max(thickness);
+                let seg_w = (end.x - start.x).abs().max(*thickness);
+                let seg_h = (end.y - start.y).abs().max(*thickness);
 
                 target_list.push_quad_with_boundary(
                     QuadInstance::from_style(
                         Rect::new(seg_min_x, seg_min_y, seg_w, seg_h),
                         &iris_core::Style::new()
-                            .background(color)
-                            .border_radius(thickness * 0.5),
+                            .background(*color)
+                            .border_radius(*thickness * 0.5),
                         effective_clip,
                     ),
                     boundary,
                 );
+            }
+            iris_core::CanvasPrimitive::Text { .. } => {
+                // Volatile canvas text primitives are shaped and rendered by the text collection pipeline.
             }
         }
     }

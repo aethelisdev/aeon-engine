@@ -71,7 +71,7 @@ pub fn build_viewport_hud(
 mod tests {
     use super::*;
     use crate::ui::iris_bridge::viewport_hud::{
-        TAG_COMPASS_CANVAS, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
+        TAG_CAMERA_HUD, TAG_COMPASS_CANVAS, TAG_GIZMO_TRANSLATE, TAG_PLAY_EXIT, TAG_PLAY_RESUME,
         TAG_VIEWPORT_CAMERA_MODE, TAG_VIEWPORT_SHADING_MODE,
     };
     use ae_editor::gizmo::{GizmoMode, GizmoSpace};
@@ -125,6 +125,8 @@ mod tests {
         assert!(tags.contains(&TAG_VIEWPORT_CAMERA_MODE));
         // Verifies 3D compass is present
         assert!(tags.contains(&TAG_COMPASS_CANVAS));
+        // Verifies 3D camera telemetry immediate canvas is present
+        assert!(tags.contains(&TAG_CAMERA_HUD));
     }
 
     #[test]
@@ -158,8 +160,9 @@ mod tests {
         assert!(!tags.contains(&TAG_VIEWPORT_CAMERA_MODE));
         assert!(!tags.contains(&TAG_VIEWPORT_SHADING_MODE));
         assert!(tags.contains(&TAG_GIZMO_TRANSLATE));
-        // 3D compass must be hidden in 2D mode
+        // 3D compass and camera HUD must be hidden in 2D mode
         assert!(!tags.contains(&TAG_COMPASS_CANVAS));
+        assert!(!tags.contains(&TAG_CAMERA_HUD));
     }
 
     #[test]
