@@ -703,3 +703,52 @@ fn test_inspector_entity_rename_all_selected_lifecycle() {
     assert!(box_node.computed_rect.width > 100.0);
     assert!(box_node.computed_rect.height >= 24.0);
 }
+
+#[test]
+fn test_inspector_transform_snapshot_reactive_dirty_tracking() {
+    let mut world = hecs::World::new();
+    let entity = world.spawn((
+        Name("SimulatedEntity".to_string()),
+        Position::new(10.0, 20.0, 30.0),
+        Rotation::identity(),
+        Scale::one(),
+    ));
+
+    // 1. Initial capture
+    let snap1 = InspectorTransformSnapshot::capture(&world, entity);
+    assert_eq!(snap1.position, Some([10.0, 20.0, 30.0]));
+    assert_eq!(snap1.scale, Some([1.0, 1.0, 1.0]));
+
+    // Identical frame check
+    let snap1_dup = InspectorTransformSnapshot::capture(&world, entity);
+    assert_eq!(
+        snap1, snap1_dup,
+        "Unchanged entity must yield identical snapshot"
+    );
+
+    // 2. Simulate physics step or gizmo movement modifying Position in ECS
+    {
+        let mut pos = world.get::<&mut Position>(entity).expect("Position exists");
+        pos.y = 55.5;
+    }
+
+    let snap2 = InspectorTransformSnapshot::capture(&world, entity);
+    assert_ne!(
+        snap1, snap2,
+        "Position mutation must invalidate previous snapshot"
+    );
+    assert_eq!(snap2.position, Some([10.0, 55.5, 30.0]));
+
+    // 3. Simulate rotation Euler change
+    {
+        let mut rot = world.get::<&mut Rotation>(entity).expect("Rotation exists");
+        rot.y = std::f32::consts::FRAC_1_SQRT_2;
+        rot.w = std::f32::consts::FRAC_1_SQRT_2;
+    }
+
+    let snap3 = InspectorTransformSnapshot::capture(&world, entity);
+    assert_ne!(
+        snap2, snap3,
+        "Rotation mutation must invalidate previous snapshot"
+    );
+}

@@ -60,6 +60,49 @@ pub struct InspectorPanelState {
     pub inspector_euler: [f32; 3],
     /// Local cache of saved palette colors for swatch interactions.
     pub saved_swatches: Vec<[f32; 4]>,
+    /// Last observed transform snapshot of the inspected entity for reactive $O(1)$ ECS change tracking.
+    pub last_transform_snapshot: Option<InspectorTransformSnapshot>,
+}
+
+/// Compact snapshot of an inspected entity's 3D and 2D transform components for $O(1)$ reactive dirty tracking.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct InspectorTransformSnapshot {
+    /// 3D position [x, y, z].
+    pub position: Option<[f32; 3]>,
+    /// 3D rotation quaternion [x, y, z, w].
+    pub rotation: Option<[f32; 4]>,
+    /// 3D scale [x, y, z].
+    pub scale: Option<[f32; 3]>,
+    /// 2D UI element offset and size if inspected entity is a 2D canvas element.
+    pub ui_element: Option<([f32; 2], [f32; 2])>,
+}
+
+impl InspectorTransformSnapshot {
+    /// Captures the transform state of an entity from the ECS world in $O(1)$ time with zero heap allocation.
+    pub fn capture(world: &hecs::World, entity: hecs::Entity) -> Self {
+        let position = world
+            .get::<&ae_core::ecs::Position>(entity)
+            .map(|p| [p.x, p.y, p.z])
+            .ok();
+        let rotation = world
+            .get::<&ae_core::ecs::Rotation>(entity)
+            .map(|r| [r.x, r.y, r.z, r.w])
+            .ok();
+        let scale = world
+            .get::<&ae_core::ecs::Scale>(entity)
+            .map(|s| [s.x, s.y, s.z])
+            .ok();
+        let ui_element = world
+            .get::<&ae_core::ecs::UiElement>(entity)
+            .map(|u| (u.offset, u.size))
+            .ok();
+        Self {
+            position,
+            rotation,
+            scale,
+            ui_element,
+        }
+    }
 }
 
 impl std::ops::Deref for InspectorPanelState {

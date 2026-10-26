@@ -466,6 +466,28 @@ impl IrisEditorOverlay {
                 .tag_redraw(crate::ui::panel_layout::PanelId::MaterialEditor);
             self.notifier
                 .tag_redraw(crate::ui::panel_layout::PanelId::AnimationTimeline);
+            self.inspector.last_transform_snapshot = params.scene.selected_entity.map(|e| {
+                super::inspector::InspectorTransformSnapshot::capture(params.scene.world, e)
+            });
+        } else if let Some(entity) = params.scene.selected_entity {
+            if params.scene.world.contains(entity) {
+                let current_snap = super::inspector::InspectorTransformSnapshot::capture(
+                    params.scene.world,
+                    entity,
+                );
+                if self.inspector.last_transform_snapshot.as_ref() != Some(&current_snap) {
+                    self.inspector.last_transform_snapshot = Some(current_snap);
+                    let is_active_editing = self.inspector.active_number_input.is_some()
+                        || self.inspector.drag_number.is_some()
+                        || self.tree.event_state.active_numeric_edit.is_some();
+                    if !is_active_editing {
+                        self.notifier
+                            .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
+                    }
+                }
+            }
+        } else {
+            self.inspector.last_transform_snapshot = None;
         }
 
         self.timeline.selected_entity = params.scene.selected_entity;
