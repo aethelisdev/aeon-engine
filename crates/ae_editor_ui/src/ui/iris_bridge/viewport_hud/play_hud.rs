@@ -17,7 +17,6 @@ use super::types::{
 };
 use irisui::prelude::*;
 use irisui::wgpu_backend::{DrawCommandList, QuadInstance};
-use irisui::widgets::canvas::ImmediateCanvas;
 
 /// Builds the Play Mode HUD overlay (reticle canvas, quick control badge, in-game UI, and pause menu).
 ///
@@ -105,53 +104,30 @@ pub fn build_play_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
         .position_absolute()
         .left(badge_margin)
         .bottom(badge_margin)
+        .flex_row()
+        .align_items(AlignItems::Center)
+        .padding_insets(Insets::new(0.0, pad_h, 0.0, pad_h))
         .width(badge_w)
-        .height(badge_h);
+        .height(badge_h)
+        .background(Color::rgba(0.06, 0.07, 0.10, 0.85))
+        .border(1.0, Color::rgba(0.25, 0.30, 0.42, 0.60))
+        .border_radius(5.0);
 
-    let badge_rect = Rect::new(
-        params.viewport_rect.x + badge_margin,
-        params.viewport_rect.bottom() - badge_h - badge_margin,
-        badge_w,
-        badge_h,
-    );
-
-    scope.immediate_canvas_styled(
+    scope.container_tagged(
         "PlayGuideBadge",
-        TAG_PLAY_GUIDE_BADGE,
         badge_style,
-        |canvas| {
-            draw_play_guide_canvas(canvas, guide_text, badge_rect, pad_h);
+        WidgetRole::Default,
+        TAG_PLAY_GUIDE_BADGE,
+        |badge| {
+            badge.label_with_width(
+                guide_text,
+                text_w,
+                11.0,
+                Color::rgba(0.90, 0.93, 0.98, 1.0),
+                TextAlign::Left,
+            );
         },
     );
-}
-
-/// Renders the Play Mode quick controls badge onto an immediate canvas context.
-///
-/// Paints a rounded dark pill background with subtle blueish border, and draws the guide
-/// text precisely padded from the left edge with mathematically guaranteed margins.
-///
-/// # Arguments
-/// * `canvas` - Mutable reference to the immediate canvas drawing context.
-/// * `guide_text` - Human-readable keyboard shortcut guide string.
-/// * `rect` - Bounding rectangle for the badge pill.
-/// * `pad_h` - Horizontal padding in pixels from the left and right pill edges.
-pub fn draw_play_guide_canvas(
-    canvas: &mut ImmediateCanvas<'_>,
-    guide_text: &str,
-    rect: Rect,
-    pad_h: f32,
-) {
-    let bg_color = Color::rgba(0.06, 0.07, 0.10, 0.85);
-    let border_color = Color::rgba(0.25, 0.30, 0.42, 0.60);
-    let text_color = Color::rgba(0.90, 0.93, 0.98, 1.0);
-
-    // 1. Draw rounded backdrop pill and border hugging the text snugly
-    canvas.fill_rect(rect, bg_color, 5.0);
-    canvas.stroke_rect(rect, border_color, 1.0, 5.0);
-
-    // 2. Draw volatile guide text precisely padded from the left edge
-    let text_pos = Point::new(rect.x + pad_h, rect.y + 4.5);
-    canvas.draw_text(text_pos, guide_text, 11.0, text_color);
 }
 
 /// Appends hardware SDF quad commands for the center reticle crosshair in Play Mode.
@@ -495,12 +471,20 @@ mod tests {
         let badge_id = tree
             .find_node_by_tag(TAG_PLAY_GUIDE_BADGE)
             .expect("Play guide badge must have semantic tag");
-        let prims = tree
-            .canvas_primitives(badge_id)
-            .expect("Badge canvas primitives must exist");
+        let badge_node = tree.get(badge_id).expect("Badge node must exist");
+        assert_eq!(badge_node.name.as_deref(), Some("PlayGuideBadge"));
         assert!(
-            !prims.is_empty(),
-            "Badge must contain fill, stroke, and text primitives"
+            !badge_node.children.is_empty(),
+            "Badge must contain label child node"
+        );
+        let label_id = badge_node.children[0];
+        let label_node = tree.get(label_id).expect("Label node must exist");
+        assert!(
+            label_node
+                .text
+                .as_deref()
+                .is_some_and(|t| t.contains("WASD: Move")),
+            "Badge label must contain quick controls text"
         );
 
         // Verify hardware SDF crosshair quad batch generation
