@@ -19,7 +19,7 @@ use super::types::{
     AssetsPanelAction, AssetsPanelParams,
 };
 use crate::assets::types::AssetViewMode;
-use crate::ui::iris_bridge::icons::{ICON_GEAR, ICON_PLUS};
+use crate::ui::iris_bridge::icons::{ICON_GEAR, ICON_PLUS, ICON_SNAP_GRID};
 use irisui::prelude::*;
 use irisui::widgets::declarative::InputBoxProps;
 
@@ -84,21 +84,27 @@ pub fn build_asset_toolbar_scope(
                     // View Mode Toggles: Grid vs List
                     build_mode_toggle_btn(
                         right,
-                        "☰ List",
-                        46.0,
-                        params.view_mode == AssetViewMode::List,
-                        ASSETS_TAG_VIEW_LIST,
+                        ModeToggleBtnProps {
+                            icon_uv: None,
+                            label: "☰ List",
+                            width: 46.0,
+                            is_active: params.view_mode == AssetViewMode::List,
+                            tag: ASSETS_TAG_VIEW_LIST,
+                            action: AssetsPanelAction::SetViewMode(AssetViewMode::List),
+                        },
                         actions,
-                        AssetsPanelAction::SetViewMode(AssetViewMode::List),
                     );
                     build_mode_toggle_btn(
                         right,
-                        "⊞ Grid",
-                        46.0,
-                        params.view_mode == AssetViewMode::Grid,
-                        ASSETS_TAG_VIEW_GRID,
+                        ModeToggleBtnProps {
+                            icon_uv: Some(ICON_SNAP_GRID),
+                            label: "Grid",
+                            width: 52.0,
+                            is_active: params.view_mode == AssetViewMode::Grid,
+                            tag: ASSETS_TAG_VIEW_GRID,
+                            action: AssetsPanelAction::SetViewMode(AssetViewMode::Grid),
+                        },
                         actions,
-                        AssetsPanelAction::SetViewMode(AssetViewMode::Grid),
                     );
 
                     // Search Input Box
@@ -226,6 +232,7 @@ fn mode_toggle_style(width: f32, is_active: bool) -> Style {
         .flex_row()
         .align_items(AlignItems::Center)
         .justify_content(JustifyContent::Center)
+        .gap(4.0)
         .width(width)
         .height(24.0)
         .border_radius(4.0)
@@ -257,38 +264,53 @@ fn mode_toggle_style(width: f32, is_active: bool) -> Style {
         )
 }
 
-/// Helper to render a selectable view mode toggle button.
-fn build_mode_toggle_btn(
-    scope: &mut UiScope<'_>,
+/// Descriptor properties for configuring asset view mode toggle buttons.
+struct ModeToggleBtnProps {
+    icon_uv: Option<[f32; 4]>,
     label: &'static str,
     width: f32,
     is_active: bool,
     tag: u64,
+    action: AssetsPanelAction,
+}
+
+/// Helper to render a selectable view mode toggle button.
+fn build_mode_toggle_btn(
+    scope: &mut UiScope<'_>,
+    props: ModeToggleBtnProps,
     actions: &mut Vec<AssetsPanelAction>,
-    action_to_emit: AssetsPanelAction,
 ) {
+    let action_to_emit = props.action;
     scope
         .container_tagged_resp(
             "ModeToggleBtn",
-            mode_toggle_style(width, is_active),
+            mode_toggle_style(props.width, props.is_active),
             WidgetRole::Button,
-            tag,
+            props.tag,
             |btn| {
-                if is_active {
+                let tint = if props.is_active {
+                    Color::rgba(0.0, 0.90, 1.0, 1.0)
+                } else {
+                    Color::rgba(0.65, 0.70, 0.80, 1.0)
+                };
+                if let Some(uv) = props.icon_uv {
+                    btn.icon(uv, tint, 12.0);
+                }
+                if props.is_active {
                     btn.label_styled_passive(
                         "ModeToggleText",
-                        label,
+                        props.label,
                         11.0,
-                        Color::rgba(0.0, 0.90, 1.0, 1.0),
+                        tint,
                         TextAlign::Center,
                         Style::new(),
                     );
                 } else {
                     btn.label_styled_hover_passive(
                         "ModeToggleText",
-                        label,
+                        props.label,
                         11.0,
-                        (Color::rgba(0.65, 0.70, 0.80, 1.0), Color::WHITE),
+                        (tint, Color::WHITE),
                         TextAlign::Center,
                         Style::new(),
                     );

@@ -14,6 +14,7 @@ use super::types::{
     UI_DESIGNER_TAG_ZOOM_IN, UI_DESIGNER_TAG_ZOOM_OUT, UI_DESIGNER_TAG_ZOOM_RESET,
     UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelState,
 };
+use crate::ui::iris_bridge::icons::ICON_SNAP_GRID;
 use irisui::prelude::*;
 
 /// Height of the UI Designer top control bar in screen pixels.
@@ -114,7 +115,8 @@ pub fn build_designer_toolbar(
             .on_click(|| designer.dispatch(UiDesignerAction::ToggleAnchorGuides));
 
             tb.add(
-                ToolbarButton::new("⊞ Grid")
+                ToolbarButton::new("Grid")
+                    .icon(ICON_SNAP_GRID)
                     .active(params.state.show_grid)
                     .tag(UI_DESIGNER_TAG_GRID_BTN)
                     .tooltip("Toggle canvas background alignment grid"),

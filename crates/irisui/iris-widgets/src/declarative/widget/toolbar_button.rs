@@ -19,6 +19,7 @@ use iris_core::{
 pub struct ToolbarButton {
     name: &'static str,
     label: String,
+    icon_uv: Option<[f32; 4]>,
     width: Option<f32>,
     height: Option<f32>,
     tag: Option<u64>,
@@ -40,6 +41,7 @@ impl ToolbarButton {
         Self {
             name: "ToolbarButton",
             label: label.into(),
+            icon_uv: None,
             width: None,
             height: None,
             tag: None,
@@ -60,6 +62,16 @@ impl ToolbarButton {
     #[must_use]
     pub fn name(mut self, name: &'static str) -> Self {
         self.name = name;
+        self
+    }
+
+    /// Sets an optional leading texture icon from the canonical editor atlas.
+    ///
+    /// When specified, renders a 14×14 icon alongside the label text with standard 4px flex gap.
+    #[inline]
+    #[must_use]
+    pub fn icon(mut self, uv: [f32; 4]) -> Self {
+        self.icon_uv = Some(uv);
         self
     }
 
@@ -227,23 +239,37 @@ impl Widget for ToolbarButton {
         let radius = self.corner_radius.unwrap_or(theme.corner_radius_md);
         let h = self.height.unwrap_or(24.0);
 
-        if let Some(node) = scope.tree.get_mut(node_id) {
-            node.set_text(visible_text.to_string());
-            node.font_size = 11.0;
-            node.line_height = h;
-            node.text_align = TextAlign::Center;
-            node.text_color = resolved_text_color;
-            node.hover_text_color = Some(theme.text_primary);
+        let text_w = if visible_text.is_empty() {
+            0.0
+        } else {
+            iris_text::measure_text_advance(visible_text, 11.0).ceil()
+        };
 
+        let resolved_width = self.width.or_else(|| {
+            if self.icon_uv.is_some() {
+                let inner_w = if text_w > 0.0 {
+                    14.0 + 4.0 + text_w
+                } else {
+                    14.0
+                };
+                Some(inner_w + 12.0)
+            } else {
+                None
+            }
+        });
+
+        if let Some(node) = scope.tree.get_mut(node_id) {
             let mut style = Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::Center)
+                .gap(4.0)
                 .height(h)
                 .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
                 .background(bg)
                 .border(1.0, border)
                 .border_radius(radius)
-                .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35))
-                .align_items(AlignItems::Center)
-                .justify_content(JustifyContent::Center);
+                .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
 
             if !self.is_active && !self.is_open {
                 style = style
@@ -251,11 +277,49 @@ impl Widget for ToolbarButton {
                     .hover_border(1.0, hover_border);
             }
 
-            if let Some(w) = self.width {
+            if let Some(w) = resolved_width {
                 style = style.width(w);
             }
 
             node.set_style(style);
+
+            if self.icon_uv.is_none() {
+                node.set_text(visible_text.to_string());
+                node.font_size = 11.0;
+                node.line_height = h;
+                node.text_align = TextAlign::Center;
+                node.text_color = resolved_text_color;
+                node.hover_text_color = Some(theme.text_primary);
+            }
+        }
+
+        if let Some(uv) = self.icon_uv {
+            let icon_id = scope.tree.create_node();
+            if let Some(node) = scope.tree.get_mut(icon_id) {
+                node.interactive = false;
+                node.set_name("ToolbarButtonIcon");
+                node.set_texture_uv(uv);
+                node.set_texture_tint(resolved_text_color);
+                node.hover_texture_tint = Some(theme.text_primary);
+                node.set_style(Style::new().width(14.0).height(14.0));
+            }
+            let _ = scope.tree.add_child(node_id, icon_id);
+
+            if !visible_text.is_empty() {
+                let txt_id = scope.tree.create_node();
+                if let Some(node) = scope.tree.get_mut(txt_id) {
+                    node.interactive = false;
+                    node.set_name("ToolbarButtonText");
+                    node.set_text(visible_text.to_string());
+                    node.font_size = 11.0;
+                    node.line_height = h;
+                    node.text_align = TextAlign::Center;
+                    node.text_color = resolved_text_color;
+                    node.hover_text_color = Some(theme.text_primary);
+                    node.set_style(Style::new().width(text_w).height(h));
+                }
+                let _ = scope.tree.add_child(node_id, txt_id);
+            }
         }
 
         if let Some(tip) = self.tooltip {
