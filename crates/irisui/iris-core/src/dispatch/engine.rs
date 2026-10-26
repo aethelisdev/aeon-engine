@@ -354,10 +354,7 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
                 || tree.get(hid).is_some_and(|n| {
                     matches!(
                         n.role,
-                        WidgetRole::DropdownPopup
-                            | WidgetRole::ModalWindow
-                            | WidgetRole::FloatingWindow
-                            | WidgetRole::Tooltip
+                        WidgetRole::DropdownPopup | WidgetRole::DropdownItem | WidgetRole::Tooltip
                     ) || (tree.active_menu_bar_tag.is_some()
                         && Some(n.tag) == tree.active_menu_bar_tag)
                         || (tree.active_combobox_tag.is_some()

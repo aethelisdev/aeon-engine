@@ -103,10 +103,14 @@ impl IrisEditorOverlay {
         }
 
         if let UiEvent::MouseDown { point, .. } = event {
-            let hit = self.tree.hit_test_layered(*point);
-            let is_over_overlay =
-                hit.is_some_and(|h| self.tree.effective_layer(h) >= UiLayer::Modal);
-            if !is_over_overlay && self.close_active_popups() {
+            let is_over_popup = self.tree.hit_test_layered(*point).is_some_and(|h| {
+                self.tree.effective_layer(h) >= UiLayer::Popup
+                    || self
+                        .tree
+                        .get(h)
+                        .is_some_and(|n| n.role == WidgetRole::DropdownItem)
+            });
+            if !is_over_popup && self.close_active_popups() {
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
             }
@@ -803,6 +807,22 @@ impl IrisEditorOverlay {
     /// Closes all transient active popups and context menus, returning `true` if any were open.
     fn close_active_popups(&mut self) -> bool {
         let mut closed_any = false;
+        if self.tree.has_open_popup() {
+            self.tree.close_all_popups();
+            closed_any = true;
+        }
+        if self.tree.active_combobox_tag.is_some() {
+            self.tree.active_combobox_tag = None;
+            closed_any = true;
+        }
+        if self.viewport_hud.dropdown.is_some() {
+            self.viewport_hud.dropdown = None;
+            closed_any = true;
+        }
+        if self.inspector.active_dropdown.is_some() {
+            self.inspector.active_dropdown = None;
+            closed_any = true;
+        }
         if self.inspector.is_add_menu_open {
             self.inspector.is_add_menu_open = false;
             self.inspector.active_submenu = None;
@@ -820,6 +840,23 @@ impl IrisEditorOverlay {
         }
         if self.hierarchy.active_context_menu.is_some() {
             self.hierarchy.active_context_menu = None;
+            closed_any = true;
+        }
+        if self.ui_designer.is_add_menu_open {
+            self.ui_designer.is_add_menu_open = false;
+            closed_any = true;
+        }
+        if self.ui_designer.is_aspect_open {
+            self.ui_designer.is_aspect_open = false;
+            closed_any = true;
+        }
+        if self.assets.context_menu.is_some() {
+            self.assets.context_menu = None;
+            closed_any = true;
+        }
+        if self.menubar.active_menu.is_some() {
+            self.menubar.active_menu = None;
+            self.menubar.dropdown_rect = None;
             closed_any = true;
         }
         closed_any

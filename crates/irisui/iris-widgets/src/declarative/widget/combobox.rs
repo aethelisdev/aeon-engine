@@ -284,59 +284,61 @@ impl<'a> Widget for ComboBox<'a> {
 
         // Render elevated floating dropdown menu on UiLayer::Popup when active
         if is_active {
-            let pill_rect = row_scope
+            let anchor_rect = row_scope
                 .tree
-                .get(pill_id)
-                .map_or(Rect::ZERO, |n| n.computed_rect);
+                .tag_rect(tag)
+                .or_else(|| {
+                    row_scope
+                        .tree
+                        .get(pill_id)
+                        .map(|n| n.computed_rect)
+                        .filter(|r| r.width > 0.0)
+                })
+                .or_else(|| {
+                    row_scope
+                        .tree
+                        .event_state
+                        .press_origin
+                        .or(row_scope.tree.event_state.last_pointer_pos)
+                        .map(|pt| Rect::new(pt.x - 20.0, pt.y - 11.0, combo_w, 22.0))
+                })
+                .unwrap_or(Rect::new(0.0, 0.0, combo_w, 22.0));
 
-            let popup_x = if pill_rect.width > 0.0 {
-                pill_rect.x
-            } else {
-                60.0
-            };
-            let popup_y = if pill_rect.height > 0.0 {
-                pill_rect.bottom() + 2.0
-            } else {
-                30.0
-            };
             let popup_w = combo_w.max(100.0);
 
             let root_id = row_scope.tree.root().unwrap_or(row_scope.parent);
             let mut root_scope = row_scope.child_scope(root_id);
 
-            let popup_resp = root_scope.dropdown_menu_card(popup_x, popup_y, popup_w, |menu| {
-                for (idx, &item_text) in self.options.iter().enumerate() {
-                    let item_tag = crate::declarative::types::combine_seeds(tag, idx as u64 + 1);
-                    let item_resp = menu.dropdown_item(item_tag, "", item_text, None, true);
-                    if item_resp.clicked() {
-                        selected_index = Some(idx);
-                        changed = true;
+            let popup_resp =
+                root_scope.popup_anchored_named("ComboBoxPopup", anchor_rect, popup_w, |menu| {
+                    for (idx, &item_text) in self.options.iter().enumerate() {
+                        let item_tag =
+                            crate::declarative::types::combine_seeds(tag, idx as u64 + 1);
+                        let item_resp = menu.dropdown_item(item_tag, "", item_text, None, true);
+                        if item_resp.clicked() {
+                            selected_index = Some(idx);
+                            changed = true;
+                        }
                     }
-                }
-            });
+                });
+
+            let popup_rect = popup_resp.response.rect;
 
             // Outside click dismissal: close combobox if clicked outside
             if changed {
                 row_scope.tree.active_combobox_tag = None;
                 is_active = false;
-            } else if row_scope.tree.has_frame_interactions()
-                && !clicked
-                && !popup_resp.response.clicked()
+            } else if !clicked
                 && let Some(click_pos) = row_scope
                     .tree
                     .event_state
                     .frame_clicked_pos
-                    .or(row_scope.tree.event_state.last_pointer_pos)
+                    .or(row_scope.tree.event_state.press_origin)
+                && !popup_rect.contains_point(click_pos)
+                && !anchor_rect.contains_point(click_pos)
             {
-                if let Some(hit) = row_scope.tree.hit_test_target(click_pos) {
-                    if hit.role != WidgetRole::DropdownItem && hit.role != WidgetRole::Button {
-                        row_scope.tree.active_combobox_tag = None;
-                        is_active = false;
-                    }
-                } else {
-                    row_scope.tree.active_combobox_tag = None;
-                    is_active = false;
-                }
+                row_scope.tree.active_combobox_tag = None;
+                is_active = false;
             }
         }
 
@@ -352,7 +354,7 @@ impl<'a> Widget for ComboBox<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iris_core::UiTree;
+    use iris_core::{Point, Rect, UiTree};
 
     #[test]
     fn test_declarative_combobox_click_to_open() {
@@ -365,5 +367,54 @@ mod tests {
         assert!(!resp.is_open());
         assert!(!resp.changed());
         assert_eq!(resp.selected_index(), None);
+    }
+
+    #[test]
+    fn test_declarative_combobox_anchored_to_pill_tag() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let tag = 0xABCD_1234;
+        let pill_rect = Rect::new(320.0, 200.0, 140.0, 22.0);
+        tree.set_tag_rect(tag, pill_rect);
+        tree.active_combobox_tag = Some(tag);
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let options = ["Dynamic", "Kinematic", "Static"];
+        let resp = scope.add(ComboBox::new("Dynamic", &options).tag(tag).width(140.0));
+        assert!(resp.is_open());
+
+        // Find the ComboBoxPopup node in the tree
+        let popup_node = tree
+            .iter()
+            .map(|(_, n)| n)
+            .find(|n| n.name.as_deref() == Some("ComboBoxPopup"));
+        assert!(popup_node.is_some(), "ComboBoxPopup must exist in tree");
+        let popup = popup_node.expect("popup node");
+        assert_eq!(popup.computed_rect.x, 320.0);
+        assert_eq!(popup.computed_rect.y, 224.0); // 200.0 + 22.0 + 2.0
+        assert!(popup.computed_rect.x != 60.0);
+        assert!(popup.computed_rect.y != 30.0);
+    }
+
+    #[test]
+    fn test_declarative_combobox_outside_click_dismissal() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root node must exist");
+        let tag = 0x5555_7777;
+        let pill_rect = Rect::new(400.0, 300.0, 100.0, 22.0);
+        tree.set_tag_rect(tag, pill_rect);
+        tree.active_combobox_tag = Some(tag);
+        // Simulate clicking outside on the viewport at (50.0, 50.0)
+        tree.event_state.frame_clicked_pos = Some(Point::new(50.0, 50.0));
+
+        let mut scope = UiScope::new(&mut tree, root);
+        let options = ["Perspective", "Orthographic"];
+        let resp = scope.add(ComboBox::new("Perspective", &options).tag(tag).width(100.0));
+
+        assert!(!resp.is_open(), "ComboBox must close on outside click");
+        assert_eq!(
+            tree.active_combobox_tag, None,
+            "active_combobox_tag must be cleared"
+        );
     }
 }
