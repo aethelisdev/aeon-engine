@@ -32,7 +32,8 @@ pub mod viewport;
 pub use area::{DockArea, DockInteractionConfig, DockResponse};
 pub use chrome::{
     DockChevronTarget, DockChromeFrame, DockChromeParams, DockChromeStyle, DockCloseTarget,
-    DockSplitterTarget, DockTabTarget, build_dock_chrome,
+    DockSplitterTarget, DockTabTarget, TAG_DOCK_TAB_CLOSE_BASE, build_dock_chrome,
+    encode_dock_tab_close_tag, is_dock_tab_close_tag,
 };
 pub use context_menu::{TabContextMenuAction, TabContextMenuState};
 pub use drag_drop::{

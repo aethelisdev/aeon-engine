@@ -178,6 +178,17 @@ impl IrisEditorOverlay {
         if let Some(clicked_tag) = clicked_tag
             && clicked_tag != 0
         {
+            if super::inspector::resolve_inspector_tag_click(
+                clicked_tag,
+                self.inspector.inspected_entity,
+                &[],
+                &mut self.inspector.interactions.actions,
+            ) {
+                result.consumed = true;
+                self.notifier
+                    .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
+            }
+
             match clicked_tag {
                 ModalDialogAction::TAG_CLOSE => {
                     result.consumed = true;

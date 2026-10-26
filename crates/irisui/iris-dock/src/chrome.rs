@@ -20,8 +20,26 @@ use iris_core::id::WidgetId;
 use iris_core::node::{WidgetCursor, WidgetRole};
 use iris_core::style::{Style, TextAlign};
 use iris_core::tree::UiTree;
+use slotmap::Key;
 
 pub use crate::style::DockChromeStyle;
+
+/// Base 64-bit semantic tag prefix for dock tab close button widgets.
+pub const TAG_DOCK_TAB_CLOSE_BASE: u64 = 0xD0C4_0000_0000_0000;
+
+/// Encodes a leaf slotmap FFI key and tab index into a unique semantic tag for hover tracking and event resolution.
+#[inline]
+#[must_use]
+pub fn encode_dock_tab_close_tag(leaf_ffi: u64, tab_idx: usize) -> u64 {
+    TAG_DOCK_TAB_CLOSE_BASE | ((leaf_ffi & 0xFFFF_FFFF) << 16) | ((tab_idx as u64) & 0xFFFF)
+}
+
+/// Returns true if the given 64-bit tag represents a dock tab close button.
+#[inline]
+#[must_use]
+pub fn is_dock_tab_close_tag(tag: u64) -> bool {
+    (tag & 0xFFFF_0000_0000_0000) == TAG_DOCK_TAB_CLOSE_BASE
+}
 
 /// Native Iris tab hit target linked to a stable dock tree leaf and tab index.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -479,31 +497,28 @@ pub fn build_dock_chrome<T: Clone + Copy, V: TabViewer<T>>(
                     15.0,
                     tab_rect.height - 6.0,
                 );
-                let is_close_hovered =
-                    !params.is_cursor_occluded && close_rect.contains_point(params.cursor_pos);
-                if is_close_hovered {
-                    add_rect_node(
-                        tree,
-                        tab_id,
-                        close_rect,
-                        "IrisDockTabCloseHoverPill",
-                        Style::new()
-                            .background(style.close_btn_hover_bg)
-                            .corner_radii(CornerRadii::all(3.0)),
-                    );
-                }
-                let close_col = if is_close_hovered {
-                    style.close_btn_hover_color
-                } else {
-                    style.close_btn_idle_color
-                };
-                let close_id =
-                    add_text_node(tree, tab_id, close_rect, "✖", close_col, TextAlign::Center);
+                let close_tag = encode_dock_tab_close_tag(leaf.node_id.data().as_ffi(), index);
+                let close_id = add_text_node(
+                    tree,
+                    tab_id,
+                    close_rect,
+                    "✖",
+                    style.close_btn_idle_color,
+                    TextAlign::Center,
+                );
                 if let Some(node) = tree.get_mut(close_id) {
                     node.set_name("IrisDockTabCloseBtn");
+                    node.set_tag(close_tag);
                     node.role = WidgetRole::Button;
                     node.cursor = Some(WidgetCursor::Pointer);
                     node.interactive = true;
+                    node.set_hover_text_color(style.close_btn_hover_color);
+                    node.set_style(
+                        Style::new()
+                            .corner_radii(CornerRadii::all(3.0))
+                            .hover_background(style.close_btn_hover_bg)
+                            .clip_children(true),
+                    );
                 }
                 frame.close_targets.push(DockCloseTarget {
                     leaf: leaf.node_id,

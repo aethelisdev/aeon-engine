@@ -165,3 +165,52 @@ fn test_dock_splitter_target_contains_point_with_margin() {
     assert!(!v_target.contains_point(Point::new(100.0, 195.0)));
     assert!(!v_target.contains_point(Point::new(100.0, 208.0)));
 }
+
+#[test]
+fn test_dock_tab_close_button_has_tag_and_hover_style() {
+    use slotmap::Key;
+
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    tree.set_root(root).unwrap();
+    let mut dock_tree = DockTree::new();
+    let root_leaf = dock_tree.create_leaf(vec![MockTab::Viewport, MockTab::Hierarchy]);
+    dock_tree.set_root(root_leaf);
+
+    let workspace = Rect::new(0.0, 0.0, 800.0, 600.0);
+    let style = DockChromeStyle::default();
+    let params = DockChromeParams {
+        dock_tree: &dock_tree,
+        workspace_rect: workspace,
+        cursor_pos: Point::new(10.0, 10.0),
+        is_cursor_occluded: false,
+        is_dragging_splitter: false,
+        active_splitter_node: None,
+        is_dragging_tab: false,
+        viewer: &MockViewer,
+        style: &style,
+    };
+    let frame = build_dock_chrome(&mut tree, root, &params);
+    assert_eq!(frame.close_targets.len(), 1);
+
+    let close_target = &frame.close_targets[0];
+    let close_center = Point::new(
+        close_target.rect.x + close_target.rect.width * 0.5,
+        close_target.rect.y + close_target.rect.height * 0.5,
+    );
+
+    let hit = tree
+        .hit_test_target(close_center)
+        .expect("Close button must be hit-testable");
+    assert!(is_dock_tab_close_tag(hit.tag));
+    assert_eq!(
+        hit.tag,
+        encode_dock_tab_close_tag(root_leaf.data().as_ffi(), 1)
+    );
+
+    let node = tree.get(hit.id).expect("Close button node must exist");
+    assert_eq!(node.name.as_deref(), Some("IrisDockTabCloseBtn"));
+    assert_eq!(node.hover_text_color, Some(style.close_btn_hover_color));
+    assert_eq!(node.style.hover_background, Some(style.close_btn_hover_bg));
+    assert_eq!(node.style.corner_radii, CornerRadii::all(3.0));
+}

@@ -174,6 +174,33 @@ impl EngineUi {
             self.should_exit = true;
         }
 
+        let workspace_rect = Rect::new(
+            0.0,
+            IrisEditorOverlay::MENUBAR_HEIGHT,
+            screen_w,
+            (screen_h - IrisEditorOverlay::MENUBAR_HEIGHT - IrisEditorOverlay::STATUS_BAR_HEIGHT)
+                .max(0.0),
+        );
+
+        // Enforce workspace boundary clamping on all floating windows
+        self.layout_state.clamp_floating_windows(
+            screen_w,
+            screen_h,
+            IrisEditorOverlay::MENUBAR_HEIGHT,
+            IrisEditorOverlay::STATUS_BAR_HEIGHT,
+        );
+
+        // Process autonomous dock events (splitters, tabs, drag-and-drop, and floating windows)
+        let (dock_consumed, dock_cursor) =
+            self.handle_dock_event(event, workspace_rect, screen_w, screen_h);
+
+        if dock_consumed {
+            let active_widget_cursor =
+                dock_cursor.unwrap_or_else(|| self.iris_overlay.active_cursor());
+            window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
+            return true;
+        }
+
         // Layer isolation mandate: events consumed by Iris UI overlays or panels must never leak to underlying systems
         if iris_res.consumed {
             let active_widget_cursor = self.iris_overlay.active_cursor();
@@ -205,26 +232,6 @@ impl EngineUi {
         if self.handle_keyboard_shortcut(event) {
             return true;
         }
-
-        let workspace_rect = Rect::new(
-            0.0,
-            IrisEditorOverlay::MENUBAR_HEIGHT,
-            screen_w,
-            (screen_h - IrisEditorOverlay::MENUBAR_HEIGHT - IrisEditorOverlay::STATUS_BAR_HEIGHT)
-                .max(0.0),
-        );
-
-        // Enforce workspace boundary clamping on all floating windows
-        self.layout_state.clamp_floating_windows(
-            screen_w,
-            screen_h,
-            IrisEditorOverlay::MENUBAR_HEIGHT,
-            IrisEditorOverlay::STATUS_BAR_HEIGHT,
-        );
-
-        // Process autonomous dock events (splitters, tabs, drag-and-drop, and floating windows)
-        let (dock_consumed, dock_cursor) =
-            self.handle_dock_event(event, workspace_rect, screen_w, screen_h);
 
         // Apply requested cursor
         let active_widget_cursor = dock_cursor.unwrap_or_else(|| self.iris_overlay.active_cursor());

@@ -94,7 +94,8 @@ pub fn build_declarative_card_header(
                 header.theme().danger
             } else {
                 Color::rgba(0.12, 0.13, 0.16, 0.5)
-            });
+            })
+            .hover_background(header.theme().danger);
 
         header.container_tagged(
             "ComponentDeleteBtn",
