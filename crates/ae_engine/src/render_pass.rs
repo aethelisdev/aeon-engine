@@ -14,7 +14,7 @@ impl AeEngine {
             return ae_renderer::render::types::RenderScene {
                 light_uniform: ae_renderer::render::types::LightUniform {
                     direction: [0.0, 1.0, 0.0],
-                    _padding: 0,
+                    grid_scale: 1.0,
                     color: [1.0, 1.0, 1.0],
                     _padding2: 0,
                     ambient_color: [0.1, 0.1, 0.15],
@@ -218,7 +218,7 @@ impl AeEngine {
             ae_renderer::render::types::RenderScene {
                 light_uniform: ae_renderer::render::types::LightUniform {
                     direction: [0.0, 1.0, 0.0],
-                    _padding: 0,
+                    grid_scale: 1.0,
                     color: [1.0, 1.0, 1.0],
                     _padding2: 0,
                     ambient_color: [0.1, 0.1, 0.15],
@@ -360,6 +360,7 @@ impl AeEngine {
             grid_enabled: self.ui.grid_enabled
                 && self.mode == EngineMode::Edit
                 && self.dimension_mode.is_3d(),
+            grid_scale: self.editor.snapping.grid_size,
             wireframe_enabled: self.ui.wireframe_enabled,
             scale_factor: self.ui.scale_factor(),
             is_2d_mode: is_2d,

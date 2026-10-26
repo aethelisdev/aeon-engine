@@ -50,6 +50,8 @@ impl RenderFrameScratch {
 #[derive(Clone, Copy, Debug)]
 pub struct RenderOptions {
     pub grid_enabled: bool,
+    /// Cell spacing scale multiplier for the 3D viewport infinite ground grid (e.g., 0.1, 1.0, 5.0, 10.0).
+    pub grid_scale: f32,
     pub wireframe_enabled: bool,
     pub scale_factor: f32,
     /// Indicates whether the active viewport is running in 2D dimension mode.

@@ -63,7 +63,7 @@ impl SceneUniforms {
         // --- LIGHTING SETUP ---
         let light_uniform = LightUniform {
             direction: [0.0, 1.0, 0.0],
-            _padding: 0,
+            grid_scale: 1.0,
             color: [1.0, 1.0, 1.0],
             _padding2: 0,
             ambient_color: [0.1, 0.1, 0.1],

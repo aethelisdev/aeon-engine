@@ -101,6 +101,7 @@ impl ToolbarGroup {
             .flex_row()
             .align_items(AlignItems::Center)
             .height(parent_height)
+            .flex_shrink(0.0)
             .gap(self.gap);
 
         if let Some(w) = self.width {

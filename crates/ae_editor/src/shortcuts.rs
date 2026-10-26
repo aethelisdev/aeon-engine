@@ -119,10 +119,11 @@ pub fn process_shortcuts(
         }
     }
 
-    // Snapping hold mode sync
-    if editor.snapping.mode == crate::snapping::SnapMode::Hold {
-        editor.snapping.current_enabled = ctrl;
-    }
+    // Snapping state sync across all snap activation modes
+    editor.snapping.current_enabled = match editor.snapping.mode {
+        crate::snapping::SnapMode::Toggle => !ctrl,
+        crate::snapping::SnapMode::Hold | crate::snapping::SnapMode::Off => ctrl,
+    };
 
     result
 }

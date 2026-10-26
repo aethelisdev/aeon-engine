@@ -82,6 +82,15 @@ pub const ICON_CHEVRON_UP: [f32; 4] = [0.0, 0.0, 1.0, 19.0];
 /// Aeon Engine official branding cube logo icon - Layer 20.
 pub const ICON_AEON_LOGO: [f32; 4] = [0.0, 0.0, 1.0, 20.0];
 
+/// Viewport grid transform snapping toggle icon - Layer 21.
+pub const ICON_SNAP_GRID: [f32; 4] = [0.0, 0.0, 1.0, 21.0];
+
+/// Viewport angle/rotation transform snapping toggle icon - Layer 22.
+pub const ICON_SNAP_ROTATE: [f32; 4] = [0.0, 0.0, 1.0, 22.0];
+
+/// Open folder icon representing expandable asset collections and directories - Layer 23.
+pub const ICON_FOLDER_OPEN: [f32; 4] = [0.0, 0.0, 1.0, 23.0];
+
 /// Starting layer in the 2D Texture Array reserved for dynamically generated asset thumbnails.
 ///
 /// Layers 0..31 are strictly reserved for canonical static system, editor, and tool icons.

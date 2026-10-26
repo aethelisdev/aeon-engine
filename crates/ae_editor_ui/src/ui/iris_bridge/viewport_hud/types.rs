@@ -27,6 +27,10 @@ pub const TAG_GIZMO_ROTATE: u64 = 2012;
 pub const TAG_GIZMO_SCALE: u64 = 2013;
 /// Semantic tag for the Gizmo Coordinate Space toggle button.
 pub const TAG_GIZMO_SPACE_TOGGLE: u64 = 2020;
+/// Semantic tag for the Viewport Grid Snap toggle button.
+pub const TAG_SNAP_GRID_TOGGLE: u64 = 2025;
+/// Semantic tag for the Viewport Grid Snap size dropdown trigger button.
+pub const TAG_SNAP_GRID_DROPDOWN: u64 = 2026;
 /// Semantic tag for the Compass +X axis knob.
 pub const TAG_COMPASS_POS_X: u64 = 2030;
 /// Semantic tag for the Compass +Y axis knob.
@@ -55,6 +59,8 @@ pub const TAG_PLAY_GUIDE_BADGE: u64 = 2052;
 pub const TAG_POPUP_CAMERA_BASE: u64 = 2100;
 /// Base semantic tag for shading mode dropdown popup items (2200..2201).
 pub const TAG_POPUP_SHADING_BASE: u64 = 2200;
+/// Base semantic tag for grid snap size dropdown popup items (2300..2305).
+pub const TAG_POPUP_SNAP_GRID_BASE: u64 = 2300;
 
 /// Identifies active floating dropdown menus in the Viewport HUD.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +69,8 @@ pub enum ViewportHudDropdownId {
     CameraMode,
     /// Shading / wireframe render mode selector (Lit, Wireframe).
     ShadingMode,
+    /// Grid-based translation/transform snapping size selector (0.1m .. 10.0m).
+    GridSnap,
 }
 
 /// Dispatched user interaction actions originating from the Viewport HUD.
@@ -95,6 +103,8 @@ pub enum ViewportHudAction {
     ToggleGizmoSpace,
     /// Toggles entity translation/rotation snapping.
     ToggleSnapping,
+    /// Sets explicit translation snapping grid size in world units (meters).
+    SetGridSnapSize(f32),
     /// Toggles a dropdown popup menu open or closed.
     ToggleDropdown(Option<ViewportHudDropdownId>),
     /// Dispatches selection of an item within an active dropdown menu.
@@ -316,7 +326,7 @@ impl<'a> ViewportHudParams<'a> {
     #[inline]
     #[must_use]
     pub fn toolbar_total_width(&self) -> f32 {
-        self.view_modes_group_width() + 8.0 + 140.0 + 8.0 + 32.0
+        self.view_modes_group_width() + 8.0 + 140.0 + 8.0 + 32.0 + 8.0 + 84.0
     }
 }
 

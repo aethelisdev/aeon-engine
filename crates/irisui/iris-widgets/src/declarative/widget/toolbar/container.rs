@@ -150,6 +150,7 @@ impl Toolbar {
             .flex_row()
             .align_items(AlignItems::Center)
             .height(self.height)
+            .flex_shrink(0.0)
             .gap(self.gap);
 
         if let Some((x, y)) = self.position {

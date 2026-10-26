@@ -8,6 +8,7 @@
 
 pub mod assets;
 pub mod preferences;
+pub mod ui_designer;
 pub mod viewports;
 
 pub use preferences::PreferencesActionContext;

@@ -20,9 +20,17 @@ pub struct ToolbarButton {
     name: &'static str,
     label: String,
     width: Option<f32>,
+    height: Option<f32>,
     tag: Option<u64>,
     is_active: bool,
+    is_open: bool,
     tooltip: Option<String>,
+    background: Option<Color>,
+    hover_background: Option<Color>,
+    border_color: Option<Color>,
+    hover_border_color: Option<Color>,
+    text_color: Option<Color>,
+    corner_radius: Option<f32>,
 }
 
 impl ToolbarButton {
@@ -33,9 +41,17 @@ impl ToolbarButton {
             name: "ToolbarButton",
             label: label.into(),
             width: None,
+            height: None,
             tag: None,
             is_active: false,
+            is_open: false,
             tooltip: None,
+            background: None,
+            hover_background: None,
+            border_color: None,
+            hover_border_color: None,
+            text_color: None,
+            corner_radius: None,
         }
     }
 
@@ -47,11 +63,19 @@ impl ToolbarButton {
         self
     }
 
-    /// Sets a fixed width constraint for the toolbar button.
+    /// Sets an explicit width constraint for the toolbar button.
     #[inline]
     #[must_use]
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
+        self
+    }
+
+    /// Sets an explicit height constraint for the toolbar button.
+    #[inline]
+    #[must_use]
+    pub fn height(mut self, height: f32) -> Self {
+        self.height = Some(height);
         self
     }
 
@@ -68,6 +92,62 @@ impl ToolbarButton {
     #[must_use]
     pub fn active(mut self, active: bool) -> Self {
         self.is_active = active;
+        self
+    }
+
+    /// Sets whether the associated dropdown popup for this button is currently expanded.
+    #[inline]
+    #[must_use]
+    pub fn open(mut self, open: bool) -> Self {
+        self.is_open = open;
+        self
+    }
+
+    /// Configures an explicit background fill color overriding the default theme token.
+    #[inline]
+    #[must_use]
+    pub fn background(mut self, bg: Color) -> Self {
+        self.background = Some(bg);
+        self
+    }
+
+    /// Configures an explicit hover background fill color overriding the default theme token.
+    #[inline]
+    #[must_use]
+    pub fn hover_background(mut self, hover_bg: Color) -> Self {
+        self.hover_background = Some(hover_bg);
+        self
+    }
+
+    /// Configures an explicit border outline color overriding the default theme token.
+    #[inline]
+    #[must_use]
+    pub fn border_color(mut self, border: Color) -> Self {
+        self.border_color = Some(border);
+        self
+    }
+
+    /// Configures an explicit hover border outline color overriding the default theme token.
+    #[inline]
+    #[must_use]
+    pub fn hover_border_color(mut self, hover_border: Color) -> Self {
+        self.hover_border_color = Some(hover_border);
+        self
+    }
+
+    /// Configures an explicit text caption color overriding the default theme token.
+    #[inline]
+    #[must_use]
+    pub fn text_color(mut self, color: Color) -> Self {
+        self.text_color = Some(color);
+        self
+    }
+
+    /// Configures an explicit corner radius overriding the default theme token.
+    #[inline]
+    #[must_use]
+    pub fn corner_radius(mut self, radius: f32) -> Self {
+        self.corner_radius = Some(radius);
         self
     }
 
@@ -106,42 +186,70 @@ impl Widget for ToolbarButton {
         let (clicked, hovered, _) = scope.check_interaction(node_id);
 
         let theme = scope.theme();
+        let is_highlighted = self.is_open || self.is_active || hovered;
+
+        let bg = if let Some(custom_bg) = self.background {
+            if hovered {
+                self.hover_background.unwrap_or(theme.button_hover_bg)
+            } else {
+                custom_bg
+            }
+        } else if self.is_active {
+            theme.button_active_bg
+        } else if self.is_open || hovered {
+            theme.button_hover_bg
+        } else {
+            theme.button_idle_bg
+        };
+
+        let border = if let Some(custom_border) = self.border_color {
+            if hovered || self.is_open {
+                self.hover_border_color.unwrap_or(theme.button_hover_border)
+            } else {
+                custom_border
+            }
+        } else if self.is_active || self.is_open || hovered {
+            theme.button_hover_border
+        } else {
+            theme.button_border
+        };
+
+        let hover_bg = self.hover_background.unwrap_or(theme.button_hover_bg);
+        let hover_border = self.hover_border_color.unwrap_or(theme.button_hover_border);
+
+        let default_text_color = if is_highlighted {
+            theme.text_primary
+        } else {
+            theme.text_secondary
+        };
+        let resolved_text_color = self.text_color.unwrap_or(default_text_color);
+
+        let radius = self.corner_radius.unwrap_or(theme.corner_radius_md);
+        let h = self.height.unwrap_or(24.0);
 
         if let Some(node) = scope.tree.get_mut(node_id) {
             node.set_text(visible_text.to_string());
             node.font_size = 11.0;
-            node.line_height = 24.0;
+            node.line_height = h;
             node.text_align = TextAlign::Center;
-            node.text_color = if hovered || self.is_active {
-                theme.text_primary
-            } else {
-                Color::rgba(0.90, 0.93, 0.98, 1.0)
-            };
+            node.text_color = resolved_text_color;
             node.hover_text_color = Some(theme.text_primary);
 
             let mut style = Style::new()
-                .height(24.0)
-                .padding_insets(Insets::new(2.0, 6.0, 2.0, 6.0))
-                .background(if self.is_active {
-                    theme.button_active_bg
-                } else if hovered {
-                    theme.button_hover_bg
-                } else {
-                    theme.button_idle_bg
-                })
-                .hover_background(theme.button_hover_bg)
-                .border(
-                    1.0,
-                    if hovered {
-                        theme.button_hover_border
-                    } else {
-                        theme.button_border
-                    },
-                )
-                .hover_border(1.0, theme.button_hover_border)
-                .border_radius(theme.corner_radius_md)
+                .height(h)
+                .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
+                .background(bg)
+                .border(1.0, border)
+                .border_radius(radius)
+                .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35))
                 .align_items(AlignItems::Center)
                 .justify_content(JustifyContent::Center);
+
+            if !self.is_active && !self.is_open {
+                style = style
+                    .hover_background(hover_bg)
+                    .hover_border(1.0, hover_border);
+            }
 
             if let Some(w) = self.width {
                 style = style.width(w);

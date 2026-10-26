@@ -7,8 +7,8 @@
 //! using standardized [`ComboboxPopupBuilder`].
 
 use super::types::{
-    CameraViewOrientation, TAG_POPUP_CAMERA_BASE, TAG_POPUP_SHADING_BASE, ViewportHudAction,
-    ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
+    CameraViewOrientation, TAG_POPUP_CAMERA_BASE, TAG_POPUP_SHADING_BASE, TAG_POPUP_SNAP_GRID_BASE,
+    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
 };
 use ae_renderer::camera::{Camera, ProjectionMode};
 use irisui::prelude::*;
@@ -57,11 +57,40 @@ pub fn render_viewport_hud_dropdown_popup(
                 selected,
             )
         }
+        ViewportHudDropdownId::GridSnap => {
+            let selected = match params.snapping.grid_size {
+                s if (s - 0.05).abs() < 0.001 => Some(0),
+                s if (s - 0.1).abs() < 0.001 => Some(1),
+                s if (s - 0.25).abs() < 0.001 => Some(2),
+                s if (s - 0.5).abs() < 0.001 => Some(3),
+                s if (s - 1.0).abs() < 0.001 => Some(4),
+                s if (s - 5.0).abs() < 0.001 => Some(5),
+                s if (s - 10.0).abs() < 0.001 => Some(6),
+                _ => None,
+            };
+            (
+                110.0,
+                TAG_POPUP_SNAP_GRID_BASE,
+                vec![
+                    ("📏", "0.05m"),
+                    ("📏", "0.1m"),
+                    ("📏", "0.25m"),
+                    ("📏", "0.5m"),
+                    ("📏", "1.0m"),
+                    ("📏", "5.0m"),
+                    ("📏", "10.0m"),
+                ],
+                selected,
+            )
+        }
     };
 
     let popup_x = match active_dd {
         ViewportHudDropdownId::CameraMode => 8.0,
         ViewportHudDropdownId::ShadingMode => 8.0 + cam_orient.width() + 1.0,
+        ViewportHudDropdownId::GridSnap => {
+            8.0 + params.view_modes_group_width() + 8.0 + 140.0 + 8.0 + 32.0 + 8.0 + 34.0
+        }
     };
     let popup_y = 6.0 + 32.0 + 2.0;
 
@@ -128,6 +157,16 @@ pub fn resolve_viewport_hud_dropdown_action(
         ViewportHudDropdownId::ShadingMode => match index {
             0 => Some(ViewportHudAction::SetWireframe(false)),
             1 => Some(ViewportHudAction::SetWireframe(true)),
+            _ => None,
+        },
+        ViewportHudDropdownId::GridSnap => match index {
+            0 => Some(ViewportHudAction::SetGridSnapSize(0.05)),
+            1 => Some(ViewportHudAction::SetGridSnapSize(0.1)),
+            2 => Some(ViewportHudAction::SetGridSnapSize(0.25)),
+            3 => Some(ViewportHudAction::SetGridSnapSize(0.5)),
+            4 => Some(ViewportHudAction::SetGridSnapSize(1.0)),
+            5 => Some(ViewportHudAction::SetGridSnapSize(5.0)),
+            6 => Some(ViewportHudAction::SetGridSnapSize(10.0)),
             _ => None,
         },
     }
@@ -313,6 +352,41 @@ mod tests {
             labels.contains(&"Orthographic"),
             "Orthographic label must be collected: {:?}",
             labels
+        );
+    }
+
+    /// Verifies that resolving dropdown actions for GridSnap correctly translates item indices
+    /// into explicit grid snap sizes.
+    #[test]
+    fn test_resolve_grid_snap_dropdown_actions() {
+        let camera = Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+
+        assert_eq!(
+            resolve_viewport_hud_dropdown_action(ViewportHudDropdownId::GridSnap, 0, &camera),
+            Some(ViewportHudAction::SetGridSnapSize(0.05))
+        );
+        assert_eq!(
+            resolve_viewport_hud_dropdown_action(ViewportHudDropdownId::GridSnap, 4, &camera),
+            Some(ViewportHudAction::SetGridSnapSize(1.0))
+        );
+        assert_eq!(
+            resolve_viewport_hud_dropdown_action(ViewportHudDropdownId::GridSnap, 6, &camera),
+            Some(ViewportHudAction::SetGridSnapSize(10.0))
+        );
+        assert_eq!(
+            resolve_viewport_hud_dropdown_action(ViewportHudDropdownId::GridSnap, 7, &camera),
+            None
         );
     }
 }

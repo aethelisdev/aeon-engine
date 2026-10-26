@@ -211,6 +211,19 @@ impl<'a, 's> ToolbarGroupScope<'a, 's> {
             .add(ToolbarButton::new(label).tag(tag).width(width))
     }
 
+    /// Emits a standalone toolbar dropdown button displaying a text caption with full framing.
+    #[inline]
+    pub fn dropdown_button_tagged(
+        &mut self,
+        label: impl Into<String>,
+        tag: u64,
+        is_open: bool,
+        width: f32,
+    ) -> WidgetResponse {
+        self.scope
+            .toolbar_dropdown_button(label, tag, is_open, width)
+    }
+
     /// Emits a declarative toggle toolbar button reflecting active state.
     #[inline]
     pub fn toggle_button(&mut self, label: impl Into<String>, is_active: bool) -> WidgetResponse {

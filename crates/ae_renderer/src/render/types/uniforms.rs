@@ -15,7 +15,8 @@ pub struct LightUniform {
     /// A normalized vector pointing TOWARDS the light source.
     /// This convention is shared across Sky, PBR shading, and Shadow Cascades.
     pub direction: [f32; 3],
-    pub _padding: u32,
+    /// Viewport grid cell size multiplier consumed by the infinite grid shader.
+    pub grid_scale: f32,
 
     /// The direct sunlight color and intensity multiplier.
     pub color: [f32; 3],

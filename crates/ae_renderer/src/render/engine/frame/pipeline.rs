@@ -405,6 +405,11 @@ impl RenderState {
         );
 
         self.uniforms.update(&self.queue, camera);
+        self.uniforms.light_uniform.grid_scale = if options.grid_scale > 0.001 {
+            options.grid_scale
+        } else {
+            1.0
+        };
         self.uniforms
             .update_environment(&self.queue, &self.graphics_settings);
 

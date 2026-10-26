@@ -28,6 +28,28 @@ impl<'a> UiScope<'a> {
         tag: u64,
         is_active: bool,
     ) -> WidgetResponse {
+        self.toolbar_icon_button_styled(icon_uv, tag, is_active, None, None)
+    }
+
+    /// Emits a square 32×32 pixel icon tool button with customizable active background and border colors.
+    ///
+    /// When optional color overrides are `None`, falls back to the ambient [`Theme`](iris_core::Theme)
+    /// tokens (`theme.button_active_bg` and `theme.button_hover_border`).
+    ///
+    /// # Arguments
+    /// * `icon_uv` - Atlas texture UV coordinates for the icon.
+    /// * `tag` - Semantic tag for tracking interactions.
+    /// * `is_active` - Whether this tool is currently selected or active.
+    /// * `active_bg` - Optional custom background color for active state.
+    /// * `active_border` - Optional custom outline border color for active state.
+    pub fn toolbar_icon_button_styled(
+        &mut self,
+        icon_uv: [f32; 4],
+        tag: u64,
+        is_active: bool,
+        active_bg: Option<Color>,
+        active_border: Option<Color>,
+    ) -> WidgetResponse {
         let btn_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(btn_id) {
             node.set_name("ToolbarIconButton");
@@ -37,22 +59,16 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, btn_id);
         let (clicked, hovered, _) = self.check_interaction(btn_id);
 
-        let is_effective_active = is_active ^ clicked;
-        let (bg, border_color) = if is_effective_active {
+        let theme = self.theme();
+        let (bg, border_color) = if is_active {
             (
-                Color::rgba(0.06, 0.46, 0.92, 1.0),
-                Color::rgba(0.25, 0.60, 1.0, 0.95),
+                active_bg.unwrap_or(theme.button_active_bg),
+                active_border.unwrap_or(theme.button_hover_border),
             )
         } else if hovered {
-            (
-                Color::rgba(0.20, 0.23, 0.30, 0.95),
-                Color::rgba(0.35, 0.40, 0.50, 0.90),
-            )
+            (theme.button_hover_bg, theme.button_hover_border)
         } else {
-            (
-                Color::rgba(0.12, 0.13, 0.16, 0.92),
-                Color::rgba(0.24, 0.26, 0.32, 0.85),
-            )
+            (theme.button_idle_bg, theme.button_border)
         };
 
         if let Some(node) = self.tree.get_mut(btn_id) {
@@ -66,12 +82,12 @@ impl<'a> UiScope<'a> {
                 .height(32.0)
                 .background(bg)
                 .border(1.0, border_color)
-                .border_radius(4.0)
+                .border_radius(theme.corner_radius_md)
                 .box_shadow(0.0, 2.0, 6.0, Color::rgba(0.0, 0.0, 0.0, 0.35));
-            if !is_effective_active {
+            if !is_active {
                 style = style
-                    .hover_background(Color::rgba(0.20, 0.23, 0.30, 0.95))
-                    .hover_border(1.0, Color::rgba(0.35, 0.40, 0.50, 0.90));
+                    .hover_background(theme.button_hover_bg)
+                    .hover_border(1.0, theme.button_hover_border);
             }
             node.set_style(style);
         }
@@ -81,15 +97,13 @@ impl<'a> UiScope<'a> {
             node.interactive = false;
             node.set_name("ToolbarIcon");
             node.set_texture_uv(icon_uv);
-            let tint = if is_effective_active {
-                Color::rgba(1.0, 1.0, 1.0, 1.0)
-            } else if hovered {
-                Color::rgba(0.95, 0.98, 1.0, 1.0)
+            let tint = if is_active || hovered {
+                theme.text_primary
             } else {
-                Color::rgba(0.80, 0.84, 0.90, 0.90)
+                theme.text_secondary
             };
             node.set_texture_tint(tint);
-            node.hover_texture_tint = Some(Color::rgba(0.95, 0.98, 1.0, 1.0));
+            node.hover_texture_tint = Some(theme.text_primary);
             node.set_style(Style::new().width(22.0).height(22.0));
         }
         let _ = self.tree.add_child(btn_id, icon_id);
@@ -125,16 +139,17 @@ impl<'a> UiScope<'a> {
         let _ = self.tree.add_child(self.parent, btn_id);
         let (clicked, hovered, _) = self.check_interaction(btn_id);
 
+        let theme = self.theme();
         let is_highlighted = is_open || hovered || clicked;
         let bg = if is_highlighted {
-            Color::rgba(0.20, 0.23, 0.30, 0.90)
+            theme.button_hover_bg
         } else {
             Color::TRANSPARENT
         };
         let text_color = if is_highlighted {
-            Color::rgba(1.0, 1.0, 1.0, 1.0)
+            theme.text_primary
         } else {
-            Color::rgba(0.85, 0.88, 0.94, 1.0)
+            theme.text_secondary
         };
 
         if let Some(node) = self.tree.get_mut(btn_id) {
@@ -154,7 +169,7 @@ impl<'a> UiScope<'a> {
                 style = style.padding_insets(Insets::new(0.0, 10.0, 0.0, 10.0));
             }
             if !is_open {
-                style = style.hover_background(Color::rgba(0.20, 0.23, 0.30, 0.90));
+                style = style.hover_background(theme.button_hover_bg);
             }
             node.set_style(style);
         }
@@ -166,27 +181,46 @@ impl<'a> UiScope<'a> {
                 node.set_name("ToolbarModeIcon");
                 node.set_texture_uv(uv);
                 node.set_texture_tint(text_color);
-                node.hover_texture_tint = Some(Color::WHITE);
+                node.hover_texture_tint = Some(theme.text_primary);
                 node.set_style(Style::new().width(18.0).height(18.0));
             }
             let _ = self.tree.add_child(btn_id, icon_id);
         }
 
-        let approx_text_w = (label_str.chars().count() as f32 * 6.8).ceil();
         let txt_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(txt_id) {
             node.interactive = false;
             node.set_name("ToolbarModeText");
-            node.set_style(Style::new().width(approx_text_w).height(14.0));
+            node.set_style(Style::new().height(14.0));
             node.set_text(label_str);
             node.font_size = 11.0;
             node.line_height = 14.0;
             node.text_align = TextAlign::Center;
             node.text_color = text_color;
-            node.hover_text_color = Some(Color::WHITE);
+            node.hover_text_color = Some(theme.text_primary);
         }
         let _ = self.tree.add_child(btn_id, txt_id);
 
         WidgetResponse::new(btn_id, clicked, hovered, false)
+    }
+
+    /// Emits a standalone toolbar dropdown button displaying a text caption with full framing.
+    ///
+    /// Delegates directly to [`crate::declarative::widget::ToolbarButton`] ensuring unified
+    /// intrinsic text layout, full theme token compliance, and zero magic number approximations.
+    pub fn toolbar_dropdown_button(
+        &mut self,
+        label: impl Into<String>,
+        tag: u64,
+        is_open: bool,
+        width: f32,
+    ) -> WidgetResponse {
+        self.add(
+            crate::declarative::widget::ToolbarButton::new(label)
+                .tag(tag)
+                .width(width)
+                .height(32.0)
+                .open(is_open),
+        )
     }
 }

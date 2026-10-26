@@ -8,11 +8,11 @@
 
 use super::types::{
     TAG_GIZMO_ROTATE, TAG_GIZMO_SCALE, TAG_GIZMO_SELECT, TAG_GIZMO_SPACE_TOGGLE,
-    TAG_GIZMO_TRANSLATE, TAG_VIEWPORT_SHADING_MODE, ViewportHudAction, ViewportHudDropdownId,
-    ViewportHudParams, ViewportHudState,
+    TAG_GIZMO_TRANSLATE, TAG_SNAP_GRID_DROPDOWN, TAG_SNAP_GRID_TOGGLE, TAG_VIEWPORT_SHADING_MODE,
+    ViewportHudAction, ViewportHudDropdownId, ViewportHudParams, ViewportHudState,
 };
 use crate::ui::iris_bridge::icons::{
-    ICON_LOCAL, ICON_ROTATE, ICON_SCALE, ICON_SELECT, ICON_TRANSLATE, ICON_WORLD,
+    ICON_LOCAL, ICON_ROTATE, ICON_SCALE, ICON_SELECT, ICON_SNAP_GRID, ICON_TRANSLATE, ICON_WORLD,
 };
 use ae_editor::gizmo::{GizmoMode, GizmoSpace};
 use irisui::prelude::*;
@@ -98,20 +98,75 @@ pub fn build_viewport_toolbar(
                 (GizmoMode::Scale, ICON_SCALE, TAG_GIZMO_SCALE),
             ];
 
-            tb.group_styled(ToolbarGroup::new().gap(4.0).transparent(), |gg| {
-                for (mode, uv, tag) in gizmo_modes {
-                    let is_selected = params.gizmo_mode == mode;
-                    gg.selectable_tool_tagged(is_selected, uv, tag)
-                        .on_click(|| hud.dispatch(ViewportHudAction::SetGizmoMode(mode)));
-                }
-            });
+            tb.group_styled(
+                ToolbarGroup::new().width(140.0).gap(4.0).transparent(),
+                |gg| {
+                    for (mode, uv, tag) in gizmo_modes {
+                        let is_selected = params.gizmo_mode == mode;
+                        gg.selectable_tool_tagged(is_selected, uv, tag)
+                            .on_click(|| hud.dispatch(ViewportHudAction::SetGizmoMode(mode)));
+                    }
+                },
+            );
 
             // ── 3. Coordinate Space Box (World / Local) — 32×32 Square Button ──
             let is_local = params.gizmo_space == GizmoSpace::Local;
             let space_uv = if is_local { ICON_LOCAL } else { ICON_WORLD };
             tb.toggle_tool_tagged(is_local, space_uv, TAG_GIZMO_SPACE_TOGGLE)
                 .on_click(|| hud.dispatch(ViewportHudAction::ToggleGizmoSpace));
+
+            // ── 4. Snapping Group: 32x32 Grid Snap Toggle Button (Vibrant Blue when Active) + Size Dropdown ──
+            let is_snap_active = params.snapping.mode != ae_editor::snapping::SnapMode::Off;
+            let is_snap_dd_open = params.active_dropdown == Some(ViewportHudDropdownId::GridSnap);
+            let snap_label = snap_size_label(params.snapping.grid_size);
+
+            tb.group_styled(
+                ToolbarGroup::new().width(84.0).gap(2.0).transparent(),
+                |gg| {
+                    gg.toggle_tool_tagged(is_snap_active, ICON_SNAP_GRID, TAG_SNAP_GRID_TOGGLE)
+                        .on_click(|| hud.dispatch(ViewportHudAction::ToggleSnapping));
+
+                    gg.dropdown_button_tagged(
+                        snap_label,
+                        TAG_SNAP_GRID_DROPDOWN,
+                        is_snap_dd_open,
+                        50.0,
+                    )
+                    .on_click(|| {
+                        hud.dispatch(ViewportHudAction::ToggleDropdown(if is_snap_dd_open {
+                            None
+                        } else {
+                            Some(ViewportHudDropdownId::GridSnap)
+                        }));
+                    });
+                },
+            );
         });
+}
+
+/// Formats a snapping grid size in world units into a compact UI label string.
+#[inline]
+#[must_use]
+pub fn snap_size_label(size: f32) -> &'static str {
+    if (size - 0.05).abs() < 0.001 {
+        "0.05m"
+    } else if (size - 0.1).abs() < 0.001 {
+        "0.1m"
+    } else if (size - 0.25).abs() < 0.001 {
+        "0.25m"
+    } else if (size - 0.5).abs() < 0.001 {
+        "0.5m"
+    } else if (size - 1.0).abs() < 0.001 {
+        "1.0m"
+    } else if (size - 2.0).abs() < 0.001 {
+        "2.0m"
+    } else if (size - 5.0).abs() < 0.001 {
+        "5.0m"
+    } else if (size - 10.0).abs() < 0.001 {
+        "10.0m"
+    } else {
+        "1.0m"
+    }
 }
 
 #[cfg(test)]
@@ -362,6 +417,57 @@ mod tests {
                 .contains(&ViewportHudAction::SetGizmoMode(GizmoMode::Translate)),
             "Clicking Translate button must dispatch ViewportHudAction::SetGizmoMode(Translate): {:?}",
             hud.actions
+        );
+    }
+
+    /// Verifies that the snapping toggle and dropdown buttons are registered in the UI tree
+    /// with their semantic tags.
+    #[test]
+    fn test_toolbar_snapping_controls_registered_in_ui_tree() {
+        let mut tree = UiTree::new();
+        let root = tree.create_root().expect("Root creation failed");
+        let camera = Camera {
+            position: cgmath::Point3::new(0.0, 5.0, 10.0),
+            yaw: cgmath::Rad(0.0),
+            pitch: cgmath::Rad(0.0),
+            aspect: 16.0 / 9.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: cgmath::Point3::new(0.0, 0.0, 0.0),
+        };
+        let snapping = SnapSettings::default();
+        let world = World::new();
+
+        let params = ViewportHudParams {
+            viewport_rect: Rect::new(0.0, 0.0, 1280.0, 720.0),
+            camera: &camera,
+            wireframe_enabled: false,
+            gizmo_mode: GizmoMode::Select,
+            gizmo_space: GizmoSpace::World,
+            snapping: &snapping,
+            cursor_pos: Point::new(20.0, 15.0),
+            active_dropdown: None,
+            selected_entity: None,
+            world: &world,
+            is_editing: true,
+            is_2d: false,
+        };
+
+        let mut hud = ViewportHudState::default();
+        build_viewport_toolbar(&mut UiScope::new(&mut tree, root), &params, &mut hud);
+        let mut scope = UiScope::new(&mut tree, root);
+        scope.finish_layout(params.viewport_rect);
+
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == TAG_SNAP_GRID_TOGGLE),
+            "TAG_SNAP_GRID_TOGGLE node must exist in toolbar"
+        );
+        assert!(
+            tree.iter().any(|(_, n)| n.tag == TAG_SNAP_GRID_DROPDOWN),
+            "TAG_SNAP_GRID_DROPDOWN node must exist in toolbar"
         );
     }
 }
