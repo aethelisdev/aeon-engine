@@ -24,6 +24,7 @@
 pub mod descriptors;
 pub mod error;
 pub mod hooks;
+pub mod lifecycle;
 pub mod prelude;
 
 pub use descriptors::{
@@ -33,3 +34,4 @@ pub use descriptors::{
 };
 pub use error::{WorkbenchError, WorkbenchResult};
 pub use hooks::{CustomOverlayHook, DragDropPayload, ExternalTextureHook, TypedDragDropPayload};
+pub use lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};

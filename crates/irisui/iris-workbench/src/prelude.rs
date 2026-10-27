@@ -14,3 +14,4 @@ pub use crate::error::{WorkbenchError, WorkbenchResult};
 pub use crate::hooks::{
     CustomOverlayHook, DragDropPayload, ExternalTextureHook, TypedDragDropPayload,
 };
+pub use crate::lifecycle::{LifecycleBranch, LifecycleInputs, WorkbenchLifecycle};
