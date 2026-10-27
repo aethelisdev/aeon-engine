@@ -5,7 +5,6 @@
 //!
 //! Assembles the root panel container, header bar, scrollable viewport, and
 //! vertical scrollbar for specialized submesh or sprite material views purely using [`UiScope`].
-//!
 
 use super::empty_state::{build_no_entity_selected, build_no_renderable_geometry};
 use super::header::build_material_header;

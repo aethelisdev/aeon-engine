@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Vertex skinning matrix palette computations and SSBO Storage Buffer alignment for Aeon Engine.
-//!
 
 use crate::skeleton::Skeleton;
 use bytemuck::{Pod, Zeroable};

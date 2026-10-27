@@ -5,7 +5,6 @@
 //!
 //! Provides handlers for Collider, RigidBody, and Physics Material
 //! along with common UI widget and numeric card rendering helpers.
-//!
 
 pub mod collider;
 pub mod helpers;

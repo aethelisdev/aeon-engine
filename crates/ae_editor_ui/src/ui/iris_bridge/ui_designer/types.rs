@@ -5,7 +5,6 @@
 //!
 //! Exposes input parameters, hit-testing targets, and command actions for the 2D
 //! in-game HUD and canvas designer studio rendered in 100% native Iris UI GPU SDF.
-//!
 
 pub use ae_uidesign::{CanvasAspectRatio, UiDesignerState, UiDragState, UiElementType};
 use irisui::prelude::*;

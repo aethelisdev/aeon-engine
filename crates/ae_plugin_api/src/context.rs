@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Plugin and gameplay execution context wrappers.
-//!
 
 use crate::events::DynamicEventBus;
 use crate::resources::Resources;

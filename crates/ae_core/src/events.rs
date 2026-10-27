@@ -5,7 +5,6 @@
 //!
 //! Provides type-safe, decoupled pub/sub event dispatching for game systems,
 //! combat actions, health tracking, trigger activations, and score state in 100% Safe Rust.
-//!
 
 pub use ae_plugin_api::{
     AudioMute, CollisionEnter, CollisionExit, DynamicEventBus, EntityDestroyed, EntitySpawned,

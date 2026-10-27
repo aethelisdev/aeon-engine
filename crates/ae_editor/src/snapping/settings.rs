@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Snapping configuration types and activation modes.
-//!
 
 /// Snapping activation mode for transform operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

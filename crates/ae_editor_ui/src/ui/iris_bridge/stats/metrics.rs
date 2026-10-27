@@ -5,7 +5,6 @@
 //!
 //! Renders the geometry metrics card and VRAM allocation distribution card
 //! purely using [`UiScope`].
-//!
 
 use super::cpu_breakdown::build_multi_segment_bar;
 use super::types::StatsPanelParams;

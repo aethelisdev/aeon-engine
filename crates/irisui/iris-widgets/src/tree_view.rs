@@ -5,7 +5,6 @@
 //!
 //! Exposes hierarchical tree data structures, branch line math, node indentation,
 //! and selection state management for scene hierarchies, folder trees, and AST inspectors.
-//!
 
 pub mod model;
 pub mod navigation;

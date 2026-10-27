@@ -6,7 +6,6 @@
 //! Provides a centralized Single Source of Truth (SSOT) for UI keyboard focus,
 //! outside-click clearing, Tab/Shift+Tab cycle navigation, and synchronization
 //! with core layout focus targets.
-//!
 
 use iris_core::event::{FocusManager, KeyCode, MouseButton, UiEvent};
 use iris_core::geometry::{Point, Rect};

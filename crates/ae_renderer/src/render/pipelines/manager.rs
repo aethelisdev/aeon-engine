@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Pipeline manager coordinator and configuration types.
-//!
 
 use super::{grid, pbr, sky, sprite};
 

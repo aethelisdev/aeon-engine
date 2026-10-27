@@ -7,7 +7,6 @@
 //! applies vertical flexbox flow and clipping, executes recursive layout upon exit, and evaluates
 //! zero-latency hover updates directly using [`iris_core::UiTree::cursor_position`] without requiring
 //! consumer coordinates or manual layout finalization calls.
-//!
 
 use super::containers::InnerResponse;
 use super::core::UiScope;

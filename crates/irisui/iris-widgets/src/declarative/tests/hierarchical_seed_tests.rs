@@ -6,7 +6,6 @@
 //! Validates deterministic seed isolation across named scopes (`panel`, `collapsing`,
 //! `dropdown_menu_card`, `with_id`), anonymous layout seed preservation (`row`, `column`, `container`),
 //! and autonomous menu bar item tag generation conforming to FAZ 4.2.6 standards.
-//!
 
 use crate::declarative::{UiScope, widget::Button};
 use iris_core::{Color, UiTree};

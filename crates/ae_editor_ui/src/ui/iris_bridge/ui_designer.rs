@@ -5,7 +5,6 @@
 //!
 //! Provides the complete 100% native Iris UI GPU SDF implementation of the
 //! 2D in-game UI Designer and interactive WYSIWYG canvas studio.
-//!
 
 pub mod anchors;
 pub mod builder;

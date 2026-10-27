@@ -6,7 +6,6 @@
 //! Provides the primary camera abstraction, projection models (perspective and
 //! orthographic), coordinate remapping matrices for WGPU, and view-projection
 //! transformation calculation pipelines.
-//!
 
 pub mod projection;
 pub mod transform;

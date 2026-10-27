@@ -5,7 +5,6 @@
 //!
 //! Renders the top entity rename input box and label using high-level
 //! declarative [`UiScope`] property primitives and flexbox layout.
-//!
 
 use irisui::prelude::*;
 use irisui::widgets::declarative::hash_label_with_seed;

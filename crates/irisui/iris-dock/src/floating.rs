@@ -5,7 +5,6 @@
 //!
 //! Organizes independent floating window hierarchies, edge resize detection,
 //! boundary clamping constraints, and native UI widget tree construction.
-//!
 
 pub mod bounds;
 pub mod cursor;

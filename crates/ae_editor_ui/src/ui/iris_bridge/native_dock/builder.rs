@@ -4,7 +4,6 @@
 //! Native Iris docking chrome layout calculation and retained node generation.
 //!
 //! Dispatches directly into [`irisui::dock::DockArea`] with the engine's theme styling and [`crate::ui::panel_layout::PanelTabViewer`].
-//!
 
 use crate::ui::panel_layout::PanelLayoutState;
 use irisui::dock::DockChromeStyle;

@@ -5,7 +5,6 @@
 //!
 //! Orchestrates the inspection, modification, reflection, and prefab export
 //! of selected ECS entities via 100% hardware-accelerated Iris UI GPU SDF.
-//!
 
 pub mod add_menu;
 pub mod appearance;

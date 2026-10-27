@@ -5,7 +5,6 @@
 //!
 //! Assembles the root panel container, scrollable telemetry viewport, and
 //! individual telemetry cards purely using [`UiScope`] and declarative flexbox primitives.
-//!
 
 use super::cpu_breakdown::build_cpu_breakdown_content;
 use super::gpu_breakdown::build_gpu_breakdown_content;

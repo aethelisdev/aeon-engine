@@ -5,7 +5,6 @@
 //!
 //! Provides the configurable [`EmptyBox`] builder struct implementing [`Widget`].
 //! Replaces legacy `empty_box_tagged` with a unified builder.
-//!
 
 use super::Widget;
 use crate::declarative::scope::core::UiScope;

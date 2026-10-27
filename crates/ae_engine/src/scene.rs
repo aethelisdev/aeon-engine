@@ -6,7 +6,6 @@
 //! Provides automated scene persistence and loading powered by the central
 //! `ComponentRegistry`. Eliminates manual component match blocks, ensuring that
 //! all existing and future ECS components are serialized and restored automatically.
-//!
 
 use crate::engine::AeEngine;
 use ae_core::ecs::*;

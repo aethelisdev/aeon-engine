@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Retained UI update loop, always-rebuild and typography collection tests.
-//!
 
 use super::IrisEditorOverlay;
 use super::types::IrisChromeState;

@@ -5,7 +5,6 @@
 //!
 //! Provides determinate and indeterminate animated horizontal progress bar
 //! primitives on [`UiScope`].
-//!
 
 use super::core::UiScope;
 use iris_core::{Color, Style, WidgetRole};

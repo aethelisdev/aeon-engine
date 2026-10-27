@@ -6,7 +6,6 @@
 //! Declarative utility bar positioned at the bottom of the editor viewport,
 //! presenting engine status diagnostics, operational ready indicators, and
 //! engine version metadata purely via [`UiScope`].
-//!
 
 use irisui::prelude::*;
 

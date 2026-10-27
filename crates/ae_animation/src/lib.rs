@@ -5,7 +5,6 @@
 //!
 //! Provides skeletal hierarchy evaluation, keyframe track sampling, quaternion Slerp interpolation,
 //! crossfade clip blending, and 16-byte aligned SSBO Storage Buffer vertex skinning matrix palette computations.
-//!
 
 pub mod clip;
 pub mod player;

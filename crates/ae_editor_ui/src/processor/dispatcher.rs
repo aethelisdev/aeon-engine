@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Dispatches UI action commands into engine state mutations.
-//!
 
 use super::{components, scene_io, spawning, system, transform};
 

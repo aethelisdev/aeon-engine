@@ -6,7 +6,6 @@
 //! Ties together top breadcrumb and action navigation, category filter chips,
 //! left folder tree sidebar, scrollable card/table views, and telemetry footer
 //! using a pure declarative Taffy flexbox layout hierarchy without manual pixel math.
-//!
 use std::path::PathBuf;
 
 use super::cards::build_asset_grid_cards_scope;

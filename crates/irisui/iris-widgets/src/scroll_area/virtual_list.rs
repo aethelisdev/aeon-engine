@@ -5,7 +5,6 @@
 //!
 //! Provides an $O(1)$ zero-allocation virtualized list windowing engine that calculates
 //! visible item indices and vertical offsets for arbitrarily large collections (100k+ rows).
-//!
 
 use super::types::VirtualSlice;
 

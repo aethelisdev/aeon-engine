@@ -5,7 +5,6 @@
 //!
 //! Autonomous evaluation of mouse wheel and touchpad scroll gestures against
 //! hardware-clipped viewport bounds with proportional clamping and delta tracking.
-//!
 
 use iris_core::event::UiEvent;
 use iris_core::geometry::Rect;

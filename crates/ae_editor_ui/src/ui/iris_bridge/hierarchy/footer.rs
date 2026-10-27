@@ -5,7 +5,6 @@
 //!
 //! Renders the bottom object count and selection state telemetry line purely
 //! using declarative [`UiScope`].
-//!
 
 use super::types::HierarchyPanelParams;
 use irisui::prelude::*;

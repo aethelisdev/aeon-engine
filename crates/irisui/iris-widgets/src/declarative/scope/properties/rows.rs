@@ -5,7 +5,6 @@
 //!
 //! Provides structural property rows, boolean toggle checkboxes, dropdown selection pills,
 //! and section divider headers on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};

@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating animation clip playback, keyframe track rendering,
 //! immediate canvas scrubbing needles, and transport controls.
-//!
 
 use super::panel::build_timeline_panel;
 use super::types::TimelinePanelParams;

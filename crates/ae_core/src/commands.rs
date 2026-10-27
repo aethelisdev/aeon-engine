@@ -6,7 +6,6 @@
 //! Provides a safe, decoupled mechanism for scheduling entity creation, deletion,
 //! and component mutations during gameplay loops and system iterations without
 //! causing borrow checker or iterator invalidation errors in `hecs::World`.
-//!
 
 /// Deferred closure command type executed against mutable ECS world storage.
 pub type CommandFn = Box<dyn FnOnce(&mut hecs::World) + Send + Sync>;

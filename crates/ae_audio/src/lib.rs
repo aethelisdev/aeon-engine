@@ -6,7 +6,6 @@
 //! Provides hardware-accelerated 3D spatial audio playback, distance attenuation,
 //! stereo channel panning, `AudioSource` & `AudioListener` ECS components, and
 //! module isolation support (`EngineModule::Audio`).
-//!
 
 pub mod audio_manager;
 pub mod components;

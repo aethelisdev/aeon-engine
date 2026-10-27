@@ -6,7 +6,6 @@
 //! Provides the fluent [`Chip`] widget implementing [`Widget`] to render categorized
 //! filter badges with autonomous text measurement, dynamic count pills, and zero heap
 //! allocations during formatting and interaction.
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

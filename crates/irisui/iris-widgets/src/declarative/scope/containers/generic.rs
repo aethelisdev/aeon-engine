@@ -5,7 +5,6 @@
 //!
 //! Provides fundamental building block containers, passive viewports, tagged hit-testing
 //! boundaries, custom-rendered canvas nodes, and inline measured layout containers on [`UiScope`].
-//!
 
 use super::super::core::UiScope;
 use iris_core::{

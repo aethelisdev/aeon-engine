@@ -5,7 +5,6 @@
 //!
 //! Defines parameter descriptors, hit-testing target registries, and dispatchable actions
 //! for the 100% Iris UI GPU SDF Material & Submesh Editor panel.
-//!
 
 use irisui::prelude::*;
 

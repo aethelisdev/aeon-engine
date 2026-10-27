@@ -5,7 +5,6 @@
 //!
 //! Exposes parameter bundles, panel runtime state, and user interaction
 //! action variants for the Iris UI Animation Timeline Studio panel.
-//!
 
 use irisui::prelude::{Color, InteractionEvent, Point, Rect};
 

@@ -5,7 +5,6 @@
 //!
 //! Validates declarative tree construction, semantic 64-bit tag mappings,
 //! and hardware hit-testing routing for the Performance Stats & Telemetry panel.
-//!
 
 use crate::ui::iris_bridge::stats::panel::build_stats_panel;
 use crate::ui::iris_bridge::stats::types::{

@@ -5,7 +5,6 @@
 //!
 //! Provides the core [`UiScope`] struct definition, lifecycle initialization,
 //! interaction query evaluation, and recursive layout completion routines.
-//!
 
 use crate::declarative::layout::layout_subtree;
 use iris_core::{

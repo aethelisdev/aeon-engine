@@ -5,7 +5,6 @@
 //!
 //! Declarative inspector for active texture parameters, dimensions, mipmap telemetry,
 //! sampler modes, and hardware texture actions using [`UiScope`].
-//!
 
 use super::types::{
     MATERIAL_TAG_ADD_COLOR, MATERIAL_TAG_SPRITE_CHANGE, MATERIAL_TAG_SPRITE_REMOVE,

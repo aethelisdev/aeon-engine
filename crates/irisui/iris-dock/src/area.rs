@@ -8,7 +8,6 @@
 //! active accent lines, close buttons, splitter dividers, and overflow chevrons),
 //! establishes layout-clipped content sub-scopes for all active leaf panes, and
 //! dispatches into [`TabViewer::ui`] for each tab pane.
-//!
 
 use crate::chrome::{DockChromeFrame, DockChromeParams, DockChromeStyle, build_dock_chrome};
 use crate::events::{

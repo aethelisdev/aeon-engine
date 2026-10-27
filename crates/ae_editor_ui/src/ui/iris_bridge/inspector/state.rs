@@ -5,7 +5,6 @@
 //!
 //! Encapsulates the persistent interactive state, input edit sessions, and localized
 //! retained-mode dirty tracking for the Scene Inspector panel overlay.
-//!
 
 use crate::ui::iris_bridge::inspector::types::{
     ComponentCategory, InspectorAction, InspectorColorDragMode, InspectorDropdownId,

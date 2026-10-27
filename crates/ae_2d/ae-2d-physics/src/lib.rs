@@ -7,7 +7,6 @@
 //! - [`Physics2DWorld`]: Central physics orchestration container managing pipelines, islands, and solvers.
 //! - [`RigidBody2D`] & [`BodyType2D`]: Dynamic, kinematic, and static body representation.
 //! - [`Collider2D`] & [`ColliderShape2D`]: Box, circle, and capsule collision primitives.
-//!
 
 pub mod body;
 pub mod collider;

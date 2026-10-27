@@ -206,3 +206,86 @@ fn test_workbench_ui_scope_ext_viewport_surface_and_overlay() {
     assert!(overlay_rendered, "Volatile overlay closure must execute");
     assert_eq!(tree.get(root).unwrap().children.len(), 1);
 }
+
+#[test]
+fn test_drag_drop_controller_workflow_and_payload_cloning() {
+    let mut controller = DragDropController::new();
+    assert!(!controller.is_dragging());
+    assert!(controller.active_payload().is_none());
+
+    let payload = TypedDragDropPayload::new(
+        TestAssetPayload {
+            asset_id: 99,
+            relative_path: "models/robot.gltf".to_string(),
+        },
+        "robot.gltf",
+        "Assets",
+    )
+    .with_badge("3D", Color::rgba(0.0, 0.9, 1.0, 1.0));
+
+    let erased = payload.clone().into_erased();
+    assert_eq!(erased.badge_text(), Some("3D"));
+    assert_eq!(erased.badge_color(), Some(Color::rgba(0.0, 0.9, 1.0, 1.0)));
+    assert_eq!(erased.preview_label(), "robot.gltf");
+    assert_eq!(erased.source_panel(), "Assets");
+
+    // Test cloning of erased payload
+    let erased_cloned = erased.clone();
+    assert_eq!(erased, erased_cloned);
+
+    // Start drag
+    let start_point = iris_core::Point::new(100.0, 200.0);
+    controller.start_drag(erased, start_point);
+    assert!(controller.is_dragging());
+    assert_eq!(controller.start_pos(), Some(start_point));
+    assert_eq!(controller.current_pos(), Some(start_point));
+
+    // Update cursor
+    let move_point = iris_core::Point::new(150.0, 250.0);
+    controller.update_cursor(move_point);
+    assert_eq!(controller.current_pos(), Some(move_point));
+
+    // Type query and borrowing
+    assert!(controller.has_payload::<TestAssetPayload>());
+    assert!(!controller.has_payload::<u64>());
+    assert_eq!(
+        controller.payload::<TestAssetPayload>().map(|p| p.asset_id),
+        Some(99)
+    );
+
+    // Consume typed payload
+    let extracted = controller.take_typed::<TestAssetPayload>().unwrap();
+    assert_eq!(extracted.data.asset_id, 99);
+    assert_eq!(extracted.preview_label, "robot.gltf");
+    assert_eq!(extracted.badge_text.as_deref(), Some("3D"));
+
+    // Drag is now completed
+    assert!(!controller.is_dragging());
+}
+
+#[test]
+fn test_drag_drop_preview_scope_extension() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, root);
+
+    let mut controller = DragDropController::new();
+    let payload = DragDropPayload::new(42u32, "GoldMaterial.mat", "MaterialPanel")
+        .with_badge("MAT", Color::rgba(0.2, 0.8, 0.3, 1.0));
+    controller.start_drag(payload, iris_core::Point::new(50.0, 50.0));
+
+    // Render preview capsule declaratively
+    let cursor = iris_core::Point::new(300.0, 400.0);
+    let custom_style = DragDropPreviewStyle::new()
+        .with_offset(iris_core::Point::new(20.0, 20.0))
+        .with_colors(Color::BLACK, Color::WHITE);
+
+    scope.drag_drop_preview(&controller, cursor, Some(&custom_style));
+
+    // Verify container and children were emitted
+    assert_eq!(tree.get(root).unwrap().children.len(), 1);
+    let capsule_id = tree.get(root).unwrap().children[0];
+    let capsule_node = tree.get(capsule_id).unwrap();
+    assert_eq!(capsule_node.style.inset_left, Some(320.0));
+    assert_eq!(capsule_node.style.inset_top, Some(420.0));
+}

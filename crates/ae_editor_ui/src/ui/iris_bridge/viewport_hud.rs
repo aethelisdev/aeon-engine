@@ -5,7 +5,6 @@
 //!
 //! Provides the root orchestration entry points for building 3D Viewport Toolbar,
 //! Orientation Compass, Camera HUD, and Play Mode overlays in Iris UI.
-//!
 
 pub mod builder;
 pub mod camera_hud;

@@ -6,7 +6,6 @@
 //! Manages title bar dragging, 8-directional border/corner edge resizing,
 //! Z-order stacking management (bring-to-front), dock-back, and close button actions
 //! for independent floating windows.
-//!
 
 use crate::drag_drop::DropZone;
 use crate::events::drag_drop::PendingTabDrag;

@@ -7,7 +7,6 @@
 //! modern UI frameworks. Panels use declarative scopes (`row`, `column`, `card`,
 //! `button`, `checkbox`, `drag_float`, `drag_vec3`) instead of manually tracking
 //! pixel coordinates, parallel target lists, or constructing monolithic boilerplate builders.
-//!
 
 pub mod layout;
 pub mod scope;

@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Unit Tests for the Aeon UI Designer (AUD) Crate.
-//!
 
 use crate::spawning::spawn_ui_element;
 use crate::state::UiDesignerState;

@@ -5,7 +5,6 @@
 //!
 //! Orchestrates the routing of windowing [`UiEvent`] inputs against the active [`UiTree`] hierarchy.
 //! Includes autonomous scrollbar thumb dragging, track click-to-jump, and wheel bubbling.
-//!
 
 use std::time::Instant;
 

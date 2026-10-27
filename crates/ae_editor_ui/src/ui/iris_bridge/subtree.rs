@@ -6,7 +6,6 @@
 //! Provides granular, per-panel rebuilding pipelines for the retained Iris UI editor overlay,
 //! eliminating full generational tree clears (`UiTree::clear()`) and global layout recalculations
 //! when only an individual docking leaf panel's state or contents become dirty.
-//!
 
 use crate::ui::iris_bridge::types::{IrisEditorOverlay, OverlayUpdateParams};
 use crate::ui::panel_layout::PanelId;

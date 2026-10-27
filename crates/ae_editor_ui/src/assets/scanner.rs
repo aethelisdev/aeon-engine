@@ -5,7 +5,6 @@
 //!
 //! Scans physical workspace folders and synchronizes with in-memory `AssetManager`
 //! storages to build unified asset models with metadata badges.
-//!
 
 use super::types::{AssetBrowserState, AssetCategory, AssetItem, AssetSource};
 use ae_renderer::asset::{AssetStorage, ShaderAsset};

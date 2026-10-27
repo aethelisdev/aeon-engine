@@ -5,7 +5,6 @@
 //!
 //! Visualizes real-time historical frametimes with milestone threshold lines,
 //! dynamic stutter indicators, and declarative 2x2 statistical metrics purely using [`UiScope`].
-//!
 
 use super::types::{STATS_TAG_CANVAS, StatsPanelParams};
 use ae_core::telemetry::FrameRingBuffer;

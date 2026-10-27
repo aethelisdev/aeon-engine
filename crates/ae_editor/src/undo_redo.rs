@@ -5,7 +5,6 @@
 //!
 //! Integrates with the central `ComponentRegistry` to provide 100% automated,
 //! extensible entity state capture, restoration, serialization, and undo history.
-//!
 #![deny(clippy::unwrap_used)]
 
 use ae_core::ecs::{Color, ComponentRegistry, Light, Name, Position, Rotation, Scale};

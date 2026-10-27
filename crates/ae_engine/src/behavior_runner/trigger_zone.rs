@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Trigger zone, sensor pad, and elevating door mechanism subsystem.
-//!
 
 use ae_core::ecs::{Color, Position, Scale, TriggerZone};
 use ae_core::events::DynamicEventBus;

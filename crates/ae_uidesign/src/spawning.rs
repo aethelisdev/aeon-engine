@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Data-driven UI Element and HUD Preset Spawning Engine.
-//!
 
 use crate::types::UiElementType;
 use ae_core::ecs::*;

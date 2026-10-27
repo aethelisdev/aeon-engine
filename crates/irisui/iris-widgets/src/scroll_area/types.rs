@@ -5,7 +5,6 @@
 //!
 //! Provides orientation modes, visibility policies, virtualized item slice descriptors,
 //! and hit-testing states for scroll containers in Iris UI.
-//!
 
 /// Supported scrolling directions for scroll areas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

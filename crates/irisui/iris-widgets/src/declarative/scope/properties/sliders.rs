@@ -4,7 +4,6 @@
 //! # Continuous Property Sliders & Scalar Adjusters
 //!
 //! Provides proportional draggable sliders, scalar inputs, and fine-tuning number boxes on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};

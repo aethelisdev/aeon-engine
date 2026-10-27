@@ -7,7 +7,6 @@
 //! renders interactive tree rows with 1:1 selection styling, semantic hardware tagging,
 //! and eye visibility toggles using pure declarative [`UiScope::virtual_scroll_area`]
 //! with $O(1)$ UI frustum culling.
-//!
 
 use super::types::{
     HIERARCHY_TAG_SCROLLBAR_THUMB, HIERARCHY_TAG_SCROLLBAR_TRACK, HIERARCHY_TAG_VIEWPORT,

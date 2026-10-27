@@ -5,7 +5,6 @@
 //!
 //! Renders the Aspect Ratio selector dropdown and the `➕ Add Element` palette popup
 //! using 100% declarative [`UiScope`] dropdown menu primitives and 64-bit hardware semantic tags.
-//!
 
 use super::types::{
     CanvasAspectRatio, UiDesignerAction, UiDesignerPanelParams, UiDesignerPanelState,

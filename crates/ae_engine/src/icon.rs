@@ -7,7 +7,6 @@
 //! image assets into winit-compatible Window Icons.
 //!
 //! It supports various file formats (PNG, JPG, etc.) through the `image` crate.
-//!
 
 use image::GenericImageView;
 use winit::window::Icon;

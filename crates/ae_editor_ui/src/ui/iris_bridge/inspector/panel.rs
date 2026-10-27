@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Scene Inspector panel layout assembly and empty-selection renderer.
-//!
 
 use super::add_menu;
 use super::appearance;

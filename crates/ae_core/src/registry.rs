@@ -6,7 +6,6 @@
 //! Provides an industry-standard component registry and dynamic serialization
 //! pipeline for `hecs::World`. Enables automated snapshot capturing, state
 //! restoration, entity cloning, and serialization without hardcoded component structs.
-//!
 #![deny(clippy::allow_attributes)]
 #![deny(clippy::unwrap_used)]
 

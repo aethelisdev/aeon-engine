@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! AE Plugin API — Shared Types, Components, Events, and Interfaces.
-//!
 
 pub mod abi;
 pub mod components;

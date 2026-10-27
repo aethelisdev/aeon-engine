@@ -7,7 +7,6 @@
 //! 1. Declarative [`UiScope::spacing`] and [`UiScope::separator`] primitives.
 //! 2. Child event consumption: Clicking a button inside an interactive container executes
 //!    the child button's click handler and does NOT bubble to parent click or drag handlers.
-//!
 
 use crate::declarative::{UiScope, widget::Button};
 use iris_core::event::{MouseButton, UiEvent};

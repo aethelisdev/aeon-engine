@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! 3D Model parsing, GPU buffer upload, and asset deduplication logic.
-//!
 
 use super::animation::parse_gltf_skin_and_animations;
 use super::geometry::parse_gltf_scene_geometry;

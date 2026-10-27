@@ -6,7 +6,6 @@
 //! Provides the configurable [`Toolbar`] floating pill container builder and [`ToolbarGroup`]
 //! modular section builders for assembling desktop application tool strips, segmented mode
 //! selectors, and interactive utility toolbars without engine-specific coupling.
-//!
 
 pub mod container;
 pub mod group;

@@ -5,7 +5,6 @@
 //!
 //! Provides disk scanning, asset categorization, thumbnail texture synthesis,
 //! raycast math for drag-and-drop viewport instantiation, and secure file operations.
-//!
 
 pub mod drag_drop;
 pub mod file_ops;

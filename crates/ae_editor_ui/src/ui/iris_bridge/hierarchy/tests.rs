@@ -5,7 +5,6 @@
 //!
 //! Verifies that cascading Add Menu dropdowns, context menus, and declarative
 //! tree rows assign correct semantic hardware tags and retain their text labels without occlusion.
-//!
 
 use super::add_menu::build_add_menu;
 use super::types::{

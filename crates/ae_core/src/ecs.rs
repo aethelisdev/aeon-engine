@@ -3,7 +3,6 @@
 //! AE Core - ECS Manager and Hierarchical Transform System.
 //!
 //! Manages the `hecs::World` database and hierarchical transform updates.
-//!
 
 #![deny(clippy::unwrap_used)]
 

@@ -5,7 +5,6 @@
 //!
 //! Verifies that Scene Hierarchy correctly binds to Iris UI [`TreeState`],
 //! handling foldout expansion/collapse, multi-selection modifiers, and keyboard arrow navigation.
-//!
 
 use super::types::{HierarchyPanelParams, HierarchyPanelState, parse_foldout_tag};
 use crate::ui::iris_bridge::hierarchy::rows::sync_hierarchy_rows;

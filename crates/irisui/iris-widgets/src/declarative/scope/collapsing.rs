@@ -7,7 +7,6 @@
 //! Features persistent expanded/collapsed state tracking via [`iris_core::UiTree::collapsing_state`],
 //! animated/dynamic chevron arrows (`▶` / `▼`), hover/press styling, and immediate effective state
 //! evaluation with zero per-frame allocation.
-//!
 
 use super::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};

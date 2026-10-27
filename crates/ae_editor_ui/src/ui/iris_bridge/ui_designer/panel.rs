@@ -6,7 +6,6 @@
 //! Assembles the complete UI Designer panel hierarchy in the Iris UI tree,
 //! including the virtual canvas, 34px elevated toolbar, and interactive dropdown popups
 //! purely using declarative [`UiScope`] containers and 64-bit hardware semantic tags.
-//!
 
 use super::canvas::build_designer_canvas;
 use super::popups::{build_add_element_popup, build_aspect_ratio_popup};

@@ -5,7 +5,6 @@
 //!
 //! Provides the [`TextMeasurer`] trait decoupled from specific font shaping engines,
 //! allowing UI widgets and layout solvers to query dynamic font metrics and horizontal advance.
-//!
 
 /// Trait for querying dynamic glyph advances and text dimensions at runtime.
 ///

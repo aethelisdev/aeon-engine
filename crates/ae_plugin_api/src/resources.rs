@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Type-safe dynamic resource container for dependency injection.
-//!
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;

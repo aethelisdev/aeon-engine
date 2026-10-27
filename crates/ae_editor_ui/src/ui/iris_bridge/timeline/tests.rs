@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Animation Timeline panel unit tests.
-//!
 
 use super::*;
 use irisui::prelude::{Point, Rect, UiScope, UiTree};

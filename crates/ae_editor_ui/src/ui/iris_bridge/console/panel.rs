@@ -5,7 +5,6 @@
 //!
 //! Orchestrates the top toolbar and virtualized scrollable log entries viewport
 //! exclusively through declarative [`UiScope`] sub-methods.
-//!
 
 use super::rows::build_console_rows;
 use super::types::{

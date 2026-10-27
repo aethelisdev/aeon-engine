@@ -6,7 +6,6 @@
 //! Provides granular, per-leaf rebuilding capabilities for complex retained UI hierarchies,
 //! docking layouts, and compound widgets, eliminating the need for full UI tree reconstruction
 //! (`UiTree::clear()`) and global layout solver passes during routine localized updates.
-//!
 
 use super::UiScope;
 use iris_core::{UiTree, WidgetId};

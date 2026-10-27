@@ -7,7 +7,6 @@
 //! overflowing tab lists when a leaf pane cannot fit all tabs horizontally.
 //! Supports texture atlas icons, active tab checkmarks, hovered/active color states,
 //! retained-mode tagging (`node.tag = tab_index as u64`), and deterministic click evaluation.
-//!
 
 use crate::tab_viewer::TabViewer;
 use crate::tree::DockNodeId;

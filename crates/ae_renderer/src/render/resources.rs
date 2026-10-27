@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Resources Sub-module — Manages GPU textures, render targets, and 3D GLTF model imports.
-//!
 
 pub mod model;
 pub mod shader;

@@ -4,7 +4,6 @@
 //! # ToolbarGroup Container Builder
 //!
 //! Provides the configurable [`ToolbarGroup`] builder for modular toolbar sub-groups.
-//!
 
 use super::group_scope::ToolbarGroupScope;
 use crate::declarative::scope::containers::generic::InnerResponse;

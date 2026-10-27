@@ -4,7 +4,6 @@
 //! `ae_launcher` binary entry point.
 //!
 //! Launches the lightweight Aeon Engine Hub for project management and mode selection.
-//!
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();

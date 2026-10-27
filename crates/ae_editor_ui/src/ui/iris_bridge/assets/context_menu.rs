@@ -6,7 +6,6 @@
 //! Renders floating context menus for asset cards and folder tree nodes,
 //! supporting quick inspection, spawning, renaming, deletion, path copying,
 //! and OS explorer reveal operations using the unified `ContextMenuBuilder`.
-//!
 
 use super::types::{AssetsPanelAction, AssetsPanelParams, truncate_display_name};
 use crate::assets::types::{AssetCategory, AssetItem};

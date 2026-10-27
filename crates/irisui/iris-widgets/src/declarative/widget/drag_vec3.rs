@@ -6,7 +6,6 @@
 //! Provides the fluent [`DragVec3`] widget builder implementing [`Widget`] and yielding
 //! a rich [`Vec3Response`] with per-axis change tracking, immediate in-place mutation,
 //! and dedicated reset action state without leaking internal tag arithmetic.
-//!
 
 use std::ops::{Deref, RangeInclusive};
 

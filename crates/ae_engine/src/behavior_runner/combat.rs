@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Character combat actions, weapon raycast shooting, kinetic impulses, and projectile spawning.
-//!
 
 use ae_core::ecs::{
     CharacterAction, Collider, ColliderShape, Color, EphemeralProjectile, Name, Position,

@@ -5,7 +5,6 @@
 //!
 //! Provides lightweight two-pass recursive flow layout calculations for subtrees
 //! constructed via [`super::scope::UiScope`].
-//!
 
 use iris_core::{
     AlignItems, FlexDirection, FlexWrap, Insets, JustifyContent, Rect, TextWrap, UiTree, WidgetId,

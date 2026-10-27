@@ -5,7 +5,6 @@
 //!
 //! Verifies builder construction, autonomous layout properties, interactive hover detection,
 //! active border styling, and click tracking response.
-//!
 
 use crate::declarative::UiScope;
 use crate::declarative::widget::ColorSwatch;

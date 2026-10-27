@@ -5,7 +5,6 @@
 //!
 //! Verifies the end-to-end integration of the Scene Hierarchy Add Entity toolbar button,
 //! cascading menu activation, submenu transitions, entity spawn dispatching, and overlay dismissal.
-//!
 
 use super::header::build_hierarchy_header;
 use super::types::{

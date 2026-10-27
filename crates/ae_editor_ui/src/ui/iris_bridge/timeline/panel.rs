@@ -6,7 +6,6 @@
 //! Orchestrates panel container instantiation, responsive empty-state placeholder cards,
 //! and child transport and ruler subsystems using 100% pure declarative [`UiScope`] architecture
 //! with zero external node identifier retention or post-layout tree inspections.
-//!
 
 use super::lanes::build_dope_sheet_lanes;
 use super::ruler::build_ruler_and_scrubber;

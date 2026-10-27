@@ -4,7 +4,6 @@
 //! # Material & Surface Studio Header Bar
 //!
 //! Renders the top title bar and active geometry badge using [`UiScope`].
-//!
 
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_WORLD};
 use irisui::prelude::*;

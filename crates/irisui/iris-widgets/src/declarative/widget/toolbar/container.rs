@@ -4,7 +4,6 @@
 //! # Toolbar Container Builder
 //!
 //! Provides the configurable [`Toolbar`] builder for horizontal strips and floating pill toolbars.
-//!
 
 use super::scope::ToolbarScope;
 use crate::declarative::scope::containers::generic::InnerResponse;

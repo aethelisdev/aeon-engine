@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Animation player ECS component and crossfading / blending manager for Aeon Engine.
-//!
 
 use crate::clip::{AnimationClip, TargetProperty};
 use crate::skeleton::Skeleton;

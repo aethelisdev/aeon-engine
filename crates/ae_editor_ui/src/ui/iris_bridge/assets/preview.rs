@@ -7,7 +7,6 @@
 //! interactive preview inspections: 3D mesh orbit wireframe viewports with mouse drag
 //! rotation and zoom, texture specifications, WGSL shader diagnostics, scene summaries,
 //! and direct spawn/load operations.
-//!
 
 pub(crate) mod details;
 pub(crate) mod modal;

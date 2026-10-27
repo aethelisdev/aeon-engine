@@ -4,7 +4,6 @@
 //! # ScrollArea Fluent Builder & Frame (`iris-widgets::scroll_area::area`)
 //!
 //! Renders hardware-clipped container viewports and proportional scrollbar indicators.
-//!
 
 use super::scroll_bar::ScrollBarGeometry;
 use super::style::ScrollAreaStyle;

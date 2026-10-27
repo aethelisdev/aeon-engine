@@ -5,7 +5,6 @@
 //!
 //! Sub-system event dispatchers managing splitter dividers, tab headers,
 //! drag-and-drop operations, and floating windows.
-//!
 
 pub mod drag_drop;
 pub mod floating;

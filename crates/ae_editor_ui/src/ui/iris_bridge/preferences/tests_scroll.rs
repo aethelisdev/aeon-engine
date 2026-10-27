@@ -6,7 +6,6 @@
 //! Validates autonomous scroll frame geometry, mouse wheel scrolling with bounds clamping,
 //! scrollbar thumb click-drag-release lifecycle, track jump clicks, and state synchronization
 //! using autonomous `UiTree::dispatch_event` and `build_preferences_dialog`.
-//!
 
 use super::builder::build_preferences_dialog;
 use super::types::{

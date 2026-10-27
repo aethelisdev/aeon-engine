@@ -4,7 +4,6 @@
 //! # Declarative Texture Atlas Icons & Hover Reactivity Primitives
 //!
 //! Provides texture atlas icon rendering and dynamic hover tint bindings on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use iris_core::{Color, Style};

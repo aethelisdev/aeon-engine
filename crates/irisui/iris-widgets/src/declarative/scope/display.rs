@@ -7,7 +7,6 @@
 //! - Typography, 1-argument labels, headings, and badges in [`labels`].
 //! - Texture atlas icons and hover reactivity in [`icons`].
 //! - External textures, scrollbars, and color swatches in [`canvas`].
-//!
 
 pub mod canvas;
 pub mod icons;

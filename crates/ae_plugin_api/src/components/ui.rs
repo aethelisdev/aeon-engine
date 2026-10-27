@@ -5,7 +5,6 @@
 //!
 //! Provides hardware-agnostic 2D UI elements, anchoring rules, and widget definitions
 //! for rich interactive game user interfaces, health meters, text typography, and input controls.
-//!
 
 use serde::{Deserialize, Serialize};
 

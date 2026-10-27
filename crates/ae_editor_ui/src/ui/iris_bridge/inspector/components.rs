@@ -4,7 +4,6 @@
 //! # Built-in Component Handlers Registration
 //!
 //! Registers all standard ECS component cards into the `InspectorRegistry`.
-//!
 
 pub mod animation;
 pub mod audio;

@@ -5,7 +5,6 @@
 //!
 //! Orchestrates the declarative frame pacing oscillograph, CPU/GPU pass breakdowns,
 //! draw call distribution, granular VRAM memory cards, and viewport overlay toggles.
-//!
 
 pub mod builder;
 pub mod cpu_breakdown;

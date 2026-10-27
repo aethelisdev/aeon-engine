@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Unit tests for the Native Iris UI Asset / Content Browser Subsystem.
-//!
 
 use super::panel::build_assets_panel;
 use super::types::{

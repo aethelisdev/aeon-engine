@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! AE Physics — Character Controller simulation unit tests.
-//!
 
 #[cfg(test)]
 mod tests {

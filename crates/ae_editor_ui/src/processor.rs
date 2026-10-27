@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! UI action processor and engine mutation dispatcher subsystem.
-//!
 
 pub mod components;
 pub mod dispatcher;

@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating entity inspection, component reflection cards,
 //! live numeric math expression sessions, and rename inputs.
-//!
 
 use super::panel::build_inspector_panel;
 use super::types::{ActiveNumberInputState, InspectorPanelParams};

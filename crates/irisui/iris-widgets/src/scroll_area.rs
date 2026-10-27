@@ -5,7 +5,6 @@
 //!
 //! Exposes hardware-clipped scroll containers, proportional scrollbar indicators,
 //! and $O(1)$ zero-allocation virtualized list windowing.
-//!
 
 pub mod area;
 pub mod events;

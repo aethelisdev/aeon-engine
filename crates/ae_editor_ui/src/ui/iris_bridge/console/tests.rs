@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Developer Console unit tests.
-//!
 
 use super::*;
 use crate::ui::types::ConsoleEntry;

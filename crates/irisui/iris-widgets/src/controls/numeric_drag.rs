@@ -6,7 +6,6 @@
 //! Provides autonomous horizontal scrubbing state, speed multipliers, modifier sensitivity
 //! adjustments (Shift for fine-tuning, Ctrl for coarse increments), and pointer capture
 //! management for numeric input fields.
-//!
 
 use iris_core::event::{KeyCode, UiEvent};
 use iris_core::node::WidgetCursor;

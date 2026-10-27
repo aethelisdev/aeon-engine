@@ -5,7 +5,6 @@
 //!
 //! Evaluates semantic widget tags and mouse wheel scroll deltas to produce
 //! high-level MaterialAction commands.
-//!
 
 use super::types::{MaterialAction, MaterialTagTarget, resolve_material_tag};
 

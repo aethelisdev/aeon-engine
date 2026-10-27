@@ -5,7 +5,6 @@
 //!
 //! Renders the wireframe mode and grid visibility interactive checkboxes
 //! purely using [`UiScope`] declarative primitives.
-//!
 
 use super::types::{
     STATS_TAG_TOGGLE_GRID, STATS_TAG_TOGGLE_WIREFRAME, StatsPanelAction, StatsPanelParams,

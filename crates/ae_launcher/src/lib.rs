@@ -6,7 +6,6 @@
 //! Provides an ultra-fast, standalone project manager built on Iris UI for launching Aeon Engine
 //! with 2D or 3D dimension profiles. When an engine instance is spawned,
 //! the launcher process terminates, releasing all allocated system resources.
-//!
 
 pub mod adapter;
 pub mod app;

@@ -6,7 +6,6 @@
 //! Provides the configurable [`Button`] builder struct implementing [`Widget`].
 //! Replaces legacy `button_tagged`, `button_styled_tagged`, `button_named_styled_tagged`,
 //! `small_button_tagged`, and `button_with_width_tagged` with a single unified builder.
-//!
 
 use super::Widget;
 use crate::declarative::scope::core::UiScope;

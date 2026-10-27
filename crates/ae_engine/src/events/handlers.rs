@@ -5,7 +5,6 @@
 //!
 //! Provides granular event processing logic for 3D camera navigation,
 //! entity picking raycasts, hardware mouse locking, and viewport resizing.
-//!
 
 use crate::engine::AeEngine;
 use ae_core::modules::EngineMode;

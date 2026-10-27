@@ -4,7 +4,6 @@
 //! # Declarative Text & String Property Rows
 //!
 //! Provides single-line string and text property editors on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::{WidgetResponse, split_label_id};

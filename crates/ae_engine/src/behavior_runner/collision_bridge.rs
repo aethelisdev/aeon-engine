@@ -6,7 +6,6 @@
 //! Inspects contact points, normal vectors, and physical material surfaces
 //! (`PhysicsMaterial` / `SurfaceType`) to dispatch standardized `SurfaceImpactEvent`
 //! and audio cues across the `DynamicEventBus`.
-//!
 
 use ae_core::ecs::{PhysicsMaterial, Position, SurfaceType};
 use ae_core::events::{CollisionEnter, DynamicEventBus, SurfaceImpactEvent};

@@ -4,7 +4,6 @@
 //! Generic ECS Component and Entity Processor Handlers.
 //!
 //! Provides dynamic component addition, removal, and mutation through `ComponentRegistry`.
-//!
 
 use super::UiContext;
 

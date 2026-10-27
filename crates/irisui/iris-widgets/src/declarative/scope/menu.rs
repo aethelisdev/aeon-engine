@@ -6,7 +6,6 @@
 //! Provides top application menu bar items, play/stop action buttons, floating
 //! dropdown popup cards, selectable menu item rows with icons and shortcut annotations,
 //! and dividers on [`UiScope`].
-//!
 
 use super::core::UiScope;
 use crate::declarative::scope::containers::InnerResponse;

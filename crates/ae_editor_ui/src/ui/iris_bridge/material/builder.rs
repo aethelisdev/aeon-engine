@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating material property inspection, texture maps,
 //! shader parameter cards, and scroll offsets.
-//!
 
 use super::panel::build_material_panel;
 use super::types::MaterialPanelParams;

@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating telemetry panel geometry allocation,
 //! ring buffer tracking, and frame metrics visualization.
-//!
 
 use super::panel::build_stats_panel;
 use super::types::StatsPanelParams;

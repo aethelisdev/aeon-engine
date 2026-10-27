@@ -102,21 +102,23 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::CopyPath(path) => {
                     log::info!("Asset file path copied: {}", path.display());
                 }
-                iris_bridge::AssetsPanelAction::StartAssetDrag(item) => {
+                iris_bridge::AssetsPanelAction::StartAssetDrag(payload) => {
                     log::info!(
-                        "[DRAG-DROP] StartAssetDrag received from Iris UI: item='{}', path={:?}, category={:?}",
-                        item.name,
-                        item.path,
-                        item.category
+                        "[DRAG-DROP] StartAssetDrag received from Iris UI: label='{}', source='{}', type='{}'",
+                        payload.preview_label(),
+                        payload.source_panel(),
+                        payload.type_name()
                     );
-                    self.asset_browser.drag_payload =
-                        Some(crate::assets::types::AssetDragPayload {
-                            path: item.path,
-                            name: item.name,
-                            category: item.category,
-                            model_handle: item.model_handle,
-                            texture_handle: item.texture_handle,
-                        });
+                    if let Some(item) = payload.downcast_ref::<crate::assets::types::AssetItem>() {
+                        self.asset_browser.drag_payload =
+                            Some(crate::assets::types::AssetDragPayload {
+                                path: item.path.clone(),
+                                name: item.name.clone(),
+                                category: item.category,
+                                model_handle: item.model_handle,
+                                texture_handle: item.texture_handle,
+                            });
+                    }
                 }
                 iris_bridge::AssetsPanelAction::EndAssetDrag => {
                     let cursor_pos = self.iris_overlay.cursor_pos();

@@ -11,7 +11,6 @@
 //!
 //! This crate is intentionally decoupled from hardware graphics APIs (e.g., `wgpu`), ensuring that headless
 //! game servers and simulation workers can utilize 2D components without GPU drivers or windowing baggage.
-//!
 
 pub mod camera;
 pub mod components;

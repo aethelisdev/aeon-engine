@@ -5,6 +5,5 @@
 //!
 //! Re-exports the unified [`SpriteRenderer`] component defined in core engine reflection
 //! to ensure  reflection, undo/redo serialization, and cross-subsystem integration.
-//!
 
 pub use ae_core::ecs::SpriteRenderer;

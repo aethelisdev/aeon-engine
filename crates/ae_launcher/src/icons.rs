@@ -6,7 +6,6 @@
 //! Maps to the 64×64×16 hardware texture array (`editor_atlas.png`), avoiding emojis
 //! and rendering crisp GPU SDF vector quads.
 //! Formatted as `[min_u, min_v, max_u, layer_index]`.
-//!
 
 /// Pointer/Selection arrow icon for buttons and actions - Layer 0.
 pub const ICON_SELECT: [f32; 4] = [0.0, 0.0, 1.0, 0.0];

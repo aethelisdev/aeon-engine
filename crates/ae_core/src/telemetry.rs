@@ -5,7 +5,6 @@
 //!
 //! Provides zero-allocation ring buffers, frame pacing statistical analyzers,
 //! CPU thread synchronization metrics, GPU pass timings, and VRAM breakdowns.
-//!
 
 /// Fixed-capacity ring buffer for zero-allocation recording of per-frame metrics.
 ///

@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating logger entry filtering, search input
 //! live buffer synchronization with [`EventState`], and log clear actions.
-//!
 
 use super::panel::build_console_panel;
 use super::types::{

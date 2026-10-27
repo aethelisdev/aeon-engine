@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Core types, enums, and interaction records for the Aeon UI Designer (AUD).
-//!
 
 use serde::{Deserialize, Serialize};
 

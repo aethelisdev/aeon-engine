@@ -5,7 +5,6 @@
 //!
 //! Provides unified typing, caret navigation, clipboard operations (Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X),
 //! text selection, and focus management integration for interactive text inputs.
-//!
 
 use iris_core::event::FocusManager;
 use iris_widgets::controls::focus::{FocusState, FocusTarget};

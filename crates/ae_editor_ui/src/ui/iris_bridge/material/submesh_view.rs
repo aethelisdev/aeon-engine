@@ -5,7 +5,6 @@
 //!
 //! Declarative inspector for active 3D model geometry, submesh slot alpha blending,
 //! material parameters, and texture slot bindings using [`UiScope`].
-//!
 
 use super::types::{make_submesh_alpha_tag, make_submesh_texture_tag};
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_FOLDER, ICON_WORLD};

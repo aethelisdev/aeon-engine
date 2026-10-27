@@ -5,7 +5,6 @@
 //!
 //! Provides structural layout primitives on [`super::core::UiScope`]: generic containers, flex rows,
 //! flex columns, themed cards, and fluent builders.
-//!
 
 pub mod builder;
 pub mod cards;

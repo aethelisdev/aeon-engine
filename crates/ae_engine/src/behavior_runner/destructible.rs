@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Destructible targets, hit reactions, health tracking, and projectile lifecycle subsystem.
-//!
 
 use ae_core::ecs::{Color, DestructibleTarget, EphemeralProjectile, Scale};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent, TargetDestroyedEvent};

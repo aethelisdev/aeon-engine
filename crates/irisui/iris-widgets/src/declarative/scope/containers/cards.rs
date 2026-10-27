@@ -5,7 +5,6 @@
 //!
 //! Provides styled card grouping components on [`UiScope`]: titled property cards,
 //! custom header cards, and bordered inspector section containers.
-//!
 
 use super::super::core::UiScope;
 use super::generic::InnerResponse;

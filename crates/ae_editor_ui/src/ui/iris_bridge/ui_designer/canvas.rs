@@ -6,7 +6,6 @@
 //! Renders the letterboxed virtual canvas surface, background grid lines,
 //! and projected in-game UI element hierarchies using declarative [`UiScope`]
 //! absolute layout and 64-bit hardware semantic tags in proper local coordinates.
-//!
 
 use super::anchors::{AnchorGuideParams, build_anchor_pin_and_guide};
 use super::toolbar::UI_DESIGNER_TOOLBAR_HEIGHT;

@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! 3D Viewport Interaction System — Modular input, raycast selection, gizmo dragging, and camera operations.
-//!
 
 pub mod camera;
 pub mod gizmo_drag;

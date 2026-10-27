@@ -15,7 +15,6 @@
 //!   horizontal connector arm tips and node icons.
 //! - **Generic Identity State**: [`TreeState`] manages expansion and multi-selection
 //!   state for any type implementing [`Eq`] + [`Hash`] + [`Clone`].
-//!
 
 use iris_core::Color;
 use std::collections::HashSet;

@@ -5,7 +5,6 @@
 //!
 //! Tracks platform cursor position in logical points, maintains HighDPI scale factor,
 //! tracks active modifier keys, and orchestrates event translation for Iris UI.
-//!
 
 use crate::adapter::winit_to_ui_event;
 use crate::modifiers::ModifiersState;

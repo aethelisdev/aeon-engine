@@ -5,7 +5,6 @@
 //!
 //! Exposes 100% native Iris UI GPU SDF panel rendering for PBR texture inspection,
 //! submesh alpha blending modes, 2D sprite surface settings, and hardware texture array icons.
-//!
 
 pub mod builder;
 pub mod empty_state;

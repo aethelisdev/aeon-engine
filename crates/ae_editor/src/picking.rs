@@ -4,7 +4,6 @@
 //!
 //! This module provides utilities to handle mouse-to-world interaction,
 //! including ray generation from screen coordinates and intersection testing.
-//!
 
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, SquareMatrix, Vector3, Vector4};
 

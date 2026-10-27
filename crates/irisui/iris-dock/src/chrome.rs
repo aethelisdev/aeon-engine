@@ -9,7 +9,6 @@
 //! - Tab buttons with rounded top corners, active bottom accent lines, atlas/emoji icons, labels, and close buttons.
 //! - Tab overflow chevron buttons when tabs exceed available strip width.
 //! - Interactive partition splitter dividers between split panes.
-//!
 
 use crate::layout::compute_dock_layout;
 use crate::tab_viewer::TabViewer;

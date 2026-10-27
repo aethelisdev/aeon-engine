@@ -5,7 +5,6 @@
 //!
 //! Verifies two-way data-bound property primitives, hierarchical [`UiScope::with_id`]
 //! tag isolation, and `##` label un-iquing without heap allocations.
-//!
 
 use crate::declarative::types::{hash_label, split_label_id};
 use crate::declarative::{UiScope, hash_label_with_seed};

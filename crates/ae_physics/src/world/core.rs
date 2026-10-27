@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Core physics simulation world data structures, parameters, and lifecycle.
-//!
 
 use std::collections::HashMap;
 

@@ -7,7 +7,6 @@
 //! - [`SpriteBatcher`]: Manages dynamic vertex/instance buffers, sorting submissions, and batch splitting by texture.
 //! - [`Sprite2DPipeline`]: Compiles and manages the WGSL 2D instancing shader, depth-stencil blend states, and uniform layouts.
 //! - [`SpriteInstance`] & [`SpriteVertex`]: Memory-compact, GPU-aligned pod structs for zero-overhead quad submission.
-//!
 
 pub mod batcher;
 pub mod instance;

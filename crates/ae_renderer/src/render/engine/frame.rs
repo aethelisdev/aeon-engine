@@ -5,7 +5,6 @@
 //!
 //! Coordinates the frame rendering lifecycle: viewport resizing, shadow cascades,
 //! main forward geometry passes, post-processing bloom, selection outlines, and Iris UI.
-//!
 
 pub mod forward;
 pub mod outline;

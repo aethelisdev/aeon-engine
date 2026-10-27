@@ -9,7 +9,6 @@
 //!
 //! Eliminates separate overlay trees and coordinate mapping wrappers in full compliance
 //! with Phase 5.1.5 of the unified retained UI tree architecture.
-//!
 
 use super::about::build_about_dialog;
 use super::hierarchy;

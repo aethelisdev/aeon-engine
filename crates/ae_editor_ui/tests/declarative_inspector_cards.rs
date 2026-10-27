@@ -5,7 +5,6 @@
 //!
 //! Verifies the declarative `UiScope` widget creation, container nesting, and semantic tags
 //! for physics, character, gameplay, and audio components without legacy targets buffers.
-//!
 
 use ae_editor_ui::ui::iris_bridge::inspector::components::audio::{
     AudioListenerHandler, AudioSourceHandler,

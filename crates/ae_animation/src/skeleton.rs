@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Skeletal hierarchy and joint transform structures for Aeon Engine.
-//!
 
 use glam::Mat4;
 use serde::{Deserialize, Serialize};

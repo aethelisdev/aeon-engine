@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Rendering Engine Module — Manages WGPU device state, render passes, pipelines, materials, and post-processing.
-//!
 
 pub mod engine;
 pub mod pipelines;

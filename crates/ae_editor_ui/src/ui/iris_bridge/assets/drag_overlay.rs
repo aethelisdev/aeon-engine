@@ -7,11 +7,10 @@
 //! across the editor, including:
 //! 1. 3D ground raycast landing indicator ring with inner dot on the viewport canvas.
 //! 2. Floating cursor tooltip capsule displaying the category badge and asset name.
-//!
 
 use crate::assets::types::AssetDragPayload;
 use ae_renderer::camera::Camera;
-use irisui::prelude::{AlignItems, Color, Insets, Point, Rect, Style, UiScope, UiTree, WidgetId};
+use irisui::prelude::{Color, Point, Rect, UiScope, UiTree, WidgetId, WorkbenchUiScopeExt};
 
 /// Constructs topmost floating overlays for an active asset drag operation into the `UiTree`.
 pub fn build_asset_drag_overlays(
@@ -58,26 +57,14 @@ pub fn build_asset_drag_overlays_scope(
     }
 
     // 2. Floating Cursor Drag Tooltip Capsule
-    scope.container_measured(
-        "AssetDragCapsule",
-        Style::new()
-            .position_absolute()
-            .left(cursor_pos.x + 14.0)
-            .top(cursor_pos.y + 14.0)
-            .flex_row()
-            .align_items(AlignItems::Center)
-            .padding_insets(Insets::new(4.0, 8.0, 4.0, 8.0))
-            .gap(6.0)
-            .background(Color::from_u8(18, 22, 32, 230))
-            .border(1.0, Color::from_u8(0, 229, 255, 220))
-            .border_radius(6.0),
-        Point::new(cursor_pos.x + 14.0, cursor_pos.y + 14.0),
-        24.0,
-        |capsule| {
-            capsule.colored_label(payload.category.badge_color(), payload.category.badge());
-            capsule.label(&payload.name);
-        },
-    );
+    let mut controller = irisui::workbench::DragDropController::new();
+    let drag_payload =
+        irisui::workbench::TypedDragDropPayload::new((), payload.name.clone(), "Assets")
+            .with_badge(payload.category.badge(), payload.category.badge_color())
+            .into_erased();
+    controller.start_drag(drag_payload, cursor_pos);
+
+    scope.drag_drop_preview(&controller, cursor_pos, None);
 }
 
 /// Computes the 2D screen coordinate center for the viewport landing drop target.

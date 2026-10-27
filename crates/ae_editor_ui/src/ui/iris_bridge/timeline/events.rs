@@ -5,7 +5,6 @@
 //!
 //! Evaluates playback button activations, playhead dragging,
 //! and timeline scrubbing timestamp projections via semantic tags.
-//!
 
 use super::types::{MediaTransportAction, TimelineAction, evaluate_timeline_transport_tag};
 

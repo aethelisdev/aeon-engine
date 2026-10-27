@@ -5,7 +5,6 @@
 //!
 //! Provides text input rendering, caret positioning, visible text slicing, and selection highlight
 //! primitives on [`crate::declarative::UiScope`] for search inputs, text fields, and inspector inline string editing.
-//!
 
 pub mod interaction;
 pub mod rendering;

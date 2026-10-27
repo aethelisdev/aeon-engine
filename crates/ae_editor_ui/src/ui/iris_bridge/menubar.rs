@@ -6,7 +6,6 @@
 //! Provides the primary desktop application header menu bar (File, Edit, View,
 //! Window, Help) and elevated floating dropdown popup cascades using 100% pure
 //! declarative [`UiScope::menu_bar`].
-//!
 
 use crate::ui::EngineUiAction;
 use crate::ui::iris_bridge::types::DropdownAction;

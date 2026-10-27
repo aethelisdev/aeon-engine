@@ -6,7 +6,6 @@
 //! Computes precise geometric hit targets for tab headers, close buttons,
 //! overflow chevrons, and splitter dividers directly from the docking layout
 //! without requiring retained UI widget tree allocations.
-//!
 
 use crate::chrome::{
     DockChevronTarget, DockChromeFrame, DockCloseTarget, DockSplitterTarget, DockTabTarget,

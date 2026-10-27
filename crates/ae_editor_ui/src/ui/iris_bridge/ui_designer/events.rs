@@ -5,7 +5,6 @@
 //!
 //! Evaluates mouse clicks, canvas dragging, viewport panning, and zoom scrolling
 //! purely via 64-bit hardware semantic tags and [`UiDesignerCanvasMetrics`].
-//!
 
 use super::popups::{ASPECT_RATIO_PRESETS, UI_ELEMENT_TYPES};
 use super::types::{

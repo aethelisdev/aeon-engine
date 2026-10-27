@@ -6,7 +6,6 @@
 //! Renders hardware-accelerated GPU SDF modal cards for file system operations
 //! including permanent delete confirmations, new folder creation, and file renaming
 //! purely via declarative [`UiScope`].
-//!
 
 use irisui::prelude::*;
 use std::path::Path;

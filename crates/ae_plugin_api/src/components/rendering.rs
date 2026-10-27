@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Visual rendering, colors, shapes, bounding volumes, and lighting ECS components.
-//!
 
 use serde::{Deserialize, Serialize};
 

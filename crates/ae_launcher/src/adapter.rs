@@ -5,7 +5,6 @@
 //!
 //! Provides automated traversal across Vulkan Discrete GPU, Vulkan Integrated GPU, OpenGL, and software
 //! rasterizers to guarantee launcher execution across varied Linux/Unix GPU driver configurations without panicking.
-//!
 
 use std::fmt::Write;
 

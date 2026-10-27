@@ -6,7 +6,6 @@
 //! Renders specification cards, texture diagnostics, WGSL shader inspectors,
 //! scene hierarchy summaries, and audio playback previews within the Quick Asset Inspector
 //! using pure declarative [`UiScope`].
-//!
 
 use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
 use irisui::prelude::*;

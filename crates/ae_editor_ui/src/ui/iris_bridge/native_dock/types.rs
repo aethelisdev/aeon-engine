@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Types, geometric targets, parameters, and constants for native Iris docking chrome.
-//!
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState};
 use irisui::dock::DockNodeId;

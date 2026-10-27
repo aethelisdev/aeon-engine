@@ -6,7 +6,6 @@
 //! Integration tests verifying declarative UiScope rendering, hierarchy construction,
 //! and target registrations for `LightHandler`, `ModelMeshHandler`, `LodGroupHandler`,
 //! and `ParentHandler`.
-//!
 
 use ae_editor_ui::ui::iris_bridge::inspector::components::hierarchy::ParentHandler;
 use ae_editor_ui::ui::iris_bridge::inspector::components::lod::LodGroupHandler;

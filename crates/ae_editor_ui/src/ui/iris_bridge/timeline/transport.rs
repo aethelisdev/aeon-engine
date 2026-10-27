@@ -5,7 +5,6 @@
 //!
 //! Connects engine animation playback state (Play/Pause, Stop, Step, Loop, Speed, Clip Name)
 //! to pure declarative [`UiScope`] timeline primitives in Iris UI.
-//!
 
 use super::types::{
     MediaTransportStyle, TIMELINE_TAG_LOOP, TIMELINE_TAG_PLAY_PAUSE, TIMELINE_TAG_SPEED_BASE,

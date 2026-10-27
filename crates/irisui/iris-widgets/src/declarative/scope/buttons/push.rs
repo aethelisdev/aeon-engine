@@ -4,7 +4,6 @@
 //! # Declarative Standard Push Buttons
 //!
 //! Provides interactive standard push buttons and compact button variants on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

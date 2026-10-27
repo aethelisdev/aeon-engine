@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Gameplay mechanics, combat actors, interactive triggers, and entity tags.
-//!
 
 use serde::{Deserialize, Serialize};
 

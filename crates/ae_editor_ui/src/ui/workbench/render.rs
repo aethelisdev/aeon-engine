@@ -5,7 +5,6 @@
 //!
 //! Coordinates frame rendering across the native Iris UI GPU SDF dock host,
 //! overlays, and action dispatchers for settings, hierarchy, and inspector mutations.
-//!
 
 pub mod draw;
 pub mod inspector_actions;

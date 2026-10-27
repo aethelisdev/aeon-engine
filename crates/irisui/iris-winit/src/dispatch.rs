@@ -8,7 +8,6 @@
 //!
 //! Coordinates HighDPI scale normalization, cursor position tracking, keyboard modifier
 //! updates, and hierarchical interaction bubbling with zero manual host orchestration.
-//!
 
 use crate::state::WinitState;
 use iris_core::dispatch::DispatchResult;

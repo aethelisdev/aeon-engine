@@ -5,7 +5,6 @@
 //!
 //! Provides interactive orientation compass knobs and negative axis dots for 3D viewport
 //! navigation gizmos via declarative [`UiScope`] methods.
-//!
 
 use super::core::UiScope;
 use crate::declarative::types::WidgetResponse;

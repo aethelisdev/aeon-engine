@@ -4,7 +4,6 @@
 //! # Editor Workbench Subsystem
 //!
 //! Orchestrates the editor lifecycle, window events, persistent UI state, and WGPU rendering.
-//!
 
 pub mod events;
 pub mod render;

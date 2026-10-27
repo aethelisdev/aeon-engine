@@ -10,7 +10,6 @@
 //! - Pivot X and Y (center point alignment)
 //! - Z-Index (layer ordering) and Alpha (opacity multiplier)
 //! - Visibility toggle checkbox
-//!
 
 use super::components::physics::helpers::{
     ComponentHeaderProps, DeclarativeComboboxRowParams, build_declarative_card_header,

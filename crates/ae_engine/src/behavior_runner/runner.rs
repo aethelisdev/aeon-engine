@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Behavior execution loop orchestrating physics impacts, triggers, combat, and native behaviors.
-//!
 
 use ae_core::ecs::Position;
 use ae_core::events::DynamicEventBus;

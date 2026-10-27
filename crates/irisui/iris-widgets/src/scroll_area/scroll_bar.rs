@@ -5,7 +5,6 @@
 //!
 //! Computes scrollbar track and thumb bounding boxes, proportional thumb sizes,
 //! and delta projections for mouse dragging and track clicking.
-//!
 
 use super::style::ScrollAreaStyle;
 use iris_core::geometry::Rect;

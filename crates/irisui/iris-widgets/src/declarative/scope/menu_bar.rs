@@ -5,7 +5,6 @@
 //!
 //! Provides top-level application menu bars, cascading dropdown popup menus,
 //! and strongly typed action routing without leaking internal widget identifiers.
-//!
 
 use super::core::UiScope;
 use crate::declarative::types::hash_label_with_seed;

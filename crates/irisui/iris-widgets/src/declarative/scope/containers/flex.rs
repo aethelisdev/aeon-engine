@@ -5,7 +5,6 @@
 //!
 //! Provides idiomatic row and column grouping primitives on [`UiScope`]: standard flex rows,
 //! parameterized spaced rows, flex columns, spaced columns, space-between headers, and centered boxes.
-//!
 
 use super::super::core::UiScope;
 use super::generic::InnerResponse;

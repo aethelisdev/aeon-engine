@@ -7,7 +7,6 @@
 //! - Complete 360-degree closed torus ring for the active handle during interactive rotation drag.
 //! - Camera-aligned outer screen rotation ring for view-plane angular manipulation.
 //! - Persistent visibility across all view angles including edge-on 90-degree alignment.
-//!
 
 use cgmath::{InnerSpace, Rotation as _, Vector3};
 

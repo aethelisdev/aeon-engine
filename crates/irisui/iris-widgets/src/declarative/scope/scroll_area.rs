@@ -5,7 +5,6 @@
 //!
 //! Exposes fluent declarative [`UiScope`] methods for embedding hardware-clipped
 //! scrollable containers and $O(1)$ virtualized lists into the retainable UI tree.
-//!
 
 use super::core::UiScope;
 use crate::scroll_area::area::{ScrollAreaBuilder, ScrollAreaFrame};

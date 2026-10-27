@@ -5,7 +5,6 @@
 //!
 //! Provides the configurable [`Checkbox`] builder struct implementing [`Widget`].
 //! Replaces legacy `checkbox_tagged` and `checkbox_val_tagged` with a unified builder.
-//!
 
 use super::Widget;
 use crate::declarative::scope::core::UiScope;

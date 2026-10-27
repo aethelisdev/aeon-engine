@@ -11,7 +11,6 @@
 //!   using POD geometries and stack closures.
 //! - **Mathematical Alignment**: Child items, chevron buttons, and branch arms are aligned
 //!   without visual overlap or manual coordinate math in host panels.
-//!
 
 use super::core::UiScope;
 use crate::scroll_area::types::VirtualScrollConfig;

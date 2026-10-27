@@ -10,7 +10,6 @@
 //! All positioning is 100% declarative via Taffy absolute layout ([`Style::position_absolute`]).
 //! Crosshair reticle rendering is delegated directly to hardware SDF command lists without dummy layout nodes.
 //! Button interactions are 100% semantic tag-driven ([`TAG_PLAY_RESUME`], [`TAG_PLAY_EXIT`]).
-//!
 
 use super::types::{
     TAG_PLAY_CROSSHAIR, TAG_PLAY_EXIT, TAG_PLAY_GUIDE_BADGE, TAG_PLAY_RESUME, ViewportHudParams,

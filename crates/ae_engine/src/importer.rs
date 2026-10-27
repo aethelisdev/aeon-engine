@@ -5,7 +5,6 @@
 //!
 //! Provides a decoupled `AssetLoader` and `AssetLoaderRegistry` architecture
 //! for drag-and-drop file ingestion, background async parsing, and entity spawning.
-//!
 
 use crate::engine::AeEngine;
 use irisui::prelude::Color;

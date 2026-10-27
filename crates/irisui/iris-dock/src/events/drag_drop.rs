@@ -6,7 +6,6 @@
 //! Manages tab tear-off lifecycle, mouse motion threshold detection, 5-way compass
 //! drop zone calculations, preview highlights, tab reordering, and drop commits
 //! into docked split leaves or detached floating windows.
-//!
 
 use crate::drag_drop::{DropZone, calculate_drop_preview_rect, calculate_screen_drop_zone};
 use crate::layout::ComputedDockLayout;

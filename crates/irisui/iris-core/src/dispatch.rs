@@ -8,7 +8,6 @@
 //! Evaluates incoming [`crate::event::UiEvent`] windowing inputs against the active [`crate::tree::UiTree`] arena,
 //! coordinating z-order layer priority ([`crate::node::UiLayer`]), GPU scissor clipping boundaries,
 //! pointer capture for uninterrupted drags, keyboard focus routing, and autonomous scrollbar/wheel bubbling.
-//!
 
 pub mod engine;
 pub mod types;

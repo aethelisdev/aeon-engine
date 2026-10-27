@@ -5,7 +5,6 @@
 //!
 //! Provides color schemes, dimensional thickness, insets, and corner radii for
 //! scroll containers and scrollbar indicators in Iris UI.
-//!
 
 use iris_core::color::Color;
 

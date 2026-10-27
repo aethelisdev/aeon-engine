@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating hierarchy entity tree rendering, live search input
 //! buffer synchronization with [`EventState`], caret blinking, and action handling.
-//!
 
 use super::panel::build_hierarchy_panel;
 use super::types::{HIERARCHY_TAG_SEARCH_CLEAR, HIERARCHY_TAG_SEARCH_INPUT, HierarchyPanelParams};

@@ -6,7 +6,6 @@
 //! Bridges Aeon Engine panel layout state with the native Iris UI floating window subsystem,
 //! tracking active floating window rectangles to support hardware occlusion culling,
 //! and resolving whether specific panels reside in docked leaves or independent floating surfaces.
-//!
 
 use crate::ui::panel_layout::{PanelId, PanelLayoutState, PanelTabViewer};
 use irisui::dock::{

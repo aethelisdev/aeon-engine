@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Self-contained debug wireframe renderer and overlay implementation.
-//!
 
 use super::shapes::DebugShapes;
 use super::vertex::DebugLineVertex;

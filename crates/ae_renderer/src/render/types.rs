@@ -4,7 +4,6 @@
 //! # Core Render Data Types & Subsystems
 //!
 //! Re-exports vertex layouts, GPU uniforms, textures, 3D models, scene extraction, and viewport metrics.
-//!
 
 pub mod assets;
 pub mod scene;

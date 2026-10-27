@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Built-in component inspector registration logic.
-//!
 
 use super::super::registry::InspectorRegistry;
 use super::animation;

@@ -6,7 +6,6 @@
 //! Provides the [`Widget`] trait and idiomatic builder structs ([`Button`], [`ToolbarButton`],
 //! [`Checkbox`], [`EmptyBox`], [`ScrollArea`], [`Toolbar`]) to eliminate combinatorial method explosion
 //! (`*_tagged`, `*_named_*`, `*_styled_*`) in favor of a unified `scope.add(widget)` pattern.
-//!
 
 pub mod button;
 pub mod checkbox;

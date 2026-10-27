@@ -4,7 +4,6 @@
 //! # Toolbar Scope
 //!
 //! Provides the specialized [`ToolbarScope`] builder context for assembling toolbar items.
-//!
 
 use super::group::ToolbarGroup;
 use super::group_scope::ToolbarGroupScope;

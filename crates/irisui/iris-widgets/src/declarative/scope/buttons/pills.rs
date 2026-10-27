@@ -4,7 +4,6 @@
 //! # Declarative Toggle Pills & Filter Pills
 //!
 //! Provides mode selection pills, segmented toggle tabs, and severity filter pills on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

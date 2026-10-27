@@ -9,7 +9,6 @@
 //!
 //! Zero disk I/O during rendering hot loops: folder hierarchy is referenced directly
 //! from engine pre-cached state. Zero per-frame heap allocations.
-//!
 
 use super::components::{FolderTreeItemParams, asset_folder_tree_item};
 use super::types::{

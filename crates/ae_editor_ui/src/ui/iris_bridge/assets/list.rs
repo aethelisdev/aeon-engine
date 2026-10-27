@@ -9,7 +9,6 @@
 //!
 //! Zero per-frame heap allocations: table rows are rendered directly without
 //! copying metadata into parallel target collections.
-//!
 
 use super::components::{ASSET_LIST_ROW_HEIGHT, asset_list_row};
 use super::types::{ASSETS_TAG_CONTENT_VIEWPORT, AssetsPanelAction, AssetsPanelParams};

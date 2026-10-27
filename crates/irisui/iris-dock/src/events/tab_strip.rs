@@ -5,7 +5,6 @@
 //!
 //! Manages tab selection, tab close button actions, middle-click tab closure,
 //! and tab overflow dropdown popup menu interactions.
-//!
 
 use crate::chrome::{DockChevronTarget, DockCloseTarget, DockTabTarget};
 use crate::overflow::DockOverflowItemTarget;

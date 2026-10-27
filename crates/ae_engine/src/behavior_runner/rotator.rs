@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Rotator subsystem for angular rotation of spinning objects.
-//!
 
 use ae_core::ecs::{Rotation, Rotator};
 use ae_physics::world::PhysicsWorld;

@@ -5,7 +5,6 @@
 //!
 //! Provides bidirectional mapping between Iris UI hardware-agnostic [`WidgetCursor`]
 //! values and native platform [`winit::window::CursorIcon`] primitives.
-//!
 
 use iris_core::node::WidgetCursor;
 use winit::window::CursorIcon;

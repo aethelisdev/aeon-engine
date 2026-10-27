@@ -5,7 +5,6 @@
 //!
 //! Provides the configurable [`ToolbarButton`] builder struct implementing [`Widget`].
 //! Replaces legacy `toolbar_button_tagged` with a unified builder.
-//!
 
 use super::Widget;
 use crate::declarative::scope::core::UiScope;

@@ -6,7 +6,6 @@
 //! Iterates through entities with attached `NativeBehavior` components, executing
 //! their standard lifecycle hooks (`on_start`, `on_update`, `on_fixed_update`, `on_destroy`)
 //! with zero `unsafe` blocks and complete borrow safety.
-//!
 
 use ae_core::behavior::{BehaviorContext, NativeBehavior};
 use ae_core::commands::EntityCommandBuffer;

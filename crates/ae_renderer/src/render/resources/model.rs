@@ -5,7 +5,6 @@
 //!
 //! Handles glTF/GLB import, scene graph traversal, skeletal armatures,
 //! animations, and GPU buffer uploads.
-//!
 
 pub mod animation;
 pub mod geometry;

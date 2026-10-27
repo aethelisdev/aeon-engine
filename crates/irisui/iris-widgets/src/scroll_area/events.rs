@@ -5,7 +5,6 @@
 //!
 //! Autonomous event handling for scrollbar thumb dragging, track click-to-jump,
 //! pointer capture lifecycles, and mouse cursor feedback.
-//!
 
 use super::area::ScrollAreaFrame;
 use super::scroll_bar::ScrollBarGeometry;

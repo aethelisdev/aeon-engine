@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Moving platform and elevator subsystem with waypoint ping-pong interpolation.
-//!
 
 use ae_core::ecs::{MovingPlatform, Position};
 use hecs::{Entity, World};

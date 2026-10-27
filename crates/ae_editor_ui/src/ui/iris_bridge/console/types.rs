@@ -5,7 +5,6 @@
 //!
 //! Type definitions, filtering modes, parameters, semantic tags, and hit-testing
 //! resolvers for the hardware-accelerated Developer Console panel.
-//!
 
 use crate::ui::types::ConsoleEntry;
 use irisui::prelude::{Point, Rect, UiTree, WidgetRole};

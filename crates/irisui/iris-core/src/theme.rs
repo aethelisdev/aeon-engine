@@ -5,7 +5,6 @@
 //!
 //! Provides a centralized, strongly-typed semantic theme token system ([`Theme`])
 //! eliminating scattered hardcoded color literals across UI widgets and editor panels.
-//!
 
 use crate::color::Color;
 

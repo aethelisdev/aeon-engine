@@ -5,7 +5,6 @@
 //!
 //! Orchestrates the 100% Iris UI GPU-accelerated Scene Hierarchy tree,
 //! search bar filtering, cascading `➕` entity spawning menus, and right-click context actions.
-//!
 
 pub mod add_menu;
 pub mod builder;

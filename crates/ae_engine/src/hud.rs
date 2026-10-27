@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Modular In-Game HUD, Health Bar, Score, and Pause Menu Systems.
-//!
 
 pub mod in_game_hud;
 pub mod pause_menu;

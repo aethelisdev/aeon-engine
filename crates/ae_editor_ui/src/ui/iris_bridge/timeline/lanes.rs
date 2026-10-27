@@ -6,7 +6,6 @@
 //! Renders animation channel rows, property badges (Translation, Rotation, Scale),
 //! keyframe diamond indicators, and playhead guide needles across individual tracks
 //! using 100% pure declarative [`UiScope`] layout.
-//!
 
 use super::types::{TIMELINE_SIDEBAR_WIDTH, TimelinePanelParams, TimelineRulerStyle};
 use ae_animation::clip::TargetProperty;

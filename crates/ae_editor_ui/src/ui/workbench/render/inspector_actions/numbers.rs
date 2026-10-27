@@ -4,7 +4,6 @@
 //! # Inspector Number Input Value Handlers
 //!
 //! Subsystem coordinator and re-exports for reading and mutating numeric ECS component properties.
-//!
 
 pub mod getter;
 pub mod setter;

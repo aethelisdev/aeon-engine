@@ -15,7 +15,6 @@
 //!   steps into the first child node.
 //! - **Zero-Jitter Viewport Clamping**: [`compute_tree_scroll_to_view`] ensures focused
 //!   items are kept in view without unnecessary scroll oscillations.
-//!
 
 use super::model::TreeState;
 use iris_core::event::{KeyCode, UiEvent};

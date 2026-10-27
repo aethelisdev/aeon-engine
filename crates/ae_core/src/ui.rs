@@ -7,7 +7,6 @@
 //! framework. Game logic interacts solely with
 //! ECS components (`UiElement`, `UiPanel`, `UiText`, `UiProgressBar`, `UiButton`, `UiImage`, `UiSlider`, `UiCheckbox`), while the
 //! `UiLayoutResolver` generates hardware-agnostic `UiDrawCommand` batches.
-//!
 
 pub use ae_plugin_api::{
     PlayerHealthBarTag, ReticleTag, ScoreDisplayTag, UiAnchor, UiButton, UiCheckbox, UiElement,

@@ -6,7 +6,6 @@
 //! Provides the 100% GPU SDF hardware-accelerated Animation Timeline Studio panel
 //! for Aeon Engine, utilizing decoupled Retained UI trees, responsive transport controls,
 //! adaptive time rulers, and interactive scrubbing.
-//!
 
 pub mod builder;
 pub mod events;

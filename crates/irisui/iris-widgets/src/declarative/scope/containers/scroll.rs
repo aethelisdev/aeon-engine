@@ -5,7 +5,6 @@
 //!
 //! Provides in-place scroll offset mutation and layout synchronization on active [`UiScope`]
 //! trees without triggering destructive container rebuilds.
-//!
 
 use super::super::core::UiScope;
 

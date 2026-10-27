@@ -40,6 +40,9 @@ pub struct LifecycleInputs {
 
     /// Whether volatile HUDs, 3D compasses, or high-frequency telemetry graphs have pending frame updates.
     pub has_volatile_updates: bool,
+
+    /// Whether any drag-and-drop operation is currently active in the workbench.
+    pub is_drag_active: bool,
 }
 
 impl LifecycleInputs {
@@ -64,6 +67,7 @@ impl LifecycleInputs {
             is_modal_active: false,
             is_dock_interacting: false,
             has_volatile_updates: false,
+            is_drag_active: false,
         }
     }
 
@@ -104,6 +108,14 @@ impl LifecycleInputs {
     #[must_use]
     pub const fn with_volatile_updates(mut self, updates: bool) -> Self {
         self.has_volatile_updates = updates;
+        self
+    }
+
+    /// Sets whether any drag-and-drop operation is actively in flight across the workbench.
+    #[inline]
+    #[must_use]
+    pub const fn with_drag_active(mut self, active: bool) -> Self {
+        self.is_drag_active = active;
         self
     }
 }

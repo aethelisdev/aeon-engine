@@ -6,7 +6,6 @@
 //! Parses startup parameters passed by the `ae_launcher` or developers via CLI:
 //! - `--project <PATH>`: Project directory containing `aeon_project.json`.
 //! - `--mode <2D|3D>`: Active engine dimension mode enforcing RAM isolation.
-//!
 
 use std::path::PathBuf;
 

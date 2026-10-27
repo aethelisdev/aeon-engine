@@ -5,7 +5,6 @@
 //!
 //! Subsystem providing autonomous pointer capture, numeric scrubbers, and focus management
 //! for rich interactive controls.
-//!
 
 pub mod focus;
 pub mod numeric_drag;

@@ -5,7 +5,6 @@
 //!
 //! Provides a flexible, pushdown automaton state architecture for managing game modes,
 //! menus, in-game simulation, pause overlays, and level transitions in 100% Safe Rust.
-//!
 
 use crate::commands::EntityCommandBuffer;
 use ae_plugin_api::DynamicEventBus;

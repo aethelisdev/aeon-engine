@@ -5,7 +5,6 @@
 //!
 //! Bridges gameplay events (`DamageEvent`, `HealEvent`, `ScoreEvent`) to user-defined
 //! ECS UI entities tagged with `PlayerHealthBarTag` and `ScoreDisplayTag`.
-//!
 
 use ae_core::ecs::{PlayerHealthBarTag, ScoreDisplayTag, UiProgressBar, UiText};
 use ae_core::events::DynamicEventBus;

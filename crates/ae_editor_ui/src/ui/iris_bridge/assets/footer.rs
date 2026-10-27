@@ -7,7 +7,6 @@
 //! - Interactive sidebar toggle button ("◀" / "▶") with semantic tag `ASSETS_TAG_TOGGLE_SIDEBAR`
 //! - Current active folder path indicator paired with the canonical vector folder icon (`ICON_FOLDER`)
 //! - Real-time zero-allocation asset telemetry (items in scope, total count, VRAM loaded count, aggregate disk size)
-//!
 
 use super::panel::ASSETS_FOOTER_HEIGHT;
 use super::types::{ASSETS_TAG_TOGGLE_SIDEBAR, AssetsPanelAction, AssetsPanelParams};

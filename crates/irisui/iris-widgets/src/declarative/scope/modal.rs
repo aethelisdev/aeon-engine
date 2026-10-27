@@ -6,7 +6,6 @@
 //! Provides hardware-accelerated GPU SDF modal primitives on [`UiScope`]: full-screen
 //! backdrop scrim blockers, elevated floating dialog cards, modern `✕` close buttons,
 //! primary confirm buttons, and secondary cancel buttons.
-//!
 
 use super::containers::InnerResponse;
 use super::core::UiScope;

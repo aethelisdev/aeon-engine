@@ -6,7 +6,6 @@
 //! Provides the fluent [`ColorSwatch`] widget implementing [`Widget`].
 //! Renders interactive color preview swatches with autonomous hover highlights,
 //! active border states, and immediate [`WidgetResponse`] interaction tracking.
-//!
 
 use super::Widget;
 use crate::declarative::scope::core::UiScope;

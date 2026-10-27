@@ -4,7 +4,6 @@
 //! # Declarative Toolbar Buttons & Mode Selectors
 //!
 //! Provides specialized toolbar strip buttons, square tool icons, and mode dropdowns on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

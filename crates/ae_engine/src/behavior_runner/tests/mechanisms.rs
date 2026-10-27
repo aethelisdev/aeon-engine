@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Unit tests for rotating actors, moving platforms, and trigger mechanisms.
-//!
 
 use crate::behavior_runner::{BehaviorRunnerParams, update_gameplay_behaviors};
 use ae_core::ecs::{Color, MovingPlatform, Position, Rotation, Rotator, Scale, TriggerZone};

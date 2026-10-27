@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Selection Outline Render Pipeline and GPU Resource Manager.
-//!
 
 use wgpu::util::DeviceExt;
 

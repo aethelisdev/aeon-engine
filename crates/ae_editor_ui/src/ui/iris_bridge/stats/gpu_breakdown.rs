@@ -5,7 +5,6 @@
 //!
 //! Renders the GPU multi-segmented pass execution bar, hardware adapter name,
 //! and pass durations purely using [`UiScope`].
-//!
 
 use super::cpu_breakdown::{build_multi_segment_bar, build_timing_row};
 use super::types::StatsPanelParams;

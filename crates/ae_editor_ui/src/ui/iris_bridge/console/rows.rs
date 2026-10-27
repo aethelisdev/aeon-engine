@@ -5,7 +5,6 @@
 //!
 //! Efficiently renders the visible slice of log entries within the scrollable
 //! console viewport using high-performance Iris UI retained-mode widget nodes.
-//!
 
 use super::types::{
     CONSOLE_TAG_ROW, CONSOLE_TAG_SCROLLBAR_THUMB, CONSOLE_TAG_SCROLLBAR_TRACK,

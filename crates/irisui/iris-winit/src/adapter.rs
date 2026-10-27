@@ -5,7 +5,6 @@
 //!
 //! Provides stateless translation from platform window events ([`winit::event::WindowEvent`])
 //! into hardware-independent [`iris_core::event::UiEvent`] primitives.
-//!
 
 use iris_core::event::{
     ImeEvent as IrisImeEvent, KeyCode as IrisKeyCode, MouseButton as IrisMouseButton, UiEvent,

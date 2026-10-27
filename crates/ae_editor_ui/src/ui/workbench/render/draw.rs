@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Frame rendering execution for the editor workbench.
-//!
 
 use super::iris_pass::IrisPassParams;
 use super::overlay_actions::PreferencesActionContext;

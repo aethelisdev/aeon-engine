@@ -6,7 +6,6 @@
 //! Provides modular, reusable, 100% declarative UI widgets for the Content / Asset Browser panel
 //! using [`UiScope`], including interactive breadcrumb bars, folder tree items, responsive
 //! grid asset cards, and tabular list rows.
-//!
 
 use super::types::{
     AssetsPanelAction, encode_breadcrumb_tag, encode_item_inspect_tag, encode_item_spawn_tag,
@@ -393,7 +392,12 @@ pub fn asset_grid_card(
                 );
             },
         )
-        .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
+        .on_drag(|| {
+            let payload = TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
+                .with_badge(item.category.badge(), item.category.badge_color())
+                .into_erased();
+            actions.push(AssetsPanelAction::StartAssetDrag(payload));
+        })
         .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag))
         .on_double_click(|| {
             actions.push(AssetsPanelAction::SpawnAsset(
@@ -531,7 +535,12 @@ pub fn asset_list_row(
                 });
             },
         )
-        .on_drag(|| actions.push(AssetsPanelAction::StartAssetDrag(item.clone())))
+        .on_drag(|| {
+            let payload = TypedDragDropPayload::new(item.clone(), item.name.clone(), "Assets")
+                .with_badge(item.category.badge(), item.category.badge_color())
+                .into_erased();
+            actions.push(AssetsPanelAction::StartAssetDrag(payload));
+        })
         .on_drag_release(|| actions.push(AssetsPanelAction::EndAssetDrag));
 
     if (resp.clicked() || resp.secondary_clicked() || (resp.pressed() && !resp.dragged()))

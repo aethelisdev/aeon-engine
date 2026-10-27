@@ -10,7 +10,6 @@
 //!
 //! All primitives support the `##` label/tag separator and hierarchical [`UiScope::with_id`]
 //! seed isolation without per-frame heap allocations.
-//!
 
 pub mod rows;
 pub mod sliders;

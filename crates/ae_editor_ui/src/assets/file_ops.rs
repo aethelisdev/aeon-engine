@@ -5,7 +5,6 @@
 //!
 //! Provides directory creation, asset renaming, secure deletion, and path migration
 //! with cross-platform desktop integration and error isolation.
-//!
 
 use std::path::{Path, PathBuf};
 

@@ -4,16 +4,16 @@
 //! # Declarative Workbench UI Extensions
 //!
 //! Provides high-level declarative extension methods on [`UiScope`] for embedding
-//! 3D viewport surfaces, aspect-ratio-fitted external GPU textures, and volatile
-//! immediate hardware overlays with zero boilerplate.
-//!
+//! 3D viewport surfaces, aspect-ratio-fitted external GPU textures, volatile
+//! immediate hardware overlays, and floating drag-and-drop preview capsules with zero boilerplate.
 
 use iris_core::Color;
-use iris_core::geometry::Rect;
+use iris_core::geometry::{Point, Rect};
 use iris_core::style::{AlignItems, JustifyContent, Style, TextAlign};
 use iris_widgets::canvas::ImmediateCanvas;
 use iris_widgets::declarative::UiScope;
 
+use super::drag_drop::{DragDropController, DragDropPayload, DragDropPreviewStyle};
 use super::overlay::CustomOverlayHook;
 use super::texture::ExternalTextureHook;
 
@@ -21,8 +21,8 @@ use super::texture::ExternalTextureHook;
 ///
 /// Designed to eliminate boilerplate glue code on the application and engine side.
 /// Instead of manually defining custom hook structs, managing absolute container styles,
-/// and wiring low-level texture IDs, consumers call [`Self::viewport_surface`] and
-/// [`Self::volatile_overlay`] declaratively.
+/// and wiring low-level texture IDs, consumers call [`Self::viewport_surface`],
+/// [`Self::volatile_overlay`], and [`Self::drag_drop_preview`] declaratively.
 pub trait WorkbenchUiScopeExt {
     /// Declaratively renders a hardware-accelerated viewport surface with optional aspect ratio
     /// fitting, fallback placeholder messaging, and a nested content scope for overlays.
@@ -66,6 +66,39 @@ pub trait WorkbenchUiScopeExt {
     fn volatile_overlay_hook<H>(&mut self, name: &'static str, tag: u64, rect: Rect, hook: H)
     where
         H: CustomOverlayHook;
+
+    /// Declaratively renders the active floating drag-and-drop preview capsule at the specified cursor position.
+    ///
+    /// If `controller.is_dragging()` is true, renders an elevated floating container next to `cursor_pos`
+    /// displaying the category badge (if present) and the preview label text.
+    ///
+    /// # Arguments
+    /// * `controller` - Drag-and-drop state controller.
+    /// * `cursor_pos` - Current cursor location in window coordinates.
+    /// * `style` - Optional visual styling overrides; uses default studio theme if `None`.
+    fn drag_drop_preview(
+        &mut self,
+        controller: &DragDropController,
+        cursor_pos: Point,
+        style: Option<&DragDropPreviewStyle>,
+    );
+
+    /// Declaratively renders a customized floating drag-and-drop preview at the cursor position.
+    ///
+    /// Executes the `custom_draw` closure inside a floating container positioned at the cursor,
+    /// allowing applications to display custom thumbnails, 3D landing rings, or multi-item stacks.
+    ///
+    /// # Arguments
+    /// * `controller` - Drag-and-drop state controller.
+    /// * `cursor_pos` - Current cursor location in window coordinates.
+    /// * `custom_draw` - Drawing closure executed with the active payload.
+    fn drag_drop_preview_custom<F>(
+        &mut self,
+        controller: &DragDropController,
+        cursor_pos: Point,
+        custom_draw: F,
+    ) where
+        F: FnOnce(&mut UiScope<'_>, &DragDropPayload);
 }
 
 impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
@@ -136,5 +169,65 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
         self.immediate_canvas_styled(name, tag, style, |canvas| {
             hook.render_overlay(canvas, rect);
         });
+    }
+
+    fn drag_drop_preview(
+        &mut self,
+        controller: &DragDropController,
+        cursor_pos: Point,
+        style: Option<&DragDropPreviewStyle>,
+    ) {
+        let Some(payload) = controller.active_payload() else {
+            return;
+        };
+
+        let default_style = DragDropPreviewStyle::default();
+        let s = style.unwrap_or(&default_style);
+        let pos = Point::new(cursor_pos.x + s.offset.x, cursor_pos.y + s.offset.y);
+
+        let container_style = Style::new()
+            .position_absolute()
+            .left(pos.x)
+            .top(pos.y)
+            .flex_row()
+            .align_items(AlignItems::Center)
+            .padding_insets(s.padding)
+            .gap(s.gap)
+            .background(s.background)
+            .border(s.border_width, s.border_color)
+            .border_radius(s.corner_radius);
+
+        self.container_measured(
+            "DragDropPreviewCapsule",
+            container_style,
+            pos,
+            24.0,
+            |capsule| {
+                if let (Some(badge), Some(color)) = (payload.badge_text(), payload.badge_color()) {
+                    capsule.colored_label(color, badge);
+                }
+                capsule.label_custom(
+                    payload.preview_label(),
+                    s.font_size,
+                    s.text_color,
+                    TextAlign::Left,
+                );
+            },
+        );
+    }
+
+    fn drag_drop_preview_custom<F>(
+        &mut self,
+        controller: &DragDropController,
+        _cursor_pos: Point,
+        custom_draw: F,
+    ) where
+        F: FnOnce(&mut UiScope<'_>, &DragDropPayload),
+    {
+        let Some(payload) = controller.active_payload() else {
+            return;
+        };
+
+        custom_draw(self, payload);
     }
 }

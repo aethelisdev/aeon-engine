@@ -5,7 +5,6 @@
 //!
 //! Exposes parameter structures, interaction actions, semantic 64-bit tags,
 //! and panel state for the pure declarative [`UiScope`] Stats & Profiler panel.
-//!
 
 use ae_core::telemetry::{
     CpuSyncTimings, DrawCallBreakdown, FramePacingStats, FrameRingBuffer,

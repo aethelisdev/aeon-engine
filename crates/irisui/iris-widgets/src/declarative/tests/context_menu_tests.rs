@@ -5,7 +5,6 @@
 //!
 //! Verifies autonomous context menu trigger lifecycles, floating popup elevation on
 //! [`UiLayer::Popup`], item click dismiss, outside-click dismiss, and Escape key handling.
-//!
 
 use crate::declarative::types::WidgetResponse;
 use crate::declarative::{ContainerResponseExt, ContextMenuExt, UiScope};

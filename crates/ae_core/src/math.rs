@@ -5,7 +5,6 @@
 //!
 //! Exposes conversion traits and utilities across geometric libraries used
 //! within the engine, maintaining strict decoupling between subsystems.
-//!
 
 pub mod conversions;
 

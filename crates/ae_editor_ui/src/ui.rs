@@ -5,7 +5,6 @@
 //!
 //! Root module orchestrating editor panels, docking layouts, Iris UI overlays,
 //! themes, modal dialogs, and the core `workbench` runtime.
-//!
 
 pub mod iris_bridge;
 pub mod panel_layout;

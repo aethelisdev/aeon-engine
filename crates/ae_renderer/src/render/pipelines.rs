@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Render pipelines coordinator and shader stages.
-//!
 
 pub mod bloom;
 pub mod grid;

@@ -6,7 +6,6 @@
 //! Renders the elevated 34px top control bar with aspect ratio preset selection,
 //! zoom controls, grid snapping toggles, anchor guides, and canonical hardware atlas `ICON_PLUS` button
 //! using 100% declarative [`UiScope`] flexbox architecture and 64-bit semantic tags.
-//!
 
 use super::types::{
     UI_DESIGNER_TAG_ADD_ELEMENT_BTN, UI_DESIGNER_TAG_ANCHORS_BTN, UI_DESIGNER_TAG_ASPECT_BTN,

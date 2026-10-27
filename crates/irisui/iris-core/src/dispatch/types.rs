@@ -5,7 +5,6 @@
 //!
 //! Defines the core data structures tracking user interaction states across frames
 //! and capturing the outcomes of dispatching UI events through the hierarchy.
-//!
 
 use std::time::Instant;
 

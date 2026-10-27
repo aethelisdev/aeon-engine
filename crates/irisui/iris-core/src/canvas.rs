@@ -5,7 +5,6 @@
 //!
 //! Provides lightweight, POD-like geometry structures for immediate-mode drawing
 //! inside high-frequency UI components (telemetry graphs, timelines, oscilloscope curves).
-//!
 
 use crate::color::Color;
 use crate::geometry::{Point, Rect};

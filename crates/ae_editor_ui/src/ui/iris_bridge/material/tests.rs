@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Material and Surface Studio unit tests.
-//!
 
 use super::*;
 use ae_renderer::render::types::SubmeshAlphaMode;

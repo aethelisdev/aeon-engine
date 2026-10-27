@@ -6,7 +6,6 @@
 //! Renders the top search bar input box, clear button, `➕` Add Menu button,
 //! and `🗑` Delete Selected entity button with clean visual alignment and
 //! pure declarative [`UiScope`] semantics.
-//!
 
 use super::types::{
     HIERARCHY_TAG_ADD_BUTTON, HIERARCHY_TAG_DELETE_BUTTON, HIERARCHY_TAG_SEARCH_CLEAR,

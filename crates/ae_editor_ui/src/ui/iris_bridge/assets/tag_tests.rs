@@ -5,7 +5,6 @@
 //!
 //! Validates encoding/decoding roundtrips, domain filters, and typed
 //! tag and context menu action resolution invariants.
-//!
 
 use super::types::*;
 

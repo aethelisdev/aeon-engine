@@ -5,7 +5,6 @@
 //!
 //! Renders hardware-accelerated declarative [`UiScope`] floating popup lists for active
 //! ComboBox selections in the Inspector panel with neon cyan border styling and single-pass flexbox.
-//!
 
 use super::tags::{TAG_INSPECTOR_DROPDOWN_ITEM_BASE, encode_inspector_dropdown_tag};
 use super::types::{InspectorDropdownId, InspectorPanelParams};

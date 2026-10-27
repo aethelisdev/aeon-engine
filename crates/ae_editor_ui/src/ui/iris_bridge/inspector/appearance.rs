@@ -5,7 +5,6 @@
 //!
 //! Renders object color swatch, live HEX text input, and quick-select palette swatches
 //! using purely declarative [`UiScope`] containers, flexbox layout, and O(1) semantic tags.
-//!
 
 use super::registry::ComponentRenderContext;
 use super::types::InspectorAction;

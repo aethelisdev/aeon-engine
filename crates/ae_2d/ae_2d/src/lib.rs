@@ -13,7 +13,6 @@
 //! - [`physics`]: Rapier2D rigid body simulation, collision geometry, and raycasting.
 //! - [`animation`]: Sprite sheet and flipbook sequence controllers.
 //! - [`prelude`]: Commonly used 2D components, systems, and builders.
-//!
 
 pub use ae_2d_animation as animation;
 pub use ae_2d_core as core;

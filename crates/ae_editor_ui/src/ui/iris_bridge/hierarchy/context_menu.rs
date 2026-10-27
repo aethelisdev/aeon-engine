@@ -5,7 +5,6 @@
 //!
 //! Renders the floating context menu for deleting entities or toggling visibility
 //! using pure declarative [`UiScope::dropdown_menu_card_named`] and [`UiScope::dropdown_item`].
-//!
 
 use super::types::{
     HIERARCHY_CTX_DELETE, HIERARCHY_CTX_VISIBILITY, HierarchyAction, HierarchyPanelParams,

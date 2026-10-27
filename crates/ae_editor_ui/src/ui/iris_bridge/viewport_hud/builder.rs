@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Root builder orchestrating toolbar, compass, and camera HUD overlays.
-//!
 
 use super::camera_hud;
 use super::compass;

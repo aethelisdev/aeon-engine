@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Frame rendering pipeline execution, passes orchestration, and GPU submission.
-//!
 
 use super::forward;
 use crate::render::engine::state::{RenderOptions, RenderState};

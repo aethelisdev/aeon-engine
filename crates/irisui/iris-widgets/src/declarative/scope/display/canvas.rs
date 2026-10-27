@@ -4,7 +4,6 @@
 //! # Declarative Canvas, Texture & Overlay Primitives
 //!
 //! Provides color swatch boxes, external GPU texture quads, scrollbar overlays, and text caret cursors on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use iris_core::{

@@ -8,7 +8,6 @@
 //!
 //! Encapsulates visual colors, border geometry, font metrics, active keyboard editing
 //! text buffers, selection highlights, and caret blinking phases.
-//!
 
 use iris_core::color::Color;
 

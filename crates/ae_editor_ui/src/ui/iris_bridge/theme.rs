@@ -8,7 +8,6 @@
 //! - Level 1 (Panel Bodies): Base dark anthracite for inspector, hierarchy, etc.
 //! - Level 2 (Tab Strip & Inactive Tabs): Receding surface matching or darker than panel body.
 //! - Level 3 (Active Tab & Focused Pane): Lightest surface layer anchored with a 2px accent underline.
-//!
 
 use irisui::prelude::{Color, Theme};
 

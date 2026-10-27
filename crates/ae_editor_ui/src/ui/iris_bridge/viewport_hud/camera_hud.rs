@@ -5,7 +5,6 @@
 //!
 //! Renders the bottom-right camera position and orientation angles telemetry overlay badge
 //! using an autonomous [`ImmediateCanvas`] without persistent child nodes in the [`UiTree`].
-//!
 
 use super::types::{TAG_CAMERA_HUD, ViewportHudParams};
 use ae_renderer::camera::Camera;

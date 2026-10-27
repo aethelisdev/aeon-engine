@@ -6,7 +6,6 @@
 //! Integration tests verifying declarative UiScope rendering, hierarchy construction,
 //! and semantic tag assignments for `UiElement`, `UiPanel`, `UiText`, `UiProgressBar`,
 //! `UiButton`, `UiImage`, `UiSlider`, `UiCheckbox`, `UiTextInput`, and HUD tags.
-//!
 
 use ae_editor_ui::ui::iris_bridge::inspector::components::ui_canvas::{
     PlayerHealthBarTagHandler, ReticleTagHandler, ScoreDisplayTagHandler, UiButtonHandler,

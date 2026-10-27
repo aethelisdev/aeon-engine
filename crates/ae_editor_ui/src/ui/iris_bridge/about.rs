@@ -6,7 +6,6 @@
 //! Renders the premium GPU SDF modal dialogue containing version details,
 //! copyright, MPL 2.0 licensing terms, and interactive close buttons directly via
 //! declarative [`UiScope`].
-//!
 
 use irisui::prelude::*;
 

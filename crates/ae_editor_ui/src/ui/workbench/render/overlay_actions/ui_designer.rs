@@ -5,7 +5,6 @@
 //!
 //! Handles interaction and state update events originating from the 2D UI Designer canvas,
 //! element tree, transform manipulators, and inspector property editors.
-//!
 
 use crate::ui::iris_bridge;
 use crate::ui::types::EngineUiAction;

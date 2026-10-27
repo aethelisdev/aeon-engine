@@ -5,7 +5,6 @@
 //!
 //! Provides data models, event actions, and layout bounding rectangles for the
 //! 100% native Iris UI GPU SDF Asset Browser panel.
-//!
 
 use crate::assets::types::{AssetCategory, AssetItem, AssetSource, AssetViewMode};
 use irisui::prelude::{Point, Rect, TreeState};
@@ -86,8 +85,8 @@ pub enum AssetsPanelAction {
     OpenRename(PathBuf, String, bool),
     /// Requests opening the Delete confirmation dialog for an asset or folder.
     OpenDelete(PathBuf),
-    /// Initiates dragging an asset item towards the 3D viewport or editor panels.
-    StartAssetDrag(AssetItem),
+    /// Initiates dragging an asset item towards the 3D viewport or editor panels via generic workbench payload.
+    StartAssetDrag(irisui::workbench::DragDropPayload),
     /// Completes or cancels active asset dragging.
     EndAssetDrag,
     /// Toggles visibility of internal engine assets and built-in shaders.

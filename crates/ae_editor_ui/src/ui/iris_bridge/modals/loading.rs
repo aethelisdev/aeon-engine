@@ -6,7 +6,6 @@
 //! Renders a hardware-accelerated GPU SDF splash blocker during background asset processing
 //! using pure declarative [`UiScope`] architecture with dynamic trailing dots and an
 //! animated indeterminate sliding progress bar.
-//!
 
 use irisui::prelude::*;
 

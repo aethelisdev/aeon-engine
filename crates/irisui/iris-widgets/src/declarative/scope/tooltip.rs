@@ -9,7 +9,6 @@
 //! Enforces zero-allocation delayed activation via [`iris_core::tree::UiTree`]'s internal hover timer,
 //! smart boundary clamping, elevated non-clipped rendering on [`UiLayer::Tooltip`],
 //! and rich modern typography.
-//!
 
 use super::core::UiScope;
 use crate::declarative::scope::tree_view::TreeRowResponse;

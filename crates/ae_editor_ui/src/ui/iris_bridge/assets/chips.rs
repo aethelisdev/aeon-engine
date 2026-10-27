@@ -5,7 +5,6 @@
 //!
 //! Renders categorized asset filter badges with dynamic count indicators
 //! and synchronized selection state using pure declarative method chaining.
-//!
 
 use super::types::{AssetsPanelAction, AssetsPanelParams, encode_chip_tag};
 use crate::assets::types::{AssetCategory, AssetSource};

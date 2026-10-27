@@ -6,7 +6,6 @@
 //! Verifies 100% declarative [`UiScope`] floating popup construction, layout isolation,
 //! and $O(1)$ semantic tag hit-testing for ComboBox dropdowns, Cascading Add Component menus,
 //! and 2D HSV Color Pickers.
-//!
 
 use super::*;
 use ae_core::ecs::Position;

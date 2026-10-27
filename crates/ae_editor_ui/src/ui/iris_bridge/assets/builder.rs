@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating asset filtering, folder navigation, thumbnail metrics,
 //! search input live buffer synchronization with [`EventState`], and drag payload management.
-//!
 
 use super::panel::build_assets_panel;
 use super::types::{

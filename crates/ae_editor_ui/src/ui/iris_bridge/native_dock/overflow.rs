@@ -5,7 +5,6 @@
 //!
 //! Delegates overflow popup rendering directly to the standardized [`iris_dock::build_dock_overflow_menu`]
 //! engine, eliminating manual engine-side quad and typography orchestration.
-//!
 
 use crate::ui::panel_layout::PanelTabViewer;
 use irisui::dock::{DockNode, DockOverflowMenuStyle, build_dock_overflow_menu};

@@ -10,7 +10,6 @@
 //! - Rotating collectible orbs
 //! - Moving waypoint platforms
 //! - Dynamic physics bouncing hazard cubes
-//!
 
 use ae_core::ecs::{
     CharacterAction, CharacterController, Collider, ColliderShape, Color, DestructibleTarget,

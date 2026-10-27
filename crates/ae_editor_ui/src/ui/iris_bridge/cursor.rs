@@ -5,7 +5,6 @@
 //!
 //! Provides cursor hit testing and shape determination for the retained Iris UI overlay,
 //! handling modal dialogs, popups, floating window resize margins, and docked panel widgets.
-//!
 
 use crate::ui::iris_bridge::types::IrisEditorOverlay;
 use irisui::core::WidgetCursor;

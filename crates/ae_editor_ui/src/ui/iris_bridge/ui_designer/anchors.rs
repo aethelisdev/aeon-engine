@@ -5,7 +5,6 @@
 //!
 //! Renders visual anchor origin pins (⚓) and orthogonal guidelines connecting
 //! elements to their canvas anchors for intuitive responsive HUD design.
-//!
 
 use ae_core::ecs::{UiAnchor, UiElement};
 use irisui::prelude::*;

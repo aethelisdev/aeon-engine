@@ -9,7 +9,6 @@
 //! - Action buttons: "+ Import" (`ICON_PLUS`), "Reveal", and "Clean" (sweeping unreferenced VRAM assets)
 //! - View mode toggles: "⊞ Grid" vs "☰ List"
 //! - Search input box with live query filter, blinking caret, and "✖" clear button
-//!
 
 use super::components::asset_breadcrumb_bar;
 use super::panel::ASSETS_TOP_BAR_HEIGHT;

@@ -5,7 +5,6 @@
 //!
 //! Provides category classifications, card/list item view models,
 //! drag-and-drop payloads, inspection modal states, and persistent browser navigation state.
-//!
 
 use ae_renderer::asset::AssetHandle;
 use std::path::PathBuf;

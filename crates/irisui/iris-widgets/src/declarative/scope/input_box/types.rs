@@ -5,7 +5,6 @@
 //!
 //! Provides property descriptors and horizontal visibility calculation helpers for single-line
 //! text inputs with clipping, prefix icons, and caret positioning.
-//!
 
 /// Configuration parameters for emitting a text input box in [`crate::declarative::UiScope`].
 ///

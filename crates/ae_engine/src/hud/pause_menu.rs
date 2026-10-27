@@ -5,7 +5,6 @@
 //!
 //! Provides a centered, clean pause overlay with Resume and Exit buttons.
 //! Automatically cleans up transient UI entities upon exit.
-//!
 
 use ae_core::state::{GameState, StateContext, StateTransition};
 use ae_core::ui::{PauseMenuUiTag, UiAnchor, UiButton, UiElement, UiText, UiTextAlignment};

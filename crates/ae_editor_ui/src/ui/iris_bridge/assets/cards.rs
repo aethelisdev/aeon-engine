@@ -9,7 +9,6 @@
 //!
 //! Zero per-frame heap allocations: card items and paths are referenced directly without
 //! copying metadata into parallel target collections.
-//!
 
 use super::components::{
     ASSET_CARD_GAP, ASSET_CARD_HEIGHT, ASSET_CARD_WIDTH, asset_empty_notice, asset_grid_card,

@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Unit tests for standard pub/sub gameplay event channels (Damage, Kill, Trigger, Score, Custom).
-//!
 
 use crate::behavior_runner::{destructible, trigger_zone};
 use ae_core::events::{DynamicEventBus, RaycastHitEvent};

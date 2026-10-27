@@ -6,7 +6,6 @@
 //! Provides cross-platform icon generation for Winit windows and registers standard
 //! application identifiers (`app_id`) on Wayland and X11 to ensure proper taskbar,
 //! dock, and titlebar icon resolution across desktop environments.
-//!
 
 use image::GenericImageView;
 use winit::window::Icon;

@@ -5,7 +5,6 @@
 //!
 //! Defines standard lifecycle traits and execution contexts for gameplay actors,
 //! interactive entities, and procedural game mechanics.
-//!
 
 use crate::commands::EntityCommandBuffer;
 use ae_plugin_api::DynamicEventBus;

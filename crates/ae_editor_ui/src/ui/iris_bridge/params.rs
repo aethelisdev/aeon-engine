@@ -5,7 +5,6 @@
 //!
 //! Encapsulates editor context, 3D viewport canvas bounds, ECS scene graph, modal dialogues,
 //! configuration preferences, performance telemetry, and panel subsystem caches.
-//!
 
 use crate::ui::panel_layout::PanelLayoutState;
 use ae_core::modules::EngineModule;

@@ -38,7 +38,10 @@ pub use dialogs::{
     FloatingWindowDescriptor, ModalController, ModalDescriptor, ModalDismissReason, ModalOutcome,
 };
 pub use error::{WorkbenchError, WorkbenchResult};
-pub use hooks::{CustomOverlayHook, DragDropPayload, ExternalTextureHook, TypedDragDropPayload};
+pub use hooks::{
+    CustomOverlayHook, DragDropController, DragDropPayload, DragDropPreviewStyle,
+    ExternalTextureHook, TypedDragDropPayload, WorkbenchUiScopeExt,
+};
 pub use layout_sync::{
     DualLayoutEliminator, LayoutSyncMetrics, synchronize_dock_frame, synchronize_dock_leaves,
 };

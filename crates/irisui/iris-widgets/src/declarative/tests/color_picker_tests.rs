@@ -5,7 +5,6 @@
 //!
 //! Validates 2D HSV color picker layout tree emission, pointer-capture dragging across
 //! Saturation-Value space and Rainbow Hue spectrum, and commit triggers.
-//!
 
 use iris_core::geometry::{Point, Rect};
 use iris_core::node::WidgetRole;

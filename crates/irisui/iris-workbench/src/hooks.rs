@@ -15,7 +15,9 @@ pub mod ui_ext;
 #[cfg(test)]
 mod tests;
 
-pub use drag_drop::{DragDropPayload, TypedDragDropPayload};
+pub use drag_drop::{
+    DragDropController, DragDropPayload, DragDropPreviewStyle, TypedDragDropPayload,
+};
 pub use overlay::CustomOverlayHook;
 pub use texture::ExternalTextureHook;
 pub use ui_ext::WorkbenchUiScopeExt;

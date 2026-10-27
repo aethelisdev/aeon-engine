@@ -5,7 +5,6 @@
 //!
 //! Renders the CPU multi-segmented subsystem timing bar, detailed subsystem timings,
 //! and thread balance bottleneck indicator purely using [`UiScope`].
-//!
 
 use super::types::StatsPanelParams;
 use irisui::prelude::*;

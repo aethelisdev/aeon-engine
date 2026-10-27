@@ -8,7 +8,6 @@
 //! - Visual horizontal and vertical hair-line dividers via [`UiScope::separator`] and [`UiScope::divider`].
 //! - Dynamic flex-grow spacers (springs) via [`UiScope::spacer`].
 //! - Non-interactive decorative leaf boxes via [`UiScope::empty_box_passive`].
-//!
 
 use super::core::UiScope;
 use iris_core::{Color, FlexDirection, Style, WidgetRole};

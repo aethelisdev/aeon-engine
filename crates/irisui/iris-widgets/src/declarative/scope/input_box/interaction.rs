@@ -5,7 +5,6 @@
 //!
 //! Provides cursor indexing, UTF-8 boundary navigation, text selection management,
 //! and keyboard event dispatching for declarative text input fields.
-//!
 
 use iris_core::event::KeyCode;
 use iris_text::measure_text_advance;

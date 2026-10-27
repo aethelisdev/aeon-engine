@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Animation clip, keyframe tracks, and interpolation logic for Aeon Engine.
-//!
 
 use glam::{Quat, Vec3};
 use serde::{Deserialize, Serialize};

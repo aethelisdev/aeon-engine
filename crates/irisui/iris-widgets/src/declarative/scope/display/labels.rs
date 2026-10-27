@@ -9,7 +9,6 @@
 //! - Colored text labels ([`UiScope::colored_label`], [`UiScope::text_colored`]).
 //! - Autonomous status badges ([`UiScope::badge`], [`UiScope::key_value_badge`]).
 //! - Custom typography and layout wrappers ([`UiScope::label_custom`], [`UiScope::label_with_width`]).
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

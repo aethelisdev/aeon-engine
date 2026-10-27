@@ -5,7 +5,6 @@
 //!
 //! Connects engine animation clip keyframe data and playback timestamp to pure declarative
 //! [`UiScope`] ruler and scrubber primitives in Iris UI.
-//!
 
 use super::types::{
     TIMELINE_SIDEBAR_WIDTH, TIMELINE_TAG_PLAYHEAD_CAP, TIMELINE_TAG_SCRUBBER_TRACK,

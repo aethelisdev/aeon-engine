@@ -5,7 +5,6 @@
 //!
 //! Autonomous builder coordinating canvas aspect ratios, element positioning,
 //! drag handles, hierarchy tree, and widget property cards.
-//!
 
 use super::panel::build_ui_designer_panel;
 use super::types::UiDesignerPanelParams;

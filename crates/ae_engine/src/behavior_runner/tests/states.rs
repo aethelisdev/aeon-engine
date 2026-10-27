@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Unit tests for pushdown automaton GameState flow and lifecycle callbacks.
-//!
 
 use ae_core::events::DynamicEventBus;
 use ae_core::state::{GameState, StateContext, StateManager, StateTransition};

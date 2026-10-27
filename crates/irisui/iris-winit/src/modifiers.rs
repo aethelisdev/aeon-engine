@@ -5,7 +5,6 @@
 //!
 //! Tracks and provides ergonomic queries for keyboard modifier keys (Shift, Ctrl, Alt, Super/Meta)
 //! across window events.
-//!
 
 use winit::event::Modifiers;
 use winit::keyboard::ModifiersState as WinitModifiersState;

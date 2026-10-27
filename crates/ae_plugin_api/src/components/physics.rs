@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Physics, rigid bodies, colliders, kinematic controllers, and material properties.
-//!
 
 use serde::{Deserialize, Serialize};
 

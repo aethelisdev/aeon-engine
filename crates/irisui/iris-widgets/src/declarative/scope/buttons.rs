@@ -5,7 +5,6 @@
 //!
 //! Provides interactive push buttons, icon buttons, styled variants, and toggle pill
 //! widgets returning immediate [`WidgetResponse`] interaction states.
-//!
 
 pub mod icon;
 pub mod pills;

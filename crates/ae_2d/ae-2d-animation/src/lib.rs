@@ -5,7 +5,6 @@
 //!
 //! Provides timeline sequencing, UV-coordinate slicing, and looping state controls for 2D sprites.
 //! - [`SpriteAnimation`]: Core animation controller driving sprite sheet frame progression.
-//!
 
 pub mod flipbook;
 

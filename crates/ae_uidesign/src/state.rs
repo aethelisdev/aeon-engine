@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Persistent Editor State and Session Context for the UI Designer.
-//!
 
 use crate::types::{CanvasAspectRatio, UiDesignerAction, UiDragState};
 

@@ -5,7 +5,6 @@
 //!
 //! Assembles the Scene Hierarchy root container, header toolbar, scrollable DFS
 //! entity rows, and footer status bar purely using [`UiScope`] and declarative flexbox primitives.
-//!
 
 use super::add_menu::build_add_menu;
 use super::context_menu::build_context_menu;

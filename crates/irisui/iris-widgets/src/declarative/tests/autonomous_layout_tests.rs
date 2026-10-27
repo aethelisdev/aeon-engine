@@ -6,7 +6,6 @@
 //! Verifies autonomous defer and flush of flexbox subtree layouts across
 //! `UiScope::scoped`, `UiScope::panel_styled_tagged`, `UiScope::modal_scrim_sized`,
 //! and floating dropdown menus without requiring manual calls to `scope.finish_layout(rect)`.
-//!
 
 use crate::declarative::{EmptyBox, UiScope};
 use iris_core::{Color, Point, Rect, Style, UiTree, WidgetRole};

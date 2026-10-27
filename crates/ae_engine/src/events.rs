@@ -5,7 +5,6 @@
 //!
 //! Coordinates event translation, UI and 3D viewport input arbitration,
 //! cursor lifecycle states, and hardware device interactions.
-//!
 
 pub mod arbiter;
 pub mod handlers;

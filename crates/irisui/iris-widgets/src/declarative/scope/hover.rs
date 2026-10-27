@@ -6,7 +6,6 @@
 //! Provides zero-latency recursive hover state propagation across interactive nodes
 //! (such as modal buttons, links, compass widgets, and dropdown items) directly
 //! following layout finalization, avoiding single-frame visual delay.
-//!
 
 use crate::modal::{MODAL_TAG_CANCEL, MODAL_TAG_CLOSE, MODAL_TAG_CONFIRM, MODAL_TAG_DANGER};
 use iris_core::{Color, Point, UiTree, WidgetId, WidgetRole};

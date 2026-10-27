@@ -5,7 +5,6 @@
 //!
 //! Provides rendering methods for single-line text input fields, selection capsules,
 //! blinking carets, and clear buttons on [`UiScope`].
-//!
 
 use super::interaction::{find_cursor_idx_at_x, process_text_input_keys};
 use super::types::{InputBoxProps, calculate_visible_slice_and_caret};

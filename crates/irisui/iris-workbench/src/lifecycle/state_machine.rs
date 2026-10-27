@@ -46,6 +46,9 @@ pub struct WorkbenchLifecycle<TabId: Eq + Hash + Clone> {
     /// Whether any modal dialog was open during the previous evaluation pass.
     last_modal_active: bool,
 
+    /// Whether any drag-and-drop operation was active during the previous evaluation pass.
+    last_drag_active: bool,
+
     /// Explicit request to force a full shell reconstruction on the next turn.
     force_shell_rebuild: bool,
 
@@ -77,6 +80,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             last_floating_count: 0,
             last_menu_active: false,
             last_modal_active: false,
+            last_drag_active: false,
             force_shell_rebuild: true,
             always_rebuild_shell: false,
             dirty_tabs: HashSet::new(),
@@ -154,6 +158,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_floating_count = 0;
         self.last_menu_active = false;
         self.last_modal_active = false;
+        self.last_drag_active = false;
         self.force_shell_rebuild = true;
         self.dirty_tabs.clear();
     }
@@ -169,6 +174,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
     /// - Floating window count change (`floating_count != last_floating_count`).
     /// - Menu active state transition (`is_menu_active != last_menu_active`).
     /// - Modal dialog active state transition (`is_modal_active != last_modal_active`).
+    /// - Drag-and-drop active state transition (`is_drag_active != last_drag_active`).
     /// - Active docking user interaction (`is_dock_interacting == true`).
     #[inline]
     #[must_use]
@@ -182,6 +188,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
             || self.last_floating_count != inputs.floating_count
             || self.last_menu_active != inputs.is_menu_active
             || self.last_modal_active != inputs.is_modal_active
+            || self.last_drag_active != inputs.is_drag_active
             || inputs.is_dock_interacting
     }
 
@@ -223,6 +230,7 @@ impl<TabId: Eq + Hash + Clone> WorkbenchLifecycle<TabId> {
         self.last_floating_count = inputs.floating_count;
         self.last_menu_active = inputs.is_menu_active;
         self.last_modal_active = inputs.is_modal_active;
+        self.last_drag_active = inputs.is_drag_active;
         self.force_shell_rebuild = false;
 
         if shell_dirty {

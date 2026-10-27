@@ -4,7 +4,6 @@
 //! # Declarative Icon Buttons & Buttons With Leading Icons
 //!
 //! Provides buttons featuring hardware atlas icons and icon-only triggers on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

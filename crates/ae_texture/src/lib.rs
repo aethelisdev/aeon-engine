@@ -8,7 +8,6 @@
 //! semantic texture map types (`TextureMapType`), live file modification watching (`TextureFileWatcher`),
 //! path sanitization (`is_safe_path`), image file loading (`parse_texture_file`), sampler configurations (`SamplerConfig`),
 //! and generational asset handle storage (`TextureStorage`).
-//!
 
 pub mod asset;
 pub mod data;

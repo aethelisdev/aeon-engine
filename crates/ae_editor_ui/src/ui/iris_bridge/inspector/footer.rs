@@ -4,7 +4,6 @@
 //! # Inspector Bottom Action Bar Builder
 //!
 //! Renders `➕ Add Component` and `💾 Save as Prefab` action buttons using declarative [`UiScope`].
-//!
 
 use super::tags::{TAG_INSPECTOR_ADD_COMPONENT, TAG_INSPECTOR_SAVE_PREFAB};
 use super::types::{InspectorAction, InspectorPanelParams};

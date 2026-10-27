@@ -4,7 +4,6 @@
 //! # ToolbarGroup Scope
 //!
 //! Provides the specialized [`ToolbarGroupScope`] builder context for nested tool clusters.
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

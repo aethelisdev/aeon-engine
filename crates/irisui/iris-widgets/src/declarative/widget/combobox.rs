@@ -7,7 +7,6 @@
 //! manages open/closed popup state via [`iris_core::UiTree::active_combobox_tag`] and renders
 //! options directly on [`iris_core::UiLayer::Popup`], returning a rich [`ComboBoxResponse`]
 //! without requiring manual engine-side popup flags or external state bags.
-//!
 
 use std::ops::Deref;
 

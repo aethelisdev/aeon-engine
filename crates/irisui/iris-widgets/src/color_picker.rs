@@ -5,7 +5,6 @@
 //!
 //! Provides bidirectional RGB/HSV/HEX conversions, color state tracking,
 //! and interaction drag modes for color pickers and palettes in Iris UI.
-//!
 
 use iris_core::color::Color;
 use iris_core::geometry::{Point, Rect};

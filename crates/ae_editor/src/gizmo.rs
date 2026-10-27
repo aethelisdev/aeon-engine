@@ -4,7 +4,6 @@
 //! Aeon Engine — Gizmo Subsystem
 //!
 //! Native 3D Transform Gizmo system, modularized by responsibility.
-//!
 
 pub mod core;
 pub mod geometry;

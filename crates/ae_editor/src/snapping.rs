@@ -5,7 +5,6 @@
 //!
 //! Provides grid snapping for position, angle quantization for rotation,
 //! and discrete step quantization for scale transformations.
-//!
 
 pub mod rotate;
 pub mod scale;

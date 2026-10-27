@@ -6,7 +6,6 @@
 //! Provides the fluent [`NumericDrag`] widget builder implementing [`Widget`] and yielding
 //! a rich [`ScalarResponse`] with direct in-place mutation, velocity-based scrubbing,
 //! boundary clamping, optional keyboard edit state integration, and unit suffixes.
-//!
 
 use std::ops::{Deref, RangeInclusive};
 

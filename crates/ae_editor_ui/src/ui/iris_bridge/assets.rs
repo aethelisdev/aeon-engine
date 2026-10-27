@@ -7,7 +7,6 @@
 //! completely free of emojis, featuring breadcrumb navigation, live search,
 //! canonical vector icons, folder tree sidebar, floating right-click context menus,
 //! interactive quick asset preview modal, and responsive grid/table views.
-//!
 
 pub mod builder;
 pub mod card_builder;

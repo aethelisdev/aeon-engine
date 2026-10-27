@@ -12,7 +12,6 @@
 //! - **Zero Per-Frame Allocation**: Operates purely on references, ID handles, and fixed POD structures.
 //! - **Standard Industrial UX**: Adheres strictly to desktop and game-engine tree-view conventions
 //!   for hierarchical navigation and multi-node picking.
-//!
 
 use super::model::TreeState;
 use iris_core::Color;

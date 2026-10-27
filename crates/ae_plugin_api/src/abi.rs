@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! ABI hash definitions and platform-specific library metadata for safe FFI boundaries.
-//!
 
 /// The compiled ABI version hash of the Aeon Engine.
 pub const ENGINE_ABI_HASH: &str = if cfg!(debug_assertions) {

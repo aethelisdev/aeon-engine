@@ -5,7 +5,6 @@
 //!
 //! Determines whether screen-space coordinates land over active UI panels,
 //! floating modal windows, top menu bars, or within the interactive 3D viewport canvas.
-//!
 
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::workbench::state::EngineUi;

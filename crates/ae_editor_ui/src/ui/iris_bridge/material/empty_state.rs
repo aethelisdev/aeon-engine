@@ -5,7 +5,6 @@
 //!
 //! Declarative centered empty state and fallback cards matching the Animation Timeline
 //! studio aesthetics using [`UiScope`].
-//!
 
 use super::types::MATERIAL_TAG_ADD_TEXTURE;
 use crate::ui::iris_bridge::icons::{ICON_CUBE, ICON_PLUS, ICON_WORLD};

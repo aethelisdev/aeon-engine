@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Standard ECS component definitions shared across the engine, plugins, and gameplay scripts.
-//!
 
 pub mod gameplay;
 pub mod physics;

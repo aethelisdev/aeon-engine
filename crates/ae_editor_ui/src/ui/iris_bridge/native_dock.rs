@@ -6,7 +6,6 @@
 //! Renders native GPU SDF split containers, tab bars with compact snug widths,
 //! active cyan indicator underlines, divider lines, 5-way compass navigation drop zones,
 //! proportional tab shrinking, and overflow chevrons with interactive dropdown menus.
-//!
 
 pub mod builder;
 pub mod overflow;

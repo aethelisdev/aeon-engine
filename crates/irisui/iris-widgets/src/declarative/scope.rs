@@ -6,7 +6,6 @@
 //! Provides a modern hierarchical builder pattern resembling declarative UI systems.
 //! Supports immediate interaction responses ([`WidgetResponse`]), automatic flow layout,
 //! and strongly typed property inspection primitives partitioned across domain submodules.
-//!
 
 pub mod buttons;
 pub mod collapsing;

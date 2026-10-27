@@ -8,7 +8,6 @@
 //!
 //! Manages autonomous menu open/dismiss lifecycles, pointer position anchoring,
 //! viewport boundary clamping, and Z-order elevation to [`UiLayer::Popup`].
-//!
 
 use super::core::UiScope;
 use crate::declarative::scope::tree_view::TreeRowResponse;

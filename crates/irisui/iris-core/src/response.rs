@@ -6,7 +6,6 @@
 //! Provides the canonical [`WidgetResponse`] and [`ResponseFlags`] types representing
 //! immediate-mode interaction outcomes (clicks, drags, hover, focus transitions, value changes)
 //! emitted by declarative UI scopes and retained UI tree event dispatching.
-//!
 
 use bitflags::bitflags;
 

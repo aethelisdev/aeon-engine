@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Transform and spatial hierarchy ECS components.
-//!
 
 use serde::{Deserialize, Serialize};
 

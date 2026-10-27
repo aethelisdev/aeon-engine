@@ -6,7 +6,6 @@
 //! Manages dragging assets from the Content Browser into the 3D Viewport,
 //! computing screen-to-world raycasts against horizontal ground planes,
 //! drawing landing indicators, and spawning entities at the target coordinates.
-//!
 
 use super::types::{AssetBrowserState, AssetCategory};
 use crate::ui::types::EngineUiAction;

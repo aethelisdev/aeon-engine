@@ -8,7 +8,6 @@
 //!
 //! Handles category pill badges, VRAM/memory status indicators, texture thumbnails,
 //! canonical vector icons, truncated titles, metadata labels, and selection/hover states.
-//!
 
 use irisui::prelude::{
     AlignItems, Color, Insets, JustifyContent, Rect, Style, TextAlign, UiScope, UiTree, WidgetId,

@@ -4,7 +4,6 @@
 //! Dynamic Gameplay Behavior Execution Pipeline.
 //!
 //! Coordinates modular, data-driven entity execution systems directly across archetype storage.
-//!
 
 pub mod collision_bridge;
 pub mod combat;

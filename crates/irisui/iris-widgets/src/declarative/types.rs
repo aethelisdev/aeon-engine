@@ -4,7 +4,6 @@
 //! # Declarative Interaction Types & Hashing Primitives (`iris-widgets::declarative::types`)
 //!
 //! Exposes widget interaction responses and persistent tag hashing utilities for declarative UI scopes.
-//!
 
 pub use iris_core::response::{ResponseFlags, WidgetResponse};
 

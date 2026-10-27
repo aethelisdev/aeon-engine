@@ -10,7 +10,6 @@
 //! keyboard modifier tracking, and stateful window event handling.
 //!
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
-//!
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

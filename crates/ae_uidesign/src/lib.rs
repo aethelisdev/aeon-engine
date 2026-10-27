@@ -6,7 +6,6 @@
 //! Provides a dedicated, resolution-independent WYSIWYG 2D canvas editor for designing
 //! in-game HUDs, health bars, interactive buttons, menus, and typography layouts with
 //! visual anchor guides, grid snapping, and interactive drag-and-drop.
-//!
 
 pub mod spawning;
 pub mod state;

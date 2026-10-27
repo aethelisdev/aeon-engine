@@ -6,7 +6,6 @@
 //! Renders an interactive 3D bounding box wireframe canvas with projected 3D coordinates,
 //! orbital yaw and pitch rotation, zoom distance scaling, and 3D coordinate axes
 //! using pure declarative [`UiScope`] and zero-allocation GPU command list quads.
-//!
 
 use crate::ui::iris_bridge::assets::types::AssetPreviewModalState;
 use irisui::prelude::*;

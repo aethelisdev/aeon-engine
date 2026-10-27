@@ -6,7 +6,6 @@
 //! Provides a declarative 2D HSV color picker widget composing a continuous
 //! saturation-value spectrum box, vertical rainbow hue bar, interactive indicators,
 //! and immediate [`ColorPickerResponse`] state tracking.
-//!
 
 use std::ops::Deref;
 

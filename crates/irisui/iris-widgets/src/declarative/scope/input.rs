@@ -5,7 +5,6 @@
 //!
 //! Provides interactive property inspection inputs on [`UiScope`]: boolean checkboxes,
 //! drag-float scalar editors, 3D vector inspectors, and text input boxes.
-//!
 
 use super::core::UiScope;
 use crate::declarative::types::WidgetResponse;

@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Unit tests for physics collision, trigger lifecycle hooks, and surface impact bridge.
-//!
 
 use std::sync::{Arc, Mutex};
 

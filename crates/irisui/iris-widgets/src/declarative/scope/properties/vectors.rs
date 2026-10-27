@@ -4,7 +4,6 @@
 //! # Multi-Channel Vector & Color Editors
 //!
 //! Provides color-coded axis inputs for 3D coordinates, 2D offsets/tilings, and RGB multipliers on [`UiScope`].
-//!
 
 use crate::declarative::scope::core::UiScope;
 use crate::declarative::types::WidgetResponse;

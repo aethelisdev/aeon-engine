@@ -6,7 +6,6 @@
 //! Manages pointer hit-testing, cursor feedback, and continuous dragging
 //! (with automatic pointer capture) for docking splitters across horizontal
 //! and vertical partitions.
-//!
 
 use crate::chrome::DockSplitterTarget;
 use crate::state::DockState;

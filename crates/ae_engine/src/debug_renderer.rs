@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Debug wireframe renderer for physics collider visualization and 3D selection outline highlights.
-//!
 
 pub mod renderer;
 pub mod shapes;

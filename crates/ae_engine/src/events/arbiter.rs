@@ -6,7 +6,6 @@
 //! Arbitrates raw Winit window events between editor UI overlays, 3D viewport canvas
 //! interactions, gizmo transformations, and active gameplay subsystems using an explicit
 //! pointer capture state machine.
-//!
 
 use crate::engine::AeEngine;
 use ae_core::modules::EngineMode;

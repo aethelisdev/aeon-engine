@@ -5,7 +5,6 @@
 //!
 //! Provides the configurable [`ScrollAreaView`] container builder struct.
 //! Replaces legacy `scroll_area_tagged` with an idiomatic builder.
-//!
 
 use crate::declarative::scope::containers::generic::InnerResponse;
 use crate::declarative::scope::core::UiScope;

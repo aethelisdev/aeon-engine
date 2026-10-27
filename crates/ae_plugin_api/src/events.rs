@@ -2,7 +2,6 @@
 // Copyright (c) 2026 AethelisDEV / Aeon Engine. All rights reserved.
 
 //! Dynamic Event Bus and standard core engine event definitions.
-//!
 
 use serde::{Deserialize, Serialize};
 use std::any::{Any, TypeId};

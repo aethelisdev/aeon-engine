@@ -6,7 +6,6 @@
 //! Verifies that [`build_assets_panel`] correctly reads widget responses
 //! from autonomous tree interactions and emits canonical [`AssetsPanelAction`]
 //! variants without routing through legacy event interceptors.
-//!
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -437,8 +436,12 @@ fn test_assets_panel_declarative_drag_and_drop_actions() {
         &mut tree_state,
         &mut drag_actions,
     );
+    let expected_payload =
+        TypedDragDropPayload::new(test_item.clone(), test_item.name.clone(), "Assets")
+            .with_badge(test_item.category.badge(), test_item.category.badge_color())
+            .into_erased();
     assert!(
-        drag_actions.contains(&AssetsPanelAction::StartAssetDrag(test_item)),
+        drag_actions.contains(&AssetsPanelAction::StartAssetDrag(expected_payload)),
         "Dragging card must emit AssetsPanelAction::StartAssetDrag, got: {:?}",
         drag_actions
     );
@@ -565,8 +568,12 @@ fn test_assets_panel_drag_and_drop_across_tree_rebuild() {
         &mut tree_state,
         &mut drag_actions,
     );
+    let expected_payload =
+        TypedDragDropPayload::new(test_item.clone(), test_item.name.clone(), "Assets")
+            .with_badge(test_item.category.badge(), test_item.category.badge_color())
+            .into_erased();
     assert!(
-        drag_actions.contains(&AssetsPanelAction::StartAssetDrag(test_item)),
+        drag_actions.contains(&AssetsPanelAction::StartAssetDrag(expected_payload)),
         "Dragging card across tree rebuild must emit StartAssetDrag, got: {:?}",
         drag_actions
     );
