@@ -39,6 +39,8 @@ pub struct PhysicsWorld {
     pub soft_body_set: SoftBodySet,
     /// Solver for continuous collision detection (CCD).
     pub ccd_solver: CCDSolver,
+    /// Mapping of ECS entities to their active collider scale to prevent redundant rebuilds.
+    pub entity_to_collider_scale: HashMap<Entity, [f32; 3]>,
     /// Mapping of ECS entities to Rapier rigid body handles.
     pub entity_to_body: HashMap<Entity, RigidBodyHandle>,
     /// Mapping of Rapier rigid body handles to ECS entities.
@@ -84,6 +86,7 @@ impl PhysicsWorld {
             multibody_joint_set: MultibodyJointSet::new(),
             soft_body_set: SoftBodySet::new(),
             ccd_solver: CCDSolver::new(),
+            entity_to_collider_scale: HashMap::new(),
             entity_to_body: HashMap::new(),
             body_to_entity: HashMap::new(),
             scratch_to_remove: Vec::with_capacity(32),
@@ -103,6 +106,7 @@ impl PhysicsWorld {
         self.multibody_joint_set = MultibodyJointSet::new();
         self.soft_body_set = SoftBodySet::new();
         self.ccd_solver = CCDSolver::new();
+        self.entity_to_collider_scale.clear();
         self.entity_to_body.clear();
         self.body_to_entity.clear();
         self.scratch_to_remove.clear();

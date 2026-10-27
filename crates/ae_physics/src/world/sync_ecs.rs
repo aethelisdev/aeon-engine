@@ -34,6 +34,7 @@ impl PhysicsWorld {
         }
         for i in 0..self.scratch_to_remove.len() {
             let entity = self.scratch_to_remove[i];
+            self.entity_to_collider_scale.remove(&entity);
             if let Some(handle) = self.entity_to_body.remove(&entity) {
                 self.body_to_entity.remove(&handle);
                 self.rigid_body_set.remove(
@@ -162,46 +163,20 @@ impl PhysicsWorld {
                         body.set_gravity_scale(rb.gravity_scale, true);
                     }
 
-                    // Dynamically update existing colliders or rebuild if scale/shape changed
-                    let col_builder = if let Some(cb) = Self::build_collider_for_entity(
-                        col_comp,
-                        rb_comp,
-                        scale_comp,
-                        entity,
-                        world,
-                        &get_mesh_data,
-                    ) {
-                        Some(cb)
-                    } else if is_kcc {
-                        if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
-                            let capsule_half_height = ctrl.capsule_half_height();
-                            Some(
-                                ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
-                                    .translation(Vec3::new(0.0, ctrl.center_y, 0.0)),
-                            )
+                    let target_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
+                    let (target_friction, target_restitution) =
+                        if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
+                            (mat.friction, mat.restitution)
                         } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
+                            (
+                                col_comp.map(|c| c.friction).unwrap_or(0.7),
+                                col_comp.map(|c| c.restitution).unwrap_or(0.0),
+                            )
+                        };
 
-                    if let Some(cb) = col_builder {
-                        let target_sensor = col_comp.map(|c| c.is_sensor).unwrap_or(false);
-                        let (target_friction, target_restitution) =
-                            if let Ok(mat) = world.get::<&ae_core::ecs::PhysicsMaterial>(entity) {
-                                (mat.friction, mat.restitution)
-                            } else {
-                                (
-                                    col_comp.map(|c| c.friction).unwrap_or(0.7),
-                                    col_comp.map(|c| c.restitution).unwrap_or(0.0),
-                                )
-                            };
+                    let mut needs_rebuild = body.colliders().is_empty();
 
-                        let mut needs_rebuild = body.colliders().is_empty();
-
-                        let new_collider = cb.build();
-
+                    if !needs_rebuild {
                         if let Some(&c_h) = body.colliders().first() {
                             if let Some(c) = self.collider_set.get_mut(c_h) {
                                 if c.is_sensor() != target_sensor {
@@ -212,35 +187,143 @@ impl PhysicsWorld {
                                     c.set_restitution(target_restitution);
                                     c.set_restitution_combine_rule(CoefficientCombineRule::Average);
 
-                                    // Detect if scale or shape dimensions changed in ECS
-                                    if c.shape().shape_type() != new_collider.shape().shape_type() {
-                                        needs_rebuild = true;
-                                    } else {
-                                        if let (Some(old_b), Some(new_b)) = (
-                                            c.shape().as_cuboid(),
-                                            new_collider.shape().as_cuboid(),
-                                        ) {
-                                            let diff =
-                                                (old_b.half_extents - new_b.half_extents).abs();
-                                            if diff.x > 1e-3 || diff.y > 1e-3 || diff.z > 1e-3 {
-                                                needs_rebuild = true;
+                                    let expected_shape_type = if is_kcc {
+                                        Some(rapier3d::prelude::ShapeType::Capsule)
+                                    } else if let Some(col) = col_comp {
+                                        match col.shape {
+                                            ColliderShape::Box { .. } => {
+                                                Some(rapier3d::prelude::ShapeType::Cuboid)
+                                            }
+                                            ColliderShape::Sphere { .. } => {
+                                                Some(rapier3d::prelude::ShapeType::Ball)
+                                            }
+                                            ColliderShape::Capsule { .. } => {
+                                                Some(rapier3d::prelude::ShapeType::Capsule)
+                                            }
+                                            ColliderShape::Trimesh => {
+                                                if matches!(
+                                                    rb_comp.map(|r| r.body_type),
+                                                    Some(RigidBodyType::Dynamic)
+                                                ) {
+                                                    Some(rapier3d::prelude::ShapeType::ConvexPolyhedron)
+                                                } else {
+                                                    Some(rapier3d::prelude::ShapeType::TriMesh)
+                                                }
+                                            }
+                                            ColliderShape::ConvexHull => {
+                                                Some(rapier3d::prelude::ShapeType::ConvexPolyhedron)
                                             }
                                         }
-                                        if let (Some(old_s), Some(new_s)) =
-                                            (c.shape().as_ball(), new_collider.shape().as_ball())
-                                            && (old_s.radius - new_s.radius).abs() > 1e-3
-                                        {
-                                            needs_rebuild = true;
+                                    } else if let Ok(shape) = world.get::<&Shape>(entity) {
+                                        match *shape {
+                                            Shape::Sphere => {
+                                                Some(rapier3d::prelude::ShapeType::Ball)
+                                            }
+                                            Shape::Cylinder | Shape::Capsule => {
+                                                Some(rapier3d::prelude::ShapeType::Capsule)
+                                            }
+                                            _ => Some(rapier3d::prelude::ShapeType::Cuboid),
                                         }
-                                        if let (Some(old_c), Some(new_c)) = (
-                                            c.shape().as_capsule(),
-                                            new_collider.shape().as_capsule(),
-                                        ) && ((old_c.radius - new_c.radius).abs() > 1e-3
-                                            || (old_c.half_height() - new_c.half_height()).abs()
-                                                > 1e-3)
-                                        {
-                                            needs_rebuild = true;
+                                    } else if world.get::<&ModelId>(entity).is_ok() {
+                                        if matches!(
+                                            rb_comp.map(|r| r.body_type),
+                                            Some(RigidBodyType::Dynamic)
+                                        ) {
+                                            Some(rapier3d::prelude::ShapeType::ConvexPolyhedron)
+                                        } else {
+                                            Some(rapier3d::prelude::ShapeType::TriMesh)
                                         }
+                                    } else {
+                                        None
+                                    };
+
+                                    if let Some(exp_type) = expected_shape_type {
+                                        if c.shape().shape_type() != exp_type {
+                                            needs_rebuild = true;
+                                        } else {
+                                            if let Some(old_s) =
+                                                self.entity_to_collider_scale.get(&entity)
+                                            {
+                                                let diff_x = (old_s[0] - scale_comp[0]).abs();
+                                                let diff_y = (old_s[1] - scale_comp[1]).abs();
+                                                let diff_z = (old_s[2] - scale_comp[2]).abs();
+                                                if diff_x > 1e-3 || diff_y > 1e-3 || diff_z > 1e-3 {
+                                                    needs_rebuild = true;
+                                                }
+                                            } else {
+                                                needs_rebuild = true;
+                                            }
+
+                                            if !needs_rebuild && let Some(col) = col_comp {
+                                                match col.shape {
+                                                    ColliderShape::Box { half_extents } => {
+                                                        if let Some(b) = c.shape().as_cuboid() {
+                                                            let sx = scale_comp[0].abs().max(1e-4);
+                                                            let sy = scale_comp[1].abs().max(1e-4);
+                                                            let sz = scale_comp[2].abs().max(1e-4);
+                                                            let expected = Vec3::new(
+                                                                half_extents[0].abs().max(1e-4)
+                                                                    * sx,
+                                                                half_extents[1].abs().max(1e-4)
+                                                                    * sy,
+                                                                half_extents[2].abs().max(1e-4)
+                                                                    * sz,
+                                                            );
+                                                            let diff =
+                                                                (b.half_extents - expected).abs();
+                                                            if diff.x > 1e-3
+                                                                || diff.y > 1e-3
+                                                                || diff.z > 1e-3
+                                                            {
+                                                                needs_rebuild = true;
+                                                            }
+                                                        }
+                                                    }
+                                                    ColliderShape::Sphere { radius } => {
+                                                        if let Some(s) = c.shape().as_ball() {
+                                                            let max_s = scale_comp[0]
+                                                                .abs()
+                                                                .max(scale_comp[1].abs())
+                                                                .max(scale_comp[2].abs())
+                                                                .max(1e-4);
+                                                            let expected =
+                                                                radius.abs().max(1e-4) * max_s;
+                                                            if (s.radius - expected).abs() > 1e-3 {
+                                                                needs_rebuild = true;
+                                                            }
+                                                        }
+                                                    }
+                                                    ColliderShape::Capsule {
+                                                        half_height,
+                                                        radius,
+                                                        ..
+                                                    } => {
+                                                        if let Some(cap) = c.shape().as_capsule() {
+                                                            let sy = scale_comp[1].abs().max(1e-4);
+                                                            let s_xz = scale_comp[0]
+                                                                .abs()
+                                                                .max(scale_comp[2].abs())
+                                                                .max(1e-4);
+                                                            let expected_hh =
+                                                                half_height.abs().max(1e-4) * sy;
+                                                            let expected_r =
+                                                                radius.abs().max(1e-4) * s_xz;
+                                                            if (cap.half_height() - expected_hh)
+                                                                .abs()
+                                                                > 1e-3
+                                                                || (cap.radius - expected_r).abs()
+                                                                    > 1e-3
+                                                            {
+                                                                needs_rebuild = true;
+                                                            }
+                                                        }
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        needs_rebuild = true;
                                     }
                                 }
                             } else {
@@ -249,8 +332,36 @@ impl PhysicsWorld {
                         } else {
                             needs_rebuild = true;
                         }
+                    }
 
-                        if needs_rebuild {
+                    if needs_rebuild {
+                        let col_builder = if let Some(cb) = Self::build_collider_for_entity(
+                            col_comp,
+                            rb_comp,
+                            scale_comp,
+                            entity,
+                            world,
+                            &get_mesh_data,
+                        ) {
+                            Some(cb)
+                        } else if is_kcc {
+                            if let Ok(ctrl) = world.get::<&CharacterController>(entity) {
+                                let capsule_half_height = ctrl.capsule_half_height();
+                                Some(
+                                    ColliderBuilder::capsule_y(capsule_half_height, ctrl.radius)
+                                        .translation(Vec3::new(0.0, ctrl.center_y, 0.0)),
+                                )
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
+                        if let Some(cb) = col_builder {
+                            let new_collider = cb.build();
+                            self.entity_to_collider_scale.insert(entity, scale_comp);
+
                             let is_dynamic = body.is_dynamic();
                             let old_colliders: Vec<_> = body.colliders().to_vec();
                             for c_h in old_colliders {
@@ -339,6 +450,7 @@ impl PhysicsWorld {
                 if let Some(cb) = col_builder {
                     self.collider_set
                         .insert_with_parent(cb, handle, &mut self.rigid_body_set);
+                    self.entity_to_collider_scale.insert(entity, scale_comp);
                 }
             }
 
