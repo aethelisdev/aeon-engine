@@ -22,6 +22,7 @@
 #![warn(missing_docs)]
 
 pub mod descriptors;
+pub mod dialogs;
 pub mod error;
 pub mod hooks;
 pub mod layout_sync;
@@ -32,6 +33,9 @@ pub use descriptors::{
     MenuBarDescriptor, MenuItemDescriptor, MenuSectionDescriptor, PanelDrawFn, PanelRegistry,
     StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor,
     WorkbenchPanelRegistry,
+};
+pub use dialogs::{
+    FloatingWindowDescriptor, ModalController, ModalDescriptor, ModalDismissReason, ModalOutcome,
 };
 pub use error::{WorkbenchError, WorkbenchResult};
 pub use hooks::{CustomOverlayHook, DragDropPayload, ExternalTextureHook, TypedDragDropPayload};
