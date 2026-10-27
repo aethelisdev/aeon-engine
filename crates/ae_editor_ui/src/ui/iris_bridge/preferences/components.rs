@@ -52,16 +52,12 @@ where
     F: FnOnce(&mut UiScope<'_>),
 {
     let tag = encode_section_tag(sec_id);
+    let is_open = scope.tree().is_collapsing_open(tag, !is_collapsed);
     let mut header_resp = WidgetResponse::default();
     let card_bg = scope.theme().card_bg;
     let card_border = scope.theme().card_border;
     let header_bg = scope.theme().card_header_bg;
     let hover_bg = header_bg.lerp(Color::WHITE, 0.08);
-    let radii = if is_collapsed {
-        CornerRadii::all(5.0)
-    } else {
-        CornerRadii::new(5.0, 5.0, 0.0, 0.0)
-    };
 
     scope.container_named(
         "PrefSectionCard",
@@ -72,6 +68,12 @@ where
             .border_radius(6.0)
             .margin_insets(Insets::new(0.0, 0.0, 14.0, 0.0)),
         |card| {
+            let radii = if !is_open {
+                CornerRadii::all(5.0)
+            } else {
+                CornerRadii::new(5.0, 5.0, 0.0, 0.0)
+            };
+
             // Section Header Bar
             header_resp = card.container_tagged_resp(
                 "PrefSectionHeader",
@@ -86,7 +88,7 @@ where
                 WidgetRole::Button,
                 tag,
                 |hdr| {
-                    let chevron = if is_collapsed { "▶ " } else { "▼ " };
+                    let chevron = if !is_open { "▶ " } else { "▼ " };
                     hdr.label_styled_passive(
                         "PrefSectionChevron",
                         chevron,
@@ -106,8 +108,16 @@ where
                 },
             );
 
+            let effective_open = if header_resp.clicked() {
+                let toggled = !is_open;
+                card.tree_mut().set_collapsing_open(tag, toggled);
+                toggled
+            } else {
+                is_open
+            };
+
             // Collapsible Content Body
-            if !is_collapsed {
+            if effective_open {
                 card.divider(card.theme().card_border);
                 card.container_named(
                     "PrefSectionBody",

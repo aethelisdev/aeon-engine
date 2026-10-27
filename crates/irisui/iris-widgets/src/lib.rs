@@ -16,6 +16,7 @@ pub mod color_picker;
 pub mod context_menu;
 pub mod controls;
 pub mod declarative;
+pub mod floating_panel;
 pub mod grid_view;
 pub mod input;
 pub mod modal;
@@ -26,12 +27,16 @@ pub mod settings;
 pub mod tree_view;
 
 // Primary declarative showcase elements re-exported at crate root
-pub use declarative::scope::UiScope;
+pub use declarative::scope::{TabBarResponse, UiScope};
 pub use declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
 pub use declarative::types::{ScopeId, WidgetResponse};
 pub use declarative::widget::{
     Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DragVec3, EmptyBox, NumericDrag,
     Toolbar, ToolbarButton, ToolbarGroup, Widget,
+};
+pub use floating_panel::{
+    DEFAULT_TITLEBAR_HEIGHT, FLOATING_TAG_CLOSE, FLOATING_TAG_TITLEBAR, FLOATING_TAG_WINDOW,
+    FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState, calculate_floating_drag_pos,
 };
 pub use grid_view::ResponsiveGrid;
 pub use scroll_area::ScrollArea;
@@ -41,7 +46,7 @@ pub use scroll_area::ScrollArea;
 /// Designed to be imported via wildcard `use iris_widgets::prelude::*;` or through the `irisui` facade.
 pub mod prelude {
     // 1. Declarative Core & Scope
-    pub use crate::declarative::scope::UiScope;
+    pub use crate::declarative::scope::{TabBarResponse, UiScope};
     pub use crate::declarative::subtree::{SubtreeSession, rebuild_leaf_subtree};
     pub use crate::declarative::types::{ScopeId, WidgetResponse};
     pub use crate::declarative::widget::Widget;
@@ -50,6 +55,9 @@ pub mod prelude {
     pub use crate::declarative::widget::{
         Button, Checkbox, Chip, ColorPicker, ColorSwatch, ComboBox, DragVec3, EmptyBox,
         NumericDrag, Toolbar, ToolbarButton, ToolbarGroup,
+    };
+    pub use crate::floating_panel::{
+        FloatingPanelAction, FloatingPanelOutcome, FloatingPanelState,
     };
     pub use crate::grid_view::ResponsiveGrid;
     pub use crate::scroll_area::ScrollArea;
@@ -61,6 +69,7 @@ pub mod prelude {
 
     // 4. Primary Persistent State Structures
     pub use crate::color_picker::HsvColorPickerState;
+    pub use crate::floating_panel::FloatingPanelState as FloatingState;
     pub use crate::input::TextInputState;
     pub use crate::scroll_area::ScrollAreaState;
     pub use crate::tree_view::TreeState;

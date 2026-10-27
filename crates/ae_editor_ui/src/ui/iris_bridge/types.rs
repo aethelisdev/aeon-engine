@@ -278,8 +278,10 @@ pub struct IrisChromeState {
     pub last_inspector_popups: bool,
     /// Last recorded presence of hierarchy floating menus/popups.
     pub last_hierarchy_popups: bool,
-    /// Last recorded presence of preferences modal dialog.
+    /// Last recorded presence of preferences dialog.
     pub last_preferences_active: bool,
+    /// Last recorded floating position of the preferences window to trigger reactive invalidation on titlebar dragging.
+    pub last_preferences_pos: Option<Point>,
     /// When set to `true`, disables retained diffing/sleeping cache and forces a full UI tree reconstruction
     /// every frame (pure immediate / always-rebuild mode).
     ///
@@ -332,6 +334,7 @@ impl Default for IrisChromeState {
             last_inspector_popups: false,
             last_hierarchy_popups: false,
             last_preferences_active: false,
+            last_preferences_pos: None,
             always_rebuild: false,
             needs_text_prepare: true,
             theme_preset: super::theme::ThemePreset::default(),
@@ -477,7 +480,7 @@ impl IrisEditorOverlay {
     #[inline]
     pub fn is_point_over_overlay(&self, point: Point) -> bool {
         if let Some(hit_id) = self.tree.hit_test_layered(point) {
-            self.tree.effective_layer(hit_id) >= UiLayer::Modal
+            self.tree.effective_layer(hit_id) >= UiLayer::Floating
         } else {
             false
         }

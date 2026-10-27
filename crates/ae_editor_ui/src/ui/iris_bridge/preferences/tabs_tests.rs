@@ -27,11 +27,12 @@ fn test_preferences_all_ten_tabs_render_cleanly() {
         let mut snapping_settings = SnapSettings::default();
         let mut editor_config = EditorConfig::default();
 
+        let mut cur_tab = tab_idx;
         let params = PreferencesParams {
             screen_width: 1920.0,
             screen_height: 1080.0,
             window_pos: None,
-            active_tab: tab_idx,
+            active_tab: &mut cur_tab,
             collapsed_sections: &collapsed,
             blink_caret: false,
             active_number_input: None,
@@ -120,7 +121,7 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 3, // Navigation tab
+        active_tab: &mut 3, // Navigation tab
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -172,7 +173,7 @@ fn test_preferences_two_way_data_binding_navigation_and_input_tabs() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 7, // Input tab
+        active_tab: &mut 7, // Input tab
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -210,7 +211,7 @@ fn test_preferences_keymap_scroll_covers_full_content() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 4, // Keymap tab
+        active_tab: &mut 4, // Keymap tab
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,

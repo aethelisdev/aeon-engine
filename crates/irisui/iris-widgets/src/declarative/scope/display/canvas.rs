@@ -130,7 +130,13 @@ impl<'a> UiScope<'a> {
         let parent_layer = self
             .tree
             .get(self.parent)
-            .map(|p| p.layer)
+            .map(|p| {
+                if p.layer != iris_core::UiLayer::Content {
+                    p.layer
+                } else {
+                    p.role.default_layer()
+                }
+            })
             .unwrap_or_default();
 
         let track_id = self.tree.create_node();

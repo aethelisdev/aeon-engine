@@ -76,8 +76,8 @@ impl IrisEditorOverlay {
                 preferences::PreferencesParams {
                     screen_width,
                     screen_height,
-                    window_pos: self.preferences.pos,
-                    active_tab: self.preferences.tab,
+                    window_pos: self.preferences.floating.pos,
+                    active_tab: &mut self.preferences.tab,
                     collapsed_sections: &self.preferences.collapsed_sections,
                     active_number_input,
                     blink_caret,
@@ -94,7 +94,7 @@ impl IrisEditorOverlay {
                 &mut self.preferences.interactions.actions,
             );
             self.preferences.pending_interaction_events.clear();
-            self.preferences.card_rect = Some(card_rect);
+            self.preferences.floating.rect = Some(card_rect);
             self.preferences.content_rect = Some(content_rect);
             self.preferences.max_scroll_y = max_scroll_y;
         }

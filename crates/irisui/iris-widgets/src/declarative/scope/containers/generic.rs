@@ -170,7 +170,7 @@ impl<'a> UiScope<'a> {
         let name_str = name.into();
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
-            node.role = role;
+            node.set_role(role);
             node.tag = tag;
             node.interactive = true;
             node.set_name(name_str);
@@ -227,7 +227,7 @@ impl<'a> UiScope<'a> {
         let node_id = self.tree.create_node();
         if let Some(node) = self.tree.get_mut(node_id) {
             node.set_style(style);
-            node.role = role;
+            node.set_role(role);
             node.tag = tag;
             node.interactive = true;
             node.cursor = cursor;

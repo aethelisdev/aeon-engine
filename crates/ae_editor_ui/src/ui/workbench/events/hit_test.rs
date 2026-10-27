@@ -41,7 +41,7 @@ impl EngineUi {
             return true;
         }
 
-        if let Some(card_rect) = self.iris_overlay.preferences.card_rect
+        if let Some(card_rect) = self.iris_overlay.preferences.floating.rect
             && in_rect(card_rect)
         {
             return true;

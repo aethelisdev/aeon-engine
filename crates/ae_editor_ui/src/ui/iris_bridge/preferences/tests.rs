@@ -112,7 +112,7 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(400.0, 200.0)),
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -178,12 +178,15 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
     // Verify TabAccentBar nodes exist for sidebar tabs
     let accent_bar_count = tree
         .iter()
-        .filter(|(_id, node)| node.name.as_deref() == Some("PrefTabAccentBar"))
+        .filter(|(_id, node)| {
+            node.name.as_deref() == Some("TabAccentBar")
+                || node.name.as_deref() == Some("PrefTabAccentBar")
+        })
         .count();
     assert_eq!(
         accent_bar_count,
         SIDEBAR_TABS.len(),
-        "Each sidebar tab must contain a dedicated PrefTabAccentBar node"
+        "Each sidebar tab must contain a dedicated TabAccentBar node"
     );
 
     // Verify Titlebar Gear Icon from Texture Atlas
@@ -207,12 +210,15 @@ fn test_preferences_dialog_builder_and_declarative_scope() {
     // Verify TabSpacer nodes exist for sidebar tabs
     let spacer_count = tree
         .iter()
-        .filter(|(_id, node)| node.name.as_deref() == Some("PrefTabSpacer"))
+        .filter(|(_id, node)| {
+            node.name.as_deref() == Some("TabSpacer")
+                || node.name.as_deref() == Some("PrefTabSpacer")
+        })
         .count();
     assert_eq!(
         spacer_count,
         SIDEBAR_TABS.len(),
-        "Each sidebar tab must contain a dedicated PrefTabSpacer node for 14px left padding"
+        "Each sidebar tab must contain a dedicated TabSpacer node for 14px left padding"
     );
 }
 
@@ -233,7 +239,7 @@ fn test_preferences_combobox_mounting() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(400.0, 200.0)),
-        active_tab: 1,
+        active_tab: &mut 1,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -276,7 +282,7 @@ fn test_preferences_scroll_translates_children_upward() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics
+        active_tab: &mut 1, // Graphics
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -295,7 +301,7 @@ fn test_preferences_scroll_translates_children_upward() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics
+        active_tab: &mut 1, // Graphics
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -360,7 +366,7 @@ fn test_preferences_declarative_text_wrap_and_scope_purity() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 9, // Modules tab
+        active_tab: &mut 9, // Modules tab
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -473,7 +479,7 @@ fn test_preferences_two_way_data_binding_shadows_and_bloom() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics tab
+        active_tab: &mut 1, // Graphics tab
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -563,7 +569,7 @@ fn test_preferences_two_way_data_binding_editor_tab() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 2, // Editor tab
+        active_tab: &mut 2, // Editor tab
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -619,7 +625,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics tab
+        active_tab: &mut 1, // Graphics tab
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: Some((num_box_pitch, "0.50", true)), // Selected on click
@@ -662,7 +668,7 @@ fn test_preferences_graphics_slider_click_to_type_and_selection_highlight() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics tab
+        active_tab: &mut 1, // Graphics tab
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: None,
@@ -700,7 +706,7 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics tab (overflows content height)
+        active_tab: &mut 1, // Graphics tab (overflows content height)
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: None,
@@ -725,6 +731,16 @@ fn test_preferences_scrollbar_thumb_hit_test_and_layer() {
         .expect("Scrollbar thumb node must exist in tree");
 
     let thumb_node = tree.get(thumb_id).expect("Thumb node must exist");
+    assert_eq!(
+        thumb_node.layer,
+        irisui::core::UiLayer::Floating,
+        "Scrollbar thumb must reside on Floating layer matching the preferences card"
+    );
+    assert_eq!(
+        thumb_node.parent,
+        Some(_card_id),
+        "Scrollbar thumb must be a child of card_id to move with window dragging"
+    );
     let thumb_center = Point::new(
         thumb_node.computed_rect.x + thumb_node.computed_rect.width * 0.5,
         thumb_node.computed_rect.y + thumb_node.computed_rect.height * 0.5,
@@ -754,7 +770,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             screen_width: 1920.0,
             screen_height: 1080.0,
             window_pos: None,
-            active_tab: 1, // Graphics tab
+            active_tab: &mut 1, // Graphics tab
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -777,7 +793,7 @@ fn test_preferences_mouse_wheel_scroll_event_handling() {
             screen_width: 1920.0,
             screen_height: 1080.0,
             window_pos: None,
-            active_tab: 1,
+            active_tab: &mut 1,
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -821,7 +837,7 @@ fn test_sync_scroll_in_place_translates_children() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 1, // Graphics tab
+        active_tab: &mut 1, // Graphics tab
         collapsed_sections: &collapsed,
         blink_caret: true,
         active_number_input: None,
@@ -909,7 +925,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             screen_width,
             screen_height,
             window_pos: None,
-            active_tab: 1, // Graphics tab
+            active_tab: &mut 1, // Graphics tab
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -950,7 +966,7 @@ fn test_preferences_mouse_wheel_and_drag() {
             screen_width,
             screen_height,
             window_pos: None,
-            active_tab: 1, // Graphics tab
+            active_tab: &mut 1, // Graphics tab
             collapsed_sections: &collapsed,
             active_number_input: None,
             blink_caret: false,
@@ -1007,7 +1023,7 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -1042,7 +1058,7 @@ fn test_preferences_declarative_actions_dispatch() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -1065,37 +1081,29 @@ fn test_preferences_declarative_actions_dispatch() {
         "Clicking tab 3 must dispatch PreferencesAction::SelectTab(3)"
     );
 
-    // 3. Test Titlebar Drag declarative dispatch
-    let events_drag = [(
-        PREF_TAG_TITLEBAR,
-        InteractionEvent::Drag {
-            delta: Point::new(10.0, 15.0),
-        },
-    )];
-    let params_drag = PreferencesParams {
-        screen_width: 1920.0,
-        screen_height: 1080.0,
-        window_pos: Some(Point::new(100.0, 100.0)),
-        active_tab: 0,
-        collapsed_sections: &collapsed,
-        blink_caret: false,
-        active_number_input: None,
-        cursor_pos: Point::new(110.0, 115.0),
-        zoom_factor: 1.0,
-        graphics_settings: &mut gs,
-        snapping_settings: &mut snapping_settings,
-        editor_config: &mut editor_config,
-        enable_live_updates: false,
-        enabled_modules: &enabled_modules,
-        events: &events_drag,
-        current_theme: Default::default(),
+    // 3. Test Titlebar Drag through FloatingPanelState controller
+    let mut floating = irisui::widgets::FloatingPanelState::new();
+    floating.rect = Some(Rect::new(100.0, 100.0, 760.0, 540.0));
+    floating.pos = Some(Point::new(100.0, 100.0));
+    let down_ev = UiEvent::MouseDown {
+        button: MouseButton::Left,
+        point: Point::new(150.0, 115.0),
     };
-    let mut actions_drag = Vec::new();
-    build_preferences_dialog(&mut UiTree::new(), params_drag, &mut actions_drag);
-    assert!(
-        actions_drag
-            .iter()
-            .any(|a| matches!(a, PreferencesAction::Move(_))),
-        "Dragging titlebar must dispatch PreferencesAction::Move"
+    let down_disp = tree.dispatch_event(&down_ev);
+    let outcome_down = floating.handle_event(&mut tree, &down_ev, &down_disp, 1920.0, 1080.0);
+    assert!(outcome_down.consumed);
+    assert!(floating.is_dragging());
+
+    let move_ev = UiEvent::MouseMove {
+        point: Point::new(160.0, 130.0),
+    };
+    let move_disp = tree.dispatch_event(&move_ev);
+    let outcome_move = floating.handle_event(&mut tree, &move_ev, &move_disp, 1920.0, 1080.0);
+    assert!(outcome_move.consumed);
+    assert_eq!(
+        outcome_move.action,
+        Some(irisui::widgets::FloatingPanelAction::Move(Point::new(
+            110.0, 115.0
+        )))
     );
 }

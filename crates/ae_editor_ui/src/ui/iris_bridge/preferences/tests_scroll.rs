@@ -66,7 +66,7 @@ fn test_preferences_handle_scroll_area_event_wheel_scrolling() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(100.0, 50.0)),
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -128,7 +128,7 @@ fn test_preferences_handle_scroll_area_event_thumb_drag_lifecycle() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(100.0, 50.0)),
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -189,7 +189,7 @@ fn test_preferences_wheel_outside_content_is_unconsumed() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(100.0, 50.0)),
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -237,7 +237,7 @@ fn test_preferences_titlebar_drag_interaction() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: Some(Point::new(200.0, 150.0)),
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -283,41 +283,24 @@ fn test_preferences_titlebar_drag_interaction() {
         Some(Point::new(30.0, 20.0))
     );
 
-    // Rebuilding frame with tree containing drag_delta produces PreferencesAction::Move
-    let mut frame_actions = Vec::new();
-    let mut graphics_settings = GraphicsSettings::default();
-    let mut snapping_settings = SnapSettings::default();
-    let mut editor_config = EditorConfig::default();
-    let params2 = PreferencesParams {
-        screen_width: 1920.0,
-        screen_height: 1080.0,
-        window_pos: Some(Point::new(200.0, 150.0)),
-        active_tab: 0,
-        collapsed_sections: &collapsed,
-        blink_caret: false,
-        active_number_input: None,
-        cursor_pos: move_point,
-        zoom_factor: 1.0,
-        graphics_settings: &mut graphics_settings,
-        snapping_settings: &mut snapping_settings,
-        editor_config: &mut editor_config,
-        enable_live_updates: false,
-        enabled_modules: &enabled_modules,
-        events: &[],
-        current_theme: Default::default(),
-    };
+    // Autonomous drag evaluation through FloatingPanelState controller
+    let mut floating = irisui::widgets::FloatingPanelState::new();
+    floating.rect = Some(card_rect);
+    floating.pos = Some(Point::new(card_rect.x, card_rect.y));
 
-    build_preferences_dialog(&mut tree, params2, &mut frame_actions);
-    let has_move = frame_actions.iter().any(|a| {
-        matches!(
-            a,
-            crate::ui::iris_bridge::PreferencesAction::Move(pos)
-                if pos.x == 230.0 && pos.y == 170.0
-        )
-    });
-    assert!(
-        has_move,
-        "Titlebar drag must produce Move action with correct coordinates"
+    let outcome_down = floating.handle_event(&mut tree, &down_event, &down_resp, 1920.0, 1080.0);
+    assert!(outcome_down.consumed);
+    assert!(floating.is_dragging());
+
+    let outcome_move = floating.handle_event(&mut tree, &move_event, &move_resp, 1920.0, 1080.0);
+    assert!(outcome_move.consumed);
+    assert!(outcome_move.needs_layout_rebuild);
+    assert_eq!(
+        outcome_move.action,
+        Some(irisui::widgets::FloatingPanelAction::Move(Point::new(
+            card_rect.x + 30.0,
+            card_rect.y + 20.0
+        )))
     );
 }
 
@@ -345,7 +328,7 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,
@@ -386,7 +369,7 @@ fn test_preferences_overlay_tree_full_drag_cycle() {
         screen_width: 1920.0,
         screen_height: 1080.0,
         window_pos: None,
-        active_tab: 0,
+        active_tab: &mut 0,
         collapsed_sections: &collapsed,
         blink_caret: false,
         active_number_input: None,

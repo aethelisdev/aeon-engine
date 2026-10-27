@@ -37,6 +37,8 @@ pub enum WidgetRole {
     ModalTitlebar,
     /// Floating draggable tool window.
     FloatingWindow,
+    /// Draggable floating tool window header or title bar strip.
+    FloatingTitlebar,
     /// Canvas for drawing real-time audio or profiler oscilloscope curves.
     OscilloscopeCanvas,
     /// High-frequency immediate canvas surface rendering volatile primitives (graphs, waves, timelines).
@@ -176,7 +178,7 @@ impl WidgetRole {
             | WidgetRole::ScrollBarTrack
             | WidgetRole::ScrollBarThumb
             | WidgetRole::ColorPickerArea => UiLayer::Content,
-            WidgetRole::FloatingWindow => UiLayer::Floating,
+            WidgetRole::FloatingWindow | WidgetRole::FloatingTitlebar => UiLayer::Floating,
             WidgetRole::ModalWindow | WidgetRole::ModalTitlebar => UiLayer::Modal,
             WidgetRole::DropdownPopup
             | WidgetRole::DropdownItem
@@ -230,6 +232,7 @@ impl WidgetRole {
                 | WidgetRole::ModalWindow
                 | WidgetRole::ModalTitlebar
                 | WidgetRole::FloatingWindow
+                | WidgetRole::FloatingTitlebar
         )
     }
 }

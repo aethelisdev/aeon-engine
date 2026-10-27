@@ -210,7 +210,6 @@ impl<'a> OverlayUpdateParams<'a> {
     #[must_use]
     pub fn is_modal_active(&self) -> bool {
         self.dialogs.show_about
-            || self.dialogs.show_preferences
             || self.dialogs.delete_target.is_some()
             || self.dialogs.new_folder_parent.is_some()
             || self.dialogs.rename_target.is_some()

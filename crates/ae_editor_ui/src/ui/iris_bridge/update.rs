@@ -88,9 +88,6 @@ impl IrisEditorOverlay {
             let mut res = super::types::IrisOverlayEventResult::consumed(true);
             if self.modals.is_about_active {
                 res.close_about = true;
-            } else if self.preferences.card_rect.is_some() {
-                res.close_preferences = true;
-                res.preferences_action = Some(super::preferences::PreferencesAction::Close);
             } else if self.modals.is_delete_active {
                 res.cancel_delete = true;
             } else if self.modals.is_new_folder_active {
@@ -179,6 +176,31 @@ impl IrisEditorOverlay {
 
         let mut result = super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed());
 
+        // Autonomous Preferences floating panel event handling (dragging, screen clamping, click absorption, close)
+        if self.preferences.floating.rect.is_some() {
+            let floating_outcome = self.preferences.floating.handle_event(
+                &mut self.tree,
+                event,
+                &dispatch,
+                self.screen_width,
+                self.screen_height,
+            );
+            if floating_outcome.consumed {
+                result.consumed = true;
+            }
+            if floating_outcome.needs_layout_rebuild {
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
+            }
+            if floating_outcome.action == Some(irisui::widgets::FloatingPanelAction::Close) {
+                result.consumed = true;
+                result.close_preferences = true;
+                result.preferences_action = Some(super::preferences::PreferencesAction::Close);
+                self.notifier.tag_all();
+                self.chrome.needs_layout_rebuild = true;
+            }
+        }
+
         // Evaluate modal actions and button triggers in unified tree (STRICTLY on clicks, never on hover)
         if let Some(clicked_tag) = clicked_tag
             && clicked_tag != 0
@@ -199,10 +221,6 @@ impl IrisEditorOverlay {
                     result.consumed = true;
                     if self.modals.is_about_active {
                         result.close_about = true;
-                    } else if self.preferences.card_rect.is_some() {
-                        result.close_preferences = true;
-                        result.preferences_action =
-                            Some(super::preferences::PreferencesAction::Close);
                     } else if self.modals.is_delete_active {
                         result.cancel_delete = true;
                     } else if self.modals.is_new_folder_active {
@@ -244,13 +262,6 @@ impl IrisEditorOverlay {
                     if self.modals.is_delete_active {
                         result.confirm_delete = true;
                     }
-                    self.notifier.tag_all();
-                    self.chrome.needs_layout_rebuild = true;
-                }
-                super::preferences::PREF_TAG_CLOSE => {
-                    result.consumed = true;
-                    result.close_preferences = true;
-                    result.preferences_action = Some(super::preferences::PreferencesAction::Close);
                     self.notifier.tag_all();
                     self.chrome.needs_layout_rebuild = true;
                 }
@@ -418,7 +429,7 @@ impl IrisEditorOverlay {
             self.menubar.dropdown_rect = None;
         }
         if !params.dialogs.show_preferences {
-            self.preferences.card_rect = None;
+            self.preferences.floating.reset();
             self.preferences.content_rect = None;
         }
 
@@ -625,7 +636,7 @@ impl IrisEditorOverlay {
                 (screen_height - Self::MENUBAR_HEIGHT - Self::STATUS_BAR_HEIGHT).max(1.0),
             );
             let pref_rect = if params.dialogs.show_preferences {
-                let (left, top) = if let Some(pos) = self.preferences.pos {
+                let (left, top) = if let Some(pos) = self.preferences.floating.pos {
                     (pos.x, pos.y)
                 } else {
                     (

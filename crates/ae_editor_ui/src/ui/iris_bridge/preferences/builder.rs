@@ -39,6 +39,20 @@ pub const SIDEBAR_TABS: [(&str, u8); 10] = [
     ("Experimental", 8),
 ];
 
+/// Sidebar tabs descriptor list with explicit semantic tags: `(label, tab_index, semantic_tag)`.
+pub const SIDEBAR_TABS_TAGGED: [(&str, u8, u64); 10] = [
+    ("General", 0, encode_tab_tag(0)),
+    ("Graphics", 1, encode_tab_tag(1)),
+    ("Editor", 2, encode_tab_tag(2)),
+    ("Navigation", 3, encode_tab_tag(3)),
+    ("Input", 7, encode_tab_tag(7)),
+    ("Keymap", 4, encode_tab_tag(4)),
+    ("System", 5, encode_tab_tag(5)),
+    ("Add-ons", 6, encode_tab_tag(6)),
+    ("Modules", 9, encode_tab_tag(9)),
+    ("Experimental", 8, encode_tab_tag(8)),
+];
+
 /// Returns the virtual scrollable height for a given preferences tab.
 #[inline]
 pub fn tab_virtual_height(tab_idx: u8) -> f32 {
@@ -58,6 +72,8 @@ pub fn tab_virtual_height(tab_idx: u8) -> f32 {
 }
 
 /// Calculates the clamped preferences floating window position during titlebar dragging.
+///
+/// Delegates directly to the Iris UI floating panel drag solver.
 pub fn calculate_preferences_drag_pos(
     cursor: Point,
     drag_offset: Point,
@@ -65,11 +81,13 @@ pub fn calculate_preferences_drag_pos(
     screen_height: f32,
 ) -> Point {
     let min_y = crate::ui::iris_bridge::menubar::MENUBAR_HEIGHT;
-    let max_x = (screen_width - PREF_CARD_WIDTH).max(0.0);
-    let max_y = (screen_height - PREF_CARD_HEIGHT).max(min_y);
-    Point::new(
-        (cursor.x - drag_offset.x).clamp(0.0, max_x).round(),
-        (cursor.y - drag_offset.y).clamp(min_y, max_y).round(),
+    irisui::widgets::floating_panel::calculate_floating_drag_pos(
+        cursor,
+        drag_offset,
+        (PREF_CARD_WIDTH, PREF_CARD_HEIGHT),
+        screen_width,
+        screen_height,
+        min_y,
     )
 }
 
@@ -133,12 +151,12 @@ pub fn build_preferences_dialog(
             .border_radius(10.0)
             .box_shadow(0.0, 8.0, 24.0, Color::rgba(0.0, 0.0, 0.0, 0.75))
             .clip_children(true),
-        WidgetRole::ModalWindow,
+        WidgetRole::FloatingWindow,
         PREF_TAG_CARD,
         |card| {
             // 2. Titlebar Strip - unified deep black matching sidebar with matching top rounded corners
             let titlebar_bg = card.theme().toolbar_bg;
-            let titlebar_resp = card.container_tagged_resp(
+            card.container_tagged_resp(
                 "PreferencesTitlebar",
                 Style::new()
                     .flex_row()
@@ -148,7 +166,7 @@ pub fn build_preferences_dialog(
                     .padding_insets(Insets::new(0.0, 14.0, 0.0, 10.0))
                     .background(titlebar_bg)
                     .corner_radii(CornerRadii::new(10.0, 10.0, 0.0, 0.0)),
-                WidgetRole::ModalTitlebar,
+                WidgetRole::FloatingTitlebar,
                 PREF_TAG_TITLEBAR,
                 |titlebar| {
                     titlebar.icon(
@@ -203,17 +221,6 @@ pub fn build_preferences_dialog(
                 },
             );
 
-            if let Some(delta) = titlebar_resp.drag_delta() {
-                let cur = params.window_pos.unwrap_or(Point::new(left, top));
-                let new_pos = calculate_preferences_drag_pos(
-                    Point::new(cur.x + delta.x, cur.y + delta.y),
-                    Point::ZERO,
-                    screen_width,
-                    screen_height,
-                );
-                actions.push(super::types::PreferencesAction::Move(new_pos));
-            }
-
             // 1px Horizontal Titlebar Divider
             let card_divider = card.theme().divider;
             card.divider(card_divider);
@@ -224,90 +231,14 @@ pub fn build_preferences_dialog(
                 Style::new().flex_row().flex_grow(1.0).height(content_h),
                 |body| {
                     // Left Sidebar
-                    let sidebar_bg = body.theme().panel_bg;
-                    let text_secondary = body.theme().text_secondary;
-                    body.container_named(
-                        "PreferencesSidebar",
-                        Style::new()
-                            .width(SIDEBAR_WIDTH)
-                            .height(content_h)
-                            .flex_col()
-                            .padding_insets(Insets::new(8.0, 6.0, 8.0, 6.0))
-                            .background(sidebar_bg),
-                        |sidebar| {
-                            for &(label, tab_idx) in &SIDEBAR_TABS {
-                                let tab_tag = encode_tab_tag(tab_idx);
-                                let is_active = params.active_tab == tab_idx;
-
-                                let (bg, hover_bg, text_col) = if is_active {
-                                    (
-                                        Color::rgba(0.0, 0.65, 0.85, 0.12),
-                                        Color::rgba(0.0, 0.65, 0.85, 0.18),
-                                        Color::rgba(0.0, 0.90, 1.0, 1.0),
-                                    )
-                                } else {
-                                    (
-                                        Color::TRANSPARENT,
-                                        Color::rgba(0.18, 0.20, 0.28, 0.50),
-                                        text_secondary,
-                                    )
-                                };
-
-                                if sidebar
-                                    .container_tagged_resp(
-                                        "PrefSidebarTab",
-                                        Style::new()
-                                            .flex_row()
-                                            .align_items(AlignItems::Center)
-                                            .height(30.0)
-                                            .padding_insets(Insets::new(0.0, 10.0, 0.0, 0.0))
-                                            .margin_insets(Insets::new(0.0, 0.0, 2.0, 0.0))
-                                            .border_radius(4.0)
-                                            .clip_children(true)
-                                            .background(bg)
-                                            .hover_background(hover_bg),
-                                        WidgetRole::Button,
-                                        tab_tag,
-                                        |btn| {
-                                            // Vertical Cyan Accent Bar for Active Tab anchored to the exact left edge
-                                            let bar_color = if is_active {
-                                                Color::rgba(0.0, 0.85, 1.0, 1.0)
-                                            } else {
-                                                Color::TRANSPARENT
-                                            };
-
-                                            btn.empty_box_passive_named(
-                                                "PrefTabAccentBar",
-                                                Style::new()
-                                                    .width(3.0)
-                                                    .height(30.0)
-                                                    .background(bar_color),
-                                            );
-
-                                            // 11px spacer ensures exactly 14.0px clean left padding from outer edge
-                                            btn.empty_box_passive_named(
-                                                "PrefTabSpacer",
-                                                Style::new().width(11.0).height(1.0),
-                                            );
-
-                                            btn.label_styled_hover_passive(
-                                                "PrefTabLabel",
-                                                label,
-                                                12.0,
-                                                (text_col, Color::WHITE),
-                                                TextAlign::Left,
-                                                Style::new().flex_grow(1.0),
-                                            );
-                                        },
-                                    )
-                                    .clicked()
-                                {
-                                    actions
-                                        .push(super::types::PreferencesAction::SelectTab(tab_idx));
-                                }
-                            }
-                        },
+                    let tab_resp = body.sidebar_tabs_tagged(
+                        &SIDEBAR_TABS_TAGGED,
+                        params.active_tab,
+                        Some(PREF_TAG_CONTENT_VIEW),
                     );
+                    if let Some(clicked) = tab_resp.clicked_tab {
+                        actions.push(super::types::PreferencesAction::SelectTab(clicked));
+                    }
 
                     // Vertical Divider
                     let v_divider = body.theme().divider;
@@ -334,7 +265,7 @@ pub fn build_preferences_dialog(
                                 WidgetRole::Default,
                                 PREF_TAG_SCROLL_CONTAINER,
                                 |scroll_col| {
-                                    match params.active_tab {
+                                    match *params.active_tab {
                                         0 => build_general_tab(scroll_col, &mut params, actions),
                                         1 => build_graphics_tab(scroll_col, &mut params),
                                         2 => build_editor_tab(scroll_col, &mut params),
@@ -385,7 +316,7 @@ pub fn build_preferences_dialog(
         .unwrap_or(0.0);
 
     let total_h = measured_total_h
-        .max(tab_virtual_height(params.active_tab))
+        .max(tab_virtual_height(*params.active_tab))
         .max(content_h);
     let max_scroll_y = (total_h - content_h).max(0.0);
     let safe_scroll = current_scroll.clamp(0.0, max_scroll_y);
@@ -420,9 +351,10 @@ pub fn build_preferences_dialog(
                             .is_some_and(|n| n.tag == PREF_TAG_SCROLLBAR_THUMB)
                     });
 
-            root_scope.scrollbar_vertical(
+            let mut card_scope = root_scope.child_scope(card_id);
+            card_scope.scrollbar_vertical(
                 geom,
-                Rect::ZERO,
+                card_rect,
                 is_scrollbar_dragging,
                 Some(params.cursor_pos),
                 PREF_TAG_SCROLLBAR_TRACK,

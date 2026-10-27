@@ -52,7 +52,7 @@ impl EngineUi {
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }
                 iris_bridge::PreferencesAction::Move(new_pos) => {
-                    self.iris_overlay.preferences.pos = Some(new_pos);
+                    self.iris_overlay.preferences.floating.pos = Some(new_pos);
                     self.iris_overlay.notifier.tag_all();
                     self.iris_overlay.chrome.needs_layout_rebuild = true;
                 }

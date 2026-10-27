@@ -106,7 +106,10 @@ fn handle_mouse_move(tree: &mut UiTree, point: Point) -> DispatchResult {
         if (dx * dx + dy * dy) > 9.0 {
             let is_draggable = tree.event_state.pressed_tag.is_some()
                 || tree.get(pressed_id).is_some_and(|n| {
-                    n.tag != 0 || n.role.is_interactive() || n.role == WidgetRole::ModalTitlebar
+                    n.tag != 0
+                        || n.role.is_interactive()
+                        || n.role == WidgetRole::ModalTitlebar
+                        || n.role == WidgetRole::FloatingTitlebar
                 });
             if is_draggable {
                 let capture_tag = tree.event_state.pressed_tag.or_else(|| {
@@ -404,11 +407,16 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
-        // If clicking on non-button child of a ModalTitlebar, NumericInput, ColorPickerArea, or TextInput, bubble target to interactive ancestor
+        // If clicking on non-button child of a ModalTitlebar, FloatingTitlebar, NumericInput, ColorPickerArea, or TextInput, bubble target to interactive ancestor
         let (effective_target_id, effective_role) = if role != WidgetRole::Button {
-            if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
+            if let Some(tb_id) = tree
+                .find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
+                .or_else(|| tree.find_ancestor_with_role(target_id, WidgetRole::FloatingTitlebar))
             {
-                (tb_id, WidgetRole::ModalTitlebar)
+                let tb_role = tree
+                    .get(tb_id)
+                    .map_or(WidgetRole::ModalTitlebar, |n| n.role);
+                (tb_id, tb_role)
             } else if let Some(num_id) =
                 tree.find_ancestor_with_role(target_id, WidgetRole::NumericInput)
             {
@@ -488,10 +496,11 @@ fn handle_mouse_down(tree: &mut UiTree, button: MouseButton, point: Point) -> Di
             }
         } else if (effective_role == WidgetRole::NumericInput
             || effective_role == WidgetRole::ModalTitlebar
+            || effective_role == WidgetRole::FloatingTitlebar
             || effective_role == WidgetRole::ColorPickerArea)
             && button == MouseButton::Left
         {
-            // Autonomous pointer capture inception for drag scrubbers, draggable modal titlebars, and color pickers
+            // Autonomous pointer capture inception for drag scrubbers, draggable modal/floating titlebars, and color pickers
             tree.event_state.pointer_capture = Some(effective_target_id);
             tree.event_state.pointer_capture_tag = if effective_tag != 0 {
                 Some(effective_tag)
@@ -665,11 +674,16 @@ fn handle_mouse_up(tree: &mut UiTree, button: MouseButton, point: Point) -> Disp
             .map(|n| n.role)
             .unwrap_or(WidgetRole::Default);
 
-        // If clicking on non-interactive child of an interactive ancestor (ModalTitlebar, NumericInput, ColorPickerArea, TextInput, or Button), bubble target
+        // If clicking on non-interactive child of an interactive ancestor (ModalTitlebar, FloatingTitlebar, NumericInput, ColorPickerArea, TextInput, or Button), bubble target
         let (effective_target_id, effective_role) = if role != WidgetRole::Button {
-            if let Some(tb_id) = tree.find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
+            if let Some(tb_id) = tree
+                .find_ancestor_with_role(target_id, WidgetRole::ModalTitlebar)
+                .or_else(|| tree.find_ancestor_with_role(target_id, WidgetRole::FloatingTitlebar))
             {
-                (tb_id, WidgetRole::ModalTitlebar)
+                let tb_role = tree
+                    .get(tb_id)
+                    .map_or(WidgetRole::ModalTitlebar, |n| n.role);
+                (tb_id, tb_role)
             } else if let Some(num_id) =
                 tree.find_ancestor_with_role(target_id, WidgetRole::NumericInput)
             {

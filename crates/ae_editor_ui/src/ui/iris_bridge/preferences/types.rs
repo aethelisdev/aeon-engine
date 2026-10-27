@@ -73,7 +73,8 @@ pub fn is_preferences_tag(tag: u64) -> bool {
 
 /// Encodes a sidebar tab index (0..=9) into a semantic tag.
 #[inline]
-pub fn encode_tab_tag(tab_idx: u8) -> u64 {
+#[must_use]
+pub const fn encode_tab_tag(tab_idx: u8) -> u64 {
     PREF_TAG_TAB_BASE | (tab_idx as u64)
 }
 
@@ -197,8 +198,8 @@ pub struct PreferencesParams<'a> {
     pub screen_height: f32,
     /// Custom floating window position (left, top), if any.
     pub window_pos: Option<Point>,
-    /// Currently active sidebar tab index (0..=9).
-    pub active_tab: u8,
+    /// Mutable reference to the currently active sidebar tab index (0..=9) for declarative two-way data binding.
+    pub active_tab: &'a mut u8,
     /// Set of currently collapsed card/section identifiers.
     pub collapsed_sections: &'a HashSet<&'static str>,
     /// Currently active inline numeric text editing state: `(target_tag, current_string_buffer, is_all_selected)`.
@@ -259,16 +260,12 @@ pub const fn preferences_scroll_style() -> ScrollAreaStyle {
 pub struct PreferencesDialogState {
     /// Common panel interaction state (scroll_y, search, actions).
     pub interactions: crate::ui::iris_bridge::types::PanelInteractionState<(), PreferencesAction>,
-    /// Bounding rectangle of the preferences floating card for click absorption and bounds clamping.
-    pub card_rect: Option<Rect>,
+    /// First-class autonomous floating panel controller from Iris UI.
+    pub floating: irisui::widgets::FloatingPanelState,
     /// Virtual maximum scrollable distance (total_content_height - content_height).
     pub max_scroll_y: f32,
     /// Bounding rectangle of the scrollable content view.
     pub content_rect: Option<Rect>,
-    /// Custom floating position coordinates for the Preferences panel.
-    pub pos: Option<Point>,
-    /// Active drag offset from window top-left when dragging the title bar.
-    pub drag_offset: Option<Point>,
     /// Currently selected tab index in the Preferences dialog (0..=9).
     pub tab: u8,
     /// Previously rendered tab index in Preferences to trigger reactive invalidation on tab switches.
