@@ -37,15 +37,8 @@ pub fn open_url(url: &str) {
 
 /// Constructs the centered 'About Aeon Engine' modal dialogue in the UI tree.
 ///
-/// Assembles the complete modal hierarchy purely through declarative [`UiScope`]
-/// primitives without raw node instantiation, comprising:
-/// 1. A full-screen backdrop blocker ([`UiScope::modal_scrim`]) tagged with [`MODAL_TAG_SCRIM`].
-/// 2. An elevated modal card container ([`UiScope::modal_card`]) centered dynamically on the screen.
-/// 3. A title header row with left-aligned branding label and a right-aligned [`UiScope::modal_close_button`].
-/// 4. A centered body column displaying engine typography, copyright notice, separator, clickable MPL-2.0 license hyperlink, and warranty disclaimer.
-/// 5. An action footer containing the primary [`UiScope::modal_confirm_button`].
-///
-/// Returns the root allocated [`WidgetId`] (the backdrop scrim blocker).
+/// Assembles the complete modal hierarchy purely through declarative [`WorkbenchModal`]
+/// and [`WorkbenchUiScopeExt`] primitives.
 pub fn build_about_dialog(
     tree: &mut UiTree,
     screen_width: f32,
@@ -60,68 +53,60 @@ pub fn build_about_dialog(
         .unwrap_or_default();
     let mut scope = UiScope::with_interactions(tree, parent, events, hovered_id);
 
-    scope.modal_scrim_sized(
-        Rect::new(0.0, 0.0, screen_width, screen_height),
-        Color::rgba(0.0, 0.0, 0.0, 0.55),
-        |scrim| {
-            scrim.modal_card(ABOUT_DIALOG_WIDTH, ABOUT_DIALOG_HEIGHT, |card| {
-                // 1. Header Bar: Title and '✖' close button
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::SpaceBetween),
-                    |header| {
-                        header.subheading("ℹ  About Aeon Engine");
-                        header.modal_close_button();
-                    },
-                );
+    let modal = WorkbenchModal::new(
+        "ℹ  About Aeon Engine",
+        ABOUT_DIALOG_WIDTH,
+        ABOUT_DIALOG_HEIGHT,
+    )
+    .with_backdrop_color(Color::rgba(0.0, 0.0, 0.0, 0.55));
 
-                // 2. Body Column: Engine identity, copyright, license link, and warranty
-                card.column(|col| {
-                    col.label_custom(
-                        "Aeon Engine",
-                        20.0,
-                        Color::rgba(0.0, 0.90, 1.0, 1.0),
-                        TextAlign::Center,
-                    );
-                    col.colored_label(
-                        Color::rgba(0.65, 0.65, 0.70, 1.0),
-                        "Copyright (C) 2026 AethelisDEV / Aeon Engine",
-                    );
-                    col.separator();
-                    col.colored_label(
-                        Color::rgba(0.72, 0.72, 0.78, 1.0),
-                        "This Source Code Form is subject to the terms of the Mozilla Public",
-                    );
-                    if col
-                        .link(
-                            "License, v. 2.0 (MPL-2.0). https://mozilla.org/MPL/2.0/",
-                            11.0,
-                        )
-                        .clicked()
-                    {
-                        open_url("https://mozilla.org/MPL/2.0/");
-                    }
-                    col.colored_label(
-                        Color::rgba(1.0, 0.40, 0.40, 1.0),
-                        "This program comes with ABSOLUTELY NO WARRANTY.",
-                    );
-                });
+    let viewport = Rect::new(0.0, 0.0, screen_width, screen_height);
+    let _: ModalOutcome<()> = scope.workbench_modal(&modal, viewport, false, |card| {
+        // 1. Body Column: Engine identity, copyright, license link, and warranty
+        card.column(|col| {
+            col.label_custom(
+                "Aeon Engine",
+                20.0,
+                Color::rgba(0.0, 0.90, 1.0, 1.0),
+                TextAlign::Center,
+            );
+            col.colored_label(
+                Color::rgba(0.65, 0.65, 0.70, 1.0),
+                "Copyright (C) 2026 AethelisDEV / Aeon Engine",
+            );
+            col.separator();
+            col.colored_label(
+                Color::rgba(0.72, 0.72, 0.78, 1.0),
+                "This Source Code Form is subject to the terms of the Mozilla Public",
+            );
+            if col
+                .link(
+                    "License, v. 2.0 (MPL-2.0). https://mozilla.org/MPL/2.0/",
+                    11.0,
+                )
+                .clicked()
+            {
+                open_url("https://mozilla.org/MPL/2.0/");
+            }
+            col.colored_label(
+                Color::rgba(1.0, 0.40, 0.40, 1.0),
+                "This program comes with ABSOLUTELY NO WARRANTY.",
+            );
+        });
 
-                // 3. Footer Bar: Confirmation close button
-                card.container(
-                    Style::new()
-                        .flex_row()
-                        .align_items(AlignItems::Center)
-                        .justify_content(JustifyContent::FlexEnd),
-                    |footer| {
-                        footer.modal_confirm_button("Close", 100.0);
-                    },
-                );
-            });
-        },
-    );
+        // 2. Footer Bar: Confirmation close button
+        card.container(
+            Style::new()
+                .flex_row()
+                .align_items(AlignItems::Center)
+                .justify_content(JustifyContent::FlexEnd),
+            |footer| {
+                footer.modal_confirm_button("Close", 100.0);
+            },
+        );
+
+        ModalOutcome::Active
+    });
 }
 
 #[cfg(test)]

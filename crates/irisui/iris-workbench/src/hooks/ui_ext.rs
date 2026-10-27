@@ -16,13 +16,17 @@ use iris_widgets::declarative::UiScope;
 use super::drag_drop::{DragDropController, DragDropPayload, DragDropPreviewStyle};
 use super::overlay::CustomOverlayHook;
 use super::texture::ExternalTextureHook;
+use crate::dialogs::{
+    ConfirmDialogDescriptor, InputDialogDescriptor, ModalController, ModalDescriptor, ModalOutcome,
+};
 
 /// Extension trait providing high-level declarative workbench primitives on [`UiScope`].
 ///
 /// Designed to eliminate boilerplate glue code on the application and engine side.
 /// Instead of manually defining custom hook structs, managing absolute container styles,
 /// and wiring low-level texture IDs, consumers call [`Self::viewport_surface`],
-/// [`Self::volatile_overlay`], and [`Self::drag_drop_preview`] declaratively.
+/// [`Self::volatile_overlay`], [`Self::drag_drop_preview`], [`Self::workbench_modal`],
+/// [`Self::confirm_modal`], and [`Self::input_modal`] declaratively.
 pub trait WorkbenchUiScopeExt {
     /// Declaratively renders a hardware-accelerated viewport surface with optional aspect ratio
     /// fitting, fallback placeholder messaging, and a nested content scope for overlays.
@@ -99,6 +103,34 @@ pub trait WorkbenchUiScopeExt {
         custom_draw: F,
     ) where
         F: FnOnce(&mut UiScope<'_>, &DragDropPayload);
+
+    /// Declaratively renders an interactive modal dialogue into this scope.
+    fn workbench_modal<Action, F>(
+        &mut self,
+        descriptor: &ModalDescriptor,
+        viewport: Rect,
+        escape_pressed: bool,
+        content: F,
+    ) -> ModalOutcome<Action>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> ModalOutcome<Action>;
+
+    /// Declaratively renders a confirmation or danger dialogue card into this scope.
+    fn confirm_modal(
+        &mut self,
+        descriptor: &ConfirmDialogDescriptor,
+        viewport: Rect,
+        escape_pressed: bool,
+    ) -> ModalOutcome<bool>;
+
+    /// Declaratively renders a single-line text input dialogue card into this scope.
+    fn input_modal(
+        &mut self,
+        descriptor: &InputDialogDescriptor,
+        input_buffer: &mut String,
+        viewport: Rect,
+        escape_pressed: bool,
+    ) -> ModalOutcome<String>;
 }
 
 impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
@@ -229,5 +261,43 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
         };
 
         custom_draw(self, payload);
+    }
+
+    fn workbench_modal<Action, F>(
+        &mut self,
+        descriptor: &ModalDescriptor,
+        viewport: Rect,
+        escape_pressed: bool,
+        content: F,
+    ) -> ModalOutcome<Action>
+    where
+        F: FnOnce(&mut UiScope<'_>) -> ModalOutcome<Action>,
+    {
+        ModalController::render_modal(self, descriptor, viewport, escape_pressed, content)
+    }
+
+    fn confirm_modal(
+        &mut self,
+        descriptor: &ConfirmDialogDescriptor,
+        viewport: Rect,
+        escape_pressed: bool,
+    ) -> ModalOutcome<bool> {
+        ModalController::render_confirm_dialog(self, descriptor, viewport, escape_pressed)
+    }
+
+    fn input_modal(
+        &mut self,
+        descriptor: &InputDialogDescriptor,
+        input_buffer: &mut String,
+        viewport: Rect,
+        escape_pressed: bool,
+    ) -> ModalOutcome<String> {
+        ModalController::render_input_dialog(
+            self,
+            descriptor,
+            input_buffer,
+            viewport,
+            escape_pressed,
+        )
     }
 }

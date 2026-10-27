@@ -9,10 +9,15 @@
 pub mod controller;
 pub mod descriptor;
 pub mod response;
+pub mod style;
 
 #[cfg(test)]
 mod tests;
 
 pub use controller::ModalController;
-pub use descriptor::{FloatingWindowDescriptor, ModalDescriptor};
+pub use descriptor::{
+    ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalDescriptor,
+    WorkbenchModal,
+};
 pub use response::{ModalDismissReason, ModalOutcome};
+pub use style::ModalStyle;

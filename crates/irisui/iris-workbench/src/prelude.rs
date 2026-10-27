@@ -11,7 +11,8 @@ pub use crate::descriptors::{
     StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor, WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
-    FloatingWindowDescriptor, ModalController, ModalDescriptor, ModalDismissReason, ModalOutcome,
+    ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalController,
+    ModalDescriptor, ModalDismissReason, ModalOutcome, ModalStyle, WorkbenchModal,
 };
 pub use crate::error::{WorkbenchError, WorkbenchResult};
 pub use crate::hooks::{
