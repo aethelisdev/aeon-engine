@@ -7,7 +7,10 @@
 //! offscreen render targets (3D viewports, video decoders, compute canvases)
 //! inside workbench panels with zero visual distortion.
 
-use iris_core::Rect;
+use iris_core::ExternalTextureId;
+use iris_core::geometry::Rect;
+use iris_core::style::Style;
+use iris_widgets::declarative::UiScope;
 
 /// Describes an external hardware texture binding presented inside a workbench panel.
 ///
@@ -107,5 +110,39 @@ impl ExternalTextureHook {
     #[must_use]
     pub fn is_valid(&self) -> bool {
         self.rect.width > 0.0 && self.rect.height > 0.0
+    }
+
+    /// Declaratively emits the external hardware texture quad into the given [`UiScope`].
+    ///
+    /// Evaluates [`fit_aspect_ratio`](Self::fit_aspect_ratio) and constructs an absolute
+    /// quad container presenting the external GPU texture with zero distortion.
+    ///
+    /// # Arguments
+    /// * `scope` - Declarative UI builder scope.
+    pub fn render(&self, scope: &mut UiScope<'_>) {
+        if !self.is_valid() {
+            return;
+        }
+        let fitted = self.fit_aspect_ratio();
+        let offset_x = fitted.x - self.rect.x;
+        let offset_y = fitted.y - self.rect.y;
+
+        let parent = scope.parent();
+        let tree = scope.tree_mut();
+        let node_id = tree.create_node();
+        if let Some(node) = tree.get_mut(node_id) {
+            node.interactive = false;
+            node.set_name("ExternalTextureQuad");
+            node.set_external_texture(Some(ExternalTextureId(self.texture_id)));
+            node.set_style(
+                Style::new()
+                    .position_absolute()
+                    .left(offset_x)
+                    .top(offset_y)
+                    .width(fitted.width)
+                    .height(fitted.height),
+            );
+        }
+        let _ = tree.add_child(parent, node_id);
     }
 }

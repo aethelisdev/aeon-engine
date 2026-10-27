@@ -11,7 +11,7 @@ use irisui::prelude::*;
 impl IrisEditorOverlay {
     /// Builds viewport content (3D scene texture quad and interactive HUD) under the owning panel.
     ///
-    /// Constructs the viewport layout tree declaratively via [`UiScope`]: root container,
+    /// Constructs the viewport layout tree declaratively via [`UiScope::viewport_surface`]: root container,
     /// hardware 3D RTT texture quad, and the complete interactive HUD overlay.
     pub(crate) fn build_viewport_content(
         &mut self,
@@ -23,46 +23,17 @@ impl IrisEditorOverlay {
             return;
         }
 
-        let root_style = Style::new()
-            .position_absolute()
-            .left(0.0)
-            .top(0.0)
-            .width(viewport_rect.width)
-            .height(viewport_rect.height)
-            .background(Color::TRANSPARENT)
-            .clip_children(true);
+        let texture_hook = params
+            .viewport
+            .has_viewport_texture
+            .then(|| ExternalTextureHook::new(VIEWPORT_TEXTURE_ID.0, viewport_rect));
 
         let cursor_pos = self.cursor_pos();
         let active_dropdown = self.viewport_hud.dropdown;
         let hud = &mut self.viewport_hud;
 
-        scope.container_passive(root_style, |vp_scope| {
-            if params.viewport.has_viewport_texture {
-                vp_scope.external_texture(
-                    VIEWPORT_TEXTURE_ID,
-                    viewport_rect.width,
-                    viewport_rect.height,
-                );
-            } else {
-                let ph_style = Style::new()
-                    .position_absolute()
-                    .left(0.0)
-                    .top(0.0)
-                    .width(viewport_rect.width)
-                    .height(viewport_rect.height)
-                    .justify_content(JustifyContent::Center)
-                    .align_items(AlignItems::Center);
-                vp_scope.container_passive(ph_style, |ph| {
-                    ph.label_custom(
-                        "Rendering viewport...",
-                        14.0,
-                        Color::hex("#888888"),
-                        TextAlign::Center,
-                    );
-                });
-            }
-
-            // 3. Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
+        scope.viewport_surface(texture_hook, Some("Rendering viewport..."), |vp_scope| {
+            // Viewport HUD Overlays (Gizmo, toolbar, camera info, projection modes)
             viewport_hud::build_viewport_hud_scope(
                 vp_scope,
                 &ViewportHudParams {

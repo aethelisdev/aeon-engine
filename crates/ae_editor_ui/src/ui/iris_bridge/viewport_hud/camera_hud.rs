@@ -64,13 +64,6 @@ pub fn draw_camera_hud_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera,
 /// Emits an [`ImmediateCanvas`] node tagged with [`TAG_CAMERA_HUD`] positioned via absolute insets
 /// with zero persistent child tree nodes.
 pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
-    let hud_style = Style::new()
-        .position_absolute()
-        .right(CAMERA_HUD_MARGIN)
-        .bottom(CAMERA_HUD_MARGIN)
-        .width(CAMERA_HUD_WIDTH)
-        .height(CAMERA_HUD_HEIGHT);
-
     let hud_rect = Rect::new(
         params.viewport_rect.right() - CAMERA_HUD_WIDTH - CAMERA_HUD_MARGIN,
         params.viewport_rect.bottom() - CAMERA_HUD_HEIGHT - CAMERA_HUD_MARGIN,
@@ -78,7 +71,7 @@ pub fn build_camera_hud(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>)
         CAMERA_HUD_HEIGHT,
     );
 
-    scope.immediate_canvas_styled("CameraHudCanvas", TAG_CAMERA_HUD, hud_style, |canvas| {
+    scope.volatile_overlay("CameraHudCanvas", TAG_CAMERA_HUD, hud_rect, |canvas| {
         draw_camera_hud_canvas(canvas, params.camera, hud_rect);
     });
 }

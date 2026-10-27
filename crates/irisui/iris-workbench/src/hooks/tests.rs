@@ -157,3 +157,52 @@ fn test_custom_overlay_hook_execution() {
     // Tree has recorded volatile canvas primitives
     assert!(tree.volatile_canvas_commands.contains_key(&node_id));
 }
+
+#[test]
+fn test_external_texture_hook_render() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, root);
+
+    let hook = ExternalTextureHook::new(42, Rect::new(10.0, 20.0, 800.0, 600.0));
+    hook.render(&mut scope);
+
+    assert_eq!(tree.get(root).unwrap().children.len(), 1);
+    let child_id = tree.get(root).unwrap().children[0];
+    let child = tree.get(child_id).unwrap();
+    assert_eq!(
+        child.external_texture,
+        Some(iris_core::ExternalTextureId(42))
+    );
+}
+
+#[test]
+fn test_workbench_ui_scope_ext_viewport_surface_and_overlay() {
+    let mut tree = UiTree::new();
+    let root = tree.create_node();
+    let mut scope = iris_widgets::declarative::UiScope::new(&mut tree, root);
+
+    let hook = ExternalTextureHook::new(88, Rect::new(0.0, 0.0, 1280.0, 720.0));
+    let mut overlay_rendered = false;
+
+    // Test declarative viewport surface with child volatile overlay
+    scope.viewport_surface(Some(hook), Some("Fallback"), |vp| {
+        vp.volatile_overlay(
+            "TestOverlay",
+            1001,
+            Rect::new(10.0, 10.0, 100.0, 100.0),
+            |canvas| {
+                overlay_rendered = true;
+                canvas.draw_line(
+                    iris_core::Point::new(0.0, 0.0),
+                    iris_core::Point::new(10.0, 10.0),
+                    Color::WHITE,
+                    1.0,
+                );
+            },
+        );
+    });
+
+    assert!(overlay_rendered, "Volatile overlay closure must execute");
+    assert_eq!(tree.get(root).unwrap().children.len(), 1);
+}

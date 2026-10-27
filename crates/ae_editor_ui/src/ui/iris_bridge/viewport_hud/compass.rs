@@ -109,13 +109,6 @@ pub fn draw_compass_canvas(canvas: &mut ImmediateCanvas<'_>, camera: &Camera, re
 /// Anchored via [`Style::position_absolute`], [`Style::right`], and [`Style::top`].
 /// Emits an [`ImmediateCanvas`] node tagged with [`TAG_COMPASS_CANVAS`] with zero persistent child tree nodes.
 pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &ViewportHudParams<'_>) {
-    let compass_style = Style::new()
-        .position_absolute()
-        .right(COMPASS_MARGIN)
-        .top(COMPASS_MARGIN)
-        .width(COMPASS_SIZE)
-        .height(COMPASS_SIZE);
-
     let compass_rect = Rect::new(
         params.viewport_rect.right() - COMPASS_SIZE - COMPASS_MARGIN,
         params.viewport_rect.y + COMPASS_MARGIN,
@@ -123,10 +116,10 @@ pub fn build_scene_navigation_compass(scope: &mut UiScope<'_>, params: &Viewport
         COMPASS_SIZE,
     );
 
-    scope.immediate_canvas_styled(
+    scope.volatile_overlay(
         "SceneNavCompass",
         TAG_COMPASS_CANVAS,
-        compass_style,
+        compass_rect,
         |canvas| {
             draw_compass_canvas(canvas, params.camera, compass_rect);
         },
