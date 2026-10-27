@@ -43,7 +43,7 @@ pub fn build_top_menu_bar(
     params: &MenuBarParams<'_>,
 ) -> Option<DropdownAction> {
     let mut scope = UiScope::new(tree, parent_id);
-    scope
+    let action = scope
         .menu_bar(params.screen_width, MENUBAR_HEIGHT)
         .item_padding(6.0)
         .item_gap(4.0)
@@ -201,7 +201,217 @@ pub fn build_top_menu_bar(
                 right.window_button("□", false, DropdownAction::WindowMaximize);
                 right.window_button("✕", true, DropdownAction::WindowClose);
             });
-        })
+        });
+
+    // Baseline divider under MenuBar (IrisTopMenuBarDivider)
+    scope.empty_box_passive_named(
+        "IrisTopMenuBarDivider",
+        Style::new()
+            .position_absolute()
+            .left(0.0)
+            .top(MENUBAR_HEIGHT - 1.0)
+            .width(params.screen_width)
+            .height(1.0)
+            .background(Color::hex("#1c1e24")),
+    );
+
+    action
+}
+
+/// Constructs a declarative [`MenuBarDescriptor`] representing the engine's application menu bar.
+pub fn build_workbench_menubar_descriptor(
+    params: &MenuBarParams<'_>,
+) -> (
+    irisui::workbench::MenuBarDescriptor,
+    std::collections::HashMap<u64, DropdownAction>,
+) {
+    use std::collections::HashMap;
+
+    let mut actions = HashMap::new();
+    let mut descriptor = irisui::workbench::MenuBarDescriptor::new()
+        .with_height(MENUBAR_HEIGHT)
+        .with_branding(irisui::workbench::MenuBarBrandingDescriptor::new(
+            super::icons::ICON_AEON_LOGO,
+            Color::hex("#E4E7EB"),
+            28.0,
+        ));
+
+    // File Menu
+    let mut file_menu = irisui::workbench::MenuSectionDescriptor::new("File", 0x1000);
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::disabled_action_full(
+        Some("🗎"),
+        "New Project",
+        Some("Ctrl N"),
+        0x1001,
+    ));
+    actions.insert(
+        0x1002,
+        DropdownAction::UiAction(EngineUiAction::OpenLoadSceneDialog),
+    );
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+        "🗁",
+        "Load Scene",
+        Some("Ctrl O"),
+        0x1002,
+    ));
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::separator());
+    actions.insert(0x1003, DropdownAction::UiAction(EngineUiAction::SaveScene));
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+        "🖫",
+        "Save Scene",
+        Some("Ctrl S"),
+        0x1003,
+    ));
+    actions.insert(
+        0x1004,
+        DropdownAction::UiAction(EngineUiAction::OpenSaveSceneDialog),
+    );
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+        "🖫",
+        "Save Scene As",
+        Some("Ctrl Shift S"),
+        0x1004,
+    ));
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::separator());
+    actions.insert(0x1005, DropdownAction::UiAction(EngineUiAction::Exit));
+    file_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+        "⏻",
+        "Exit",
+        Some("Alt F4"),
+        0x1005,
+    ));
+    descriptor.add_menu(file_menu);
+
+    // Edit Menu
+    let mut edit_menu = irisui::workbench::MenuSectionDescriptor::new("Edit", 0x2000);
+    if params.can_undo {
+        actions.insert(0x2001, DropdownAction::UiAction(EngineUiAction::Undo));
+        edit_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+            "↩",
+            "Undo",
+            Some("Ctrl Z"),
+            0x2001,
+        ));
+    } else {
+        edit_menu.add_item(irisui::workbench::MenuItemDescriptor::disabled_action_full(
+            Some("↩"),
+            "Undo",
+            Some("Ctrl Z"),
+            0x2001,
+        ));
+    }
+
+    if params.can_redo {
+        actions.insert(0x2002, DropdownAction::UiAction(EngineUiAction::Redo));
+        edit_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+            "↪",
+            "Redo",
+            Some("Ctrl Y"),
+            0x2002,
+        ));
+    } else {
+        edit_menu.add_item(irisui::workbench::MenuItemDescriptor::disabled_action_full(
+            Some("↪"),
+            "Redo",
+            Some("Ctrl Y"),
+            0x2002,
+        ));
+    }
+
+    edit_menu.add_item(irisui::workbench::MenuItemDescriptor::separator());
+    actions.insert(0x2003, DropdownAction::OpenPreferences);
+    edit_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+        "⚙",
+        "Preferences...",
+        Some("Ctrl ,"),
+        0x2003,
+    ));
+    descriptor.add_menu(edit_menu);
+
+    // View Menu
+    let mut view_menu = irisui::workbench::MenuSectionDescriptor::new("View", 0x3000);
+    let panels = [
+        (PanelId::Hierarchy, "Hierarchy", 0x3001),
+        (PanelId::Inspector, "Inspector", 0x3002),
+        (PanelId::Assets, "Asset Browser", 0x3003),
+        (PanelId::Console, "Console", 0x3004),
+        (PanelId::MaterialEditor, "Material Editor", 0x3005),
+        (PanelId::AnimationTimeline, "Timeline", 0x3006),
+        (PanelId::Stats, "Statistics", 0x3007),
+        (PanelId::UiDesigner, "UI Designer", 0x3008),
+    ];
+    for (pid, label, tag) in panels {
+        let is_open = params.layout_state.is_panel_visible(pid);
+        let check = if is_open { "✓" } else { " " };
+        actions.insert(tag, DropdownAction::TogglePanel(pid));
+        view_menu.add_item(irisui::workbench::MenuItemDescriptor::action_with_icon(
+            check, label, tag,
+        ));
+    }
+    descriptor.add_menu(view_menu);
+
+    // Window Menu
+    let mut window_menu = irisui::workbench::MenuSectionDescriptor::new("Window", 0x4000);
+    for (pid, label, tag) in panels {
+        let is_open = params.layout_state.is_panel_visible(pid);
+        let check = if is_open { "✓" } else { " " };
+        actions.insert(tag + 0x1000, DropdownAction::TogglePanel(pid));
+        window_menu.add_item(irisui::workbench::MenuItemDescriptor::action_with_icon(
+            check,
+            label,
+            tag + 0x1000,
+        ));
+    }
+    window_menu.add_item(irisui::workbench::MenuItemDescriptor::separator());
+    actions.insert(0x40FF, DropdownAction::ResetLayout);
+    window_menu.add_item(irisui::workbench::MenuItemDescriptor::action_with_icon(
+        "↺",
+        "Reset Layout to Default",
+        0x40FF,
+    ));
+    descriptor.add_menu(window_menu);
+
+    // Help Menu
+    let mut help_menu = irisui::workbench::MenuSectionDescriptor::new("Help", 0x5000);
+    actions.insert(0x5001, DropdownAction::OpenAbout);
+    help_menu.add_item(irisui::workbench::MenuItemDescriptor::action_full(
+        "ℹ",
+        "About Aeon Engine",
+        Some("F1"),
+        0x5001,
+    ));
+    descriptor.add_menu(help_menu);
+
+    // Right action buttons & window controls
+    if params.is_editing {
+        actions.insert(
+            0x6001,
+            DropdownAction::UiAction(EngineUiAction::ChangeMode(
+                ae_core::modules::EngineMode::Play,
+            )),
+        );
+        descriptor =
+            descriptor.with_action_button("▶ Play", Color::hex("#228b22"), Color::WHITE, 0x6001);
+    } else {
+        actions.insert(
+            0x6002,
+            DropdownAction::UiAction(EngineUiAction::ChangeMode(
+                ae_core::modules::EngineMode::Play,
+            )),
+        );
+        descriptor =
+            descriptor.with_action_button("⏹ Stop", Color::hex("#dc2626"), Color::WHITE, 0x6002);
+    }
+
+    actions.insert(0x7001, DropdownAction::WindowMinimize);
+    actions.insert(0x7002, DropdownAction::WindowMaximize);
+    actions.insert(0x7003, DropdownAction::WindowClose);
+    descriptor = descriptor
+        .with_window_control("—", false, 0x7001)
+        .with_window_control("□", false, 0x7002)
+        .with_window_control("✕", true, 0x7003);
+
+    (descriptor, actions)
 }
 
 #[cfg(test)]

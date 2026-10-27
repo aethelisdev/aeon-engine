@@ -15,7 +15,10 @@ pub mod workbench;
 #[cfg(test)]
 mod tests;
 
-pub use menu::{MenuBarDescriptor, MenuItemDescriptor, MenuSectionDescriptor};
+pub use menu::{
+    MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
+    MenuSectionDescriptor,
+};
 pub use panel_registry::{PanelDrawFn, PanelRegistry, WorkbenchPanelRegistry};
 pub use status::{StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle};
 pub use workbench::WorkbenchDescriptor;

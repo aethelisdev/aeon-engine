@@ -67,6 +67,35 @@ pub fn build_bottom_status_bar(
                 );
             });
         });
+
+    // Baseline divider above StatusBar (IrisBottomStatusBarDivider)
+    scope.empty_box_passive_named(
+        "IrisBottomStatusBarDivider",
+        Style::new()
+            .position_absolute()
+            .left(0.0)
+            .top(params.screen_height - STATUS_BAR_HEIGHT)
+            .width(params.screen_width)
+            .height(1.0)
+            .background(Color::hex("#1c1e24")),
+    );
+}
+
+/// Constructs a declarative [`StatusBarDescriptor`] representing the engine's application status bar.
+pub fn build_workbench_statusbar_descriptor(
+    params: &StatusBarParams<'_>,
+) -> irisui::workbench::StatusBarDescriptor {
+    let mut descriptor = irisui::workbench::StatusBarDescriptor::new()
+        .with_height(STATUS_BAR_HEIGHT)
+        .with_right_text(format!("Aeon Engine v{}", env!("CARGO_PKG_VERSION")));
+
+    if let Some(spans) = params.status_spans {
+        descriptor = descriptor.with_status_spans(spans.to_vec());
+    } else {
+        descriptor = descriptor.with_left_status("Ready");
+    }
+
+    descriptor
 }
 
 #[cfg(test)]

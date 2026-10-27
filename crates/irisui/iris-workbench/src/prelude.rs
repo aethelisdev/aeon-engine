@@ -7,8 +7,9 @@
 //! and lifecycle structures for  integration with desktop UI applications.
 
 pub use crate::descriptors::{
-    MenuBarDescriptor, MenuItemDescriptor, MenuSectionDescriptor, PanelDrawFn, StatusBarDescriptor,
-    StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor, WorkbenchPanelRegistry,
+    MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
+    MenuSectionDescriptor, PanelDrawFn, StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle,
+    WorkbenchDescriptor, WorkbenchPanelRegistry,
 };
 pub use crate::dialogs::{
     ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalController,

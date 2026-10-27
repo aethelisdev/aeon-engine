@@ -152,3 +152,124 @@ fn test_workbench_descriptor_shell_composition() {
     assert_eq!(workbench.statusbar().unwrap().left_status, "Ready");
     assert!(workbench.dock_state().tree.root().is_some());
 }
+
+#[test]
+fn test_menubar_descriptor_render_and_divider() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+    let mut scope = UiScope::new(&mut tree, root);
+
+    let menubar = MenuBarDescriptor::new()
+        .with_height(36.0)
+        .with_branding(MenuBarBrandingDescriptor::new(
+            [0.0, 0.0, 1.0, 1.0],
+            iris_core::Color::WHITE,
+            28.0,
+        ))
+        .with_menu(
+            MenuSectionDescriptor::new("File", 100)
+                .with_action_full("🗎", "New Scene", Some("Ctrl+N"), 101)
+                .with_separator()
+                .with_action("Save Scene", 102),
+        )
+        .with_action_button(
+            "▶ Play",
+            iris_core::Color::hex("#228b22"),
+            iris_core::Color::WHITE,
+            301,
+        )
+        .with_window_control("✕", true, 401);
+
+    let action = menubar.render(&mut scope, 1920.0);
+    assert_eq!(
+        action, None,
+        "No action should be triggered without interaction"
+    );
+
+    // Verify baseline divider exists and has proper name & styling
+    let divider_node = tree
+        .iter()
+        .find(|(_, n)| n.name.as_deref() == Some("IrisTopMenuBarDivider"));
+    assert!(
+        divider_node.is_some(),
+        "Top menubar divider 'IrisTopMenuBarDivider' must be emitted"
+    );
+    let (_, div) = divider_node.unwrap();
+    assert_eq!(div.style.height, Some(1.0));
+    assert_eq!(div.style.inset_top, Some(35.0)); // height 36 - 1.0
+}
+
+#[test]
+fn test_statusbar_descriptor_render_and_divider() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node must exist");
+    let mut scope = UiScope::new(&mut tree, root);
+
+    let statusbar = StatusBarDescriptor::new()
+        .with_height(22.0)
+        .with_left_status("Ready")
+        .with_right_text("Aeon Engine v0.9.0")
+        .with_pill(StatusPillDescriptor::new("144 FPS", 501).with_style(StatusPillStyle::Success));
+
+    statusbar.render(&mut scope, 1920.0, 1080.0);
+
+    // Verify statusbar divider exists and has proper name & styling
+    let divider_node = tree
+        .iter()
+        .find(|(_, n)| n.name.as_deref() == Some("IrisBottomStatusBarDivider"));
+    assert!(
+        divider_node.is_some(),
+        "Bottom statusbar divider 'IrisBottomStatusBarDivider' must be emitted"
+    );
+    let (_, div) = divider_node.unwrap();
+    assert_eq!(div.style.height, Some(1.0));
+    assert_eq!(div.style.inset_top, Some(1058.0)); // 1080 - 22.0
+
+    // Verify statusbar container exists with semantic tag
+    let bar_id = tree.find_node_by_tag(StatusBarDescriptor::STATUS_BAR_TAG);
+    assert!(
+        bar_id.is_some(),
+        "Status bar container must exist with STATUS_BAR_TAG"
+    );
+}
+
+#[test]
+fn test_workbench_descriptor_render_chrome_integration() {
+    let mut tree = DockTree::new();
+    let leaf = tree.create_leaf(vec![MockTab::Viewport]);
+    tree.set_root(leaf);
+    let dock_state = DockState::new(tree);
+
+    let workbench = WorkbenchDescriptor::new("Aeon Engine Studio", dock_state)
+        .with_menubar(
+            MenuBarDescriptor::new()
+                .with_height(36.0)
+                .with_menu(MenuSectionDescriptor::new("File", 100)),
+        )
+        .with_statusbar(
+            StatusBarDescriptor::new()
+                .with_height(22.0)
+                .with_left_status("Ready"),
+        );
+
+    let mut ui_tree = UiTree::new();
+    let root = ui_tree.create_root().expect("Root node must exist");
+    let mut scope = UiScope::new(&mut ui_tree, root);
+
+    let action = workbench.render_chrome(&mut scope, 1920.0, 1080.0);
+    assert_eq!(action, None);
+
+    // Verify both dividers exist in the tree
+    assert!(
+        ui_tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("IrisTopMenuBarDivider")),
+        "IrisTopMenuBarDivider must exist"
+    );
+    assert!(
+        ui_tree
+            .iter()
+            .any(|(_, n)| n.name.as_deref() == Some("IrisBottomStatusBarDivider")),
+        "IrisBottomStatusBarDivider must exist"
+    );
+}

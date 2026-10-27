@@ -176,31 +176,6 @@ impl IrisEditorOverlay {
 
         let mut result = super::types::IrisOverlayEventResult::consumed(dispatch.is_consumed());
 
-        // Autonomous Preferences floating panel event handling (dragging, screen clamping, click absorption, close)
-        if self.preferences.floating.rect.is_some() {
-            let floating_outcome = self.preferences.floating.handle_event(
-                &mut self.tree,
-                event,
-                &dispatch,
-                self.screen_width,
-                self.screen_height,
-            );
-            if floating_outcome.consumed {
-                result.consumed = true;
-            }
-            if floating_outcome.needs_layout_rebuild {
-                self.notifier.tag_all();
-                self.chrome.needs_layout_rebuild = true;
-            }
-            if floating_outcome.action == Some(irisui::widgets::FloatingPanelAction::Close) {
-                result.consumed = true;
-                result.close_preferences = true;
-                result.preferences_action = Some(super::preferences::PreferencesAction::Close);
-                self.notifier.tag_all();
-                self.chrome.needs_layout_rebuild = true;
-            }
-        }
-
         // Evaluate modal actions and button triggers in unified tree (STRICTLY on clicks, never on hover)
         if let Some(clicked_tag) = clicked_tag
             && clicked_tag != 0

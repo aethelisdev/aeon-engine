@@ -131,6 +131,22 @@ pub trait WorkbenchUiScopeExt {
         viewport: Rect,
         escape_pressed: bool,
     ) -> ModalOutcome<String>;
+
+    /// Declaratively renders the entire application shell chrome (top menubar, bottom statusbar,
+    /// and baseline dividers) in a single unified invocation from [`WorkbenchDescriptor`].
+    ///
+    /// # Arguments
+    /// * `descriptor` - Configured workbench shell descriptor.
+    /// * `screen_width` - Available width in physical pixels.
+    /// * `screen_height` - Available window height in physical pixels.
+    ///
+    /// Returns the semantic interaction tag of any clicked menu action, or `None`.
+    fn workbench_chrome<TabId>(
+        &mut self,
+        descriptor: &crate::descriptors::WorkbenchDescriptor<TabId>,
+        screen_width: f32,
+        screen_height: f32,
+    ) -> Option<u64>;
 }
 
 impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
@@ -299,5 +315,14 @@ impl<'a> WorkbenchUiScopeExt for UiScope<'a> {
             viewport,
             escape_pressed,
         )
+    }
+
+    fn workbench_chrome<TabId>(
+        &mut self,
+        descriptor: &crate::descriptors::WorkbenchDescriptor<TabId>,
+        screen_width: f32,
+        screen_height: f32,
+    ) -> Option<u64> {
+        descriptor.render_chrome(self, screen_width, screen_height)
     }
 }

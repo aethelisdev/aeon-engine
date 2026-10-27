@@ -30,9 +30,9 @@ pub mod lifecycle;
 pub mod prelude;
 
 pub use descriptors::{
-    MenuBarDescriptor, MenuItemDescriptor, MenuSectionDescriptor, PanelDrawFn, PanelRegistry,
-    StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor,
-    WorkbenchPanelRegistry,
+    MenuBarBrandingDescriptor, MenuBarDescriptor, MenuItemDescriptor, MenuRightItemDescriptor,
+    MenuSectionDescriptor, PanelDrawFn, PanelRegistry, StatusBarDescriptor, StatusPillDescriptor,
+    StatusPillStyle, WorkbenchDescriptor, WorkbenchPanelRegistry,
 };
 pub use dialogs::{
     ConfirmDialogDescriptor, FloatingWindowDescriptor, InputDialogDescriptor, ModalController,

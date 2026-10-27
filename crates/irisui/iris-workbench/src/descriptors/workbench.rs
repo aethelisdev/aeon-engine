@@ -100,4 +100,61 @@ impl<TabId> WorkbenchDescriptor<TabId> {
     pub const fn statusbar(&self) -> Option<&StatusBarDescriptor> {
         self.statusbar.as_ref()
     }
+
+    /// Declaratively renders the top application menu bar and baseline divider if configured.
+    ///
+    /// # Arguments
+    /// * `scope` - Active declarative UI scope attached to the root container.
+    /// * `screen_width` - Available width in physical pixels.
+    ///
+    /// Returns the semantic interaction tag of any clicked menu action, or `None`.
+    pub fn render_menubar(
+        &self,
+        scope: &mut iris_widgets::declarative::UiScope<'_>,
+        screen_width: f32,
+    ) -> Option<u64> {
+        self.menubar
+            .as_ref()
+            .and_then(|m| m.render(scope, screen_width))
+    }
+
+    /// Declaratively renders the bottom status bar and top baseline divider if configured.
+    ///
+    /// # Arguments
+    /// * `scope` - Active declarative UI scope attached to the root container.
+    /// * `screen_width` - Available width in physical pixels.
+    /// * `screen_height` - Available window height in physical pixels.
+    pub fn render_statusbar(
+        &self,
+        scope: &mut iris_widgets::declarative::UiScope<'_>,
+        screen_width: f32,
+        screen_height: f32,
+    ) {
+        if let Some(s) = &self.statusbar {
+            s.render(scope, screen_width, screen_height);
+        }
+    }
+
+    /// Declaratively renders the entire application shell chrome (top menubar, bottom statusbar,
+    /// and baseline dividers) in a single unified invocation.
+    ///
+    /// Eliminates manual absolute positioning, ad-hoc divider nodes, and redundant coordinate
+    /// calculations in consumer application shell update loops.
+    ///
+    /// # Arguments
+    /// * `scope` - Active declarative UI scope attached to the root container.
+    /// * `screen_width` - Available width in physical pixels.
+    /// * `screen_height` - Available window height in physical pixels.
+    ///
+    /// Returns the semantic interaction tag of any clicked menu or chrome action, or `None`.
+    pub fn render_chrome(
+        &self,
+        scope: &mut iris_widgets::declarative::UiScope<'_>,
+        screen_width: f32,
+        screen_height: f32,
+    ) -> Option<u64> {
+        let menu_action = self.render_menubar(scope, screen_width);
+        self.render_statusbar(scope, screen_width, screen_height);
+        menu_action
+    }
 }
