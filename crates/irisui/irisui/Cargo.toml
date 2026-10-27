@@ -13,3 +13,4 @@ iris-wgpu = { workspace = true }
 iris-widgets = { workspace = true }
 iris-dock = { workspace = true }
 iris-winit = { workspace = true }
+iris-workbench = { workspace = true }

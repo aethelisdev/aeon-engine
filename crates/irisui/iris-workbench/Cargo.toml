@@ -1,0 +1,16 @@
+[package]
+name = "iris-workbench"
+description = "Desktop IDE and Professional Workbench Application Shell Framework for Iris UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+iris-core = { workspace = true }
+iris-layout = { workspace = true }
+iris-text = { workspace = true }
+iris-widgets = { workspace = true }
+iris-dock = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }

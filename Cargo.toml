@@ -26,6 +26,7 @@ members = [
     "crates/irisui/iris-wgpu",
     "crates/irisui/iris-widgets",
     "crates/irisui/iris-winit",
+    "crates/irisui/iris-workbench",
     "crates/irisui/irisui",
 ]
 default-members = ["crates/ae_launcher"]
@@ -87,6 +88,7 @@ iris-text = { path = "crates/irisui/iris-text" }
 iris-wgpu = { path = "crates/irisui/iris-wgpu" }
 iris-widgets = { path = "crates/irisui/iris-widgets" }
 iris-winit = { path = "crates/irisui/iris-winit" }
+iris-workbench = { path = "crates/irisui/iris-workbench" }
 irisui = { path = "crates/irisui/irisui" }
 
 slotmap = { version = "1.1.1", features = ["serde"] }

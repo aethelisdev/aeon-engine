@@ -11,6 +11,7 @@
 //! - `iris-widgets`: Industrial, hardware-accelerated game engine UI widget kit.
 //! - `iris-dock`: Generational binary split-tree docking and floating window multi-viewport engine.
 //! - `iris-winit`: Winit platform adapter, event translation, HighDPI scaling, and cursor mapping.
+//! - `iris-workbench`: Desktop IDE shell, declarative panel management, and lifecycle synchronization.
 //!
 //! Adheres strictly to a zero-unsafe policy (`#![forbid(unsafe_code)]`).
 
@@ -24,6 +25,7 @@ pub use iris_text as text;
 pub use iris_wgpu as wgpu_backend;
 pub use iris_widgets as widgets;
 pub use iris_winit as winit;
+pub use iris_workbench as workbench;
 
 pub use iris_widgets::{SubtreeSession, rebuild_leaf_subtree};
 
@@ -37,4 +39,5 @@ pub mod prelude {
     pub use iris_text::prelude::*;
     pub use iris_wgpu::prelude::*;
     pub use iris_widgets::prelude::*;
+    pub use iris_workbench::prelude::*;
 }

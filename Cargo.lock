@@ -1840,6 +1840,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "iris-workbench"
+version = "0.1.0"
+dependencies = [
+ "iris-core",
+ "iris-dock",
+ "iris-layout",
+ "iris-text",
+ "iris-widgets",
+ "log",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "irisui"
 version = "0.1.0"
 dependencies = [
@@ -1850,6 +1864,7 @@ dependencies = [
  "iris-wgpu",
  "iris-widgets",
  "iris-winit",
+ "iris-workbench",
 ]
 
 [[package]]
