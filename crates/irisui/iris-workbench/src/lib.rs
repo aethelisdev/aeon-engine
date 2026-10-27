@@ -22,6 +22,8 @@
 #![warn(missing_docs)]
 
 pub mod error;
+pub mod hooks;
 pub mod prelude;
 
 pub use error::{WorkbenchError, WorkbenchResult};
+pub use hooks::{CustomOverlayHook, DragDropPayload, ExternalTextureHook, TypedDragDropPayload};
