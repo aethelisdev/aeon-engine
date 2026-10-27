@@ -281,6 +281,7 @@ fn render_palette_action_row(
             .add(
                 Button::new("+")
                     .size(18.0, 18.0)
+                    .padding(Insets::ZERO)
                     .tag(appearance_add_palette_tag()),
             )
             .clicked()
@@ -293,6 +294,7 @@ fn render_palette_action_row(
             .add(
                 Button::new("🗑")
                     .size(18.0, 18.0)
+                    .padding(Insets::ZERO)
                     .tag(appearance_clear_palette_tag()),
             )
             .clicked()

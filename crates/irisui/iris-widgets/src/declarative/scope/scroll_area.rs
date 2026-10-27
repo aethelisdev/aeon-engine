@@ -151,7 +151,12 @@ impl<'a> UiScope<'a> {
             }
         });
 
-        let mut style = Style::new().flex_col().flex_grow(1.0).clip_children(true);
+        let mut style = Style::new()
+            .flex_col()
+            .flex_grow(1.0)
+            .min_height(0.0)
+            .flex_shrink(1.0)
+            .clip_children(true);
         style.scroll_offset_y = scroll_y;
 
         let vp_id = self.tree.create_node();
@@ -343,6 +348,8 @@ impl<'a> UiScope<'a> {
                 Style::new()
                     .flex_col()
                     .flex_grow(1.0)
+                    .min_height(0.0)
+                    .flex_shrink(1.0)
                     .clip_children(true)
                     .background(config.bg),
             );

@@ -452,23 +452,34 @@ pub fn measure_height_constrained(tree: &UiTree, node_id: WidgetId, max_width: O
     // Leaf node: use line_height if it has text, taking text wrapping into account
     if node.children.is_empty() {
         return if let Some(ref text) = node.text {
-            let base_h = node.line_height.max(16.0);
-            if node.text_wrap != TextWrap::None {
-                let avail_w = node.style.width.or(max_width);
-                if let Some(w) = avail_w {
-                    if w > 40.0 {
-                        let char_w = (node.font_size * 0.58).max(5.0);
-                        let chars_per_line = (w / char_w).floor().max(1.0);
-                        let lines = ((text.len() as f32) / chars_per_line).ceil().max(1.0);
-                        lines * base_h
+            if node.content_size.height > 0.0 {
+                node.content_size.height
+            } else {
+                let base_h = if node.line_height > 0.0 {
+                    node.line_height
+                } else {
+                    (node.font_size * 1.3).max(12.0).round()
+                };
+                if node.text_wrap != TextWrap::None {
+                    let avail_w = node.style.width.or(max_width);
+                    if let Some(w) = avail_w {
+                        let text_w = if node.content_size.width > 0.0 {
+                            node.content_size.width
+                        } else {
+                            iris_text::measure_text_advance(text, node.font_size)
+                        };
+                        if text_w > w && w > 20.0 {
+                            let lines = (text_w / w).ceil().max(1.0);
+                            lines * base_h
+                        } else {
+                            base_h
+                        }
                     } else {
                         base_h
                     }
                 } else {
                     base_h
                 }
-            } else {
-                base_h
             }
         } else {
             node.style.height.unwrap_or(0.0)

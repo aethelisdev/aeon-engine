@@ -6,6 +6,7 @@
 use crate::error::LayoutError;
 use iris_core::{
     AlignItems, DirtyFlags, FlexDirection, Insets, JustifyContent, Rect, Size, UiTree, WidgetId,
+    WidgetRole,
 };
 use std::collections::HashMap;
 use taffy::prelude as tf;
@@ -483,7 +484,7 @@ impl LayoutEngine {
 
         if let Some(w) = style.width {
             tf_style.size.width = tf::Dimension::length(w);
-        } else if node.content_size.width > 0.0 {
+        } else if node.content_size.width > 0.0 && node.role != WidgetRole::ScrollAreaViewport {
             let total_w = node.content_size.width + pad_h;
             tf_style.min_size.width = tf::LengthPercentageAuto::length(total_w);
             tf_style.size.width = tf::Dimension::length(total_w);
@@ -491,10 +492,14 @@ impl LayoutEngine {
 
         if let Some(h) = style.height {
             tf_style.size.height = tf::Dimension::length(h);
-        } else if node.content_size.height > 0.0 {
+        } else if node.content_size.height > 0.0 && node.role != WidgetRole::ScrollAreaViewport {
             let total_h = node.content_size.height + pad_v;
             tf_style.min_size.height = tf::LengthPercentageAuto::length(total_h);
             tf_style.size.height = tf::Dimension::length(total_h);
+        }
+
+        if node.role == WidgetRole::ScrollAreaViewport && style.min_height.is_none() {
+            tf_style.min_size.height = tf::LengthPercentageAuto::length(0.0);
         }
 
         if let Some(min_w) = style.min_width {

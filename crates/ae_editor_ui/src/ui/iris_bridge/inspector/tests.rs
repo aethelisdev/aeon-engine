@@ -752,3 +752,129 @@ fn test_inspector_transform_snapshot_reactive_dirty_tracking() {
         "Rotation mutation must invalidate previous snapshot"
     );
 }
+
+#[test]
+fn test_is_widget_descendant_of_hierarchy_traversal() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("Root node");
+
+    let (leaf, drag_box, other_leaf, other_widget) = {
+        let mut scope = UiScope::new(&mut tree, root);
+        let mut leaf_id = root;
+        let mut drag_id = root;
+        scope.column(|l| {
+            leaf_id = l.parent();
+            l.column(|p| {
+                p.column(|c| {
+                    let resp = c.button("DragBox");
+                    drag_id = resp.id;
+                });
+            });
+        });
+
+        let mut other_leaf_id = root;
+        let mut other_w_id = root;
+        scope.column(|ol| {
+            other_leaf_id = ol.parent();
+            let resp = ol.button("OtherWidget");
+            other_w_id = resp.id;
+        });
+
+        (leaf_id, drag_id, other_leaf_id, other_w_id)
+    };
+
+    // Direct and deep descendant checks
+    assert!(is_widget_descendant_of(&tree, drag_box, leaf));
+    assert!(is_widget_descendant_of(&tree, leaf, leaf));
+
+    // Negative checks
+    assert!(!is_widget_descendant_of(&tree, other_widget, leaf));
+    assert!(!is_widget_descendant_of(&tree, other_leaf, leaf));
+    assert!(!is_widget_descendant_of(&tree, root, leaf));
+}
+
+#[test]
+fn test_inspector_layout_dual_engine_invariants_zero_jitter() {
+    let mut tree = UiTree::new();
+    let root = tree.create_root().expect("root node");
+    let mut world = hecs::World::new();
+
+    let entity = world.spawn((
+        Name("Dynamic Cube".to_string()),
+        Position::new(0.0, 5.0, 0.0),
+        Rotation::identity(),
+        Scale::one(),
+        ae_core::ecs::Color::new(0.4, 0.6, 0.8, 1.0),
+        ae_core::ecs::RigidBody {
+            body_type: ae_core::ecs::RigidBodyType::Dynamic,
+            mass: 1.0,
+            gravity_scale: 1.0,
+        },
+        ae_core::ecs::Collider {
+            shape: ae_core::ecs::ColliderShape::Box {
+                half_extents: [0.5, 0.5, 0.5],
+            },
+            friction: 0.7,
+            restitution: 0.0,
+            is_sensor: false,
+        },
+        ae_core::ecs::PlayerTag,
+        ae_core::ecs::Velocity::default(),
+        ae_core::ecs::Shape::Cube,
+    ));
+
+    let euler = [0.0, 0.0, 0.0];
+    let swatches = [];
+    let params = create_default_test_params(&world, Some(entity), &euler, &swatches);
+
+    build_inspector_panel(&mut UiScope::new(&mut tree, root), &params, &mut Vec::new());
+
+    let find_node_rect = |tree: &UiTree, label: &str| -> Option<Rect> {
+        for (_id, node) in tree.iter() {
+            let name = node.name.as_deref().unwrap_or("");
+            let text = node.text.as_deref().unwrap_or("");
+            if name == label || text == label {
+                return Some(node.computed_rect);
+            }
+        }
+        None
+    };
+
+    let before_add_swatch = find_node_rect(&tree, "+").expect("Add swatch button");
+    let before_del_swatch = find_node_rect(&tree, "🗑").expect("Delete swatch button");
+    let before_playertag = find_node_rect(&tree, "PlayerTagCard").expect("PlayerTagCard");
+    let before_velocity = find_node_rect(&tree, "VelocityCard").expect("VelocityCard");
+    let before_shape = find_node_rect(&tree, "ShapeCard").expect("ShapeCard");
+    let before_add_comp = find_node_rect(&tree, "AddComponentBtn").expect("AddComponentBtn");
+    let before_save_prefab = find_node_rect(&tree, "SavePrefabBtn").expect("SavePrefabBtn");
+
+    let mut text_system = irisui::text::TextSystem::new();
+    text_system.measure_subtree_text(&mut tree, root);
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    let _ = layout_engine.compute_layout(&mut tree, Size::new(320.0, 900.0));
+
+    let after_add_swatch = find_node_rect(&tree, "+").expect("Add swatch button");
+    let after_del_swatch = find_node_rect(&tree, "🗑").expect("Delete swatch button");
+    let after_playertag = find_node_rect(&tree, "PlayerTagCard").expect("PlayerTagCard");
+    let after_velocity = find_node_rect(&tree, "VelocityCard").expect("VelocityCard");
+    let after_shape = find_node_rect(&tree, "ShapeCard").expect("ShapeCard");
+    let after_add_comp = find_node_rect(&tree, "AddComponentBtn").expect("AddComponentBtn");
+    let after_save_prefab = find_node_rect(&tree, "SavePrefabBtn").expect("SavePrefabBtn");
+
+    // Palette icon buttons must maintain identical width and horizontal position
+    assert_eq!(before_add_swatch.width, 18.0);
+    assert_eq!(after_add_swatch.width, 18.0);
+    assert!((before_del_swatch.x - after_del_swatch.x).abs() < 1e-3);
+
+    // Cards must maintain consistent vertical coordinates
+    assert_eq!(before_playertag.height, after_playertag.height);
+    assert!((before_velocity.y - after_velocity.y).abs() < 1e-3);
+    assert!((before_shape.y - after_shape.y).abs() < 1e-3);
+
+    // Footer buttons must divide flex space equally without horizontal drift
+    assert_eq!(before_add_comp.width, 148.0);
+    assert_eq!(after_add_comp.width, 148.0);
+    assert_eq!(before_save_prefab.width, 148.0);
+    assert_eq!(after_save_prefab.width, 148.0);
+    assert!((before_save_prefab.x - after_save_prefab.x).abs() < 1e-3);
+}

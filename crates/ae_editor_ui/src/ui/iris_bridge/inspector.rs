@@ -47,7 +47,9 @@ pub use math::{euler_deg_to_quaternion, quaternion_to_euler_deg};
 pub use math_eval::{MathEvalError, evaluate_inspector_math};
 pub use panel::{build_inspector_overlays, build_inspector_panel};
 pub use registry::{ComponentInspectorHandler, ComponentRenderContext, InspectorRegistry};
-pub use state::{InspectorPanelState, InspectorState, InspectorTransformSnapshot};
+pub use state::{
+    InspectorPanelState, InspectorState, InspectorTransformSnapshot, is_widget_descendant_of,
+};
 pub use tags::{
     TAG_COMPONENT_DELETE_BASE, TAG_INSPECTOR_ACTION_BASE, TAG_INSPECTOR_ADD_COMPONENT,
     TAG_INSPECTOR_AUDIO_PICK, TAG_INSPECTOR_AUDIO_PLAY, TAG_INSPECTOR_CHECKBOX_BASE,

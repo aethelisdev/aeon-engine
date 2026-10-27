@@ -21,6 +21,8 @@ pub fn build_inspector_footer(
     let padding_x = 8.0;
     let footer_h = 24.0;
     let btn_gap = 8.0;
+    let available_w = (params.panel_rect.width - padding_x * 2.0 - btn_gap).max(0.0);
+    let btn_w = (available_w * 0.5).floor();
 
     let (add_bg, add_border, add_text_col) = if params.is_add_menu_open {
         (
@@ -47,6 +49,7 @@ pub fn build_inspector_footer(
         .align_items(AlignItems::Center)
         .gap(btn_gap)
         .height(34.0)
+        .flex_shrink(0.0)
         .margin_insets(Insets::new(4.0, padding_x, 6.0, padding_x));
 
     scope.container_named("InspectorFooter", row_style, |row| {
@@ -56,6 +59,7 @@ pub fn build_inspector_footer(
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
             .gap(5.0)
+            .width(btn_w)
             .flex_grow(1.0)
             .height(footer_h)
             .padding_insets(Insets::new(0.0, 6.0, 0.0, 6.0))
@@ -139,6 +143,7 @@ pub fn build_inspector_footer(
             .align_items(AlignItems::Center)
             .justify_content(JustifyContent::Center)
             .gap(5.0)
+            .width(btn_w)
             .flex_grow(1.0)
             .height(footer_h)
             .background(save_bg)

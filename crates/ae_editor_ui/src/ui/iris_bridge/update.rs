@@ -168,8 +168,10 @@ impl IrisEditorOverlay {
             }
 
             // If the event was unrouted (outside any dock leaf, e.g. MenuBar, StatusBar, Modal),
-            // escalate to global shell invalidation
-            if !routed_to_panel {
+            // escalate to global shell invalidation (STRICTLY for discrete structural gestures, never continuous motion)
+            let is_mouse_move = matches!(event, irisui::core::UiEvent::MouseMove { .. });
+            let is_pointer_dragging = self.tree.event_state.is_pointer_drag_active;
+            if !routed_to_panel && !is_mouse_move && !is_pointer_dragging {
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
             }
@@ -477,10 +479,41 @@ impl IrisEditorOverlay {
                 );
                 if self.inspector.last_transform_snapshot.as_ref() != Some(&current_snap) {
                     self.inspector.last_transform_snapshot = Some(current_snap);
-                    let is_active_editing = self.inspector.active_number_input.is_some()
-                        || self.inspector.drag_number.is_some()
-                        || self.tree.event_state.active_numeric_edit.is_some();
-                    if !is_active_editing {
+                    let is_inspector_busy = self.inspector.active_number_input.is_some()
+                        || self.inspector.active_text_input.is_some()
+                        || self.inspector.rename_input.is_some()
+                        || self.tree.event_state.active_numeric_edit.is_some()
+                        || self.tree.event_state.active_text_edit.is_some()
+                        || self
+                            .tree
+                            .event_state
+                            .pointer_capture_tag
+                            .is_some_and(super::inspector::is_inspector_tag)
+                        || self
+                            .tree
+                            .event_state
+                            .pressed_tag
+                            .is_some_and(super::inspector::is_inspector_tag)
+                        || self
+                            .chrome
+                            .native_dock_frame
+                            .as_ref()
+                            .and_then(|frame| {
+                                frame.leaf_container(crate::ui::panel_layout::PanelId::Inspector)
+                            })
+                            .is_some_and(|leaf_id| {
+                                self.tree.event_state.pointer_capture.is_some_and(|id| {
+                                    super::inspector::is_widget_descendant_of(
+                                        &self.tree, id, leaf_id,
+                                    )
+                                }) || self.tree.event_state.pressed.is_some_and(|id| {
+                                    super::inspector::is_widget_descendant_of(
+                                        &self.tree, id, leaf_id,
+                                    )
+                                })
+                            });
+
+                    if !is_inspector_busy {
                         self.notifier
                             .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
                     }
@@ -628,26 +661,32 @@ impl IrisEditorOverlay {
             let dock_style = super::native_dock::editor_dock_style_with_tokens(&active_tokens);
             let mut tree = std::mem::take(&mut self.tree);
             let root_id = tree.root().unwrap_or(root);
-            {
+            let dock_frame = {
                 let mut scope = UiScope::new(&mut tree, root_id);
-                let dock_frame =
-                    irisui::dock::DockArea::from_ref(&params.context.layout_state.dock_state)
-                        .bounds(workspace_rect)
-                        .style(dock_style)
-                        .cursor_pos(cursor)
-                        .cursor_occluded(is_cursor_occluded)
-                        .show(
-                            &mut scope,
-                            &mut crate::ui::panel_layout::PanelTabViewer::with_dispatch(
-                                |leaf_scope, panel| {
-                                    self.render_panel_by_id(*panel, leaf_scope, &params);
-                                },
-                            ),
-                        );
+                irisui::dock::DockArea::from_ref(&params.context.layout_state.dock_state)
+                    .bounds(workspace_rect)
+                    .style(dock_style)
+                    .cursor_pos(cursor)
+                    .cursor_occluded(is_cursor_occluded)
+                    .show(
+                        &mut scope,
+                        &mut crate::ui::panel_layout::PanelTabViewer::with_dispatch(
+                            |leaf_scope, panel| {
+                                self.render_panel_by_id(*panel, leaf_scope, &params);
+                            },
+                        ),
+                    )
+            };
 
-                self.chrome.floating_window_rects = dock_frame.floating_rects.clone();
-                self.chrome.native_dock_frame = Some(dock_frame.into());
+            for &(_, leaf_id) in &dock_frame.leaf_containers {
+                self.text_system.measure_subtree_text(&mut tree, leaf_id);
+                let _ = self
+                    .layout_engine
+                    .compute_boundary_subtree(&mut tree, leaf_id);
             }
+
+            self.chrome.floating_window_rects = dock_frame.floating_rects.clone();
+            self.chrome.native_dock_frame = Some(dock_frame.into());
             self.tree = tree;
 
             let is_floating = |panel: crate::ui::panel_layout::PanelId| {

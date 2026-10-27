@@ -105,6 +105,26 @@ impl InspectorTransformSnapshot {
     }
 }
 
+/// Traverses widget parent pointers to test whether `widget_id` is identical to or a descendant of `ancestor_id`.
+#[inline]
+pub fn is_widget_descendant_of(
+    tree: &irisui::core::UiTree,
+    mut widget_id: irisui::core::WidgetId,
+    ancestor_id: irisui::core::WidgetId,
+) -> bool {
+    loop {
+        if widget_id == ancestor_id {
+            return true;
+        }
+        let Some(node) = tree.get(widget_id) else {
+            break;
+        };
+        let Some(p) = node.parent else { break };
+        widget_id = p;
+    }
+    false
+}
+
 impl std::ops::Deref for InspectorPanelState {
     type Target = PanelInteractionState<(), InspectorAction>;
     fn deref(&self) -> &Self::Target {

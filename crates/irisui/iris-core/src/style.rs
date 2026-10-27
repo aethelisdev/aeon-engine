@@ -296,6 +296,22 @@ impl Style {
         self
     }
 
+    /// Sets minimum allowed width constraint in pixels.
+    #[inline]
+    #[must_use]
+    pub fn min_width(mut self, min_width: f32) -> Self {
+        self.min_width = Some(min_width);
+        self
+    }
+
+    /// Sets minimum allowed height constraint in pixels.
+    #[inline]
+    #[must_use]
+    pub fn min_height(mut self, min_height: f32) -> Self {
+        self.min_height = Some(min_height);
+        self
+    }
+
     /// Sets maximum allowed width constraint in pixels.
     #[inline]
     pub fn max_width(mut self, max_width: f32) -> Self {

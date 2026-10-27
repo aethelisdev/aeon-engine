@@ -51,7 +51,7 @@ pub fn build_declarative_card_header(
         .align_items(AlignItems::Center)
         .justify_content(JustifyContent::SpaceBetween)
         .height(20.0)
-        .padding_insets(Insets::new(0.0, 2.0, 2.0, 2.0));
+        .padding_insets(Insets::new(0.0, 2.0, 0.0, 2.0));
 
     scope.container_named("CardHeader", header_style, |header| {
         let title_group_style = Style::new()

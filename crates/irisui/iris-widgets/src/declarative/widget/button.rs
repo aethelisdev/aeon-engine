@@ -298,6 +298,23 @@ impl Widget for Button {
         }
         if let Some(p) = self.padding {
             base_style.padding = p;
+        } else {
+            if let Some(w) = self.width {
+                let horiz = base_style.padding.left + base_style.padding.right;
+                if horiz > w {
+                    let side = (w * 0.5 - 1.0).max(0.0);
+                    base_style.padding.left = side;
+                    base_style.padding.right = side;
+                }
+            }
+            if let Some(h) = self.height {
+                let vert = base_style.padding.top + base_style.padding.bottom;
+                if vert > h {
+                    let side = (h * 0.5 - 1.0).max(0.0);
+                    base_style.padding.top = side;
+                    base_style.padding.bottom = side;
+                }
+            }
         }
         if self.is_flex {
             base_style.flex_grow = 1.0;

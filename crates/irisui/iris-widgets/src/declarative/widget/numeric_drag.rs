@@ -259,6 +259,11 @@ impl<'a> Widget for NumericDrag<'a> {
                                 .and_then(|cid| scope.tree.get(cid))
                                 .is_some_and(|n| n.tag == tag))));
 
+            if is_dragging && tag != 0 && scope.tree.event_state.pointer_capture_tag == Some(tag) {
+                scope.tree.event_state.pointer_capture = Some(pill_id);
+                scope.tree.event_state.pressed = Some(pill_id);
+            }
+
             if clicked {
                 let is_already_editing = scope
                     .tree
@@ -712,6 +717,11 @@ impl<'a> Widget for NumericDrag<'a> {
                             .pointer_capture
                             .and_then(|cid| row.tree.get(cid))
                             .is_some_and(|n| n.tag == tag))));
+
+        if is_dragging && tag != 0 && row.tree.event_state.pointer_capture_tag == Some(tag) {
+            row.tree.event_state.pointer_capture = Some(pill_id);
+            row.tree.event_state.pressed = Some(pill_id);
+        }
 
         if clicked {
             let is_already_editing = row
