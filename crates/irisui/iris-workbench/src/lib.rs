@@ -21,9 +21,15 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod descriptors;
 pub mod error;
 pub mod hooks;
 pub mod prelude;
 
+pub use descriptors::{
+    MenuBarDescriptor, MenuItemDescriptor, MenuSectionDescriptor, PanelDrawFn, PanelRegistry,
+    StatusBarDescriptor, StatusPillDescriptor, StatusPillStyle, WorkbenchDescriptor,
+    WorkbenchPanelRegistry,
+};
 pub use error::{WorkbenchError, WorkbenchResult};
 pub use hooks::{CustomOverlayHook, DragDropPayload, ExternalTextureHook, TypedDragDropPayload};
