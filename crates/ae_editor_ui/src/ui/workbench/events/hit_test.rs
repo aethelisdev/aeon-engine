@@ -115,37 +115,14 @@ pub fn evaluate_window_resize_border(
     width: f32,
     height: f32,
 ) -> Option<(winit::window::ResizeDirection, winit::window::CursorIcon)> {
-    const BORDER: f32 = 6.0;
-    const CORNER: f32 = 12.0;
-
-    if width < CORNER * 2.0 || height < CORNER * 2.0 {
-        return None;
-    }
-
-    use winit::window::{CursorIcon, ResizeDirection};
-
-    // Four corners (evaluated first with larger hit area for comfortable diagonal grabbing)
-    if point.x <= CORNER && point.y <= CORNER {
-        Some((ResizeDirection::NorthWest, CursorIcon::NwResize))
-    } else if point.x >= width - CORNER && point.y <= CORNER {
-        Some((ResizeDirection::NorthEast, CursorIcon::NeResize))
-    } else if point.x <= CORNER && point.y >= height - CORNER {
-        Some((ResizeDirection::SouthWest, CursorIcon::SwResize))
-    } else if point.x >= width - CORNER && point.y >= height - CORNER {
-        Some((ResizeDirection::SouthEast, CursorIcon::SeResize))
-    }
-    // Four outer edges
-    else if point.x <= BORDER {
-        Some((ResizeDirection::West, CursorIcon::WResize))
-    } else if point.x >= width - BORDER {
-        Some((ResizeDirection::East, CursorIcon::EResize))
-    } else if point.y <= BORDER {
-        Some((ResizeDirection::North, CursorIcon::NResize))
-    } else if point.y >= height - BORDER {
-        Some((ResizeDirection::South, CursorIcon::SResize))
-    } else {
-        None
-    }
+    let size = irisui::prelude::Size::new(width, height);
+    iris_winit::frameless::evaluate_resize_direction(
+        point,
+        size,
+        iris_winit::frameless::DEFAULT_BORDER_THICKNESS,
+        iris_winit::frameless::DEFAULT_CORNER_SIZE,
+    )
+    .map(|dir| (dir.to_winit(), dir.to_winit_cursor()))
 }
 
 #[cfg(test)]

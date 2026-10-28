@@ -6,6 +6,7 @@
 //! Traverses a [`UiTree`] hierarchy and generates sorted, interleaved [`DrawCommandList`] instances
 //! adhering to strict layer elevation priorities (`Background -> Content -> Floating -> Modal -> Popup -> Tooltip`),
 //! automatic hardware scissor clip intersection, and elevated overlay clip decoupling.
+#![deny(clippy::unwrap_used)]
 
 use crate::command::DrawCommandList;
 use crate::external_texture_pipeline::ExternalTextureQuadInstance;

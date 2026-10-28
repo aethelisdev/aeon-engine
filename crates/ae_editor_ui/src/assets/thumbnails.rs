@@ -10,6 +10,8 @@
 //! - Scenes (.aee): 3D Isometric scene perspective grid and coordinate gizmo.
 //! - Materials (.mat): PBR Material sphere with specular highlight and Fresnel rim.
 //! - Audio (.wav, .mp3, .ogg): Studio acoustic equalizer waveform visualization.
+#![deny(clippy::allow_attributes)]
+#![deny(clippy::unwrap_used)]
 
 use super::types::AssetCategory;
 use std::path::Path;

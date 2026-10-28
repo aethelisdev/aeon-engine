@@ -17,6 +17,7 @@
 pub mod adapter;
 pub mod cursor;
 pub mod dispatch;
+pub mod frameless;
 pub mod modifiers;
 pub mod state;
 pub mod text_input;
@@ -29,6 +30,9 @@ pub use adapter::{
 };
 pub use cursor::{widget_cursor_to_winit, winit_to_widget_cursor};
 pub use dispatch::{dispatch_winit_event, poll_timers};
+pub use frameless::{
+    DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, ResizeDirection, evaluate_resize_direction,
+};
 pub use modifiers::ModifiersState;
 pub use state::WinitState;
 pub use text_input::{

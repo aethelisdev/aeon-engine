@@ -118,7 +118,13 @@ fn test_tree_compiler_hover_style_in_place() {
     assert_eq!(hover_cmds.quads[0].color, Color::RED.to_linear().to_array());
 
     // Tree node in memory was never mutated
-    assert_eq!(tree.get(root).unwrap().style.background_color, Color::BLACK);
+    assert_eq!(
+        tree.get(root)
+            .expect("root node must exist in tree")
+            .style
+            .background_color,
+        Color::BLACK
+    );
 }
 
 #[test]
@@ -282,10 +288,18 @@ fn test_tree_compiler_nested_submenu_clip_decoupling() {
     // Both popups must be decoupled from the panel's clip (0, 0, 300, 300)
     // Parent popup has clip_rect = [0.0, 0.0, 0.0, 0.0]
     // Submenu has clip_rect = [0.0, 0.0, 0.0, 0.0] because it is an elevated root (DropdownPopup)
-    let parent_quad = cmd_list.quads.iter().find(|q| q.rect[2] == 150.0).unwrap();
+    let parent_quad = cmd_list
+        .quads
+        .iter()
+        .find(|q| q.rect[2] == 150.0)
+        .expect("parent quad matching rect width 150.0 must exist");
     assert_eq!(parent_quad.clip_rect, [0.0, 0.0, 0.0, 0.0]);
 
-    let submenu_quad = cmd_list.quads.iter().find(|q| q.rect[2] == 120.0).unwrap();
+    let submenu_quad = cmd_list
+        .quads
+        .iter()
+        .find(|q| q.rect[2] == 120.0)
+        .expect("submenu quad matching rect width 120.0 must exist");
     assert_eq!(submenu_quad.clip_rect, [0.0, 0.0, 0.0, 0.0]);
 }
 
