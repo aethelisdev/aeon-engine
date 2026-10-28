@@ -31,9 +31,12 @@ pub use adapter::{
 pub use cursor::{widget_cursor_to_winit, winit_to_widget_cursor};
 pub use dispatch::{dispatch_winit_event, poll_timers};
 pub use frameless::{
-    DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, FramelessWindowHost, ResizeDirection,
-    WindowInterface, WindowOpError, evaluate_resize_direction,
+    DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, DEFAULT_DOUBLE_CLICK_DISTANCE_THRESHOLD,
+    DEFAULT_DOUBLE_CLICK_TIME_THRESHOLD, FramelessWindowHost, ResizeDirection, WindowDragHost,
+    WindowDragOutcome, WindowInterface, WindowOpError, evaluate_resize_direction, is_double_click,
+    point_distance,
 };
+
 pub use modifiers::ModifiersState;
 pub use state::WinitState;
 pub use text_input::{
