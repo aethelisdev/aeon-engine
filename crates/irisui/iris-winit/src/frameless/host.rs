@@ -348,4 +348,32 @@ impl FramelessWindowHost {
             _ => false,
         }
     }
+
+    /// Handles an Iris UI [`UiEvent`] using the window's own [`WindowInterface::logical_size`].
+    ///
+    /// Automatically queries the logical dimensions from `window` and forwards
+    /// to [`Self::handle_ui_event`].
+    #[inline]
+    pub fn handle_ui_event_for_window<W: WindowInterface>(
+        &self,
+        window: &mut W,
+        event: &UiEvent,
+    ) -> bool {
+        let size = window.logical_size();
+        self.handle_ui_event(window, event, size)
+    }
+
+    /// Handles a native Winit [`WindowEvent`] using the window's own [`WindowInterface::logical_size`].
+    ///
+    /// Automatically queries the logical dimensions from `window` and forwards
+    /// to [`Self::handle_window_event`].
+    #[inline]
+    pub fn handle_window_event_for_window<W: WindowInterface>(
+        &self,
+        window: &mut W,
+        event: &WindowEvent,
+    ) -> bool {
+        let size = window.logical_size();
+        self.handle_window_event(window, event, size)
+    }
 }

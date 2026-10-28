@@ -9,46 +9,36 @@
 pub mod hit_test;
 pub mod keyboard;
 
+#[cfg(test)]
+mod tests;
+
 use crate::ui::iris_bridge::IrisEditorOverlay;
 use crate::ui::workbench::state::EngineUi;
+use iris_winit::frameless::WindowInterface;
 use irisui::dock::{DockArea, DockInteractionConfig, FloatingWindowClampBounds};
 use irisui::prelude::{Rect, UiEvent, WidgetCursor};
-use winit::window::Window;
 
 impl EngineUi {
     /// Dispatches declarative UI interaction events to Iris UI and the native dock coordinator.
     ///
     /// Receives pure, hardware-abstracted [`UiEvent`] representations translated at window root.
-    pub fn handle_event(
+    /// Uses [`WindowInterface`] to interact with the host platform window without concrete bindings.
+    pub fn handle_event<W: WindowInterface>(
         &mut self,
-        window: &Window,
+        mut window: W,
         event: &UiEvent,
         _world: Option<&hecs::World>,
     ) -> bool {
-        let zoom = self.scale_factor();
-        let win_size = window.inner_size();
-        let screen_w = win_size.width as f32 / zoom;
-        let screen_h = win_size.height as f32 / zoom;
+        let logical_size = window.logical_size();
+        let screen_w = logical_size.width;
+        let screen_h = logical_size.height;
 
         // 1. Frameless Window 8-way Native Edge Resizing (Top, Bottom, Left, Right and 4 Corners)
-        if !window.is_maximized() {
-            if let UiEvent::MouseMove { point } = event {
-                if let Some((_, cursor_icon)) =
-                    hit_test::evaluate_window_resize_border(*point, screen_w, screen_h)
-                {
-                    window.set_cursor(cursor_icon);
-                    return true;
-                }
-            } else if let UiEvent::MouseDown {
-                point,
-                button: irisui::prelude::MouseButton::Left,
-            } = event
-                && let Some((direction, _)) =
-                    hit_test::evaluate_window_resize_border(*point, screen_w, screen_h)
-            {
-                let _ = window.drag_resize_window(direction);
-                return true;
-            }
+        if self
+            .frameless_host
+            .handle_ui_event(&mut window, event, logical_size)
+        {
+            return true;
         }
 
         // Synchronize active floating window boundaries with IrisEditorOverlay for occlusion testing
@@ -197,14 +187,14 @@ impl EngineUi {
         if dock_consumed {
             let active_widget_cursor =
                 dock_cursor.unwrap_or_else(|| self.iris_overlay.active_cursor());
-            window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
+            window.set_widget_cursor(active_widget_cursor);
             return true;
         }
 
         // Layer isolation mandate: events consumed by Iris UI overlays or panels must never leak to underlying systems
         if iris_res.consumed {
             let active_widget_cursor = self.iris_overlay.active_cursor();
-            window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
+            window.set_widget_cursor(active_widget_cursor);
             return true;
         }
 
@@ -235,7 +225,7 @@ impl EngineUi {
 
         // Apply requested cursor
         let active_widget_cursor = dock_cursor.unwrap_or_else(|| self.iris_overlay.active_cursor());
-        window.set_cursor(irisui::winit::widget_cursor_to_winit(active_widget_cursor));
+        window.set_widget_cursor(active_widget_cursor);
 
         iris_res.consumed || dock_consumed
     }

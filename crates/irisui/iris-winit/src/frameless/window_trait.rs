@@ -7,6 +7,7 @@
 //! and testable frameless window management without direct binding to concrete windowing objects.
 
 use super::geometry::ResizeDirection;
+use iris_core::geometry::Size;
 use iris_core::node::WidgetCursor;
 use std::fmt;
 use std::sync::Arc;
@@ -77,6 +78,19 @@ pub trait WindowInterface {
 
     /// Requests that the window be closed.
     fn close(&mut self);
+
+    /// Returns the logical dimensions of the client area in logical points.
+    ///
+    /// For native Winit windows, calculates the logical dimensions from [`Window::inner_size`]
+    /// divided by the platform [`Window::scale_factor`].
+    /// Headless mock implementors return their configured virtual dimensions.
+    fn logical_size(&self) -> Size;
+
+    /// Returns the active HighDPI scale factor for this window.
+    ///
+    /// For native Winit windows, returns [`Window::scale_factor`], guaranteed to be positive
+    /// and finite (falling back to `1.0` if non-positive or non-finite).
+    fn scale_factor(&self) -> f64;
 }
 
 impl WindowInterface for Window {
@@ -115,6 +129,26 @@ impl WindowInterface for Window {
     #[inline]
     fn close(&mut self) {
         self.set_visible(false);
+    }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        let scale = Window::scale_factor(self);
+        if scale > 0.0 && scale.is_finite() {
+            scale
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    fn logical_size(&self) -> Size {
+        let phys = Window::inner_size(self);
+        let factor = self.scale_factor();
+        Size::new(
+            (phys.width as f64 / factor) as f32,
+            (phys.height as f64 / factor) as f32,
+        )
     }
 }
 
@@ -155,6 +189,26 @@ impl WindowInterface for &Window {
     fn close(&mut self) {
         self.set_visible(false);
     }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        let scale = Window::scale_factor(self);
+        if scale > 0.0 && scale.is_finite() {
+            scale
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    fn logical_size(&self) -> Size {
+        let phys = Window::inner_size(self);
+        let factor = self.scale_factor();
+        Size::new(
+            (phys.width as f64 / factor) as f32,
+            (phys.height as f64 / factor) as f32,
+        )
+    }
 }
 
 impl WindowInterface for Arc<Window> {
@@ -193,6 +247,85 @@ impl WindowInterface for Arc<Window> {
     #[inline]
     fn close(&mut self) {
         self.set_visible(false);
+    }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        let scale = Window::scale_factor(self);
+        if scale > 0.0 && scale.is_finite() {
+            scale
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    fn logical_size(&self) -> Size {
+        let phys = Window::inner_size(self);
+        let factor = self.scale_factor();
+        Size::new(
+            (phys.width as f64 / factor) as f32,
+            (phys.height as f64 / factor) as f32,
+        )
+    }
+}
+
+impl WindowInterface for &Arc<Window> {
+    #[inline]
+    fn set_cursor(&mut self, icon: CursorIcon) {
+        Window::set_cursor(self, icon);
+    }
+
+    #[inline]
+    fn drag_resize_window(&mut self, direction: ResizeDirection) -> Result<(), WindowOpError> {
+        Window::drag_resize_window(self, direction.to_winit())
+            .map_err(|_| WindowOpError::PlatformRejected)
+    }
+
+    #[inline]
+    fn drag_window(&mut self) -> Result<(), WindowOpError> {
+        Window::drag_window(self).map_err(|_| WindowOpError::PlatformRejected)
+    }
+
+    #[inline]
+    fn is_maximized(&self) -> bool {
+        Window::is_maximized(self)
+    }
+
+    #[inline]
+    fn toggle_maximize(&mut self) {
+        let is_max = self.is_maximized();
+        self.set_maximized(!is_max);
+    }
+
+    #[inline]
+    fn minimize(&mut self) {
+        self.set_minimized(true);
+    }
+
+    #[inline]
+    fn close(&mut self) {
+        self.set_visible(false);
+    }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        let scale = Window::scale_factor(self);
+        if scale > 0.0 && scale.is_finite() {
+            scale
+        } else {
+            1.0
+        }
+    }
+
+    #[inline]
+    fn logical_size(&self) -> Size {
+        let phys = Window::inner_size(self);
+        let factor = self.scale_factor();
+        Size::new(
+            (phys.width as f64 / factor) as f32,
+            (phys.height as f64 / factor) as f32,
+        )
     }
 }
 
@@ -235,5 +368,67 @@ impl<W: WindowInterface + ?Sized> WindowInterface for &mut W {
     #[inline]
     fn close(&mut self) {
         (**self).close();
+    }
+
+    #[inline]
+    fn logical_size(&self) -> Size {
+        (**self).logical_size()
+    }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        (**self).scale_factor()
+    }
+}
+
+impl<W: WindowInterface + ?Sized> WindowInterface for Box<W> {
+    #[inline]
+    fn set_cursor(&mut self, icon: CursorIcon) {
+        (**self).set_cursor(icon);
+    }
+
+    #[inline]
+    fn set_widget_cursor(&mut self, cursor: WidgetCursor) {
+        (**self).set_widget_cursor(cursor);
+    }
+
+    #[inline]
+    fn drag_resize_window(&mut self, direction: ResizeDirection) -> Result<(), WindowOpError> {
+        (**self).drag_resize_window(direction)
+    }
+
+    #[inline]
+    fn drag_window(&mut self) -> Result<(), WindowOpError> {
+        (**self).drag_window()
+    }
+
+    #[inline]
+    fn is_maximized(&self) -> bool {
+        (**self).is_maximized()
+    }
+
+    #[inline]
+    fn toggle_maximize(&mut self) {
+        (**self).toggle_maximize();
+    }
+
+    #[inline]
+    fn minimize(&mut self) {
+        (**self).minimize();
+    }
+
+    #[inline]
+    fn close(&mut self) {
+        (**self).close();
+    }
+
+    #[inline]
+    fn logical_size(&self) -> Size {
+        (**self).logical_size()
+    }
+
+    #[inline]
+    fn scale_factor(&self) -> f64 {
+        (**self).scale_factor()
     }
 }

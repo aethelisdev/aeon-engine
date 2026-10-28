@@ -18,7 +18,7 @@ use winit::dpi::PhysicalPosition;
 use winit::event::{DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::window::CursorIcon;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct MockWindow {
     last_cursor: Option<CursorIcon>,
     last_resize_direction: Option<ResizeDirection>,
@@ -29,6 +29,26 @@ struct MockWindow {
     cursor_call_count: usize,
     resize_call_count: usize,
     fail_drag_resize: bool,
+    logical_size: Size,
+    scale_factor: f64,
+}
+
+impl Default for MockWindow {
+    fn default() -> Self {
+        Self {
+            last_cursor: None,
+            last_resize_direction: None,
+            drag_window_called: false,
+            maximized: false,
+            minimized: false,
+            closed: false,
+            cursor_call_count: 0,
+            resize_call_count: 0,
+            fail_drag_resize: false,
+            logical_size: Size::new(1000.0, 700.0),
+            scale_factor: 1.0,
+        }
+    }
 }
 
 impl WindowInterface for MockWindow {
@@ -66,6 +86,14 @@ impl WindowInterface for MockWindow {
 
     fn close(&mut self) {
         self.closed = true;
+    }
+
+    fn logical_size(&self) -> Size {
+        self.logical_size
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.scale_factor
     }
 }
 
@@ -664,4 +692,29 @@ fn test_handle_ui_event_mouse_down_coordinates_and_finiteness() {
     assert!(host.cursor_pos().is_none());
     assert!(!host.is_hovering_border());
     assert_eq!(win.last_cursor, Some(CursorIcon::Default));
+}
+
+#[test]
+fn test_handle_ui_event_for_window_and_window_event_for_window() {
+    let host = FramelessWindowHost::new();
+    let mut win = MockWindow {
+        logical_size: Size::new(800.0, 600.0),
+        ..Default::default()
+    };
+
+    // 1. handle_ui_event_for_window delegates to handle_ui_event using win.logical_size
+    let border_move = UiEvent::MouseMove {
+        point: Point::new(2.0, 300.0),
+    };
+    assert!(host.handle_ui_event_for_window(&mut win, &border_move));
+    assert_eq!(win.last_cursor, Some(CursorIcon::WResize));
+
+    // 2. handle_window_event_for_window delegates using win.logical_size
+    let interior_winit = make_move_event(400.0, 300.0);
+    assert!(!host.handle_window_event_for_window(&mut win, &interior_winit));
+    assert_eq!(win.last_cursor, Some(CursorIcon::Default));
+
+    // 3. WindowInterface logical_size and scale_factor inspection
+    assert_eq!(win.logical_size(), Size::new(800.0, 600.0));
+    assert_eq!(win.scale_factor(), 1.0);
 }

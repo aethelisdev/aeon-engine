@@ -51,6 +51,11 @@ pub struct EngineUi {
     pub pending_drag_window: bool,
     /// Timestamp of the last left-click on the top menu bar (for double-click maximize detection).
     pub last_menubar_click: Option<std::time::Instant>,
+    /// Hardware-independent frameless window host coordinating 8-way resize boundary hit-testing and cursor state.
+    ///
+    /// Evaluates window borders and corners against incoming interaction events and coordinates
+    /// native platform drag-resize operations via [`iris_winit::frameless::WindowInterface`].
+    pub frameless_host: iris_winit::frameless::FramelessWindowHost,
     /// Modular docking panel and tab layout state.
     pub layout_state: PanelLayoutState,
     pub hierarchy_search_query: String,
@@ -156,6 +161,7 @@ impl EngineUi {
             pending_window_maximize: false,
             pending_drag_window: false,
             last_menubar_click: None,
+            frameless_host: iris_winit::frameless::FramelessWindowHost::new(),
             layout_state: PanelLayoutState::new_default(),
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),
