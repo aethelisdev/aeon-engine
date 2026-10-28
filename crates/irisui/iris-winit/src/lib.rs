@@ -31,7 +31,8 @@ pub use adapter::{
 pub use cursor::{widget_cursor_to_winit, winit_to_widget_cursor};
 pub use dispatch::{dispatch_winit_event, poll_timers};
 pub use frameless::{
-    DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, ResizeDirection, evaluate_resize_direction,
+    DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, FramelessWindowHost, ResizeDirection,
+    WindowInterface, WindowOpError, evaluate_resize_direction,
 };
 pub use modifiers::ModifiersState;
 pub use state::WinitState;

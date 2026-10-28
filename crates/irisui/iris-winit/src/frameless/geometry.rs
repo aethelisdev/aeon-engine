@@ -74,8 +74,8 @@ impl ResizeDirection {
 
     /// Maps this frameless resize direction to an Iris UI retained [`WidgetCursor`].
     ///
-    /// Cardinal horizontal edges resolve to [`WidgetCursor::EwResize`], vertical edges
-    /// to [`WidgetCursor::NsResize`], and diagonals to [`WidgetCursor::NwseResize`] or [`WidgetCursor::NeswResize`].
+    /// Horizontal edges (Top/Bottom) resolve to [`WidgetCursor::NsResize`], vertical edges
+    /// (Left/Right) to [`WidgetCursor::EwResize`], and diagonals to [`WidgetCursor::NwseResize`] or [`WidgetCursor::NeswResize`].
     #[must_use]
     #[inline]
     pub fn to_cursor(self) -> WidgetCursor {
