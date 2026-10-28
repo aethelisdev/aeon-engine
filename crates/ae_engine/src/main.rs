@@ -256,17 +256,6 @@ impl AeApp {
             }
         }
 
-        // Window management triggers
-        if engine.ui.pending_window_minimize {
-            engine.ui.pending_window_minimize = false;
-            engine.render_state.window.set_minimized(true);
-        }
-        if engine.ui.pending_window_maximize {
-            engine.ui.pending_window_maximize = false;
-            let is_max = engine.render_state.window.is_maximized();
-            engine.render_state.window.set_maximized(!is_max);
-        }
-
         // Exit trigger
         if engine.ui.should_exit {
             self.engine = None;

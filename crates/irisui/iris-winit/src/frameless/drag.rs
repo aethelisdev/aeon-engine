@@ -417,6 +417,40 @@ impl WindowDragHost {
         self.process_click(window, point).is_consumed()
     }
 
+    /// Dispatches a declarative [`TitleBarAction`] directly to the platform [`WindowInterface`].
+    ///
+    /// Automatically resets pending double-click state and executes [`WindowInterface::minimize`],
+    /// [`WindowInterface::toggle_maximize`], or [`WindowInterface::close`].
+    ///
+    /// # Arguments
+    /// * `window` - Target platform window implementation.
+    /// * `action` - Title bar control button action to execute.
+    pub fn handle_title_bar_action<W: WindowInterface>(
+        &self,
+        window: &mut W,
+        action: TitleBarAction,
+    ) -> WindowDragOutcome {
+        if !self.enabled {
+            return WindowDragOutcome::None;
+        }
+
+        self.last_click.set(None);
+        match action {
+            TitleBarAction::Minimize => {
+                window.minimize();
+                WindowDragOutcome::Minimized
+            }
+            TitleBarAction::Maximize => {
+                window.toggle_maximize();
+                WindowDragOutcome::MaximizeToggled
+            }
+            TitleBarAction::Close => {
+                window.close();
+                WindowDragOutcome::Closed
+            }
+        }
+    }
+
     /// Evaluates an autonomous declarative [`TitleBarResponse`] with an explicit timestamp.
     ///
     /// Automatically routes control button actions ([`TitleBarAction::Minimize`],
@@ -442,23 +476,7 @@ impl WindowDragHost {
         }
 
         if let Some(action) = response.action() {
-            match action {
-                TitleBarAction::Minimize => {
-                    self.last_click.set(None);
-                    window.minimize();
-                    return WindowDragOutcome::Minimized;
-                }
-                TitleBarAction::Maximize => {
-                    self.last_click.set(None);
-                    window.toggle_maximize();
-                    return WindowDragOutcome::MaximizeToggled;
-                }
-                TitleBarAction::Close => {
-                    self.last_click.set(None);
-                    window.close();
-                    return WindowDragOutcome::Closed;
-                }
-            }
+            return self.handle_title_bar_action(window, action);
         }
 
         if response.drag_area_clicked() {

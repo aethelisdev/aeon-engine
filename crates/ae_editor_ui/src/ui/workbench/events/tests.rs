@@ -7,7 +7,7 @@
 //! double-click window maximization, and cursor icon synchronization using headless mock windows.
 
 use iris_winit::frameless::{FramelessWindowHost, ResizeDirection, WindowInterface, WindowOpError};
-use irisui::prelude::{MouseButton, Point, Size, UiEvent};
+use irisui::prelude::{MouseButton, Point, Rect, Size, UiEvent};
 use winit::window::CursorIcon;
 
 #[derive(Debug)]
@@ -176,4 +176,62 @@ fn test_window_interface_methods_on_mock() {
 
     win.set_widget_cursor(irisui::prelude::WidgetCursor::Pointer);
     assert_eq!(win.last_cursor, Some(CursorIcon::Pointer));
+}
+
+#[test]
+fn test_window_drag_host_single_click_and_double_click_maximize() {
+    let host = iris_winit::frameless::WindowDragHost::new().with_title_bar_height(36.0);
+    let mut win = MockWindow::default();
+    let drag_rect = Rect::new(0.0, 0.0, 1000.0, 36.0);
+
+    // 1. Single click inside title bar (y = 18.0 <= 36.0) initiates native drag_window
+    let click1 = UiEvent::MouseDown {
+        point: Point::new(500.0, 18.0),
+        button: MouseButton::Left,
+    };
+    let outcome1 = host.process_ui_event(&mut win, &click1, drag_rect);
+    assert_eq!(
+        outcome1,
+        iris_winit::frameless::WindowDragOutcome::DragStarted
+    );
+    assert!(win.drag_window_called);
+    assert!(!win.is_maximized());
+
+    // 2. Second click within 100 ms at identical coordinate toggles window maximization
+    let click2 = UiEvent::MouseDown {
+        point: Point::new(500.0, 18.0),
+        button: MouseButton::Left,
+    };
+    let outcome2 = host.process_ui_event(&mut win, &click2, drag_rect);
+    assert_eq!(
+        outcome2,
+        iris_winit::frameless::WindowDragOutcome::MaximizeToggled
+    );
+    assert!(win.is_maximized());
+}
+
+#[test]
+fn test_window_drag_host_handle_title_bar_actions_on_mock_window() {
+    use irisui::prelude::TitleBarAction;
+
+    let host = iris_winit::frameless::WindowDragHost::new();
+    let mut win = MockWindow::default();
+
+    // 1. Minimize action
+    let out_min = host.handle_title_bar_action(&mut win, TitleBarAction::Minimize);
+    assert_eq!(out_min, iris_winit::frameless::WindowDragOutcome::Minimized);
+    assert!(win.minimized);
+
+    // 2. Maximize action
+    let out_max = host.handle_title_bar_action(&mut win, TitleBarAction::Maximize);
+    assert_eq!(
+        out_max,
+        iris_winit::frameless::WindowDragOutcome::MaximizeToggled
+    );
+    assert!(win.maximized);
+
+    // 3. Close action
+    let out_close = host.handle_title_bar_action(&mut win, TitleBarAction::Close);
+    assert_eq!(out_close, iris_winit::frameless::WindowDragOutcome::Closed);
+    assert!(win.closed);
 }

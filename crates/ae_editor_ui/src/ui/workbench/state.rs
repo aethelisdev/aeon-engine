@@ -43,19 +43,17 @@ pub struct EngineUi {
     pub pending_load_path: Option<std::path::PathBuf>,
     pub scene_dialog_receivers: Vec<std::sync::mpsc::Receiver<SceneDialogAction>>,
     pub should_exit: bool,
-    /// Pending signal to minimize the window.
-    pub pending_window_minimize: bool,
-    /// Pending signal to toggle window maximize/restore.
-    pub pending_window_maximize: bool,
-    /// Pending signal to trigger native OS window dragging.
-    pub pending_drag_window: bool,
-    /// Timestamp of the last left-click on the top menu bar (for double-click maximize detection).
-    pub last_menubar_click: Option<std::time::Instant>,
     /// Hardware-independent frameless window host coordinating 8-way resize boundary hit-testing and cursor state.
     ///
     /// Evaluates window borders and corners against incoming interaction events and coordinates
     /// native platform drag-resize operations via [`iris_winit::frameless::WindowInterface`].
     pub frameless_host: iris_winit::frameless::FramelessWindowHost,
+    /// Hardware-independent window drag and double-click maximize gesture coordinator.
+    ///
+    /// Manages native window dragging gestures initiated from title bar surfaces and detects
+    /// rapid double-click events within strict spatial ($\Delta r < 4.0\text{px}$) and temporal
+    /// ($t \le 300\text{ms}$) thresholds to toggle window maximization state via [`iris_winit::frameless::WindowInterface`].
+    pub drag_host: iris_winit::frameless::WindowDragHost,
     /// Modular docking panel and tab layout state.
     pub layout_state: PanelLayoutState,
     pub hierarchy_search_query: String,
@@ -157,11 +155,9 @@ impl EngineUi {
             pending_load_path: None,
             scene_dialog_receivers: Vec::new(),
             should_exit: false,
-            pending_window_minimize: false,
-            pending_window_maximize: false,
-            pending_drag_window: false,
-            last_menubar_click: None,
             frameless_host: iris_winit::frameless::FramelessWindowHost::new(),
+            drag_host: iris_winit::frameless::WindowDragHost::new()
+                .with_title_bar_height(IrisEditorOverlay::MENUBAR_HEIGHT),
             layout_state: PanelLayoutState::new_default(),
             hierarchy_search_query: String::new(),
             console_entries: Vec::new(),

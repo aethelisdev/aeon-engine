@@ -154,16 +154,6 @@ impl EngineUi {
             self.console_last_count = 0;
         }
 
-        if iris_res.window_minimize {
-            self.pending_window_minimize = true;
-        }
-        if iris_res.window_maximize {
-            self.pending_window_maximize = true;
-        }
-        if iris_res.window_close {
-            self.should_exit = true;
-        }
-
         let workspace_rect = Rect::new(
             0.0,
             IrisEditorOverlay::MENUBAR_HEIGHT,
@@ -199,22 +189,11 @@ impl EngineUi {
         }
 
         // Native Window Title Bar Dragging & Maximize Double-Click on unconsumed MenuBar clicks
-        if let UiEvent::MouseDown {
-            point,
-            button: irisui::prelude::MouseButton::Left,
-        } = event
-            && point.y <= IrisEditorOverlay::MENUBAR_HEIGHT
+        let menubar_rect = Rect::new(0.0, 0.0, screen_w, IrisEditorOverlay::MENUBAR_HEIGHT);
+        if self
+            .drag_host
+            .handle_ui_event(&mut window, event, menubar_rect)
         {
-            let now = std::time::Instant::now();
-            if let Some(last_click) = self.last_menubar_click
-                && now.duration_since(last_click).as_millis() < 350
-            {
-                self.pending_window_maximize = true;
-                self.last_menubar_click = None;
-                return true;
-            }
-            self.last_menubar_click = Some(now);
-            let _ = window.drag_window();
             return true;
         }
 

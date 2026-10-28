@@ -225,14 +225,12 @@ impl EngineUi {
                 crate::ui::iris_bridge::DropdownAction::OpenAbout => {
                     self.show_about = true;
                 }
-                crate::ui::iris_bridge::DropdownAction::WindowMinimize => {
-                    self.pending_window_minimize = true;
-                }
-                crate::ui::iris_bridge::DropdownAction::WindowMaximize => {
-                    self.pending_window_maximize = true;
-                }
-                crate::ui::iris_bridge::DropdownAction::WindowClose => {
-                    self.should_exit = true;
+                crate::ui::iris_bridge::DropdownAction::WindowAction(action) => {
+                    let mut win = params.window;
+                    let outcome = self.drag_host.handle_title_bar_action(&mut win, action);
+                    if outcome.is_closed() {
+                        self.should_exit = true;
+                    }
                 }
             }
         }

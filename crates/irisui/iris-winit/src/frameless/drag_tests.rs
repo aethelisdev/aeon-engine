@@ -547,3 +547,27 @@ fn test_configured_title_bar_height_and_drag_rect() {
     assert!(host_rect.is_point_in_drag_area(Point::new(100.0, 16.0), None));
     assert!(!host_rect.is_point_in_drag_area(Point::new(20.0, 16.0), None));
 }
+
+#[test]
+fn test_window_drag_host_handle_title_bar_action() {
+    let host = WindowDragHost::new();
+    let mut win = MockDragWindow::default();
+
+    assert_eq!(
+        host.handle_title_bar_action(&mut win, TitleBarAction::Minimize),
+        WindowDragOutcome::Minimized
+    );
+    assert_eq!(win.minimize_count, 1);
+
+    assert_eq!(
+        host.handle_title_bar_action(&mut win, TitleBarAction::Maximize),
+        WindowDragOutcome::MaximizeToggled
+    );
+    assert_eq!(win.toggle_maximize_count, 1);
+
+    assert_eq!(
+        host.handle_title_bar_action(&mut win, TitleBarAction::Close),
+        WindowDragOutcome::Closed
+    );
+    assert_eq!(win.close_count, 1);
+}

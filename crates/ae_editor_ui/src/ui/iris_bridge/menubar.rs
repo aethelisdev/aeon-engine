@@ -197,9 +197,21 @@ pub fn build_top_menu_bar(
                 }
 
                 // Window Management Controls (Minimize, Maximize/Restore, Close)
-                right.window_button("—", false, DropdownAction::WindowMinimize);
-                right.window_button("□", false, DropdownAction::WindowMaximize);
-                right.window_button("✕", true, DropdownAction::WindowClose);
+                right.window_button(
+                    "—",
+                    false,
+                    DropdownAction::WindowAction(TitleBarAction::Minimize),
+                );
+                right.window_button(
+                    "□",
+                    false,
+                    DropdownAction::WindowAction(TitleBarAction::Maximize),
+                );
+                right.window_button(
+                    "✕",
+                    true,
+                    DropdownAction::WindowAction(TitleBarAction::Close),
+                );
             });
         });
 
@@ -403,9 +415,15 @@ pub fn build_workbench_menubar_descriptor(
             descriptor.with_action_button("⏹ Stop", Color::hex("#dc2626"), Color::WHITE, 0x6002);
     }
 
-    actions.insert(0x7001, DropdownAction::WindowMinimize);
-    actions.insert(0x7002, DropdownAction::WindowMaximize);
-    actions.insert(0x7003, DropdownAction::WindowClose);
+    actions.insert(
+        0x7001,
+        DropdownAction::WindowAction(TitleBarAction::Minimize),
+    );
+    actions.insert(
+        0x7002,
+        DropdownAction::WindowAction(TitleBarAction::Maximize),
+    );
+    actions.insert(0x7003, DropdownAction::WindowAction(TitleBarAction::Close));
     descriptor = descriptor
         .with_window_control("—", false, 0x7001)
         .with_window_control("□", false, 0x7002)

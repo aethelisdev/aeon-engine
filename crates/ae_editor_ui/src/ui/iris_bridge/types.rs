@@ -89,12 +89,8 @@ pub enum DropdownAction {
     OpenPreferences,
     /// Opens about engine modal dialog.
     OpenAbout,
-    /// Minimizes the application window to the taskbar.
-    WindowMinimize,
-    /// Toggles the application window between maximized and normal restored size.
-    WindowMaximize,
-    /// Requests the application window to close.
-    WindowClose,
+    /// Window management control action (minimize, maximize/restore, close).
+    WindowAction(irisui::prelude::TitleBarAction),
 }
 
 /// Event handling response payload returned from `IrisEditorOverlay::handle_event`.
@@ -128,12 +124,6 @@ pub struct IrisOverlayEventResult {
     pub cancel_new_folder: bool,
     /// Apply rename request with specified new name.
     pub apply_rename: Option<String>,
-    /// Window minimize request.
-    pub window_minimize: bool,
-    /// Window maximize/restore toggle request.
-    pub window_maximize: bool,
-    /// Window close request.
-    pub window_close: bool,
     /// Cancel rename dialog request.
     pub cancel_rename: bool,
     /// Whether to clear the cached console log entries in the editor UI state.
