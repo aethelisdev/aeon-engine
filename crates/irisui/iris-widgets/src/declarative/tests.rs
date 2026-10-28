@@ -750,4 +750,5 @@ mod input_box_tests;
 mod property_tests;
 mod response_tests;
 mod spacing_and_child_event_tests;
+mod title_bar_tests;
 mod tooltip_tests;

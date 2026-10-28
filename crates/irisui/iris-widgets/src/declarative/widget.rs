@@ -17,6 +17,7 @@ pub mod drag_vec3;
 pub mod empty_box;
 pub mod numeric_drag;
 pub mod scroll_area;
+pub mod title_bar;
 pub mod toolbar;
 pub mod toolbar_button;
 
@@ -30,6 +31,10 @@ pub use drag_vec3::{DragVec3, Vec3Response};
 pub use empty_box::EmptyBox;
 pub use numeric_drag::{NumericDrag, ScalarResponse};
 pub use scroll_area::ScrollAreaView;
+pub use title_bar::{
+    TITLE_BAR_CONTROL_SEED, TitleBar, TitleBarAction, TitleBarBuilder, TitleBarResponse,
+    title_bar_close_tag, title_bar_maximize_tag, title_bar_minimize_tag,
+};
 pub use toolbar::{Toolbar, ToolbarGroup, ToolbarGroupScope, ToolbarScope};
 pub use toolbar_button::ToolbarButton;
 

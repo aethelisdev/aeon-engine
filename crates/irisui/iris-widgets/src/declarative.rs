@@ -37,6 +37,8 @@ pub use types::{
 };
 pub use widget::{
     Button, Checkbox, Chip, ColorPicker, ColorPickerResponse, ColorSwatch, ComboBox,
-    ComboBoxResponse, DragVec3, EmptyBox, NumericDrag, ScalarResponse, ScrollAreaView, Toolbar,
-    ToolbarButton, ToolbarGroup, ToolbarGroupScope, ToolbarScope, Vec3Response, Widget,
+    ComboBoxResponse, DragVec3, EmptyBox, NumericDrag, ScalarResponse, ScrollAreaView, TitleBar,
+    TitleBarAction, TitleBarBuilder, TitleBarResponse, Toolbar, ToolbarButton, ToolbarGroup,
+    ToolbarGroupScope, ToolbarScope, Vec3Response, Widget, title_bar_close_tag,
+    title_bar_maximize_tag, title_bar_minimize_tag,
 };

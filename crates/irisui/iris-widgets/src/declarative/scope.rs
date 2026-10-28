@@ -26,6 +26,7 @@ pub mod properties;
 pub mod scroll_area;
 pub mod spacing;
 pub mod tabs;
+pub mod title_bar;
 pub mod tooltip;
 pub mod tree_view;
 
@@ -36,6 +37,7 @@ pub use menu_bar::{
 pub use panel::PanelBuilder;
 pub use scroll_area::ScrollAreaConfig;
 pub use tabs::TabBarResponse;
+pub use title_bar::TitleBarBuilder;
 pub use tooltip::TooltipExt;
 pub use tree_view::{TreeNodeProps, TreeRowProps, TreeRowResponse, TreeViewConfig, TreeViewProps};
 
