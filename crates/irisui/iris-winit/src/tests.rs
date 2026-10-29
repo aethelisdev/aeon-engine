@@ -330,4 +330,24 @@ fn test_os_file_drag_and_drop_events() {
 
     let state_cancel = state.on_window_event(&cancel_ev);
     assert_eq!(state_cancel, Some(UiEvent::FileCancelled));
+
+    // 3. CursorLeft retention test: cursor departs, but last known position is preserved for file drops
+    let left_ev = WindowEvent::CursorLeft {
+        device_id: DeviceId::dummy(),
+    };
+    state.on_window_event(&left_ev);
+    assert_eq!(state.cursor_pos(), None);
+    assert_eq!(
+        state.last_valid_cursor_pos(),
+        Some(Point::new(200.0, 150.0))
+    );
+
+    let drop_after_left = state.on_window_event(&drop_ev);
+    assert_eq!(
+        drop_after_left,
+        Some(UiEvent::FileDropped {
+            paths: vec![PathBuf::from("/assets/textures/albedo.png")],
+            point: Point::new(200.0, 150.0),
+        })
+    );
 }

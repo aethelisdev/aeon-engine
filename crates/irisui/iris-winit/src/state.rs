@@ -30,6 +30,8 @@ use winit::event::WindowEvent;
 pub struct WinitState {
     /// Active cursor coordinate in logical UI points, or `None` if the cursor is outside the window.
     cursor_pos: Option<Point>,
+    /// Last known valid cursor position, preserved across `CursorLeft` events for file drop hit-testing.
+    last_valid_cursor_pos: Option<Point>,
     /// HighDPI scale factor applied to physical pixel inputs.
     scale_factor: f64,
     /// Real-time modifier key states (Shift, Control, Alt, Super).
@@ -52,6 +54,7 @@ impl WinitState {
         };
         Self {
             cursor_pos: None,
+            last_valid_cursor_pos: None,
             scale_factor: factor,
             modifiers: ModifiersState::new(),
             focused: true,
@@ -98,10 +101,24 @@ impl WinitState {
         self.cursor_pos.is_some()
     }
 
+    /// Returns the last known valid cursor coordinate in logical points, if any.
+    ///
+    /// Preserved even when the cursor departs the window boundary to support external drag-and-drop.
+    #[must_use]
+    #[inline]
+    pub const fn last_valid_cursor_pos(&self) -> Option<Point> {
+        self.last_valid_cursor_pos
+    }
+
     /// Explicitly updates or clears the active cursor position.
+    ///
+    /// When setting a valid position, also synchronizes [`Self::last_valid_cursor_pos`].
     #[inline]
     pub fn set_cursor_pos(&mut self, cursor_pos: Option<Point>) {
         self.cursor_pos = cursor_pos;
+        if let Some(pos) = cursor_pos {
+            self.last_valid_cursor_pos = Some(pos);
+        }
     }
 
     /// Returns the current keyboard modifier key states.
@@ -145,20 +162,30 @@ impl WinitState {
                 let logical_y = (position.y / self.scale_factor) as f32;
                 let point = Point::new(logical_x, logical_y);
                 self.cursor_pos = Some(point);
+                self.last_valid_cursor_pos = Some(point);
                 Some(UiEvent::MouseMove { point })
             }
             WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. } => {
-                let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
+                let p = self
+                    .cursor_pos
+                    .or(self.last_valid_cursor_pos)
+                    .unwrap_or(Point::new(0.0, 0.0));
                 winit_to_ui_event(event, p, self.scale_factor)
             }
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => {
-                let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
+                let p = self
+                    .cursor_pos
+                    .or(self.last_valid_cursor_pos)
+                    .unwrap_or(Point::new(0.0, 0.0));
                 winit_to_ui_event(event, p, self.scale_factor)
             }
             WindowEvent::HoveredFile(_)
             | WindowEvent::DroppedFile(_)
             | WindowEvent::HoveredFileCancelled => {
-                let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
+                let p = self
+                    .cursor_pos
+                    .or(self.last_valid_cursor_pos)
+                    .unwrap_or(Point::new(0.0, 0.0));
                 winit_to_ui_event(event, p, self.scale_factor)
             }
             _ => None,

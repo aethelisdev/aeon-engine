@@ -91,6 +91,8 @@ pub enum AssetsPanelAction {
     EndAssetDrag,
     /// Toggles visibility of internal engine assets and built-in shaders.
     ToggleEngineContent,
+    /// Ingests external files dropped from the host operating system into the active asset folder.
+    ImportDroppedFiles(Vec<PathBuf>),
 }
 
 pub use super::context_menu::{

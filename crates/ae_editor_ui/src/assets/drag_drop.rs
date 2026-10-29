@@ -77,3 +77,80 @@ pub fn handle_viewport_drop(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ae_renderer::camera::ProjectionMode;
+    use cgmath::{Deg, Point3, Rad};
+
+    fn make_test_camera(pos: [f32; 3], pitch_deg: f32, yaw_deg: f32) -> Camera {
+        Camera {
+            position: Point3::new(pos[0], pos[1], pos[2]),
+            yaw: Rad::from(Deg(yaw_deg)),
+            pitch: Rad::from(Deg(pitch_deg)),
+            aspect: 800.0 / 600.0,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 1000.0,
+            mode: ProjectionMode::Perspective,
+            ortho_scale: 10.0,
+            target: Point3::new(0.0, 0.0, 0.0),
+        }
+    }
+
+    #[test]
+    fn test_compute_ground_intersection_center_of_screen() {
+        // Camera positioned at (0, 10, 10) looking down toward origin (pitch -45 deg, yaw -90 deg looking along -Z)
+        let camera = make_test_camera([0.0, 10.0, 10.0], -45.0, -90.0);
+        let viewport_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+
+        // Center of the screen should point towards (0, 0, 0)
+        let hit = compute_ground_intersection([400.0, 300.0], viewport_rect, &camera);
+        assert!(hit.is_some());
+        let pos = hit.unwrap();
+        assert!((pos[0] - 0.0).abs() < 0.2);
+        assert_eq!(pos[1], 0.0);
+        assert!((pos[2] - 0.0).abs() < 0.2);
+    }
+
+    #[test]
+    fn test_compute_ground_intersection_parallel_or_upward_ray() {
+        // Looking horizontally along -Z (pitch 0 deg)
+        let camera = make_test_camera([0.0, 10.0, 10.0], 0.0, -90.0);
+        let viewport_rect = Rect::new(0.0, 0.0, 800.0, 600.0);
+
+        // Screen center ray is horizontal (parallel to ground)
+        let hit_center = compute_ground_intersection([400.0, 300.0], viewport_rect, &camera);
+        assert!(hit_center.is_none());
+
+        // Top of screen points upwards away from ground plane
+        let hit_top = compute_ground_intersection([400.0, 50.0], viewport_rect, &camera);
+        assert!(hit_top.is_none());
+    }
+
+    #[test]
+    fn test_handle_viewport_drop_actions() {
+        let mut state = AssetBrowserState::default();
+        let mut actions = Vec::new();
+
+        state.drag_payload = Some(super::super::types::AssetDragPayload {
+            category: AssetCategory::Models3D,
+            path: std::path::PathBuf::from("models/test.glb"),
+            model_handle: None,
+            texture_handle: None,
+            name: "test.glb".to_string(),
+        });
+
+        handle_viewport_drop(&mut state, [1.0, 0.0, 3.0], &mut actions);
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            EngineUiAction::SpawnModelPathAt(path, pos) => {
+                assert_eq!(path, &std::path::PathBuf::from("models/test.glb"));
+                assert_eq!(*pos, [1.0, 0.0, 3.0]);
+            }
+            _ => panic!("Expected SpawnModelPathAt"),
+        }
+    }
+}

@@ -92,9 +92,6 @@ impl InputArbiter {
                 }
                 engine.handle_focus_change(*focused);
             }
-            WindowEvent::DroppedFile(path) if !consumed => {
-                crate::importer::handle_dropped_file(engine, path.clone());
-            }
             _ => {}
         }
     }

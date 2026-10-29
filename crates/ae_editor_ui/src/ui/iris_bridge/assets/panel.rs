@@ -75,31 +75,61 @@ pub fn build_assets_panel(
                     }
 
                     let content_bg = body_scope.theme().panel_bg;
-                    body_scope.container_named(
-                        "AssetsContentArea",
-                        Style::new()
-                            .flex_col()
-                            .flex_grow(1.0)
-                            .background(content_bg),
-                        |content_scope| match params.view_mode {
-                            AssetViewMode::Grid => {
-                                build_asset_grid_cards_scope(
-                                    content_scope,
-                                    metrics.content_viewport_rect,
-                                    params,
-                                    actions,
-                                );
-                            }
-                            AssetViewMode::List => {
-                                build_asset_list_table_scope(
-                                    content_scope,
-                                    metrics.content_viewport_rect,
-                                    params,
-                                    actions,
-                                );
-                            }
-                        },
-                    );
+                    let mut dropped_files: Option<Vec<PathBuf>> = None;
+
+                    body_scope
+                        .drop_target_styled(
+                            "AssetsContentArea",
+                            Style::new()
+                                .flex_col()
+                                .flex_grow(1.0)
+                                .background(content_bg),
+                            |target_scope, is_hovered| {
+                                if is_hovered {
+                                    let accent = target_scope.theme().accent;
+                                    target_scope.container_named(
+                                        "AssetDropIndicator",
+                                        Style::new()
+                                            .width(metrics.content_viewport_rect.width)
+                                            .height(28.0)
+                                            .background(accent.with_alpha(0.20))
+                                            .border(1.0, accent)
+                                            .align_items(AlignItems::Center)
+                                            .justify_content(JustifyContent::Center),
+                                        |indicator| {
+                                            indicator
+                                                .label("📥 Drop files here to import into project");
+                                        },
+                                    );
+                                }
+
+                                match params.view_mode {
+                                    AssetViewMode::Grid => {
+                                        build_asset_grid_cards_scope(
+                                            target_scope,
+                                            metrics.content_viewport_rect,
+                                            params,
+                                            actions,
+                                        );
+                                    }
+                                    AssetViewMode::List => {
+                                        build_asset_list_table_scope(
+                                            target_scope,
+                                            metrics.content_viewport_rect,
+                                            params,
+                                            actions,
+                                        );
+                                    }
+                                }
+                            },
+                        )
+                        .on_drop(|paths| {
+                            dropped_files = Some(paths.to_vec());
+                        });
+
+                    if let Some(files) = dropped_files {
+                        actions.push(AssetsPanelAction::ImportDroppedFiles(files));
+                    }
                 },
             );
 

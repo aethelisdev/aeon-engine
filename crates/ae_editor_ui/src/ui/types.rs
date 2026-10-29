@@ -87,6 +87,13 @@ pub enum EngineUiAction {
     Undo,
     Redo,
     UndoBatch(Vec<ae_editor::undo_redo::Command>), // For large spawn batches like stress test
+    /// Ingests external files dropped from the host operating system into the engine asset pipeline.
+    ImportDroppedFiles {
+        /// Absolute or relative file system paths to the dropped assets.
+        paths: Vec<std::path::PathBuf>,
+        /// Logical screen cursor coordinates where the drop occurred, or `None` if unpositioned.
+        screen_pos: Option<[f32; 2]>,
+    },
 
     // --- SETTINGS ACTIONS ---
     UpdateGraphicsSettings(ae_renderer::graphics_settings::GraphicsSettings),

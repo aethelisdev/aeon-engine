@@ -66,7 +66,9 @@ impl IrisEditorOverlay {
         // Track logical cursor coordinates for layout, drag-drop, and inspection queries
         if let UiEvent::MouseMove { point }
         | UiEvent::MouseDown { point, .. }
-        | UiEvent::MouseUp { point, .. } = event
+        | UiEvent::MouseUp { point, .. }
+        | UiEvent::FileHovered { point, .. }
+        | UiEvent::FileDropped { point, .. } = event
         {
             self.chrome.cursor_pos = *point;
         }
@@ -123,11 +125,16 @@ impl IrisEditorOverlay {
             self.clear_focus();
         }
 
+        let is_file_drag = matches!(
+            event,
+            UiEvent::FileHovered { .. } | UiEvent::FileDropped { .. } | UiEvent::FileCancelled
+        );
         let should_wake = dispatch.is_consumed()
             || !self.pending_actions.is_empty()
             || self.inspector.has_pending_actions()
             || self.hierarchy.has_pending_actions()
-            || !self.assets.actions.is_empty();
+            || !self.assets.actions.is_empty()
+            || is_file_drag;
 
         if should_wake {
             if dispatch.target_tag == super::console::types::CONSOLE_TAG_VIEWPORT
@@ -157,7 +164,9 @@ impl IrisEditorOverlay {
                     .tag_redraw(crate::ui::panel_layout::PanelId::Inspector);
                 routed_to_panel = true;
             }
-            if super::assets::is_assets_tag(dispatch.target_tag) || !self.assets.actions.is_empty()
+            if super::assets::is_assets_tag(dispatch.target_tag)
+                || !self.assets.actions.is_empty()
+                || is_file_drag
             {
                 self.notifier
                     .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
@@ -166,9 +175,12 @@ impl IrisEditorOverlay {
 
             // If the event was unrouted (outside any dock leaf, e.g. MenuBar, StatusBar, Modal),
             // escalate to global shell invalidation (STRICTLY for discrete structural gestures, never continuous motion)
-            let is_mouse_move = matches!(event, irisui::core::UiEvent::MouseMove { .. });
+            let is_continuous_motion = matches!(
+                event,
+                irisui::core::UiEvent::MouseMove { .. } | irisui::core::UiEvent::FileHovered { .. }
+            );
             let is_pointer_dragging = self.tree.event_state.is_pointer_drag_active;
-            if !routed_to_panel && !is_mouse_move && !is_pointer_dragging {
+            if !routed_to_panel && !is_continuous_motion && !is_pointer_dragging {
                 self.notifier.tag_all();
                 self.chrome.needs_layout_rebuild = true;
             }

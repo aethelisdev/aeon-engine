@@ -181,6 +181,40 @@ impl EngineUi {
             return true;
         }
 
+        // Ingest dropped files directly into the engine asset pipeline
+        if let UiEvent::FileDropped { paths, point } = event {
+            let already_queued = self.pending_actions.iter().any(|act| {
+                matches!(
+                    act,
+                    crate::ui::types::EngineUiAction::ImportDroppedFiles { .. }
+                )
+            }) || self.iris_overlay.assets.actions.iter().any(|act| {
+                matches!(
+                    act,
+                    crate::ui::iris_bridge::AssetsPanelAction::ImportDroppedFiles(_)
+                )
+            });
+
+            if !already_queued && !paths.is_empty() {
+                log::info!(
+                    "📥 FileDropped intercepted at ({:.1}, {:.1}) and queued for import: {:?}",
+                    point.x,
+                    point.y,
+                    paths
+                );
+                self.pending_actions
+                    .push(crate::ui::types::EngineUiAction::ImportDroppedFiles {
+                        paths: paths.clone(),
+                        screen_pos: Some([point.x, point.y]),
+                    });
+                self.iris_overlay
+                    .notifier
+                    .tag_redraw(crate::ui::panel_layout::PanelId::Assets);
+                self.iris_overlay.chrome.needs_layout_rebuild = true;
+                return true;
+            }
+        }
+
         // Layer isolation mandate: events consumed by Iris UI overlays or panels must never leak to underlying systems
         if iris_res.consumed {
             let active_widget_cursor = self.iris_overlay.active_cursor();

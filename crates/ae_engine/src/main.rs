@@ -68,6 +68,32 @@ impl AeApp {
 impl ApplicationHandler for AeApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.engine.is_none() {
+            if let Some(ref proj_path) = self.cli_args.project_path {
+                let target_dir = if proj_path.is_file() {
+                    proj_path.parent().unwrap_or(proj_path)
+                } else {
+                    proj_path.as_path()
+                };
+                if let Err(e) = std::env::set_current_dir(target_dir) {
+                    log::warn!("Could not set working directory to {:?}: {}", target_dir, e);
+                } else {
+                    log::info!("📂 Project root activated: {:?}", target_dir);
+                }
+            }
+
+            if let Some(ref proj_path) = self.cli_args.project_path {
+                let target_dir = if proj_path.is_file() {
+                    proj_path.parent().unwrap_or(proj_path)
+                } else {
+                    proj_path.as_path()
+                };
+                if let Err(e) = std::env::set_current_dir(target_dir) {
+                    log::warn!("Could not set working directory to {:?}: {}", target_dir, e);
+                } else {
+                    log::info!("📂 Project root activated: {:?}", target_dir);
+                }
+            }
+
             // Embed the icon directly in the binary for cross-platform reliability
             let icon_bytes = include_bytes!("../assets/icon/aeicon.png");
             let icon = icon::load_icon_from_memory(icon_bytes);
@@ -180,9 +206,19 @@ impl ApplicationHandler for AeApp {
                     };
                     let target_duration = std::time::Duration::from_secs_f32(1.0 / target_fps);
 
+                    // If an external file drag/drop interaction is active, bypass sleep pacing
+                    // to immediately service X11 XDnD status queries and avoid compositor cursor stalls
+                    let is_dnd_active = engine
+                        .ui
+                        .iris_overlay
+                        .tree
+                        .event_state
+                        .hovered_file
+                        .is_some();
+
                     // Measure elapsed time since the previous frame
                     let elapsed = self.last_frame_time.elapsed();
-                    if elapsed < target_duration {
+                    if elapsed < target_duration && !is_dnd_active {
                         spin_sleep::sleep(target_duration - elapsed);
                     }
 
@@ -296,6 +332,16 @@ fn main() {
         cli_args.project_path
     );
 
+    #[cfg(all(unix, not(target_os = "macos"), not(target_os = "android")))]
+    let event_loop = {
+        use winit::platform::x11::EventLoopBuilderExtX11;
+        EventLoop::builder()
+            .with_x11()
+            .build()
+            .or_else(|_| EventLoop::new())
+            .expect("Failed to create Event Loop")
+    };
+    #[cfg(not(all(unix, not(target_os = "macos"), not(target_os = "android"))))]
     let event_loop = EventLoop::new().expect("Failed to create Event Loop");
     event_loop.set_control_flow(ControlFlow::Poll);
 

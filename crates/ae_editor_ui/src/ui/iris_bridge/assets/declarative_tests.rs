@@ -609,3 +609,93 @@ fn test_assets_panel_drag_and_drop_across_tree_rebuild() {
         release_actions
     );
 }
+
+/// Verifies that dropping OS files onto the declarative Asset Browser content area
+/// captures the drop target and emits [`AssetsPanelAction::ImportDroppedFiles`].
+#[test]
+fn test_assets_content_drop_target_emits_import_action() {
+    let mut tree = UiTree::new();
+    let root_id = tree.create_root().expect("Root node creation failed");
+
+    let params = AssetsPanelParams {
+        panel_rect: Rect::new(0.0, 0.0, 1000.0, 600.0),
+        screen_size: (1280.0, 720.0),
+        current_folder: Path::new("assets"),
+        search_query: "",
+        active_category: AssetCategory::All,
+        view_mode: AssetViewMode::Grid,
+        selected_asset: None,
+        cached_items: &[],
+        filtered_items: &[],
+        subfolders: &[],
+        is_2d_mode: false,
+        show_engine_content: false,
+        sidebar_width: 180.0,
+        sidebar_collapsed: false,
+        cursor_pos: Point::new(0.0, 0.0),
+        blink_caret: false,
+        active_context_menu: None,
+        active_preview_modal: None,
+        thumbnail_layers: &std::collections::HashMap::new(),
+        focus_state: &FocusState::new(),
+        cursor_byte_idx: 0,
+    };
+    let mut tree_state = TreeState::new();
+    let mut init_actions = Vec::new();
+
+    // 1. Initial build & layout
+    let metrics = build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut init_actions,
+    );
+    let mut layout_engine = irisui::layout::LayoutEngine::new();
+    layout_engine
+        .compute_layout(&mut tree, Size::new(1000.0, 600.0))
+        .expect("Layout calculation failed");
+
+    // 2. Dispatch FileHovered over the content viewport
+    let content_pt = Point::new(
+        metrics.content_viewport_rect.x + 50.0,
+        metrics.content_viewport_rect.y + 50.0,
+    );
+    let test_file = PathBuf::from("/home/user/downloads/tree.gltf");
+    let hover_res = tree.dispatch_event(&UiEvent::FileHovered {
+        point: content_pt,
+        path: test_file.clone(),
+    });
+    assert!(
+        hover_res.target.is_some(),
+        "FileHovered over AssetsContentArea must hit a target"
+    );
+    assert_eq!(
+        tree.event_state.hovered_file,
+        Some((test_file.clone(), content_pt)),
+        "Hovered file must be recorded in event state"
+    );
+
+    // 3. Dispatch FileDropped over the content viewport
+    let drop_res = tree.dispatch_event(&UiEvent::FileDropped {
+        point: content_pt,
+        paths: vec![test_file.clone()],
+    });
+    assert!(
+        drop_res.is_consumed(),
+        "FileDropped over AssetsContentArea must be consumed"
+    );
+
+    // 4. Rebuild scope: must emit AssetsPanelAction::ImportDroppedFiles
+    let mut drop_actions = Vec::new();
+    build_assets_panel(
+        &mut UiScope::new(&mut tree, root_id),
+        &params,
+        &mut tree_state,
+        &mut drop_actions,
+    );
+    assert_eq!(
+        drop_actions,
+        vec![AssetsPanelAction::ImportDroppedFiles(vec![test_file])],
+        "Drop target must emit AssetsPanelAction::ImportDroppedFiles"
+    );
+}

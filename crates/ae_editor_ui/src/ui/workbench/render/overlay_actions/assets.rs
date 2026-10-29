@@ -102,6 +102,16 @@ impl EngineUi {
                 iris_bridge::AssetsPanelAction::CopyPath(path) => {
                     log::info!("Asset file path copied: {}", path.display());
                 }
+                iris_bridge::AssetsPanelAction::ImportDroppedFiles(paths) => {
+                    log::info!(
+                        "Assets panel received dropped files for import: {:?}",
+                        paths
+                    );
+                    ui_actions.push(EngineUiAction::ImportDroppedFiles {
+                        paths,
+                        screen_pos: None,
+                    });
+                }
                 iris_bridge::AssetsPanelAction::StartAssetDrag(payload) => {
                     log::info!(
                         "[DRAG-DROP] StartAssetDrag received from Iris UI: label='{}', source='{}', type='{}'",

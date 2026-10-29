@@ -25,11 +25,18 @@ pub fn handle_spawn_model_at(
 
     if let Some(m) = ctx.asset_manager.models.get(mid) {
         let path = std::path::Path::new(&m.source_path);
-        base_name = path
+        let raw_stem = path
             .file_stem()
             .unwrap_or(std::ffi::OsStr::new("Model"))
-            .to_string_lossy()
-            .into_owned();
+            .to_string_lossy();
+        base_name = if raw_stem.eq_ignore_ascii_case("scene") {
+            path.parent()
+                .and_then(|p| p.file_name())
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_else(|| raw_stem.into_owned())
+        } else {
+            raw_stem.into_owned()
+        };
         bbox = ae_core::ecs::BoundingBox {
             min: m.min,
             max: m.max,
@@ -57,6 +64,22 @@ pub fn handle_spawn_model_at(
             z: 0.0,
         },
     ));
+
+    if let Some(m) = ctx.asset_manager.models.get(mid) {
+        if let Some(tex) = m.default_texture {
+            let _ = ctx
+                .world
+                .insert_one(new_entity, ae_core::ecs::SpriteId(tex));
+        }
+        if let Some(ref skel) = m.skeleton {
+            let _ = ctx.world.insert_one(new_entity, skel.clone());
+        }
+        if !m.animations.is_empty() {
+            let mut player = ae_animation::AnimationPlayer::default();
+            player.play(m.animations[0].clone());
+            let _ = ctx.world.insert_one(new_entity, player);
+        }
+    }
     log::info!(
         "[SPAWN] hecs::World::spawn succeeded! Entity={:?}, Name='{}', ModelId={:?}, Pos={:?}",
         new_entity,
@@ -144,11 +167,18 @@ pub fn handle_spawn_sprite_at(
 /// uploads vertex and index buffers to GPU memory, and spawns the entity at the target coordinates.
 pub fn handle_spawn_model_path_at(ctx: &mut UiContext, path: std::path::PathBuf, pos: [f32; 3]) {
     let path_str = path.to_string_lossy().to_string();
-    let final_name = path
+    let raw_stem = path
         .file_stem()
         .unwrap_or(std::ffi::OsStr::new("Model"))
-        .to_string_lossy()
-        .into_owned();
+        .to_string_lossy();
+    let final_name = if raw_stem.eq_ignore_ascii_case("scene") {
+        path.parent()
+            .and_then(|p| p.file_name())
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_else(|| raw_stem.into_owned())
+    } else {
+        raw_stem.into_owned()
+    };
 
     // Check if model already loaded into memory
     let mut existing_handle = None;

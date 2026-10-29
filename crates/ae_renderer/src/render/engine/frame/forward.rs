@@ -173,24 +173,42 @@ fn resolve_submesh_texture<'a>(
     asset_manager: &'a crate::asset::AssetManager,
     default_white: &'a wgpu::BindGroup,
 ) -> (BoundTextureKey, &'a wgpu::BindGroup) {
-    let resolved_handle = override_tex.and_then(|custom_tex| {
-        if let Some(tex_idx) = submesh.texture_index {
-            if tex_idx > 0 && model.embedded_textures.len() > 1 {
+    let resolved_handle = match override_tex {
+        Some(custom_tex) => {
+            if let Some(tex_idx) = submesh.texture_index {
+                if tex_idx > 0 && model.embedded_textures.len() > 1 {
+                    model
+                        .embedded_textures
+                        .get(tex_idx)
+                        .copied()
+                        .filter(|h| asset_manager.textures.get(*h).is_some())
+                        .or(Some(custom_tex))
+                } else if Some(custom_tex) == model.default_texture {
+                    model
+                        .embedded_textures
+                        .get(tex_idx)
+                        .copied()
+                        .or(Some(custom_tex))
+                } else {
+                    Some(custom_tex)
+                }
+            } else {
+                Some(custom_tex)
+            }
+        }
+        None => {
+            if let Some(tex_idx) = submesh.texture_index {
                 model
                     .embedded_textures
                     .get(tex_idx)
                     .copied()
                     .filter(|h| asset_manager.textures.get(*h).is_some())
-                    .or(Some(custom_tex))
-            } else if Some(custom_tex) == model.default_texture {
-                model.embedded_textures.get(tex_idx).copied()
+                    .or(model.default_texture)
             } else {
-                Some(custom_tex)
+                model.default_texture
             }
-        } else {
-            Some(custom_tex)
         }
-    });
+    };
 
     if let Some(handle) = resolved_handle
         && let Some(tex) = asset_manager.textures.get(handle)
