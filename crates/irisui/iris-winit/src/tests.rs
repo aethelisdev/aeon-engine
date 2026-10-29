@@ -79,7 +79,7 @@ fn test_mouse_input_and_move_events() {
         position: PhysicalPosition::new(120.0, 85.0),
     };
     assert_eq!(
-        winit_to_ui_event(&move_ev, p),
+        winit_to_ui_event(&move_ev, p, 1.0),
         Some(UiEvent::MouseMove { point: p })
     );
 
@@ -89,7 +89,7 @@ fn test_mouse_input_and_move_events() {
         button: WinitMouseButton::Left,
     };
     assert_eq!(
-        winit_to_ui_event(&down_ev, p),
+        winit_to_ui_event(&down_ev, p, 1.0),
         Some(UiEvent::MouseDown {
             button: MouseButton::Left,
             point: p
@@ -102,7 +102,7 @@ fn test_mouse_input_and_move_events() {
         button: WinitMouseButton::Right,
     };
     assert_eq!(
-        winit_to_ui_event(&up_ev, p),
+        winit_to_ui_event(&up_ev, p, 1.0),
         Some(UiEvent::MouseUp {
             button: MouseButton::Right,
             point: p
@@ -120,10 +120,10 @@ fn test_mouse_scroll_translation() {
         phase: winit::event::TouchPhase::Moved,
     };
     assert_eq!(
-        winit_to_ui_event(&line_scroll, p),
+        winit_to_ui_event(&line_scroll, p, 1.0),
         Some(UiEvent::MouseScroll {
-            delta_x: 56.0,
-            delta_y: -84.0,
+            delta_x: 64.0,
+            delta_y: -96.0,
             point: p,
         })
     );
@@ -134,10 +134,10 @@ fn test_mouse_scroll_translation() {
         phase: winit::event::TouchPhase::Moved,
     };
     assert_eq!(
-        winit_to_ui_event(&pixel_scroll, p),
+        winit_to_ui_event(&pixel_scroll, p, 1.5),
         Some(UiEvent::MouseScroll {
-            delta_x: 48.0,
-            delta_y: -72.0,
+            delta_x: 32.0,
+            delta_y: -48.0,
             point: p,
         })
     );
@@ -206,7 +206,7 @@ fn test_ime_events() {
 
     let ime_ev = WindowEvent::Ime(Ime::Commit("commit_str".to_string()));
     assert_eq!(
-        winit_to_ui_event(&ime_ev, Point::new(0.0, 0.0)),
+        winit_to_ui_event(&ime_ev, Point::new(0.0, 0.0), 1.0),
         Some(UiEvent::Ime(ImeEvent::Commit("commit_str".to_string())))
     );
 }

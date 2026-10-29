@@ -10,15 +10,13 @@ use iris_core::event::{
     ImeEvent as IrisImeEvent, KeyCode as IrisKeyCode, MouseButton as IrisMouseButton, UiEvent,
 };
 use iris_core::geometry::Point;
-use winit::event::{
-    ElementState, Ime as WinitIme, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
-};
+use winit::event::{ElementState, Ime as WinitIme, MouseButton as WinitMouseButton, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 
 /// Translates a native Winit [`WindowEvent`] into an Iris UI [`UiEvent`].
 ///
-/// Accepts the current cursor position in logical UI points to populate coordinate fields
-/// on mouse gestures, presses, and wheel motions.
+/// Accepts the current cursor position in logical UI points and window HighDPI scale factor
+/// to normalize mouse gestures, presses, and wheel motions.
 ///
 /// Returns `Some(UiEvent)` if the platform event corresponds to an active UI gesture
 /// (mouse motion, mouse button, mouse wheel, keyboard input, or IME composition).
@@ -27,8 +25,13 @@ use winit::keyboard::{Key, NamedKey};
 ///
 /// * `event` - Reference to the active window event from the platform event loop.
 /// * `cursor_pos` - Current mouse cursor position in logical screen points.
+/// * `scale_factor` - Window HighDPI scale factor for normalizing physical pixel deltas.
 #[must_use]
-pub fn winit_to_ui_event(event: &WindowEvent, cursor_pos: Point) -> Option<UiEvent> {
+pub fn winit_to_ui_event(
+    event: &WindowEvent,
+    cursor_pos: Point,
+    scale_factor: f64,
+) -> Option<UiEvent> {
     match event {
         WindowEvent::CursorMoved { .. } => Some(UiEvent::MouseMove { point: cursor_pos }),
         WindowEvent::MouseInput { state, button, .. } => {
@@ -45,13 +48,10 @@ pub fn winit_to_ui_event(event: &WindowEvent, cursor_pos: Point) -> Option<UiEve
             }
         }
         WindowEvent::MouseWheel { delta, .. } => {
-            let (dx, dy) = match delta {
-                MouseScrollDelta::LineDelta(x, y) => (*x * 28.0, *y * 28.0),
-                MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
-            };
+            let normalized = crate::events::normalize_scroll_delta(*delta, scale_factor);
             Some(UiEvent::MouseScroll {
-                delta_x: dx,
-                delta_y: dy,
+                delta_x: normalized.x,
+                delta_y: normalized.y,
                 point: cursor_pos,
             })
         }

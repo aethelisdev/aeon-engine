@@ -9,6 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+glam = { workspace = true }
 iris-core = { workspace = true }
 iris-widgets = { workspace = true }
 winit = { workspace = true }

@@ -149,11 +149,11 @@ impl WinitState {
             }
             WindowEvent::MouseInput { .. } | WindowEvent::MouseWheel { .. } => {
                 let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
-                winit_to_ui_event(event, p)
+                winit_to_ui_event(event, p, self.scale_factor)
             }
             WindowEvent::KeyboardInput { .. } | WindowEvent::Ime(_) => {
                 let p = self.cursor_pos.unwrap_or(Point::new(0.0, 0.0));
-                winit_to_ui_event(event, p)
+                winit_to_ui_event(event, p, self.scale_factor)
             }
             _ => None,
         }

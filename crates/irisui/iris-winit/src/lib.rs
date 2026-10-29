@@ -17,6 +17,7 @@
 pub mod adapter;
 pub mod cursor;
 pub mod dispatch;
+pub mod events;
 pub mod frameless;
 pub mod modifiers;
 pub mod state;
@@ -30,12 +31,17 @@ pub use adapter::{
 };
 pub use cursor::{widget_cursor_to_winit, winit_to_widget_cursor};
 pub use dispatch::{dispatch_winit_event, poll_timers};
+pub use events::{
+    DEFAULT_SCROLL_LINE_STEP, MIN_SAFE_SCALE_FACTOR, normalize_scroll_delta,
+    normalize_scroll_delta_with_line_step,
+};
 pub use frameless::{
     DEFAULT_BORDER_THICKNESS, DEFAULT_CORNER_SIZE, DEFAULT_DOUBLE_CLICK_DISTANCE_THRESHOLD,
     DEFAULT_DOUBLE_CLICK_TIME_THRESHOLD, FramelessWindowHost, ResizeDirection, WindowDragHost,
     WindowDragOutcome, WindowInterface, WindowOpError, evaluate_resize_direction, is_double_click,
     point_distance,
 };
+pub use glam::Vec2;
 
 pub use modifiers::ModifiersState;
 pub use state::WinitState;
